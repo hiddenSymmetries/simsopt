@@ -6,9 +6,9 @@
   MAKE = makevmec2000_py
   LIB_DIR = $(MYHOME)/libstell_dir
 
-.PHONY: vmecpy static
+.PHONY: vmec static
 
-vmecpy: ${VMEC_PATH}/Sources/TimeStep/runvmec.f static
+vmec: ${VMEC_PATH}/Sources/TimeStep/runvmec.f static
 	# /p/stellopt/ANALYSIS/czhu/stellopt_test/STELLOPT/VMEC2000
 	@echo "MAKE VMEC python module using F2PY"
 	f2py --f90exec=${MPI_COMPILE} --f90flags='$(FLAGS_R)' -c reinit.f  indata_local.f90 $< \
