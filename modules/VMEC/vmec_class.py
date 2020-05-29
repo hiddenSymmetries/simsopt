@@ -3,7 +3,7 @@ VMEC python wrapper
 Author: Caoxiang Zhu (caoxiangzhu@gmail.com)
 """
 from __future__ import print_function, absolute_import, division
-import vmecpy
+import vmec
 import numpy as np
 
 run_modes =  {'all': 63,
@@ -67,7 +67,7 @@ class VMEC(object):
             self.run(mode='input', input_file=self.input_file, numsteps=1, verbose=True, comm=self.comm)
             raise ValueError("VMEC initialization error, code:{:d}".format(self.ictl[1]))
         else:
-            vmecpy.indata_local.backup()
+            vmec.indata_local.backup()
         return
 
     def reinit(self, **kwargs):
@@ -75,11 +75,12 @@ class VMEC(object):
         
         """
         #iunit = 66
-        #vmecpy.read_indata(self.input_file, iunit, 0)
+        #vmec.read_indata(self.input_file, iunit, 0)
         ier = 0
-        vmecpy.indata_local.assign()
-        vmecpy.reinit(ier)
+        vmec.indata_local.assign()
+        vmec.reinit(ier)
         return 
+
     def run(self, 
             mode='main',
             ier=0, 
@@ -141,11 +142,11 @@ class VMEC(object):
         self.ictrl[4] = iseq
         # run VMEC
         # print("before: ", self.ictrl)
-        vmecpy.runvmec(self.ictrl, input_file, verbose, comm, reset_file)
+        vmec.runvmec(self.ictrl, input_file, verbose, comm, reset_file)
         self.iter += 1
         return self.ictrl[1] in self.success
         
 def runvmec_raw(*args):
-    vmecpy.runvmec(*args)
+    vmec.runvmec(*args)
     return
 
