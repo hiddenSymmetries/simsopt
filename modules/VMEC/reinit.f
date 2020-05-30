@@ -4,6 +4,8 @@
       USE vmec_params
       USE vacmod
       USE parallel_include_module
+      USE parallel_vmec_module, ONLY: FinalizeRunVmec
+      USE parallel_vmec_module, ONLY: FinalizeSurfaceComm
       IMPLICIT NONE
 C-----------------------------------------------
 C   D u m m y   A r g u m e n t s
@@ -16,6 +18,9 @@ C      INTEGER :: ireadseq, iosnml
 C-----------------------------------------------
       
 C      print *, raxis_cc      
+
+      CALL FinalizeSurfaceComm(NS_COMM)
+      CALL FinalizeRunVmec(RUNVMEC_COMM_WORLD)
 
       IF (lrecon .and. itse.le.0 .and. imse.le.0) lrecon = .false.
       IF (lfreeb .and. mgrid_file.eq.'NONE') lfreeb = .false.
