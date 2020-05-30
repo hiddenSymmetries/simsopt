@@ -26,14 +26,14 @@ Contributor: Caoxiang Zhu
 4. Make
 	Right now, there are two options available.
 		- Native F2PY
-				```
+		```
 		make -f makefile.f2py vmec
 		```
 	  
-		  - f90wrap
-			  ```
-	   make -f makefile.f90wrap all
-	   ```
+		- f90wrap
+		```
+	   	make -f makefile.f90wrap all
+	   	```
 
 ## How to use
 The user is recommended to use a python class [vmec_class.py](vmec_class.py) for calling VMEC. A simple example is shown below.
