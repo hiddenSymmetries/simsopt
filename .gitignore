@@ -15,3 +15,6 @@ f90wrap_*.f90
 # VMEC specific
 modules/VMEC/vmec.py
 modules/VMEC/vmec_pkg/
+
+# examples
+examples/VMEC/
