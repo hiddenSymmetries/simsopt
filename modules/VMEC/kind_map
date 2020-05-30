@@ -11,7 +11,7 @@
  	           '16' : 'complex_long_double',
  	           'dp' : 'complex_double',
 		 'rprec': 'complex_double',},
- 'integer' : {   '' : 'long_long',
+ 'integer' : {   '' : 'int',
                 '4' : 'int',
 	        '8' : 'long_long',
 	       'dp' : 'long_long' }
