@@ -24,16 +24,16 @@ Contributor: Caoxiang Zhu
 	- [f90wrap](https://github.com/jameskermode/f90wrap) (Optional: enhanced Fortran wrapper for python. Install via `pip install git+https://github.com/jameskermode/f90wrap`)
 
 4. Make
-	Right now, there are two options available.
-		- Native F2PY
-		```
-		make -f makefile.f2py vmec
-		```
-	  
-		- f90wrap
-		```
-	   	make -f makefile.f90wrap all
-	   	```
+ Right now, there are two options available.
+   -  f2py
+	```
+	make -f makefile.f2py vmec
+	```
+	
+   - f90wrap
+	```
+	make -f makefile.f90wrap all
+	```
 
 ## How to use
 The user is recommended to use a python class [vmec_class.py](vmec_class.py) for calling VMEC. A simple example is shown below.
