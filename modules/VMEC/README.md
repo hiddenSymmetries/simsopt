@@ -21,19 +21,17 @@ Contributor: Caoxiang Zhu
 3. Download required Python packages.
 	- [numpy](https://numpy.org/) (Basic math package, also contains [F2PY](https://numpy.org/devdocs/f2py/index.html) . Install via `pip install numpy`)
 	- [MPI4PY](https://mpi4py.readthedocs.io/en/stable/install.html) (MPI packages for python. Install via `pip install mpi4py` with `MPICC` env)
-	- [f90wrap](https://github.com/jameskermode/f90wrap) (Optional: enhanced Fortran wrapper for python. Install via `pip install git+https://github.com/jameskermode/f90wrap`)
+	- [f90wrap](https://github.com/jameskermode/f90wrap) (Enhanced Fortran wrapper for python. Install via `pip install git+https://github.com/jameskermode/f90wrap`)
 
 4. Make
-	Right now, there are two options available.
-		- Native F2PY
-		```
-		make -f makefile.f2py vmec
-		```
-	  
-		- f90wrap
-		```
-	   	make -f makefile.f90wrap all
-	   	```
+	The default `makefile` option will compile the python wrapper and do a simple test.
+	```
+	make [all]
+	```
+	There are also other options available.
+	      - `make f90wrap_clean`: clean tmp files for building the wrapper
+	      - `make all_clean`: clean everything including the Fortran compiling files
+	      - `make test_make`: show some key makefile variables
 
 ## How to use
 The user is recommended to use a python class [vmec_class.py](vmec_class.py) for calling VMEC. A simple example is shown below.
