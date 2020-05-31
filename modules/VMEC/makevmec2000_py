@@ -4,10 +4,8 @@ LINK = $(LINK_AR)
 COMPILE += -fPIC
 COMPILE_FREE += -fPIC
 
-libvmec.a: $(LIB) $(ObjectFiles) indata_local.o reinit.o
-	$(LINK) $@ $(ObjectFiles) indata_local.o reinit.o
+libvmec.a: $(LIB) $(ObjectFiles) reinit.o
+	$(LINK) $@ $(ObjectFiles) reinit.o
 
-indata_local.o : indata_local.f90
-	${COMPILE} ${FLAGS_R} ${MOD1_PATH} -c $<
 reinit.o : reinit.f
 	${COMPILE} ${FLAGS_R} ${MOD1_PATH} -c $<

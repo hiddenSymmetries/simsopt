@@ -66,8 +66,8 @@ class VMEC(object):
         if not self.linit:
             self.run(mode='input', input_file=self.input_file, numsteps=1, verbose=True, comm=self.comm)
             raise ValueError("VMEC initialization error, code:{:d}".format(self.ictl[1]))
-        else:
-            vmec.indata_local.backup()
+        # create link for indata
+        self.indata = vmec.vmec_input
         return
 
     def reinit(self, **kwargs):
@@ -77,7 +77,6 @@ class VMEC(object):
         #iunit = 66
         #vmec.read_indata(self.input_file, iunit, 0)
         ier = 0
-        vmec.indata_local.assign()
         vmec.reinit(ier)
         return 
 
