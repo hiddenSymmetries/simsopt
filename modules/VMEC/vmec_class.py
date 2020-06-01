@@ -65,7 +65,7 @@ class VMEC(object):
         # if failed, run again with verbose
         if not self.linit:
             self.run(mode='input', input_file=self.input_file, numsteps=1, verbose=True, comm=self.comm)
-            raise ValueError("VMEC initialization error, code:{:d}".format(self.ictl[1]))
+            raise ValueError("VMEC initialization error, code:{:d}".format(self.ictrl[1]))
         # create link for indata
         self.indata = vmec.vmec_input
         return
