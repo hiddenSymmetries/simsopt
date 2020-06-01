@@ -52,5 +52,9 @@ fcomm = comm.py2f()
 input_file = '../../examples/VMEC/input.QAS' # change it if necessary
 QAS = VMEC(input_file=input_file, verbose=True, comm=fcomm)
 QAS.run(iseq=rank)
+
+# access indata namelist
+print(QAS.indata.rbc)
+
 ```
 There is an example at [examples/VMEC/](../../examples/VMEC). More documentation will be generated automatically using `sphinx`.
