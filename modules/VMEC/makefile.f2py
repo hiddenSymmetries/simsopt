@@ -1,0 +1,24 @@
+  VMEC_PATH ?= ${STELLOPT_PATH}/VMEC2000
+  include ${STELLOPT_PATH}/make.inc
+  DBG = Debug
+  REL = Release
+  LIB_VMEC = libvmec.a
+  MAKE = makevmec2000_py
+  LIB_DIR = $(MYHOME)/libstell_dir
+
+.PHONY: vmec static
+
+vmec: ${VMEC_PATH}/Sources/TimeStep/runvmec.f static
+	# /p/stellopt/ANALYSIS/czhu/stellopt_test/STELLOPT/VMEC2000
+	@echo "MAKE VMEC python module using F2PY"
+	f2py --f90exec=${MPI_COMPILE} --f90flags='$(FLAGS_R)' -c reinit.f  indata_local.f90 $< \
+	-I${VMEC_PATH}/${REL} -I${STELLOPT_PATH}/LIBSTELL/${REL} ${MOD1_PATH} \
+	-L./ -lvmec -L${STELLOPT_PATH}/LIBSTELL/${REL} -lstell ${LIB_SHARE} ${LIBS} -m $@ 
+static:
+	@echo "MAKING STATIC (RELEASE) EXECUTABLE"
+	@cp ${MAKE} ${VMEC_PATH}/Release/. ; cp indata_local.f90 ${VMEC_PATH}/Release/. ; cp reinit.f ${VMEC_PATH}/Release/.
+	@cd ${VMEC_PATH}/${REL}; make -f $(MAKE) $(LIB_VMEC) FLAGS="$(FLAGS_R) $(MOD1_PATH)" SFLAGS="" TYPE="release" LOCTYPE="Release"; rm -f ${MAKE}
+	@mv ${VMEC_PATH}/${REL}/${LIB_VMEC} . ; rm ${VMEC_PATH}/Release/indata_local.f90 ; rm ${VMEC_PATH}/Release/reinit.f
+	@echo "Static Release version - ${LIB_VMEC} - is now updated"
+	@echo "To free up space, delete all *.o files from Release"
+	@echo ""
