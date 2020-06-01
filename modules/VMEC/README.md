@@ -30,9 +30,9 @@ Contributor: Caoxiang Zhu
 	```
 	There are also other options available.
 	
-	      - `make f90wrap_clean`: clean tmp files for building the wrapper
-	      - `make all_clean`: clean everything including the Fortran compiling files
-	      - `make test_make`: show some key makefile variables
+	  - `make f90wrap_clean`: clean tmp files for building the wrapper
+	  - `make all_clean`: clean everything including the Fortran compiling files
+	  - `make test_make`: show some key makefile variables
 
 ## How to use
 The user is recommended to use a python class [vmec_class.py](vmec_class.py) for calling VMEC. A simple example is shown below.
