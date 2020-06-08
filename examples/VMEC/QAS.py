@@ -21,19 +21,41 @@ for i in range(size):
     comm.Barrier()
     if rank == i:
         print('the first run', rank, QAS.ictrl)
-#QAS.run(mode='input',iseq=rank)
+
+# save original data
+rbc = np.copy(QAS.indata.rbc)
+zbs = np.copy(QAS.indata.zbs)
+raxis_cc =  np.copy(QAS.indata.raxis_cc)
+zaxis_cs =  np.copy(QAS.indata.zaxis_cs)
+
+# run
 QAS.run(iseq=rank)
+
+# second run
 for i in range(size):
     comm.Barrier()
     if rank == i:
         print('the second run', rank, QAS.ictrl)
+
+# reset data
 QAS.reinit()
+QAS.indata.rbc = np.copy(rbc)
+QAS.indata.zbs = np.copy(zbs)
+QAS.indata.raxis_cc = np.copy(raxis_cc)
+QAS.indata.zaxis_cs = np.copy(zaxis_cs)
 QAS.run(iseq=rank)
+
+# third run
 for i in range(size):
     comm.Barrier()
     if rank == i:
         print('the third run', rank, QAS.ictrl)
+# reset data
 QAS.reinit()
+QAS.indata.rbc = np.copy(rbc)
+QAS.indata.zbs = np.copy(zbs)
+QAS.indata.raxis_cc = np.copy(raxis_cc)
+QAS.indata.zaxis_cs = np.copy(zaxis_cs)
 QAS.run(iseq=rank)
-print('exit', rank, QAS.ictrl, ', success: ', QAS.success)
+print('exit', rank, QAS.ictrl)
 
