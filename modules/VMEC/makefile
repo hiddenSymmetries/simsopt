@@ -53,7 +53,9 @@ ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release
 #=======================================================================
 
 # files to be wrapped
-LIBSRC_WRAP_SOURCES := ${VMEC_PATH}/Sources/TimeStep/runvmec.f reinit.f indata_local.f90
+LIBSRC_WRAP_SOURCES := runvmec.f \
+		    reinit.f\
+		    vmec_input.f
 
 # object files
 LIBSRC_WRAP_OBJECTS = $(patsubst %.f90,%.o,$(patsubst %.f,%.o, ${LIBSRC_WRAP_SOURCES}))
@@ -73,45 +75,41 @@ LIBSRC_WRAP_FPP_FILES = $(LIBSRC_WRAP_OBJECTS:.o=.fpp)
 
 .PHONY: all all_clean
 
-
-all: _${PYTHON_MODN}.so  _${PYTHON_MODN}_pkg.so test
+all: _${PYTHON_MODN}.so test
 
 f90wrap_clean:
 	-rm -f ${LIBSRC_OBJECTS} ${LIBSRC_FPP_FILES} $(LIB_NAME) _${PYTHON_MODN}*.so \
 	_${PYTHON_MODN}_pkg.so *.mod *.fpp f90wrap*.f90 f90wrap*.o *.o ${PYTHON_MODN}.py
 	-rm -rf ${PYTHON_MODN}_pkg
 	-rm -rf src.*/ .f2py_f2cmap .libs/ __pycache__/
-	-rm -rf $(LIB_NAME)
+	-rm -f $(LIB_NAME)
+	-rm -f ${VMEC_PATH}/Release/reinit.f
+
+all_clean: f90wrap_clean
+	-rm -f ${VMEC_PATH}/Release/*.o
+	-rm -f ${VMEC_PATH}/Release/*.mod
+
 %.fpp : %.f
 	${FPP} ${FPP_F90FLAGS} $< -o $@
 %.fpp : %.f90
 	${FPP} ${FPP_F90FLAGS} $< -o $@
 
-#$(LIBSRC_WRAP_FPP_FILES): %.fpp:%.f
-#	${FPP} ${FPP_F90FLAGS} $<  -o $@
-
 $(LIB_NAME): ${LIBSRC_WRAP_SOURCES}
 	@echo "MAKING STATIC (RELEASE) EXECUTABLE"
-	@cp ${MAKE} ${VMEC_PATH}/Release/. ; cp indata_local.f90 ${VMEC_PATH}/Release/. ; cp reinit.f ${VMEC_PATH}/Release/.
-	@cd ${VMEC_PATH}/Release; make -f $(MAKE) $(LIB_NAME) FLAGS="$(FLAGS_R) $(MOD1_PATH)" SFLAGS="" TYPE="release" LOCTYPE="Release"; rm -f ${MAKE}
-	@mv ${VMEC_PATH}/Release/${LIB_NAME} .; rm ${VMEC_PATH}/Release/indata_local.f90 ; rm ${VMEC_PATH}/Release/reinit.f
+	@cp ${MAKE} ${VMEC_PATH}/Release/. ; cp reinit.f ${VMEC_PATH}/Release/.
+	@cd ${VMEC_PATH}/Release; make -f $(MAKE) $(LIB_NAME) \
+	FLAGS="$(FLAGS_R) $(MOD1_PATH)" SFLAGS="" TYPE="release" LOCTYPE="Release"; rm -f ${MAKE}
+	@mv ${VMEC_PATH}/Release/${LIB_NAME} .; rm ${VMEC_PATH}/Release/reinit.f
 	@echo "Static Release version - ${LIB_NAME} - is now updated"
 	ranlib $@
-
 
 _${PYTHON_MODN}.so: $(LIB_NAME) ${LIBSRC_WRAP_FPP_FILES} 
 	f90wrap -m ${PYTHON_MODN} ${LIBSRC_WRAP_FPP_FILES} -k ${KIND_MAP} -v
 	f2py-f90wrap --f90exec=${FC} --build-dir . -c -m _${PYTHON_MODN} \
 	-L. -l$(PYTHON_MODN) ${ADDITIONAL_LINKS} -I. ${ADDITIONAL_INCLUDES} f90wrap*.f90	
 
-
-_${PYTHON_MODN}_pkg.so: $(LIB_NAME) ${LIBSRC_WRAP_FPP_FILES} 
-	f90wrap -m ${PYTHON_MODN}_pkg ${LIBSRC_WRAP_FPP_FILES} -k ${KIND_MAP} -v -P
-	f2py-f90wrap --f90exec=${FC} --build-dir . -c -m _${PYTHON_MODN}_pkg \
-	-L. -l$(PYTHON_MODN) ${ADDITIONAL_LINKS} -I. ${ADDITIONAL_INCLUDES} f90wrap*.f90
-
 test:
-	@python -c "import $(PYTHON_MODN)"
+	@python -c "import $(PYTHON_MODN); print('import successfully')"
 
 test_make:
 	@echo 'LIBSRC_WRAP_SOURCES = $(LIBSRC_WRAP_SOURCES)'
