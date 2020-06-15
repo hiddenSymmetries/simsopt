@@ -74,10 +74,7 @@ class VMEC(object):
         """Re-initialize VMEC run from indata
         
         """
-        #iunit = 66
-        #vmec.read_indata(self.input_file, iunit, 0)
-        ier = 0
-        vmec.reinit(ier)
+        vmec.reinit()
         return 
 
     def run(self, 
@@ -145,7 +142,4 @@ class VMEC(object):
         self.iter += 1
         return self.ictrl[1] in self.success
         
-def runvmec_raw(*args):
-    vmec.runvmec(*args)
-    return
 
