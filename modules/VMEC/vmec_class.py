@@ -155,7 +155,7 @@ class VMEC(object):
     def load(self, **kwargs):
         ierr = 0
         if self.success:
-            vmec.read_wout_mod.readw_and_open(self.output_file, ierr)
+            vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
             if self.verbose:
                 if ierr == 0:
                     print('Successufully load VMEC results from ', self.output_file)
