@@ -54,7 +54,7 @@ ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release
 
 # files to be wrapped
 LIBSRC_WRAP_SOURCES := runvmec.f \
-		    reinit.f\
+		    reinit.f90 \
 		    vmec_input.f
 
 # object files
@@ -96,10 +96,10 @@ all_clean: f90wrap_clean
 
 $(LIB_NAME): ${LIBSRC_WRAP_SOURCES}
 	@echo "MAKING STATIC (RELEASE) EXECUTABLE"
-	@cp ${MAKE} ${VMEC_PATH}/Release/. ; cp reinit.f ${VMEC_PATH}/Release/.
+	@cp ${MAKE} ${VMEC_PATH}/Release/. ; cp reinit.f90 ${VMEC_PATH}/Release/.
 	@cd ${VMEC_PATH}/Release; make -f $(MAKE) $(LIB_NAME) \
 	FLAGS="$(FLAGS_R) $(MOD1_PATH)" SFLAGS="" TYPE="release" LOCTYPE="Release"; rm -f ${MAKE}
-	@mv ${VMEC_PATH}/Release/${LIB_NAME} .; rm ${VMEC_PATH}/Release/reinit.f
+	@mv ${VMEC_PATH}/Release/${LIB_NAME} .; rm ${VMEC_PATH}/Release/reinit.f90 ; rm ${VMEC_PATH}/Release/reinit.o
 	@echo "Static Release version - ${LIB_NAME} - is now updated"
 	ranlib $@
 
