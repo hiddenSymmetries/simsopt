@@ -16,46 +16,62 @@ print("Hello from rank %s of %s." % (rank, size))
 
 fcomm = comm.py2f()
 path = 'input.QAS'
-QAS = VMEC(input_file=path, verbose=True, comm=fcomm)
-for i in range(size):
-    comm.Barrier()
-    if rank == i:
-        print('the first run', rank, QAS.ictrl)
+if rank == 0:
+    verbose = True
+else:
+    verbose = False
+QAS = VMEC(input_file=path, verbose=verbose, comm=fcomm)
 
 # save original data
 rbc = np.copy(QAS.indata.rbc)
 zbs = np.copy(QAS.indata.zbs)
-raxis_cc =  np.copy(QAS.indata.raxis_cc)
-zaxis_cs =  np.copy(QAS.indata.zaxis_cs)
+raxis_cc = np.copy(QAS.indata.raxis_cc)
+zaxis_cs = np.copy(QAS.indata.zaxis_cs)
 
-# run
+# run & load
 QAS.run(iseq=rank)
+QAS.load()
+if rank == 0:
+    print('First run status: ', QAS.success, QAS.ictrl)
+    print('rmnc[0,-1] = ', QAS.wout.rmnc[0, -1])
 
 # second run
-for i in range(size):
-    comm.Barrier()
-    if rank == i:
-        print('the second run', rank, QAS.ictrl)
+comm.Barrier()
+if rank == 0:
+    print('\nBegin the second run with RBC(0,0)=1.5')
 
 # reset data
-QAS.reinit()
 QAS.indata.rbc = np.copy(rbc)
 QAS.indata.zbs = np.copy(zbs)
 QAS.indata.raxis_cc = np.copy(raxis_cc)
 QAS.indata.zaxis_cs = np.copy(zaxis_cs)
+
+# revise data, run, check
+QAS.indata.rbc[101, 0] = 1.5
+QAS.reinit()
 QAS.run(iseq=rank)
+QAS.load()
+if rank == 0:
+    print('Second run status: ', QAS.success, QAS.ictrl)
+    print('rmnc[0,-1] = ', QAS.wout.rmnc[0, -1])
 
 # third run
-for i in range(size):
-    comm.Barrier()
-    if rank == i:
-        print('the third run', rank, QAS.ictrl)
+comm.Barrier()
+if rank == 0:
+    print('\nBegin the third run with RBC(0,0) = original value and muted')
+
 # reset data
-QAS.reinit()
 QAS.indata.rbc = np.copy(rbc)
 QAS.indata.zbs = np.copy(zbs)
 QAS.indata.raxis_cc = np.copy(raxis_cc)
 QAS.indata.zaxis_cs = np.copy(zaxis_cs)
-QAS.run(iseq=rank)
-print('exit', rank, QAS.ictrl)
+QAS.verbose = False
+QAS.reinit()
 
+# run and load
+QAS.run(iseq=rank)
+QAS.load()
+if rank == 0:
+    print('Third run status: ', QAS.success, QAS.ictrl)
+    print('rmnc[0,-1] = ', QAS.wout.rmnc[0, -1])
+    print('Finished!')

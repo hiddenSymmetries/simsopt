@@ -55,8 +55,8 @@ ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release
 # files to be wrapped
 LIBSRC_WRAP_SOURCES := runvmec.f \
 		    reinit.f90 \
-		    vmec_input.f
-
+		    vmec_input.f \
+		    read_wout_mod.f90
 # object files
 LIBSRC_WRAP_OBJECTS = $(patsubst %.f90,%.o,$(patsubst %.f,%.o, ${LIBSRC_WRAP_SOURCES}))
 
