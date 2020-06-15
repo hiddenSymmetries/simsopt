@@ -48,7 +48,9 @@ class VMEC(object):
             None
         """
         # pass arguments and check
-        assert isinstance(input_file, str), "input_file should the input filename in str."        
+        assert isinstance(input_file, str), "input_file should the input filename in str."
+        if 'input.' not in input_file:
+            input_file = 'input.'+input_file
         self.input_file = input_file
         assert isinstance(comm, int), "MPI communicator should be converted using MPI.py2f()."
         self.comm = comm      
@@ -57,7 +59,7 @@ class VMEC(object):
 
         # re-usable attributs
         self.iter = 0
-        self.success = (0, 11) # successful return codes
+        self.success_code = (0, 11) # successful return codes
         self.ictrl = np.zeros(5, dtype=np.int32)
         
         # initialize VMEC
@@ -68,16 +70,16 @@ class VMEC(object):
             raise ValueError("VMEC initialization error, code:{:d}".format(self.ictrl[1]))
         # create link for indata
         self.indata = vmec.vmec_input
+        # create link for read_wout_mod
+        self.wout = vmec.read_wout_mod
+
         return
 
     def reinit(self, **kwargs):
         """Re-initialize VMEC run from indata
         
         """
-        #iunit = 66
-        #vmec.read_indata(self.input_file, iunit, 0)
-        ier = 0
-        vmec.reinit(ier)
+        vmec.reinit()
         return 
 
     def run(self, 
@@ -128,7 +130,11 @@ class VMEC(object):
         assert mode in run_modes, "Unsupported running mode. Should be one of [{:}].".format(','.join(run_modes.keys()))
         assert ier==0, "Error flag should be zero at input."
         if input_file is None:
-            input_file = self.input_file+'_{:06d}'.format(self.iter)            
+            input_file = self.input_file+'_{:06d}'.format(self.iter)
+        else:
+            if 'input.' not in input_file:
+                input_file = 'input.'+input_file
+        self.output_file = input_file.replace('input.', 'wout_')+'.nc'
         if verbose is None:
             verbose = self.verbose
         if comm is None:
@@ -143,9 +149,16 @@ class VMEC(object):
         # print("before: ", self.ictrl)
         vmec.runvmec(self.ictrl, input_file, verbose, comm, reset_file)
         self.iter += 1
-        return self.ictrl[1] in self.success
+        self.success = self.ictrl[1] in self.success_code
+        return self.success
         
-def runvmec_raw(*args):
-    vmec.runvmec(*args)
-    return
-
+    def load(self, **kwargs):
+        ierr = 0
+        if self.success:
+            vmec.read_wout_mod.readw_and_open(self.output_file, ierr)
+            if self.verbose:
+                if ierr == 0:
+                    print('Successufully load VMEC results from ', self.output_file)
+                else:
+                    print('Load VMEC results from {:} failed!'.format(self.output_file))
+        return ierr
