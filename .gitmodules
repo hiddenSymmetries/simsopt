@@ -2,6 +2,6 @@
 	path = externalPackages/mango
 	url = https://github.com/hiddenSymmetries/mango.git
 [submodule "modules/spec/spec"]
-	path = modules/spec/spec
+	path = simsopt/modules/spec/spec
 	url = https://github.com/PrincetonUniversity/SPEC.git
 	shallow = true
