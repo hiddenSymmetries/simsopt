@@ -644,7 +644,8 @@ class VmecInput:
                 self.dzeta * self.nfp
         return dvolumedrmnc, dvolumedzmns
       
-    def area_derivatives(self,xm_sensitivity,xn_sensitivity,theta=None,zeta=None):
+    def area_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, 
+                         zeta=None):
         """
         TODO: doc string
         """
