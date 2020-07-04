@@ -13,7 +13,7 @@ from FortranNamelistTools import *  # TODO: Change this import
 from optimization_utils import *    # TODO: Change this import
 
 __author__ = "Elizabeth Paul, Bharat Medasani"
-#__copyright__ = "Copyright 2011, The Materials Project"
+__copyright__ = ""
 __version__ = "0.0.1"
 __maintainer__ = "Bharat Medasani"
 __email__ = "mbkumar@gmail.com"
