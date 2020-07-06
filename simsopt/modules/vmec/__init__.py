@@ -5,3 +5,4 @@ This package contains clases for calling VMEC code and for manipulating and proc
 """
 
 from .core import VMEC
+from .input import VmecInput
