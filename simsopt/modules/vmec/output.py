@@ -6,6 +6,17 @@ from scipy.io import netcdf
 class VmecOutput:
 
     def __init__(self, wout_filename, ntheta=100, nzeta=100):
+        """
+        Reads VMEC output from netcdf file
+        
+        Args:
+            wout_filename (str): Netcdf filename to read from
+            ntheta (int): Number of poloidal gridpoints
+            nzeta (int): Number of toroidal gridpoints (per period)
+            
+        Returns:
+            VmecOutput
+        """
         self.wout_filename = wout_filename
         self.input_filename = 'input.' + wout_filename.split('.')[0][5::]
         self.directory = os.getcwd()
@@ -65,92 +76,63 @@ class VmecOutput:
                 self.thetas, self.zetas_full)
         
         self.mu0 = 4*np.pi*1.0e-7
-        
-    def d_r_d_u(self, isurf=-1):
-        this_rmnc = self.rmnc[isurf,:]
-        this_zmns = self.zmns[isurf,:]
-        
-        dRdu = np.zeros(np.shape(self.thetas_2d))
-        dZdu = np.zeros(np.shape(self.thetas_2d))
-        for im in range(self.mnmax):
-            angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
-            cos_angle = np.cos(angle)
-            sin_angle = np.sin(angle)
-            dRdu -= self.xm[im] * this_rmnc[im] * sin_angle
-            dZdu += self.xm[im] * this_zmns[im] * cos_angle
-        dXdu = dRdu*np.cos(self.zetas_2d)
-        dYdu = dRdu*np.sin(self.zetas_2d)
-        return dXdu, dYdu, dZdu
-  
-    def d_r_d_v(self, isurf=-1):
-        this_rmnc = self.rmnc[isurf,:]
-        this_zmns = self.zmns[isurf,:]
-        
-        dRdv = np.zeros(np.shape(self.thetas_2d))
-        dZdv = np.zeros(np.shape(self.thetas_2d))
-        R = np.zeros(np.shape(self.thetas_2d))
-        for im in range(self.mnmax):
-            angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
-            cos_angle = np.cos(angle)
-            sin_angle = np.sin(angle)
-            dRdv = dRdv + self.xn[im] * this_rmnc[im] * sin_angle
-            dZdv = dZdv - self.xn[im] * this_zmns[im] * cos_angle
-            R = R + this_rmnc[im] * cos_angle
-        dXdv = dRdv*np.cos(self.zetas_2d) - R*np.sin(self.zetas_2d)
-        dYdv = dRdv*np.sin(self.zetas_2d) + R*np.cos(self.zetas_2d)
-        return dXdv, dYdv, dZdv
-  
-    def B_on_arclength_grid(self):
-        # Extrapolate to last full mesh grid point
-        bsupumnc_end = 1.5*self.bsupumnc[-1,:] - 0.5*self.bsupumnc[-2,:]
-        bsupvmnc_end = 1.5*self.bsupvmnc[-1,:] - 0.5*self.bsupvmnc[-2,:]
-        rmnc_end = self.rmnc[-1,:]
-        zmns_end = self.zmns[-1,:]
-          
-        # Evaluate at last full mesh grid point
-        [dXdu_end, dYdu_end, dZdu_end] = self.d_r_d_u(-1)
-        [dXdv_end, dYdv_end, dZdv_end] = self.d_r_d_v(-1)
-        
-        Bsupu_end = np.zeros(np.shape(self.thetas_2d))
-        Bsupv_end = np.zeros(np.shape(self.thetas_2d))
-        R_end = np.zeros(np.shape(self.thetas_2d))
-        Z_end = np.zeros(np.shape(self.thetas_2d))
-        for im in range(self.mnmax):
-            angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
-            cos_angle = np.cos(angle)
-            sin_angle = np.sin(angle)
-            Bsupu_end = Bsupu_end + bsupumnc_end[im] * cos_angle
-            Bsupv_end = Bsupv_end + bsupvmnc_end[im] * cos_angle
-            R_end = R_end + rmnc_end[im] * cos_angle
-            Z_end = Z_end + zmns_end[im] * sin_angle
-        Bx_end = Bsupu_end * dXdu_end + Bsupv_end * dXdv_end
-        By_end = Bsupu_end * dYdu_end + Bsupv_end * dYdv_end
-        Bz_end = Bsupu_end * dZdu_end + Bsupv_end * dZdv_end
-
-        theta_arclength = np.zeros(np.shape(self.zetas_2d))
-        for izeta in range(self.nzeta):
-            for itheta in range(1, self.ntheta):
-                dr = np.sqrt((R_end[izeta, itheta] - R_end[izeta, itheta-1])**2 \
-                        + (Z_end[izeta, itheta] - Z_end[izeta, itheta-1])**2)
-                theta_arclength[izeta, itheta] = \
-                        theta_arclength[izeta, itheta-1] + dr
-        
-        return Bx_end, By_end, Bz_end, theta_arclength
 
     def compute_current(self):
+        """
+        Computes integrated toroidal current profile
+            
+        Returns:
+            It_half (float array): integrated toroidal current on half
+                flux grid
+        """
         It_half = self.sign_jac * 2*np.pi * self.bsubumnc[:,0] / self.mu0
         return It_half
 
-    def compute_N(self, isurf=-1, theta=None, zeta=None):  
-        [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta] = \
-          self.position_first_derivatives(isurf, theta, zeta)
-      
+    def compute_N(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes components of normal vector multiplied by surface Jacobian
+        
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+
+        Returns:
+            Nx (float array): x component of unit normal multiplied by Jacobian
+            Ny (float array): y component of unit normal multiplied by Jacobian
+            Nz (float array): z component of unit normal multiplied by Jacobian
+        """
+
         Nx = -dydzeta*dzdtheta + dydtheta*dzdzeta
         Ny = -dzdzeta*dxdtheta + dzdtheta*dxdzeta
         Nz = -dxdzeta*dydtheta + dxdtheta*dydzeta
         return Nx, Ny, Nz
   
     def compute_N_derivatives(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes derivatives of normal vector with respect to poloidal and
+            toroidal angles
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            dNxdtheta (float array): derivative of x component of normal
+                vector wrt poloidal angle
+            dNxdzeta (float array): derivative of x component of normal
+                vector wrt toroidal angle
+            dNydtheta (float array): derivative of y component of normal
+                vector wrt poloidal angle
+            dNydzeta (float array): derivative of y component of normal
+                vector wrt toroidal angle
+            dNzdtheta (float array): derivative of z component of normal
+                vector wrt poloidal angle
+            dNzdzeta (float array): derivative of z component of normal
+                vector wrt toroidal angle
+            
+        """
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta] = \
                 self.position_first_derivatives(isurf, theta, zeta)
         [d2xdtheta2, d2xdzeta2, d2xdthetadzeta, d2ydtheta2, d2ydzeta2, \
@@ -172,6 +154,27 @@ class VmecOutput:
         return dNxdtheta, dNxdzeta, dNydtheta, dNydzeta, dNzdtheta, dNzdzeta
   
     def compute_n_derivatives(self, isurf=-1):
+        """
+        Computes derivatives of unit normal vector with respect to poloidal and
+            toroidal angles
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            
+        Returns:
+            dnxdtheta (float array): derivative of x component of unit normal
+                vector wrt poloidal angle
+            dnxdzeta (float array): derivative of x component of unit normal
+                vector wrt toroidal angle
+            dnydtheta (float array): derivative of y component of unit normal
+                vector wrt poloidal angle
+            dnydzeta (float array): derivative of y component of unit normal
+                vector wrt toroidal angle
+            dnzdtheta (float array): derivative of z component of unit normal
+                vector wrt poloidal angle
+            dnzdzeta (float array): derivative of z component of unit normal
+                vector wrt toroidal angle
+        """
         [Nx,Ny,Nz] = self.compute_N(isurf)
         [dNxdtheta, dNxdzeta, dNydtheta, dNydzeta, dNzdtheta, dNzdzeta] = \
           self.compute_N_derivatives(isurf)
@@ -186,8 +189,22 @@ class VmecOutput:
         dnzdzeta = dNzdzeta/norm_normal - Nz*dnorm_normaldzeta/(norm_normal**2)
         return dnxdtheta, dnxdzeta, dnydtheta, dnydzeta, dnzdtheta, dnzdzeta
   
-    # Returns X, Y, Z at isurf point on full mesh 
     def compute_position(self, isurf=-1, full=False):
+        """
+        Computes position vector on specified surface
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            full (bool): if True, calculation performed on the full toroidal
+                grid
+            
+        Returns:
+            X (float array): x component of position vector
+            Y (float array): y component of position vector
+            Z (float array): height component of position vector
+            R (float array): radius component of position vector
+
+        """
         this_rmnc = self.rmnc[isurf,:]
         this_zmns = self.zmns[isurf,:] 
 
@@ -209,32 +226,110 @@ class VmecOutput:
         Y = R * np.sin(zeta)
         return X, Y, Z, R
 
-    # Integrated rotational transform with weight function
     def evaluate_iota_objective(self, weight):
-        return np.sum(weight(self.s_half) * self.iota) * self.ds * \
-                self.psi[-1] * self.sign_jac
+        """
+        Computes integrated rotational transform objective function
+            
+        Input:
+            weight (function): returns weight as a function of normalized
+                toroidal flux
+            
+        Args:
+            iota_function (float): rotational transform integrated against
+                weight function on half grid
+            
+        """
+        iota_function = np.sum(weight(self.s_half) * self.iota) * self.ds * \
+            self.psi[-1] * self.sign_jac
+        return iota_function
   
     # Integrated differential volume with weight function
     def evaluate_well_objective(self, weight):
-        return 4*np.pi*np.pi*np.sum(weight(self.s_half) * self.vp) * self.ds
+        """
+        Computes integrated well objective function
+            
+        Input:
+            weight (function): returns weight as a function of normalized
+                toroidal flux
+            
+        Args:
+            well_function (float): differential volume integrated against weight
+            function on half grid
+            
+        """
+        well_function = 4*np.pi*np.pi*np.sum(weight(self.s_half) * self.vp) * \
+            self.ds
+        return well_function
   
     def jacobian(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes surface jacobian on specified surface
+            
+        Input:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Args:
+            norm_normal (float array): surface jacobian on grid in angles
+            
+        """
         [Nx,Ny,Nz] = self.compute_N(isurf,theta=theta, zeta=zeta)
         norm_normal = np.sqrt(Nx**2 + Ny**2 + Nz**2)
         return norm_normal
   
     def normalized_jacobian(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes surface Jacobian normalized by surface area
+            
+        Input:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            normalized_norm_normal (float array): normalized surface Jacobian
+            
+        """
         norm_normal = self.jacobian(isurf, theta, zeta)
         area = self.area(isurf, theta, zeta)
         return norm_normal * 4*np.pi*np.pi / area
   
     def area(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes area of specified surface
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            area (float): area of boundary surface
+        """
         [Nx, Ny, Nz] = self.compute_N(isurf, theta, zeta)
         norm_normal = np.sqrt(Nx**2 + Ny**2 + Nz**2)
         area = np.sum(norm_normal) * self.dtheta * self.dzeta * self.nfp
         return area
   
     def position_first_derivatives(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes derivatives of position vector with respect to angles
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            dxdtheta (float array): derivative of x wrt poloidal angle
+            dxdzeta (float array): derivative of x wrt toroidal angle
+            dydtheta (float array): derivative of y wrt poloidal angle
+            dydzeta (float array): derivative of y wrt toroidal angle
+            dzdtheta (float array): derivative of z wrt poloidal angle
+            dzdzeta (float array): derivative of z wrt toroidal angle
+            
+        """
         logger = logging.getLogger(__name__)
         this_rmnc = self.rmnc[isurf,:]
         this_zmns = self.zmns[isurf,:] 
@@ -266,6 +361,32 @@ class VmecOutput:
         return dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta
   
     def position_second_derivatives(self, isurf=-1, theta=None, zeta=None):
+        """
+        Computes second derivatives of position vector with respect to the
+            toroidal and poloidal angles
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            d2xdtheta2 (float array): second derivative of x wrt poloidal angle
+            d2xdzeta2 (float array): second derivative of x wrt toroidal angle
+            d2xdthetadzeta (float array): second derivative of x wrt toroidal
+                and poloidal angles
+            d2ydtheta2 (float array): second derivative of y wrt poloidal angle
+            d2ydzeta2 (float array): second derivative of y wrt toroidal angle
+            d2ydthetadzeta (float array): second derivative of y wrt toroidal
+                and poloidal angles
+            d2Zdtheta2 (float array): second derivative of height wrt poloidal
+                angle
+            d2Zdzeta2 (float array): second derivative of height wrt toroidal
+                angle
+            d2Zdthetadzeta (float array): second derivative of height wrt
+                toroidal and poloidal angles
+            
+        """
         logger = logging.getLogger(__name__)
         this_rmnc = self.rmnc[isurf,:]
         this_zmns = self.zmns[isurf,:] 
@@ -317,6 +438,16 @@ class VmecOutput:
                 d2ydthetadzeta, d2Zdtheta2, d2Zdzeta2, d2Zdthetadzeta
     
     def mean_curvature(self, isurf=-1):
+        """
+        Computes mean curvature of boundary surface
+            
+        Args:
+            isurf (int): full flux gridpoint for evaluation (optional)
+
+        Returns:
+            H (float array): mean curvature on angular grid
+            
+        """
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dZdtheta, dZdzeta] = \
                 self.position_first_derivatives(isurf)
         [d2xdtheta2, d2xdzeta2, d2xdthetadzeta, d2ydtheta2, d2ydzeta2, \
@@ -343,6 +474,23 @@ class VmecOutput:
     # Shape of theta and zeta must be the same
     def jacobian_derivatives(self, xm_sensitivity, xn_sensitivity, \
                              theta=None, zeta=None):
+        """
+        Computes derivatives of surface Jacobian with respect to
+            boundary harmoncics (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dNdrmnc (float array): derivative of jacobian with respect to rbc
+            dNdzmns (float array): derivative of jacobian with respect to zbs
+            
+        """
+
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             zeta = self.zetas_2d
@@ -412,6 +560,22 @@ class VmecOutput:
 
     def radius_derivatives(self, xm_sensitivity, xn_sensitivity, 
                            theta=None, zeta=None):
+        """
+        Computes derivatives of radius with respect to boundary harmoncics
+            (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dRdrmnc (float array): derivative of radius with respect to rbc
+            dZdzmns (float array): derivative of radius with respect to zbs
+            
+        """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             zeta = self.zetas_2d
@@ -444,6 +608,23 @@ class VmecOutput:
   
     def area_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, \
                          zeta=None):
+        """
+        Computes derivatives of area of boundary with respect to boundary
+            harmoncics (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dareadrmnc (float array): derivative of area with respect to rbc
+            dareadzmns (float array): derivative of area with respect to zbs
+            
+        """
+
         [dNdrmnc, dNdzmns] = self.jacobian_derivatives(
                 xm_sensitivity, xn_sensitivity, theta, zeta)
         dareadrmnc = np.sum(dNdrmnc, axis=(1, 2)) * self.dtheta * \
@@ -454,6 +635,26 @@ class VmecOutput:
   
     def normalized_jacobian_derivatives(self, xm_sensitivity, xn_sensitivity, \
                                         theta=None, zeta=None):
+        """
+        Computes derivatives of normalized Jacobian with respect to Fourier
+            harmonics of the boundary (rbc, zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            dnormalized_jacobiandrmnc (float array): derivatives with respect to
+                radius boundary harmonics
+            dnormalized_jacobiandzmns (float array): derivatives with respect to
+                height boundary harmonics
+            
+        """
+
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             zeta = self.zetas_2d
@@ -488,9 +689,59 @@ class VmecOutput:
                     - N * dareadrmnc[imn] / (area * area)
             dnormalized_jacobiandzmns[imn,:,:] = dNdzmns[imn,:,:] / area \
                     - N * dareadzmns[imn] / (area * area)
+        dnormalized_jacobiandrmnc *= 4 *np.pi * np.pi
+        dnormalized_jacobiandzmns *= 4 *np.pi * np.pi
         
-        return 4*np.pi*np.pi*dnormalized_jacobiandrmnc, \
-                4*np.pi*np.pi*dnormalized_jacobiandzmns
-      
-    
-    
+        return dnormalized_jacobiandrmnc, dnormalized_jacobiandzmns
+
+    def B_on_arclength_grid(self):
+        """
+        Computes vector components of magnetic field on boundary on grid in
+            toroidal angle and arclength poloidal angle
+        
+        Returns:
+            Bx_end (float array): x component of magnetic field on zeta
+                and theta arclength grid
+            By_end (float array): y component of magnetic field on zeta
+                and theta arclength grid
+            Bz_end (float array): z component of magnetic field on zeta
+                and theta arclength grid
+            theta_arclength (float array): theta arclength grid on grid of
+                original VMEC angles
+        """
+        # Extrapolate to last full mesh grid point
+        bsupumnc_end = 1.5*self.bsupumnc[-1,:] - 0.5*self.bsupumnc[-2,:]
+        bsupvmnc_end = 1.5*self.bsupvmnc[-1,:] - 0.5*self.bsupvmnc[-2,:]
+        rmnc_end = self.rmnc[-1,:]
+        zmns_end = self.zmns[-1,:]
+        
+        # Evaluate at last full mesh grid point
+        [dXdu_end, dXdv_end, dYdu_end, dYdv_end, dZdu_end, dZdv_end] = \
+            self.position_first_derivatives(-1)
+            
+        Bsupu_end = np.zeros(np.shape(self.thetas_2d))
+        Bsupv_end = np.zeros(np.shape(self.thetas_2d))
+        R_end = np.zeros(np.shape(self.thetas_2d))
+        Z_end = np.zeros(np.shape(self.thetas_2d))
+        for im in range(self.mnmax):
+            angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
+            cos_angle = np.cos(angle)
+            sin_angle = np.sin(angle)
+            Bsupu_end = Bsupu_end + bsupumnc_end[im] * cos_angle
+            Bsupv_end = Bsupv_end + bsupvmnc_end[im] * cos_angle
+            R_end = R_end + rmnc_end[im] * cos_angle
+            Z_end = Z_end + zmns_end[im] * sin_angle
+        Bx_end = Bsupu_end * dXdu_end + Bsupv_end * dXdv_end
+        By_end = Bsupu_end * dYdu_end + Bsupv_end * dYdv_end
+        Bz_end = Bsupu_end * dZdu_end + Bsupv_end * dZdv_end
+        
+        theta_arclength = np.zeros(np.shape(self.zetas_2d))
+        for izeta in range(self.nzeta):
+            for itheta in range(1, self.ntheta):
+                dr = np.sqrt((R_end[izeta, itheta] - R_end[izeta, itheta-1])**2 \
+                             + (Z_end[izeta, itheta] - Z_end[izeta, itheta-1])**2)
+                             theta_arclength[izeta, itheta] = \
+                                 theta_arclength[izeta, itheta-1] + dr
+        
+        return Bx_end, By_end, Bz_end, theta_arclength
+
