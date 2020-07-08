@@ -36,8 +36,8 @@ class VmecInput:
 
         Args:
             input_filename (str): The filename to read from.
-            ntheta (int): Theta intervals
-            nzeta (int): Zeta intervals
+            ntheta (int): Number of poloidal gridpoints
+            nzeta (int): Number of toroidal gridpoints (per period)
 
         Returns:
             VMECInput.
@@ -69,12 +69,11 @@ class VmecInput:
         self.update_modes(nml.get("mpol"), nml.get("ntor"))
 
         self.update_grids(ntheta, nzeta)
-        self.min_curvature_radius = 0.3
 
-    # updates self.namelist with attributes (except rbc/zbs)
     def update_namelist(self):
         """
-        TODO: doc string
+        Updates Fortran namelist with class attributes (except for rbc/zbs)
+        
         """
         self.namelist['nfp'] = self.nfp
         self.namelist['raxis'] = self.raxis
@@ -91,7 +90,12 @@ class VmecInput:
 
     def update_modes(self, mpol, ntor):
         """
-        TODO: doc string
+        Updates poloidal and toroidal mode numbers (xm and xn) given maximum
+            mode numbers (mpol and ntor)
+            
+        Args:
+            mpol (int): maximum poloidal mode number + 1
+            ntor (int): maximum toroidal mode number
         """
         self.mpol = mpol
         self.ntor = ntor
@@ -101,7 +105,12 @@ class VmecInput:
         
     def update_grids(self,ntheta,nzeta):
         """
-        TODO: doc string
+        Updates poloidal and toroidal grids (thetas and zetas) given number of
+            grid points
+            
+        Args:
+            ntheta (int): number of poloidal grid points
+            nzeta (int): number of toroidal grid points (per period)
         """
         self.ntheta = ntheta
         self.nzeta = nzeta
@@ -122,18 +131,15 @@ class VmecInput:
         """
         Read in boundary harmonics (rbc, zbs) from Fortran namelist
 
-        Parameters
-        ----------
-        xm (int array) : poloidal mode numbers to read
-        xn (int array) : toroidal mode numbers to read
+        Args:
+            xm (int array): poloidal mode numbers to read
+            xn (int array): toroidal mode numbers to read
 
-        Returns
-        ----------
-        rbc (float array) : boundary harmonics for radial coordinate
-                    (same size as xm and xn)
-        zbs (float array) : boundary harmonics for height coordinate
-                    (same size as xm and xn)
-
+        Returns:
+            rbc (float array): boundary harmonics for radial coordinate
+                (same size as xm and xn)
+            zbs (float array): boundary harmonics for height coordinate
+                (same size as xm and xn)
         """
         rbc_array = np.array(self.namelist["rbc"]).T
         zbs_array = np.array(self.namelist["zbs"]).T
@@ -170,7 +176,14 @@ class VmecInput:
 
     def area(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes area of boundary surface
+        
+        Args:
+            theta (float array): poloidal grid for area evaluation (optional)
+            zeta (float array): toroidal grid for area evaluation (optional)
+            
+        Returns:
+            area (float): area of boundary surface
         """
         norm_normal = self.jacobian(theta, zeta)
         area = np.sum(norm_normal) * self.dtheta * self.dzeta * self.nfp
@@ -178,15 +191,32 @@ class VmecInput:
       
     def volume(self,theta=None,zeta=None):
         """
-        TODO: doc string
+        Computes volume enclosed by boundary surface
+        
+        Args:
+            theta (float array): poloidal grid for volume evaluation (optional)
+            zeta (float array): toroidal grid for volume evaluation (optional)
+        
+        Returns:
+            volume (float): volume enclosed by boundary surface
         """
         [Nx, Ny, Nz] = self.N(theta, zeta)
         [X, Y, Z, R] = self.position(theta, zeta)
-        return abs(np.sum(Z * Nz)) * self.dtheta * self.dzeta * self.nfp
+        volume = abs(np.sum(Z * Nz)) * self.dtheta * self.dzeta * self.nfp
+        return volume
       
     def N(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes components of normal vector multiplied by surface Jacobian
+        
+        Args:
+            theta (float array): poloidal grid for N evaluation (optional)
+            zeta (float array): toroidal grid for N evaluation (optional)
+        
+        Returns:
+            Nx (float array): x component of unit normal multiplied by Jacobian
+            Ny (float array): y component of unit normal multiplied by Jacobian
+            Nz (float array): z component of unit normal multiplied by Jacobian
         """
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta, dRdtheta, \
                     dRdzeta] = self.position_first_derivatives(theta,zeta)
@@ -198,7 +228,22 @@ class VmecInput:
       
     def position_first_derivatives(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of position vector with respect to angles
+        
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        
+        Returns:
+            dxdtheta (float array): derivative of x wrt poloidal angle
+            dxdzeta (float array): derivative of x wrt toroidal angle
+            dydtheta (float array): derivative of y wrt poloidal angle
+            dydzeta (float array): derivative of y wrt toroidal angle
+            dzdtheta (float array): derivative of z wrt poloidal angle
+            dzdzeta (float array): derivative of z wrt toroidal angle
+            dRdtheta (float array): derivative of R wrt poloidal angle
+            dRdzeta (float array): derivative of R wrt toroidal angle
+
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -231,7 +276,15 @@ class VmecInput:
 
     def jacobian(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes surface Jacobian (differential area element)
+        
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            norm_normal (float array): surface Jacobian
+
         """
         [Nx, Ny, Nz] = self.N(theta, zeta)
         norm_normal = np.sqrt(Nx**2 + Ny**2 + Nz**2)
@@ -239,16 +292,41 @@ class VmecInput:
       
     def normalized_jacobian(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes surface Jacobian normalized by surface area
+        
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        
+        Returns:
+            normalized_norm_normal (float array): normalized surface Jacobian
+
         """
         norm_normal = self.jacobian(theta, zeta)
         area = self.area(theta, zeta)
-        return norm_normal * 4*np.pi * np.pi / area
+        normalized_norm_normal = norm_normal * 4*np.pi * np.pi / area
+        return normalized_norm_normal
       
     def normalized_jacobian_derivatives(self, xm_sensitivity, xn_sensitivity,
                                         theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of normalized Jacobian with respect to Fourier
+            harmonics of the boundary (rbc, zbs)
+        
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            dnormalized_jacobiandrmnc (float array): derivatives with respect to
+                radius boundary harmonics
+            dnormalized_jacobiandzmns (float array): derivatives with respect to
+                height boundary harmonics
+        
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -283,14 +361,25 @@ class VmecInput:
                     N * dareadrmnc[imn] / (area * area)
             dnormalized_jacobiandzmns[imn, :, :] = dNdzmns[imn]/area - \
                     N * dareadzmns[imn] / (area * area)
+        dnormalized_jacobiandrmnc *= 4 *np.pi * np.pi
+        dnormalized_jacobiandzmns *= 4 *np.pi * np.pi
+
+        return dnormalized_jacobiandrmnc, dnormalized_jacobiandzmns
         
-        return 4 *np.pi * np.pi * dnormalized_jacobiandrmnc, \
-                    4 * np.pi * np.pi * dnormalized_jacobiandzmns
-        
-    # Returns X, Y, Z at isurf point on full mesh 
     def position(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes position vector
+        
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            X (float array): x coordinate on angular grid
+            Y (float array): y coordinate on angular grid
+            Z (float array): z coordinate on angular grid
+            R (float array): height coordinate on angular grid
+        
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -315,7 +404,29 @@ class VmecInput:
       
     def position_second_derivatives(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes second derivatives of position vector with respect to the
+            toroidal and poloidal angles
+            
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            
+        Returns:
+            d2xdtheta2 (float array): second derivative of x wrt poloidal angle
+            d2xdzeta2 (float array): second derivative of x wrt toroidal angle
+            d2xdthetadzeta (float array): second derivative of x wrt toroidal
+                and poloidal angles
+            d2ydtheta2 (float array): second derivative of y wrt poloidal angle
+            d2ydzeta2 (float array): second derivative of y wrt toroidal angle
+            d2ydthetadzeta (float array): second derivative of y wrt toroidal
+                and poloidal angles
+            d2Zdtheta2 (float array): second derivative of height wrt poloidal
+                angle
+            d2Zdzeta2 (float array): second derivative of height wrt toroidal
+                angle
+            d2Zdthetadzeta (float array): second derivative of height wrt
+                toroidal and poloidal angles
+
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -369,7 +480,15 @@ class VmecInput:
         
     def mean_curvature(self, theta=None, zeta=None):
         """
-        TODO: doc string
+        Computes mean curvature of boundary surface
+        
+        Args:
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+
+        Returns:
+            H (float array): mean curvature of angular grid
+        
         """
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dZdtheta, dZdzeta, dRdtheta, \
                 dRdzeta] = self.position_first_derivatives(theta, zeta)
@@ -395,7 +514,12 @@ class VmecInput:
       
     def print_namelist(self, input_filename=None, namelist=None):
         """
-        TODO: doc string
+        Prints Fortran namelist to text file for passing to VMEC
+        
+        Args:
+            input_filename (str): desired name of text file (optional)
+            namelist (f90nml object): namelist to print (optional)
+            
         """
         self.update_namelist()
         if (namelist is None):
@@ -433,7 +557,12 @@ class VmecInput:
         
     def axis_position(self):
         """
-        TODO: doc string
+        Computes position of initial axis guess
+        
+        Returns:
+            R0 (float array): Radius coordinate of axis on toroidal grid
+            Z0 (float array): Height coordinate of axis on toroidal grid
+            
         """
         R0 = np.zeros(self.nzeta)
         Z0 = np.zeros(self.nzeta)
@@ -458,11 +587,15 @@ class VmecInput:
             Z0 += self.zaxis[im] * np.sin(angle)
      
         return R0, Z0
-      
-      # Given (R,Z) defining boundary shape, determine if (R0,Z0) lies inside boundary
+    
     def test_axis(self):
         """
-        TODO: doc string
+        Given defining boundary shape, determine if axis guess lies
+            inside boundary
+            
+        Returns:
+            inSurface (bool): True if axis guess lies within boundary
+            
         """
         [X, Y, Z, R] = self.position()
         [R0, Z0] = self.axis_position()
@@ -471,20 +604,21 @@ class VmecInput:
         for izeta in range(self.nzeta):
             inSurface[izeta] = point_in_polygon(R[izeta, :], Z[izeta, :], 
                                                 R0[izeta], Z0[izeta])
-        return np.all(inSurface)
+        inSurface = np.all(inSurface)
+        return inSurface
       
     def modify_axis(self):
+        """
+        Given defining boundary shape, attempts to find axis guess which lies
+            within the boundary
+            
+        Returns:
+            axisSuccess (bool): True if suitable axis was obtained
+            
+        """
+
         logger = logging.getLogger(__name__)
-        # if (boundary is None):
-        #     boundary = self.boundary
         [X, Y, Z, R] = self.position()
-        # RBC = boundary[0:self.mnmax]
-        # ZBS = boundary[self.mnmax::]
-        # if (self.vmecOutputObject is None):
-        #    zetas = np.linspace(0,2*np.pi/self.nfp,self.nzeta+1)
-        #    zetas = np.delete(zetas,-1)
-        # else:
-        #    zetas = self.vmecOutputObject.zetas
         zetas = self.zetas
           
         angle_1s = np.linspace(0, 2*np.pi, 20)
@@ -516,17 +650,13 @@ class VmecInput:
                         inSurfaces[izeta] = point_in_polygon(
                                 R[izeta, :], Z[izeta, :], Raxis[izeta], 
                                 Zaxis[izeta])
-                        # if (not inSurfaces[izeta]):
-                        # plt.plot(R[izeta,:],Z[izeta,:])
-                        # plt.plot(Raxis[izeta],Zaxis[izeta],marker='*')
-                        # plt.title('angle_1 = '+str(angle_1)+', angle_2 ='+str(angle_2))
-                        # plt.show()
                     inSurface = np.all(inSurfaces)
                     if (inSurface):
                         break
         if (not inSurface):
             logger.warning('Unable to find suitable axis shape in modify_axis.')
-            return -1
+            axisSuccess = False
+            return axisSuccess
         
         # Now Fourier transform 
         raxis_cc = np.zeros(self.ntor)
@@ -540,12 +670,26 @@ class VmecInput:
                         np.sum(np.sin(angle)**2)
         self.raxis = raxis_cc
         self.zaxis = zaxis_cs
-        return 1
+        axisSuccess = True
+        return axisSuccess
             
     def radius_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, 
                            zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of radius with respect to boundary harmoncics
+            (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+            evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+            evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dRdrmnc (float array): derivative of radius with respect to rbc
+            dZdzmns (float array): derivative of radius with respect to zbs
+            
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -580,7 +724,20 @@ class VmecInput:
     def volume_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, 
                            zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of volume with respect to boundary harmoncics
+            (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+            evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+            evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dRdrmnc (float array): derivative of volume with respect to rbc
+            dZdzmns (float array): derivative of volume with respect to zbs
+            
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -647,7 +804,20 @@ class VmecInput:
     def area_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, 
                          zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of area of boundary with respect to boundary
+            harmoncics (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+                evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+                evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dRdrmnc (float array): derivative of area with respect to rbc
+            dZdzmns (float array): derivative of area with respect to zbs
+            
         """
         [dNdrmnc, dNdzmns] = self.jacobian_derivatives(
                 xm_sensitivity, xn_sensitivity, theta, zeta)
@@ -669,7 +839,20 @@ class VmecInput:
     def jacobian_derivatives(self, xm_sensitivity, xn_sensitivity, theta=None, 
                              zeta=None):
         """
-        TODO: doc string
+        Computes derivatives of surface Jacobian with respect to
+            boundary harmoncics (rbc,zbs)
+            
+        Args:
+            xm_sensitivity (int array): poloidal modes for derivative
+            evaluation
+            xn_sensitivity (int array): toroidal modes for derivative
+            evaluation
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+        Returns:
+            dRdrmnc (float array): derivative of jacobian with respect to rbc
+            dZdzmns (float array): derivative of jacobian with respect to zbs
+            
         """
         logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
@@ -735,222 +918,24 @@ class VmecInput:
             + (dzdtheta*d2rdzetadzmns[0,:,:,:] - dxdtheta*d2rdzetadzmns[2,:,:,:])*ny \
             + (dxdtheta*d2rdzetadzmns[1,:,:,:] - dydtheta*d2rdzetadzmns[0,:,:,:])*nz
         return dNdrmnc, dNdzmns
-      
-    def effectiveDistance(self, l1=2, l2=0.5, s1=100, s2=100):
-        """
-        TODO: doc string
-        """
-        [X, Y, Z, R] = self.position()
-        effectiveDistance = np.zeros((self.nzeta, self.ntheta))
-        for izeta in range(self.nzeta):
-            effectiveDistance[izeta,:] = tanhCoulombPotential(
-                    R[izeta,:], Z[izeta,:], l1, l2, s1, s2)
-        return np.sum(effectiveDistance) * self.dtheta * self.dzeta
 
-    def summed_proximity(self, min_curvature_radius=None):
-        """
-        TODO: doc string
-        """
-        proximity = self.proximity(min_curvature_radius=min_curvature_radius)
-        return np.sum(proximity) * self.dtheta * self.dzeta 
-      
-    def summed_proximity_derivatives(self, xm_sensitivity, xn_sensitivity, 
-                                     min_curvature_radius=None):
-        """
-        TODO: doc string
-        """
-        [dQpdrmnc, dQpdzmns] = self.proximity_derivatives(
-                xm_sensitivity, xn_sensitivity,
-                min_curvature_radius=min_curvature_radius)
-        return np.sum(dQpdrmnc, axis=(1, 2)) * self.dtheta * self.dzeta, \
-                np.sum(dQpdzmns, axis=(1,2)) * self.dtheta * self.dzeta
-
-    def proximity(self, derivatives=False, min_curvature_radius=None):
-        """
-        TODO: doc string
-        """
-        if min_curvature_radius is None:
-            min_curvature_radius = self.min_curvature_radius
-        
-        [X,Y,Z,R] = self.position()
-        [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta, dRdtheta, \
-                dRdzeta] = self.position_first_derivatives()
-        dldtheta = np.sqrt(dRdtheta**2 + dzdtheta**2)
-        tR = dRdtheta/dldtheta
-        tz = dzdtheta/dldtheta
-        Qp = np.zeros((self.nzeta, self.ntheta))
-        if derivatives:
-            dQpdp1 = np.zeros((self.nzeta, self.ntheta, 2))
-            dQpdp2 = np.zeros((self.nzeta, self.ntheta, self.ntheta, 2))
-            dQpdtau2 = np.zeros((self.nzeta, self.ntheta, self.ntheta, 2))
-            dQpdlprime = np.zeros((self.nzeta, self.ntheta, self.ntheta))
-        for izeta in range(self.nzeta):
-            if derivatives:
-                [Qp[izeta,:], dQpdp1[izeta, ...], dQpdp2[izeta, ...], \
-                        dQpdtau2[izeta, ...], dQpdlprime[izeta, ...]] = \
-                        proximity_slice(R[izeta, :], Z[izeta, :], \
-                        tR[izeta, :], tz[izeta, :], dldtheta[izeta, :], \
-                        derivatives=derivatives,\
-                        min_curvature_radius=min_curvature_radius)
-            else:
-                Qp[izeta, :] = proximity_slice(
-                        R[izeta, :], Z[izeta, :], tR[izeta, :], tz[izeta, :], 
-                        dldtheta[izeta, :], derivatives=derivatives,    
-                        min_curvature_radius=min_curvature_radius)
-        if derivatives:
-            return self.dtheta * Qp, self.dtheta * dQpdp1, \
-                    self.dtheta * dQpdp2, self.dtheta * dQpdtau2, \
-                    self.dtheta * dQpdlprime 
-        else:
-            return self.dtheta * Qp
-      
-    def proximity_derivatives(self, xm_sensitivity, xn_sensitivity, 
-                              min_curvature_radius=None):
-        """
-        TODO: Function doc here
-        """
-        [Qp, dQpdp1, dQpdp2, dQpdtau2, dQpdlprime] = self.proximity(
-                derivatives=True, min_curvature_radius=min_curvature_radius)
-        [X,Y,Z,R] = self.position() 
-        [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta, dRdtheta, \
-                dRdzeta] = self.position_first_derivatives()
-        lprime = np.sqrt(dRdtheta**2 + dzdtheta**2)
-        mnmax_sensitivity = len(xm_sensitivity)
-        dQpdrmnc = np.zeros((mnmax_sensitivity, self.nzeta, self.ntheta))
-        dQpdzmns = np.zeros((mnmax_sensitivity, self.nzeta, self.ntheta))
-        for izeta in range(self.nzeta):
-            for imn in range(mnmax_sensitivity):
-                angle = xm_sensitivity[imn] * self.thetas_2d[izeta, :] - \
-                        self.nfp*xn_sensitivity[imn] * self.zetas_2d[izeta, :]
-                dRdrmnc = np.cos(angle)
-                dZdzmns = np.sin(angle)
-                d2Rdthetadrmnc = -xm_sensitivity[imn] * np.sin(angle)
-                d2Zdthetadzmns = xm_sensitivity[imn] * np.cos(angle)
-                dlprimedrmnc = dRdtheta[izeta, :] * d2Rdthetadrmnc / \
-                        lprime[izeta, :]
-                dlprimedzmns = dzdtheta[izeta, :] * d2Zdthetadzmns / \
-                        lprime[izeta, :]
-                dtauRdrmnc = d2Rdthetadrmnc / lprime[izeta,:] - \
-                        dRdtheta[izeta, :] * dlprimedrmnc / lprime[izeta, :]**2
-                dtauRdzmns = -dRdtheta[izeta,:] * dlprimedzmns / lprime[izeta,:]**2
-                dtauZdrmnc = -dzdtheta[izeta,:] * dlprimedrmnc / lprime[izeta,:]**2
-                dtauZdzmns = d2Zdthetadzmns / lprime[izeta, :] - \
-                        dzdtheta[izeta, :] *dlprimedzmns / lprime[izeta, :]**2
-                for itheta in range(self.ntheta):
-                    dQpdrmnc[imn, izeta, itheta] = \
-                            dQpdp1[izeta, itheta, 0] * dRdrmnc[itheta] \
-                            + np.dot(dQpdp2[izeta, itheta, :, 0], dRdrmnc) \
-                            + np.dot(dQpdtau2[izeta, itheta, :, 0], dtauRdrmnc) \
-                            + np.dot(dQpdtau2[izeta, itheta, :, 1], dtauZdrmnc) \
-                            + np.dot(dQpdlprime[izeta, itheta, :], dlprimedrmnc)
-                    dQpdzmns[imn, izeta, itheta] = \
-                            dQpdp1[izeta, itheta, 1] * dZdzmns[itheta] \
-                            + np.dot(dQpdp2[izeta, itheta, :, 1], dZdzmns) \
-                            + np.dot(dQpdtau2[izeta, itheta, :, 0], dtauRdzmns) \
-                            + np.dot(dQpdtau2[izeta, itheta, :, 1], dtauZdzmns) \
-                            + np.dot(dQpdlprime[izeta, itheta, :], dlprimedzmns)
-        return dQpdrmnc, dQpdzmns
-      
-def proximity_slice(R, Z, tR, tZ, dldtheta, min_curvature_radius=1.0, 
-                    derivatives=False):
-    assert(np.shape(R) == np.shape(Z)) 
-    assert(np.shape(R) == np.shape(tR)) 
-    assert(np.shape(R) == np.shape(tZ)) 
-    assert(np.shape(R) == np.shape(dldtheta))
-  
-    ntheta = len(R)
-    Qp = np.zeros((ntheta))
-    if derivatives:
-        dQpdp1 = np.zeros((ntheta, 2))
-        dQpdp2 = np.zeros((ntheta, ntheta, 2))
-        dQpdtau2 = np.zeros((ntheta, ntheta, 2))
-        dQpdlprime = np.zeros((ntheta, ntheta))
-
-    for itheta in range(ntheta):
-        psi = np.zeros(ntheta)
-        if derivatives:
-            dpsidp1 = np.zeros((ntheta, 2))
-        for ithetap in range(ntheta):
-            p1 = [R[itheta], Z[itheta]]
-            p2 = [R[ithetap], Z[ithetap]]
-            tau2 = [tR[ithetap], tZ[ithetap]]
-            if (p1 != p2):
-                Sc = self_contact_function(p1, p2, tau2) - \
-                        2 * min_curvature_radius
-                if derivatives:
-                    [dScdp1, dScdp2, dScdtau2] = self_contact_function_gradient(
-                            p1, p2, tau2)
-            else:
-                Sc = 0
-            if (Sc >= 0):
-                psi[ithetap] = 0
-            else:
-                psi[ithetap] = 0.5 * Sc**2
-                if derivatives:
-                    dpsidp1[ithetap, :] = Sc * dScdp1
-                    dpsidp2 = Sc * dScdp2
-                    dpsidtau2 = Sc * dScdtau2
-                    dQpdp2[itheta, ithetap, :] = dpsidp2 * dldtheta[ithetap]
-                    dQpdtau2[itheta, ithetap, :] = dpsidtau2 * dldtheta[ithetap]
-                    dQpdlprime[itheta,ithetap] = psi[ithetap]
-            Qp[itheta] = np.dot(psi, dldtheta)
-        if derivatives:
-            dQpdp1[itheta, :] = np.dot(dpsidp1.T, dldtheta)
-    if derivatives:
-        return Qp, dQpdp1, dQpdp2, dQpdtau2, dQpdlprime
-    else:
-        return Qp
-  
-def normalDistanceRatio(p1, p2, tau2):
-    # assert(np.isclose(scipy.linalg.norm(tau2),1))
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    tau2 = np.array(tau2)
-    norm = scipy.linalg.norm(p1 - p2)
-    return 1 - ((p2 - p1).dot(tau2))**2 / norm**2
-
-def normalDistanceRatio_gradient(p1, p2, tau2):
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    tau2 = np.array(tau2)
-    norm = scipy.linalg.norm(p1 - p2)
-    dnormalDistanceRatiodp1 = -2*((p2 - p1).dot(tau2) / norm) \
-            * (-tau2 / norm + ((p2 - p1).dot(tau2) / norm**3) * (p2 - p1))
-    dnormalDistanceRatiodp2 = -2*((p2 - p1).dot(tau2) / norm) \
-            * (tau2 / norm + ((p2 - p1).dot(tau2) / norm**3) * (p1 - p2))
-    dnormalDistanceRatiodtau2 = -2*((p2 - p1).dot(tau2) / norm) \
-            * ((p2 - p1) / norm)
-    return dnormalDistanceRatiodp1, dnormalDistanceRatiodp2, \
-            dnormalDistanceRatiodtau2
-
-# Given 2 points p1 and p2 and tangent at p2, compute self-contact 
-# function [(26) in Walker]
-def self_contact_function(p1, p2, tau2):
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    norm = scipy.linalg.norm(p1 - p2)
-    normal_distance_ratio = normalDistanceRatio(p1, p2, tau2)
-    # assert(normal_distance_ratio>=0 and normal_distance_ratio<=1)
-    return norm / normal_distance_ratio
-
-def self_contact_function_gradient(p1, p2, tau2):
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    norm = scipy.linalg.norm(p1 - p2)
-    assert(norm!=0)
-    N = normalDistanceRatio(p1, p2, tau2) # norm distance ratio squared
-    assert(N!=0)
-    [dnormalDistanceRatiodp1, dnormalDistanceRatiodp2, \
-            dnormalDistanceRatiodtau2] = normalDistanceRatio_gradient(
-            p1, p2, tau2)
-    dScdp1 = (p1 - p2) / (norm * N) - norm * dnormalDistanceRatiodp1 / (N * N)
-    dScdp2 = (p2 - p1) / (norm * N) - norm * dnormalDistanceRatiodp2 / (N * N)
-    dScdtau2 = - norm * dnormalDistanceRatiodtau2 / (N * N)
-    return dScdp1, dScdp2, dScdtau2
-
-# Determine if (R0,Z0) lies in boundary defined by (R,Z) in toroidal plane
 #TODO : test for correct sizes
 def point_in_polygon(R, Z, R0, Z0):
+    """
+    Determines if point on the axis (R0,Z0) lies within boundary defined by
+        (R,Z), a toroidal slice of the boundary
+        
+    Args:
+        R (float array): radius defining toroidal slice of boundary
+        Z (float array): height defining toroidal slice of boundary
+        evaluation
+        R0 (float): radius of trial axis point
+        Z0 (float): height of trial axis point
+    Returns:
+        oddNodes (bool): True if (R0,Z0) lies in (R,Z)
+        
+    """
+
     ntheta = len(R)
     oddNodes = False
     j = ntheta-1
@@ -960,48 +945,3 @@ def point_in_polygon(R, Z, R0, Z0):
                 oddNodes = not oddNodes
         j = i
     return oddNodes
-
-def tanhCoulombPotential(R, Z, l1, l2, s1, s2):
-    assert(len(R) == len(Z))
-    assert(R[0] != R[-1] and R[0] != R[-1])
-    ntheta = len(R)
-    dR = np.roll(R, -1) -R
-    dZ = np.roll(Z, -1) -Z
-    dl = np.sqrt(dR**2 + dZ**2)
-    l = np.cumsum(dl)
-    effective_distance = np.zeros((ntheta, ntheta))
-    effective_distance_integrated = np.zeros(ntheta)
-    activation_length = np.zeros((ntheta, ntheta))
-    activation_function1 = np.zeros((ntheta, ntheta))
-    for itheta in range(ntheta):
-        for ithetap in range(ntheta):
-            if (ithetap != itheta):
-                activation_length[itheta, ithetap] = (l[itheta] - l[ithetap])
-                # Limit activation_legnth to -L/2, L/2
-                if activation_length[itheta, ithetap] > l[-1]/2:
-                    activation_length[itheta, ithetap] = \
-                            l[-1] - activation_length[itheta, ithetap]
-                if activation_length[itheta,ithetap] < -l[-1]/2:
-                    activation_length[itheta,ithetap] = \
-                            -l[-1] - activation_length[itheta, ithetap]
-                assert(activation_length[itheta, ithetap] <= l[-1]/2) 
-                assert(activation_length[itheta, ithetap] >= -l[-1]/2)
-                activation_function1[itheta, ithetap] = (1 + np.tanh(s1 * \
-                        (np.abs(activation_length[itheta, ithetap]) - l1)))/2
-                assert(activation_function1[itheta, ithetap] >= 0)
-                activation_distance = np.sqrt((R[itheta] - R[ithetap])**2 + \
-                        (Z[itheta] - Z[ithetap])**2)
-                activation_function2 = (1 - np.tanh(s2 * \
-                        (activation_distance - l2)))/2
-                assert(activation_function2 >= 0)
-                effective_distance[itheta,ithetap] = activation_function1[\
-                        itheta, ithetap] * activation_function2
-                assert(effective_distance[itheta, ithetap] >= 0)
-    effective_distance_integrated[itheta] = np.dot(
-            effective_distance[itheta, :], dl)
-    return effective_distance_integrated, effective_distance
-#, activation_length, activation_function1
-    
-      
-
-
