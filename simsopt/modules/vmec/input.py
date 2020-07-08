@@ -487,7 +487,7 @@ class VmecInput:
             zeta (float array): toroidal grid for evaluation (optional)
 
         Returns:
-            H (float array): mean curvature of angular grid
+            H (float array): mean curvature on angular grid
         
         """
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dZdtheta, dZdzeta, dRdtheta, \
@@ -729,9 +729,9 @@ class VmecInput:
             
         Args:
             xm_sensitivity (int array): poloidal modes for derivative
-            evaluation
+                evaluation
             xn_sensitivity (int array): toroidal modes for derivative
-            evaluation
+                evaluation
             theta (float array): poloidal grid for evaluation (optional)
             zeta (float array): toroidal grid for evaluation (optional)
         Returns:
@@ -815,8 +815,8 @@ class VmecInput:
             theta (float array): poloidal grid for evaluation (optional)
             zeta (float array): toroidal grid for evaluation (optional)
         Returns:
-            dRdrmnc (float array): derivative of area with respect to rbc
-            dZdzmns (float array): derivative of area with respect to zbs
+            dareadrmnc (float array): derivative of area with respect to rbc
+            dareadzmns (float array): derivative of area with respect to zbs
             
         """
         [dNdrmnc, dNdzmns] = self.jacobian_derivatives(
@@ -844,14 +844,14 @@ class VmecInput:
             
         Args:
             xm_sensitivity (int array): poloidal modes for derivative
-            evaluation
+                evaluation
             xn_sensitivity (int array): toroidal modes for derivative
-            evaluation
+                evaluation
             theta (float array): poloidal grid for evaluation (optional)
             zeta (float array): toroidal grid for evaluation (optional)
         Returns:
-            dRdrmnc (float array): derivative of jacobian with respect to rbc
-            dZdzmns (float array): derivative of jacobian with respect to zbs
+            dNdrmnc (float array): derivative of jacobian with respect to rbc
+            dNdzmns (float array): derivative of jacobian with respect to zbs
             
         """
         logger = logging.getLogger(__name__)
@@ -928,7 +928,7 @@ def point_in_polygon(R, Z, R0, Z0):
     Args:
         R (float array): radius defining toroidal slice of boundary
         Z (float array): height defining toroidal slice of boundary
-        evaluation
+            evaluation
         R0 (float): radius of trial axis point
         Z0 (float): height of trial axis point
     Returns:
