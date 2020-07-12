@@ -47,7 +47,7 @@ class VmecInput:
         self.directory = os.getcwd()
 
         # Read items from Fortran namelist
-        nml = f90nml.read(filename)
+        nml = f90nml.read(input_filename)
         nml = nml.get("indata")
         self.nfp = nml.get("nfp")
         mpol_input = nml.get("mpol")
@@ -541,14 +541,14 @@ class VmecInput:
                     f.write("\n")
         # Write RBC
         for imn in range(self.mnmax):
-          if (self.rbc[imn] != 0):
-            f.write('RBC(' + str(int(self.xn[imn])) + "," \
+            if (self.rbc[imn] != 0):
+                f.write('RBC(' + str(int(self.xn[imn])) + "," \
                      + str(int(self.xm[imn])) + ") = " \
                      + str(self.rbc[imn]) + '\n')
         # Write ZBS
         for imn in range(self.mnmax):
-          if (self.zbs[imn] != 0):
-            f.write('ZBS(' + str(int(self.xn[imn])) + "," \
+            if (self.zbs[imn] != 0):
+                f.write('ZBS(' + str(int(self.xn[imn])) + "," \
                      + str(int(self.xm[imn])) + ") = " \
                      + str(self.zbs[imn]) + '\n')
 
