@@ -24,6 +24,7 @@ class VmecOutput:
         f = netcdf.netcdf_file(self.wout_filename, 'r', mmap=False)
         self.rmnc = f.variables["rmnc"][()]
         self.zmns = f.variables["zmns"][()]
+        self.bmnc = f.variables["bmnc"][()]
         self.bsubumnc = f.variables["bsubumnc"][()]
         self.bsubvmnc = f.variables["bsubvmnc"][()]
         self.bsupumnc = f.variables["bsupumnc"][()]
@@ -41,6 +42,7 @@ class VmecOutput:
         self.volume = f.variables["volume_p"][()]
         
         # Remove axis point from half grid quantities
+        self.bmnc = np.delete(self.bmnc, 0, 0)
         self.bsubumnc = np.delete(self.bsubumnc, 0, 0)
         self.bsubvmnc = np.delete(self.bsubvmnc, 0, 0)
         self.bsupumnc = np.delete(self.bsupumnc, 0, 0)
@@ -76,7 +78,45 @@ class VmecOutput:
                 self.thetas, self.zetas_full)
         
         self.mu0 = 4*np.pi*1.0e-7
-
+        
+    def compute_modB(self, isurf=-1, theta = None, zeta = None, full=False):
+        """
+        Computes magnitude of magnetic field on specified surface.
+        
+        Args:
+            isurf (int): flux gridpoint for evaluation (optional)
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
+            full (bool): if True, modB is computed on specified full flux grid 
+                point. Otherwise, evalauted on half grid (optional)
+        Returns:
+            modB (float array): field strength on grid in angles
+        """
+        logger = logging.getLogger(__name__)
+        if (theta is None and zeta is None):
+            theta = self.thetas_2d
+            zeta = self.zetas_2d
+        elif (np.array(theta).shape != np.array(zeta).shape):
+            logger.error('Incorrect shape of theta and zeta in '
+                         'compute_modB')
+            sys.exit(0)
+        if (full==False):
+            assert(isurf<self.ns_half)
+            this_bmnc = self.bmnc[isurf,:]
+        elif (isurf==self.ns-1):
+            this_bmnc = 1.5 * self.bmnc[-1,:] - 0.5 * self.bmnc[-2,:]
+        else:
+            assert(isurf<self.ns)
+            this_bmnc = 0.5 * (self.bmnc[isurf-1,:] + self.bmnc[isurf+1,:])
+        modB = np.zeros(np.shape(zeta))
+        for im in range(self.mnmax):
+            angle = self.xm[im] * theta - self.xn[im] * zeta
+            cos_angle = np.cos(angle)
+            sin_angle = np.sin(angle)
+            modB += this_bmnc[im] * cos_angle
+        
+        return modB
+    
     def compute_current(self):
         """
         Computes integrated toroidal current profile
@@ -103,6 +143,8 @@ class VmecOutput:
             Nz (float array): z component of unit normal multiplied by Jacobian
         """
 
+        [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta] = \
+            self.position_first_derivatives(isurf, theta = theta, zeta =zeta)
         Nx = -dydzeta*dzdtheta + dydtheta*dzdzeta
         Ny = -dzdzeta*dxdtheta + dzdtheta*dxdzeta
         Nz = -dxdzeta*dydtheta + dxdtheta*dydzeta
@@ -209,19 +251,19 @@ class VmecOutput:
         this_zmns = self.zmns[isurf,:] 
 
         if (full):
-          theta = self.thetas_2d_full
-          zeta = self.zetas_2d_full
+            theta = self.thetas_2d_full
+            zeta = self.zetas_2d_full
         else:
-          theta = self.thetas_2d
-          zeta = self.zetas_2d
+            theta = self.thetas_2d
+            zeta = self.zetas_2d
         R = np.zeros(np.shape(theta))
         Z = np.zeros(np.shape(zeta))
         for im in range(self.mnmax):
-          angle = self.xm[im] * theta - self.xn[im] * zeta
-          cos_angle = np.cos(angle)
-          sin_angle = np.sin(angle)
-          R += this_rmnc[im] * cos_angle
-          Z += this_zmns[im] * sin_angle
+            angle = self.xm[im] * theta - self.xn[im] * zeta
+            cos_angle = np.cos(angle)
+            sin_angle = np.sin(angle)
+            R += this_rmnc[im] * cos_angle
+            Z += this_zmns[im] * sin_angle
         X = R * np.cos(zeta)
         Y = R * np.sin(zeta)
         return X, Y, Z, R
@@ -230,11 +272,11 @@ class VmecOutput:
         """
         Computes integrated rotational transform objective function
             
-        Input:
+        Args:
             weight (function): returns weight as a function of normalized
                 toroidal flux
             
-        Args:
+        Returns:
             iota_function (float): rotational transform integrated against
                 weight function on half grid
             
@@ -243,16 +285,15 @@ class VmecOutput:
             self.psi[-1] * self.sign_jac
         return iota_function
   
-    # Integrated differential volume with weight function
     def evaluate_well_objective(self, weight):
         """
-        Computes integrated well objective function
+        Computes integrated differential volume with weight function
             
-        Input:
+        Args:
             weight (function): returns weight as a function of normalized
                 toroidal flux
             
-        Args:
+        Returns:
             well_function (float): differential volume integrated against weight
             function on half grid
             
@@ -260,17 +301,33 @@ class VmecOutput:
         well_function = 4*np.pi*np.pi*np.sum(weight(self.s_half) * self.vp) * \
             self.ds
         return well_function
+    
+    def evaluate_modB_objective(self):
+        """
+        Computes surface-integrated field strength on boundary
+        
+            
+        Returns:
+            well_function (float): differential volume integrated against weight
+            function on half grid
+            
+        """
+        modB = self.compute_modB(isurf=self.ns-1, full=True)
+        jacobian = self.jacobian()
+        modB_function = 0.5 * np.sum(modB**2 * jacobian) \
+            * self.dtheta * self.dzeta * self.nfp
+        return modB_function
   
     def jacobian(self, isurf=-1, theta=None, zeta=None):
         """
         Computes surface jacobian on specified surface
             
-        Input:
+        Args:
             isurf (int): full flux gridpoint for evaluation (optional)
             theta (float array): poloidal grid for evaluation (optional)
             zeta (float array): toroidal grid for evaluation (optional)
             
-        Args:
+        Returns:
             norm_normal (float array): surface jacobian on grid in angles
             
         """
@@ -282,7 +339,7 @@ class VmecOutput:
         """
         Computes surface Jacobian normalized by surface area
             
-        Input:
+        Args:
             isurf (int): full flux gridpoint for evaluation (optional)
             theta (float array): poloidal grid for evaluation (optional)
             zeta (float array): toroidal grid for evaluation (optional)
@@ -740,8 +797,8 @@ class VmecOutput:
             for itheta in range(1, self.ntheta):
                 dr = np.sqrt((R_end[izeta, itheta] - R_end[izeta, itheta-1])**2 \
                              + (Z_end[izeta, itheta] - Z_end[izeta, itheta-1])**2)
-                             theta_arclength[izeta, itheta] = \
-                                 theta_arclength[izeta, itheta-1] + dr
+                theta_arclength[izeta, itheta] = \
+                            theta_arclength[izeta, itheta-1] + dr
         
         return Bx_end, By_end, Bz_end, theta_arclength
 
