@@ -2,6 +2,7 @@ import os
 import logging
 import numpy as np
 from scipy.io import netcdf
+import sys
 
 class VmecOutput:
 
@@ -17,6 +18,7 @@ class VmecOutput:
         Returns:
             VmecOutput
         """
+        logging.basicConfig()
         self.wout_filename = wout_filename
         self.input_filename = 'input.' + wout_filename.split('.')[0][5::]
         self.directory = os.getcwd()
@@ -231,14 +233,14 @@ class VmecOutput:
         dnzdzeta = dNzdzeta/norm_normal - Nz*dnorm_normaldzeta/(norm_normal**2)
         return dnxdtheta, dnxdzeta, dnydtheta, dnydzeta, dnzdtheta, dnzdzeta
   
-    def compute_position(self, isurf=-1, full=False):
+    def compute_position(self, isurf=-1, theta=None, zeta=None):
         """
         Computes position vector on specified surface
             
         Args:
             isurf (int): full flux gridpoint for evaluation (optional)
-            full (bool): if True, calculation performed on the full toroidal
-                grid
+            theta (float array): poloidal grid for evaluation (optional)
+            zeta (float array): toroidal grid for evaluation (optional)
             
         Returns:
             X (float array): x component of position vector
@@ -250,14 +252,21 @@ class VmecOutput:
         this_rmnc = self.rmnc[isurf,:]
         this_zmns = self.zmns[isurf,:] 
 
-        if (full):
-            theta = self.thetas_2d_full
-            zeta = self.zetas_2d_full
-        else:
+        logger = logging.getLogger(__name__)
+        if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
-        R = np.zeros(np.shape(theta))
-        Z = np.zeros(np.shape(zeta))
+        elif (np.array(theta).shape != np.array(zeta).shape):
+            logger.error('Incorrect shape of theta and zeta in '
+                         'compute_position')
+            sys.exit(0)
+        if (isinstance(theta,(list,np.ndarray))):
+            R = np.zeros(np.shape(theta))
+            Z = np.zeros(np.shape(zeta))
+            print('Found array')
+        else:
+            R = 0
+            Z = 0
         for im in range(self.mnmax):
             angle = self.xm[im] * theta - self.xn[im] * zeta
             cos_angle = np.cos(angle)
