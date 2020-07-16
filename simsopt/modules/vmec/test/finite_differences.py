@@ -81,11 +81,11 @@ def finiteDifferenceDerivative(x,function, args=None, epsilon=1e-2,
     # Call function once to get size of output
     test_function = finiteDifferenceObject.evaluate(x)
     if (x.ndim==1):
-        dims = [len(x_arr)]
+        dims = [len(x)]
         dims.extend(list(np.shape(test_function)))
         dfdx = np.zeros(dims)
-        for i in range(np.size(x_arr)):
-            step = np.zeros(np.shape(x_arr))
+        for i in range(np.size(x)):
+            step = np.zeros(np.shape(x))
             step[i] = epsilon
             if (method == 'centered'):
                 function_r = finiteDifferenceObject.evaluateEpsilon(x, step)
