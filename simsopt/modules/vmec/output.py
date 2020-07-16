@@ -42,6 +42,7 @@ class VmecOutput:
         self.vp = f.variables["vp"][()]
         self.pres = f.variables["pres"][()]
         self.volume = f.variables["volume_p"][()]
+        self.volavgB = f.variables["volavgB"][()]
         
         # Remove axis point from half grid quantities
         self.bmnc = np.delete(self.bmnc, 0, 0)
@@ -81,7 +82,7 @@ class VmecOutput:
         
         self.mu0 = 4*np.pi*1.0e-7
         
-    def compute_modB(self, isurf=-1, theta = None, zeta = None, full=False):
+    def compute_modB(self, isurf = -1, theta = None, zeta = None, full = False):
         """
         Computes magnitude of magnetic field on specified surface.
         
@@ -94,21 +95,21 @@ class VmecOutput:
         Returns:
             modB (float array): field strength on grid in angles
         """
-        logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
         elif (np.array(theta).shape != np.array(zeta).shape):
-            logger.error('Incorrect shape of theta and zeta in '
+            raise ValueError('Incorrect shape of theta and zeta in '
                          'compute_modB')
-            sys.exit(0)
         if (full==False):
-            assert(isurf<self.ns_half)
+            if (isurf >= self.ns_half):
+                raise ValueError('Incorrect value of isurface in compute_modB.')
             this_bmnc = self.bmnc[isurf,:]
-        elif (isurf==self.ns-1):
+        elif (isurf == self.ns - 1):
             this_bmnc = 1.5 * self.bmnc[-1,:] - 0.5 * self.bmnc[-2,:]
         else:
-            assert(isurf<self.ns)
+            if (isurf >= self.ns - 1):
+                raise ValueError('Incorrect value of isurface in compute_modB.')
             this_bmnc = 0.5 * (self.bmnc[isurf-1,:] + self.bmnc[isurf+1,:])
         modB = np.zeros(np.shape(zeta))
         for im in range(self.mnmax):
@@ -252,18 +253,15 @@ class VmecOutput:
         this_rmnc = self.rmnc[isurf,:]
         this_zmns = self.zmns[isurf,:] 
 
-        logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
         elif (np.array(theta).shape != np.array(zeta).shape):
-            logger.error('Incorrect shape of theta and zeta in '
+            raise ValueEror('Incorrect shape of theta and zeta in '
                          'compute_position')
-            sys.exit(0)
         if (isinstance(theta,(list,np.ndarray))):
             R = np.zeros(np.shape(theta))
             Z = np.zeros(np.shape(zeta))
-            print('Found array')
         else:
             R = 0
             Z = 0
@@ -290,6 +288,9 @@ class VmecOutput:
                 weight function on half grid
             
         """
+        if (len(weight) != self.ns_half):
+            raise ValueError('weight must be of length ns_half in  \
+                              evaluate_iota_objective.')
         iota_function = np.sum(weight(self.s_half) * self.iota) * self.ds * \
             self.psi[-1] * self.sign_jac
         return iota_function
@@ -307,24 +308,41 @@ class VmecOutput:
             function on half grid
             
         """
-        well_function = 4*np.pi*np.pi*np.sum(weight(self.s_half) * self.vp) * \
-            self.ds
+        if (len(weight) != self.ns_half):
+            raise ValueError('weight must be of length ns_half in  \
+                              evaluate_well_objective.')
+        well_function = np.sum(weight(self.s_half) * self.vp) * \
+            self.ds * 4 * np.pi * np.pi
         return well_function
     
-    def evaluate_modB_objective(self):
+    def evaluate_modB_objective(self, isurf = None):
         """
-        Computes surface-integrated field strength on boundary
+        Computes surface-integrated field strength on a surface. 
         
+        Args:
+            isurf (int): index on full flux grid to evaluate objective
+        
+        Returns:
+            modB_function (float): modB objective function
+            
+        """
+        if (isurf is None):
+            isurf = self.ns - 1
+        modB = self.compute_modB(isurf = isurf, full=True)
+        jacobian = self.jacobian(isurf = isurf)
+        modB_function = 0.5 * np.sum(modB ** 2 * jacobian) \
+            * self.dtheta * self.dzeta * self.nfp
+        return modB_function
+    
+    def evaluate_modB_objective_volume(self):
+        """
+        Computes volume-integrated field strength 
             
         Returns:
-            well_function (float): differential volume integrated against weight
-            function on half grid
+            modB_function (float): modB objective function
             
         """
-        modB = self.compute_modB(isurf=self.ns-1, full=True)
-        jacobian = self.jacobian()
-        modB_function = 0.5 * np.sum(modB**2 * jacobian) \
-            * self.dtheta * self.dzeta * self.nfp
+        modB_function = 0.5 * self.volavgB ** 2 * self.volume
         return modB_function
   
     def jacobian(self, isurf=-1, theta=None, zeta=None):
@@ -396,16 +414,17 @@ class VmecOutput:
             dzdzeta (float array): derivative of z wrt toroidal angle
             
         """
-        logger = logging.getLogger(__name__)
-        this_rmnc = self.rmnc[isurf,:]
-        this_zmns = self.zmns[isurf,:] 
+        if (np.abs(isurf) >= self.ns):
+            raise ValueError('isurf must be < ns in position_first_derivatives.')
         if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
         elif (np.array(theta).shape != np.array(zeta).shape):
-            logger.error('Incorrect shape of theta and zeta in '
+            raise ValueError('Incorrect shape of theta and zeta in '
                          'position_first_derivatives')
-            sys.exit(0)
+
+        this_rmnc = self.rmnc[isurf,:]
+        this_zmns = self.zmns[isurf,:] 
         dRdtheta = np.zeros(np.shape(theta))
         dzdtheta = np.zeros(np.shape(theta))
         dRdzeta = np.zeros(np.shape(theta))
@@ -513,7 +532,7 @@ class VmecOutput:
         Returns:
             H (float array): mean curvature on angular grid
             
-        """
+        """        
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dZdtheta, dZdzeta] = \
                 self.position_first_derivatives(isurf)
         [d2xdtheta2, d2xdzeta2, d2xdthetadzeta, d2ydtheta2, d2ydzeta2, \
@@ -793,10 +812,10 @@ class VmecOutput:
             angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
             cos_angle = np.cos(angle)
             sin_angle = np.sin(angle)
-            Bsupu_end = Bsupu_end + bsupumnc_end[im] * cos_angle
-            Bsupv_end = Bsupv_end + bsupvmnc_end[im] * cos_angle
-            R_end = R_end + rmnc_end[im] * cos_angle
-            Z_end = Z_end + zmns_end[im] * sin_angle
+            Bsupu_end += bsupumnc_end[im] * cos_angle
+            Bsupv_end += bsupvmnc_end[im] * cos_angle
+            R_end += rmnc_end[im] * cos_angle
+            Z_end += zmns_end[im] * sin_angle
         Bx_end = Bsupu_end * dXdu_end + Bsupv_end * dXdv_end
         By_end = Bsupu_end * dYdu_end + Bsupv_end * dYdv_end
         Bz_end = Bsupu_end * dZdu_end + Bsupv_end * dZdv_end
