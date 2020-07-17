@@ -7,10 +7,8 @@ import logging
 import numpy as np
 import scipy
 from scipy.io import netcdf
-import optimization_utils
 import f90nml
-from FortranNamelistTools import *  # TODO: Change this import
-from optimization_utils import *    # TODO: Change this import
+from scanf import scanf
 
 __author__ = "Elizabeth Paul, Bharat Medasani"
 __copyright__ = ""
@@ -99,7 +97,7 @@ class VmecInput:
         """
         self.mpol = mpol
         self.ntor = ntor
-        [self.mnmax, self.xm, self.xn] = optimization_utils.init_modes(
+        [self.mnmax, self.xm, self.xn] = init_modes(
                 self.mpol - 1, self.ntor)
         [self.rbc,self.zbs] = self.read_boundary_input()
         
@@ -130,10 +128,6 @@ class VmecInput:
     def read_boundary_input(self):
         """
         Read in boundary harmonics (rbc, zbs) from Fortran namelist
-
-        Args:
-            xm (int array): poloidal mode numbers to read
-            xn (int array): toroidal mode numbers to read
 
         Returns:
             rbc (float array): boundary harmonics for radial coordinate
@@ -185,6 +179,8 @@ class VmecInput:
         Returns:
             area (float): area of boundary surface
         """
+        if (np.shape(theta) != np.shape(zeta)):
+            raise ValueError('theta and zeta must have the same shape in area.')
         norm_normal = self.jacobian(theta, zeta)
         area = np.sum(norm_normal) * self.dtheta * self.dzeta * self.nfp
         return area
@@ -200,6 +196,8 @@ class VmecInput:
         Returns:
             volume (float): volume enclosed by boundary surface
         """
+        if (np.shape(theta) != np.shape(zeta)):
+            raise ValueError('theta and zeta must have the same shape in area.')
         [Nx, Ny, Nz] = self.N(theta, zeta)
         [X, Y, Z, R] = self.position(theta, zeta)
         volume = abs(np.sum(Z * Nz)) * self.dtheta * self.dzeta * self.nfp
@@ -218,6 +216,8 @@ class VmecInput:
             Ny (float array): y component of unit normal multiplied by Jacobian
             Nz (float array): z component of unit normal multiplied by Jacobian
         """
+        if (np.shape(theta) != np.shape(zeta)):
+            raise ValueError('theta and zeta must have the same shape in area.')
         [dxdtheta, dxdzeta, dydtheta, dydzeta, dzdtheta, dzdzeta, dRdtheta, \
                     dRdzeta] = self.position_first_derivatives(theta,zeta)
       
@@ -245,14 +245,12 @@ class VmecInput:
             dRdzeta (float array): derivative of R wrt toroidal angle
 
         """
-        logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
         elif (np.array(theta).shape != np.array(zeta).shape):
-            logger.error("Incorrect shape of theta and zeta in "
-                         "position_first_derivatives")
-            sys.exit(0)
+            raise ValueError('Incorrect shape for theta and zeta in \
+                position_first_derivatives')
         dRdtheta = np.zeros(np.shape(theta))
         dzdtheta = np.zeros(np.shape(theta))
         dRdzeta = np.zeros(np.shape(theta))
@@ -381,14 +379,12 @@ class VmecInput:
             R (float array): height coordinate on angular grid
         
         """
-        logger = logging.getLogger(__name__)
         if (theta is None and zeta is None):
             theta = self.thetas_2d
             zeta = self.zetas_2d
         elif (np.array(theta).shape != np.array(zeta).shape):
-            logger.error("Incorrect shape of theta and zeta in "
-                         "position_first_derivatives")
-            sys.exit(0)
+            raise ValueError(
+                'Error! Incorrect dimensions for theta and zeta in position.')
       
         R = np.zeros(np.shape(theta))
         Z = np.zeros(np.shape(zeta))
@@ -945,3 +941,42 @@ def point_in_polygon(R, Z, R0, Z0):
                 oddNodes = not oddNodes
         j = i
     return oddNodes
+
+# Note that xn is not multiplied by nfp
+def init_modes(mmax,nmax):
+    mnmax = (nmax+1) + (2*nmax+1)*mmax
+    xm = np.zeros(mnmax)
+    xn = np.zeros(mnmax)
+
+    # m = 0 modes
+    index = 0
+    for jn in range(nmax+1):
+        xm[index] = 0
+        xn[index] = jn
+        index += 1
+  
+    # m /= 0 modes
+    for jm in range(1,mmax+1):
+        for jn in range(-nmax,nmax+1):
+            xm[index] = jm
+            xn[index] = jn
+            index += 1
+  
+    return mnmax, xm, xn
+
+# Computes minimum indices of 2d array in Fortran namelist
+def min_max_indices_2d(varName,inputFilename):
+    varName = varName.lower()
+    index_1 = []
+    index_2 = []
+    with open(inputFilename, 'r') as f:
+        inputFile = f.readlines()
+        for line in inputFile:
+            line3 = line.strip().lower()
+            find_index = line3.find(varName+'(')
+            # Line contains desired varName
+            if (find_index > -1):
+                out = scanf(varName+"(%d,%d)",line[find_index::].lower())
+                index_1.append(out[0])
+                index_2.append(out[1])
+    return min(index_1), min(index_2), max(index_1), max(index_2)

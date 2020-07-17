@@ -48,7 +48,7 @@ class Test(unittest.TestCase):
         self.assertAlmostEqual(dnydtheta_sum, 0, places=3)
         self.assertAlmostEqual(dnzdtheta_sum, 0, places=3)      
         
-    def test_normalize_jacobian(self):
+    def test_normalized_jacobian(self):
         """
             Checks that normalized jacobian integrates to 1
         """
@@ -286,7 +286,7 @@ class Test(unittest.TestCase):
             self.assertAlmostEqual(dareadrmnc_fd[izeta, itheta], \
                 dareadrmnc[im, izeta, itheta], places=5)
             
-    def normalized_jacobian_derivatives(self):
+    def test_normalized_jacobian_derivatives(self):
         """
             Performs finite difference testing of derivative of normalized
             jacobian with respect to boundary harmonics
@@ -295,23 +295,24 @@ class Test(unittest.TestCase):
         def temp_fun_rmnc(im, rmnc):
             rmnc_init = self.vmecOutput.rmnc[-1, im]
             self.vmecOutput.rmnc[-1, im] = rmnc
-            area = self.vmecOutput.area()
+            normalized_jacobian = self.vmecOutput.normalized_jacobian()
             self.vmecOutput.rmnc[-1, im] = rmnc_init
-            return area
+            return normalized_jacobian
         
-        def temp_fun_zmns(im, rmnc):
+        def temp_fun_zmns(im, zmns):
             zmns_init = self.vmecOutput.zmns[-1, im]
             self.vmecOutput.zmns[-1, im] = zmns
-            area = self.vmecOutput.area()
+            normalized_jacobian = self.vmecOutput.normalized_jacobian()
             self.vmecOutput.zmns[-1, im] = zmns_init
-            return area
+            return normalized_jacobian
         
         # Check first 10 modes
         xm_sensitivity = self.vmecOutput.xm[0:10]
         xn_sensitivity = self.vmecOutput.xn[0:10]/self.vmecOutput.nfp
 
         [dnormalized_jacobiandrmnc, dnormalized_jacobiandzmns] = \
-            self.vmecOutput.area_derivatives(xm_sensitivity, xn_sensitivity)
+            self.vmecOutput.normalized_jacobian_derivatives(xm_sensitivity, \
+                                                            xn_sensitivity)
 
         for im in range(len(xm_sensitivity)):
             this_rmnc = self.vmecOutput.rmnc[-1,im]
@@ -326,7 +327,7 @@ class Test(unittest.TestCase):
                 for itheta in range(self.vmecOutput.ntheta):
                     self.assertAlmostEqual(dnormalized_jacobiandrmnc_fd[izeta,itheta], \
                         dnormalized_jacobiandrmnc[im,izeta,itheta], places=5)
-                    self.assertAlmostEqual(djacobiandzmns_fd[izeta,itheta], \
+                    self.assertAlmostEqual(dnormalized_jacobiandzmns_fd[izeta,itheta], \
                         dnormalized_jacobiandzmns[im,izeta,itheta], places=5)
                     
     def test_B_on_arclength_grid(self):
@@ -460,8 +461,7 @@ class Test(unittest.TestCase):
         output = self.vmecOutput.evaluate_modB_objective_volume()
         self.assertIsInstance(output, float)
         self.assertGreater(output, 0)
-                
-        
+                      
 if __name__ == '__main__':
     unittest.main()
         
