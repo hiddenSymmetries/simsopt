@@ -401,7 +401,7 @@ class Test(unittest.TestCase):
         weight = self.vmecOutput.s_half
         weight = np.delete(weight,0)
         
-        self.assertRaises(ValueError, self.vmecOutput.evaluate_iota_objective, \
+        self.assertRaises(TypeError, self.vmecOutput.evaluate_iota_objective, \
                          weight = weight)
         
     def test_evaluate_well_objective(self):
@@ -411,7 +411,7 @@ class Test(unittest.TestCase):
         weight = self.vmecOutput.s_half
         weight = np.delete(weight,0)
         
-        self.assertRaises(ValueError, self.vmecOutput.evaluate_well_objective, \
+        self.assertRaises(TypeError, self.vmecOutput.evaluate_well_objective, \
                          weight = weight)
         
     def test_jacobian(self):
