@@ -288,9 +288,8 @@ class VmecOutput:
                 weight function on half grid
             
         """
-        if (len(weight) != self.ns_half):
-            raise ValueError('weight must be of length ns_half in  \
-                              evaluate_iota_objective.')
+        if (not callable(weight)):
+            raise TypeError('weight must be a function')
         iota_function = np.sum(weight(self.s_half) * self.iota) * self.ds * \
             self.psi[-1] * self.sign_jac
         return iota_function
@@ -308,9 +307,8 @@ class VmecOutput:
             function on half grid
             
         """
-        if (len(weight) != self.ns_half):
-            raise ValueError('weight must be of length ns_half in  \
-                              evaluate_well_objective.')
+        if (not callable(weight)):
+            raise TypeError('weight must be a function')
         well_function = np.sum(weight(self.s_half) * self.vp) * \
             self.ds * 4 * np.pi * np.pi
         return well_function
