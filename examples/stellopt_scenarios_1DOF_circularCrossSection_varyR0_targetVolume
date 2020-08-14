@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+
+import sys
+sys.path.append('..')
+from simsopt import *
+
+"""
+Optimize the minor radius and elongation of an axisymmetric torus to
+obtain a desired volume and area.
+"""
+
+# Start with a default surface, which is axisymmetric with major
+# radius 1 and minor radius 0.1.
+equil = Vmec()
+surf = equil.boundary
+
+# Set the initial boundary shape:
+surf.get_rc(0, 0).val = 1.0
+
+surf.get_rc(0, 1).val = 0.1
+surf.get_zs(0, 1).val = 0.1
+
+surf.get_rc(1, 0).val = 0.1
+surf.get_zs(1, 0).val = 0.1
+
+# Parameters are all fixed by default, meaning they will not be
+# optimized.  You can choose any subset of the Parameters to be part
+# of the space of independent variables by setting their 'fixed'
+# property to False.
+surf.get_rc(0, 0).fixed = False
+
+# Each Target is then equipped with a shift and weight, to become a
+# term in a least-squares objective function
+desired_volume = 0.15
+term1 = LeastSquaresTerm(equil.volume, desired_volume, 1)
+
+# A list of terms are combined to form a nonlinear-least-squares
+# problem.
+prob = LeastSquaresProblem([term1])
+
+# Solve the minimization problem:
+prob.solve()
+
+print("At the optimum,")
+print(" rc(m=0,n=0) = ", surf.get_rc(0, 0).val)
+print(" volume, according to VMEC = ", equil.compute_volume())
+print(" volume, according to Surface = ", surf.compute_volume())
+print(" objective function = ", prob.objective)

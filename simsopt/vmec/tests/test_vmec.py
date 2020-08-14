@@ -10,11 +10,11 @@ class VmecTests(unittest.TestCase):
         and make sure we can read all the attributes.
         """
         v = Vmec()
-        self.assertEqual(v.nfp.val, 1)
+        self.assertEqual(v.nfp.val, 5)
         self.assertTrue(v.stelsym.val)
-        self.assertEqual(v.mpol.val, 1)
-        self.assertEqual(v.ntor.val, 0)
-        self.assertEqual(v.delt.val, 0.7)
+        self.assertEqual(v.mpol.val, 5)
+        self.assertEqual(v.ntor.val, 4)
+        self.assertEqual(v.delt.val, 0.5)
         self.assertEqual(v.tcon0.val, 2.0)
         self.assertEqual(v.phiedge.val, 1.0)
         self.assertEqual(v.curtor.val, 0.0)
@@ -22,25 +22,26 @@ class VmecTests(unittest.TestCase):
         self.assertEqual(v.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
+        v.finalize()
 
-    def test_parse_namelist_var(self):
-        """
-        Try adding a variable from an input namelist to a Vmec instance.
-        """
-        v = Vmec()
-        myvars = {"foo":7, "bar":8, "oof":False}
-        # Try a variable that IS in the namelist:
-        v._parse_namelist_var(myvars, "foo", 12)
-        self.assertEqual(v.foo.val, 7)
-        # Try a variable that is NOT in the namelist:
-        v._parse_namelist_var(myvars, "zzz", 13)
-        self.assertEqual(v.zzz.val, 13)
-        # Try renaming a variable:
-        v._parse_namelist_var(myvars, "bar", -7, new_name="blorp")
-        self.assertEqual(v.blorp.val, 8)
-        # Try a variable that is not a parameter:
-        v._parse_namelist_var(myvars, "nerp", -5, parameter=False)
-        self.assertEqual(v.nerp, -5)
+#    def test_parse_namelist_var(self):
+#        """
+#        Try adding a variable from an input namelist to a Vmec instance.
+#        """
+#        v = Vmec()
+#        myvars = {"foo":7, "bar":8, "oof":False}
+#        # Try a variable that IS in the namelist:
+#        v._parse_namelist_var(myvars, "foo", 12)
+#        self.assertEqual(v.foo.val, 7)
+#        # Try a variable that is NOT in the namelist:
+#        v._parse_namelist_var(myvars, "zzz", 13)
+#        self.assertEqual(v.zzz.val, 13)
+#        # Try renaming a variable:
+#        v._parse_namelist_var(myvars, "bar", -7, new_name="blorp")
+#        self.assertEqual(v.blorp.val, 8)
+#        # Try a variable that is not a parameter:
+#        v._parse_namelist_var(myvars, "nerp", -5, parameter=False)
+#        self.assertEqual(v.nerp, -5)
 
 #    def test_from_input_file(self):
 #        """
