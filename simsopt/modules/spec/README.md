@@ -1,1 +1,0 @@
-Python wrapper files that are not part of the main SPEC repository can go in this directory.

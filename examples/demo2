@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+import sys
+sys.path.append('..')
+from simsopt import *
+
+"""
+Optimize the minor radius and elongation of an axisymmetric torus to
+obtain a desired volume and area.
+"""
+
+desired_volume = 0.6
+desired_area = 8.0
+
+# Start with a default surface, which is axisymmetric with major
+# radius 1 and minor radius 0.1.
+surf = SurfaceRZFourier()
+
+# Parameters are all fixed by default, meaning they will not be
+# optimized.  You can choose any subset of the Parameters to be part
+# of the space of independent variables by setting their 'fixed'
+# property to False.
+surf.get_rc(1, 0).fixed = False
+surf.get_zs(1, 0).fixed = False
+
+# Each Target is then equipped with a shift and weight, to become a
+# term in a least-squares objective function
+term1 = LeastSquaresTerm(surf.volume, desired_volume, 1)
+term2 = LeastSquaresTerm(surf.area,   desired_area,   1)
+
+# A list of terms are combined to form a nonlinear-least-squares
+# problem.
+prob = LeastSquaresProblem([term1, term2])
+
+# Solve the minimization problem:
+prob.solve()
+
+print("At the optimum,")
+print(" rc(m=1,n=0) = ", surf.get_rc(1, 0).val)
+print(" zs(m=1,n=0) = ", surf.get_zs(1, 0).val)
+print(" volume = ", surf.compute_volume())
+print(" area = ", surf.compute_area())
+print(" objective function = ", prob.objective)

@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import sys
+sys.path.append('..')
+from simsopt import *
+import logging
+
+"""                                                                           
+Minimize f(x,y,z) = ((x-1)/1)^2 + ((y-2)/2)^2 + ((z-3)/3)^2.                  
+The optimum is at (x,y,z)=(1,2,3), and f=0 at this point.                     
+"""
+
+# To print out diagnostic information along the way, uncomment this
+# next line:
+#logging.basicConfig(level=logging.INFO)
+
+# Define some Target objects that depend on Parameter objects. In the
+# future these functions would involve codes like VMEC, but for now we
+# just use the functions f(x) = x.
+iden1 = Identity()
+iden2 = Identity()
+iden3 = Identity()
+
+# Parameters are all fixed by default, meaning they will not be
+# optimized.  You can choose any subset of the Parameters to be part
+# of the space of independent variables by setting their 'fixed'
+# property to False.
+iden1.x.fixed = False
+iden2.x.fixed = False
+iden3.x.fixed = False
+
+# Each Target is then equipped with a shift and weight, to become a
+# term in a least-squares objective function
+term1 = LeastSquaresTerm(iden1.target, 1, 1)
+term2 = LeastSquaresTerm(iden2.target, 2, 2)
+term3 = LeastSquaresTerm(iden3.target, 3, 3)
+
+# A list of terms are combined to form a nonlinear-least-squares problem.
+prob = LeastSquaresProblem([term1, term2, term3])
+
+# Solve the minimization problem:
+prob.solve()
+
+print("An optimum was found at x=", iden1.x.val, ", y=", iden2.x.val, \
+          ", z=", iden3.x.val)
+print("The minimum value of the objective function is ", prob.objective)
