@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# To enable python to discover tests, test files should be named
+# test*.py and be located in a directory that includes an __init__.py
+# file.
+
+# For the test*.py files to be able to import the modules correctly,
+# you should either run this command from the project root directory,
+# or else set the PYTHONPATH environment variable to the project's
+# root directory.
+
+python -m unittest -v
+# -v for verbose

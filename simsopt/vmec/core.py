@@ -3,7 +3,7 @@ VMEC python wrapper
 Author: Caoxiang Zhu (caoxiangzhu@gmail.com)
 """
 from __future__ import print_function, absolute_import, division
-import vmec
+import vmec_f90wrap as vmec
 import numpy as np
 
 run_modes =  {'all': 63,
