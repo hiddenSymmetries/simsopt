@@ -35,7 +35,9 @@ class F90wrapVmecTests(unittest.TestCase):
         # Change the working directory to match the directory of this
         # file. Otherwise the vmec output files may be put wherever
         # the unit tests are run from.
-        os.chdir(os.path.dirname(__file__))
+        this_dir = os.path.dirname(__file__)
+        if this_dir != '':
+            os.chdir(os.path.dirname(__file__))
 
 
     def tearDown(self):

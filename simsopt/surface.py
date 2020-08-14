@@ -121,6 +121,7 @@ class SurfaceRZFourier(Surface):
             params = params.union(set(self.rs.data.flat))
             params = params.union(set(self.zc.data.flat))
 
+        self.params = params
         self.area = Target(params, self.compute_area)
         self.volume = Target(params, self.compute_volume)
 
