@@ -15,6 +15,10 @@ the helical shape of the magnetic axis. The problem also has two
 objectives: the plasma volume and the rotational transform on the
 magnetic axis.
 
+The resolution in this example (i.e. ns, mpol, and ntor) is somewhat
+lower than in the stellopt_scenarios version of the example, just so
+this example runs fast.
+
 Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
@@ -62,7 +66,7 @@ print(" objective function = ", prob.objective)
 
 assert np.abs(surf.get_rc(1, 1).val - 0.0313066948) < 1.0e-3
 assert np.abs(surf.get_zs(1, 1).val - (-0.031232391)) < 1.0e-3
-assert np.abs(equil.compute_volume() - 0.178091) < 1.0e-5
-assert np.abs(surf.compute_volume()  - 0.178091) < 1.0e-5
-assert np.abs(equil.compute_iota_axis() - 0.4114567) < 1.0e-6
+assert np.abs(equil.compute_volume() - 0.178091) < 1.0e-3
+assert np.abs(surf.compute_volume()  - 0.178091) < 1.0e-3
+assert np.abs(equil.compute_iota_axis() - 0.4114567) < 1.0e-4
 assert prob.objective < 1.0e-2
