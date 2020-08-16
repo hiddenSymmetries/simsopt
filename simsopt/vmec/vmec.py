@@ -113,7 +113,18 @@ class Vmec(Equilibrium):
             for n in range(-ntor_capped, ntor_capped + 1):
                 vi.rbc[101 + n, m] = self.boundary.get_rc(m, n).val
                 vi.zbs[101 + n, m] = self.boundary.get_zs(m, n).val
-        
+
+        # Set axis shape to something that is obvious wrong (R=0) to
+        # trigger vmec's internal guess_axis.f to run. Otherwise the
+        # initial axis shape for run N will be the final axis shape
+        # from run N-1, which makes VMEC results depend slightly on
+        # the history of previous evaluations, confusing the finite
+        # differencing.
+        vi.raxis_cc[:] = 0
+        vi.raxis_cs[:] = 0
+        vi.zaxis_cc[:] = 0
+        vi.zaxis_cs[:] = 0
+
         self.VMEC.reinit()
         self.logger.info("Running VMEC.")
         self.VMEC.run()

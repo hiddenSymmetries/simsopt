@@ -2,11 +2,24 @@
 
 import sys
 sys.path.append('..')
-from simsopt import *
+import numpy as np
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem
 
 """
-Optimize the minor radius and elongation of an axisymmetric torus to
-obtain a desired volume and area.
+This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
+example from
+https://github.com/landreman/stellopt_scenarios
+
+This optimization problem has one independent variable, representing
+the mean major radius. The problem also has one objective: the plasma
+volume. There is not actually any need to run an equilibrium code like
+VMEC since the objective function can be computed directly from the
+boundary shape. But this problem is a fast way to test the
+optimization infrastructure with VMEC.
+
+Details of the optimum and a plot of the objective function landscape
+can be found here:
+https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
 """
 
 # Start with a default surface, which is axisymmetric with major
@@ -43,6 +56,11 @@ prob.solve()
 
 print("At the optimum,")
 print(" rc(m=0,n=0) = ", surf.get_rc(0, 0).val)
-print(" volume, according to VMEC = ", equil.compute_volume())
+print(" volume, according to VMEC    = ", equil.compute_volume())
 print(" volume, according to Surface = ", surf.compute_volume())
 print(" objective function = ", prob.objective)
+
+assert np.abs(surf.get_rc(0, 0).val - 0.7599088773175) < 1.0e-5
+assert np.abs(equil.compute_volume() - 0.15) < 1.0e-6
+assert np.abs(surf.compute_volume() - 0.15) < 1.0e-6
+assert prob.objective < 1.0e-15
