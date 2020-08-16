@@ -196,3 +196,9 @@ jobs:
 
     - name: Run unit tests
       run: python3 -m unittest -v
+
+    - name: Run integrated test
+      run: |
+        pwd
+        cd examples
+        python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
