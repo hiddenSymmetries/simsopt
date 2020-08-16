@@ -4,10 +4,10 @@ import os
 from simsopt.vmec import *
 
 class VmecTests(unittest.TestCase):
-    def test_init(self):
+    def test_init_defaults(self):
         """
         Just create a Vmec instance using the standard constructor,
-        and make sure we can read all the attributes.
+        and make sure we can read some of the attributes.
         """
         v = Vmec()
         self.assertEqual(v.nfp.val, 5)
@@ -22,6 +22,36 @@ class VmecTests(unittest.TestCase):
         self.assertEqual(v.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
+        v.finalize()
+
+    def test_init_from_file(self):
+        """
+        Try creating a Vmec instance from a specified input file.
+        """
+
+        filename = os.path.join(os.path.dirname(__file__), \
+                                    'input.li383_low_res')
+
+        v = Vmec(filename)
+        self.assertEqual(v.nfp.val, 3)
+        self.assertEqual(v.mpol.val, 4)
+        self.assertEqual(v.ntor.val, 3)
+        self.assertEqual(v.boundary.mpol.val, 4)
+        self.assertEqual(v.boundary.ntor.val, 3)
+
+        # n = 0, m = 0:
+        self.assertAlmostEqual(v.boundary.get_rc(0, 0).val, 1.3782)
+
+        # n = 0, m = 1:
+        self.assertAlmostEqual(v.boundary.get_zs(1, 0).val, 4.6465E-01)
+
+        # n = 1, m = 1:
+        self.assertAlmostEqual(v.boundary.get_zs(1, 1).val, 1.6516E-01)
+
+        self.assertEqual(v.ncurr, 1)
+        self.assertFalse(v.free_boundary)
+        self.assertTrue(v.need_to_run_code)
+
         v.finalize()
 
 #    def test_parse_namelist_var(self):

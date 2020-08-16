@@ -15,6 +15,12 @@ f90wrap_*.f90
 # VMEC specific
 modules/VMEC/vmec.py
 modules/VMEC/vmec_pkg/
+wout*
+mercier*
+jxbout*
+parvmecinfo.txt
+threed*
+vmec_f90wrap.py
 
 # examples
 examples/VMEC/

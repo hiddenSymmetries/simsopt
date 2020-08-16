@@ -205,11 +205,11 @@ class VMEC(object):
     def load(self, **kwargs):
         ierr = 0
         if self.success:
-            self.logger.info("Attempting to read file ", self.output_file)
+            self.logger.info("Attempting to read file " + self.output_file)
             vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
             if self.verbose:
                 if ierr == 0:
-                    self.logger.info('Successufully load VMEC results from ',
+                    self.logger.info('Successufully load VMEC results from ' + \
                           self.output_file)
                 else:
                     print('Load VMEC results from {:} failed!'.format(
