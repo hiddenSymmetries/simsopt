@@ -56,11 +56,11 @@ prob.solve()
 
 print("At the optimum,")
 print(" rc(m=0,n=0) = ", surf.get_rc(0, 0).val)
-print(" volume, according to VMEC    = ", equil.compute_volume())
-print(" volume, according to Surface = ", surf.compute_volume())
+print(" volume, according to VMEC    = ", equil.volume.evaluate())
+print(" volume, according to Surface = ", surf.volume.evaluate())
 print(" objective function = ", prob.objective)
 
 assert np.abs(surf.get_rc(0, 0).val - 0.7599088773175) < 1.0e-5
-assert np.abs(equil.compute_volume() - 0.15) < 1.0e-6
-assert np.abs(surf.compute_volume() - 0.15) < 1.0e-6
+assert np.abs(equil.volume.evaluate() - 0.15) < 1.0e-6
+assert np.abs(surf.volume.evaluate() - 0.15) < 1.0e-6
 assert prob.objective < 1.0e-15
