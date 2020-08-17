@@ -3,8 +3,6 @@ This module provides a class that handles the VMEC equilibrium code.
 """
 
 import numpy as np
-#from FortranNamelist import NamelistFile
-#import f90nml
 import logging
 import os.path
 from mpi4py import MPI
@@ -80,10 +78,17 @@ class Vmec(Equilibrium):
                  self.delt, self.tcon0, self.phiedge, self.curtor, self.gamma})
 
         # Create the targets:
-        self.aspect = Target(self.params, self.compute_aspect)
-        self.volume = Target(self.params, self.compute_volume)
+        self.aspect = Target(self.params, lambda : self._to_target("aspect"))
+        self.volume = Target(self.params, lambda : self._to_target("volume"))
         self.iota_edge = Target(self.params, self.compute_iota_edge)
         self.iota_axis = Target(self.params, self.compute_iota_axis)
+
+    def _to_target(self, name):
+        """
+        Helper function to convert an output of VMEC to a Target.
+        """
+        self.run()
+        return self.VMEC.wout.__getattribute__(name)
 
     def run(self):
         """
@@ -132,20 +137,6 @@ class Vmec(Equilibrium):
         self.VMEC.load()
         self.logger.info("Done loading VMEC output.")
         self.need_to_run_code = False
-
-    def compute_aspect(self):
-        """
-        Return the aspect ratio.
-        """
-        self.run()
-        return self.VMEC.wout.aspect
-
-    def compute_volume(self):
-        """
-        Return the volume.
-        """
-        self.run()
-        return self.VMEC.wout.volume
 
     def compute_iota_axis(self):
         """
@@ -210,62 +201,3 @@ class Vmec(Equilibrium):
             str(self.nfp.val) + " mpol=" + \
             str(self.mpol.val) + " ntor=" + str(self.ntor.val) + ")"
 
-    def _parse_namelist_var(self, varlist, var, default, min=np.NINF, max=np.Inf, \
-                               new_name=None, parameter=True):
-        """
-        This method is used to streamline from_input_file(), and would
-        not usually be called by users.
-        """
-        objstr = " for Vmec " + str(hex(id(self)))
-        if var in varlist:
-            val_to_use = varlist[var]
-        else:
-            val_to_use = default
-
-        if new_name is None:
-            name = var
-        else:
-            name = new_name
-
-        if parameter:
-            setattr(self, name, Parameter(val_to_use, min=min, max=max, \
-                                              name=name + objstr, observers=self.reset))
-        else:
-            setattr(self, name, val_to_use)
-
-#    @classmethod
-#    def from_input_file(cls, filename):
-#        """
-#        Create an instance of the Vmec class based on settings that
-#        are read in from a VMEC input namelist.
-#        """
-#        logger = logging.getLogger(__name__)
-#        logger.info("Initializing a VMEC object from file: " + filename)
-#        vmec = cls()
-#
-#        nml = f90nml.read(filename)
-#        varlist = nml['indata']
-#
-#        vmec._parse_namelist_var(varlist, "nfp", 1, min=1)
-#        vmec._parse_namelist_var(varlist, "mpol", 1, min=1)
-#        vmec._parse_namelist_var(varlist, "ntor", 0, min=0)
-#        vmec._parse_namelist_var(varlist, "delt", 0.7)
-#        vmec._parse_namelist_var(varlist, "tcon0", 2.0)
-#        vmec._parse_namelist_var(varlist, "phiedge", 1.0)
-#        vmec._parse_namelist_var(varlist, "curtor", 0.0)
-#        vmec._parse_namelist_var(varlist, "gamma", 0.0)
-#        vmec._parse_namelist_var(varlist, "lfreeb", False, \
-#                                    new_name="free_boundary", parameter=False)
-#        vmec._parse_namelist_var(varlist, "ncurr", 1, parameter=False)
-#
-#        # Handle a few variables separately:
-#        if "lasym" in varlist:
-#            lasym = varlist["lasym"]
-#        else:
-#            lasym = False
-#        vmec.stelsym = Parameter(not lasym)
-#
-#        vmec.boundary = SurfaceRZFourier(nfp=vmec.nfp.val, stelsym=vmec.stelsym.val, \
-#                                      mpol=vmec.mpol.val, ntor=vmec.ntor.val)
-#
-#        return vmec
