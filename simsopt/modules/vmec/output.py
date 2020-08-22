@@ -33,7 +33,10 @@ class VmecOutput:
         self.bsupvmnc = f.variables["bsupvmnc"][()]
         self.xm = f.variables["xm"][()]
         self.xn = f.variables["xn"][()]
+        self.xm_nyq = f.variables["xm_nyq"][()]
+        self.xn_nyq = f.variables["xn_nyq"][()]        
         self.mnmax = f.variables["mnmax"][()]
+        self.mnmax_nyq = f.variables["mnmax_nyq"][()]
         self.gmnc = f.variables["gmnc"][()]
         self.psi = f.variables["phi"][()]/(2*np.pi)
         self.mpol = f.variables["mpol"][()]
@@ -112,10 +115,9 @@ class VmecOutput:
                 raise ValueError('Incorrect value of isurface in compute_modB.')
             this_bmnc = 0.5 * (self.bmnc[isurf-1,:] + self.bmnc[isurf+1,:])
         modB = np.zeros(np.shape(zeta))
-        for im in range(self.mnmax):
-            angle = self.xm[im] * theta - self.xn[im] * zeta
+        for im in range(self.mnmax_nyq):
+            angle = self.xm_nyq[im] * theta - self.xn_nyq[im] * zeta
             cos_angle = np.cos(angle)
-            sin_angle = np.sin(angle)
             modB += this_bmnc[im] * cos_angle
         
         return modB
@@ -806,8 +808,8 @@ class VmecOutput:
         Bsupv_end = np.zeros(np.shape(self.thetas_2d))
         R_end = np.zeros(np.shape(self.thetas_2d))
         Z_end = np.zeros(np.shape(self.thetas_2d))
-        for im in range(self.mnmax):
-            angle = self.xm[im] * self.thetas_2d - self.xn[im] * self.zetas_2d
+        for im in range(self.mnmax_nyq):
+            angle = self.xm_nyq[im] * self.thetas_2d - self.xn_nyq[im] * self.zetas_2d
             cos_angle = np.cos(angle)
             sin_angle = np.sin(angle)
             Bsupu_end += bsupumnc_end[im] * cos_angle
