@@ -15,6 +15,6 @@ set -ex
 python -m unittest -v
 # -v for verbose
 
-cd examples
+#cd examples
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+#./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
