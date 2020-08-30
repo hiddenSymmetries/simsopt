@@ -51,14 +51,77 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.rc[1, 0] = 0.4
         s.zs[1, 0] = 0.2
 
-        area, volume = s.area_volume()
         true_area = 15.827322032265993
         true_volume = 2.0528777154265874
-        self.assertAlmostEqual(area, true_area, places=4)
-        self.assertAlmostEqual(volume, true_volume, places=3)
-        self.assertAlmostEqual(s.compute_area(), true_area, places=4)
-        self.assertAlmostEqual(s.compute_volume(), true_volume, places=3)
+        self.assertAlmostEqual(s.area, true_area, places=4)
+        self.assertAlmostEqual(s.volume, true_volume, places=3)
 
+    def test_get_dofs(self):
+        """
+        Test that we can convert the degrees of freedom into a 1D vector
+        """
+
+        # First try an axisymmetric surface for simplicity:
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        dofs = s.get_dofs()
+        self.assertEqual(dofs.shape, (3,))
+        self.assertAlmostEqual(dofs[0], 1.3)
+        self.assertAlmostEqual(dofs[1], 0.4)
+        self.assertAlmostEqual(dofs[2], 0.2)
+
+        # Now try a nonaxisymmetric shape:
+        s = SurfaceRZFourier(mpol=3, ntor=1)
+        s.rc[:, :] = [[100, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]] 
+        s.zs[:, :] = [[101, 102, 13], [14, 15, 16], [17, 18, 19], [20, 21, 22]] 
+        dofs = s.get_dofs()
+        self.assertEqual(dofs.shape, (21,))
+        for j in range(21):
+            self.assertAlmostEqual(dofs[j], j + 2)
+        
+    def test_set_dofs(self):
+        """
+        Test that we can set the shape from a 1D vector
+        """
+
+        # First try an axisymmetric surface for simplicity:
+        s = SurfaceRZFourier()
+        s.set_dofs([2.9, -1.1, 0.7])
+        self.assertAlmostEqual(s.rc[0, 0], 2.9)
+        self.assertAlmostEqual(s.rc[1, 0], -1.1)
+        self.assertAlmostEqual(s.zs[1, 0], 0.7)
+        
+        # Now try a nonaxisymmetric shape:
+        s = SurfaceRZFourier(mpol=3, ntor=1)
+        s.set_dofs(np.array(list(range(21))) + 1)
+        self.assertAlmostEqual(s.rc[0, 0], 0)
+        self.assertAlmostEqual(s.rc[0, 1], 1)
+        self.assertAlmostEqual(s.rc[0, 2], 2)
+        self.assertAlmostEqual(s.rc[1, 0], 3)
+        self.assertAlmostEqual(s.rc[1, 1], 4)
+        self.assertAlmostEqual(s.rc[1, 2], 5)
+        self.assertAlmostEqual(s.rc[2, 0], 6)
+        self.assertAlmostEqual(s.rc[2, 1], 7)
+        self.assertAlmostEqual(s.rc[2, 2], 8)
+        self.assertAlmostEqual(s.rc[3, 0], 9)
+        self.assertAlmostEqual(s.rc[3, 1], 10)
+        self.assertAlmostEqual(s.rc[3, 2], 11)
+
+        self.assertAlmostEqual(s.zs[0, 0], 0)
+        self.assertAlmostEqual(s.zs[0, 1], 0)
+        self.assertAlmostEqual(s.zs[0, 2], 12)
+        self.assertAlmostEqual(s.zs[1, 0], 13)
+        self.assertAlmostEqual(s.zs[1, 1], 14)
+        self.assertAlmostEqual(s.zs[1, 2], 15)
+        self.assertAlmostEqual(s.zs[2, 0], 16)
+        self.assertAlmostEqual(s.zs[2, 1], 17)
+        self.assertAlmostEqual(s.zs[2, 2], 18)
+        self.assertAlmostEqual(s.zs[3, 0], 19)
+        self.assertAlmostEqual(s.zs[3, 1], 20)
+        self.assertAlmostEqual(s.zs[3, 2], 21)
+        
     def test_from_focus(self):
         """
         Try reading in a focus-format file.
@@ -89,17 +152,14 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.get_rc(10,6), -6.047097E-05)
         self.assertAlmostEqual(s.get_zs(10,6), 3.663233E-05)
 
-        area, volume = s.area_volume()
         true_area = 24.5871075268402
         true_volume = 2.96201898538042
         #print("computed area: ", area, ", correct value: ", true_area, \
         #    " , difference: ", area - true_area)
         #print("computed volume: ", volume, ", correct value: ", \
         #    true_volume, ", difference:", volume - true_volume)
-        self.assertAlmostEqual(area, true_area, places=4)
-        self.assertAlmostEqual(volume, true_volume, places=3)
-        self.assertAlmostEqual(s.compute_area(), true_area, places=4)
-        self.assertAlmostEqual(s.compute_volume(), true_volume, places=3)
+        self.assertAlmostEqual(s.area, true_area, places=4)
+        self.assertAlmostEqual(s.volume, true_volume, places=3)
 
 if __name__ == "__main__":
     unittest.main()

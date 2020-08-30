@@ -64,6 +64,7 @@ class SurfaceRZFourier(Surface):
         Surface.__init__(self, nfp=nfp, stelsym=stelsym)
         self.logger = logging.getLogger(__name__)
         self.allocate()
+        self.recalculate = True
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
@@ -151,7 +152,13 @@ class SurfaceRZFourier(Surface):
         """
         Compute the surface area and the volume enclosed by the surface.
         """
-        self.logger.info('Running calculation of area and volume')
+        if self.recalculate:
+            self.logger.info('Running calculation of area and volume')
+        else:
+            self.logger.info('area_volume called, but no need to recalculate')
+            return
+
+        self.recalculate = False
         ntheta = self.ntheta # Shorthand
         nphi = self.nphi
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
@@ -223,25 +230,26 @@ class SurfaceRZFourier(Surface):
         normalz = dxdphi * dydtheta - dydphi * dxdtheta
         norm_normal = np.sqrt(normalx * normalx + normaly * normaly \
                                   + normalz * normalz)
-        area = nfp * dtheta * dphi * np.sum(np.sum(norm_normal))
+        self._area = nfp * dtheta * dphi * np.sum(np.sum(norm_normal))
         # Compute plasma volume using \int (1/2) R^2 dZ dphi
         # = \int (1/2) R^2 (dZ/dtheta) dtheta dphi
-        volume = 0.5 * nfp * dtheta * dphi * np.sum(np.sum(r * r * dzdtheta))
-        return (area, volume)
+        self._volume = 0.5 * nfp * dtheta * dphi * np.sum(np.sum(r * r * dzdtheta))
 
-    def compute_area(self):
+    @property
+    def area(self):
         """
         Return the area of the surface.
         """
-        area, volume = self.area_volume()
-        return area
+        self.area_volume()
+        return self._area
 
-    def compute_volume(self):
+    @property
+    def volume(self):
         """
         Return the volume of the surface.
         """
-        area, volume = self.area_volume()
-        return volume
+        self.area_volume()
+        return self._volume
 
     @classmethod
     def from_focus(cls, filename):
@@ -288,3 +296,48 @@ class SurfaceRZFourier(Surface):
                 surf.zc[m[j], n[j] + ntor] = zc[j]
 
         return surf
+
+    def get_dofs(self):
+        """
+        Return a 1D numpy array with all the degrees of freedom.
+        """
+        mpol = self.mpol # Shorthand
+        ntor = self.ntor
+        if self.stelsym:
+            return np.concatenate( \
+                (self.rc[0, ntor:], \
+                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self.zs[0, ntor + 1:], \
+                 self.zs[1:, :].reshape(mpol * (ntor * 2 + 1))))
+        else:
+            return np.concatenate( \
+                (self.rc[0, ntor:], \
+                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self.zs[0, ntor + 1:], \
+                 self.zs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self.rs[0, ntor + 1:], \
+                 self.rs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self.zc[0, ntor:], \
+                 self.zc[1:, :].reshape(mpol * (ntor * 2 + 1))))
+
+    def set_dofs(self, v):
+        """
+        Set the shape coefficients from a 1D list/array
+        """
+
+        # First check whether any elements actually change:
+        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
+            self.logger.info('set_dofs called, but no dofs actually changed')
+            return
+
+        self.logger.info('set_dofs called, and at least one dof changed')
+        self.recalculate = True
+        
+        mpol = self.mpol # Shorthand
+        ntor = self.ntor
+        self.rc[0, ntor:] = v[0:ntor + 1]
+        self.rc[1:, :] = np.array(v[ntor + 1:ntor + 1 + mpol * (ntor * 2 + 1)]).reshape(mpol, ntor * 2 + 1)
+        self.zs[0, ntor + 1:] = v[ntor + 1 + mpol * (ntor * 2 + 1): \
+                                           ntor * 2 + 1 + mpol * (ntor * 2 + 1)]
+        self.zs[1:, :] = np.array(v[ntor * 2 + 1 + mpol * (ntor * 2 + 1): \
+                                           ntor * 2 + 1 + 2 * mpol * (ntor * 2 + 1)]).reshape(mpol, ntor * 2 + 1)
