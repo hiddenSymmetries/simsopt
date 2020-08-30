@@ -5,24 +5,27 @@ corresponding to different discrete representations.
 """
 
 import numpy as np
-from .parameter import Parameter, ParameterArray
-from .shape import Shape
-from .target import Target
 import logging
+from .parameter import isbool
 
-class Surface(Shape):
+class Surface:
     """
     Surface is a base class for various representations of toroidal
     surfaces in simsopt.
     """
 
     def __init__(self, nfp=1, stelsym=True):
-        # Shape handles validation of the arguments
-        Shape.__init__(self, nfp, stelsym)
+        if not isinstance(nfp, int):
+            raise TypeError('nfp must be an integer')
+        if not isbool(stelsym):
+            raise TypeError('stelsym must be a bool')
+        self.nfp = nfp
+        self.stelsym = stelsym
+        self.logger = logging.getLogger(__name__)
 
     def __repr__(self):
-        return "Surface " + str(hex(id(self))) + " (nfp=" + str(self._nfp.val) \
-            + ", stelsym=" + str(self._stelsym.val) + ")"
+        return "Surface " + str(hex(id(self))) + " (nfp=" + str(self.nfp) \
+            + ", stelsym=" + str(self.stelsym) + ")"
 
     def to_RZFourier(self):
         """
@@ -49,86 +52,52 @@ class SurfaceRZFourier(Surface):
     def __init__(self, nfp=1, stelsym=True, mpol=1, ntor=0):
         # Perform some validation.
         if not isinstance(mpol, int):
-            raise RuntimeError("mpol must have type int")
+            raise TypeError("mpol must have type int")
         if not isinstance(ntor, int):
-            raise RuntimeError("ntor must have type int")
+            raise TypeError("ntor must have type int")
         if mpol < 1:
-            raise RuntimeError("mpol must be at least 1")
+            raise ValueError("mpol must be at least 1")
         if ntor < 0:
-            raise RuntimeError("ntor must be at least 0")
-        self.mpol = Parameter(mpol, min=1, name="mpol for SurfaceRZFourier " \
-                                  + str(hex(id(self))))
-        self.ntor = Parameter(ntor, min=0, name="ntor for SurfaceRZFourier " \
-                                  + str(hex(id(self))))
+            raise ValueError("ntor must be at least 0")
+        self.mpol = mpol
+        self.ntor = ntor
         Surface.__init__(self, nfp=nfp, stelsym=stelsym)
+        self.logger = logging.getLogger(__name__)
         self.allocate()
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
-        self.get_rc(0,0).val = 1.0
-        self.get_rc(1,0).val = 0.1
-        self.get_zs(1,0).val = 0.1
-
+        #self.get_rc(0,0) = 1.0
+        #self.get_rc(1,0) = 0.1
+        #self.get_zs(1,0) = 0.1
+        self.rc[0, ntor] = 1.0
+        self.rc[1, ntor] = 0.1
+        self.zs[1, ntor] = 0.1
+        
         # Resolution for computing area, volume, etc:
         self.ntheta = 63
         self.nphi = 62
 
-    def _generate_names(self, prefix):
-        """
-        Generate the names for the Parameter objects.
-        """
-        assert(type(prefix) is str)
-        self.mdim = self.mpol.val + 1
-        self.ndim = 2 * self.ntor.val + 1
-        objstr = " for SurfaceRZFourier " + str(hex(id(self)))
-        names = []
-        for m in range(self.mdim):
-            namess = []
-            for jn in range(self.ndim):
-                newstr = prefix + "(m={: 04d},n={: 04d})".format(\
-                    m,jn - self.ntor.val) + objstr
-                namess.append(newstr)
-            names.append(namess)
-        return np.array(names)
-
     def allocate(self):
         """
-        Create the ParameterArrays for the rc, rs, zc, and zs coefficients.
+        Create the arrays for the rc, rs, zc, and zs coefficients.
         """
-        logger = logging.getLogger(__name__)
-        logger.info("Allocating SurfaceRZFourier")
-        self.mdim = self.mpol.val + 1
-        self.ndim = 2 * self.ntor.val + 1
+        self.logger.info("Allocating SurfaceRZFourier")
+        self.mdim = self.mpol + 1
+        self.ndim = 2 * self.ntor + 1
         myshape = (self.mdim, self.ndim)
 
-        self.rc = ParameterArray(np.zeros(myshape), \
-                                     name=self._generate_names("rc"))
-        self.zs = ParameterArray(np.zeros(myshape), \
-                                     name=self._generate_names("zs"))
+        self.rc = np.zeros(myshape)
+        self.zs = np.zeros(myshape)
 
-        if not self.stelsym.val:
-            self.rs = ParameterArray(np.zeros(myshape), \
-                                         name=self._generate_names("rs"))
-            self.zc = ParameterArray(np.zeros(myshape), \
-                                         name=self._generate_names("zc"))
-
-        # Create a set of all the surface Parameters, which will be
-        # used for Targets that depend on this surface.
-        params = {self.nfp, self.stelsym, self.mpol, self.ntor}
-        params = params.union(set(self.rc.data.flat))
-        params = params.union(set(self.zs.data.flat))
-        if not self.stelsym.val:
-            params = params.union(set(self.rs.data.flat))
-            params = params.union(set(self.zc.data.flat))
-
-        self.params = params
-        self.area = Target(params, self.compute_area)
-        self.volume = Target(params, self.compute_volume)
+        if not self.stelsym:
+            self.rs = np.zeros(myshape)
+            self.zc = np.zeros(myshape)
 
     def __repr__(self):
         return "SurfaceRZFourier " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp.val) + ", stelsym=" + str(self.stelsym.val) + \
-            ", mpol=" + str(self.mpol.val) + ", ntor=" + str(self.ntor.val) \
+            str(self.nfp) + ", stelsym=" + str(self.stelsym) + \
+            ", mpol=" + str(self.mpol) + ", ntor=" + str(self.ntor) \
             + ")"
 
     def _validate_mn(self, m, n):
@@ -137,11 +106,11 @@ class SurfaceRZFourier(Surface):
         """
         if m < 0:
             raise ValueError('m must be >= 0')
-        if m > self.mpol.val:
+        if m > self.mpol:
             raise ValueError('m must be <= mpol')
-        if n > self.ntor.val:
+        if n > self.ntor:
             raise ValueError('n must be <= ntor')
-        if n < -self.ntor.val:
+        if n < -self.ntor:
             raise ValueError('n must be >= -ntor')
     
     def get_rc(self, m, n):
@@ -149,43 +118,44 @@ class SurfaceRZFourier(Surface):
         Return a particular rc Parameter.
         """
         self._validate_mn(m, n)
-        return self.rc.data[m, n + self.ntor.val]
+        return self.rc[m, n + self.ntor]
 
     def get_rs(self, m, n):
         """
         Return a particular rs Parameter.
         """
-        if self.stelsym.val:
+        if self.stelsym:
             return ValueError( \
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
-        return self.rs.data[m, n + self.ntor.val]
+        return self.rs[m, n + self.ntor]
 
     def get_zc(self, m, n):
         """
         Return a particular zc Parameter.
         """
-        if self.stelsym.val:
+        if self.stelsym:
             return ValueError( \
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
-        return self.zc.data[m, n + self.ntor.val]
+        return self.zc[m, n + self.ntor]
 
     def get_zs(self, m, n):
         """
         Return a particular zs Parameter.
         """
         self._validate_mn(m, n)
-        return self.zs.data[m, n + self.ntor.val]
+        return self.zs[m, n + self.ntor]
 
     def area_volume(self):
         """
         Compute the surface area and the volume enclosed by the surface.
         """
+        self.logger.info('Running calculation of area and volume')
         ntheta = self.ntheta # Shorthand
         nphi = self.nphi
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-        phi1d = np.linspace(0, 2 * np.pi / self.nfp.val, nphi, \
+        phi1d = np.linspace(0, 2 * np.pi / self.nfp, nphi, \
                                 endpoint=False)
         dtheta = theta1d[1] - theta1d[0]
         dphi = phi1d[1] - phi1d[0]
@@ -200,22 +170,22 @@ class SurfaceRZFourier(Surface):
         dxdphi = np.zeros((ntheta, nphi))
         dydphi = np.zeros((ntheta, nphi))
         dzdphi = np.zeros((ntheta, nphi))
-        mdim = self.mpol.val + 1
-        ndim = 2 * self.ntor.val + 1
+        mdim = self.mpol + 1
+        ndim = 2 * self.ntor + 1
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
-        nfp = self.nfp.val
+        nfp = self.nfp
         for m in range(mdim):
             for jn in range(ndim):
                 # Presently this loop includes negative n when m=0.
                 # This is unnecesary but doesn't hurt I think.
-                n_without_nfp = jn - self.ntor.val
+                n_without_nfp = jn - self.ntor
                 n = n_without_nfp * nfp
                 angle = m * theta - n * phi
                 sinangle = np.sin(angle)
                 cosangle = np.cos(angle)
-                rmnc = self.get_rc(m, n_without_nfp).val
-                zmns = self.get_zs(m, n_without_nfp).val
+                rmnc = self.get_rc(m, n_without_nfp)
+                zmns = self.get_zs(m, n_without_nfp)
                 r += rmnc * cosangle
                 x += rmnc * cosangle * cosphi
                 y += rmnc * cosangle * sinphi
@@ -230,9 +200,9 @@ class SurfaceRZFourier(Surface):
                 dydphi += rmnc * (n * sinangle * sinphi \
                                       + cosangle * cosphi)
                 dzdphi += zmns * (-n * cosangle)
-                if not self.stelsym.val:
-                    rmns = self.get_rs(m, n_without_nfp).val
-                    zmnc = self.get_zc(m, n_without_nfp).val
+                if not self.stelsym:
+                    rmns = self.get_rs(m, n_without_nfp)
+                    zmnc = self.get_zc(m, n_without_nfp)
                     r += rmns * sinangle
                     x += rmns * sinangle * cosphi
                     y += rmns * sinangle * sinphi
@@ -311,10 +281,10 @@ class SurfaceRZFourier(Surface):
 
         surf = cls(nfp=nfp, stelsym=stelsym, mpol=mpol, ntor=ntor)
         for j in range(Nfou):
-            surf.rc.data[m[j], n[j] + ntor].val = rc[j]
-            surf.zs.data[m[j], n[j] + ntor].val = zs[j]
+            surf.rc[m[j], n[j] + ntor] = rc[j]
+            surf.zs[m[j], n[j] + ntor] = zs[j]
             if not stelsym:
-                surf.rs.data[m[j], n[j] + ntor].val = rs[j]
-                surf.zc.data[m[j], n[j] + ntor].val = zc[j]
+                surf.rs[m[j], n[j] + ntor] = rs[j]
+                surf.zc[m[j], n[j] + ntor] = zc[j]
 
         return surf
