@@ -90,11 +90,27 @@ class SurfaceRZFourier(Surface):
 
         self.rc = np.zeros(myshape)
         self.zs = np.zeros(myshape)
-
+        self.names = self.make_names('rc', True) + self.make_names('zs', False)
+        
         if not self.stelsym:
             self.rs = np.zeros(myshape)
             self.zc = np.zeros(myshape)
+            self.names += self.make_names('rs', False) + self.make_names('zc', True)
 
+    def make_names(self, prefix, include0):
+        """
+        Form a list of names of the rc, zs, rs, or zc array elements.
+        """
+        if include0:
+            names = [prefix + "(0,0)"]
+        else:
+            names = []
+
+        names += [prefix + '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
+        for m in range(1, self.mpol + 1):
+            names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
+        return names
+            
     def __repr__(self):
         return "SurfaceRZFourier " + str(hex(id(self))) + " (nfp=" + \
             str(self.nfp) + ", stelsym=" + str(self.stelsym) + \
@@ -325,7 +341,12 @@ class SurfaceRZFourier(Surface):
         Set the shape coefficients from a 1D list/array
         """
 
-        # First check whether any elements actually change:
+        n = len(self.get_dofs())
+        if len(v) != n:
+            raise ValueError('Input vector should have ' + str(n) + \
+                             ' elements but instead has ' + str(len(v)))
+        
+        # Check whether any elements actually change:
         if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
             self.logger.info('set_dofs called, but no dofs actually changed')
             return

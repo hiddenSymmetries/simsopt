@@ -197,11 +197,11 @@ jobs:
     - name: Run unit tests
       run: python3 -m unittest -v
 
-    - name: Run 1dof integrated test
-      run: |
-        pwd
-        cd examples
-        python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+    #- name: Run 1dof integrated test
+    #  run: |
+    #    pwd
+    #    cd examples
+    #    python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
 
-    - name: Run 2dof integrated test
-      run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+    #- name: Run 2dof integrated test
+    #  run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
