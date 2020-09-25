@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+import logging
+import sys
+import numpy as np
+sys.path.append('..')
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem
+
+"""
+This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
+https://github.com/landreman/stellopt_scenarios
+
+This optimization problem has two independent variables, representing
+the helical shape of the magnetic axis. The problem also has two
+objectives: the plasma volume and the rotational transform on the
+magnetic axis.
+
+The resolution in this example (i.e. ns, mpol, and ntor) is somewhat
+lower than in the stellopt_scenarios version of the example, just so
+this example runs fast.
+
+Details of the optimum and a plot of the objective function landscape
+can be found here:
+https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
+"""
+
+# This next line turns on detailed logging. It can be commented out if
+# you do not want such verbose output.
+logging.basicConfig(level=logging.INFO)
+
+# Initialize VMEC from an input file:
+equil = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume')
+surf = equil.boundary
+
+# Parameters are all fixed by default, meaning they will not be
+# optimized.  You can choose any subset of the Parameters to be part
+# of the space of independent variables by setting their 'fixed'
+# property to False.
+surf.get_rc(1, 1).fixed = False
+surf.get_zs(1, 1).fixed = False
+
+# Each Target is then equipped with a shift and weight, to become a
+# term in a least-squares objective function
+desired_volume = 0.15
+volume_weight = 1
+term1 = LeastSquaresTerm(equil.volume, desired_volume, volume_weight)
+
+desired_iota = 0.41
+iota_weight = 1
+term2 = LeastSquaresTerm(equil.iota_axis, desired_iota, iota_weight)
+
+# A list of terms are combined to form a nonlinear-least-squares
+# problem.
+prob = LeastSquaresProblem([term1, term2])
+
+# Solve the minimization problem:
+prob.solve()
+
+print("At the optimum,")
+print(" rc(m=1,n=1) = ", surf.get_rc(1, 1).val)
+print(" zs(m=1,n=1) = ", surf.get_zs(1, 1).val)
+print(" volume, according to VMEC    = ", equil.volume.evaluate())
+print(" volume, according to Surface = ", surf.volume.evaluate())
+print(" iota on axis = ", equil.compute_iota_axis())
+print(" objective function = ", prob.objective)
+
+assert np.abs(surf.get_rc(1, 1).val - 0.0313066948) < 1.0e-3
+assert np.abs(surf.get_zs(1, 1).val - (-0.031232391)) < 1.0e-3
+assert np.abs(equil.volume.evaluate() - 0.178091) < 1.0e-3
+assert np.abs(surf.volume.evaluate()  - 0.178091) < 1.0e-3
+assert np.abs(equil.compute_iota_axis() - 0.4114567) < 1.0e-4
+assert prob.objective < 1.0e-2
