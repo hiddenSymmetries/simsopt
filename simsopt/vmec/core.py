@@ -3,7 +3,10 @@ VMEC python wrapper
 Author: Caoxiang Zhu (caoxiangzhu@gmail.com)
 """
 from __future__ import print_function, absolute_import, division
+import vmec_f90wrap as vmec
 import numpy as np
+import os
+import logging
 
 run_modes =  {'all': 63,
               'input': 35,  # STELLOPT uses 35; V3FIT uses 7
@@ -47,11 +50,12 @@ class VMEC(object):
         Returns:
             None
         """
+        self.logger = logging.getLogger(__name__)
         # pass arguments and check
         assert isinstance(input_file, str), \
             "input_file should the input filename in str."
-        if not input_file.startswith('input.'):
-            input_file = 'input.' + input_file
+        #if not input_file.startswith('input.'): # This causes problems if the filename starts with a drectory!
+        #    input_file = 'input.' + input_file
         self.input_file = input_file
         assert isinstance(comm, int), \
             "MPI communicator should be converted using MPI.py2f()."
@@ -65,6 +69,7 @@ class VMEC(object):
         self.ictrl = np.zeros(5, dtype=np.int32)
 
         # initialize VMEC
+        #self.reset()
         self.linit = self.run(mode='input', input_file=self.input_file,
                               numsteps=1, verbose=False, comm=self.comm)
         # if failed, run again with verbose
@@ -79,6 +84,45 @@ class VMEC(object):
         self.wout = vmec.read_wout_mod
 
         return
+
+    def reset(self):
+        ier = 0
+        numsteps = 0
+        ns_index = -1
+        #iseq = MPI.COMM_WORLD.Get_rank()
+        iseq = 0
+        input_file = ''
+        reset_file = ''
+        # prepare Fortran arguments
+        self.ictrl[0] = 16
+        self.ictrl[1] = ier
+        self.ictrl[2] = numsteps
+        self.ictrl[3] = ns_index
+        self.ictrl[4] = iseq
+        # run VMEC
+        print("In core.reset")
+        verbose = True
+        vmec.runvmec(self.ictrl, input_file, verbose, self.comm, reset_file)
+
+    def finalize(self):
+        ier = 0
+        numsteps = 0
+        ns_index = -1
+        #iseq = MPI.COMM_WORLD.Get_rank()
+        iseq = 0
+        input_file = ''
+        reset_file = ''
+        # prepare Fortran arguments
+        self.ictrl[0] = 16 + 32
+        self.ictrl[1] = ier
+        self.ictrl[2] = numsteps
+        self.ictrl[3] = ns_index
+        self.ictrl[4] = iseq
+        # run VMEC
+        print("In core.finalize")
+        verbose = True
+        vmec.runvmec(self.ictrl, input_file, verbose, self.comm, reset_file)
+
 
     def reinit(self, **kwargs):
         """Re-initialize VMEC run from indata."""
@@ -137,7 +181,10 @@ class VMEC(object):
         else:
             if 'input.' not in input_file:
                 input_file = 'input.'+input_file
-        self.output_file = input_file.replace('input.', 'wout_')+'.nc'
+        #self.output_file = input_file.replace('input.', 'wout_')+'.nc'
+        # Need to include os.getcwd() if the input file is not in the current working directory.
+        self.output_file = os.path.join(os.getcwd(), \
+               os.path.basename(input_file).replace('input.', 'wout_')+'.nc')
         if verbose is None:
             verbose = self.verbose
         if comm is None:
@@ -158,10 +205,11 @@ class VMEC(object):
     def load(self, **kwargs):
         ierr = 0
         if self.success:
+            self.logger.info("Attempting to read file " + self.output_file)
             vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
             if self.verbose:
                 if ierr == 0:
-                    print('Successufully load VMEC results from ',
+                    self.logger.info('Successufully load VMEC results from ' + \
                           self.output_file)
                 else:
                     print('Load VMEC results from {:} failed!'.format(

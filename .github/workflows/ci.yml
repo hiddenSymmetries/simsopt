@@ -1,0 +1,207 @@
+# This file is based on examples in
+# https://docs.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
+
+# Note that all the "sudo" commands here appear to cause a warning message
+# "sudo: setrlimit(RLIMIT_CORE): operation not permitted"
+# This appears to be a known harmless annoyance:
+# https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    # The next bit is copied from STELLOPT's github actions:
+    # Note that zhucaoxiang/stellopt:latest and 
+    # zhucaoxiang/stellopt:test contain stellopt, but
+    # zhucaoxiang/stellopt:compile does not (it just the libraries it depends on.)
+    #container: zhucaoxiang/stellopt:latest
+    container: zhucaoxiang/stellopt:test
+    env:
+      MACHINE: docker
+      #STELLOPT_PATH: ${{ github.workspace }}/externalPackages/STELLOPT
+      STELLOPT_PATH: /home/STELLOPT
+      OMPI_ALLOW_RUN_AS_ROOT: 1
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.7, 3.8]
+
+    steps:
+    # First print out lots of information. We do this in separate 
+    # "name" blocks because otherwise the output gets mixed together
+    # in the github actions log.
+    
+    - name: Print user and group id
+      run: |
+        set -ex
+        id
+
+    - name: PWD
+      run: |
+        set -ex
+        pwd
+
+    - name: ls -l
+      run: |
+        set -ex
+        ls -l
+
+    - name: ls -l /
+      run: |
+        set -ex
+        ls -l /
+
+    - name: ls -l /__w
+      run: |
+        set -ex
+        ls -l /__w
+
+    - name: ls -l /__w/simsopt
+      run: |
+        set -ex
+        ls -l /__w/simsopt
+
+    # When running in a container where the user is not root, github
+    # actions does not have permission yet to put our repo where it
+    # belongs. Use sudo to add write permission. The -S flag lets us
+    # pass the password via stdin from the echo command. The -E flag
+    # passes environment variables.
+    - name: chmod
+      run: echo visitor | sudo -S -E chmod a+wx /__w/simsopt/simsopt
+
+    - name: ls -l /__w/simsopt again
+      run: |
+        set -ex
+        ls -l /__w/simsopt
+
+    - name: ls -l /__w/simsopt/simsopt
+      run: |
+        set -ex
+        ls -l /__w/simsopt/simsopt
+
+    - name: ls -l /home
+      run: |
+        set -ex
+        ls -l /home
+
+    - name: ls -l /home/visitor
+      run: |
+        set -ex
+        ls -l /home/visitor
+
+    - name: env
+      run: env
+
+    - uses: actions/checkout@v2
+      # If we want submodules downloaded, uncomment the next 2 lines:
+      #with:
+      #  submodules: true
+
+    - name: which python3 before python setup
+      run: which python3
+
+    - name: which pip before python setup
+      run: pip --version
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: which python3 after python setup
+      run: which python3
+
+    - name: which pip after python setup
+      run: pip --version
+
+    - name: ls -l /__t/Python/3.x/x64/bin
+      run: ls -l $pythonLocation/bin
+
+    - name: ls -l /__t/Python/3.x/x64
+      run: ls -l $pythonLocation
+
+    - name: ls -l /__t/Python/3.x/x64/lib
+      run: ls -l $pythonLocation/lib
+
+    # If this next 'run' block does not appear, there is an error that
+    # the python shared library cannot be found.
+    # See https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions#adding-a-system-path
+    - name: add python path to LD_LIBRARY_PATH
+      run: echo "::set-env name=LD_LIBRARY_PATH::$pythonLocation/lib:/home/STELLOPT/bin"
+      # Above, we need /home/STELLOPT/bin so libstell.so can be found.
+
+    - name: env after adding python
+      run: env
+
+    - name: Check env for sudo
+      run: echo visitor | sudo -S env
+
+    # Environment variables are not passed through sudo unless the -E flag is present:
+    - name: Check env for sudo with -E
+      run: echo visitor | sudo -S -E env
+
+    # For some reason, LD_LIBRARY_PATH and PATH do not get passed to sudo correctly
+    # even with -E. These environment variables can however be specified explicitly
+    # as shown here:
+    - name: Check env for sudo with -E and explicit path
+      run: echo visitor | sudo -S -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH env
+
+    - name: which python3 in sudo
+      run: |
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH which python3
+
+    # When running the python tests or "pip install"ing some packages, as of 2020-08-06, this error occurs:
+    # ImportError: libffi.so.6: cannot open shared object file: No such file or directory
+    # There are many reports of this on the web, e.g. https://bugs.python.org/issue40367
+    # An inelegant but effective workaround is to make a symlink to version 7 of the .so library:
+    - name: Symlink libffi.so.7 to libffi.so.6
+      run: |
+        echo visitor | sudo -S ln -s /usr/lib/x86_64-linux-gnu/libffi.so.7 /usr/lib/x86_64-linux-gnu/libffi.so.6
+        ls -l /usr/lib/x86_64-linux-gnu/*
+
+    # From sudo, python must be run via $pythonLocation/bin/python for some reason. "python" is not found
+    # and "python3" gives the wrong version, the version of python3 that came with the container instead
+    # of the version of python3 managed by github actions.
+    # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
+    # version of pip is used, (the version of python3 that came with the container).
+    - name: Install python dependencies
+      run: |
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
+
+    - name: Install mpi4py
+      run: |
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin $pythonLocation/bin/python -m pip install mpi4py
+      # In the line above, if LIBRARY_PATH (without LD_) is unspecified, f90wrap installation works for python 3.8, but fails with python3.7 due to an error about finding -lpython3.7m
+
+    - name: Install f90wrap
+      run: echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+      # In the line above, if LIBRARY_PATH (without LD_) is unspecified, f90wrap installation works for python 3.8, but fails with python3.7 due to an error about finding -lpython3.7m
+
+    - name: Build f90wrap-vmec
+      run: |
+        pwd
+        cd simsopt/vmec
+        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin make
+        ls -l
+        # Above, LIBRARY_PATH=$pythonLocation/bin is needed for python 3.7 or else -lpython3.7m cannot be found.
+
+    - name: Run unit tests
+      run: python3 -m unittest -v
+
+    - name: Run 1dof integrated test
+      run: |
+        pwd
+        cd examples
+        python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+
+    - name: Run 2dof integrated test
+      run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume

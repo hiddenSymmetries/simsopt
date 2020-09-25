@@ -22,6 +22,17 @@ ifeq ($(F90),gfortran)
     FCOMP    = $(MPI_COMPILE) #gfortran
 endif
 
+# Settings for Matt's macbook:
+# Because MacOS does not let you set LD_LIBRARY_PATH, a critical step was 
+# sudo ln -s ~/stellopt_github/develop/STELLOPT/bin/libstell.so /usr/local/lib
+ifeq ($(SFINCS_SYSTEM),macports)
+  CC = mpicc
+  FC = mpif90
+  F90 = mpif90
+  FPP = mpif90 -E
+  FPP_F90FLAGS = -x f95-cpp-input -fPIC
+  FCOMP = mpif90
+endif
 
 CFLAGS = -fPIC #     ==> universal for ifort, gfortran, pgi
 
@@ -40,11 +51,13 @@ endif
 # PROJECT CONFIG, do not put spaced behind the variables
 # ======================================================================
 # Python module name
-PYTHON_MODN = vmec
+PYTHON_MODN = vmec_f90wrap
 # mapping between Fortran and C types
 KIND_MAP = kind_map
 # static library name
-LIB_NAME = lib$(PYTHON_MODN).a
+CODE_NAME = vmec
+#LIB_NAME = lib$(PYTHON_MODN).a
+LIB_NAME = lib$(CODE_NAME).a
 
 ADDITIONAL_LINKS = -L${STELLOPT_PATH}/LIBSTELL/Release -lstell ${LIB_SHARE} ${LIBS}
 ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release ${MOD1_PATH}
@@ -106,7 +119,7 @@ $(LIB_NAME): ${LIBSRC_WRAP_SOURCES}
 _${PYTHON_MODN}.so: $(LIB_NAME) ${LIBSRC_WRAP_FPP_FILES} 
 	f90wrap -m ${PYTHON_MODN} ${LIBSRC_WRAP_FPP_FILES} -k ${KIND_MAP} -v
 	f2py-f90wrap --f90exec=${FC} --build-dir . -c -m _${PYTHON_MODN} \
-	-L. -l$(PYTHON_MODN) ${ADDITIONAL_LINKS} -I. ${ADDITIONAL_INCLUDES} f90wrap*.f90	
+	-L. -l$(CODE_NAME) ${ADDITIONAL_LINKS} -I. ${ADDITIONAL_INCLUDES} f90wrap*.f90	
 
 test:
 	@python -c "import $(PYTHON_MODN); print('import successfully')"

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# To enable python to discover tests, test files should be named
+# test*.py and be located in a directory that includes an __init__.py
+# file.
+
+# For the test*.py files to be able to import the modules correctly,
+# you should either run this command from the project root directory,
+# or else set the PYTHONPATH environment variable to the project's
+# root directory.
+
+set -ex
+# In the above line, "set -x" causes this script to exit as soon as any line fails. "set -e" causes each line of this script to be printed (with a + in front) before it is executed, so if a step fails, you can see from the travis log what command failed.
+
+python -m unittest -v
+# -v for verbose
+
+cd examples
+
+./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
