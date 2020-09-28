@@ -16,6 +16,7 @@ class Rosenbrock:
         self._names = ['x', 'y']
         self._x = x
         self._y = y
+        self.fixed = np.full(2, False)        
 
     def term1(self):
         """
