@@ -6,7 +6,7 @@ corresponding to different discrete representations.
 
 import numpy as np
 import logging
-from .parameter import isbool
+from .util import isbool
 
 class Surface:
     """
