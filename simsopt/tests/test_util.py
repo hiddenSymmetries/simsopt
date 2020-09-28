@@ -45,4 +45,11 @@ class IdentityTests(unittest.TestCase):
         self.assertAlmostEqual(iden.f(), y, places=13)
         np.testing.assert_allclose(iden.get_dofs(), np.array([y]))
         np.testing.assert_allclose(iden.fixed, np.array([False]))
-        
+
+class UniqueTests(unittest.TestCase):
+    def test_basic(self):
+        self.assertEqual(unique([]), [])
+        self.assertEqual(unique([5]), [5])
+        self.assertEqual(unique([5, 5]), [5])
+        self.assertEqual(unique([1, -3, 7, 2]), [1, -3, 7, 2])
+        self.assertEqual(unique([1, -3, 7, 2, 1, -3, 7]), [1, -3, 7, 2])

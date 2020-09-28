@@ -35,12 +35,20 @@ class LeastSquaresProblem:
                 raise ValueError("Each term in terms must be an instance of " \
                                      "LeastSquaresTerm.")
         self._terms = terms
-        # Get a list of all Parameters
+        self._get_dofs()
+        """
         params = set()
         for j in range(len(terms)):
             params = params.union(terms[j].in_target.parameters)
         self._parameters = list(params)
+        """
 
+    def _get_dofs(self):
+        """
+        Go through the terms in the objective function, collecting all the
+        degrees of freedom that are not fixed.
+        """
+        
     @property
     def parameters(self):
         """
