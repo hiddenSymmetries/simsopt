@@ -16,7 +16,7 @@ set -ex
 #python -m unittest -v simsopt.tests.test_rosenbrock
 
 # Example of running a specific test that matches a pattern:
-#python -m unittest -v caryhanson.tests.test_tangent_map -k Opoint
+#python -m unittest -v simsopt.tests.test_least_squares_problem -k test_solve_quadratic_fixed
 
 # Run all tests:
 python -m unittest -v

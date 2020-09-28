@@ -4,7 +4,7 @@ and general optimization problems.
 """
 
 import numpy as np
-from .util import unique
+from .util import unique, Struct
 
 def get_owners(obj, owners_so_far=[]):
     """
@@ -28,7 +28,7 @@ def collect_dofs(funcs):
 
     funcs: A list/set/tuple of callable functions.
 
-    returns:
+    returns: an object with the following attributes:
     x: A 1D numpy vector of variable dofs.
     
     owners: A vector, with each element pointing to the object whose
@@ -37,6 +37,8 @@ def collect_dofs(funcs):
 
     indices: A vector of ints, with each element giving the index in
     the owner's set_dofs method corresponding to this dof.
+
+    names: A list of strings to identify each of the dofs.
     """
 
     # First, get a list of the objects and any objects they depend on:
@@ -51,6 +53,9 @@ def collect_dofs(funcs):
     x = []
     owners = []
     indices = []
+    mins = []
+    maxs = []
+    names = []
     for owner in owner_list:
         ox = owner.get_dofs()
         ndofs = len(ox)
@@ -60,10 +65,39 @@ def collect_dofs(funcs):
         else:
             fixed = np.full(ndofs, False)
 
+        # Check for bound constraints:
+        if hasattr(owner, 'mins'):
+            omins = owner.mins
+        else:
+            omins = np.full(ndofs, np.NINF)
+        if hasattr(owner, 'maxs'):
+            omaxs = owner.maxs
+        else:
+            omaxs = np.full(ndofs, np.Inf)
+
+        # Check for names:
+        if hasattr(owner, 'names'):
+            onames = owner.names
+        else:
+            onames = ['x[{}] of {}'.format(k, owner) for k in range(ndofs)]
+
         for jdof in range(ndofs):
             if not fixed[jdof]:
                 x.append(ox[jdof])
                 owners.append(owner)
                 indices.append(jdof)
+                names.append(onames[jdof])
+                mins.append(omins[jdof])
+                maxs.append(omaxs[jdof])
 
-    return np.array(x), owners, indices
+    # Finally, package results for return
+    results = Struct()
+    
+    results.x = np.array(x)
+    results.owners = owners
+    results.indices = np.array(indices)
+    results.names = names
+    results.mins = np.array(mins)
+    results.maxs = np.array(maxs)
+    
+    return results

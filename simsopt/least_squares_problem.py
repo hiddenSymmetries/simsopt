@@ -3,9 +3,10 @@ This module provides the LeastSquaresProblem class.
 """
 
 import numpy as np
-from .least_squares_term import LeastSquaresTerm
 from scipy.optimize import least_squares
 import logging
+from .least_squares_term import LeastSquaresTerm
+from .collect_dofs import collect_dofs
 
 class LeastSquaresProblem:
     """
@@ -34,28 +35,21 @@ class LeastSquaresProblem:
             if not isinstance(term, LeastSquaresTerm):
                 raise ValueError("Each term in terms must be an instance of " \
                                      "LeastSquaresTerm.")
-        self._terms = terms
-        self._get_dofs()
-        """
-        params = set()
-        for j in range(len(terms)):
-            params = params.union(terms[j].in_target.parameters)
-        self._parameters = list(params)
-        """
+        self.terms = terms
+        self._init()
 
-    def _get_dofs(self):
+    def _init(self):
         """
-        Go through the terms in the objective function, collecting all the
-        degrees of freedom that are not fixed.
+        Call collect_dofs() on the list of terms to set x, mins, maxs, names, etc.
+        This is done both when the object is created, so 'objective' works immediately,
+        and also at the start of solve()
         """
-        
-    @property
-    def parameters(self):
-        """
-        Return a list of all Parameter objects upon which the
-        objective function depends.
-        """
-        return self._parameters
+        dofs = collect_dofs([t.f_in for t in self.terms])
+        self.nparams = len(dofs.x)
+        # Transfer all non-builtin attributes of dofs to self:
+        for att in dir(dofs):
+            if not att.startswith('_'):
+                setattr(self, att, getattr(dofs, att))
 
     @property
     def objective(self):
@@ -65,8 +59,8 @@ class LeastSquaresProblem:
         """
         self.logger.info("objective called.")
         sum = 0
-        for term in self._terms:
-            sum += term.out_val
+        for term in self.terms:
+            sum += term.f_out()
         return sum
 
     def solve(self):
@@ -74,9 +68,8 @@ class LeastSquaresProblem:
         Solve the nonlinear-least-squares minimization problem.
         """
         self.logger.info("Beginning solve.")
-        # Get vector of initial values for the parameters:
-        #print("Parameters for solve:",self._parameters)
-        x0 = [param.val for param in self._parameters if not param.fixed]
+        self._init()
+        x0 = np.copy(self.x)
         #print("x0:",x0)
         # Call scipy.optimize:
         result = least_squares(self._residual_func, x0, verbose=2)
@@ -85,23 +78,31 @@ class LeastSquaresProblem:
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
         # Set Parameters to their values for the optimum
-        index = 0
-        for j in range(len(x0)):
-            if not self._parameters[j].fixed:
-                self._parameters[j].val = result.x[index]
-                index += 1
+        self._set_dofs(result.x)
 
+    def _set_dofs(self, x):
+        """
+        Call set_dofs() for each object, given a state vector x.
+        """
+        # Idea behind the following loops: call set_dofs no more than
+        # once for each object, in case that improves performance at
+        # all for the optimizable objects.
+        for owner in self.owners:
+            # In the next line, we make sure to cast the type to a
+            # float. Otherwise get_dofs might return an array with
+            # integer type.
+            objx = np.array(owner.get_dofs(), dtype=np.dtype(float))
+            for j in range(self.nparams):
+                if self.owners[j] == owner:
+                    objx[self.indices[j]] = x[j]
+            owner.set_dofs(objx)
+                
     def _residual_func(self, x):
         """
         This private method is passed to scipy.optimize.
         """
         self.logger.info("_residual_func called with x=" + str(x))
-        #print("_residual_func called with x=",x)
-        index = 0
-        for j in range(len(self._parameters)):
-            if not self._parameters[j].fixed:
-                self._parameters[j].val = x[index]
-                index += 1
-        assert index == len(x)
-        return [(term.in_val - term.goal) / term.sigma for term in self._terms]
+        self._set_dofs(x)
+        residuals = [(term.f_in() - term.goal) / term.sigma for term in self.terms]
+        return residuals
         

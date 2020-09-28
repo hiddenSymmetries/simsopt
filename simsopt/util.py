@@ -21,6 +21,11 @@ def isnumber(val):
     return isinstance(val, int) or isinstance(val, float) or \
         isinstance(val, np.int_) or isinstance(val, np.float)
 
+class Struct():
+    """
+    This class is just a dummy mutable object to which we can add attributes.
+    """
+
 class Identity():
     """
     This class represents a term in an objective function which is just
