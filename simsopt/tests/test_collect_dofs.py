@@ -86,22 +86,22 @@ class CollectDofsTests(unittest.TestCase):
         """
         obj = Adder(4)
         obj.set_dofs([101, 102, 103, 104])
-        x, owners, indices = collect_dofs([obj.f])
-        np.testing.assert_allclose(x, [101, 102, 103, 104])
-        self.assertEqual(owners, [obj, obj, obj, obj])
-        np.testing.assert_allclose(indices, [0, 1, 2, 3])
+        dofs = collect_dofs([obj.f])
+        np.testing.assert_allclose(dofs.x, [101, 102, 103, 104])
+        self.assertEqual(dofs.owners, [obj, obj, obj, obj])
+        np.testing.assert_allclose(dofs.indices, [0, 1, 2, 3])
 
         obj.fixed = [True, False, True, False]
-        x, owners, indices = collect_dofs([obj.f])
-        np.testing.assert_allclose(x, [102, 104])
-        self.assertEqual(owners, [obj, obj])
-        np.testing.assert_allclose(indices, [1, 3])
+        dofs = collect_dofs([obj.f])
+        np.testing.assert_allclose(dofs.x, [102, 104])
+        self.assertEqual(dofs.owners, [obj, obj])
+        np.testing.assert_allclose(dofs.indices, [1, 3])
 
         obj.fixed[0] = False
-        x, owners, indices = collect_dofs([obj.f])
-        np.testing.assert_allclose(x, [101, 102, 104])
-        self.assertEqual(owners, [obj, obj, obj])
-        np.testing.assert_allclose(indices, [0, 1, 3])
+        dofs = collect_dofs([obj.f])
+        np.testing.assert_allclose(dofs.x, [101, 102, 104])
+        self.assertEqual(dofs.owners, [obj, obj, obj])
+        np.testing.assert_allclose(dofs.indices, [0, 1, 3])
 
     def test_no_fixed(self):
         """
@@ -111,10 +111,10 @@ class CollectDofsTests(unittest.TestCase):
         del obj.fixed
         self.assertFalse(hasattr(obj, 'fixed'))
         obj.set_dofs([101, 102, 103, 104])
-        x, owners, indices = collect_dofs([obj.f])
-        np.testing.assert_allclose(x, [101, 102, 103, 104])
-        self.assertEqual(owners, [obj, obj, obj, obj])
-        np.testing.assert_allclose(indices, [0, 1, 2, 3])
+        dofs = collect_dofs([obj.f])
+        np.testing.assert_allclose(dofs.x, [101, 102, 103, 104])
+        self.assertEqual(dofs.owners, [obj, obj, obj, obj])
+        np.testing.assert_allclose(dofs.indices, [0, 1, 2, 3])
 
 
     def test_with_dependents(self):
@@ -126,16 +126,16 @@ class CollectDofsTests(unittest.TestCase):
         o1.set_dofs([10, 11, 12])
         o2.set_dofs([101, 102, 103, 104])
         o1.depends_on = [o2]
-        x, owners, indices = collect_dofs([o1.f])
-        np.testing.assert_allclose(x, [10, 11, 12, 101, 102, 103, 104])
-        self.assertEqual(owners, [o1, o1, o1, o2, o2, o2, o2])
-        np.testing.assert_allclose(indices, [0, 1, 2, 0, 1, 2, 3])
+        dofs = collect_dofs([o1.f])
+        np.testing.assert_allclose(dofs.x, [10, 11, 12, 101, 102, 103, 104])
+        self.assertEqual(dofs.owners, [o1, o1, o1, o2, o2, o2, o2])
+        np.testing.assert_allclose(dofs.indices, [0, 1, 2, 0, 1, 2, 3])
 
         o1.fixed = [True, False, True]
         o2.fixed = [False, False, True, True]
         del o1.depends_on
         o2.depends_on = [o1]
-        x, owners, indices = collect_dofs([o2.f])
-        np.testing.assert_allclose(x, [101, 102, 11])
-        self.assertEqual(owners, [o2, o2, o1])
-        np.testing.assert_allclose(indices, [0, 1, 1])
+        dofs = collect_dofs([o2.f])
+        np.testing.assert_allclose(dofs.x, [101, 102, 11])
+        self.assertEqual(dofs.owners, [o2, o2, o1])
+        np.testing.assert_allclose(dofs.indices, [0, 1, 1])

@@ -1,5 +1,5 @@
 import unittest
-from simsopt.target import Identity
+from simsopt.util import Identity
 from simsopt.least_squares_term import LeastSquaresTerm
 from simsopt.least_squares_problem import LeastSquaresProblem
 from simsopt.rosenbrock import Rosenbrock
@@ -12,25 +12,23 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         # Objective function f(x) = ((x - 3) / 2) ** 2
         iden1 = Identity()
-        term1 = LeastSquaresTerm(iden1.target, 3, 2)
+        term1 = LeastSquaresTerm(iden1.f, 3, 2)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective, 2.25)
-        iden1.x.val = 10
+        iden1.set_dofs([10])
         self.assertAlmostEqual(prob.objective, 12.25)
-        self.assertEqual(prob.parameters, [iden1.x])
+        self.assertEqual(prob.owners, [iden1])
 
         # Objective function
         # f(x,y) = ((x - 3) / 2) ** 2 + ((y + 4) / 5) ** 2
         iden2 = Identity()
-        term2 = LeastSquaresTerm(iden2.target, -4, 5)
+        term2 = LeastSquaresTerm(iden2.f, -4, 5)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective, 12.89)
-        iden1.x.val = 5
-        iden2.x.val = -7
+        iden1.set_dofs([5])
+        iden2.set_dofs([-7])
         self.assertAlmostEqual(prob.objective, 1.36)
-        #print("prob.parameters:",prob.parameters)
-        #print("[iden1.x, iden2.x]:",[iden1.x, iden2.x])
-        self.assertEqual(set(prob.parameters), {iden1.x, iden2.x})
+        self.assertEqual(prob.owners, [iden1, iden2])
 
     def test_exceptions(self):
         """
@@ -53,18 +51,15 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1 = Identity()
         iden2 = Identity()
         iden3 = Identity()
-        iden1.x.fixed = False
-        iden2.x.fixed = False
-        iden3.x.fixed = False
-        term1 = LeastSquaresTerm(iden1.target, 1, 1)
-        term2 = LeastSquaresTerm(iden2.target, 2, 2)
-        term3 = LeastSquaresTerm(iden3.target, 3, 3)
+        term1 = LeastSquaresTerm(iden1.f, 1, 1)
+        term2 = LeastSquaresTerm(iden2.f, 2, 2)
+        term3 = LeastSquaresTerm(iden3.f, 3, 3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 0)
-        self.assertAlmostEqual(iden1.x.val, 1)
-        self.assertAlmostEqual(iden2.x.val, 2)
-        self.assertAlmostEqual(iden3.x.val, 3)
+        self.assertAlmostEqual(iden1.x, 1)
+        self.assertAlmostEqual(iden2.x, 2)
+        self.assertAlmostEqual(iden3.x, 3)
 
     def test_solve_quadratic_fixed(self):
         """
@@ -74,37 +69,37 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1 = Identity()
         iden2 = Identity()
         iden3 = Identity()
-        iden1.x.val = 4
-        iden2.x.val = 5
-        iden3.x.val = 6
-        iden1.x.name = 'x1'
-        iden2.x.name = 'x2'
-        iden3.x.name = 'x3'
-        iden2.x.fixed = False
-        term1 = LeastSquaresTerm(iden1.target, 1, 1)
-        term2 = LeastSquaresTerm(iden2.target, 2, 2)
-        term3 = LeastSquaresTerm(iden3.target, 3, 3)
+        iden1.x = 4
+        iden2.x = 5
+        iden3.x = 6
+        iden1.names = ['x1']
+        iden2.names = ['x2']
+        iden3.names = ['x3']
+        iden1.fixed = [True]
+        iden3.fixed = [True]
+        term1 = LeastSquaresTerm(iden1.f, 1, 1)
+        term2 = LeastSquaresTerm(iden2.f, 2, 2)
+        term3 = LeastSquaresTerm(iden3.f, 3, 3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
-        self.assertAlmostEqual(iden1.x.val, 4)
-        self.assertAlmostEqual(iden2.x.val, 2)
-        self.assertAlmostEqual(iden3.x.val, 6)
+        self.assertAlmostEqual(iden1.x, 4)
+        self.assertAlmostEqual(iden2.x, 2)
+        self.assertAlmostEqual(iden3.x, 6)
 
     def test_solve_rosenbrock(self):
         """
         Minimize the Rosenbrock function.
         """
         r = Rosenbrock()
-        r.x1.fixed = False
-        r.x2.fixed = False
-        term1 = LeastSquaresTerm(r.target1, 0, 1)
-        term2 = LeastSquaresTerm(r.target2, 0, 1)
+        term1 = LeastSquaresTerm(r.term1, 0, 1)
+        term2 = LeastSquaresTerm(r.term2, 0, 1)
         prob = LeastSquaresProblem([term1, term2])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 0)
-        self.assertAlmostEqual(r.x1.val, 1)
-        self.assertAlmostEqual(r.x2.val, 1)
+        v = r.get_dofs()
+        self.assertAlmostEqual(v[0], 1)
+        self.assertAlmostEqual(v[1], 1)
 
 if __name__ == "__main__":
     unittest.main()
