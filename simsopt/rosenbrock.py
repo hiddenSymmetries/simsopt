@@ -1,51 +1,60 @@
 """
-This module provides a minimal object that possesses Parameters and
-Targets.
+This module provides a minimal object that can be optimized.
 """
 
 import numpy as np
-from .parameter import Parameter
-from .target import Target
 import logging
 
 class Rosenbrock:
     """
-    This class defines a minimal object that possesses Parameters and
-    Targets.
+    This class defines a minimal object that can be optimized.
     """
 
-    def __init__(self, a=1, b=100):
-        self.a = a
-        self.sqrtb = np.sqrt(b)
-        owner = " for Rosenbrock object " + str(hex(id(self)))
-        self.x1 = Parameter(0.0, self.reset, name="x1" + owner)
-        self.x2 = Parameter(0.0, self.reset, name="x2" + owner)
-        params = {self.x1, self.x2}
-        self.need_to_run_code = True
-        self.target1 = Target(params, self.evaluate_target1)
-        self.target2 = Target(params, self.evaluate_target2)
+    def __init__(self, b=100.0, x=0.0, y=0.0):
+        self._logger = logging.getLogger(__name__)
+        self._sqrtb = np.sqrt(b)
+        self._names = ['x', 'y']
+        self._x = x
+        self._y = y
 
-    def reset(self):
-        logger = logging.getLogger(__name__)
-        logger.info("Resetting")
-        self.need_to_run_code = True
+    def term1(self):
+        """
+        Returns the first of the two quantities that is squared and summed.
+        """
+        return self._x - 1
+        
+    def term2(self):
+        """
+        Returns the second of the two quantities that is squared and summed.
+        """
+        return (self._x * self._x - self._y) / self._sqrtb
 
-    def long_computation(self):
-        logger = logging.getLogger(__name__)
-        if self.need_to_run_code:
-            logger.info("Running long computation...")
-            self.code_output = (self.x2.val - self.x1.val * self.x1.val) * self.sqrtb
-        self.need_to_run_code = False
+    @property
+    def term1prop(self):
+        """
+        Same as term1, but a property rather than a callable function.
+        """
+        return self.term1()
+    
+    @property
+    def term2prop(self):
+        """
+        Same as term2, but a property rather than a callable function.
+        """
+        return self.term2()
+    
+    def f(self):
+        """
+        Returns the total function, squaring and summing the two terms.
+        """
+        t1 = self.term1()
+        t2 = self.term2()
+        return t1 * t1 + t2 * t2
 
-    def evaluate_target1(self):
-        """
-        First term in the 2D Rosenbrock function.
-        """
-        return self.a - self.x1.val
+    def get_dofs(self):
+        return np.array([self._x, self._y])
 
-    def evaluate_target2(self):
-        """
-        Second term in the 2D Rosenbrock function.
-        """
-        self.long_computation()
-        return self.code_output
+    def set_dofs(self, xin):
+        self._x = xin[0]
+        self._y = xin[1]
+
