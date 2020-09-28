@@ -39,3 +39,43 @@ class Identity():
 
     def set_dofs(self, xin):
         self.x = xin[0]
+
+class Adder():
+    """This class defines a minimal object that can be optimized. It has
+    n degrees of freedom, and has a function that just returns the sum
+    of these dofs. This class is used for testing.
+    """
+
+    def __init__(self, n=3):
+        self.x = np.zeros(n)
+        self.fixed = np.full(n, False)        
+
+    def f(self):
+        """
+        Returns the sum of the degrees of freedom.
+        """
+        return np.sum(self.x)
+        
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, xin):
+        self.x = np.array(xin)
+
+
+def unique(inlist):
+    """
+    Given a list or tuple, return a list in which all duplicate
+    entries have been removed. Unlike a python set, the order of
+    entries in the original list will be preserved.  There is probably
+    a faster algorithm than the one used here, but this function will
+    not be used in performance-critical code.
+    """
+
+    outlist = []
+    seen = set()
+    for j in inlist:
+        if j not in seen:
+            outlist.append(j)
+            seen.add(j)
+    return outlist
