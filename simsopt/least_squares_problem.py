@@ -1,13 +1,45 @@
 """
-This module provides the LeastSquaresProblem class.
+This module provides the LeastSquaresProblem class, as well as the
+associated class LeastSquaresTerm.
 """
 
 import numpy as np
 from scipy.optimize import least_squares
 import logging
-from .least_squares_term import LeastSquaresTerm
 from .collect_dofs import collect_dofs
+from .util import isnumber
+from .optimizable import function_from_user
 
+class LeastSquaresTerm:
+    """
+    This class represents one term in a nonlinear-least-squares
+    problem. A LeastSquaresTerm instance has 3 basic attributes: a
+    function (called f_in), a goal value (called goal), and a weight
+    (sigma).  The overall value of the term is:
+
+    f_out = ((f_in - goal) / sigma) ** 2.
+    """
+
+    def __init__(self, f_in, goal, sigma):
+        if not isnumber(goal):
+            raise ValueError('goal must be a float or int')
+        if not isnumber(sigma):
+            raise ValueError('sigma must be a float or int')
+        if sigma == 0:
+            raise ValueError('sigma cannot be 0')
+        self.f_in = function_from_user(f_in)
+        self.goal = float(goal)
+        self.sigma = float(sigma)
+        self.fixed = np.full(0, False)
+
+    def f_out(self):
+        """
+        Return the overall value of this least-squares term.
+        """
+        temp = (self.f_in() - self.goal) / self.sigma
+        return temp * temp 
+
+    
 class LeastSquaresProblem:
     """
     This class represents a nonlinear-least-squares optimization
