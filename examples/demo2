@@ -14,17 +14,16 @@ desired_area = 8.0
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-surf = SurfaceRZFourier()
+surf = optimizable(SurfaceRZFourier())
 
-# Parameters are all fixed by default, meaning they will not be
-# optimized.  You can choose any subset of the Parameters to be part
-# of the space of independent variables by setting their 'fixed'
-# property to False.
-surf.get_rc(1, 0).fixed = False
-surf.get_zs(1, 0).fixed = False
+# Parameters are all non-fixed by default, meaning they will be
+# optimized.  You can choose to exclude any subset of the variables
+# from the space of independent variables by setting their 'fixed'
+# property to True.
+surf.set_fixed('rc(0,0)')
 
-# Each Target is then equipped with a shift and weight, to become a
-# term in a least-squares objective function
+# Each target function is then equipped with a shift and weight, to
+# become a term in a least-squares objective function
 term1 = LeastSquaresTerm(surf.volume, desired_volume, 1)
 term2 = LeastSquaresTerm(surf.area,   desired_area,   1)
 
@@ -36,8 +35,8 @@ prob = LeastSquaresProblem([term1, term2])
 prob.solve()
 
 print("At the optimum,")
-print(" rc(m=1,n=0) = ", surf.get_rc(1, 0).val)
-print(" zs(m=1,n=0) = ", surf.get_zs(1, 0).val)
-print(" volume = ", surf.compute_volume())
-print(" area = ", surf.compute_area())
+print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))
+print(" zs(m=1,n=0) = ", surf.get_zs(1, 0))
+print(" volume = ", surf.volume())
+print(" area = ", surf.area())
 print(" objective function = ", prob.objective)

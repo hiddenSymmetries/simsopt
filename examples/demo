@@ -21,19 +21,19 @@ iden1 = Identity()
 iden2 = Identity()
 iden3 = Identity()
 
-# Parameters are all fixed by default, meaning they will not be
-# optimized.  You can choose any subset of the Parameters to be part
-# of the space of independent variables by setting their 'fixed'
-# property to False.
-iden1.x.fixed = False
-iden2.x.fixed = False
-iden3.x.fixed = False
+# Parameters are all not fixed by default, meaning they will not be
+# optimized.  You can choose to exclude any subset of the parameters
+# from the space of independent variables by setting their 'fixed'
+# property to True.
+#iden1.fixed[0] = True
+#iden2.fixed[0] = True
+#iden3.fixed[0] = True
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function
-term1 = LeastSquaresTerm(iden1.target, 1, 1)
-term2 = LeastSquaresTerm(iden2.target, 2, 2)
-term3 = LeastSquaresTerm(iden3.target, 3, 3)
+term1 = LeastSquaresTerm(iden1.J, 1, 1)
+term2 = LeastSquaresTerm(iden2.J, 2, 2)
+term3 = LeastSquaresTerm(iden3.J, 3, 3)
 
 # A list of terms are combined to form a nonlinear-least-squares problem.
 prob = LeastSquaresProblem([term1, term2, term3])
@@ -41,6 +41,6 @@ prob = LeastSquaresProblem([term1, term2, term3])
 # Solve the minimization problem:
 prob.solve()
 
-print("An optimum was found at x=", iden1.x.val, ", y=", iden2.x.val, \
-          ", z=", iden3.x.val)
+print("An optimum was found at x=", iden1.x, ", y=", iden2.x, \
+          ", z=", iden3.x)
 print("The minimum value of the objective function is ", prob.objective)
