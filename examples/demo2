@@ -14,14 +14,13 @@ desired_area = 8.0
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-surf = SurfaceRZFourier()
+surf = optimizable(SurfaceRZFourier())
 
 # Parameters are all fixed by default, meaning they will not be
 # optimized.  You can choose any subset of the Parameters to be part
 # of the space of independent variables by setting their 'fixed'
 # property to False.
-surf.get_rc(1, 0).fixed = False
-surf.get_zs(1, 0).fixed = False
+surf.fixed[0] = True
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function

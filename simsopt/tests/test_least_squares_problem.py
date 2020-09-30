@@ -12,7 +12,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         # Objective function f(x) = ((x - 3) / 2) ** 2
         iden1 = Identity()
-        term1 = LeastSquaresTerm(iden1.f, 3, 2)
+        term1 = LeastSquaresTerm(iden1.J, 3, 2)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective, 2.25)
         iden1.set_dofs([10])
@@ -22,7 +22,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         # Objective function
         # f(x,y) = ((x - 3) / 2) ** 2 + ((y + 4) / 5) ** 2
         iden2 = Identity()
-        term2 = LeastSquaresTerm(iden2.f, -4, 5)
+        term2 = LeastSquaresTerm(iden2.J, -4, 5)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective, 12.89)
         iden1.set_dofs([5])
@@ -51,9 +51,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1 = Identity()
         iden2 = Identity()
         iden3 = Identity()
-        term1 = LeastSquaresTerm(iden1.f, 1, 1)
-        term2 = LeastSquaresTerm(iden2.f, 2, 2)
-        term3 = LeastSquaresTerm(iden3.f, 3, 3)
+        term1 = LeastSquaresTerm(iden1.J, 1, 1)
+        term2 = LeastSquaresTerm(iden2.J, 2, 2)
+        term3 = LeastSquaresTerm(iden3.J, 3, 3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 0)
@@ -77,9 +77,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden3.names = ['x3']
         iden1.fixed = [True]
         iden3.fixed = [True]
-        term1 = LeastSquaresTerm(iden1.f, 1, 1)
-        term2 = LeastSquaresTerm(iden2.f, 2, 2)
-        term3 = LeastSquaresTerm(iden3.f, 3, 3)
+        term1 = LeastSquaresTerm(iden1.J, 1, 1)
+        term2 = LeastSquaresTerm(iden2.J, 2, 2)
+        term3 = LeastSquaresTerm(iden3.J, 3, 3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
