@@ -1,5 +1,6 @@
 import unittest
-from simsopt.util import Identity, Target
+from simsopt.util import Identity
+from simsopt.optimizable import Target
 from simsopt.least_squares_term import LeastSquaresTerm
 
 class LeastSquaresTermTests(unittest.TestCase):

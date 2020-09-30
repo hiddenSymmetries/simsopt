@@ -5,6 +5,7 @@ This module contains small utility functions and classes.
 """
 
 import numpy as np
+from .optimizable import Optimizable
 
 def isbool(val):
     """
@@ -26,7 +27,7 @@ class Struct():
     This class is just a dummy mutable object to which we can add attributes.
     """
 
-class Identity():
+class Identity(Optimizable):
     """
     This class represents a term in an objective function which is just
     the identity. It has one degree of freedom, and the output of the function
@@ -53,7 +54,7 @@ class Identity():
     def set_dofs(self, xin):
         self.x = xin[0]
 
-class Adder():
+class Adder(Optimizable):
     """This class defines a minimal object that can be optimized. It has
     n degrees of freedom, and has a function that just returns the sum
     of these dofs. This class is used for testing.
@@ -69,6 +70,13 @@ class Adder():
         """
         return np.sum(self.x)
         
+    @property
+    def f(self):
+        """
+        Same as the function J(), but a property instead of a function.
+        """
+        return self.J()
+    
     def get_dofs(self):
         return self.x
 
@@ -93,47 +101,3 @@ def unique(inlist):
             seen.add(j)
     return outlist
 
-def function_from_user(target):
-    """
-    Given a user-supplied "target" to be optimized, extract the
-    associated callable function.
-    """
-    if callable(target):
-        return target
-    elif hasattr(target, 'J') and callable(target.J):
-        return target.J
-    else:
-        raise TypeError('Unable to find a callable function associated with the user-supplied target ' + str(target))
-
-class Target():
-    """
-    Given an attribute of an object, which typically would be a
-    @property, form a callable function that can be used as a target
-    for optimization.
-    """
-    def __init__(self, obj, attr):
-        self.obj = obj
-        self.attr = attr
-        self.depends_on = [obj]
-        
-    def J(self):
-        return getattr(self.obj, self.attr)
-
-    def get_dofs(self):
-        return np.array([])
-
-    def set_dofs(self, v):
-        pass
-    
-    # Eventually add a dJ function here
-
-def optimizable(obj):
-    """
-    Given any object that has a get_dofs() function, add attributes
-    fixed, mins, and maxs. fixed = False by default.
-    """
-    n = len(obj.get_dofs())
-    obj.fixed = np.full(n, False)
-    obj.mins = np.full(n, np.NINF)
-    obj.maxs = np.full(n, np.Inf)
-    return obj

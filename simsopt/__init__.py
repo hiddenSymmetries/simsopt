@@ -1,4 +1,5 @@
 from .util import *
+from .optimizable import *
 #from .shape import *
 from .surface import *
 #from .equilibrium import *

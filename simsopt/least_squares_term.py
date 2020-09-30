@@ -3,7 +3,8 @@ This module provides the LeastSquaresTerm class.
 """
 
 import numpy as np
-from .util import isnumber, function_from_user
+from .util import isnumber
+from .optimizable import function_from_user
 
 class LeastSquaresTerm:
     """
