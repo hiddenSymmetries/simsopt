@@ -53,8 +53,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         true_area = 15.827322032265993
         true_volume = 2.0528777154265874
-        self.assertAlmostEqual(s.area, true_area, places=4)
-        self.assertAlmostEqual(s.volume, true_volume, places=3)
+        self.assertAlmostEqual(s.area(), true_area, places=4)
+        self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
     def test_get_dofs(self):
         """
@@ -158,8 +158,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         #    " , difference: ", area - true_area)
         #print("computed volume: ", volume, ", correct value: ", \
         #    true_volume, ", difference:", volume - true_volume)
-        self.assertAlmostEqual(s.area, true_area, places=4)
-        self.assertAlmostEqual(s.volume, true_volume, places=3)
+        self.assertAlmostEqual(s.area(), true_area, places=4)
+        self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
 if __name__ == "__main__":
     unittest.main()

@@ -251,7 +251,6 @@ class SurfaceRZFourier(Surface):
         # = \int (1/2) R^2 (dZ/dtheta) dtheta dphi
         self._volume = 0.5 * nfp * dtheta * dphi * np.sum(np.sum(r * r * dzdtheta))
 
-    @property
     def area(self):
         """
         Return the area of the surface.
@@ -259,7 +258,6 @@ class SurfaceRZFourier(Surface):
         self.area_volume()
         return self._area
 
-    @property
     def volume(self):
         """
         Return the volume of the surface.
