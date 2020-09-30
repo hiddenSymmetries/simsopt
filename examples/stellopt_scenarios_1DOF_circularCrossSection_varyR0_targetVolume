@@ -27,20 +27,19 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 equil = Vmec()
 surf = equil.boundary
 
-# Set the initial boundary shape:
-surf.get_rc(0, 0).val = 1.0
+# Set the initial boundary shape. Here is one syntax:
+surf.set('rc(0,0)', 1.0)
+# Here is another syntax:
+surf.set_rc(0, 1, 0.1)
+surf.set_zs(0, 1, 0.1)
 
-surf.get_rc(0, 1).val = 0.1
-surf.get_zs(0, 1).val = 0.1
+surf.set_rc(1, 0, 0.1)
+surf.set_zs(1, 0, 0.1)
 
-surf.get_rc(1, 0).val = 0.1
-surf.get_zs(1, 0).val = 0.1
-
-# Parameters are all fixed by default, meaning they will not be
-# optimized.  You can choose any subset of the Parameters to be part
-# of the space of independent variables by setting their 'fixed'
-# property to False.
-surf.get_rc(0, 0).fixed = False
+# VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
+# You can choose which parameters are optimized by setting their 'fixed' attributes.
+surf.all_fixed()
+surf.set_fixed('rc(0,0)', False)
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function
@@ -55,12 +54,12 @@ prob = LeastSquaresProblem([term1])
 prob.solve()
 
 print("At the optimum,")
-print(" rc(m=0,n=0) = ", surf.get_rc(0, 0).val)
-print(" volume, according to VMEC    = ", equil.volume.evaluate())
-print(" volume, according to Surface = ", surf.volume.evaluate())
+print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
+print(" volume, according to VMEC    = ", equil.volume())
+print(" volume, according to Surface = ", surf.volume())
 print(" objective function = ", prob.objective)
 
-assert np.abs(surf.get_rc(0, 0).val - 0.7599088773175) < 1.0e-5
-assert np.abs(equil.volume.evaluate() - 0.15) < 1.0e-6
-assert np.abs(surf.volume.evaluate() - 0.15) < 1.0e-6
+assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
+assert np.abs(equil.volume() - 0.15) < 1.0e-6
+assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective < 1.0e-15

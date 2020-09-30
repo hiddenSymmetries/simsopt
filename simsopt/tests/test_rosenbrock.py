@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 from simsopt.rosenbrock import Rosenbrock
 
 class RosenbrockTests(unittest.TestCase):
@@ -7,18 +8,15 @@ class RosenbrockTests(unittest.TestCase):
         This is the most common use case.
         """
         r = Rosenbrock()
-        self.assertAlmostEqual(r.target1.evaluate(), 1.0, places=13)
-        self.assertAlmostEqual(r.target2.evaluate(), 0.0, places=13)
+        self.assertAlmostEqual(r.term1(), -1.0, places=13)
+        self.assertAlmostEqual(r.term2(),  0.0, places=13)
 
-        # Change one of the parameters:
-        r.x1.val = -3.0
-        self.assertAlmostEqual(r.target1.evaluate(), 4.0, places=13)
-        self.assertAlmostEqual(r.target2.evaluate(), -90.0, places=13)
-
-        # Change the second parameter:
-        r.x2.val = 2.0
-        self.assertAlmostEqual(r.target1.evaluate(), 4.0, places=13)
-        self.assertAlmostEqual(r.target2.evaluate(), -70.0, places=13)
+        # Change the parameters:
+        x_new = [3, 2]
+        r.set_dofs(x_new)
+        np.testing.assert_allclose(x_new, r.get_dofs(), rtol=1e-13, atol=1e-13)
+        self.assertAlmostEqual(r.term1(), 2.0, places=13)
+        self.assertAlmostEqual(r.term2(), 0.7, places=13)
 
 if __name__ == "__main__":
     unittest.main()
