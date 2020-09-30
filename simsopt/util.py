@@ -118,6 +118,12 @@ class Target():
         
     def J(self):
         return getattr(self.obj, self.attr)
+
+    def get_dofs(self):
+        return np.array([])
+
+    def set_dofs(self, v):
+        pass
     
     # Eventually add a dJ function here
 
