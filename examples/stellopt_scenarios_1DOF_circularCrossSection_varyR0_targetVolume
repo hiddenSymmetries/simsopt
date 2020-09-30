@@ -27,19 +27,17 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 equil = Vmec()
 surf = equil.boundary
 
-# Set the initial boundary shape:
+# Set the initial boundary shape. Here is one syntax:
 surf.set('rc(0,0)', 1.0)
+# Here is another syntax:
+surf.set_rc(0, 1, 0.1)
+surf.set_zs(0, 1, 0.1)
 
-surf.set('rc(0,1)', 0.1)
-surf.set('zs(0,1)', 0.1)
+surf.set_rc(1, 0, 0.1)
+surf.set_zs(1, 0, 0.1)
 
-surf.set('rc(1,0)', 0.1)
-surf.set('zs(1,0)', 0.1)
-
-# Parameters are all fixed by default, meaning they will not be
-# optimized.  You can choose any subset of the Parameters to be part
-# of the space of independent variables by setting their 'fixed'
-# property to False.
+# VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
+# You can choose which parameters are optimized by setting their 'fixed' attributes.
 surf.all_fixed()
 surf.set_fixed('rc(0,0)', False)
 
