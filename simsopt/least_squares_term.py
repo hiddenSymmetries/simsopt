@@ -3,7 +3,7 @@ This module provides the LeastSquaresTerm class.
 """
 
 import numpy as np
-from .util import isnumber
+from .util import isnumber, function_from_user
 
 class LeastSquaresTerm:
     """
@@ -16,15 +16,13 @@ class LeastSquaresTerm:
     """
 
     def __init__(self, f_in, goal, sigma):
-        if not callable(f_in):
-            raise TypeError('f_in must be callable')
         if not isnumber(goal):
             raise ValueError('goal must be a float or int')
         if not isnumber(sigma):
             raise ValueError('sigma must be a float or int')
         if sigma == 0:
             raise ValueError('sigma cannot be 0')
-        self.f_in = f_in
+        self.f_in = function_from_user(f_in)
         self.goal = float(goal)
         self.sigma = float(sigma)
         self.fixed = np.full(0, False)
