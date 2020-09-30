@@ -146,14 +146,14 @@ class Vmec(Optimizable):
         self.run()
         return self.VMEC.wout.volume
         
-    def compute_iota_axis(self):
+    def iota_axis(self):
         """
         Return the rotational transform on axis
         """
         self.run()
         return self.VMEC.wout.iotaf[0]
 
-    def compute_iota_edge(self):
+    def iota_edge(self):
         """
         Return the rotational transform at the boundary
         """
