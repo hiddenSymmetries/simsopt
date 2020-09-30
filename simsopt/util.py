@@ -27,63 +27,6 @@ class Struct():
     This class is just a dummy mutable object to which we can add attributes.
     """
 
-class Identity(Optimizable):
-    """
-    This class represents a term in an objective function which is just
-    the identity. It has one degree of freedom, and the output of the function
-    is equal to this degree of freedom.
-    """
-    def __init__(self, x=0.0):
-        self.x = x
-        self.fixed = np.full(1, False)
-        self.names = ['x']
-
-    def J(self):
-        return self.x
-
-    @property
-    def f(self):
-        """
-        Same as the function J(), but a property instead of a function.
-        """
-        return self.x
-    
-    def get_dofs(self):
-        return np.array([self.x])
-
-    def set_dofs(self, xin):
-        self.x = xin[0]
-
-class Adder(Optimizable):
-    """This class defines a minimal object that can be optimized. It has
-    n degrees of freedom, and has a function that just returns the sum
-    of these dofs. This class is used for testing.
-    """
-
-    def __init__(self, n=3):
-        self.x = np.zeros(n)
-        self.fixed = np.full(n, False)        
-
-    def J(self):
-        """
-        Returns the sum of the degrees of freedom.
-        """
-        return np.sum(self.x)
-        
-    @property
-    def f(self):
-        """
-        Same as the function J(), but a property instead of a function.
-        """
-        return self.J()
-    
-    def get_dofs(self):
-        return self.x
-
-    def set_dofs(self, xin):
-        self.x = np.array(xin)
-
-
 def unique(inlist):
     """
     Given a list or tuple, return a list in which all duplicate
