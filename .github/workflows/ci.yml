@@ -203,5 +203,5 @@ jobs:
         cd examples
         python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
 
-    #- name: Run 2dof integrated test
-    #  run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+    - name: Run 2dof integrated test
+      run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
