@@ -164,6 +164,40 @@ class SurfaceRZFourier(Surface):
         self._validate_mn(m, n)
         return self.zs[m, n + self.ntor]
 
+    def set_rc(self, m, n, val):
+        """
+        Set a particular rc Parameter.
+        """
+        self._validate_mn(m, n)
+        self.rc[m, n + self.ntor] = val
+
+    def set_rs(self, m, n, val):
+        """
+        Set a particular rs Parameter.
+        """
+        if self.stelsym:
+            return ValueError( \
+                'rs does not exist for this stellarator-symmetric surface.')
+        self._validate_mn(m, n)
+        self.rs[m, n + self.ntor] = val
+
+    def set_zc(self, m, n, val):
+        """
+        Set a particular zc Parameter.
+        """
+        if self.stelsym:
+            return ValueError( \
+                'zc does not exist for this stellarator-symmetric surface.')
+        self._validate_mn(m, n)
+        self.zc[m, n + self.ntor] = val
+
+    def set_zs(self, m, n, val):
+        """
+        Set a particular zs Parameter.
+        """
+        self._validate_mn(m, n)
+        self.zs[m, n + self.ntor] = val
+
     def area_volume(self):
         """
         Compute the surface area and the volume enclosed by the surface.

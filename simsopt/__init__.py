@@ -3,7 +3,7 @@ from .optimizable import *
 #from .shape import *
 from .surface import *
 #from .equilibrium import *
-#from .vmec import *
+from .vmec import *
 #from .target import *
 from .rosenbrock import *
 from .least_squares_term import *

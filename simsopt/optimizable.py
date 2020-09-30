@@ -50,7 +50,13 @@ class Optimizable():
         Set the fixed attribute for a given degree of freedom, specified by dof_str.
         """
         self.fixed[self.index(dof_str)] = fixed_new
-    
+
+    def all_fixed(self, fixed_new=True):
+        """
+        Set the 'fixed' attribute for all degrees of freedom.
+        """
+        self.fixed = np.full(len(self.get_dofs()), fixed_new)
+        
 def function_from_user(target):
     """
     Given a user-supplied "target" to be optimized, extract the
@@ -97,7 +103,7 @@ def optimizable(obj):
     obj.mins = np.full(n, np.NINF)
     obj.maxs = np.full(n, np.Inf)
     # Add the following methods from the Optimizable class:
-    for method in ['index', 'get', 'set', 'get_fixed', 'set_fixed']:
+    for method in ['index', 'get', 'set', 'get_fixed', 'set_fixed', 'all_fixed']:
         # See https://stackoverflow.com/questions/972/adding-a-method-to-an-existing-object-instance
         setattr(obj, method, types.MethodType(getattr(Optimizable, method), obj))
         

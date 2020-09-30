@@ -24,16 +24,21 @@ def get_owners(obj, owners_so_far=[]):
     
 
 def collect_dofs(funcs):
-    """Given a list of optimizable functions, 
+    """
+    Given a list of optimizable functions, 
 
     funcs: A list/set/tuple of callable functions.
 
     returns: an object with the following attributes:
     x: A 1D numpy vector of variable dofs.
     
-    owners: A vector, with each element pointing to the object whose
+    dof_owners: A vector, with each element pointing to the object whose
     set_dofs() function should be called to update the corresponding
     dof.
+
+    all_owners: A list of all objects involved in computing funcs,
+    including those that do not directly own any of the non-fixed
+    dofs.
 
     indices: A vector of ints, with each element giving the index in
     the owner's set_dofs method corresponding to this dof.
@@ -42,21 +47,21 @@ def collect_dofs(funcs):
     """
 
     # First, get a list of the objects and any objects they depend on:
-    owner_list = []
+    all_owners = []
     for j in funcs:
-        owner_list += get_owners(j.__self__)
+        all_owners += get_owners(j.__self__)
 
     # Eliminate duplicates, preserving order:
-    owner_list = unique(owner_list)
+    all_owners = unique(all_owners)
 
     # Go through the objects, looking for any non-fixed dofs:
     x = []
-    owners = []
+    dof_owners = []
     indices = []
     mins = []
     maxs = []
     names = []
-    for owner in owner_list:
+    for owner in all_owners:
         ox = owner.get_dofs()
         ndofs = len(ox)
         # If 'fixed' is not present, assume all dofs are not fixed
@@ -84,7 +89,7 @@ def collect_dofs(funcs):
         for jdof in range(ndofs):
             if not fixed[jdof]:
                 x.append(ox[jdof])
-                owners.append(owner)
+                dof_owners.append(owner)
                 indices.append(jdof)
                 names.append(onames[jdof])
                 mins.append(omins[jdof])
@@ -94,10 +99,11 @@ def collect_dofs(funcs):
     results = Struct()
     
     results.x = np.array(x)
-    results.owners = owners
+    results.dof_owners = dof_owners
     results.indices = np.array(indices)
     results.names = names
     results.mins = np.array(mins)
     results.maxs = np.array(maxs)
+    results.all_owners = all_owners
     
     return results
