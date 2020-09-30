@@ -18,7 +18,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         self.assertAlmostEqual(prob.objective, 2.25)
         iden1.set_dofs([10])
         self.assertAlmostEqual(prob.objective, 12.25)
-        self.assertEqual(prob.owners, [iden1])
+        self.assertEqual(prob.all_owners, [iden1])
+        self.assertEqual(prob.dof_owners, [iden1])
 
         # Objective function
         # f(x,y) = ((x - 3) / 2) ** 2 + ((y + 4) / 5) ** 2
@@ -29,7 +30,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1.set_dofs([5])
         iden2.set_dofs([-7])
         self.assertAlmostEqual(prob.objective, 1.36)
-        self.assertEqual(prob.owners, [iden1, iden2])
+        self.assertEqual(prob.dof_owners, [iden1, iden2])
+        self.assertEqual(prob.all_owners, [iden1, iden2])
 
     def test_exceptions(self):
         """

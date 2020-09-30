@@ -84,16 +84,16 @@ class LeastSquaresProblem:
         """
         Call set_dofs() for each object, given a state vector x.
         """
-        # Idea behind the following loops: call set_dofs no more than
+        # Idea behind the following loops: call set_dofs exactly once
         # once for each object, in case that improves performance at
         # all for the optimizable objects.
-        for owner in self.owners:
+        for owner in self.all_owners:
             # In the next line, we make sure to cast the type to a
             # float. Otherwise get_dofs might return an array with
             # integer type.
             objx = np.array(owner.get_dofs(), dtype=np.dtype(float))
             for j in range(self.nparams):
-                if self.owners[j] == owner:
+                if self.dof_owners[j] == owner:
                     objx[self.indices[j]] = x[j]
             owner.set_dofs(objx)
                 

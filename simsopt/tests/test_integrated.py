@@ -16,12 +16,18 @@ class IntegratedTests(unittest.TestCase):
         # radius 1 and minor radius 0.1.
         surf = optimizable(SurfaceRZFourier())
 
+        # Set initial surface shape. It helps to make zs(1,0) larger
+        # than rc(1,0) since there are two solutions to this
+        # optimization problem, and for testing we want to find one
+        # rather than the other.
+        surf.set_zs(1, 0, 0.2)
+
         # Parameters are all non-fixed by default, meaning they will be
         # optimized.  You can choose to exclude any subset of the variables
         # from the space of independent variables by setting their 'fixed'
         # property to True.
         surf.set_fixed('rc(0,0)')
-
+        
         # Each Target is then equipped with a shift and weight, to become a
         # term in a least-squares objective function
         term1 = LeastSquaresTerm(surf.volume, desired_volume, 1)
@@ -32,7 +38,7 @@ class IntegratedTests(unittest.TestCase):
         prob = LeastSquaresProblem([term1, term2])
 
         # Verify the state vector and names are what we expect
-        np.testing.assert_allclose(prob.x, [0.1, 0.1])
+        np.testing.assert_allclose(prob.x, [0.1, 0.2])
         self.assertEqual(prob.names, ['rc(1,0)', 'zs(1,0)'])
         
         # Solve the minimization problem:
