@@ -16,7 +16,7 @@ set -ex
 #python -m unittest -v simsopt.tests.test_rosenbrock
 
 # Example of running a specific test that matches a pattern:
-#python -m unittest -v simsopt.tests.test_least_squares_problem -k test_solve_quadratic_fixed
+#python -m unittest -v -k stellopt
 
 # Run all tests:
 python -m unittest -v
@@ -24,4 +24,4 @@ python -m unittest -v
 
 #cd examples
 
-#./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+cd examples && ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
