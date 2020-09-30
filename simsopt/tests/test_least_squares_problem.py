@@ -1,5 +1,6 @@
 import unittest
 from simsopt.util import Identity
+from simsopt.optimizable import Target
 from simsopt.least_squares_term import LeastSquaresTerm
 from simsopt.least_squares_problem import LeastSquaresProblem
 from simsopt.rosenbrock import Rosenbrock
@@ -80,6 +81,84 @@ class LeastSquaresProblemTests(unittest.TestCase):
         term1 = LeastSquaresTerm(iden1.J, 1, 1)
         term2 = LeastSquaresTerm(iden2.J, 2, 2)
         term3 = LeastSquaresTerm(iden3.J, 3, 3)
+        prob = LeastSquaresProblem([term1, term2, term3])
+        prob.solve()
+        self.assertAlmostEqual(prob.objective, 10)
+        self.assertAlmostEqual(iden1.x, 4)
+        self.assertAlmostEqual(iden2.x, 2)
+        self.assertAlmostEqual(iden3.x, 6)
+
+    def test_solve_quadratic_fixed_supplying_objects(self):
+        """
+        Same as test_solve_quadratic_fixed, except supplying objects
+        rather than functions as targets.
+        """
+        iden1 = Identity()
+        iden2 = Identity()
+        iden3 = Identity()
+        iden1.x = 4
+        iden2.x = 5
+        iden3.x = 6
+        iden1.names = ['x1']
+        iden2.names = ['x2']
+        iden3.names = ['x3']
+        iden1.fixed = [True]
+        iden3.fixed = [True]
+        term1 = LeastSquaresTerm(iden1, 1, 1)
+        term2 = LeastSquaresTerm(iden2, 2, 2)
+        term3 = LeastSquaresTerm(iden3, 3, 3)
+        prob = LeastSquaresProblem([term1, term2, term3])
+        prob.solve()
+        self.assertAlmostEqual(prob.objective, 10)
+        self.assertAlmostEqual(iden1.x, 4)
+        self.assertAlmostEqual(iden2.x, 2)
+        self.assertAlmostEqual(iden3.x, 6)
+
+    def test_solve_quadratic_fixed_supplying_attributes(self):
+        """
+        Same as test_solve_quadratic_fixed, except supplying attributes
+        rather than functions as targets.
+        """
+        iden1 = Identity()
+        iden2 = Identity()
+        iden3 = Identity()
+        iden1.x = 4
+        iden2.x = 5
+        iden3.x = 6
+        iden1.names = ['x1']
+        iden2.names = ['x2']
+        iden3.names = ['x3']
+        iden1.fixed = [True]
+        iden3.fixed = [True]
+        term1 = LeastSquaresTerm(Target(iden1, 'x'), 1, 1)
+        term2 = LeastSquaresTerm(Target(iden2, 'x'), 2, 2)
+        term3 = LeastSquaresTerm(Target(iden3, 'x'), 3, 3)
+        prob = LeastSquaresProblem([term1, term2, term3])
+        prob.solve()
+        self.assertAlmostEqual(prob.objective, 10)
+        self.assertAlmostEqual(iden1.x, 4)
+        self.assertAlmostEqual(iden2.x, 2)
+        self.assertAlmostEqual(iden3.x, 6)
+
+    def test_solve_quadratic_fixed_supplying_properties(self):
+        """
+        Same as test_solve_quadratic_fixed, except supplying @properties
+        rather than functions as targets.
+        """
+        iden1 = Identity()
+        iden2 = Identity()
+        iden3 = Identity()
+        iden1.x = 4
+        iden2.x = 5
+        iden3.x = 6
+        iden1.names = ['x1']
+        iden2.names = ['x2']
+        iden3.names = ['x3']
+        iden1.fixed = [True]
+        iden3.fixed = [True]
+        term1 = LeastSquaresTerm(Target(iden1, 'f'), 1, 1)
+        term2 = LeastSquaresTerm(Target(iden2, 'f'), 2, 2)
+        term3 = LeastSquaresTerm(Target(iden3, 'f'), 3, 3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)

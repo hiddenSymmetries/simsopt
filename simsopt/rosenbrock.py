@@ -4,8 +4,9 @@ This module provides a minimal object that can be optimized.
 
 import numpy as np
 import logging
+from .optimizable import Optimizable
 
-class Rosenbrock:
+class Rosenbrock(Optimizable):
     """
     This class defines a minimal object that can be optimized.
     """

@@ -139,3 +139,6 @@ class CollectDofsTests(unittest.TestCase):
         np.testing.assert_allclose(dofs.x, [101, 102, 11])
         self.assertEqual(dofs.owners, [o2, o2, o1])
         np.testing.assert_allclose(dofs.indices, [0, 1, 1])
+
+if __name__ == "__main__":
+    unittest.main()
