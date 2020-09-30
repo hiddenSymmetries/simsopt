@@ -27,25 +27,6 @@ class IsnumberTests(unittest.TestCase):
         self.assertFalse(isnumber(object))
         self.assertFalse(isnumber([1,2,3]))
 
-class IdentityTests(unittest.TestCase):
-    def test_basic(self):
-        iden = Identity()
-        self.assertAlmostEqual(iden.J(), 0, places=13)
-        np.testing.assert_allclose(iden.get_dofs(), np.array([0.0]))
-        np.testing.assert_allclose(iden.fixed, np.array([False]))
-
-        x = 3.5
-        iden = Identity(x)
-        self.assertAlmostEqual(iden.J(), x, places=13)
-        np.testing.assert_allclose(iden.get_dofs(), np.array([x]))
-        np.testing.assert_allclose(iden.fixed, np.array([False]))
-
-        y = -2
-        iden.set_dofs([y])
-        self.assertAlmostEqual(iden.J(), y, places=13)
-        np.testing.assert_allclose(iden.get_dofs(), np.array([y]))
-        np.testing.assert_allclose(iden.fixed, np.array([False]))
-
 class UniqueTests(unittest.TestCase):
     def test_basic(self):
         self.assertEqual(unique([]), [])

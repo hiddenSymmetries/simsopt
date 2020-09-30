@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from simsopt.collect_dofs import get_owners, collect_dofs
-from simsopt.util import Identity, Adder
+from simsopt.functions import Identity, Adder
 
 class GetOwnersTests(unittest.TestCase):
     def test_no_dependents(self):

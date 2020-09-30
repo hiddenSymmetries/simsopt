@@ -1,8 +1,7 @@
 import unittest
-from simsopt.util import Identity
+from simsopt.functions import Identity, Rosenbrock
 from simsopt.optimizable import Target
 from simsopt.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
-from simsopt.rosenbrock import Rosenbrock
 
 class LeastSquaresTermTests(unittest.TestCase):
 
