@@ -91,7 +91,7 @@ jobs:
         ls -l /__w/simsopt/simsopt
 
     - name: chmod
-      run: echo visitor | sudo -S -E chmod a+wx /__w/temp
+      run: echo visitor | sudo -S -E chmod a+wx /__w/_temp
 
     - name: ls -l /__w again
       run: |
