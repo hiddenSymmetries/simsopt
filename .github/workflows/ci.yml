@@ -149,6 +149,12 @@ jobs:
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
+    - name: ls in working dir
+      run: ls /home/runner/work/simsopt/simsopt/
+
+    - name: Find stellopt make.inc
+      run: ls /home/runner/work/simsopt/simsopt/STELLOPT
+
     - name: Build f90wrap-vmec
       run: |
         pwd
