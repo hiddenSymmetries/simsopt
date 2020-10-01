@@ -59,6 +59,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
 
+    - uses: actions/checkout@v2
+      # If we want submodules downloaded, uncomment the next 2 lines:
+      #with:
+      #  submodules: true
+
+    # We must run actions/checkout@v2 before downloading and building stellopt, since checkout deletes the contents of the directory.
     - name: git clone stellopt
       run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
 
@@ -88,11 +94,6 @@ jobs:
 
     - name: env
       run: env
-
-    - uses: actions/checkout@v2
-      # If we want submodules downloaded, uncomment the next 2 lines:
-      #with:
-      #  submodules: true
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
