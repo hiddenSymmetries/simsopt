@@ -19,11 +19,12 @@ jobs:
     # zhucaoxiang/stellopt:test contain stellopt, but
     # zhucaoxiang/stellopt:compile does not (it just the libraries it depends on.)
     #container: zhucaoxiang/stellopt:latest
-    container: zhucaoxiang/stellopt:test
+    #container: zhucaoxiang/stellopt:test
     env:
       MACHINE: docker
       #STELLOPT_PATH: ${{ github.workspace }}/externalPackages/STELLOPT
-      STELLOPT_PATH: /home/STELLOPT
+      #STELLOPT_PATH: /home/STELLOPT
+      STELLOPT_PATH: /__w/simsopt/simsopt/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
 
@@ -51,6 +52,26 @@ jobs:
       run: |
         set -ex
         ls -l
+
+    - name: apt-get stuff
+      run: |
+        apt-get update
+	apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
+
+    - name: git clone stellopt
+      run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
+
+    - name: ls -l again
+      run: |
+        set -ex
+        ls -l
+
+    - name: Build libstell and vmec
+      run: |
+        set -ex
+        cd STELLOPT
+	./build_all -o release -j 2 LIBSTELL VMEC2000
+	ls -l
 
     - name: ls -l /
       run: |
