@@ -14,18 +14,10 @@ jobs:
   CI:
     runs-on: ubuntu-latest
 
-    # The next bit is copied from STELLOPT's github actions:
-    # Note that zhucaoxiang/stellopt:latest and 
-    # zhucaoxiang/stellopt:test contain stellopt, but
-    # zhucaoxiang/stellopt:compile does not (it just the libraries it depends on.)
-    #container: zhucaoxiang/stellopt:latest
-    #container: zhucaoxiang/stellopt:test
     env:
       MACHINE: docker
       STELLOPT_PATH: /home/runner/work/simsopt/simsopt/STELLOPT
       #STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
-      #STELLOPT_PATH: /home/STELLOPT
-      #STELLOPT_PATH: /__w/simsopt/simsopt/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
 
@@ -141,11 +133,6 @@ jobs:
         sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
         sudo -H -E $pythonLocation/bin/python -m pip install numpy scipy wheel
 
-    #- name: Install python dependencies
-    #  run: |
-    #    sudo -E pip install --upgrade pip
-    #    sudo -E pip install numpy scipy wheel
-
     - name: Install mpi4py
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
@@ -153,18 +140,11 @@ jobs:
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
-    - name: ls in working dir
-      run: ls /home/runner/work/simsopt/simsopt/
-
-    - name: Find stellopt make.inc
-      run: ls /home/runner/work/simsopt/simsopt/STELLOPT
-
     - name: Build f90wrap-vmec
       run: |
         pwd
         cd simsopt/vmec
         make
-        #sudo make
         ls -l
 
     - name: Run unit tests
