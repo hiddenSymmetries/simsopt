@@ -21,11 +21,13 @@ class GetOwnersTests(unittest.TestCase):
         """
         o1 = Identity()
         o2 = Identity()
-        o1.depends_on = [o2]
+        o1.o2 = o2
+        o1.depends_on = ["o2"]
         self.assertEqual(get_owners(o1), [o1, o2])
 
         o3 = object()
-        o1.depends_on = [o3, o2]
+        o1.depends_on = ["o3", "o2"]
+        o1.o3 = o3
         self.assertEqual(get_owners(o1), [o1, o3, o2])
         
     def test_depth_2(self):
@@ -36,8 +38,10 @@ class GetOwnersTests(unittest.TestCase):
         o1 = Identity()
         o2 = Identity()
         o3 = object()
-        o1.depends_on = [o2]
-        o2.depends_on = [o3]
+        o1.depends_on = ["o2"]
+        o2.depends_on = ["o3"]
+        o1.o2 = o2
+        o2.o3 = o3
         self.assertEqual(get_owners(o1), [o1, o2, o3])
 
     def test_circular2(self):
@@ -46,8 +50,10 @@ class GetOwnersTests(unittest.TestCase):
         """
         o1 = Identity()
         o2 = Identity()
-        o1.depends_on = [o2]
-        o2.depends_on = [o1]
+        o1.depends_on = ["o2"]
+        o2.depends_on = ["o1"]
+        o1.o2 = o2
+        o2.o1 = o1
         with self.assertRaises(RuntimeError):
             get_owners(o1)
 
@@ -58,9 +64,12 @@ class GetOwnersTests(unittest.TestCase):
         o1 = Identity()
         o2 = Identity()
         o3 = Identity()
-        o1.depends_on = [o2]
-        o2.depends_on = [o3]
-        o3.depends_on = [o1]
+        o1.depends_on = ["o2"]
+        o2.depends_on = ["o3"]
+        o3.depends_on = ["o1"]
+        o1.o2 = o2
+        o2.o3 = o3
+        o3.o1 = o1
         with self.assertRaises(RuntimeError):
             get_owners(o1)
 
@@ -72,10 +81,14 @@ class GetOwnersTests(unittest.TestCase):
         o2 = Identity()
         o3 = Identity()
         o4 = Identity()
-        o1.depends_on = [o2]
-        o2.depends_on = [o3]
-        o3.depends_on = [o4]
-        o4.depends_on = [o1]
+        o1.depends_on = ["o2"]
+        o2.depends_on = ["o3"]
+        o3.depends_on = ["o4"]
+        o4.depends_on = ["o1"]
+        o1.o2 = o2
+        o2.o3 = o3
+        o3.o4 = o4
+        o4.o1 = o1
         with self.assertRaises(RuntimeError):
             get_owners(o1)
 
@@ -129,7 +142,8 @@ class CollectDofsTests(unittest.TestCase):
         o2 = Adder(4)
         o1.set_dofs([10, 11, 12])
         o2.set_dofs([101, 102, 103, 104])
-        o1.depends_on = [o2]
+        o1.depends_on = ["o2"]
+        o1.o2 = o2
         dofs = collect_dofs([o1.J])
         np.testing.assert_allclose(dofs.x, [10, 11, 12, 101, 102, 103, 104])
         self.assertEqual(dofs.all_owners, [o1, o2])
@@ -139,7 +153,8 @@ class CollectDofsTests(unittest.TestCase):
         o1.fixed = [True, False, True]
         o2.fixed = [False, False, True, True]
         del o1.depends_on
-        o2.depends_on = [o1]
+        o2.depends_on = ["o1"]
+        o2.o1 = o1
         dofs = collect_dofs([o2.J])
         np.testing.assert_allclose(dofs.x, [101, 102, 11])
         self.assertEqual(dofs.all_owners, [o2, o1])

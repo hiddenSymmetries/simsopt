@@ -79,7 +79,7 @@ class Target(Optimizable):
     def __init__(self, obj, attr):
         self.obj = obj
         self.attr = attr
-        self.depends_on = [obj]
+        self.depends_on = ["obj"]
         
     def J(self):
         return getattr(self.obj, self.attr)
