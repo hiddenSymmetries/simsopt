@@ -74,13 +74,13 @@ jobs:
         ls -l
         pwd
 
-    #- name: Build libstell and vmec
-    #  run: |
-    #    set -ex
-    #    cd STELLOPT
-    #    ls
-    #    ./build_all -o release -j 2 LIBSTELL VMEC2000
-    #    ls -l
+    - name: Build libstell
+      run: |
+        set -ex
+        cd STELLOPT
+        ls
+        ./build_all -o release -j 2 LIBSTELL
+        ls -l
 
     - name: Verify libstell.so was built
       run: |
