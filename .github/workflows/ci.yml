@@ -55,8 +55,8 @@ jobs:
 
     - name: apt-get stuff
       run: |
-        apt-get update
-        apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
 
     - name: git clone stellopt
       run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
