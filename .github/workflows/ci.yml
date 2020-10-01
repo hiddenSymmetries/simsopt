@@ -76,7 +76,7 @@ jobs:
     - name: Verify libstell.so was built
       run: |
         pwd
-	ls STELLOPT/LIBSTELL/Release
+        ls STELLOPT/LIBSTELL/Release
 
     - name: ls -l /
       run: |
