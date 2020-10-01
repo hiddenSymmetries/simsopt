@@ -67,7 +67,7 @@ class Vmec(Optimizable):
                 self.boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
                 self.boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
         # Handle a few variables that are not Parameters:
-        self.depends_on = [self.boundary]
+        self.depends_on = ["boundary"]
         self.need_to_run_code = True
 
         self.fixed = np.full(len(self.get_dofs()), True)

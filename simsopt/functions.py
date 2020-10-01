@@ -21,12 +21,21 @@ class Identity(Optimizable):
     def J(self):
         return self.x
 
+    def dJ(self):
+        return np.array([1.0])
+    
     @property
     def f(self):
         """
         Same as the function J(), but a property instead of a function.
         """
         return self.x
+    @property
+    def df(self):
+        """
+        Same as the function dJ(), but a property instead of a function.
+        """
+        return np.array([1.0])
     
     def get_dofs(self):
         return np.array([self.x])
@@ -41,6 +50,7 @@ class Adder(Optimizable):
     """
 
     def __init__(self, n=3):
+        self.n = n
         self.x = np.zeros(n)
         self.fixed = np.full(n, False)        
 
@@ -49,6 +59,9 @@ class Adder(Optimizable):
         Returns the sum of the degrees of freedom.
         """
         return np.sum(self.x)
+
+    def dJ(self):
+        return np.ones(self.n)
         
     @property
     def f(self):
@@ -56,6 +69,13 @@ class Adder(Optimizable):
         Same as the function J(), but a property instead of a function.
         """
         return self.J()
+    
+    @property
+    def df(self):
+        """
+        Same as the function dJ(), but a property instead of a function.
+        """
+        return np.ones(self.n)
     
     def get_dofs(self):
         return self.x
@@ -88,6 +108,18 @@ class Rosenbrock(Optimizable):
         """
         return (self._x * self._x - self._y) / self._sqrtb
 
+    def dterm1(self):
+        """
+        Returns the gradient of term1
+        """
+        return np.array([1.0, 0.0])
+    
+    def dterm2(self):
+        """
+        Returns the gradient of term2
+        """
+        return np.array([2 * self._x, -1.0]) / self._sqrtb
+    
     @property
     def term1prop(self):
         """
@@ -101,6 +133,20 @@ class Rosenbrock(Optimizable):
         Same as term2, but a property rather than a callable function.
         """
         return self.term2()
+    
+    @property
+    def dterm1prop(self):
+        """
+        Same as dterm1, but a property rather than a callable function.
+        """
+        return self.dterm1()
+    
+    @property
+    def dterm2prop(self):
+        """
+        Same as dterm2, but a property rather than a callable function.
+        """
+        return self.dterm2()
     
     def f(self):
         """
