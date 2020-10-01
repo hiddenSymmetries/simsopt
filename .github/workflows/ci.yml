@@ -22,7 +22,8 @@ jobs:
     #container: zhucaoxiang/stellopt:test
     env:
       MACHINE: docker
-      STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
+      STELLOPT_PATH: /home/runner/work/simsopt/STELLOPT
+      #STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
       #STELLOPT_PATH: /home/STELLOPT
       #STELLOPT_PATH: /__w/simsopt/simsopt/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -53,7 +54,7 @@ jobs:
         set -ex
         ls -l
 
-    - name: apt-get stuff
+    - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
@@ -122,14 +123,17 @@ jobs:
     # of the version of python3 managed by github actions.
     # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
     # version of pip is used, (the version of python3 that came with the container).
+    # The -H flag is used because otherwise this warning appears:
+    # WARNING: The directory '/home/runner/.cache/pip' or its parent directory is not owned or is not writable by the current user.
+    # The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you may want sudo's -H flag.
     - name: Install python dependencies
       run: |
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
-        sudo -E $pythonLocation/bin/python -m pip install --upgrade pip
-        sudo -E $pythonLocation/bin/python -m pip install numpy scipy wheel
+        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
+        sudo -H -E $pythonLocation/bin/python -m pip install numpy scipy wheel
 
     #- name: Install python dependencies
     #  run: |
@@ -138,10 +142,10 @@ jobs:
 
     - name: Install mpi4py
       run: |
-        sudo -E $pythonLocation/bin/python -m pip install mpi4py
+        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install f90wrap
-      run: sudo -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
     - name: Build f90wrap-vmec
       run: |
