@@ -102,6 +102,18 @@ jobs:
     - name: which pip after python setup
       run: pip --version
 
+    - name: which pip using sudo
+      run: sudo pip --version
+
+    - name: which pip using sudo -E
+      run: sudo -E pip --version
+
+    - name: which python using sudo
+      run: sudo which python3
+
+    - name: which python using sudo -E
+      run: sudo -E which python3
+
     - name: env after adding python
       run: env
 
@@ -119,15 +131,15 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        sudo pip install --upgrade pip
-        sudo pip install numpy scipy wheel
+        sudo -E pip install --upgrade pip
+        sudo -E pip install numpy scipy wheel
 
     - name: Install mpi4py
       run: |
-        sudo pip install mpi4py
+        sudo -E pip install mpi4py
 
     - name: Install f90wrap
-      run: sudo pip install git+https://github.com/jameskermode/f90wrap
+      run: sudo -E pip install git+https://github.com/jameskermode/f90wrap
 
     - name: Build f90wrap-vmec
       run: |
