@@ -122,24 +122,26 @@ jobs:
     # of the version of python3 managed by github actions.
     # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
     # version of pip is used, (the version of python3 that came with the container).
-    #- name: Install python dependencies
-    #  run: |
-    #    echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
-    #    echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
-    #    echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
-    #    echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
-
     - name: Install python dependencies
       run: |
-        sudo -E pip install --upgrade pip
-        sudo -E pip install numpy scipy wheel
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
+        sudo -E $pythonLocation/bin/python -m pip install --upgrade pip
+        sudo -E $pythonLocation/bin/python -m pip install numpy scipy wheel
+
+    #- name: Install python dependencies
+    #  run: |
+    #    sudo -E pip install --upgrade pip
+    #    sudo -E pip install numpy scipy wheel
 
     - name: Install mpi4py
       run: |
-        sudo -E pip install mpi4py
+        sudo -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install f90wrap
-      run: sudo -E pip install git+https://github.com/jameskermode/f90wrap
+      run: sudo -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
     - name: Build f90wrap-vmec
       run: |
