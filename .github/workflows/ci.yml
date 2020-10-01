@@ -56,7 +56,7 @@ jobs:
     - name: apt-get stuff
       run: |
         apt-get update
-	apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
+        apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
 
     - name: git clone stellopt
       run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
@@ -70,8 +70,8 @@ jobs:
       run: |
         set -ex
         cd STELLOPT
-	./build_all -o release -j 2 LIBSTELL VMEC2000
-	ls -l
+        ./build_all -o release -j 2 LIBSTELL VMEC2000
+        ls -l
 
     - name: ls -l /
       run: |
