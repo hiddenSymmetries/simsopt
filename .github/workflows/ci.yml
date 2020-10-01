@@ -24,7 +24,7 @@ jobs:
       MACHINE: docker
       STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
       #STELLOPT_PATH: /home/STELLOPT
-      STELLOPT_PATH: /__w/simsopt/simsopt/STELLOPT
+      #STELLOPT_PATH: /__w/simsopt/simsopt/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
 
