@@ -87,6 +87,9 @@ jobs:
         pwd
         ls STELLOPT/LIBSTELL/Release
 
+    - name: Add STELLOPT/bin to LD_LIBRARY_PATH so libstell.so can be found
+      run: echo "::set-env name=LD_LIBRARY_PATH::/home/runner/work/simsopt/simsopt/STELLOPT/bin"
+
     - name: ls -l /
       run: |
         set -ex
