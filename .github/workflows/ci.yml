@@ -125,7 +125,7 @@ jobs:
     - name: Install mpi4py
       run: |
         sudo pip install mpi4py
-	
+
     - name: Install f90wrap
       run: sudo pip install git+https://github.com/jameskermode/f90wrap
 
@@ -133,7 +133,7 @@ jobs:
       run: |
         pwd
         cd simsopt/vmec
-	make
+        make
         #sudo make
         ls -l
 
