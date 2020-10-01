@@ -62,6 +62,11 @@ jobs:
         set -ex
         ls -l /__w
 
+    - name: ls -l /__w/_temp
+      run: |
+        set -ex
+        ls -l /__w/_temp
+
     - name: ls -l /__w/simsopt
       run: |
         set -ex
@@ -84,6 +89,14 @@ jobs:
       run: |
         set -ex
         ls -l /__w/simsopt/simsopt
+
+    - name: chmod
+      run: echo visitor | sudo -S -E chmod a+wx /__w/temp
+
+    - name: ls -l /__w again
+      run: |
+        set -ex
+        ls -l /__w
 
     - name: ls -l /home
       run: |
