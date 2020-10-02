@@ -165,7 +165,8 @@ class Rosenbrock(Optimizable):
 
 class TestObject1(Optimizable):
     """
-    This is an optimizable object used for testing.
+    This is an optimizable object used for testing. It depends on two
+    sub-objects, both of type Adder.
     """
     def __init__(self, val):
         self.val = val
@@ -173,7 +174,37 @@ class TestObject1(Optimizable):
         self.fixed = np.array([False])
         self.adder1 = Adder(3)
         self.adder2 = Adder(2)
+        self.depends_on = ['adder1', 'adder2']
 
+    def set_dofs(self, x):
+        self.val = x[0]
+
+    def get_dofs(self):
+        return np.array([self.val])
+    
     def J(self):
-        return (self.val + self.adder1.J()) / (2 + self.adder2.J())
-        
+        return (self.val + 3 * self.adder1.J()) / (2 + self.adder2.J())
+
+    def dJ(self):
+        v = self.val
+        a1 = self.adder1.J()
+        a2 = self.adder2.J()
+        # J = (v + 3 * a1) / (2 + a2)
+        return np.concatenate((np.array([1.0 / (2 + a2)]),
+                               np.full(self.adder1.n, 3.0 / (2 + a2)),
+                               np.full(self.adder2.n, -(v + 3 * a1) / ((2 + a2) ** 2))))
+    @property
+    def f(self):
+        """
+        Same as J() but a property instead of a function.
+        """
+        return self.J()
+
+    @property
+    def df(self):
+        """
+        Same as dJ() but a property instead of a function.
+        """
+        return self.dJ()
+
+    
