@@ -1,8 +1,9 @@
 import unittest
 import numpy as np
-from simsopt.functions import Identity, Adder, Rosenbrock, TestObject1
+from simsopt.functions import Identity, Adder, Rosenbrock, TestObject1, TestObject2
 from simsopt.finite_difference import finite_difference
 from simsopt.optimizable import Target
+from simsopt.dofs import Dofs
 
 class IdentityTests(unittest.TestCase):
     def test_basic(self):
@@ -105,28 +106,74 @@ class RosenbrockTests(unittest.TestCase):
             
 class TestObject1Tests(unittest.TestCase):
     def test_gradient(self):
-        for n in range(1, 10):
+        for n in range(1, 20):
             o = TestObject1(np.random.rand())
             o.adder1.set_dofs(np.random.rand(3) * 4 - 2)
             o.adder2.set_dofs(np.random.rand(2) * 4 - 2)
 
+            # Randomly fix some of the degrees of freedom
+            o.fixed = np.random.rand(1) > 0.5
+            o.adder1.fixed = np.random.rand(3) > 0.5
+            o.adder2.fixed = np.random.rand(2) > 0.5
+
             rtol = 1e-4
             atol = 1e-4
+
+            dofs = Dofs([o.J])
+            mask = np.logical_not(dofs.fixed)
             
             # Supply a function to finite_difference():
             fd_grad = finite_difference(o.J)
-            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
-            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
             # Supply an object to finite_difference():
             fd_grad = finite_difference(o)
-            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
-            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
             # Supply an attribute to finite_difference():
             fd_grad = finite_difference(Target(o, "f"))
-            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
-            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
 
-            print('Diff in TestObject1:', fd_grad - o.df)
+            print('Diff in TestObject1:', fd_grad - o.df[mask])
+            
+class TestObject2Tests(unittest.TestCase):
+    def test_gradient(self):
+        for n in range(1, 20):
+            v1 = np.random.rand() * 4 - 2
+            v2 = np.random.rand() * 4 - 2
+            o = TestObject2(v1, v2)
+            o.adder.set_dofs(np.random.rand(2) * 4 - 2)
+            o.t.set_dofs([np.random.rand() * 4 - 2])
+            o.t.adder1.set_dofs(np.random.rand(3) * 4 - 2)
+            o.t.adder2.set_dofs(np.random.rand(2) * 4 - 2)
+
+            # Randomly fix some of the degrees of freedom
+            o.fixed = np.random.rand(2) > 0.5
+            o.adder.fixed = np.random.rand(2) > 0.5
+            o.t.adder1.fixed = np.random.rand(3) > 0.5
+            o.t.adder2.fixed = np.random.rand(2) > 0.5
+
+            rtol = 1e-4
+            atol = 1e-4
+            
+            dofs = Dofs([o.J])
+            mask = np.logical_not(dofs.fixed)
+
+            # Supply a function to finite_difference():
+            fd_grad = finite_difference(o.J)
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
+            # Supply an object to finite_difference():
+            fd_grad = finite_difference(o)
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
+            # Supply an attribute to finite_difference():
+            fd_grad = finite_difference(Target(o, "f"))
+            np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
+
+            print('Diff in TestObject2:', fd_grad - o.df[mask])
             
 if __name__ == "__main__":
     unittest.main()

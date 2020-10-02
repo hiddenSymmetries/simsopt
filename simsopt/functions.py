@@ -183,16 +183,70 @@ class TestObject1(Optimizable):
         return np.array([self.val])
     
     def J(self):
-        return (self.val + 3 * self.adder1.J()) / (2 + self.adder2.J())
+        return (self.val + 2 * self.adder1.J()) / (3 + self.adder2.J())
 
     def dJ(self):
         v = self.val
         a1 = self.adder1.J()
         a2 = self.adder2.J()
-        # J = (v + 3 * a1) / (2 + a2)
-        return np.concatenate((np.array([1.0 / (2 + a2)]),
-                               np.full(self.adder1.n, 3.0 / (2 + a2)),
-                               np.full(self.adder2.n, -(v + 3 * a1) / ((2 + a2) ** 2))))
+        # J = (v + 2 * a1) / (3 + a2)
+        return np.concatenate((np.array([1.0 / (3 + a2)]),
+                               np.full(self.adder1.n, 2.0 / (3 + a2)),
+                               np.full(self.adder2.n, -(v + 2 * a1) / ((3 + a2) ** 2))))
+    @property
+    def f(self):
+        """
+        Same as J() but a property instead of a function.
+        """
+        return self.J()
+
+    @property
+    def df(self):
+        """
+        Same as dJ() but a property instead of a function.
+        """
+        return self.dJ()
+
+    
+class TestObject2(Optimizable):
+    """
+    This is an optimizable object used for testing. It depends on two
+    sub-objects, both of type Adder.
+    """
+    def __init__(self, val1, val2):
+        self.val1 = val1
+        self.val2 = val2
+        self.names = ['val1', 'val2']
+        self.fixed = np.array([False, False])
+        self.t = TestObject1(0.0)
+        self.adder = Adder(2)
+        self.depends_on = ['t', 'adder']
+
+    def set_dofs(self, x):
+        self.val1 = x[0]
+        self.val2 = x[1]
+
+    def get_dofs(self):
+        return np.array([self.val1, self.val2])
+    
+    def J(self):
+        v1 = self.val1
+        v2 = self.val2
+        t = self.t.J()
+        a = self.adder.J()
+        return v1 + a * np.cos(v2 + t)
+
+    def dJ(self):
+        v1 = self.val1
+        v2 = self.val2
+        a = self.adder.J()
+        t = self.t.J()
+        cosat = np.cos(v2 + t)
+        sinat = np.sin(v2 + t)
+        # Order of terms in the gradient: v1, v2, t, a
+        return np.concatenate((np.array([1.0, -a * sinat]),
+                               -a * sinat * self.t.dJ(),
+                               cosat * self.adder.dJ()))
     @property
     def f(self):
         """
