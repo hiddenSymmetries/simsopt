@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.functions import Identity, Adder, Rosenbrock
+from simsopt.functions import Identity, Adder, Rosenbrock, TestObject1
 from simsopt.finite_difference import finite_difference
 from simsopt.optimizable import Target
 
@@ -102,6 +102,31 @@ class RosenbrockTests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, r.dterm2prop)
             np.testing.assert_allclose(fd_grad, r.dterm2())
             #print('Diff in term2:', fd_grad - r.dterm2())
+            
+class TestObject1Tests(unittest.TestCase):
+    def test_gradient(self):
+        for n in range(1, 10):
+            o = TestObject1(np.random.rand())
+            o.adder1.set_dofs(np.random.rand(3) * 4 - 2)
+            o.adder2.set_dofs(np.random.rand(2) * 4 - 2)
+
+            rtol = 1e-4
+            atol = 1e-4
+            
+            # Supply a function to finite_difference():
+            fd_grad = finite_difference(o.J)
+            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+            # Supply an object to finite_difference():
+            fd_grad = finite_difference(o)
+            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+            # Supply an attribute to finite_difference():
+            fd_grad = finite_difference(Target(o, "f"))
+            np.testing.assert_allclose(fd_grad, o.df, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, o.dJ(), rtol=rtol, atol=atol)
+
+            print('Diff in TestObject1:', fd_grad - o.df)
             
 if __name__ == "__main__":
     unittest.main()
