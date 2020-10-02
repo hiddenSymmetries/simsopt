@@ -6,7 +6,7 @@ associated class LeastSquaresTerm.
 import numpy as np
 from scipy.optimize import least_squares
 import logging
-from .collect_dofs import collect_dofs
+from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user
 
@@ -76,12 +76,7 @@ class LeastSquaresProblem:
         This is done both when the object is created, so 'objective' works immediately,
         and also at the start of solve()
         """
-        dofs = collect_dofs([t.f_in for t in self.terms])
-        self.nparams = len(dofs.x)
-        # Transfer all non-builtin attributes of dofs to self:
-        for att in dir(dofs):
-            if not att.startswith('_'):
-                setattr(self, att, getattr(dofs, att))
+        self.dofs = Dofs([t.f_in for t in self.terms])
 
     @property
     def objective(self):
@@ -95,13 +90,20 @@ class LeastSquaresProblem:
             sum += term.f_out()
         return sum
 
+    @property
+    def x(self):
+        """
+        Return the state vector.
+        """
+        return self.dofs.x
+
     def solve(self):
         """
         Solve the nonlinear-least-squares minimization problem.
         """
         self.logger.info("Beginning solve.")
         self._init()
-        x0 = np.copy(self.x)
+        x0 = np.copy(self.dofs.x)
         #print("x0:",x0)
         # Call scipy.optimize:
         result = least_squares(self._residual_func, x0, verbose=2)
@@ -110,31 +112,31 @@ class LeastSquaresProblem:
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
         # Set Parameters to their values for the optimum
-        self._set_dofs(result.x)
+        self.dofs.set(result.x)
 
-    def _set_dofs(self, x):
-        """
-        Call set_dofs() for each object, given a state vector x.
-        """
-        # Idea behind the following loops: call set_dofs exactly once
-        # once for each object, in case that improves performance at
-        # all for the optimizable objects.
-        for owner in self.all_owners:
-            # In the next line, we make sure to cast the type to a
-            # float. Otherwise get_dofs might return an array with
-            # integer type.
-            objx = np.array(owner.get_dofs(), dtype=np.dtype(float))
-            for j in range(self.nparams):
-                if self.dof_owners[j] == owner:
-                    objx[self.indices[j]] = x[j]
-            owner.set_dofs(objx)
+    #def _set_dofs(self, x):
+    #    """
+    #    Call set_dofs() for each object, given a state vector x.
+    #    """
+    #    # Idea behind the following loops: call set_dofs exactly once
+    #    # once for each object, in case that improves performance at
+    #    # all for the optimizable objects.
+    #    for owner in self.all_owners:
+    #        # In the next line, we make sure to cast the type to a
+    #        # float. Otherwise get_dofs might return an array with
+    #        # integer type.
+    #        objx = np.array(owner.get_dofs(), dtype=np.dtype(float))
+    #        for j in range(self.nparams):
+    #            if self.dof_owners[j] == owner:
+    #                objx[self.indices[j]] = x[j]
+    #        owner.set_dofs(objx)
                 
     def _residual_func(self, x):
         """
         This private method is passed to scipy.optimize.
         """
         self.logger.info("_residual_func called with x=" + str(x))
-        self._set_dofs(x)
+        self.dofs.set(x)
         residuals = [(term.f_in() - term.goal) / term.sigma for term in self.terms]
         return residuals
         

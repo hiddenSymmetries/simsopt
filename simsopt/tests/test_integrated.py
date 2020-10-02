@@ -39,7 +39,8 @@ class IntegratedTests(unittest.TestCase):
 
         # Verify the state vector and names are what we expect
         np.testing.assert_allclose(prob.x, [0.1, 0.2])
-        self.assertEqual(prob.names, ['rc(1,0)', 'zs(1,0)'])
+        self.assertEqual(prob.dofs.names[0][:28], 'rc(1,0) of SurfaceRZFourier ')
+        self.assertEqual(prob.dofs.names[1][:28], 'zs(1,0) of SurfaceRZFourier ')
         
         # Solve the minimization problem:
         prob.solve()
