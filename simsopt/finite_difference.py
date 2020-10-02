@@ -47,3 +47,4 @@ def finite_difference(func, eps=1e-7):
         grad[j] = (fplus - fminus) / (2 * eps)
 
     return grad
+
