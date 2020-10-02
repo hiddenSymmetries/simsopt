@@ -69,15 +69,17 @@ class Dofs():
         mins = []
         maxs = []
         names = []
+        fixed_merged = []
         for owner in all_owners:
             ox = owner.get_dofs()
             ndofs = len(ox)
             # If 'fixed' is not present, assume all dofs are not fixed
             if hasattr(owner, 'fixed'):
-                fixed = owner.fixed
+                fixed = list(owner.fixed)
             else:
-                fixed = np.full(ndofs, False)
-
+                fixed = [False] * ndofs
+            fixed_merged += fixed
+            
             # Check for bound constraints:
             if hasattr(owner, 'mins'):
                 omins = owner.mins
@@ -110,6 +112,7 @@ class Dofs():
         self.mins = np.array(mins)
         self.maxs = np.array(maxs)
         self.all_owners = all_owners
+        self.fixed = np.array(fixed_merged)
 
     @property
     def x(self):
