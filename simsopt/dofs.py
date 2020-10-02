@@ -105,6 +105,64 @@ class Dofs():
                     mins.append(omins[jdof])
                     maxs.append(omaxs[jdof])
 
+        # Now repeat the process we just went through, but for only a
+        # single element of funcs. The results will be needed to
+        # handle gradient information.
+        func_dof_owners = []
+        func_indices = []
+        func_fixed = []
+        for func in funcs:
+            owners = get_owners(func.__self__)
+            f_dof_owners = []
+            f_indices = []
+            f_fixed = []
+            for owner in owners:
+                ox = owner.get_dofs()
+                ndofs = len(ox)
+                # If 'fixed' is not present, assume all dofs are not fixed
+                if hasattr(owner, 'fixed'):
+                    fixed = list(owner.fixed)
+                else:
+                    fixed = [False] * ndofs
+                f_fixed += fixed
+
+                for jdof in range(ndofs):
+                    if not fixed[jdof]:
+                        f_dof_owners.append(owner)
+                        f_indices.append(jdof)
+            func_dof_owners.append(f_dof_owners)
+            func_indices.append(f_indices)
+            func_fixed.append(f_fixed)
+            
+        # For each of the provided funcs, make a mask indicating which
+        # dofs (including those owned by dependents) are
+        # non-fixed. This info will be used to pick out entries of the
+        # gradient vectors.
+        #masks = []
+        #for func in funcs:
+        #    # Get a list of this owner plus any dependents:
+        #    owners = get_owners(j.__self__)
+        #    # Concatenate the 'fixed' lists of all these owners:
+        #    fixed_merged = []
+        #    for owner in owners:
+        #        fixed_merged += list(owner.fixed)
+        #    # Invert True <-> False
+        #    masks.append(np.logical_not(np.array(fixed_merged)))
+                    
+        # Check whether derivative information is available:
+        grad_avail = True
+        grad_funcs = []
+        for func in funcs:
+            # Check whether a gradient function exists:
+            owner = func.__self__
+            grad_func_name = 'd' + func.__name__
+            if not hasattr(owner, grad_func_name):
+                grad_avail = False
+                break
+            # If we get here, a gradient function exists.
+            grad_funcs.append(getattr(owner, grad_func_name))
+        
+        self.nfuncs = len(funcs)
         self.nparams = len(x)
         self.dof_owners = dof_owners
         self.indices = np.array(indices)
@@ -112,7 +170,12 @@ class Dofs():
         self.mins = np.array(mins)
         self.maxs = np.array(maxs)
         self.all_owners = all_owners
-        self.fixed = np.array(fixed_merged)
+        #self.fixed = np.array(fixed_merged)
+        self.func_dof_owners = func_dof_owners
+        self.func_indices = func_indices
+        self.func_fixed = func_fixed
+        self.grad_avail = grad_avail
+        self.grad_funcs = grad_funcs
 
     @property
     def x(self):
@@ -130,10 +193,50 @@ class Dofs():
                 if self.dof_owners[j] == owner:
                     x[j] = objx[self.indices[j]]
         return x
-    
+
+    @property
+    def jac(self):
+        """
+        Return the Jacobian, i.e. the gradients of all the functions that were originally
+        supplied to Dofs(). Result is a 2D numpy array.
+        """
+        if not self.grad_avail:
+            raise RuntimeError('Gradient information is not available for this Dofs()')
+
+        results = np.zeros((self.nfuncs, self.nparams))
+        # Loop over the rows of the Jacobian, i.e. over the functions
+        # that were originally provided to Dofs():
+        for jfunc in range(self.nfuncs):
+            # Get the gradient of this particular function with
+            # respect to all of it's dofs, which is a different set
+            # from the global dofs:
+            grad = self.grad_funcs[jfunc]()
+            # Sanity tests:
+            if len(grad) != len(self.func_dof_owners[jfunc]):
+                print('jfunc=', jfunc)
+                print('len(grad)=', len(grad))
+                print('len(func_dof_owners[jfunc])=', len(self.func_dof_owners[jfunc]))
+                raise RuntimeError('len(grad) != len(func_dof_owners[jfunc])')
+            if len(grad) != len(self.func_indices[jfunc]):
+                print('jfunc=', jfunc)
+                print('len(grad)=', len(grad))
+                print('len(func_indices[jfunc])=', len(self.func_indices[jfunc]))
+                raise RuntimeError('len(grad) != len(func_indices[jfunc])')
+            
+            # Match up the global dofs with the dofs for this particular gradient function:
+            for jdof in range(self.nparams):
+                for jgrad in range(len(self.func_indices[jfunc])):
+                    # A global dof matches a dof for this function if the owners and indices both match:
+                    if self.dof_owners[jdof] == self.func_dof_owners[jfunc][jgrad] and self.indices[jdof] == self.func_indices[jfunc][jgrad]:
+                        results[jfunc, jdof] = grad[jgrad]
+                        # If we find a match, we can exit the innermost loop:
+                        break
+                        
+        return results
+            
     def set(self, x):
         """
-        Call set_dofs() for each object, given a state vector x.
+        Call set_dofs() for each object, given a global state vector x.
         """
         # Idea behind the following loops: call set_dofs exactly once
         # once for each object, in case that improves performance at

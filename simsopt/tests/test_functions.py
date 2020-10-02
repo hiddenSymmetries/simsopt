@@ -120,7 +120,8 @@ class TestObject1Tests(unittest.TestCase):
             atol = 1e-4
 
             dofs = Dofs([o.J])
-            mask = np.logical_not(dofs.fixed)
+            #mask = np.logical_not(dofs.fixed)
+            mask = np.logical_not(np.array(dofs.func_fixed[0]))
             
             # Supply a function to finite_difference():
             fd_grad = finite_difference(o.J)
@@ -158,7 +159,7 @@ class TestObject2Tests(unittest.TestCase):
             atol = 1e-4
             
             dofs = Dofs([o.J])
-            mask = np.logical_not(dofs.fixed)
+            mask = np.logical_not(np.array(dofs.func_fixed[0]))
 
             # Supply a function to finite_difference():
             fd_grad = finite_difference(o.J)
