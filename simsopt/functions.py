@@ -91,7 +91,7 @@ class Rosenbrock(Optimizable):
     def __init__(self, b=100.0, x=0.0, y=0.0):
         self._logger = logging.getLogger(__name__)
         self._sqrtb = np.sqrt(b)
-        self._names = ['x', 'y']
+        self.names = ['x', 'y']
         self._x = x
         self._y = y
         self.fixed = np.full(2, False)        
@@ -163,3 +163,17 @@ class Rosenbrock(Optimizable):
         self._x = xin[0]
         self._y = xin[1]
 
+class TestObject1(Optimizable):
+    """
+    This is an optimizable object used for testing.
+    """
+    def __init__(self, val):
+        self.val = val
+        self.names = ['val']
+        self.fixed = np.array([False])
+        self.adder1 = Adder(3)
+        self.adder2 = Adder(2)
+
+    def J(self):
+        return (self.val + self.adder1.J()) / (2 + self.adder2.J())
+        

@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.collect_dofs import get_owners, collect_dofs
+from simsopt.dofs import get_owners, Dofs
 from simsopt.functions import Identity, Adder
 
 class GetOwnersTests(unittest.TestCase):
@@ -92,28 +92,28 @@ class GetOwnersTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             get_owners(o1)
 
-class CollectDofsTests(unittest.TestCase):
+class DofsTests(unittest.TestCase):
     def test_no_dependents(self):
         """
         Tests for an object that does not depend on other objects.
         """
         obj = Adder(4)
         obj.set_dofs([101, 102, 103, 104])
-        dofs = collect_dofs([obj.J])
+        dofs = Dofs([obj.J])
         np.testing.assert_allclose(dofs.x, [101, 102, 103, 104])
         self.assertEqual(dofs.all_owners, [obj])
         self.assertEqual(dofs.dof_owners, [obj, obj, obj, obj])
         np.testing.assert_allclose(dofs.indices, [0, 1, 2, 3])
 
         obj.fixed = [True, False, True, False]
-        dofs = collect_dofs([obj.J])
+        dofs = Dofs([obj.J])
         np.testing.assert_allclose(dofs.x, [102, 104])
         self.assertEqual(dofs.all_owners, [obj])
         self.assertEqual(dofs.dof_owners, [obj, obj])
         np.testing.assert_allclose(dofs.indices, [1, 3])
 
         obj.fixed[0] = False
-        dofs = collect_dofs([obj.J])
+        dofs = Dofs([obj.J])
         np.testing.assert_allclose(dofs.x, [101, 102, 104])
         self.assertEqual(dofs.all_owners, [obj])
         self.assertEqual(dofs.dof_owners, [obj, obj, obj])
@@ -127,7 +127,7 @@ class CollectDofsTests(unittest.TestCase):
         del obj.fixed
         self.assertFalse(hasattr(obj, 'fixed'))
         obj.set_dofs([101, 102, 103, 104])
-        dofs = collect_dofs([obj.J])
+        dofs = Dofs([obj.J])
         np.testing.assert_allclose(dofs.x, [101, 102, 103, 104])
         self.assertEqual(dofs.all_owners, [obj])
         self.assertEqual(dofs.dof_owners, [obj, obj, obj, obj])
@@ -144,7 +144,7 @@ class CollectDofsTests(unittest.TestCase):
         o2.set_dofs([101, 102, 103, 104])
         o1.depends_on = ["o2"]
         o1.o2 = o2
-        dofs = collect_dofs([o1.J])
+        dofs = Dofs([o1.J])
         np.testing.assert_allclose(dofs.x, [10, 11, 12, 101, 102, 103, 104])
         self.assertEqual(dofs.all_owners, [o1, o2])
         self.assertEqual(dofs.dof_owners, [o1, o1, o1, o2, o2, o2, o2])
@@ -155,7 +155,7 @@ class CollectDofsTests(unittest.TestCase):
         del o1.depends_on
         o2.depends_on = ["o1"]
         o2.o1 = o1
-        dofs = collect_dofs([o2.J])
+        dofs = Dofs([o2.J])
         np.testing.assert_allclose(dofs.x, [101, 102, 11])
         self.assertEqual(dofs.all_owners, [o2, o1])
         self.assertEqual(dofs.dof_owners, [o2, o2, o1])
