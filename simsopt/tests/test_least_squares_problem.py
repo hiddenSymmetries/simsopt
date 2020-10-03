@@ -1,7 +1,10 @@
 import unittest
+import logging
 from simsopt.functions import Identity, Rosenbrock
 from simsopt.optimizable import Target
 from simsopt.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
+
+#logging.basicConfig(level=logging.DEBUG)
 
 class LeastSquaresTermTests(unittest.TestCase):
 
