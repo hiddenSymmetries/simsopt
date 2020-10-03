@@ -15,6 +15,7 @@ class Identity(Optimizable):
     """
     def __init__(self, x=0.0):
         self.x = x
+        self.dx = np.array([1.0])
         self.fixed = np.full(1, False)
         self.names = ['x']
 
