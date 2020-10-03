@@ -4,8 +4,10 @@ and general optimization problems.
 """
 
 import numpy as np
-from .util import unique
 import types
+import logging
+from .util import unique
+from .optimizable import function_from_user
 
 def get_owners(obj, owners_so_far=[]):
     """
@@ -53,7 +55,12 @@ class Dofs():
 
         names: A list of strings to identify each of the dofs.
         """
+        
+        self.logger = logging.getLogger(__name__)
 
+        # Convert all user-supplied function-like things to actual functions:
+        funcs = [function_from_user(f) for f in funcs]
+        
         # First, get a list of the objects and any objects they depend on:
         all_owners = []
         for j in funcs:
@@ -127,9 +134,11 @@ class Dofs():
                 f_fixed += fixed
 
                 for jdof in range(ndofs):
-                    if not fixed[jdof]:
-                        f_dof_owners.append(owner)
-                        f_indices.append(jdof)
+                    f_dof_owners.append(owner)
+                    f_indices.append(jdof)
+                    #if not fixed[jdof]:
+                    #    f_dof_owners.append(owner)
+                    #    f_indices.append(jdof)
             func_dof_owners.append(f_dof_owners)
             func_indices.append(f_indices)
             func_fixed.append(f_fixed)
@@ -161,7 +170,8 @@ class Dofs():
                 break
             # If we get here, a gradient function exists.
             grad_funcs.append(getattr(owner, grad_func_name))
-        
+
+        self.funcs = funcs
         self.nfuncs = len(funcs)
         self.nparams = len(x)
         self.dof_owners = dof_owners
@@ -211,17 +221,17 @@ class Dofs():
             # respect to all of it's dofs, which is a different set
             # from the global dofs:
             grad = self.grad_funcs[jfunc]()
-            # Sanity tests:
-            if len(grad) != len(self.func_dof_owners[jfunc]):
-                print('jfunc=', jfunc)
-                print('len(grad)=', len(grad))
-                print('len(func_dof_owners[jfunc])=', len(self.func_dof_owners[jfunc]))
-                raise RuntimeError('len(grad) != len(func_dof_owners[jfunc])')
-            if len(grad) != len(self.func_indices[jfunc]):
-                print('jfunc=', jfunc)
-                print('len(grad)=', len(grad))
-                print('len(func_indices[jfunc])=', len(self.func_indices[jfunc]))
-                raise RuntimeError('len(grad) != len(func_indices[jfunc])')
+            ## Sanity tests:
+            #if len(grad) != len(self.func_dof_owners[jfunc]):
+            #    print('jfunc=', jfunc)
+            #    print('len(grad)=', len(grad))
+            #    print('len(func_dof_owners[jfunc])=', len(self.func_dof_owners[jfunc]))
+            #    raise RuntimeError('len(grad) != len(func_dof_owners[jfunc])')
+            #if len(grad) != len(self.func_indices[jfunc]):
+            #    print('jfunc=', jfunc)
+            #    print('len(grad)=', len(grad))
+            #    print('len(func_indices[jfunc])=', len(self.func_indices[jfunc]))
+            #    raise RuntimeError('len(grad) != len(func_indices[jfunc])')
             
             # Match up the global dofs with the dofs for this particular gradient function:
             for jdof in range(self.nparams):
@@ -250,4 +260,34 @@ class Dofs():
                 if self.dof_owners[j] == owner:
                     objx[self.indices[j]] = x[j]
             owner.set_dofs(objx)
+
+    def fd_jac(self, eps=1e-7):
+        """
+        Compute the finite-difference Jacobian of the functions with
+        respect to all non-fixed degrees of freedom. A
+        centered-difference approximation is used, with step size eps.
+        """
+
+        self.logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
+
+        x0 = self.x
+        self.logger.info('  nparams: {}, nfuncs: {}'.format(self.nparams, self.nfuncs))
+        self.logger.info('  x0: ' + str(x0))
+
+        jac = np.zeros((self.nfuncs, self.nparams))
+        for j in range(self.nparams):
+            x = np.copy(x0)
+
+            x[j] = x0[j] + eps
+            self.set(x)
+            fplus = np.array([f() for f in self.funcs])
+
+            x[j] = x0[j] - eps
+            self.set(x)
+            fminus = np.array([f() for f in self.funcs])
+
+            # Centered differences:
+            jac[:, j] = (fplus - fminus) / (2 * eps)
+
+        return jac
 

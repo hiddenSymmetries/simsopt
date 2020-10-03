@@ -84,6 +84,9 @@ class Target(Optimizable):
     def J(self):
         return getattr(self.obj, self.attr)
 
+    def dJ(self):
+        return getattr(self.obj, 'd' + self.attr)
+
     def get_dofs(self):
         return np.array([])
 

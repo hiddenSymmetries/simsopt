@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
 from simsopt.dofs import get_owners, Dofs
-from simsopt.functions import Identity, Adder
+from simsopt.functions import Identity, Adder, TestObject2, Rosenbrock
+from simsopt.optimizable import Target
 
 class GetOwnersTests(unittest.TestCase):
     def test_no_dependents(self):
@@ -160,6 +161,45 @@ class DofsTests(unittest.TestCase):
         self.assertEqual(dofs.all_owners, [o2, o1])
         self.assertEqual(dofs.dof_owners, [o2, o2, o1])
         np.testing.assert_allclose(dofs.indices, [0, 1, 1])
+
+    def test_Jacobian(self):
+        for n in range(1, 20):
+            v1 = np.random.rand() * 4 - 2
+            v2 = np.random.rand() * 4 - 2
+            o = TestObject2(v1, v2)
+            o.adder.set_dofs(np.random.rand(2) * 4 - 2)
+            o.t.set_dofs([np.random.rand() * 4 - 2])
+            o.t.adder1.set_dofs(np.random.rand(3) * 4 - 2)
+            o.t.adder2.set_dofs(np.random.rand(2) * 4 - 2)
+            r = Rosenbrock()
+            r.set_dofs(np.random.rand(2) * 3 - 1.5)
+
+            # Randomly fix some of the degrees of freedom
+            o.fixed = np.random.rand(2) > 0.5
+            o.adder.fixed = np.random.rand(2) > 0.5
+            o.t.adder1.fixed = np.random.rand(3) > 0.5
+            o.t.adder2.fixed = np.random.rand(2) > 0.5
+            r.fixed = np.random.rand(2) > 0.5
+
+            rtol = 1e-4
+            atol = 1e-4
+
+            for j in range(4):
+                # Try different sets of the objects:
+                if j==0:
+                    dofs = Dofs([o.J, r.term2, o.t.J])
+                elif j==1:
+                    dofs = Dofs([r.term2, r.term1])
+                elif j==2:
+                    dofs = Dofs([r.term2, Target(o.t, 'f'), r.term1, Target(o, 'f')])
+                elif j==3:
+                    dofs = Dofs([o])
+
+                jac = dofs.jac
+                fd_jac = dofs.fd_jac()
+                np.testing.assert_allclose(jac, fd_jac, rtol=rtol, atol=atol)
+                
+                print('Diff in Jacobians:', jac - fd_jac)
 
 if __name__ == "__main__":
     unittest.main()
