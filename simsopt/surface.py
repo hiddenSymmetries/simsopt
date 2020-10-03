@@ -153,6 +153,7 @@ class SurfaceRZFourier(Surface):
         self.logger = logging.getLogger(__name__)
         self.allocate()
         self.recalculate = True
+        self.recalculate_derivs = True
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
@@ -403,6 +404,88 @@ class SurfaceRZFourier(Surface):
         self.area_volume()
         return self._volume
 
+    def darea_volume(self):
+        """
+        Compute the derivative of the surface area and the volume enclosed
+        by the surface.
+        """
+        if self.recalculate_derivs:
+            self.logger.info('Running calculation of derivative of area and volume')
+        else:
+            self.logger.info('darea_volume called, but no need to recalculate')
+            return
+
+        self.recalculate_derivs = False
+
+        if self.stelsym:
+            rs = None
+            zc = None
+        else:
+            rs = self.rs
+            zc = self.zc
+
+        results = darea_volume_pure(self.rc, rs, zc, self.zs,
+                                   self.stelsym, self.nfp, self.mpol,
+                                   self.ntor, self.ntheta, self.nphi)
+
+        self._darea_drc = np.array(results[0][0, :, :])
+        self._dvolume_drc = np.array(results[0][1, :, :])
+        self._darea_dzs = np.array(results[3][0, :, :])
+        self._dvolume_dzs = np.array(results[3][1, :, :])
+        if not self.stelsym:
+            self._darea_drs = np.array(results[1][0, :, :])
+            self._dvolume_drs = np.array(results[1][1, :, :])
+            self._darea_dzc = np.array(results[2][0, :, :])
+            self._dvolume_dzc = np.array(results[2][1, :, :])
+
+    def darea(self):
+        """
+        Return the area of the surface.
+        """
+        self.darea_volume()
+        mpol = self.mpol # Shorthand
+        ntor = self.ntor
+        if self.stelsym:
+            return np.concatenate( \
+                (self._darea_drc[0, ntor:], \
+                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._darea_dzs[0, ntor + 1:], \
+                 self._darea_dzs[1:, :].reshape(mpol * (ntor * 2 + 1))))
+        else:
+            return np.concatenate( \
+                (self._darea_drc[0, ntor:], \
+                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._darea_dzs[0, ntor + 1:], \
+                 self._darea_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._darea_drs[0, ntor + 1:], \
+                 self._darea_drs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._darea_dzc[0, ntor:], \
+                 self._darea_dzc[1:, :].reshape(mpol * (ntor * 2 + 1))))
+
+    def dvolume(self):
+        """
+        Return the volume of the surface.
+        """
+        self.darea_volume()
+        mpol = self.mpol # Shorthand
+        ntor = self.ntor
+        if self.stelsym:
+            return np.concatenate( \
+                (self._dvolume_drc[0, ntor:], \
+                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._dvolume_dzs[0, ntor + 1:], \
+                 self._dvolume_dzs[1:, :].reshape(mpol * (ntor * 2 + 1))))
+        else:
+            return np.concatenate( \
+                (self._dvolume_drc[0, ntor:], \
+                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._dvolume_dzs[0, ntor + 1:], \
+                 self._dvolume_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._dvolume_drs[0, ntor + 1:], \
+                 self._dvolume_drs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
+                 self._dvolume_dzc[0, ntor:], \
+                 self._dvolume_dzc[1:, :].reshape(mpol * (ntor * 2 + 1))))
+
     @classmethod
     def from_focus(cls, filename):
         """
@@ -489,6 +572,7 @@ class SurfaceRZFourier(Surface):
 
         self.logger.info('set_dofs called, and at least one dof changed')
         self.recalculate = True
+        self.recalculate_derivs = True
         
         mpol = self.mpol # Shorthand
         ntor = self.ntor

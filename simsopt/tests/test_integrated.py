@@ -1,6 +1,9 @@
 import unittest
 import numpy as np
+import logging
 from simsopt import SurfaceRZFourier, optimizable, LeastSquaresTerm, LeastSquaresProblem
+
+#logging.basicConfig(level=logging.DEBUG)
 
 class IntegratedTests(unittest.TestCase):
     def test_2dof_surface_opt(self):

@@ -133,6 +133,10 @@ jobs:
         sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
         sudo -H -E $pythonLocation/bin/python -m pip install numpy scipy wheel
 
+    - name: Install Jax
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib
+
     - name: Install mpi4py
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
