@@ -1,7 +1,6 @@
 import unittest
 import numpy as np
 from simsopt.functions import Identity, Adder, Rosenbrock, TestObject1, TestObject2
-#from simsopt.finite_difference import finite_difference
 from simsopt.optimizable import Target
 from simsopt.dofs import Dofs
 
@@ -81,27 +80,30 @@ class RosenbrockTests(unittest.TestCase):
             r = Rosenbrock(b=np.random.rand() * 2) # Note b must be > 0.
             r.set_dofs(np.random.rand(2) * 4 - 2)
 
+            rtol = 1e-6
+            atol = 1e-6
+            
             # Test gradient of term1
             
             # Supply a function to finite_difference():
             fd_grad = Dofs([r.term1]).fd_jac().flatten()
-            np.testing.assert_allclose(fd_grad, r.dterm1prop)
-            np.testing.assert_allclose(fd_grad, r.dterm1())
+            np.testing.assert_allclose(fd_grad, r.dterm1prop, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, r.dterm1(), rtol=rtol, atol=atol)
             # Supply an attribute to finite_difference():
             fd_grad = Dofs([Target(r, "term1prop")]).fd_jac().flatten()
-            np.testing.assert_allclose(fd_grad, r.dterm1prop)
-            np.testing.assert_allclose(fd_grad, r.dterm1())
+            np.testing.assert_allclose(fd_grad, r.dterm1prop, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, r.dterm1(), rtol=rtol, atol=atol)
 
             # Test gradient of term2
             
             # Supply a function to finite_difference():
             fd_grad = Dofs([r.term2]).fd_jac().flatten()
-            np.testing.assert_allclose(fd_grad, r.dterm2prop)
-            np.testing.assert_allclose(fd_grad, r.dterm2())
+            np.testing.assert_allclose(fd_grad, r.dterm2prop, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, r.dterm2(), rtol=rtol, atol=atol)
             # Supply an attribute to finite_difference():
             fd_grad = Dofs([Target(r, "term2prop")]).fd_jac().flatten()
-            np.testing.assert_allclose(fd_grad, r.dterm2prop)
-            np.testing.assert_allclose(fd_grad, r.dterm2())
+            np.testing.assert_allclose(fd_grad, r.dterm2prop, rtol=rtol, atol=atol)
+            np.testing.assert_allclose(fd_grad, r.dterm2(), rtol=rtol, atol=atol)
             #print('Diff in term2:', fd_grad - r.dterm2())
             
 class TestObject1Tests(unittest.TestCase):
@@ -109,7 +111,7 @@ class TestObject1Tests(unittest.TestCase):
         for n in range(1, 20):
             o = TestObject1(np.random.rand())
             o.adder1.set_dofs(np.random.rand(3) * 4 - 2)
-            o.adder2.set_dofs(np.random.rand(2) * 4 - 2)
+            o.adder2.set_dofs(np.random.rand(2) - 0.5)
 
             # Randomly fix some of the degrees of freedom
             o.fixed = np.random.rand(1) > 0.5
@@ -147,7 +149,7 @@ class TestObject2Tests(unittest.TestCase):
             o.adder.set_dofs(np.random.rand(2) * 4 - 2)
             o.t.set_dofs([np.random.rand() * 4 - 2])
             o.t.adder1.set_dofs(np.random.rand(3) * 4 - 2)
-            o.t.adder2.set_dofs(np.random.rand(2) * 4 - 2)
+            o.t.adder2.set_dofs(np.random.rand(2) - 0.5)
 
             # Randomly fix some of the degrees of freedom
             o.fixed = np.random.rand(2) > 0.5
