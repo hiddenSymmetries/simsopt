@@ -4,10 +4,98 @@ surfaces.  There is a base class Surface, and several child classes
 corresponding to different discrete representations.
 """
 
+# These next 2 lines Use double precision:
+from jax.config import config
+config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp
+from jax import jacrev, jit
+
 import numpy as np
 import logging
 from .util import isbool
 
+#@jit(static_argnums=(4, 5, 6, 7, 8, 9))
+def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
+    """
+    Compute the area and volume of a surface. This pure function is
+    designed for automatic differentiation.
+    """
+    mdim = mpol + 1
+    ndim = 2 * ntor + 1
+    theta1d = jnp.linspace(0, 2 * jnp.pi, ntheta, endpoint=False)
+    phi1d = jnp.linspace(0, 2 * jnp.pi / nfp, nphi, endpoint=False)
+    dtheta = theta1d[1] - theta1d[0]
+    dphi = phi1d[1] - phi1d[0]
+    phi, theta = jnp.meshgrid(phi1d, theta1d)
+
+    r = jnp.zeros((ntheta, nphi))
+    x = jnp.zeros((ntheta, nphi))
+    y = jnp.zeros((ntheta, nphi))
+    z = jnp.zeros((ntheta, nphi))
+    dxdtheta = jnp.zeros((ntheta, nphi))
+    dydtheta = jnp.zeros((ntheta, nphi))
+    dzdtheta = jnp.zeros((ntheta, nphi))
+    dxdphi = jnp.zeros((ntheta, nphi))
+    dydphi = jnp.zeros((ntheta, nphi))
+    dzdphi = jnp.zeros((ntheta, nphi))
+    sinphi = jnp.sin(phi)
+    cosphi = jnp.cos(phi)
+    for m in range(mdim):
+        for jn in range(ndim):
+            # Presently this loop includes negative n when m=0.
+            # This is unnecesary but doesn't hurt I think.
+            n_without_nfp = jn - ntor
+            n = n_without_nfp * nfp
+            angle = m * theta - n * phi
+            sinangle = jnp.sin(angle)
+            cosangle = jnp.cos(angle)
+            rmnc = rc[m, jn]
+            zmns = zs[m, jn]
+            r += rmnc * cosangle
+            x += rmnc * cosangle * cosphi
+            y += rmnc * cosangle * sinphi
+            z += zmns * sinangle
+
+            dxdtheta += rmnc * (-m * sinangle) * cosphi
+            dydtheta += rmnc * (-m * sinangle) * sinphi
+            dzdtheta += zmns * m * cosangle
+
+            dxdphi += rmnc * (n * sinangle * cosphi + cosangle * (-sinphi))
+            dydphi += rmnc * (n * sinangle * sinphi + cosangle * cosphi)
+            dzdphi += zmns * (-n * cosangle)
+            if not stelsym:
+                rmns = rs[m, jn]
+                zmnc = zc[m, jn]
+                r += rmns * sinangle
+                x += rmns * sinangle * cosphi
+                y += rmns * sinangle * sinphi
+                z += zmnc * cosangle
+
+                dxdtheta += rmns * (m * cosangle) * cosphi
+                dydtheta += rmns * (m * cosangle) * sinphi
+                dzdtheta += zmnc * (-m * sinangle)
+
+                dxdphi += rmns * (-n * cosangle * cosphi + sinangle * (-sinphi))
+                dydphi += rmns * (-n * cosangle * sinphi + sinangle * cosphi)
+                dzdphi += zmnc * (n * sinangle)
+
+    normalx = dydphi * dzdtheta - dzdphi * dydtheta
+    normaly = dzdphi * dxdtheta - dxdphi * dzdtheta
+    normalz = dxdphi * dydtheta - dydphi * dxdtheta
+    norm_normal = jnp.sqrt(normalx * normalx + normaly * normaly + normalz * normalz)
+    area = nfp * dtheta * dphi * jnp.sum(norm_normal)
+    # Compute plasma volume using \int (1/2) R^2 dZ dphi
+    # = \int (1/2) R^2 (dZ/dtheta) dtheta dphi
+    volume = 0.5 * nfp * dtheta * dphi * jnp.sum(r * r * dzdtheta)
+    return jnp.array([area, volume])
+
+#area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi)
+#jit_area_volume_pure = jit(area_volume_pure, static_argnums=(4, 5, 6, 7, 8, 9))
+#jit_area_volume_pure = jit(area_volume_pure, static_argnums=(8, 9))
+jit_area_volume_pure = area_volume_pure
+darea_volume_pure = jacrev(area_volume_pure, argnums=(0, 1, 2, 3))
+    
 class Surface:
     """
     Surface is a base class for various representations of toroidal
@@ -59,9 +147,9 @@ class SurfaceRZFourier(Surface):
             raise ValueError("mpol must be at least 1")
         if ntor < 0:
             raise ValueError("ntor must be at least 0")
+        Surface.__init__(self, nfp=nfp, stelsym=stelsym)
         self.mpol = mpol
         self.ntor = ntor
-        Surface.__init__(self, nfp=nfp, stelsym=stelsym)
         self.logger = logging.getLogger(__name__)
         self.allocate()
         self.recalculate = True
@@ -209,6 +297,21 @@ class SurfaceRZFourier(Surface):
             return
 
         self.recalculate = False
+
+        if self.stelsym:
+            rs = None
+            zc = None
+        else:
+            rs = self.rs
+            zc = self.zc
+
+        results = jit_area_volume_pure(self.rc, rs, zc, self.zs,
+                                   self.stelsym, self.nfp, self.mpol,
+                                   self.ntor, self.ntheta, self.nphi)
+
+        self._area = float(results[0])
+        self._volume = float(results[1])
+        """
         ntheta = self.ntheta # Shorthand
         nphi = self.nphi
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
@@ -284,7 +387,8 @@ class SurfaceRZFourier(Surface):
         # Compute plasma volume using \int (1/2) R^2 dZ dphi
         # = \int (1/2) R^2 (dZ/dtheta) dtheta dphi
         self._volume = 0.5 * nfp * dtheta * dphi * np.sum(np.sum(r * r * dzdtheta))
-
+        """
+        
     def area(self):
         """
         Return the area of the surface.
