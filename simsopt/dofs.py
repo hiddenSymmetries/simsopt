@@ -210,7 +210,10 @@ class Dofs():
             # Get the gradient of this particular function with
             # respect to all of it's dofs, which is a different set
             # from the global dofs:
-            grad = self.grad_funcs[jfunc]()
+            grad = np.array(self.grad_funcs[jfunc]()).flatten()
+            # Above, we cast to a np.array and flatten() to be a bit
+            # forgiving in case the user provides something other than
+            # a plain 1D numpy array.
             
             # Match up the global dofs with the dofs for this particular gradient function:
             for jdof in range(self.nparams):

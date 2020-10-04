@@ -97,10 +97,22 @@ class Target(Optimizable):
 
 def optimizable(obj):
     """
-    Given any object that has a get_dofs() function, add attributes
-    fixed, mins, and maxs. fixed = False by default. Also, add the
-    other methods of Optimizable to the object.
+    Given any object, add attributes like fixed, mins, and maxs. fixed
+    = False by default. Also, add the other methods of Optimizable to
+    the object.
     """
+
+    # If the object does not have a get_dofs() method, attach one,
+    # assuming the object does not directly own any dofs.
+    def get_dofs(self):
+        return np.array([])
+    def set_dofs(self, x):
+        pass
+    if not hasattr(obj, 'get_dofs'):
+        obj.get_dofs = types.MethodType(get_dofs, obj)
+    if not hasattr(obj, 'set_dofs'):
+        obj.set_dofs = types.MethodType(set_dofs, obj)
+            
     n = len(obj.get_dofs())
     obj.fixed = np.full(n, False)
     obj.mins = np.full(n, np.NINF)
@@ -109,5 +121,5 @@ def optimizable(obj):
     for method in ['index', 'get', 'set', 'get_fixed', 'set_fixed', 'all_fixed']:
         # See https://stackoverflow.com/questions/972/adding-a-method-to-an-existing-object-instance
         setattr(obj, method, types.MethodType(getattr(Optimizable, method), obj))
-        
+
     return obj
