@@ -224,6 +224,13 @@ class Dofs():
                         # If we find a match, we can exit the innermost loop:
                         break
                         
+        #print('finite-difference Jacobian:')
+        #fd_jac = self.fd_jac()
+        #print(fd_jac)
+        #print('analytic Jacobian:')
+        #print(results)
+        #print('difference:')
+        #print(fd_jac - results)
         return results
             
     def set(self, x):

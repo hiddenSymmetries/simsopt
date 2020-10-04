@@ -109,11 +109,11 @@ class LeastSquaresProblem:
         if self.dofs.grad_avail:
             self.logger.info("Using analytic derivatives")
             print("Using analytic derivatives")
-            result = least_squares(self._residual_func, x0, verbose=2, jac=self._jac)
+            result = least_squares(self.residuals, x0, verbose=2, jac=self.jac)
         else:
             self.logger.info("Using derivative-free method")
             print("Using derivative-free method")
-            result = least_squares(self._residual_func, x0, verbose=2)
+            result = least_squares(self.residuals, x0, verbose=2)
         self.logger.info("Completed solve.")
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
@@ -121,21 +121,27 @@ class LeastSquaresProblem:
         # Set Parameters to their values for the optimum
         self.dofs.set(result.x)
                 
-    def _residual_func(self, x):
+    def residuals(self, x):
         """
-        This private method is passed to scipy.optimize.
+        This method returns the vector of residuals for a given state
+        vector x.  This function is passed to scipy.optimize, and
+        could be passed to other optimization algorithms too.
         """
-        self.logger.info("_residual_func called with x=" + str(x))
+        self.logger.info("residuals() called with x=" + str(x))
         self.dofs.set(x)
         residuals = [(term.f_in() - term.goal) / term.sigma for term in self.terms]
-        return residuals
+        return np.array(residuals)
         
-    def _jac(self, x):
+    def jac(self, x):
         """
-        This private method is passed to scipy.optimize. It returns the
-        analytic Jacobian, if available.
+        This method gives the Jacobian of the residuals with respect to
+        the parameters, if it is available, given the state vector
+        x. This function is passed to scipy.optimize, and could be
+        passed to other optimization algorithms too. This Jacobian
+        differs from the one returned by Dofs() because it accounts
+        for the 'sigma' scale factors.
         """
-        self.logger.info("_jacc called with x=" + str(x))
+        self.logger.info("jac() called with x=" + str(x))
         self.dofs.set(x)
         # This next line does the hard work of evaluating the Jacobian:
         jac = self.dofs.jac
@@ -143,5 +149,5 @@ class LeastSquaresProblem:
         for j in range(self.dofs.nfuncs):
             jac[j, :] = jac[j, :] / self.terms[j].sigma
             
-        return jac
+        return np.array(jac)
         

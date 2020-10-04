@@ -9,4 +9,8 @@ try:
 except:
     print('Unable to load VMEC module, so some functionality will not be available')
 
+# This next bit is to suppress a Jax warning:
+import warnings
+warnings.filterwarnings("ignore", message="No GPU/TPU found")
+
 #all = ['Parameter']
