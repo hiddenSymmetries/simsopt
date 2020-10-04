@@ -8,7 +8,7 @@ Simons Stellarator Optimizer Code
 - [x] Derivative-based optimization
 - [ ] Example in which derivatives are available for some functions but not others
 - [x] Example using automatic differentiation
-- [ ] Example that uses simsgeo
+- [x] Example that uses simsgeo
 - [ ] MPI
 - [ ] SPEC
 - [ ] Bound constraints
@@ -23,7 +23,7 @@ See the working examples in the `examples/` directory, in particular
 Simsopt is able to optimize any python object that has a `get_dofs()` function and a `set_dofs()` function.
 The overall objective function can be defined using any function, attribute, or @property of such an object.
 Optimizable objects can depend on other optimizable objects, so
-objects be part in an optimization even if they do not directly own a function that is part of the overall objective function.
+objects can be part of an optimization even if they do not directly own a function that is part of the overall objective function.
 
 
 ## Specifying functions that go into the objective function
