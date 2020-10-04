@@ -3,7 +3,6 @@
 import sys
 sys.path.append('..')
 from simsopt import *
-
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
