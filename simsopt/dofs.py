@@ -194,15 +194,37 @@ class Dofs():
                     x[j] = objx[self.indices[j]]
         return x
 
-    @property
-    def jac(self):
+    def f(self, x=None):
         """
-        Return the Jacobian, i.e. the gradients of all the functions that were originally
-        supplied to Dofs(). Result is a 2D numpy array.
+        Return the vector of function values. Result is a 1D numpy array.
+
+        If the argument x is not supplied, the functions will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
+        """
+        if x is not None:
+            self.set(x)
+
+        return np.array([f() for f in self.funcs])
+    
+    def jac(self, x=None):
+        """
+        Return the Jacobian, i.e. the gradients of all the functions that
+        were originally supplied to Dofs(). Result is a 2D numpy
+        array.
+
+        If the argument x is not supplied, the Jacobian will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
         """
         if not self.grad_avail:
             raise RuntimeError('Gradient information is not available for this Dofs()')
 
+        if x is not None:
+            self.set(x)
+        
         results = np.zeros((self.nfuncs, self.nparams))
         # Loop over the rows of the Jacobian, i.e. over the functions
         # that were originally provided to Dofs():
@@ -250,13 +272,21 @@ class Dofs():
                     objx[self.indices[j]] = x[j]
             owner.set_dofs(objx)
 
-    def fd_jac(self, eps=1e-7):
+    def fd_jac(self, x=None, eps=1e-7):
         """
         Compute the finite-difference Jacobian of the functions with
         respect to all non-fixed degrees of freedom. A
         centered-difference approximation is used, with step size eps.
+
+        If the argument x is not supplied, the Jacobian will be
+        evaluated for the present state vector. If x is supplied, then
+        first get_dofs() will be called for each object to set the
+        global state vector to x.
         """
 
+        if x is not None:
+            self.set(x)
+        
         self.logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
 
         x0 = self.x

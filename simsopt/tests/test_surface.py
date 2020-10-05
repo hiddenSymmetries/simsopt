@@ -178,7 +178,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     s.set_dofs(x)
 
                     dofs = Dofs([s.area, s.volume])
-                    jac = dofs.jac
+                    jac = dofs.jac()
                     fd_jac = dofs.fd_jac()
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)

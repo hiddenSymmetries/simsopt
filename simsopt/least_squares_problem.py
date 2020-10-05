@@ -98,24 +98,86 @@ class LeastSquaresProblem:
         self.dofs = Dofs([t.f_in for t in self.terms])
 
     @property
-    def objective(self):
+    def x(self):
+        """
+        Return the state vector.
+        """
+        # Delegate to Dofs:
+        return self.dofs.x
+
+    def set(self, x):
+        """
+        Sets the global state vector to x.
+        """
+        # Delegate to Dofs:
+        self.dof.set(x)
+    
+    def objective(self, x=None):
         """
         Return the value of the total objective function, by summing
         the terms.
+
+        If the argument x is not supplied, the objective will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
         """
-        self.logger.info("objective called.")
+        self.logger.info("objective() called with x=" + str(x))
+        if x is not None:
+            self.dofs.set(x)
+            
         sum = 0
         for term in self.terms:
             sum += term.f_out()
         return sum
 
-    @property
-    def x(self):
+    def f(self, x=None):
         """
-        Return the state vector.
-        """
-        return self.dofs.x
+        This method returns the vector of residuals for a given state
+        vector x.  This function is passed to scipy.optimize, and
+        could be passed to other optimization algorithms too.  This
+        function differs from Dofs.function() because it shifts and
+        scales the terms.
 
+        If the argument x is not supplied, the residuals will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
+        """
+        self.logger.info("residuals() called with x=" + str(x))
+        if x is not None:
+            self.dofs.set(x)
+            
+        residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
+        return np.array(residuals)
+        
+    def jac(self, x=None):
+        """
+        This method gives the Jacobian of the residuals with respect to
+        the parameters, if it is available, given the state vector
+        x. This function is passed to scipy.optimize, and could be
+        passed to other optimization algorithms too. This Jacobian
+        differs from the one returned by Dofs() because it accounts
+        for the 'weight' scale factors.
+
+        If the argument x is not supplied, the Jacobian will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
+        """
+        self.logger.info("jac() called with x=" + str(x))
+
+        if x is not None:
+            self.dofs.set(x)
+            
+        # This next line does the hard work of evaluating the Jacobian:
+        jac = self.dofs.jac()
+        # Scale rows by sqrt(weight):
+        for j in range(self.dofs.nfuncs):
+            jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
+            
+        return np.array(jac)
+        
     def solve(self):
         """
         Solve the nonlinear-least-squares minimization problem.
@@ -128,11 +190,11 @@ class LeastSquaresProblem:
         if self.dofs.grad_avail:
             self.logger.info("Using analytic derivatives")
             print("Using analytic derivatives")
-            result = least_squares(self.residuals, x0, verbose=2, jac=self.jac)
+            result = least_squares(self.f, x0, verbose=2, jac=self.jac)
         else:
             self.logger.info("Using derivative-free method")
             print("Using derivative-free method")
-            result = least_squares(self.residuals, x0, verbose=2)
+            result = least_squares(self.f, x0, verbose=2)
         self.logger.info("Completed solve.")
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
@@ -140,35 +202,3 @@ class LeastSquaresProblem:
         # Set Parameters to their values for the optimum
         self.dofs.set(result.x)
                 
-    def residuals(self, x):
-        """
-        This method returns the vector of residuals for a given state
-        vector x.  This function is passed to scipy.optimize, and
-        could be passed to other optimization algorithms too.  This
-        function differs from Dofs.function() because it shifts and
-        scales the terms.
-        """
-        self.logger.info("residuals() called with x=" + str(x))
-        self.dofs.set(x)
-        residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
-        return np.array(residuals)
-        
-    def jac(self, x):
-        """
-        This method gives the Jacobian of the residuals with respect to
-        the parameters, if it is available, given the state vector
-        x. This function is passed to scipy.optimize, and could be
-        passed to other optimization algorithms too. This Jacobian
-        differs from the one returned by Dofs() because it accounts
-        for the 'weight' scale factors.
-        """
-        self.logger.info("jac() called with x=" + str(x))
-        self.dofs.set(x)
-        # This next line does the hard work of evaluating the Jacobian:
-        jac = self.dofs.jac
-        # Scale rows by sqrt(weight):
-        for j in range(self.dofs.nfuncs):
-            jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
-            
-        return np.array(jac)
-        
