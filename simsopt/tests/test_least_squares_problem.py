@@ -121,6 +121,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         self.assertAlmostEqual(prob.objective(), 2.25)
         iden1.set_dofs([10])
         self.assertAlmostEqual(prob.objective(), 12.25)
+        self.assertAlmostEqual(prob.objective([0]), 2.25)
+        self.assertAlmostEqual(prob.objective([10]), 12.25)
         self.assertEqual(prob.dofs.all_owners, [iden1])
         self.assertEqual(prob.dofs.dof_owners, [iden1])
 
@@ -133,6 +135,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1.set_dofs([5])
         iden2.set_dofs([-7])
         self.assertAlmostEqual(prob.objective(), 1.36)
+        self.assertAlmostEqual(prob.objective([10, 0]), 12.89)
+        self.assertAlmostEqual(prob.objective([5, -7]), 1.36)
         self.assertEqual(prob.dofs.dof_owners, [iden1, iden2])
         self.assertEqual(prob.dofs.all_owners, [iden1, iden2])
 
