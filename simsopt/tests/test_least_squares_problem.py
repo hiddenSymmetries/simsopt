@@ -13,57 +13,62 @@ class LeastSquaresTermTests(unittest.TestCase):
         Test basic usage
         """
         iden = Identity()
-        lst = LeastSquaresTerm(iden.J, 3, 0.1)
+        lst = LeastSquaresTerm(iden.J, 3, weight=0.1)
         self.assertEqual(lst.f_in, iden.J)
         self.assertEqual(lst.goal, 3)
-        self.assertAlmostEqual(lst.sigma, 0.1, places=13)
+        self.assertAlmostEqual(lst.weight, 0.1, places=13)
 
+        lst = LeastSquaresTerm(iden.J, 3, sigma=0.1)
+        self.assertEqual(lst.f_in, iden.J)
+        self.assertEqual(lst.goal, 3)
+        self.assertAlmostEqual(lst.weight, 100.0, places=13)
+        
         iden.set_dofs([17])
         self.assertEqual(lst.f_in(), 17)
         correct_value = ((17 - 3) / 0.1) ** 2
-        self.assertAlmostEqual(lst.f_out(), correct_value, places=13)
+        self.assertAlmostEqual(lst.f_out(), correct_value, places=11)
 
     def test_supply_object(self):
         """
         Test that we can supply an object with a J function instead of a function.
         """
         iden = Identity()
-        lst = LeastSquaresTerm(iden, 3, 0.1) # Note here we supply iden instead of iden.J
+        lst = LeastSquaresTerm(iden, 3, sigma=0.1) # Note here we supply iden instead of iden.J
         self.assertEqual(lst.f_in, iden.J)
         self.assertEqual(lst.goal, 3)
-        self.assertAlmostEqual(lst.sigma, 0.1, places=13)
+        self.assertAlmostEqual(lst.weight, 100, places=13)
 
         iden.set_dofs([17])
         self.assertEqual(lst.f_in(), 17)
         correct_value = ((17 - 3) / 0.1) ** 2
-        self.assertAlmostEqual(lst.f_out(), correct_value, places=13)
+        self.assertAlmostEqual(lst.f_out(), correct_value, places=11)
 
     def test_supply_property(self):
         """
         Test that we can supply a property instead of a function.
         """
         iden = Identity()
-        lst = LeastSquaresTerm(Target(iden, 'f'), 3, 0.1)
+        lst = LeastSquaresTerm(Target(iden, 'f'), 3, sigma=0.1)
         self.assertEqual(lst.goal, 3)
-        self.assertAlmostEqual(lst.sigma, 0.1, places=13)
+        self.assertAlmostEqual(lst.weight, 100, places=13)
 
         iden.set_dofs([17])
         self.assertEqual(lst.f_in(), 17)
         correct_value = ((17 - 3) / 0.1) ** 2
-        self.assertAlmostEqual(lst.f_out(), correct_value, places=13)
+        self.assertAlmostEqual(lst.f_out(), correct_value, places=11)
 
     def test_supply_attribute(self):
         """
         Test that we can supply an attribute instead of a function.
         """
         iden = Identity()
-        lst = LeastSquaresTerm(Target(iden, 'x'), 3, 0.1)
+        lst = LeastSquaresTerm(Target(iden, 'x'), 3, weight=0.1)
         self.assertEqual(lst.goal, 3)
-        self.assertAlmostEqual(lst.sigma, 0.1, places=13)
+        self.assertAlmostEqual(lst.weight, 0.1, places=13)
 
         iden.set_dofs([17])
         self.assertEqual(lst.f_in(), 17)
-        correct_value = ((17 - 3) / 0.1) ** 2
+        correct_value = 0.1 * ((17 - 3) ** 2)
         self.assertAlmostEqual(lst.f_out(), correct_value, places=13)
 
     def test_exceptions(self):
@@ -77,18 +82,32 @@ class LeastSquaresTermTests(unittest.TestCase):
 
         # Second and third arguments must be real numbers
         iden = Identity()
-        with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, "hello", 0.1)
-        with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, 3, iden)
+        with self.assertRaises(TypeError):
+            lst = LeastSquaresTerm(iden.J, "hello", sigma=0.1)
+        with self.assertRaises(TypeError):
+            lst = LeastSquaresTerm(iden.J, 3, sigma=iden)
+        with self.assertRaises(TypeError):
+            lst = LeastSquaresTerm(iden.J, "hello", weight=0.1)
+        with self.assertRaises(TypeError):
+            lst = LeastSquaresTerm(iden.J, 3, weight=iden)
 
         # sigma cannot be zero
         with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, 3, 0)
+            lst = LeastSquaresTerm(iden.J, 3, sigma=0)
         with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, 3, 0.0)
+            lst = LeastSquaresTerm(iden.J, 3, sigma=0.0)
 
-            
+        # Cannot specify both weight and sigma
+        with self.assertRaises(ValueError):
+            lst = LeastSquaresTerm(iden.J, 3, sigma=1.2, weight=3.4)
+        # Must specify either weight or sigma
+        with self.assertRaises(ValueError):
+            lst = LeastSquaresTerm(iden.J, 3)
+
+        # Weight cannot be negative
+        with self.assertRaises(ValueError):
+            lst = LeastSquaresTerm(iden.J, 3, weight=-1.0)
+        
 class LeastSquaresProblemTests(unittest.TestCase):
 
     def test_basic(self):
@@ -97,7 +116,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         # Objective function f(x) = ((x - 3) / 2) ** 2
         iden1 = Identity()
-        term1 = LeastSquaresTerm(iden1.J, 3, 2)
+        term1 = LeastSquaresTerm(iden1.J, 3, sigma=2)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective, 2.25)
         iden1.set_dofs([10])
@@ -108,7 +127,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         # Objective function
         # f(x,y) = ((x - 3) / 2) ** 2 + ((y + 4) / 5) ** 2
         iden2 = Identity()
-        term2 = LeastSquaresTerm(iden2.J, -4, 5)
+        term2 = LeastSquaresTerm(iden2.J, -4, sigma=5)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective, 12.89)
         iden1.set_dofs([5])
@@ -138,9 +157,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden1 = Identity()
         iden2 = Identity()
         iden3 = Identity()
-        term1 = LeastSquaresTerm(iden1.J, 1, 1)
-        term2 = LeastSquaresTerm(iden2.J, 2, 2)
-        term3 = LeastSquaresTerm(iden3.J, 3, 3)
+        term1 = LeastSquaresTerm(iden1.J, 1, sigma=1)
+        term2 = LeastSquaresTerm(iden2.J, 2, sigma=2)
+        term3 = LeastSquaresTerm(iden3.J, 3, sigma=3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 0)
@@ -164,9 +183,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden3.names = ['x3']
         iden1.fixed = [True]
         iden3.fixed = [True]
-        term1 = LeastSquaresTerm(iden1.J, 1, 1)
-        term2 = LeastSquaresTerm(iden2.J, 2, 2)
-        term3 = LeastSquaresTerm(iden3.J, 3, 3)
+        term1 = LeastSquaresTerm(iden1.J, 1, sigma=1)
+        term2 = LeastSquaresTerm(iden2.J, 2, sigma=2)
+        term3 = LeastSquaresTerm(iden3.J, 3, sigma=3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
@@ -190,9 +209,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden3.names = ['x3']
         iden1.fixed = [True]
         iden3.fixed = [True]
-        term1 = LeastSquaresTerm(iden1, 1, 1)
-        term2 = LeastSquaresTerm(iden2, 2, 2)
-        term3 = LeastSquaresTerm(iden3, 3, 3)
+        term1 = LeastSquaresTerm(iden1, 1, sigma=1)
+        term2 = LeastSquaresTerm(iden2, 2, sigma=2)
+        term3 = LeastSquaresTerm(iden3, 3, sigma=3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
@@ -216,9 +235,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden3.names = ['x3']
         iden1.fixed = [True]
         iden3.fixed = [True]
-        term1 = LeastSquaresTerm(Target(iden1, 'x'), 1, 1)
-        term2 = LeastSquaresTerm(Target(iden2, 'x'), 2, 2)
-        term3 = LeastSquaresTerm(Target(iden3, 'x'), 3, 3)
+        term1 = LeastSquaresTerm(Target(iden1, 'x'), 1, sigma=1)
+        term2 = LeastSquaresTerm(Target(iden2, 'x'), 2, sigma=2)
+        term3 = LeastSquaresTerm(Target(iden3, 'x'), 3, sigma=3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
@@ -242,9 +261,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
         iden3.names = ['x3']
         iden1.fixed = [True]
         iden3.fixed = [True]
-        term1 = LeastSquaresTerm(Target(iden1, 'f'), 1, 1)
-        term2 = LeastSquaresTerm(Target(iden2, 'f'), 2, 2)
-        term3 = LeastSquaresTerm(Target(iden3, 'f'), 3, 3)
+        term1 = LeastSquaresTerm(Target(iden1, 'f'), 1, sigma=1)
+        term2 = LeastSquaresTerm(Target(iden2, 'f'), 2, sigma=2)
+        term3 = LeastSquaresTerm(Target(iden3, 'f'), 3, sigma=3)
         prob = LeastSquaresProblem([term1, term2, term3])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 10)
@@ -257,8 +276,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         Minimize the Rosenbrock function.
         """
         r = Rosenbrock()
-        term1 = LeastSquaresTerm(r.term1, 0, 1)
-        term2 = LeastSquaresTerm(r.term2, 0, 1)
+        term1 = LeastSquaresTerm(r.term1, 0, sigma=1)
+        term2 = LeastSquaresTerm(r.term2, 0, sigma=1)
         prob = LeastSquaresProblem([term1, term2])
         prob.solve()
         self.assertAlmostEqual(prob.objective, 0)

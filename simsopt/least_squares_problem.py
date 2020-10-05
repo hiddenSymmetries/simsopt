@@ -17,27 +17,46 @@ class LeastSquaresTerm:
     function (called f_in), a goal value (called goal), and a weight
     (sigma).  The overall value of the term is:
 
+    f_out = weight * (f_in - goal) ** 2.
+
+    You are also free to specify sigma = 1 / sqrt(weight) instead of
+    weight, so
+
     f_out = ((f_in - goal) / sigma) ** 2.
     """
 
-    def __init__(self, f_in, goal, sigma):
+    def __init__(self, f_in, goal, weight=None, sigma=None):
         if not isnumber(goal):
-            raise ValueError('goal must be a float or int')
-        if not isnumber(sigma):
-            raise ValueError('sigma must be a float or int')
+            raise TypeError('goal must be a float or int')
+        if (weight is None) and (sigma is None):
+            raise ValueError('You must specify either weight or sigma.')
+        if (weight is not None) and (sigma is not None):
+            raise ValueError('You cannot specify both sigma and weight.')
         if sigma == 0:
             raise ValueError('sigma cannot be 0')
+        if weight is not None:
+            # Weight was specified, sigma was not
+            if not isnumber(weight):
+                raise TypeError('Weight must be a float or int')
+            if weight < 0:
+                raise ValueError('Weight cannot be negative')
+            self.weight = float(weight)
+        else:
+            # Sigma was specified, weight was not
+            if not isnumber(sigma):
+                raise TypeError('sigma must be a float or int')
+            self.weight = 1.0 / float(sigma * sigma)
+
         self.f_in = function_from_user(f_in)
         self.goal = float(goal)
-        self.sigma = float(sigma)
         self.fixed = np.full(0, False)
 
     def f_out(self):
         """
         Return the overall value of this least-squares term.
         """
-        temp = (self.f_in() - self.goal) / self.sigma
-        return temp * temp 
+        temp = self.f_in() - self.goal
+        return self.weight * temp * temp 
 
     
 class LeastSquaresProblem:
@@ -125,11 +144,13 @@ class LeastSquaresProblem:
         """
         This method returns the vector of residuals for a given state
         vector x.  This function is passed to scipy.optimize, and
-        could be passed to other optimization algorithms too.
+        could be passed to other optimization algorithms too.  This
+        function differs from Dofs.function() because it shifts and
+        scales the terms.
         """
         self.logger.info("residuals() called with x=" + str(x))
         self.dofs.set(x)
-        residuals = [(term.f_in() - term.goal) / term.sigma for term in self.terms]
+        residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
         return np.array(residuals)
         
     def jac(self, x):
@@ -139,15 +160,15 @@ class LeastSquaresProblem:
         x. This function is passed to scipy.optimize, and could be
         passed to other optimization algorithms too. This Jacobian
         differs from the one returned by Dofs() because it accounts
-        for the 'sigma' scale factors.
+        for the 'weight' scale factors.
         """
         self.logger.info("jac() called with x=" + str(x))
         self.dofs.set(x)
         # This next line does the hard work of evaluating the Jacobian:
         jac = self.dofs.jac
-        # Scale rows by 1 / sigma:
+        # Scale rows by sqrt(weight):
         for j in range(self.dofs.nfuncs):
-            jac[j, :] = jac[j, :] / self.terms[j].sigma
+            jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
             
         return np.array(jac)
         
