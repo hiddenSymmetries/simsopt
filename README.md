@@ -11,8 +11,9 @@ Simons Stellarator Optimizer Code
 - [x] Example that uses simsgeo
 - [ ] MPI
 - [ ] SPEC
+- [ ] Standard (non-least-squares) optimization problem
 - [ ] Bound constraints
-
+- [ ] Nonlinear constraints
 
 See the working examples in the `examples/` directory, in particular
 `gradientBasedSurfaceOptimization.ipynb` and
