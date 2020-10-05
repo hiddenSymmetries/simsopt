@@ -43,4 +43,4 @@ prob.solve()
 
 print("An optimum was found at x=", iden1.x, ", y=", iden2.x, \
           ", z=", iden3.x)
-print("The minimum value of the objective function is ", prob.objective)
+print("The minimum value of the objective function is ", prob.objective())

@@ -55,7 +55,7 @@ class IntegratedTests(unittest.TestCase):
         self.assertAlmostEqual(surf.get_zs(1, 0), 0.27727411213693337, places=13)
         self.assertAlmostEqual(surf.volume(), desired_volume, places=8)
         self.assertAlmostEqual(surf.area(), desired_area, places=8)
-        self.assertLess(np.abs(prob.objective), 1.0e-15)
+        self.assertLess(np.abs(prob.objective()), 1.0e-15)
 
 if __name__ == "__main__":
     unittest.main()

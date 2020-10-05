@@ -61,11 +61,11 @@ print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
 print(" volume, according to VMEC    = ", equil.volume())
 print(" volume, according to Surface = ", surf.volume())
 print(" iota on axis = ", equil.iota_axis())
-print(" objective function = ", prob.objective)
+print(" objective function = ", prob.objective())
 
 assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
 assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
 assert np.abs(equil.volume() - 0.178091) < 1.0e-3
 assert np.abs(surf.volume()  - 0.178091) < 1.0e-3
 assert np.abs(equil.iota_axis() - 0.4114567) < 1.0e-4
-assert prob.objective < 1.0e-2
+assert prob.objective() < 1.0e-2

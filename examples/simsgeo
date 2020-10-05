@@ -50,7 +50,7 @@ prob = LeastSquaresProblem([term1])
 # At the initial condition, get the Jacobian two ways: analytic
 # derivatives and finite differencing. The difference should be small.
 fd_jac = prob.dofs.fd_jac()
-jac = prob.dofs.jac
+jac = prob.dofs.jac()
 print('finite difference Jacobian:')
 print(fd_jac)
 print('Analytic Jacobian:')
@@ -65,4 +65,4 @@ print('At the optimum, x: ', prob.x)
 print(' Final curve dofs: ', curve.get_dofs())
 print(' Final curve length:    ', obj.J())
 print(' Expected final length: ', 2 * np.pi * x0[0])
-print(' objective function: ', prob.objective)
+print(' objective function: ', prob.objective())

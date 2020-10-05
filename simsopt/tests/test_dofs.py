@@ -195,7 +195,7 @@ class DofsTests(unittest.TestCase):
                 elif j==3:
                     dofs = Dofs([o])
 
-                jac = dofs.jac
+                jac = dofs.jac()
                 fd_jac = dofs.fd_jac()
                 np.testing.assert_allclose(jac, fd_jac, rtol=rtol, atol=atol)
                 
