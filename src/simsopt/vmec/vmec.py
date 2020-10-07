@@ -7,8 +7,17 @@ import logging
 import os.path
 from mpi4py import MPI
 from simsopt import *
-from simsopt.vmec.core import VMEC
+try:
+    from vmec.core import VMEC
 
+    vmec_found = True
+except ImportError:
+    vmec_found = False
+
+
+@requires(vmec_found,
+          "Running VMEC from simsopt requires VMEC python extension. "
+          "Install the VMEC python extension from <link>.")
 class Vmec(Equilibrium):
     """
     This class represents the VMEC equilibrium code.
