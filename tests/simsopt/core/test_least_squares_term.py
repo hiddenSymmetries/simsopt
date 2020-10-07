@@ -19,8 +19,8 @@ class LeastSquaresTermTests(unittest.TestCase):
         correct_value = ((17 - 3) / 0.1) ** 2
         self.assertAlmostEqual(lst.out_val, correct_value, places=13)
         # Check that out_target gives the right value:
-        self.assertAlmostEqual(lst.out_target.evaluate(), correct_value, \
-                                   places=13)
+        self.assertAlmostEqual(lst.out_target.evaluate(), correct_value,
+                               places=13)
         # Check that out_target correctly has iden.x as its parameter:
         self.assertEqual(lst.out_target.parameters, {iden.x})
 
