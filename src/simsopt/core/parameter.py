@@ -1,15 +1,16 @@
-#!/usr/bin/env python3
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the MIT License
 
 """
-This module contains classes related to parameters in simsopt.  A
-Parameter is a value that has the potential to be varied in an
-optimization.  Sometimes however the value may also be held fixed. If
-the value is varied, there may be box constraints, also known as bound
-constraints, i.e. upper and lower bounds.
+This module implements Parameter and ParameterArray classes to represent
+fixed or optimizable variables in simsopt. A Parameter is a value that
+has the potential to be varied in an optimization. Sometimes however the
+value may also be held fixed. If the value is varied, there may be box
+constraints, also known as bound constraints, i.e. upper and lower bounds.
 
-This module contains the Parameter class, which stores a single value,
-and the ParameterArray class, which stores arbitrary-dimension arrays
-of Parameters.
+Parameter class stores a single value, and the ParameterArray class
+stores arbitrary-dimension arrays of Parameters.
 """
 
 import numpy as np
