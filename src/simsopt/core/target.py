@@ -1,3 +1,7 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the MIT License
+
 """
 This module provides the Target class for quantities that can be
 targeted in optimization.

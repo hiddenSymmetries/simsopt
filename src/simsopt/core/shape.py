@@ -1,3 +1,7 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the MIT License
+
 """
 This module provides a base class for shapes that can be
 optimized. Surfaces and Coils will be subclasses of this class.
