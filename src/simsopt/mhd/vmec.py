@@ -2,10 +2,13 @@
 This module provides a class that handles the VMEC equilibrium code.
 """
 
-import numpy as np
 import logging
 import os.path
+
+import numpy as np
 from mpi4py import MPI
+from monty.dev import requires
+
 from simsopt import *
 try:
     from vmec.core import VMEC
