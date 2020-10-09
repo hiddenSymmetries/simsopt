@@ -1,5 +1,5 @@
 import unittest
-from simsopt.rosenbrock import Rosenbrock
+from simsopt.core.rosenbrock import Rosenbrock
 
 class RosenbrockTests(unittest.TestCase):
     def test_1(self):

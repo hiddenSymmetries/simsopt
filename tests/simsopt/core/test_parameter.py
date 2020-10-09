@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.parameter import *
+from simsopt.core.parameter import *
 
 class IsboolTests(unittest.TestCase):
     def test_basic(self):

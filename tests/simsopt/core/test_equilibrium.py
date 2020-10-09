@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.equilibrium import *
+from simsopt.core.equilibrium import *
 
 class EquilibriumTests(unittest.TestCase):
     def test_init(self):

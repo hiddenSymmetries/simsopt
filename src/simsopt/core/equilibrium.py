@@ -6,7 +6,7 @@
 This module provides an abstract class for numerically representing a
 magnetohydrodynamic (MHD) equilibrium.
 """
-from simsopt import Parameter, Surface
+from simsopt.core import Parameter, Surface
 
 # To handle free-boundary vs fixed-boundary, we could have two
 # subclasses of Equilibrium, or we could have a bool attribute.

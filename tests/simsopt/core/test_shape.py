@@ -1,5 +1,5 @@
 import unittest
-from simsopt.shape import *
+from simsopt.core.shape import *
 
 class ShapeTests(unittest.TestCase):
     def test_init(self):
