@@ -1,6 +1,6 @@
 import unittest
-from simsopt.parameter import Parameter
-from simsopt.target import Target, Identity
+from simsopt.core.parameter import Parameter
+from simsopt.core.target import Target, Identity
 
 def my_function():
     return 7
