@@ -9,6 +9,8 @@ from mpi4py import MPI
 from simsopt import Optimizable, optimizable, SurfaceRZFourier
 from simsopt.vmec.core import VMEC
 
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
@@ -17,15 +19,14 @@ class Vmec(Optimizable):
         """
         Constructor
         """
-        self.logger = logging.getLogger(__name__)
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'input.default')
-            self.logger.info("Initializing a VMEC object from defaults in " \
+            logger.info("Initializing a VMEC object from defaults in " \
                             + filename)
         else:
-            self.logger.info("Initializing a VMEC object from file: " + filename)
+            logger.info("Initializing a VMEC object from file: " + filename)
 
         # Get MPI communicator:
         comm = MPI.COMM_WORLD
@@ -89,9 +90,9 @@ class Vmec(Optimizable):
         Run VMEC, if needed.
         """
         if not self.need_to_run_code:
-            self.logger.info("run() called but no need to re-run VMEC.")
+            logger.info("run() called but no need to re-run VMEC.")
             return
-        self.logger.info("Preparing to run VMEC.")
+        logger.info("Preparing to run VMEC.")
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = self.VMEC.indata
         vi.nfp = self.nfp
@@ -125,11 +126,11 @@ class Vmec(Optimizable):
         vi.zaxis_cs[:] = 0
 
         self.VMEC.reinit()
-        self.logger.info("Running VMEC.")
+        logger.info("Running VMEC.")
         self.VMEC.run()
-        self.logger.info("VMEC run complete. Now loading output.")
+        logger.info("VMEC run complete. Now loading output.")
         self.VMEC.load()
-        self.logger.info("Done loading VMEC output.")
+        logger.info("Done loading VMEC output.")
         self.need_to_run_code = False
 
     def aspect(self):
@@ -191,7 +192,7 @@ class Vmec(Optimizable):
         This method observes all the parameters so we know to run VMEC
         if any parameters change.
         """
-        self.logger.info("Resetting VMEC")
+        logger.info("Resetting VMEC")
         self.need_to_run_code = True
 
     def finalize(self):

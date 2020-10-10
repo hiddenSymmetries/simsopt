@@ -6,8 +6,11 @@ and general optimization problems.
 import numpy as np
 import types
 import logging
+from mpi4py import MPI
 from .util import unique
 from .optimizable import function_from_user
+
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 def get_owners(obj, owners_so_far=[]):
     """
@@ -56,8 +59,6 @@ class Dofs():
         names: A list of strings to identify each of the dofs.
         """
         
-        self.logger = logging.getLogger(__name__)
-
         # Convert all user-supplied function-like things to actual functions:
         funcs = [function_from_user(f) for f in funcs]
         
@@ -287,11 +288,11 @@ class Dofs():
         if x is not None:
             self.set(x)
         
-        self.logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
+        logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
 
         x0 = self.x
-        self.logger.info('  nparams: {}, nfuncs: {}'.format(self.nparams, self.nfuncs))
-        self.logger.info('  x0: ' + str(x0))
+        logger.info('  nparams: {}, nfuncs: {}'.format(self.nparams, self.nfuncs))
+        logger.info('  x0: ' + str(x0))
 
         jac = np.zeros((self.nfuncs, self.nparams))
         for j in range(self.nparams):

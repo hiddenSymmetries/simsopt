@@ -5,7 +5,10 @@ representing a function. These functions are mostly used for testing.
 
 import numpy as np
 import logging
+from mpi4py import MPI
 from .optimizable import Optimizable
+
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class Identity(Optimizable):
     """
@@ -90,7 +93,6 @@ class Rosenbrock(Optimizable):
     """
 
     def __init__(self, b=100.0, x=0.0, y=0.0):
-        self._logger = logging.getLogger(__name__)
         self._sqrtb = np.sqrt(b)
         self.names = ['x', 'y']
         self._x = x
