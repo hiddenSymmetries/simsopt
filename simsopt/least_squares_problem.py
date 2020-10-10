@@ -3,12 +3,18 @@ This module provides the LeastSquaresProblem class, as well as the
 associated class LeastSquaresTerm.
 """
 
+from mpi4py import MPI
 import numpy as np
 from scipy.optimize import least_squares
 import logging
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user
+#from .mpi import proc0
+from simsopt import mpi
+#import .mpi
+
+logger = logging.getLogger(__name__)
 
 class LeastSquaresTerm:
     """
@@ -72,8 +78,6 @@ class LeastSquaresProblem:
         type LeastSquaresTerm.
         """
 
-        self.logger = logging.getLogger(__name__)
-
         try:
             terms = list(terms)
         except:
@@ -122,7 +126,7 @@ class LeastSquaresProblem:
         first set_dofs() will be called for each object to set the
         global state vector to x.
         """
-        self.logger.info("objective() called with x=" + str(x))
+        logger.info("objective() called with x=" + str(x))
         if x is not None:
             self.dofs.set(x)
             
@@ -144,10 +148,13 @@ class LeastSquaresProblem:
         first set_dofs() will be called for each object to set the
         global state vector to x.
         """
-        self.logger.info("residuals() called with x=" + str(x))
+        logger.info("residuals() called with x=" + str(x))
         if x is not None:
             self.dofs.set(x)
-            
+
+        # Importantly for MPI, the next line calls the functions in
+        # the same order that Dofs.f() does. Proc0 calls this function
+        # whereas worker procs call Dofs.f().
         residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
         return np.array(residuals)
         
@@ -165,7 +172,7 @@ class LeastSquaresProblem:
         first set_dofs() will be called for each object to set the
         global state vector to x.
         """
-        self.logger.info("jac() called with x=" + str(x))
+        logger.info("jac() called with x=" + str(x))
 
         if x is not None:
             self.dofs.set(x)
@@ -182,23 +189,50 @@ class LeastSquaresProblem:
         """
         Solve the nonlinear-least-squares minimization problem.
         """
-        self.logger.info("Beginning solve.")
+        logger.info("Beginning solve.")
         self._init()
-        x0 = np.copy(self.dofs.x)
-        #print("x0:",x0)
-        # Call scipy.optimize:
-        if self.dofs.grad_avail:
-            self.logger.info("Using analytic derivatives")
-            print("Using analytic derivatives")
-            result = least_squares(self.f, x0, verbose=2, jac=self.jac)
+        if not mpi.proc0():
+            mpi.worker_loop(self.dofs)
+            x = np.copy(self.x)
         else:
-            self.logger.info("Using derivative-free method")
-            print("Using derivative-free method")
-            result = least_squares(self.f, x0, verbose=2)
-        self.logger.info("Completed solve.")
+            # proc 0 does this block.
+            x0 = np.copy(self.dofs.x)
+            #print("x0:",x0)
+            # Call scipy.optimize:
+            if self.dofs.grad_avail:
+                logger.info("Using analytic derivatives")
+                print("Using analytic derivatives")
+                result = least_squares(self.f_proc0, x0, verbose=2, jac=self.jac_proc0)
+            else:
+                logger.info("Using derivative-free method")
+                print("Using derivative-free method")
+                result = least_squares(self.f_proc0, x0, verbose=2)
+
+            mpi.stop_workers()
+            logger.info("Completed solve.")
+            x = result.x
+
+        logger.debug('[{}] x before bcast={}'.format(MPI.COMM_WORLD.Get_rank(), x))
+        MPI.COMM_WORLD.Bcast(x)
+        logger.debug('[{}] x after bcast={}'.format(MPI.COMM_WORLD.Get_rank(), x))
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
         # Set Parameters to their values for the optimum
-        self.dofs.set(result.x)
+        self.dofs.set(x)
                 
+    def f_proc0(self, x):
+        """
+        Similar to f, except this version is called only by proc 0 while
+        workers are in the worker loop.
+        """
+        mpi.mobilize_workers(x, mpi.CALCULATE_F)
+        return self.f(x)
+
+    def jac_proc0(self, x):
+        """
+        Similar to jac, except this version is called only by proc 0 while
+        workers are in the worker loop.
+        """
+        mpi.mobilize_workers(x, mpi.CALCULATE_JAC)
+        return self.jac(x)

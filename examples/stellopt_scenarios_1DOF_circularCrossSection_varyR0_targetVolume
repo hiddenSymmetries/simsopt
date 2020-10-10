@@ -3,6 +3,8 @@
 import sys
 sys.path.append('..')
 import numpy as np
+import logging
+from mpi4py import MPI
 from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem
 
 """
@@ -21,6 +23,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
 """
+
+logging.basicConfig(level=logging.DEBUG)
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
@@ -52,6 +56,9 @@ prob = LeastSquaresProblem([term1])
 
 # Solve the minimization problem:
 prob.solve()
+
+logger = logging.getLogger(__name__)
+logger.debug('[{}] Returned from prob.solve()'.format(MPI.COMM_WORLD.Get_rank()))
 
 print("At the optimum,")
 print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
