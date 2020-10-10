@@ -25,6 +25,7 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
@@ -57,8 +58,7 @@ prob = LeastSquaresProblem([term1])
 # Solve the minimization problem:
 prob.solve()
 
-logger = logging.getLogger(__name__)
-logger.debug('[{}] Returned from prob.solve()'.format(MPI.COMM_WORLD.Get_rank()))
+logger.debug('Returned from prob.solve()')
 
 print("At the optimum,")
 print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))

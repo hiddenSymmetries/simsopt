@@ -14,7 +14,7 @@ from .optimizable import function_from_user
 from simsopt import mpi
 #import .mpi
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class LeastSquaresTerm:
     """
@@ -212,9 +212,7 @@ class LeastSquaresProblem:
             logger.info("Completed solve.")
             x = result.x
 
-        logger.debug('[{}] x before bcast={}'.format(MPI.COMM_WORLD.Get_rank(), x))
         MPI.COMM_WORLD.Bcast(x)
-        logger.debug('[{}] x after bcast={}'.format(MPI.COMM_WORLD.Get_rank(), x))
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)

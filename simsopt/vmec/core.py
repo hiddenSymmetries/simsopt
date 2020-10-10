@@ -7,6 +7,9 @@ import vmec_f90wrap as vmec
 import numpy as np
 import os
 import logging
+from mpi4py import MPI
+
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 run_modes =  {'all': 63,
               'input': 35,  # STELLOPT uses 35; V3FIT uses 7
@@ -50,7 +53,6 @@ class VMEC(object):
         Returns:
             None
         """
-        self.logger = logging.getLogger(__name__)
         # pass arguments and check
         assert isinstance(input_file, str), \
             "input_file should the input filename in str."
@@ -205,11 +207,11 @@ class VMEC(object):
     def load(self, **kwargs):
         ierr = 0
         if self.success:
-            self.logger.info("Attempting to read file " + self.output_file)
+            logger.info("Attempting to read file " + self.output_file)
             vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
             if self.verbose:
                 if ierr == 0:
-                    self.logger.info('Successufully load VMEC results from ' + \
+                    logger.info('Successufully load VMEC results from ' + \
                           self.output_file)
                 else:
                     print('Load VMEC results from {:} failed!'.format(

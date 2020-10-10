@@ -13,7 +13,10 @@ from jax import jacrev, jit
 
 import numpy as np
 import logging
+from mpi4py import MPI
 from .util import isbool
+
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 #@jit(static_argnums=(4, 5, 6, 7, 8, 9))
 def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
@@ -109,7 +112,6 @@ class Surface:
             raise TypeError('stelsym must be a bool')
         self.nfp = nfp
         self.stelsym = stelsym
-        self.logger = logging.getLogger(__name__)
 
     def __repr__(self):
         return "Surface " + str(hex(id(self))) + " (nfp=" + str(self.nfp) \
@@ -150,7 +152,6 @@ class SurfaceRZFourier(Surface):
         Surface.__init__(self, nfp=nfp, stelsym=stelsym)
         self.mpol = mpol
         self.ntor = ntor
-        self.logger = logging.getLogger(__name__)
         self.allocate()
         self.recalculate = True
         self.recalculate_derivs = True
@@ -172,7 +173,7 @@ class SurfaceRZFourier(Surface):
         """
         Create the arrays for the rc, rs, zc, and zs coefficients.
         """
-        self.logger.info("Allocating SurfaceRZFourier")
+        logger.info("Allocating SurfaceRZFourier")
         self.mdim = self.mpol + 1
         self.ndim = 2 * self.ntor + 1
         myshape = (self.mdim, self.ndim)
@@ -292,9 +293,9 @@ class SurfaceRZFourier(Surface):
         Compute the surface area and the volume enclosed by the surface.
         """
         if self.recalculate:
-            self.logger.info('Running calculation of area and volume')
+            logger.info('Running calculation of area and volume')
         else:
-            self.logger.info('area_volume called, but no need to recalculate')
+            logger.info('area_volume called, but no need to recalculate')
             return
 
         self.recalculate = False
@@ -410,9 +411,9 @@ class SurfaceRZFourier(Surface):
         by the surface.
         """
         if self.recalculate_derivs:
-            self.logger.info('Running calculation of derivative of area and volume')
+            logger.info('Running calculation of derivative of area and volume')
         else:
-            self.logger.info('darea_volume called, but no need to recalculate')
+            logger.info('darea_volume called, but no need to recalculate')
             return
 
         self.recalculate_derivs = False
@@ -567,10 +568,10 @@ class SurfaceRZFourier(Surface):
         
         # Check whether any elements actually change:
         if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
-            self.logger.info('set_dofs called, but no dofs actually changed')
+            logger.info('set_dofs called, but no dofs actually changed')
             return
 
-        self.logger.info('set_dofs called, and at least one dof changed')
+        logger.info('set_dofs called, and at least one dof changed')
         self.recalculate = True
         self.recalculate_derivs = True
         
