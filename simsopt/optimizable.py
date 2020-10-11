@@ -85,19 +85,23 @@ class Target(Optimizable):
         self.attr = attr
         self.depends_on = ["obj"]
         
+        # Attach a dJ function only if obj has one
+        def dJ(self0):
+            return getattr(self0.obj, 'd' + self0.attr)
+        if hasattr(obj, 'd' + attr):
+            self.dJ = types.MethodType(dJ, self)
+        
     def J(self):
         return getattr(self.obj, self.attr)
 
-    def dJ(self):
-        return getattr(self.obj, 'd' + self.attr)
+    #def dJ(self):
+    #    return getattr(self.obj, 'd' + self.attr)
 
     def get_dofs(self):
         return np.array([])
 
     def set_dofs(self, v):
         pass
-    
-    # Eventually add a dJ function here
 
 def optimizable(obj):
     """
@@ -118,9 +122,12 @@ def optimizable(obj):
         obj.set_dofs = types.MethodType(set_dofs, obj)
             
     n = len(obj.get_dofs())
-    obj.fixed = np.full(n, False)
-    obj.mins = np.full(n, np.NINF)
-    obj.maxs = np.full(n, np.Inf)
+    if not hasattr(obj, 'fixed'):
+        obj.fixed = np.full(n, False)
+    if not hasattr(obj, 'mins'):
+        obj.mins = np.full(n, np.NINF)
+    if not hasattr(obj, 'maxs'):
+        obj.maxs = np.full(n, np.Inf)
     # Add the following methods from the Optimizable class:
     for method in ['index', 'get', 'set', 'get_fixed', 'set_fixed', 'all_fixed']:
         # See https://stackoverflow.com/questions/972/adding-a-method-to-an-existing-object-instance
