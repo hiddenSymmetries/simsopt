@@ -4,7 +4,7 @@ import logging
 import sys
 import numpy as np
 sys.path.append('..')
-from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, proc0
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -55,13 +55,14 @@ prob = LeastSquaresProblem([term1, term2])
 # Solve the minimization problem:
 prob.solve()
 
-print("At the optimum,")
-print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
-print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
-print(" volume, according to VMEC    = ", equil.volume())
-print(" volume, according to Surface = ", surf.volume())
-print(" iota on axis = ", equil.iota_axis())
-print(" objective function = ", prob.objective())
+if proc0():
+    print("At the optimum,")
+    print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
+    print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
+    print(" volume, according to VMEC    = ", equil.volume())
+    print(" volume, according to Surface = ", surf.volume())
+    print(" iota on axis = ", equil.iota_axis())
+    print(" objective function = ", prob.objective())
 
 assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
 assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
