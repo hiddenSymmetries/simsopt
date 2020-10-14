@@ -151,8 +151,11 @@ jobs:
         make
         ls -l
 
-    - name: Run unit tests
-      run: python3 -m unittest -v
+    - name: Run serial unit tests
+      #run: python3 -m unittest -v
+
+    - name: Run mpi unit tests
+      run: ./run_tests_mpi
 
     - name: Run 1dof integrated test
       run: |
