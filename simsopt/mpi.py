@@ -123,12 +123,12 @@ class MpiPartition():
         columns = ["rank_world","nprocs_world","group","ngroups","rank_groups","nprocs_groups","rank_leaders","nprocs_leaders"]
         data = [self.rank_world , self.nprocs_world , self.group , self.ngroups , self.rank_groups , self.nprocs_groups , self.rank_leaders , self.nprocs_leaders]
 
-        # Print header row
-        width = max(len(s) for s in columns) + 1
-        print(",".join(s.rjust(width) for s in columns))
         # Each processor sends their data to proc0_world, and
         # proc0_world writes the result to the file in order.
         if self.proc0_world:
+            # Print header row
+            width = max(len(s) for s in columns) + 1
+            print(",".join(s.rjust(width) for s in columns))
             print(",".join(str(s).rjust(width) for s in data))
             for tag in range(1, self.nprocs_world):
                 data = self.comm_world.recv(tag=tag)
