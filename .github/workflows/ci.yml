@@ -152,7 +152,7 @@ jobs:
         ls -l
 
     - name: Run serial unit tests
-      #run: python3 -m unittest -v
+      run: python3 -m unittest -v
 
     - name: Run mpi unit tests
       run: ./run_tests_mpi
