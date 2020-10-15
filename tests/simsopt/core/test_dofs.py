@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
-from simsopt.dofs import get_owners, Dofs
-from simsopt.functions import Identity, Adder, TestObject2, Rosenbrock
-from simsopt.optimizable import Target
+from simsopt.core.dofs import get_owners, Dofs
+from simsopt.core.functions import Identity, Adder, TestObject2, Rosenbrock
+from simsopt.core.optimizable import Target
 
 class GetOwnersTests(unittest.TestCase):
     def test_no_dependents(self):

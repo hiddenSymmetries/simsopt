@@ -6,7 +6,7 @@ import logging
 import os.path
 import numpy as np
 from mpi4py import MPI
-from monty.dev import requires
+#from monty.dev import requires
 
 from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
 try:
@@ -17,9 +17,9 @@ except ImportError:
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
-@requires(vmec_found,
-          "Running VMEC from simsopt requires VMEC python extension. "
-          "Install the VMEC python extension from <link>.")
+#@requires(vmec_found,
+#          "Running VMEC from simsopt requires VMEC python extension. "
+#          "Install the VMEC python extension from <link>.")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
@@ -41,9 +41,10 @@ class Vmec(Optimizable):
         comm = MPI.COMM_WORLD
         self.fcomm = comm.py2f()
 
+        print("AAA")
         self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
                              verbose=MPI.COMM_WORLD.rank==0)
-
+        print("BBB")
         objstr = " for Vmec " + str(hex(id(self)))
         # nfp and stelsym are initialized by the Equilibrium constructor:
         #Equilibrium.__init__(self)

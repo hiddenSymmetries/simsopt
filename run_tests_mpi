@@ -12,8 +12,10 @@
 set -ex
 # In the above line, "set -x" causes this script to exit as soon as any line fails. "set -e" causes each line of this script to be printed (with a + in front) before it is executed, so if a step fails, you can see from the travis log what command failed.
 
+cd tests/simsopt
+
 # Example of running all tests for a specific module:
-#python -m unittest -v simsopt.tests.test_mpi
+#python -m unittest -v core.test_mpi
 
 # Example of running a specific test that matches a pattern:
 #python -m unittest -v -k mpi
@@ -28,5 +30,5 @@ set -ex
 
 for j in {1..5}
 do
-    mpiexec -n $j python -m unittest -v simsopt.tests.test_mpi
+    mpiexec -n $j python -m unittest -v core.test_mpi
 done

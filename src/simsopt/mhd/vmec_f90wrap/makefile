@@ -32,6 +32,7 @@ ifeq ($(SFINCS_SYSTEM),macports)
   FPP = mpif90-mpich-gcc8 -E
   FPP_F90FLAGS = -x f95-cpp-input -fPIC
   FCOMP = mpif90-mpich-gcc8
+  F2PYFLAGS = --compiler=clang
 endif
 
 CFLAGS = -fPIC #     ==> universal for ifort, gfortran, pgi
@@ -118,7 +119,7 @@ $(LIB_NAME): ${LIBSRC_WRAP_SOURCES}
 
 _${PYTHON_MODN}.so: $(LIB_NAME) ${LIBSRC_WRAP_FPP_FILES} 
 	f90wrap -m ${PYTHON_MODN} ${LIBSRC_WRAP_FPP_FILES} -k ${KIND_MAP} -v
-	f2py-f90wrap --f90exec=${FC} --build-dir . -c -m _${PYTHON_MODN} \
+	f2py-f90wrap --f90exec=${FC} ${F2PYFLAGS} --build-dir . -c -m _${PYTHON_MODN} \
 	-L. -l$(CODE_NAME) ${ADDITIONAL_LINKS} -I. ${ADDITIONAL_INCLUDES} f90wrap*.f90	
 
 test:
