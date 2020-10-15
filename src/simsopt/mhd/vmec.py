@@ -12,8 +12,11 @@ from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
 try:
     from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
     vmec_found = True
-except ImportError:
+except ImportError as err:
     vmec_found = False
+    print('Unable to load VMEC module, so some functionality will not be available.')
+    print('Reason VMEC module was not loaded:')
+    print(err)
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
