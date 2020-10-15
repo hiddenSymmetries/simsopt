@@ -147,7 +147,7 @@ jobs:
     - name: Build f90wrap-vmec
       run: |
         pwd
-        cd simsopt/vmec
+        cd src/simsopt/mhd/vmec_f90wrap
         make
         ls -l
 
