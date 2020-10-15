@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.mpi import MpiPartition
+from simsopt.core.mpi import MpiPartition
 from mpi4py import MPI
 
 class MpiPartitionTests(unittest.TestCase):

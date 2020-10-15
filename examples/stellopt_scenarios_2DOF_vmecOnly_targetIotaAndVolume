@@ -3,7 +3,7 @@
 import logging
 import sys
 import numpy as np
-sys.path.append('..')
+sys.path.append('../src')
 from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, proc0
 
 """

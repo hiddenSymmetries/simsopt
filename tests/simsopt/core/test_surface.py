@@ -1,7 +1,7 @@
 import unittest
 import os
 from simsopt.core.surface import *
-from simsopt.dofs import Dofs
+from simsopt.core.dofs import Dofs
 from . import TEST_DIR
 
 class SurfaceTests(unittest.TestCase):

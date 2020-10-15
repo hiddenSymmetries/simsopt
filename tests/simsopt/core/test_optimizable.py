@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
-from simsopt.optimizable import Optimizable
-from simsopt.functions import Adder
+from simsopt.core.optimizable import Optimizable
+from simsopt.core.functions import Adder
 
 class OptimizableTests(unittest.TestCase):
     def test_index(self):
