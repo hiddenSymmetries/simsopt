@@ -159,7 +159,7 @@ jobs:
     - name: test f90wrap-vmec more
       run: |
         cd src/simsopt/mhd/vmec_f90wrap
-        python -m test_vmec_f90wrap.py
+        ./test_vmec_f90wrap.py
 
     - name: Install simsopt package
       run: pip install -vvv .
