@@ -1,3 +1,7 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the LGPL License
+
 """
 This module provides classes and functions that are useful for
 setting up optimizable objects and objective functions.
