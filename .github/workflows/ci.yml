@@ -151,11 +151,16 @@ jobs:
         make
         ls -l
 
-    - name: Run serial unit tests
-      run: python3 -m unittest -v
+    - name: Install simsopt package
+      run: pip install -vvv .
 
     - name: Run mpi unit tests
       run: ./run_tests_mpi
+
+    - name: Run serial unit tests
+      run: |
+        cd tests/simsopt
+        python3 -m unittest -v
 
     - name: Run 1dof integrated test
       run: |
