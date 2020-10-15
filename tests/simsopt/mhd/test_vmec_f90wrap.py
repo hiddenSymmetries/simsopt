@@ -1,6 +1,6 @@
 import unittest
-import numpy as np
 from mpi4py import MPI
+import numpy as np
 import os
 #from simsopt.mhd.vmec_f90wrap.core import run_modes
 from simsopt.mhd.vmec_f90wrap import *
