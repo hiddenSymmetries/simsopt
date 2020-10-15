@@ -162,7 +162,8 @@ jobs:
         ./test_vmec_f90wrap.py
 
     - name: Install simsopt package
-      run: pip install -vvv .
+      run: pip install -vvv -e .
+      # We install -e (editable mode) because otherwise the vmec.*.so file is not copied to where simsopt is installed, and hence it cannot be found.
 
     - name: Run mpi unit tests
       run: ./run_tests_mpi
