@@ -2,15 +2,24 @@
 This module provides a class that handles the VMEC equilibrium code.
 """
 
-import numpy as np
 import logging
 import os.path
+import numpy as np
 from mpi4py import MPI
-from simsopt import Optimizable, optimizable, SurfaceRZFourier
-from simsopt.vmec.core import VMEC
+from monty.dev import requires
+
+from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
+try:
+    from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
+    vmec_found = True
+except ImportError:
+    vmec_found = False
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
+@requires(vmec_found,
+          "Running VMEC from simsopt requires VMEC python extension. "
+          "Install the VMEC python extension from <link>.")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.

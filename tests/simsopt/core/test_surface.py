@@ -1,7 +1,8 @@
 import unittest
 import os
-from simsopt.surface import *
+from simsopt.core.surface import *
 from simsopt.dofs import Dofs
+from . import TEST_DIR
 
 class SurfaceTests(unittest.TestCase):
     def test_init(self):
@@ -127,14 +128,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Try reading in a focus-format file.
         """
-        base_filename = 'tf_only_half_tesla.plasma'
-        filename2 = os.path.join("simsopt", "tests", base_filename)
-        if os.path.isfile(base_filename):
-            filename = base_filename
-        elif os.path.isfile(filename2):
-            filename = filename2
-        else:
-            raise RuntimeError("Unable to find test file " + base_filename)
+        filename = os.path.join(TEST_DIR, 'tf_only_half_tesla.plasma')
+
         s = SurfaceRZFourier.from_focus(filename)
 
         self.assertEqual(s.nfp, 3)

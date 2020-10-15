@@ -26,12 +26,12 @@ endif
 # Because MacOS does not let you set LD_LIBRARY_PATH, a critical step was 
 # sudo ln -s ~/stellopt_github/develop/STELLOPT/bin/libstell.so /usr/local/lib
 ifeq ($(SFINCS_SYSTEM),macports)
-  CC = mpicc
-  FC = mpif90
-  F90 = mpif90
-  FPP = mpif90 -E
+  CC = mpicc-mpich-gcc8
+  FC = mpif90-mpich-gcc8
+  F90 = mpif90-mpich-gcc8
+  FPP = mpif90-mpich-gcc8 -E
   FPP_F90FLAGS = -x f95-cpp-input -fPIC
-  FCOMP = mpif90
+  FCOMP = mpif90-mpich-gcc8
 endif
 
 CFLAGS = -fPIC #     ==> universal for ifort, gfortran, pgi

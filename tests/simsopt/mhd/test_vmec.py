@@ -1,9 +1,10 @@
 import unittest
 import numpy as np
 import os
-from simsopt import LeastSquaresTerm, LeastSquaresProblem
-from simsopt.vmec import *
+from simsopt.mhd.vmec import *
+from . import TEST_DIR
 
+@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
@@ -30,8 +31,7 @@ class VmecTests(unittest.TestCase):
         Try creating a Vmec instance from a specified input file.
         """
 
-        filename = os.path.join(os.path.dirname(__file__), \
-                                    'input.li383_low_res')
+        filename = os.path.join(TEST_DIR, 'input.li383_low_res')
 
         v = Vmec(filename)
         self.assertEqual(v.nfp, 3)

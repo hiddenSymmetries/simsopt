@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append('..')
+sys.path.append('../src')
 from simsopt import *
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
