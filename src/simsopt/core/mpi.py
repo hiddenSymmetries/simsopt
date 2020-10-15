@@ -1,3 +1,7 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the LGPL License
+
 """
 This module contains functions related to MPI parallelization.
 """
