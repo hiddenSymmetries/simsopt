@@ -5,6 +5,7 @@ import os
 #from simsopt.mhd.vmec_f90wrap.core import run_modes
 from simsopt.mhd.vmec_f90wrap import *
 from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
+from . import TEST_DIR
 
 success_codes = [0, 11]
 reset_file = ''
@@ -18,8 +19,7 @@ class F90wrapVmecTests(unittest.TestCase):
         self.fcomm = MPI.COMM_WORLD.py2f()
         rank = MPI.COMM_WORLD.Get_rank()
         self.verbose = (rank == 0)
-        # The input file will be in the same directory as this file:
-        self.filename = os.path.join(os.path.dirname(__file__), 'input.li383_low_res')
+        self.filename = os.path.join(TEST_DIR, 'input.li383_low_res')
 
         self.ictrl = np.zeros(5, dtype=np.int32)
 
