@@ -1,3 +1,7 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the MIT License
+
 """
 This module provides the LeastSquaresProblem class, as well as the
 associated class LeastSquaresTerm.
@@ -10,9 +14,9 @@ import logging
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user
-#from .mpi import proc0
-from simsopt import mpi
-#import .mpi
+from .mpi import proc0, worker_loop, mobilize_workers, stop_workers, CALCULATE_F, CALCULATE_JAC
+#from simsopt import mpi
+#import mpi
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -191,8 +195,8 @@ class LeastSquaresProblem:
         """
         logger.info("Beginning solve.")
         self._init()
-        if not mpi.proc0():
-            mpi.worker_loop(self.dofs)
+        if not proc0():
+            worker_loop(self.dofs)
             x = np.copy(self.x)
         else:
             # proc 0 does this block.
@@ -208,7 +212,7 @@ class LeastSquaresProblem:
                 print("Using derivative-free method")
                 result = least_squares(self.f_proc0, x0, verbose=2)
 
-            mpi.stop_workers()
+            stop_workers()
             logger.info("Completed solve.")
             x = result.x
 
@@ -224,7 +228,7 @@ class LeastSquaresProblem:
         Similar to f, except this version is called only by proc 0 while
         workers are in the worker loop.
         """
-        mpi.mobilize_workers(x, mpi.CALCULATE_F)
+        mobilize_workers(x, CALCULATE_F)
         return self.f(x)
 
     def jac_proc0(self, x):
@@ -232,5 +236,5 @@ class LeastSquaresProblem:
         Similar to jac, except this version is called only by proc 0 while
         workers are in the worker loop.
         """
-        mpi.mobilize_workers(x, mpi.CALCULATE_JAC)
+        mobilize_workers(x, CALCULATE_JAC)
         return self.jac(x)
