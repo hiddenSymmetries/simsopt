@@ -3,7 +3,6 @@ VMEC python wrapper
 Author: Caoxiang Zhu (caoxiangzhu@gmail.com)
 """
 from __future__ import print_function, absolute_import, division
-import vmec_f90wrap as vmec
 import numpy as np
 import os
 import logging
@@ -12,6 +11,8 @@ from mpi4py import MPI
 # These next lines are to make _vmec_f90wrap accessible:
 import sys
 sys.path.append(os.path.dirname(__file__))
+
+import vmec_f90wrap as vmec
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
