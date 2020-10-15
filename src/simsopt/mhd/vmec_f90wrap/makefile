@@ -32,7 +32,7 @@ ifeq ($(SFINCS_SYSTEM),macports)
   FPP = mpif90-mpich-gcc8 -E
   FPP_F90FLAGS = -x f95-cpp-input -fPIC
   FCOMP = mpif90-mpich-gcc8
-  F2PYFLAGS = --compiler=clang
+  #F2PYFLAGS =
 endif
 
 CFLAGS = -fPIC #     ==> universal for ifort, gfortran, pgi

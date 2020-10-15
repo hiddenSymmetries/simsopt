@@ -2,9 +2,9 @@
 
 import sys
 sys.path.append('../src')
+from mpi4py import MPI
 import numpy as np
 import logging
-from mpi4py import MPI
 from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, proc0
 
 """
