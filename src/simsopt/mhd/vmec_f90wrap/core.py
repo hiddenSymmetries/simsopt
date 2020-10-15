@@ -9,6 +9,10 @@ import os
 import logging
 from mpi4py import MPI
 
+# These next lines are to make _vmec_f90wrap accessible:
+import sys
+sys.path.append(os.path.dirname(__file__))
+
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 run_modes =  {'all': 63,

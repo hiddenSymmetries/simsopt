@@ -2,8 +2,9 @@ import unittest
 import numpy as np
 from mpi4py import MPI
 import os
+#from simsopt.mhd.vmec_f90wrap.core import run_modes
+from simsopt.mhd.vmec_f90wrap import *
 from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
-from simsopt.mhd.vmec_f90wrap.core import run_modes
 
 success_codes = [0, 11]
 reset_file = ''
