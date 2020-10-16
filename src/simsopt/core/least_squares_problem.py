@@ -1,16 +1,74 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the MIT License
+# Distributed under the terms of the LGPL License
 
 """
-This module provides the LeastSquaresProblem class.
+This module provides the LeastSquaresProblem class, as well as the
+associated class LeastSquaresTerm.
 """
 
+from mpi4py import MPI
 import numpy as np
-from .least_squares_term import LeastSquaresTerm
 from scipy.optimize import least_squares
 import logging
+from .dofs import Dofs
+from .util import isnumber
+from .optimizable import function_from_user
+from .mpi import proc0, worker_loop, mobilize_workers, stop_workers, CALCULATE_F, CALCULATE_JAC
+#from simsopt import mpi
+#import mpi
 
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+
+class LeastSquaresTerm:
+    """
+    This class represents one term in a nonlinear-least-squares
+    problem. A LeastSquaresTerm instance has 3 basic attributes: a
+    function (called f_in), a goal value (called goal), and a weight
+    (sigma).  The overall value of the term is:
+
+    f_out = weight * (f_in - goal) ** 2.
+
+    You are also free to specify sigma = 1 / sqrt(weight) instead of
+    weight, so
+
+    f_out = ((f_in - goal) / sigma) ** 2.
+    """
+
+    def __init__(self, f_in, goal, weight=None, sigma=None):
+        if not isnumber(goal):
+            raise TypeError('goal must be a float or int')
+        if (weight is None) and (sigma is None):
+            raise ValueError('You must specify either weight or sigma.')
+        if (weight is not None) and (sigma is not None):
+            raise ValueError('You cannot specify both sigma and weight.')
+        if sigma == 0:
+            raise ValueError('sigma cannot be 0')
+        if weight is not None:
+            # Weight was specified, sigma was not
+            if not isnumber(weight):
+                raise TypeError('Weight must be a float or int')
+            if weight < 0:
+                raise ValueError('Weight cannot be negative')
+            self.weight = float(weight)
+        else:
+            # Sigma was specified, weight was not
+            if not isnumber(sigma):
+                raise TypeError('sigma must be a float or int')
+            self.weight = 1.0 / float(sigma * sigma)
+
+        self.f_in = function_from_user(f_in)
+        self.goal = float(goal)
+        self.fixed = np.full(0, False)
+
+    def f_out(self):
+        """
+        Return the overall value of this least-squares term.
+        """
+        temp = self.f_in() - self.goal
+        return self.weight * temp * temp 
+
+    
 class LeastSquaresProblem:
     """
     This class represents a nonlinear-least-squares optimization
@@ -24,8 +82,6 @@ class LeastSquaresProblem:
         type LeastSquaresTerm.
         """
 
-        self.logger = logging.getLogger(__name__)
-
         try:
             terms = list(terms)
         except:
@@ -38,66 +94,147 @@ class LeastSquaresProblem:
             if not isinstance(term, LeastSquaresTerm):
                 raise ValueError("Each term in terms must be an instance of " \
                                      "LeastSquaresTerm.")
-        self._terms = terms
-        # Get a list of all Parameters
-        params = set()
-        for j in range(len(terms)):
-            params = params.union(terms[j].in_target.parameters)
-        self._parameters = list(params)
+        self.terms = terms
+        self._init()
+
+    def _init(self):
+        """
+        Call collect_dofs() on the list of terms to set x, mins, maxs, names, etc.
+        This is done both when the object is created, so 'objective' works immediately,
+        and also at the start of solve()
+        """
+        self.dofs = Dofs([t.f_in for t in self.terms])
 
     @property
-    def parameters(self):
+    def x(self):
         """
-        Return a list of all Parameter objects upon which the
-        objective function depends.
+        Return the state vector.
         """
-        return self._parameters
+        # Delegate to Dofs:
+        return self.dofs.x
 
-    @property
-    def objective(self):
+    def set(self, x):
+        """
+        Sets the global state vector to x.
+        """
+        # Delegate to Dofs:
+        self.dof.set(x)
+    
+    def objective(self, x=None):
         """
         Return the value of the total objective function, by summing
         the terms.
+
+        If the argument x is not supplied, the objective will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
         """
-        self.logger.info("objective called.")
+        logger.info("objective() called with x=" + str(x))
+        if x is not None:
+            self.dofs.set(x)
+            
         sum = 0
-        for term in self._terms:
-            sum += term.out_val
+        for term in self.terms:
+            sum += term.f_out()
         return sum
 
+    def f(self, x=None):
+        """
+        This method returns the vector of residuals for a given state
+        vector x.  This function is passed to scipy.optimize, and
+        could be passed to other optimization algorithms too.  This
+        function differs from Dofs.function() because it shifts and
+        scales the terms.
+
+        If the argument x is not supplied, the residuals will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
+        """
+        logger.info("residuals() called with x=" + str(x))
+        if x is not None:
+            self.dofs.set(x)
+
+        # Importantly for MPI, the next line calls the functions in
+        # the same order that Dofs.f() does. Proc0 calls this function
+        # whereas worker procs call Dofs.f().
+        residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
+        return np.array(residuals)
+        
+    def jac(self, x=None):
+        """
+        This method gives the Jacobian of the residuals with respect to
+        the parameters, if it is available, given the state vector
+        x. This function is passed to scipy.optimize, and could be
+        passed to other optimization algorithms too. This Jacobian
+        differs from the one returned by Dofs() because it accounts
+        for the 'weight' scale factors.
+
+        If the argument x is not supplied, the Jacobian will be
+        evaluated for the present state vector. If x is supplied, then
+        first set_dofs() will be called for each object to set the
+        global state vector to x.
+        """
+        logger.info("jac() called with x=" + str(x))
+
+        if x is not None:
+            self.dofs.set(x)
+            
+        # This next line does the hard work of evaluating the Jacobian:
+        jac = self.dofs.jac()
+        # Scale rows by sqrt(weight):
+        for j in range(self.dofs.nfuncs):
+            jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
+            
+        return np.array(jac)
+        
     def solve(self):
         """
         Solve the nonlinear-least-squares minimization problem.
         """
-        self.logger.info("Beginning solve.")
-        # Get vector of initial values for the parameters:
-        #print("Parameters for solve:",self._parameters)
-        x0 = [param.val for param in self._parameters if not param.fixed]
-        #print("x0:",x0)
-        # Call scipy.optimize:
-        result = least_squares(self._residual_func, x0, verbose=2)
-        self.logger.info("Completed solve.")
+        logger.info("Beginning solve.")
+        self._init()
+        if not proc0():
+            worker_loop(self.dofs)
+            x = np.copy(self.x)
+        else:
+            # proc 0 does this block.
+            x0 = np.copy(self.dofs.x)
+            #print("x0:",x0)
+            # Call scipy.optimize:
+            if self.dofs.grad_avail:
+                logger.info("Using analytic derivatives")
+                print("Using analytic derivatives")
+                result = least_squares(self.f_proc0, x0, verbose=2, jac=self.jac_proc0)
+            else:
+                logger.info("Using derivative-free method")
+                print("Using derivative-free method")
+                result = least_squares(self.f_proc0, x0, verbose=2)
+
+            stop_workers()
+            logger.info("Completed solve.")
+            x = result.x
+
+        MPI.COMM_WORLD.Bcast(x)
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
         # Set Parameters to their values for the optimum
-        index = 0
-        for j in range(len(x0)):
-            if not self._parameters[j].fixed:
-                self._parameters[j].val = result.x[index]
-                index += 1
+        self.dofs.set(x)
+                
+    def f_proc0(self, x):
+        """
+        Similar to f, except this version is called only by proc 0 while
+        workers are in the worker loop.
+        """
+        mobilize_workers(x, CALCULATE_F)
+        return self.f(x)
 
-    def _residual_func(self, x):
+    def jac_proc0(self, x):
         """
-        This private method is passed to scipy.optimize.
+        Similar to jac, except this version is called only by proc 0 while
+        workers are in the worker loop.
         """
-        self.logger.info("_residual_func called with x=" + str(x))
-        #print("_residual_func called with x=",x)
-        index = 0
-        for j in range(len(self._parameters)):
-            if not self._parameters[j].fixed:
-                self._parameters[j].val = x[index]
-                index += 1
-        assert index == len(x)
-        return [(term.in_val - term.goal) / term.sigma for term in self._terms]
-        
+        mobilize_workers(x, CALCULATE_JAC)
+        return self.jac(x)

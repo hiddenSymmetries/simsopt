@@ -1,12 +1,19 @@
+#!/usr/bin/env python3
+
 import unittest
-from mpi4py import MPI
 import numpy as np
+from mpi4py import MPI
 import os
 #from simsopt.mhd.vmec_f90wrap.core import run_modes
-from simsopt.mhd.vmec_f90wrap import *
-from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
-from . import TEST_DIR
+#from simsopt.mhd.vmec_f90wrap import *
+#from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
+import vmec_f90wrap
 
+
+run_modes={'all': 63,
+              'input': 35,  # STELLOPT uses 35; V3FIT uses 7
+              'output': 8,
+              'main': 45}   # STELLOPT uses 61; V3FIT uses 45
 success_codes = [0, 11]
 reset_file = ''
 
@@ -19,7 +26,8 @@ class F90wrapVmecTests(unittest.TestCase):
         self.fcomm = MPI.COMM_WORLD.py2f()
         rank = MPI.COMM_WORLD.Get_rank()
         self.verbose = (rank == 0)
-        self.filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+        # The input file will be in the same directory as this file:
+        self.filename = os.path.join(os.path.dirname(__file__), 'input.li383_low_res')
 
         self.ictrl = np.zeros(5, dtype=np.int32)
 

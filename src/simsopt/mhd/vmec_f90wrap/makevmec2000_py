@@ -1,0 +1,11 @@
+include ../makevmec2000
+
+LINK = $(LINK_AR)
+COMPILE += -fPIC
+COMPILE_FREE += -fPIC
+
+libvmec.a: $(LIB) $(ObjectFiles) reinit.o
+	$(LINK) $@ $(ObjectFiles) reinit.o
+
+reinit.o : reinit.f90
+	${COMPILE} ${FLAGS_R} ${MOD1_PATH} -c $<
