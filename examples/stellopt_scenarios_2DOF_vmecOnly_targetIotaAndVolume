@@ -2,9 +2,10 @@
 
 import logging
 import sys
+from mpi4py import MPI
 import numpy as np
-sys.path.append('..')
-from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem
+sys.path.append('../src')
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, proc0
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -32,12 +33,11 @@ logging.basicConfig(level=logging.INFO)
 equil = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume')
 surf = equil.boundary
 
-# Parameters are all fixed by default, meaning they will not be
-# optimized.  You can choose any subset of the Parameters to be part
-# of the space of independent variables by setting their 'fixed'
-# property to False.
-surf.get_rc(1, 1).fixed = False
-surf.get_zs(1, 1).fixed = False
+# VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
+# You can choose which parameters are optimized by setting their 'fixed' attributes.
+surf.all_fixed()
+surf.set_fixed('rc(1,1)', False)
+surf.set_fixed('zs(1,1)', False)
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function
@@ -56,17 +56,18 @@ prob = LeastSquaresProblem([term1, term2])
 # Solve the minimization problem:
 prob.solve()
 
-print("At the optimum,")
-print(" rc(m=1,n=1) = ", surf.get_rc(1, 1).val)
-print(" zs(m=1,n=1) = ", surf.get_zs(1, 1).val)
-print(" volume, according to VMEC    = ", equil.volume.evaluate())
-print(" volume, according to Surface = ", surf.volume.evaluate())
-print(" iota on axis = ", equil.compute_iota_axis())
-print(" objective function = ", prob.objective)
+if proc0():
+    print("At the optimum,")
+    print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
+    print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
+    print(" volume, according to VMEC    = ", equil.volume())
+    print(" volume, according to Surface = ", surf.volume())
+    print(" iota on axis = ", equil.iota_axis())
+    print(" objective function = ", prob.objective())
 
-assert np.abs(surf.get_rc(1, 1).val - 0.0313066948) < 1.0e-3
-assert np.abs(surf.get_zs(1, 1).val - (-0.031232391)) < 1.0e-3
-assert np.abs(equil.volume.evaluate() - 0.178091) < 1.0e-3
-assert np.abs(surf.volume.evaluate()  - 0.178091) < 1.0e-3
-assert np.abs(equil.compute_iota_axis() - 0.4114567) < 1.0e-4
-assert prob.objective < 1.0e-2
+assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
+assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
+assert np.abs(equil.volume() - 0.178091) < 1.0e-3
+assert np.abs(surf.volume()  - 0.178091) < 1.0e-3
+assert np.abs(equil.iota_axis() - 0.4114567) < 1.0e-4
+assert prob.objective() < 1.0e-2

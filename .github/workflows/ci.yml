@@ -14,16 +14,10 @@ jobs:
   CI:
     runs-on: ubuntu-latest
 
-    # The next bit is copied from STELLOPT's github actions:
-    # Note that zhucaoxiang/stellopt:latest and 
-    # zhucaoxiang/stellopt:test contain stellopt, but
-    # zhucaoxiang/stellopt:compile does not (it just the libraries it depends on.)
-    #container: zhucaoxiang/stellopt:latest
-    container: zhucaoxiang/stellopt:test
     env:
       MACHINE: docker
-      #STELLOPT_PATH: ${{ github.workspace }}/externalPackages/STELLOPT
-      STELLOPT_PATH: /home/STELLOPT
+      STELLOPT_PATH: /home/runner/work/simsopt/simsopt/STELLOPT
+      #STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
 
@@ -52,62 +46,49 @@ jobs:
         set -ex
         ls -l
 
-    - name: ls -l /
+    - name: apt-get stuff needed for libstell and vmec
       run: |
-        set -ex
-        ls -l /
-
-    - name: ls -l /__w
-      run: |
-        set -ex
-        ls -l /__w
-
-    - name: ls -l /__w/simsopt
-      run: |
-        set -ex
-        ls -l /__w/simsopt
-
-    # When running in a container where the user is not root, github
-    # actions does not have permission yet to put our repo where it
-    # belongs. Use sudo to add write permission. The -S flag lets us
-    # pass the password via stdin from the echo command. The -E flag
-    # passes environment variables.
-    - name: chmod
-      run: echo visitor | sudo -S -E chmod a+wx /__w/simsopt/simsopt
-
-    - name: ls -l /__w/simsopt again
-      run: |
-        set -ex
-        ls -l /__w/simsopt
-
-    - name: ls -l /__w/simsopt/simsopt
-      run: |
-        set -ex
-        ls -l /__w/simsopt/simsopt
-
-    - name: ls -l /home
-      run: |
-        set -ex
-        ls -l /home
-
-    - name: ls -l /home/visitor
-      run: |
-        set -ex
-        ls -l /home/visitor
-
-    - name: env
-      run: env
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
 
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
       #with:
       #  submodules: true
 
-    - name: which python3 before python setup
-      run: which python3
+    # We must run actions/checkout@v2 before downloading and building stellopt, since checkout deletes the contents of the directory.
+    - name: git clone stellopt
+      run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
 
-    - name: which pip before python setup
-      run: pip --version
+    - name: ls -l again
+      run: |
+        set -ex
+        ls -l
+        pwd
+
+    - name: Build libstell
+      run: |
+        set -ex
+        cd STELLOPT
+        ls
+        ./build_all -o release -j 2 LIBSTELL
+        ls -l
+
+    - name: Verify libstell.so was built
+      run: |
+        pwd
+        ls STELLOPT/LIBSTELL/Release
+
+    - name: Add STELLOPT/bin to LD_LIBRARY_PATH so libstell.so can be found
+      run: echo "::set-env name=LD_LIBRARY_PATH::/home/runner/work/simsopt/simsopt/STELLOPT/bin"
+
+    - name: ls -l /
+      run: |
+        set -ex
+        ls -l /
+
+    - name: env
+      run: env
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -120,82 +101,77 @@ jobs:
     - name: which pip after python setup
       run: pip --version
 
-    - name: ls -l /__t/Python/3.x/x64/bin
-      run: ls -l $pythonLocation/bin
+    - name: which pip using sudo
+      run: sudo pip --version
 
-    - name: ls -l /__t/Python/3.x/x64
-      run: ls -l $pythonLocation
+    - name: which pip using sudo -E
+      run: sudo -E pip --version
 
-    - name: ls -l /__t/Python/3.x/x64/lib
-      run: ls -l $pythonLocation/lib
+    - name: which python using sudo
+      run: sudo which python3
 
-    # If this next 'run' block does not appear, there is an error that
-    # the python shared library cannot be found.
-    # See https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions#adding-a-system-path
-    - name: add python path to LD_LIBRARY_PATH
-      run: echo "::set-env name=LD_LIBRARY_PATH::$pythonLocation/lib:/home/STELLOPT/bin"
-      # Above, we need /home/STELLOPT/bin so libstell.so can be found.
+    - name: which python using sudo -E
+      run: sudo -E which python3
 
     - name: env after adding python
       run: env
-
-    - name: Check env for sudo
-      run: echo visitor | sudo -S env
-
-    # Environment variables are not passed through sudo unless the -E flag is present:
-    - name: Check env for sudo with -E
-      run: echo visitor | sudo -S -E env
-
-    # For some reason, LD_LIBRARY_PATH and PATH do not get passed to sudo correctly
-    # even with -E. These environment variables can however be specified explicitly
-    # as shown here:
-    - name: Check env for sudo with -E and explicit path
-      run: echo visitor | sudo -S -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH env
-
-    - name: which python3 in sudo
-      run: |
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH which python3
-
-    # When running the python tests or "pip install"ing some packages, as of 2020-08-06, this error occurs:
-    # ImportError: libffi.so.6: cannot open shared object file: No such file or directory
-    # There are many reports of this on the web, e.g. https://bugs.python.org/issue40367
-    # An inelegant but effective workaround is to make a symlink to version 7 of the .so library:
-    - name: Symlink libffi.so.7 to libffi.so.6
-      run: |
-        echo visitor | sudo -S ln -s /usr/lib/x86_64-linux-gnu/libffi.so.7 /usr/lib/x86_64-linux-gnu/libffi.so.6
-        ls -l /usr/lib/x86_64-linux-gnu/*
 
     # From sudo, python must be run via $pythonLocation/bin/python for some reason. "python" is not found
     # and "python3" gives the wrong version, the version of python3 that came with the container instead
     # of the version of python3 managed by github actions.
     # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
     # version of pip is used, (the version of python3 that came with the container).
+    # The -H flag is used because otherwise this warning appears:
+    # WARNING: The directory '/home/runner/.cache/pip' or its parent directory is not owned or is not writable by the current user.
+    # The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you may want sudo's -H flag.
     - name: Install python dependencies
       run: |
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
+        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
+        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
+        sudo -H -E $pythonLocation/bin/python -m pip install numpy scipy wheel
+
+    - name: Install Jax
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib
 
     - name: Install mpi4py
       run: |
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin $pythonLocation/bin/python -m pip install mpi4py
-      # In the line above, if LIBRARY_PATH (without LD_) is unspecified, f90wrap installation works for python 3.8, but fails with python3.7 due to an error about finding -lpython3.7m
+        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install f90wrap
-      run: echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
-      # In the line above, if LIBRARY_PATH (without LD_) is unspecified, f90wrap installation works for python 3.8, but fails with python3.7 due to an error about finding -lpython3.7m
+      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
     - name: Build f90wrap-vmec
       run: |
         pwd
-        cd simsopt/vmec
-        echo visitor | sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH LIBRARY_PATH=$pythonLocation/bin make
+        cd src/simsopt/mhd/vmec_f90wrap
+        make
         ls -l
-        # Above, LIBRARY_PATH=$pythonLocation/bin is needed for python 3.7 or else -lpython3.7m cannot be found.
 
-    - name: Run unit tests
-      run: python3 -m unittest -v
+    - name: test f90wrap-vmec
+      run: |
+        cd src/simsopt/mhd/vmec_f90wrap
+        python -c "print(dir()); import vmec_f90wrap; print(dir()); print(dir(vmec_f90wrap))"
+
+    - name: test f90wrap-vmec more
+      run: |
+        cd src/simsopt/mhd/vmec_f90wrap
+        ./test_vmec_f90wrap.py
+
+    - name: Install simsopt package
+      run: pip install -vvv -e .
+      # We install -e (editable mode) because otherwise the vmec.*.so file is not copied to where simsopt is installed, and hence it cannot be found.
+
+    - name: Run mpi unit tests
+      run: ./run_tests_mpi
+
+    - name: Run serial unit tests
+      run: |
+        cd tests/simsopt
+        python3 -m unittest -v
 
     - name: Run 1dof integrated test
       run: |
@@ -203,5 +179,14 @@ jobs:
         cd examples
         python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
 
+    - name: Run 1dof integrated test, 2 procs
+      run: |
+        pwd
+        cd examples
+        mpiexec -n 2 python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+
     - name: Run 2dof integrated test
       run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+
+    - name: Run 2dof integrated test, 2 procs
+      run: cd examples && mpiexec -n 2 python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume

@@ -1,27 +1,33 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the LGPL License
+
 """
 This module provides a class that handles the VMEC equilibrium code.
 """
 
 import logging
 import os.path
-
 import numpy as np
 from mpi4py import MPI
 from monty.dev import requires
 
-from simsopt import *
+from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
 try:
-    from vmec.core import VMEC
-
+    from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
     vmec_found = True
-except ImportError:
+except ImportError as err:
     vmec_found = False
+    print('Unable to load VMEC module, so some functionality will not be available.')
+    print('Reason VMEC module was not loaded:')
+    print(err)
 
+logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 @requires(vmec_found,
           "Running VMEC from simsopt requires VMEC python extension. "
           "Install the VMEC python extension from <link>.")
-class Vmec(Equilibrium):
+class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
     """
@@ -29,15 +35,14 @@ class Vmec(Equilibrium):
         """
         Constructor
         """
-        self.logger = logging.getLogger(__name__)
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'input.default')
-            self.logger.info("Initializing a VMEC object from defaults in " \
+            logger.info("Initializing a VMEC object from defaults in " \
                             + filename)
         else:
-            self.logger.info("Initializing a VMEC object from file: " + filename)
+            logger.info("Initializing a VMEC object from file: " + filename)
 
         # Get MPI communicator:
         comm = MPI.COMM_WORLD
@@ -45,15 +50,14 @@ class Vmec(Equilibrium):
 
         self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
                              verbose=MPI.COMM_WORLD.rank==0)
-
         objstr = " for Vmec " + str(hex(id(self)))
         # nfp and stelsym are initialized by the Equilibrium constructor:
-        Equilibrium.__init__(self)
+        #Equilibrium.__init__(self)
 
-        # For each VMEC input parameter in VMEC's fortran modules, create a Parameter:
+        # For each VMEC input parameter in VMEC's fortran modules, create an attribute
         vi = self.VMEC.indata # Shorthand
-        self.nfp.val = vi.nfp
-        self.stelsym.val = not vi.lasym
+        self.nfp = vi.nfp
+        self.stelsym = not vi.lasym
         # It probably makes sense for a vmec object to have mpol and
         # ntor attributes independent of the boundary, since the
         # boundary may be a kind of surface that does not use the same
@@ -61,66 +65,60 @@ class Vmec(Equilibrium):
         # SurfaceRZFourier, how then should the mpol and ntor of this
         # surface be coordinated with the mpol and ntor of the Vmec
         # object?
-        self.mpol = Parameter(vi.mpol, min=1, name="mpol" + objstr, observers=self.reset)
-        self.ntor = Parameter(vi.ntor, min=0, name="ntor" + objstr, observers=self.reset)
-        self.delt = Parameter(vi.delt, min=0, max=1, name="delt" + objstr, observers=self.reset)
-        self.tcon0 = Parameter(vi.tcon0, name="tcon0" + objstr, observers=self.reset)
-        self.phiedge = Parameter(vi.phiedge, name="phiedge" + objstr, observers=self.reset)
-        self.curtor = Parameter(vi.curtor, name="curtor" + objstr, observers=self.reset)
-        self.gamma = Parameter(vi.gamma, name="gamma" + objstr, observers=self.reset)
-        self.boundary = SurfaceRZFourier(nfp=self.nfp.val, stelsym=self.stelsym.val, \
-                                      mpol=self.mpol.val, ntor=self.ntor.val)
-        self.boundary.rc.set_observers(self.reset)
-        self.boundary.zs.set_observers(self.reset)
-        if not self.stelsym.val:
-            self.boundary.rs.set_observers(self.reset)
-            self.boundary.zc.set_observers(self.reset)
+        self.mpol = vi.mpol
+        self.ntor = vi.ntor
+        self.delt = vi.delt
+        self.tcon0 = vi.tcon0
+        self.phiedge = vi.phiedge
+        self.curtor = vi.curtor
+        self.gamma = vi.gamma
+        self.boundary = optimizable(SurfaceRZFourier(nfp=self.nfp,
+                                         stelsym=self.stelsym, mpol=self.mpol, ntor=self.ntor))
+        self.ncurr = vi.ncurr
+        self.free_boundary = bool(vi.lfreeb)
+        
         # Transfer boundary shape data from fortran to the ParameterArray:
         for m in range(vi.mpol + 1):
             for n in range(-vi.ntor, vi.ntor + 1):
-                self.boundary.get_rc(m, n).val = vi.rbc[101 + n, m]
-                self.boundary.get_zs(m, n).val = vi.zbs[101 + n, m]
+                self.boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+                self.boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
         # Handle a few variables that are not Parameters:
-        self.ncurr = vi.ncurr
-        self.free_boundary = bool(vi.lfreeb)
+        self.depends_on = ["boundary"]
         self.need_to_run_code = True
 
-        # Define a set of all the Parameters:
-        self.params = self.boundary.params.union({self.mpol, self.ntor, \
-                 self.delt, self.tcon0, self.phiedge, self.curtor, self.gamma})
+        self.fixed = np.full(len(self.get_dofs()), True)
+        self.names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        
+    def get_dofs(self):
+        return np.array([self.delt, self.tcon0, self.phiedge, self.curtor, self.gamma])
 
-        # Create the targets:
-        self.aspect = Target(self.params, lambda : self._to_target("aspect"))
-        self.volume = Target(self.params, lambda : self._to_target("volume"))
-        self.iota_edge = Target(self.params, self.compute_iota_edge)
-        self.iota_axis = Target(self.params, self.compute_iota_axis)
-
-    def _to_target(self, name):
-        """
-        Helper function to convert an output of VMEC to a Target.
-        """
-        self.run()
-        return self.VMEC.wout.__getattribute__(name)
-
+    def set_dofs(self, x):
+        self.need_to_run_code = True
+        self.delt = x[0]
+        self.tcon0 = x[1]
+        self.phiedge = x[2]
+        self.curtor = x[3]
+        self.gamma = x[4]
+    
     def run(self):
         """
         Run VMEC, if needed.
         """
         if not self.need_to_run_code:
-            self.logger.info("run() called but no need to re-run VMEC.")
+            logger.info("run() called but no need to re-run VMEC.")
             return
-        self.logger.info("Preparing to run VMEC.")
+        logger.info("Preparing to run VMEC.")
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = self.VMEC.indata
-        vi.nfp = self.nfp.val
-        vi.lasym = int(not self.stelsym.val)
-        vi.delt = self.delt.val
-        vi.phiedge = self.phiedge.val
-        vi.curtor = self.curtor.val
-        vi.gamma = self.gamma.val
+        vi.nfp = self.nfp
+        vi.lasym = int(not self.stelsym)
+        vi.delt = self.delt
+        vi.phiedge = self.phiedge
+        vi.curtor = self.curtor
+        vi.gamma = self.gamma
         # VMEC does not allow mpol or ntor above 101:
-        mpol_capped = np.min((self.boundary.mpol.val, 101))
-        ntor_capped = np.min((self.boundary.ntor.val, 101))
+        mpol_capped = np.min((self.boundary.mpol, 101))
+        ntor_capped = np.min((self.boundary.ntor, 101))
         vi.mpol = mpol_capped
         vi.ntor = ntor_capped
         vi.rbc[:,:] = 0
@@ -128,8 +126,8 @@ class Vmec(Equilibrium):
         # Transfer boundary shape data from the ParameterArray:
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
-                vi.rbc[101 + n, m] = self.boundary.get_rc(m, n).val
-                vi.zbs[101 + n, m] = self.boundary.get_zs(m, n).val
+                vi.rbc[101 + n, m] = self.boundary.get_rc(m, n)
+                vi.zbs[101 + n, m] = self.boundary.get_zs(m, n)
 
         # Set axis shape to something that is obvious wrong (R=0) to
         # trigger vmec's internal guess_axis.f to run. Otherwise the
@@ -143,21 +141,35 @@ class Vmec(Equilibrium):
         vi.zaxis_cs[:] = 0
 
         self.VMEC.reinit()
-        self.logger.info("Running VMEC.")
+        logger.info("Running VMEC.")
         self.VMEC.run()
-        self.logger.info("VMEC run complete. Now loading output.")
+        logger.info("VMEC run complete. Now loading output.")
         self.VMEC.load()
-        self.logger.info("Done loading VMEC output.")
+        logger.info("Done loading VMEC output.")
         self.need_to_run_code = False
 
-    def compute_iota_axis(self):
+    def aspect(self):
+        """
+        Return the plasma aspect ratio.
+        """
+        self.run()
+        return self.VMEC.wout.aspect
+        
+    def volume(self):
+        """
+        Return the volume inside the VMEC last closed flux surface.
+        """
+        self.run()
+        return self.VMEC.wout.volume
+        
+    def iota_axis(self):
         """
         Return the rotational transform on axis
         """
         self.run()
         return self.VMEC.wout.iotaf[0]
 
-    def compute_iota_edge(self):
+    def iota_edge(self):
         """
         Return the rotational transform at the boundary
         """
@@ -195,7 +207,7 @@ class Vmec(Equilibrium):
         This method observes all the parameters so we know to run VMEC
         if any parameters change.
         """
-        self.logger.info("Resetting VMEC")
+        logger.info("Resetting VMEC")
         self.need_to_run_code = True
 
     def finalize(self):
@@ -210,6 +222,6 @@ class Vmec(Equilibrium):
         Print the object in an informative way.
         """
         return "Vmec instance " +str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp.val) + " mpol=" + \
-            str(self.mpol.val) + " ntor=" + str(self.ntor.val) + ")"
+            str(self.nfp) + " mpol=" + \
+            str(self.mpol) + " ntor=" + str(self.ntor) + ")"
 

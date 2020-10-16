@@ -1,3 +1,3 @@
 from .core import *
-__all__ = ['Equilibrium', 'LeastSquaresProblem', 'LeastSquaresTerm',
-           'Parameter', 'Rosenbrock', 'Shape', 'Surface', 'Target']
+from .mhd import *
+#__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm', 'Surface', 'Target']
