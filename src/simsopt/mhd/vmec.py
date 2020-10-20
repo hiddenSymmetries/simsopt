@@ -12,7 +12,7 @@ import numpy as np
 from mpi4py import MPI
 from monty.dev import requires
 
-from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
+from simsopt.core import Optimizable, optimizable, SurfaceRZFourier, MpiPartition
 try:
     from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
     vmec_found = True
@@ -31,7 +31,7 @@ class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
     """
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, mpi=None):
         """
         Constructor
         """
@@ -45,7 +45,11 @@ class Vmec(Optimizable):
             logger.info("Initializing a VMEC object from file: " + filename)
 
         # Get MPI communicator:
-        comm = MPI.COMM_WORLD
+        if mpi is None:
+            self.mpi = MpiPartition(ngroups=1)
+        else:
+            self.mpi = mpi
+        comm = self.mpi.comm_groups
         self.fcomm = comm.py2f()
 
         self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
