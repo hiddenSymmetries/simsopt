@@ -14,7 +14,7 @@ import logging
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user
-from .mpi import proc0, worker_loop, mobilize_workers, stop_workers, CALCULATE_F, CALCULATE_JAC
+from .mpi import MpiPartition, worker_loop, mobilize_workers, stop_workers, CALCULATE_F, CALCULATE_JAC
 #from simsopt import mpi
 #import mpi
 
@@ -75,7 +75,7 @@ class LeastSquaresProblem:
     problem. The class stores a list of LeastSquaresTerm objects.
     """
 
-    def __init__(self, terms):
+    def __init__(self, terms, mpi=None):
         """
         The argument "terms" must be convertable to a list by the
         list() subroutine. Each entry of the resulting list must have
@@ -95,6 +95,10 @@ class LeastSquaresProblem:
                 raise ValueError("Each term in terms must be an instance of " \
                                      "LeastSquaresTerm.")
         self.terms = terms
+        if mpi is None:
+            self.mpi = MpiPartition(ngroups=1)
+        else:
+            self.mpi = mpi
         self._init()
 
     def _init(self):
@@ -189,13 +193,15 @@ class LeastSquaresProblem:
             
         return np.array(jac)
         
-    def solve(self):
+    def solve(self, grad=None):
         """
         Solve the nonlinear-least-squares minimization problem.
         """
         logger.info("Beginning solve.")
         self._init()
-        if not proc0():
+        if grad is None:
+            grad = self.dofs.grad_avail
+        if not self.mpi.proc0_world:
             worker_loop(self.dofs)
             x = np.copy(self.x)
         else:
@@ -203,8 +209,8 @@ class LeastSquaresProblem:
             x0 = np.copy(self.dofs.x)
             #print("x0:",x0)
             # Call scipy.optimize:
-            if self.dofs.grad_avail:
-                logger.info("Using analytic derivatives")
+            if grad:
+                logger.info("Using derivatives")
                 print("Using analytic derivatives")
                 result = least_squares(self.f_proc0, x0, verbose=2, jac=self.jac_proc0)
             else:
