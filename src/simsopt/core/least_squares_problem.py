@@ -14,7 +14,7 @@ import logging
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user
-from .mpi import MpiPartition, worker_loop, mobilize_workers, stop_workers, CALCULATE_F, CALCULATE_JAC
+from .mpi import MpiPartition, CALCULATE_F, CALCULATE_JAC
 #from simsopt import mpi
 #import mpi
 
@@ -202,10 +202,10 @@ class LeastSquaresProblem:
         if grad is None:
             grad = self.dofs.grad_avail
         if not self.mpi.proc0_world:
-            worker_loop(self.dofs)
+            self.mpi.worker_loop(self.dofs)
             x = np.copy(self.x)
         else:
-            # proc 0 does this block.
+            # proc0_world does this block, running the optimization.
             x0 = np.copy(self.dofs.x)
             #print("x0:",x0)
             # Call scipy.optimize:
@@ -218,11 +218,12 @@ class LeastSquaresProblem:
                 print("Using derivative-free method")
                 result = least_squares(self.f_proc0, x0, verbose=2)
 
-            stop_workers()
+            self.mpi.stop_workers()
             logger.info("Completed solve.")
             x = result.x
 
-        MPI.COMM_WORLD.Bcast(x)
+        # Finally, make sure all procs get the optimal state vector.
+        self.mpi.comm_world.Bcast(x)
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
