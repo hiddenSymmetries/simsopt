@@ -5,7 +5,7 @@ sys.path.append('../src')
 from mpi4py import MPI
 import numpy as np
 import logging
-from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, proc0
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, MpiPartition
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -27,9 +27,14 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
+# In the next line, we can adjust how many groups the pool of MPI
+# processes is split into.
+mpi = MpiPartition(ngroups=1)
+mpi.write()
+
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-equil = Vmec()
+equil = Vmec(mpi=mpi)
 surf = equil.boundary
 
 # Set the initial boundary shape. Here is one syntax:
@@ -53,19 +58,20 @@ term1 = LeastSquaresTerm(equil.volume, desired_volume, 1)
 
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
-prob = LeastSquaresProblem([term1])
+prob = LeastSquaresProblem([term1], mpi)
 
-# Solve the minimization problem:
-prob.solve()
+# Solve the minimization problem. We can choose whether to use a
+# derivative-free or derivative-based algorithm.
+prob.solve(grad=False)
 
-logger.debug('Returned from prob.solve()')
-
-if proc0():
+# Make sure all procs call VMEC:
+objective = prob.objective()
+if mpi.proc0_world:
     print("At the optimum,")
     print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
     print(" volume, according to VMEC    = ", equil.volume())
     print(" volume, according to Surface = ", surf.volume())
-    print(" objective function = ", prob.objective())
+    print(" objective function = ", objective)
 
 assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
 assert np.abs(equil.volume() - 0.15) < 1.0e-6

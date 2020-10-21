@@ -5,7 +5,7 @@ from simsopt.core.mpi import MpiPartition
 from mpi4py import MPI
 from simsopt.core.dofs import Dofs
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class TestFunction1():
@@ -148,18 +148,20 @@ class MpiPartitionTests(unittest.TestCase):
         """
         Test the parallel finite-difference Jacobian calculation.
         """
-        for ngroups in range(4):
+        for ngroups in range(1, 4):
             logger.debug('ngroups={}'.format(ngroups))
             mpi = MpiPartition(ngroups=ngroups)
-            #mpi.write()
             o = TestFunction1()
             d = Dofs([o])
             logger.debug('About to do worker loop 1')
             jac = d.fd_jac_par(mpi, centered=False, eps=1e-7)
-            logger.debug('Past fd_jac_par')
             jac_reference = np.array([[5.865176283537110e-01, -6.010834349701177e-01, 2.250910244305793e-01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
+            # While we're at it, also test the serial FD Jacobian:
+            o.set_dofs(np.array([1.2, 0.9, -0.4]))
+            jac = d.fd_jac(centered=False, eps=1e-7)
+            np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
 
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9, -0.4]))
@@ -168,6 +170,10 @@ class MpiPartitionTests(unittest.TestCase):
             jac_reference = np.array([[5.865175337071982e-01, -6.010834789627051e-01, 2.250910093037906e-01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
+            # While we're at it, also test the serial FD Jacobian:
+            o.set_dofs(np.array([1.2, 0.9, -0.4]))
+            jac = d.fd_jac(centered=True, eps=1e-7)
+            np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
 
             # Now try a case with different nparams and nfuncs.
             o = TestFunction2()
@@ -180,6 +186,10 @@ class MpiPartitionTests(unittest.TestCase):
                                       [1.738948636642590e+01, -1.782134355643450e+01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
+            # While we're at it, also test the serial FD Jacobian:
+            o.set_dofs(np.array([1.2, 0.9]))
+            jac = d.fd_jac(centered=False, eps=1e-7)
+            np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
 
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9]))
@@ -191,4 +201,8 @@ class MpiPartitionTests(unittest.TestCase):
                                       [1.738948351093228e+01, -1.782134486205678e+01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
+            # While we're at it, also test the serial FD Jacobian:
+            o.set_dofs(np.array([1.2, 0.9]))
+            jac = d.fd_jac(centered=True, eps=1e-7)
+            np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
             

@@ -184,9 +184,15 @@ class LeastSquaresProblem:
 
         if x is not None:
             self.dofs.set(x)
+
+        if self.dofs.grad_avail:
+            # This next line does the hard work of evaluating the Jacobian:
+            logger.debug('Calling analytic Jacobian')
+            jac = self.dofs.jac()
+        else:
+            logger.debug('Calling parallel finite-difference Jacobian')
+            jac = self.dofs.fd_jac_par(self.mpi)
             
-        # This next line does the hard work of evaluating the Jacobian:
-        jac = self.dofs.jac()
         # Scale rows by sqrt(weight):
         for j in range(self.dofs.nfuncs):
             jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
@@ -201,29 +207,43 @@ class LeastSquaresProblem:
         self._init()
         if grad is None:
             grad = self.dofs.grad_avail
-        if not self.mpi.proc0_world:
-            self.mpi.worker_loop(self.dofs)
-            x = np.copy(self.x)
+
+        x = np.copy(self.x) # For use in Bcast later.
+
+        # Send group leaders and workers into their respective loops
+        self.mpi.together = False
+        if self.mpi.proc0_world:
+            pass
+        elif self.mpi.proc0_groups:
+            self.mpi.leaders_loop(self.dofs)
         else:
+            self.mpi.worker_loop(self.dofs)
+            
+        if self.mpi.proc0_world:
             # proc0_world does this block, running the optimization.
             x0 = np.copy(self.dofs.x)
             #print("x0:",x0)
             # Call scipy.optimize:
             if grad:
                 logger.info("Using derivatives")
-                print("Using analytic derivatives")
+                print("Using derivatives")
                 result = least_squares(self.f_proc0, x0, verbose=2, jac=self.jac_proc0)
             else:
                 logger.info("Using derivative-free method")
                 print("Using derivative-free method")
                 result = least_squares(self.f_proc0, x0, verbose=2)
 
-            self.mpi.stop_workers()
             logger.info("Completed solve.")
             x = result.x
+            self.mpi.stop_leaders() # Proc0_world stops the leaders.
 
+        if self.mpi.proc0_groups:
+            self.mpi.stop_workers() # All group leaders stop their workers.
+
+        self.mpi.together = True
         # Finally, make sure all procs get the optimal state vector.
         self.mpi.comm_world.Bcast(x)
+        logger.debug('After Bcast, x={}'.format(x))
         #print("optimum x:",result.x)
         #print("optimum residuals:",result.fun)
         #print("optimum cost function:",result.cost)
@@ -235,7 +255,7 @@ class LeastSquaresProblem:
         Similar to f, except this version is called only by proc 0 while
         workers are in the worker loop.
         """
-        mobilize_workers(x, CALCULATE_F)
+        self.mpi.mobilize_workers(x, CALCULATE_F)
         return self.f(x)
 
     def jac_proc0(self, x):
@@ -243,5 +263,11 @@ class LeastSquaresProblem:
         Similar to jac, except this version is called only by proc 0 while
         workers are in the worker loop.
         """
-        mobilize_workers(x, CALCULATE_JAC)
+        if self.dofs.grad_avail:
+            # proc0_world calling mobilize_workers will mobilize only group 0.
+            self.mpi.mobilize_workers(x, CALCULATE_JAC)
+        else:
+            # fd_jac_par will be called
+            self.mpi.mobilize_leaders(x)
+            
         return self.jac(x)
