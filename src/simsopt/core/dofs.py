@@ -278,11 +278,12 @@ class Dofs():
                     objx[self.indices[j]] = x[j]
             owner.set_dofs(objx)
 
-    def fd_jac(self, x=None, eps=1e-7):
+    def fd_jac(self, x=None, eps=1e-7, centered=False):
         """
         Compute the finite-difference Jacobian of the functions with
-        respect to all non-fixed degrees of freedom. A
-        centered-difference approximation is used, with step size eps.
+        respect to all non-fixed degrees of freedom. Either a 1-sided
+        or centered-difference approximation is used, with step size
+        eps.
 
         If the argument x is not supplied, the Jacobian will be
         evaluated for the present state vector. If x is supplied, then
@@ -300,20 +301,34 @@ class Dofs():
         logger.info('  x0: ' + str(x0))
 
         jac = np.zeros((self.nfuncs, self.nparams))
-        for j in range(self.nparams):
-            x = np.copy(x0)
-
-            x[j] = x0[j] + eps
-            self.set(x)
-            fplus = np.array([f() for f in self.funcs])
-
-            x[j] = x0[j] - eps
-            self.set(x)
-            fminus = np.array([f() for f in self.funcs])
-
+        if centered:
             # Centered differences:
-            jac[:, j] = (fplus - fminus) / (2 * eps)
+            for j in range(self.nparams):
+                x = np.copy(x0)
 
+                x[j] = x0[j] + eps
+                self.set(x)
+                fplus = np.array([f() for f in self.funcs])
+
+                x[j] = x0[j] - eps
+                self.set(x)
+                fminus = np.array([f() for f in self.funcs])
+
+                jac[:, j] = (fplus - fminus) / (2 * eps)
+        else:
+            # 1-sided differences
+            f0 = np.array([f() for f in self.funcs])
+            for j in range(self.nparams):
+                x = np.copy(x0)
+                x[j] = x0[j] + eps
+                self.set(x)
+                fplus = np.array([f() for f in self.funcs])
+
+                jac[:, j] = (fplus - f0) / eps
+
+        # Weird things may happen if we do not reset the state vector
+        # to x0:
+        self.set(x0)
         return jac
 
 
@@ -405,5 +420,8 @@ class Dofs():
             for j in range(self.nparams):
                 jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / eps
 
+        # Weird things may happen if we do not reset the state vector
+        # to x0:
+        self.set(x0)
         return jac
 

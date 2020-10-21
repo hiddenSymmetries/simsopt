@@ -203,7 +203,6 @@ class VMEC(object):
         self.ictrl[3] = ns_index
         self.ictrl[4] = iseq
         # run VMEC
-        # print("before: ", self.ictrl)
         vmec.runvmec(self.ictrl, input_file, verbose, comm, reset_file)
         self.iter += 1
         self.success = self.ictrl[1] in self.success_code

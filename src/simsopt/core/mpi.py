@@ -13,6 +13,7 @@ import logging
 STOP = 0
 CALCULATE_F = 1
 CALCULATE_JAC = 2
+CALCULATE_FD_JAC = 3
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -77,16 +78,12 @@ class MpiPartition():
             tag = self.rank_world
             self.comm_world.send(data, 0, tag)
             
-    def mobilize_leaders(self, x, action):
-        logger.debug('mobilize_leaders, action={}, x={}'.format(action, x))
+    def mobilize_leaders(self, x):
+        logger.debug('mobilize_leaders, x={}'.format(x))
         if not self.proc0_world:
             raise RuntimeError('Only proc 0 should call mobilize_leaders()')
 
-        # The only action here would be FD Jacobian, right?
-        # First, notify leaders that we will be doing a calculation:
-        if action != CALCULATE_F and action != CALCULATE_JAC:
-            raise ValueError('action must be either CALCULATE_F or CALCULATE_JAC')
-        self.comm_leaders.bcast(action, root=0)
+        self.comm_leaders.bcast(CALCULATE_FD_JAC, root=0)
 
         # Next, broadcast the state vector to leaders:
         self.comm_leaders.bcast(x, root=0)
@@ -107,7 +104,7 @@ class MpiPartition():
     def stop_leaders(self):
         logger.debug('stop_leaders')
         if not self.proc0_world:
-            raise RuntimeError('Only proc 0 should call stop_workers()')
+            raise RuntimeError('Only proc0_world should call stop_leaders()')
 
         data = STOP
         self.comm_leaders.bcast(data, root=0)
@@ -142,20 +139,15 @@ class MpiPartition():
                 self.comm_groups.bcast(STOP, root=0)
                 break
 
-            # If we make it here, we must be doing a calculation, so
-            # receive the state vector:
-            # mpi4py has separate bcast and Bcast functions!!
-            #comm.Bcast(x, root=0)
+            # If we make it here, we must be doing a fd_jac_par
+            # calculation, so receive the state vector: mpi4py has
+            # separate bcast and Bcast functions!!  comm.Bcast(x,
+            # root=0)
             x = self.comm_leaders.bcast(x, root=0)
             logger.debug('leaders_loop x={}'.format(x))
             dofs.set(x)
 
-            if data == CALCULATE_F:
-                dofs.f()
-            elif data == CALCULATE_JAC:
-                dofs.jac()
-            else:
-                raise ValueError('Unexpected data in leaders_loop: {}'.format(data))
+            dofs.fd_jac_par()
 
         logger.debug('leaders_loop end')
 
