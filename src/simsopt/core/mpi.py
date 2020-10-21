@@ -136,7 +136,7 @@ class MpiPartition():
             logger.debug('leaders_loop received {}'.format(data))
             if data == STOP:
                 # Tell workers to stop
-                self.comm_groups.bcast(STOP, root=0)
+                #self.comm_groups.bcast(STOP, root=0)
                 break
 
             # If we make it here, we must be doing a fd_jac_par
@@ -147,7 +147,7 @@ class MpiPartition():
             logger.debug('leaders_loop x={}'.format(x))
             dofs.set(x)
 
-            dofs.fd_jac_par()
+            dofs.fd_jac_par(self)
 
         logger.debug('leaders_loop end')
 

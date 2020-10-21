@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 # In the next line, we can adjust how many groups the pool of MPI
 # processes is split into.
-mpi = MpiPartition(ngroups=1)
+mpi = MpiPartition(ngroups=3)
 mpi.write()
 
 # Initialize VMEC from an input file:
@@ -59,7 +59,7 @@ term2 = LeastSquaresTerm(equil.iota_axis, desired_iota, iota_weight)
 prob = LeastSquaresProblem([term1, term2], mpi)
 
 # Solve the minimization problem:
-prob.solve()
+prob.solve(grad=True)
 
 objective = prob.objective()
 if mpi.proc0_world:

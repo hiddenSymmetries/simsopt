@@ -9,7 +9,7 @@ Simons Stellarator Optimizer Code
 - [ ] Example in which derivatives are available for some functions but not others
 - [x] Example using automatic differentiation
 - [x] Example that uses simsgeo
-- [ ] MPI
+- [x] MPI
 - [ ] SPEC
 - [ ] Standard (non-least-squares) optimization problem
 - [ ] Bound constraints
