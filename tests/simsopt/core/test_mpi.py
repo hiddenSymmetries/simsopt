@@ -4,8 +4,9 @@ import numpy as np
 from simsopt.core.mpi import MpiPartition
 from mpi4py import MPI
 from simsopt.core.dofs import Dofs
+from simsopt.core.least_squares_problem import LeastSquaresTerm, LeastSquaresProblem
 
-#logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class TestFunction1():
@@ -45,6 +46,29 @@ class TestFunction2():
     def f3(self):
         return np.exp(3 + self.x[0] ** 2 - np.exp(self.x[1]))
 
+class TestFunction3:
+    def __init__(self, comm):
+        self.comm = comm
+        self.x = [0., 0.]
+        self.dummy = 42
+
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, x):
+        self.x = x
+
+    def f0(self):
+        # Add some random MPI stuff just for the sake of testing.
+        self.comm.barrier()
+        self.comm.bcast(self.x)
+        return self.x[0] - 1
+
+    def f1(self):
+        self.comm.bcast(self.dummy)
+        self.comm.barrier()
+        return self.x[0] ** 2 - self.x[1]
+    
 class MpiPartitionTests(unittest.TestCase):
     def test_ngroups1(self):
         """
@@ -206,3 +230,18 @@ class MpiPartitionTests(unittest.TestCase):
             jac = d.fd_jac(centered=True, eps=1e-7)
             np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
             
+    def test_parallel_optimization(self):
+        """
+        Test a full least-squares optimization.
+        """
+        for ngroups in range(1, 4):
+            for grad in [True, False]:
+                mpi = MpiPartition(ngroups=ngroups)
+                o = TestFunction3(mpi.comm_groups)
+                term1 = LeastSquaresTerm(o.f0, 0, 1)
+                term2 = LeastSquaresTerm(o.f1, 0, 1)
+                prob = LeastSquaresProblem([term1, term2], mpi)
+                prob.solve(grad=grad)
+                self.assertAlmostEqual(prob.x[0], 1)
+                self.assertAlmostEqual(prob.x[1], 1)
+                
