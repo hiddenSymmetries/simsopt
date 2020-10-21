@@ -53,7 +53,7 @@ class Vmec(Optimizable):
         self.fcomm = comm.py2f()
 
         self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
-                             verbose=MPI.COMM_WORLD.rank==0)
+                             verbose=MPI.COMM_WORLD.rank==0, group=self.mpi.group)
         objstr = " for Vmec " + str(hex(id(self)))
         # nfp and stelsym are initialized by the Equilibrium constructor:
         #Equilibrium.__init__(self)

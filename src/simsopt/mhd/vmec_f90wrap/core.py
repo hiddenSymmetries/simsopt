@@ -47,7 +47,7 @@ value     flag-name             calls routines to...
 """
 
 class VMEC(object):
-    def __init__(self, input_file='', verbose=False, comm=0, **kwargs):
+    def __init__(self, input_file='', verbose=False, comm=0, group=0, **kwargs):
         """Initialization of VMEC runs
 
         Args:
@@ -69,6 +69,7 @@ class VMEC(object):
         self.comm = comm
         assert isinstance(verbose, bool), "verbose is either True or False."
         self.verbose = verbose
+        self.group = group
 
         # re-usable attributs
         self.iter = 0
@@ -184,7 +185,8 @@ class VMEC(object):
                 "be one of [{:}].").format(','.join(run_modes.keys()))
         assert ier==0, "Error flag should be zero at input."
         if input_file is None:
-            input_file = self.input_file+'_{:06d}'.format(self.iter)
+            input_file = self.input_file+'_{:03d}_{:06d}'.format(self.group, self.iter)
+            #input_file = self.input_file+'_{:06d}'.format(self.iter)
         else:
             if 'input.' not in input_file:
                 input_file = 'input.'+input_file
