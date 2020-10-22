@@ -1,4 +1,4 @@
-# simsopt (**Sim**ons *S*tellarator *Opt*imizer Code)
+# simsopt (*Sim*ons *S*tellarator *Opt*imizer Code)
 
 ![GitHub](https://img.shields.io/github/license/hiddensymmetries/simsopt)
 ![Codecov](https://img.shields.io/codecov/c/github/hiddensymmetries/simsopt)
