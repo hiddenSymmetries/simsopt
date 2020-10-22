@@ -1,6 +1,8 @@
 # simsopt
 Simons Stellarator Optimizer Code
 
+![GitHub](https://img.shields.io/github/license/hiddensymmetries/simsopt)
+
 # Status
 
 - [x] Optimization using VMEC
