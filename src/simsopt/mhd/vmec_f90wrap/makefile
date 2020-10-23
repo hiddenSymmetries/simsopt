@@ -70,7 +70,8 @@ ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release
 LIBSRC_WRAP_SOURCES := runvmec.f \
 		    reinit.f90 \
 		    vmec_input.f \
-		    read_wout_mod.f90 parallel_vmec_module.f90
+		    read_wout_mod.f90
+#		    read_wout_mod.f90 parallel_vmec_module.f90
 # object files
 LIBSRC_WRAP_OBJECTS = $(patsubst %.f90,%.o,$(patsubst %.f,%.o, ${LIBSRC_WRAP_SOURCES}))
 
