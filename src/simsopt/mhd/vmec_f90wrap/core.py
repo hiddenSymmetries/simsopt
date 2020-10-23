@@ -20,6 +20,8 @@ run_modes =  {'all': 63,
               'input': 35,  # STELLOPT uses 35; V3FIT uses 7
               'output': 8,
               'main': 45}   # STELLOPT uses 61; V3FIT uses 45
+# 35 = 1 + 2 + 32 = restart + readin + reset_jacdt
+# 45 = 1 + 4 + 8 + 32 = restart + timestep + output + reset_jacdt
 """
 value     flag-name             calls routines to...
 -----     ---------             ---------------------
@@ -128,8 +130,12 @@ class VMEC(object):
         self.ictrl[4] = iseq
         # run VMEC
         print("In core.finalize")
+        #vmec.parallel_vmec_module.parvmec = True
+        #vmec.parallel_vmec_module.ns_resltn = 0 # Sam says "Need to do this otherwise situations arrise which cause problems."
         verbose = True
         vmec.runvmec(self.ictrl, input_file, verbose, self.comm, reset_file)
+        #vmec.parallel_vmec_module.finalizesurfacecomm(vmec.parallel_vmec_module.ns_comm)
+        #vmec.parallel_vmec_module.finalizerunvmec(vmec.parallel_vmec_module.runvmec_comm_world)
 
 
     def reinit(self, **kwargs):
@@ -204,10 +210,18 @@ class VMEC(object):
         self.ictrl[2] = numsteps
         self.ictrl[3] = ns_index
         self.ictrl[4] = iseq
+
+        #vmec.parallel_vmec_module.parvmec = True
+        #vmec.parallel_vmec_module.ns_resltn = 0 # Sam says "Need to do this otherwise situations arrise which cause problems."
+        
         # run VMEC
         vmec.runvmec(self.ictrl, input_file, verbose, comm, reset_file)
         self.iter += 1
         self.success = self.ictrl[1] in self.success_code
+
+        #vmec.parallel_vmec_module.finalizesurfacecomm(vmec.parallel_vmec_module.ns_comm)
+        #vmec.parallel_vmec_module.finalizerunvmec(vmec.parallel_vmec_module.runvmec_comm_world)
+        
         return self.success
 
     def load(self, **kwargs):

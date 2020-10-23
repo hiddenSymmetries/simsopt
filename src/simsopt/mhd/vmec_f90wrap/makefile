@@ -30,9 +30,9 @@ ifeq ($(SFINCS_SYSTEM),macports)
   FC = mpif90-mpich-gcc8
   F90 = mpif90-mpich-gcc8
   FPP = mpif90-mpich-gcc8 -E
-  FPP_F90FLAGS = -x f95-cpp-input -fPIC
+  FPP_F90FLAGS = -x f95-cpp-input -fPIC -g -O0
   FCOMP = mpif90-mpich-gcc8
-  #F2PYFLAGS =
+  F2PYFLAGS = --f90flags="-g -O0"
 endif
 
 CFLAGS = -fPIC #     ==> universal for ifort, gfortran, pgi
@@ -70,7 +70,7 @@ ADDITIONAL_INCLUDES = -I${VMEC_PATH}/Release -I${STELLOPT_PATH}/LIBSTELL/Release
 LIBSRC_WRAP_SOURCES := runvmec.f \
 		    reinit.f90 \
 		    vmec_input.f \
-		    read_wout_mod.f90
+		    read_wout_mod.f90 parallel_vmec_module.f90
 # object files
 LIBSRC_WRAP_OBJECTS = $(patsubst %.f90,%.o,$(patsubst %.f,%.o, ${LIBSRC_WRAP_SOURCES}))
 

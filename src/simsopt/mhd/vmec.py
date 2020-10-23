@@ -206,14 +206,12 @@ class Vmec(Optimizable):
         max_n = np.max((max_n, self.VMEC.indata.ntor))
         return (max_m, max_n)
 
+    """
     def reset(self):
-        """
-        This method observes all the parameters so we know to run VMEC
-        if any parameters change.
-        """
         logger.info("Resetting VMEC")
         self.need_to_run_code = True
-
+    """
+        
     def finalize(self):
         """
         This subroutine deallocates arrays in VMEC so VMEC can be
