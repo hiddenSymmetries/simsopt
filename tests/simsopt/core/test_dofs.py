@@ -181,8 +181,8 @@ class DofsTests(unittest.TestCase):
             o.t.adder2.fixed = np.random.rand(2) > 0.5
             r.fixed = np.random.rand(2) > 0.5
 
-            rtol = 1e-4
-            atol = 1e-4
+            rtol = 1e-3
+            atol = 1e-3
 
             for j in range(4):
                 # Try different sets of the objects:

@@ -6,7 +6,7 @@ from mpi4py import MPI
 from simsopt.core.dofs import Dofs
 from simsopt.core.least_squares_problem import LeastSquaresTerm, LeastSquaresProblem
 
-#logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class TestFunction1():
@@ -47,6 +47,10 @@ class TestFunction2():
         return np.exp(3 + self.x[0] ** 2 - np.exp(self.x[1]))
 
 class TestFunction3:
+    """
+    This is the Rosenbrock function again, but with some unnecessary
+    MPI communication added in order to test optimization with MPI.
+    """
     def __init__(self, comm):
         self.comm = comm
         self.x = [0., 0.]
@@ -59,12 +63,13 @@ class TestFunction3:
         self.x = x
 
     def f0(self):
-        # Add some random MPI stuff just for the sake of testing.
+        # Do some random MPI stuff just for the sake of testing.
         self.comm.barrier()
         self.comm.bcast(self.x)
         return self.x[0] - 1
 
     def f1(self):
+        # Do some random MPI stuff just for the sake of testing.
         self.comm.bcast(self.dummy)
         self.comm.barrier()
         return self.x[0] ** 2 - self.x[1]
