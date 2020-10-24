@@ -105,6 +105,9 @@ class DofsTests(unittest.TestCase):
         self.assertEqual(dofs.all_owners, [obj])
         self.assertEqual(dofs.dof_owners, [obj, obj, obj, obj])
         np.testing.assert_allclose(dofs.indices, [0, 1, 2, 3])
+        dummy = dofs.f() # f must be evaluated before we know nvals_per_func
+        self.assertEqual(list(dofs.nvals_per_func), [1])
+        self.assertEqual(dofs.nvals, 1)
 
         obj.fixed = [True, False, True, False]
         dofs = Dofs([obj.J])
@@ -150,6 +153,9 @@ class DofsTests(unittest.TestCase):
         self.assertEqual(dofs.all_owners, [o1, o2])
         self.assertEqual(dofs.dof_owners, [o1, o1, o1, o2, o2, o2, o2])
         np.testing.assert_allclose(dofs.indices, [0, 1, 2, 0, 1, 2, 3])
+        f = dofs.f() # f must be evaluated before we know nvals_per_func
+        self.assertEqual(list(dofs.nvals_per_func), [1])
+        self.assertEqual(dofs.nvals, 1)
 
         o1.fixed = [True, False, True]
         o2.fixed = [False, False, True, True]
@@ -198,6 +204,8 @@ class DofsTests(unittest.TestCase):
                 jac = dofs.jac()
                 fd_jac = dofs.fd_jac()
                 np.testing.assert_allclose(jac, fd_jac, rtol=rtol, atol=atol)
+                self.assertEqual(dofs.nvals, dofs.nfuncs)
+                self.assertEqual(list(dofs.nvals_per_func), [1] * dofs.nfuncs)
                 
                 print('Diff in Jacobians:', jac - fd_jac)
 

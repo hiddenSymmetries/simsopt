@@ -36,8 +36,6 @@ class LeastSquaresTerm:
     """
 
     def __init__(self, f_in, goal, weight=None, sigma=None):
-        if not isnumber(goal):
-            raise TypeError('goal must be a float or int')
         if (weight is None) and (sigma is None):
             raise ValueError('You must specify either weight or sigma.')
         if (weight is not None) and (sigma is not None):
@@ -58,15 +56,17 @@ class LeastSquaresTerm:
             self.weight = 1.0 / float(sigma * sigma)
 
         self.f_in = function_from_user(f_in)
-        self.goal = float(goal)
-        self.fixed = np.full(0, False)
+        self.goal = goal
+        #self.fixed = np.full(0, False) # What is this line for?
 
     def f_out(self):
         """
         Return the overall value of this least-squares term.
         """
         temp = self.f_in() - self.goal
-        return self.weight * temp * temp 
+        # Below, np.dot works with both scalars and vectors.
+        return self.weight * np.dot(temp, temp)
+    
 
     
 class LeastSquaresProblem:
@@ -148,8 +148,8 @@ class LeastSquaresProblem:
         This method returns the vector of residuals for a given state
         vector x.  This function is passed to scipy.optimize, and
         could be passed to other optimization algorithms too.  This
-        function differs from Dofs.function() because it shifts and
-        scales the terms.
+        function differs from Dofs.f() because it shifts and scales
+        the terms.
 
         If the argument x is not supplied, the residuals will be
         evaluated for the present state vector. If x is supplied, then
@@ -163,8 +163,18 @@ class LeastSquaresProblem:
         # Importantly for MPI, the next line calls the functions in
         # the same order that Dofs.f() does. Proc0 calls this function
         # whereas worker procs call Dofs.f().
-        residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
-        return np.array(residuals)
+        f_unscaled = self.dofs.f()
+        residuals = np.zeros(len(f_unscaled))
+        start_index = 0
+        for j in range(self.dofs.nfuncs):
+            term = self.terms[j]
+            end_index = start_index + self.dofs.nvals_per_func[j]
+            residuals[start_index:end_index] = (f_unscaled[start_index:end_index] - term.goal) \
+                * np.sqrt(term.weight)
+            start_index = end_index
+        #residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for term in self.terms]
+        #return np.array(residuals)
+        return residuals
         
     def jac(self, x=None):
         """
@@ -194,8 +204,13 @@ class LeastSquaresProblem:
             jac = self.dofs.fd_jac_par(self.mpi)
             
         # Scale rows by sqrt(weight):
+        start_index = 0
         for j in range(self.dofs.nfuncs):
-            jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
+            end_index = start_index + self.dofs.nvals_per_func[j]
+            #jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
+            jac[start_index:end_index, :] = jac[start_index:end_index, :] \
+                * np.sqrt(self.terms[j].weight)
+            start_index = end_index
             
         return np.array(jac)
         
