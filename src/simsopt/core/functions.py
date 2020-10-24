@@ -269,3 +269,31 @@ class TestObject2(Optimizable):
         return self.dJ()
 
     
+class Affine(Optimizable):
+    """
+    This class represents a random affine (i.e. linear plus constant)
+    transformation from R^n to R^m.
+    """
+    def __init__(self, nparams, nvals):
+        """
+        nparams = number of independent variables.
+        nvals = number of dependent variables.
+        """
+        self.nparams = nparams
+        self.nvals = nvals
+        self.A = (np.random.rand(nvals, nparams) - 0.5) * 4
+        self.B = (np.random.rand(nvals) - 0.5) * 4
+        self.x = np.zeros(nparams)
+
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, x):
+        self.x = x
+
+    def J(self):
+        return np.matmul(self.A, self.x) + self.B
+
+    def dJ(self):
+        return self.A
+    

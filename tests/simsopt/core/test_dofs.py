@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from simsopt.core.dofs import get_owners, Dofs
-from simsopt.core.functions import Identity, Adder, TestObject2, Rosenbrock
+from simsopt.core.functions import Identity, Adder, TestObject2, Rosenbrock, Affine
 from simsopt.core.optimizable import Target
 
 class GetOwnersTests(unittest.TestCase):
@@ -168,6 +168,52 @@ class DofsTests(unittest.TestCase):
         self.assertEqual(dofs.dof_owners, [o2, o2, o1])
         np.testing.assert_allclose(dofs.indices, [0, 1, 1])
 
+    def test_vector_valued(self):
+        """
+        For a function that returns a vector rather than a scalar, make
+        sure Dofs.f(), Dofs.jac(), and Dofs.fd_jac() behave correctly.
+        """
+        for nparams in range(1, 5):
+            for nvals in range(1, 5):
+                o = Affine(nparams=nparams, nvals=nvals)
+                o.set_dofs((np.random.rand(nparams) - 0.5) * 4)
+                dofs = Dofs([o])
+                np.testing.assert_allclose(dofs.f(), np.matmul(o.A, o.x) + o.B, \
+                                           rtol=1e-13, atol=1e-13)
+                np.testing.assert_allclose(dofs.jac(), o.A, rtol=1e-13, atol=1e-13)
+                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                                           o.A, rtol=1e-7, atol=1e-7)
+        
+    def test_multiple_vector_valued(self):
+        """
+        For a function that returns a vector rather than a scalar, make
+        sure Dofs.f(), Dofs.jac(), and Dofs.fd_jac() behave correctly.
+        """
+        for nparams1 in range(1, 5):
+            for nvals1 in range(1, 5):
+                nparams2 = np.random.randint(1, 6)
+                nparams3 = np.random.randint(1, 6)
+                nvals2 = np.random.randint(1, 6)
+                nvals3 = np.random.randint(1, 6)
+                o1 = Affine(nparams=nparams1, nvals=nvals1)
+                o2 = Affine(nparams=nparams2, nvals=nvals2)
+                o3 = Affine(nparams=nparams3, nvals=nvals3)
+                dofs = Dofs([o1, o2, o3])
+                dofs.set((np.random.rand(nparams1 + nparams2 + nparams3) - 0.5) * 4)
+                f1 = np.matmul(o1.A, o1.x) + o1.B
+                f2 = np.matmul(o2.A, o2.x) + o2.B
+                f3 = np.matmul(o3.A, o3.x) + o3.B
+                np.testing.assert_allclose(dofs.f(), np.concatenate((f1, f2, f3)), \
+                                           rtol=1e-13, atol=1e-13)
+                true_jac = np.zeros((nvals1 + nvals2 + nvals3, nparams1 + nparams2 + nparams3))
+                true_jac[0:nvals1, 0:nparams1] = o1.A
+                true_jac[nvals1:nvals1 + nvals2, nparams1:nparams1 + nparams2] = o2.A
+                true_jac[nvals1 + nvals2:nvals1 + nvals2 + nvals3, \
+                         nparams1 + nparams2:nparams1 + nparams2 + nparams3] = o3.A
+                np.testing.assert_allclose(dofs.jac(), true_jac, rtol=1e-13, atol=1e-13)
+                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                                           true_jac, rtol=1e-7, atol=1e-7)
+        
     def test_Jacobian(self):
         for n in range(1, 20):
             v1 = np.random.rand() * 4 - 2
