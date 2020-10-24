@@ -171,6 +171,8 @@ class Dofs():
         self.funcs = funcs
         self.nfuncs = len(funcs)
         self.nparams = len(x)
+        self.nvals = None # We won't know this until the first function eval.
+        self.nvals_per_func = np.full(self.nfuncs, 0)
         self.dof_owners = dof_owners
         self.indices = np.array(indices)
         self.names = names
@@ -212,7 +214,23 @@ class Dofs():
         if x is not None:
             self.set(x)
 
-        return np.array([f() for f in self.funcs])
+        # Autodetect whether the functions return scalars or vectors.
+        # For now let's do this on every function eval for
+        # simplicity. Maybe there is some speed advantage to only
+        # doing it the first time (if self.nvals is None.)
+        val_list = []
+        for j, func in enumerate(self.funcs):
+            f = func()
+            if isinstance(f, (np.ndarray, list, tuple)):
+                self.nvals_per_func[j] = len(f)
+                val_list.append(np.array(f))
+            else:
+                self.nvals_per_func[j] = 1
+                val_list.append(np.array([f]))
+                
+        logger.debug('Detected nvals_per_func={}'.format(self.nvals_per_func))
+        self.nvals = np.sum(self.nvals_per_func)
+        return np.concatenate(val_list)
     
     def jac(self, x=None):
         """
@@ -230,25 +248,61 @@ class Dofs():
 
         if x is not None:
             self.set(x)
+
+        #grads = [np.array(f()) for f in self.grad_funcs]
+
+        start_indices = np.full(self.nfuncs, 0)
+        end_indices = np.full(self.nfuncs, 0)
         
-        results = np.zeros((self.nfuncs, self.nparams))
+        # First, evaluate all the gradient functions, and autodetect
+        # how many rows there are in the gradient for each function.
+        grads = []
+        for j in range(self.nfuncs):
+            grad = np.array(self.grad_funcs[j]())
+            # Above, we cast to a np.array to be a bit forgiving in
+            # case the user provides something other than a plain 1D
+            # or 2D numpy array. Previously I also had flatten() for
+            # working with Florian's simsgeo function; this may not
+            # work now without the flatten.
+            
+            # Make sure grad is a 2D array (like the Jacobian)
+            if grad.ndim == 1:
+                # In this case, I should perhaps handle the rare case
+                # of a function from R^1 -> R^n with n > 1.
+                grad2D = grad.reshape((1, len(grad)))
+            elif grad.ndim == 2:
+                grad2D = grad
+            else:
+                raise ValueError('gradient should be 1D or 2D')
+
+            grads.append(grad2D)
+            this_nvals = grad2D.shape[0]
+            if self.nvals_per_func[j] > 0:
+                assert self.nvals_per_func[j] == this_nvals, \
+                    "Number of rows in gradient is not consistent with number of entries in the function"
+            else:
+                self.nvals_per_func[j] = this_nvals
+
+            if j > 0:
+                start_indices[j] = end_indices[j - 1]
+            end_indices[j] = start_indices[j] + this_nvals
+                
+        self.nvals = np.sum(self.nvals_per_func)
+            
+        results = np.zeros((self.nvals, self.nparams))
         # Loop over the rows of the Jacobian, i.e. over the functions
         # that were originally provided to Dofs():
         for jfunc in range(self.nfuncs):
-            # Get the gradient of this particular function with
-            # respect to all of it's dofs, which is a different set
-            # from the global dofs:
-            grad = np.array(self.grad_funcs[jfunc]()).flatten()
-            # Above, we cast to a np.array and flatten() to be a bit
-            # forgiving in case the user provides something other than
-            # a plain 1D numpy array.
+            start_index = start_indices[jfunc]
+            end_index = end_indices[jfunc]
+            grad = grads[jfunc]
             
             # Match up the global dofs with the dofs for this particular gradient function:
             for jdof in range(self.nparams):
                 for jgrad in range(len(self.func_indices[jfunc])):
                     # A global dof matches a dof for this function if the owners and indices both match:
                     if self.dof_owners[jdof] == self.func_dof_owners[jfunc][jgrad] and self.indices[jdof] == self.func_indices[jfunc][jgrad]:
-                        results[jfunc, jdof] = grad[jgrad]
+                        results[start_index:end_index, jdof] = grad[:, jgrad]
                         # If we find a match, we can exit the innermost loop:
                         break
                         
@@ -297,32 +351,38 @@ class Dofs():
         logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
 
         x0 = self.x
-        logger.info('  nparams: {}, nfuncs: {}'.format(self.nparams, self.nfuncs))
+        logger.info('  nparams: {}, nfuncs: {}, nvals: {}'.format(self.nparams, self.nfuncs, self.nvals))
         logger.info('  x0: ' + str(x0))
 
-        jac = np.zeros((self.nfuncs, self.nparams))
         if centered:
             # Centered differences:
+            jac = None
             for j in range(self.nparams):
                 x = np.copy(x0)
 
                 x[j] = x0[j] + eps
                 self.set(x)
-                fplus = np.array([f() for f in self.funcs])
+                #fplus = np.array([f() for f in self.funcs])
+                fplus = self.f()
+                if jac is None:
+                    # After the first function evaluation, we now know
+                    # the size of the Jacobian.
+                    jac = np.zeros((self.nvals, self.nparams)) 
 
                 x[j] = x0[j] - eps
                 self.set(x)
-                fminus = np.array([f() for f in self.funcs])
+                fminus = self.f()
 
                 jac[:, j] = (fplus - fminus) / (2 * eps)
         else:
             # 1-sided differences
-            f0 = np.array([f() for f in self.funcs])
+            f0 = self.f()
+            jac = np.zeros((self.nvals, self.nparams))
             for j in range(self.nparams):
                 x = np.copy(x0)
                 x[j] = x0[j] + eps
                 self.set(x)
-                fplus = np.array([f() for f in self.funcs])
+                fplus = self.f()
 
                 jac[:, j] = (fplus - f0) / eps
 
@@ -390,15 +450,33 @@ class Dofs():
             for j in range(self.nparams):
                 xs[:, j + 1] = x0[:]
                 xs[j, j + 1] = x0[j] + eps
+
+        # proc0_world will be responsible for detecting nvals, since
+        #proc0_world always does at least 1 function evaluation. Other
+        #procs cannot be trusted to evaluate nvals because they may
+        #not have any function evals, in which case they never create
+        #"evals", so the MPI reduce would fail.
         
-        evals = np.zeros((self.nfuncs, nevals))
+        #evals = np.zeros((self.nfuncs, nevals))
+        evals = None
+        if not mpi.proc0_world:
+            # All procs other than proc0_world should initialize evals
+            # before the nevals loop, since they may not have any
+            # evals.
+            self.nvals = mpi.comm_leaders.bcast(self.nvals)
+            evals = np.zeros((self.nvals, nevals))
         # Do the hard work of evaluating the functions.
         for j in range(nevals):
             # Handle only this group's share of the work:
             if np.mod(j, mpi.ngroups) == mpi.rank_leaders:
                 mpi.mobilize_workers(xs[:, j], CALCULATE_F)
                 self.set(xs[:, j])
-                evals[:, j] = np.array([f() for f in self.funcs])
+                f = self.f()
+                if evals is None and mpi.proc0_world:
+                    self.nvals = mpi.comm_leaders.bcast(self.nvals)
+                    evals = np.zeros((self.nvals, nevals))
+                evals[:, j] = f
+                #evals[:, j] = np.array([f() for f in self.funcs])
 
         # Combine the results from all groups:
         evals = mpi.comm_leaders.reduce(evals, op=MPI.SUM, root=0)
@@ -411,7 +489,7 @@ class Dofs():
             return None
 
         # Use the evals to form the Jacobian
-        jac = np.zeros((self.nfuncs, self.nparams))
+        jac = np.zeros((self.nvals, self.nparams))
         if centered:
             for j in range(self.nparams):
                 jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (2 * eps)

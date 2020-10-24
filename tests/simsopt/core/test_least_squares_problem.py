@@ -82,12 +82,12 @@ class LeastSquaresTermTests(unittest.TestCase):
 
         # Second and third arguments must be real numbers
         iden = Identity()
-        with self.assertRaises(TypeError):
-            lst = LeastSquaresTerm(iden.J, "hello", sigma=0.1)
+        #with self.assertRaises(TypeError):
+        #    lst = LeastSquaresTerm(iden.J, "hello", sigma=0.1)
         with self.assertRaises(TypeError):
             lst = LeastSquaresTerm(iden.J, 3, sigma=iden)
-        with self.assertRaises(TypeError):
-            lst = LeastSquaresTerm(iden.J, "hello", weight=0.1)
+        #with self.assertRaises(TypeError):
+        #    lst = LeastSquaresTerm(iden.J, "hello", weight=0.1)
         with self.assertRaises(TypeError):
             lst = LeastSquaresTerm(iden.J, 3, weight=iden)
 
