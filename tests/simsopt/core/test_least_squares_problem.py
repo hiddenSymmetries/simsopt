@@ -275,19 +275,36 @@ class LeastSquaresProblemTests(unittest.TestCase):
         self.assertAlmostEqual(iden2.x, 2)
         self.assertAlmostEqual(iden3.x, 6)
 
-    def test_solve_rosenbrock(self):
+    def test_solve_rosenbrock_using_scalars(self):
         """
-        Minimize the Rosenbrock function.
+        Minimize the Rosenbrock function using two separate least-squares
+        terms.
         """
-        r = Rosenbrock()
-        term1 = LeastSquaresTerm(r.term1, 0, sigma=1)
-        term2 = LeastSquaresTerm(r.term2, 0, sigma=1)
-        prob = LeastSquaresProblem([term1, term2])
-        prob.solve()
-        self.assertAlmostEqual(prob.objective(), 0)
-        v = r.get_dofs()
-        self.assertAlmostEqual(v[0], 1)
-        self.assertAlmostEqual(v[1], 1)
+        for grad in [True, False]:
+            r = Rosenbrock()
+            term1 = LeastSquaresTerm(r.term1, 0, sigma=1)
+            term2 = LeastSquaresTerm(r.term2, 0, sigma=1)
+            prob = LeastSquaresProblem([term1, term2])
+            prob.solve(grad=grad)
+            self.assertAlmostEqual(prob.objective(), 0)
+            v = r.get_dofs()
+            self.assertAlmostEqual(v[0], 1)
+            self.assertAlmostEqual(v[1], 1)
+
+    def test_solve_rosenbrock_using_vector(self):
+        """
+        Minimize the Rosenbrock function using a single vector-valued
+        least-squares term.
+        """
+        for grad in [True, False]:
+            r = Rosenbrock()
+            term1 = LeastSquaresTerm(r.terms, 0, weight=1)
+            prob = LeastSquaresProblem([term1])
+            prob.solve(grad=grad)
+            self.assertAlmostEqual(prob.objective(), 0)
+            v = r.get_dofs()
+            self.assertAlmostEqual(v[0], 1)
+            self.assertAlmostEqual(v[1], 1)
 
 if __name__ == "__main__":
     unittest.main()
