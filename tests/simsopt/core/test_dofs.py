@@ -214,6 +214,45 @@ class DofsTests(unittest.TestCase):
                 np.testing.assert_allclose(dofs.fd_jac(centered=True), \
                                            true_jac, rtol=1e-7, atol=1e-7)
         
+    def test_mixed_vector_valued(self):
+        """
+        For a mixture of functions that return a scalar vs return a
+        vector, make sure Dofs.f(), Dofs.jac(), and Dofs.fd_jac()
+        behave correctly.
+        """
+        for nparams1 in range(1, 5):
+            for nvals1 in range(1, 5):
+                nparams2 = np.random.randint(1, 6)
+                nparams3 = np.random.randint(1, 6)
+                nvals2 = np.random.randint(1, 6)
+                nvals3 = np.random.randint(1, 6)
+                o1 = Affine(nparams=nparams1, nvals=nvals1)
+                o2 = Affine(nparams=nparams2, nvals=nvals2)
+                o3 = Affine(nparams=nparams3, nvals=nvals3)
+                a1 = Adder(n=2)
+                a2 = Adder(n=3)
+                dofs = Dofs([o1, o2, a1, o3, a2])
+                dofs.set((np.random.rand(nparams1 + nparams2 + nparams3 + 5) - 0.5) * 4)
+                f1 = np.matmul(o1.A, o1.x) + o1.B
+                f2 = np.matmul(o2.A, o2.x) + o2.B
+                f3 = np.array([a1.f])
+                f4 = np.matmul(o3.A, o3.x) + o3.B
+                f5 = np.array([a2.f])
+                np.testing.assert_allclose(dofs.f(), np.concatenate((f1, f2, f3, f4, f5)), \
+                                           rtol=1e-13, atol=1e-13)
+                true_jac = np.zeros((nvals1 + nvals2 + nvals3 + 2, nparams1 + nparams2 + nparams3 + 5))
+                true_jac[0:nvals1, 0:nparams1] = o1.A
+                true_jac[nvals1:nvals1 + nvals2, nparams1:nparams1 + nparams2] = o2.A
+                true_jac[nvals1 + nvals2:nvals1 + nvals2 + 1, \
+                         nparams1 + nparams2:nparams1 + nparams2 + 2] = np.ones(2)
+                true_jac[nvals1 + nvals2 + 1:nvals1 + nvals2 + 1 + nvals3, \
+                         nparams1 + nparams2 + 2:nparams1 + nparams2 + 2 + nparams3] = o3.A
+                true_jac[nvals1 + nvals2 + 1 + nvals3:nvals1 + nvals2 + nvals3 + 2, \
+                         nparams1 + nparams2 + nparams3 + 2:nparams1 + nparams2 + nparams3 + 5] = np.ones(3)
+                np.testing.assert_allclose(dofs.jac(), true_jac, rtol=1e-13, atol=1e-13)
+                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                                           true_jac, rtol=1e-7, atol=1e-7)
+        
     def test_Jacobian(self):
         for n in range(1, 20):
             v1 = np.random.rand() * 4 - 2
@@ -225,6 +264,7 @@ class DofsTests(unittest.TestCase):
             o.t.adder2.set_dofs(np.random.rand(2) * 4 - 2)
             r = Rosenbrock()
             r.set_dofs(np.random.rand(2) * 3 - 1.5)
+            a = Affine(nparams=3, nvals=3)
 
             # Randomly fix some of the degrees of freedom
             o.fixed = np.random.rand(2) > 0.5
@@ -232,26 +272,35 @@ class DofsTests(unittest.TestCase):
             o.t.adder1.fixed = np.random.rand(3) > 0.5
             o.t.adder2.fixed = np.random.rand(2) > 0.5
             r.fixed = np.random.rand(2) > 0.5
-
+            a.fixed = np.random.rand(3) > 0.5
+            
             rtol = 1e-3
             atol = 1e-3
 
             for j in range(4):
                 # Try different sets of the objects:
                 if j==0:
-                    dofs = Dofs([o.J, r.term2, o.t.J])
+                    dofs = Dofs([o.J, r.terms, o.t.J])
+                    nvals = 4
+                    nvals_per_func = [1, 2, 1]
                 elif j==1:
-                    dofs = Dofs([r.term2, r.term1])
+                    dofs = Dofs([r.term2, r.terms])
+                    nvals = 3
+                    nvals_per_func = [1, 2]
                 elif j==2:
                     dofs = Dofs([r.term2, Target(o.t, 'f'), r.term1, Target(o, 'f')])
+                    nvals = 4
+                    nvals_per_func = [1, 1, 1, 1]
                 elif j==3:
-                    dofs = Dofs([o])
+                    dofs = Dofs([a, o])
+                    nvals = 4
+                    nvals_per_func = [3, 1]
 
                 jac = dofs.jac()
                 fd_jac = dofs.fd_jac()
                 np.testing.assert_allclose(jac, fd_jac, rtol=rtol, atol=atol)
-                self.assertEqual(dofs.nvals, dofs.nfuncs)
-                self.assertEqual(list(dofs.nvals_per_func), [1] * dofs.nfuncs)
+                self.assertEqual(dofs.nvals, nvals)
+                self.assertEqual(list(dofs.nvals_per_func), nvals_per_func)
                 
                 print('Diff in Jacobians:', jac - fd_jac)
 
