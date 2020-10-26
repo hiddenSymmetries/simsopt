@@ -46,13 +46,13 @@ be either a scalar or a 1D numpy array of the same length as that returned by `f
 The function name `J` is special: if `obj` has a function `J` then we can specify just the object, and the function name `J` will be assumed:
 
 ```python
-term2 = simsopt.LeastSquaresTerm(obj, goal, sigma)
+term2 = simsopt.LeastSquaresTerm(obj, goal, weight)
 ```
 
 Or, if we want the objective function to include a `@property` or attribute that is not a function, we can use simsopt's `Target` object, with the attribute or property name as a string. For instance, if `obj` has a property named `prop`, we would write
 
 ```python
-term3 = simsopt.LeastSquaresTerm(simsopt.Target(obj, 'prop'), goal, sigma)
+term3 = simsopt.LeastSquaresTerm(simsopt.Target(obj, 'prop'), goal, weight)
 ```
 
 This more verbose syntax is needed to optimize a property or attribute because `obj.prop` evaluates to a number.
