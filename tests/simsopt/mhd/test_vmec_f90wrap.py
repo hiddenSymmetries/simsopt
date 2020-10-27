@@ -3,13 +3,18 @@ from mpi4py import MPI
 import numpy as np
 import os
 #from simsopt.mhd.vmec_f90wrap.core import run_modes
-from simsopt.mhd.vmec_f90wrap import *
-from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
+try:
+    from simsopt.mhd.vmec_f90wrap import *
+    from simsopt.mhd.vmec_f90wrap import vmec_f90wrap
+    vmec_found = True
+except:
+    vmec_found = False
 from . import TEST_DIR
 
 success_codes = [0, 11]
 reset_file = ''
 
+@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
 class F90wrapVmecTests(unittest.TestCase):
     def setUp(self):
         """
