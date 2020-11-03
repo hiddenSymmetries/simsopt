@@ -112,6 +112,7 @@ C-----------------------------------------------
          END SUBROUTINE initialize_radial
       END INTERFACE
 
+      print *,"runvmec called with ictrl_flag=",ictrl_array(1)
       RUNVMEC_PASS = RUNVMEC_PASS + 1
       CALL second0(rvton)
       CALL MyEnvVariables
