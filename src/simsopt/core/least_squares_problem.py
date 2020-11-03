@@ -13,7 +13,7 @@ from scipy.optimize import least_squares
 import logging
 from .dofs import Dofs
 from .util import isnumber
-from .optimizable import function_from_user
+from .optimizable import function_from_user, Target
 from .mpi import MpiPartition, CALCULATE_F, CALCULATE_JAC
 #from simsopt import mpi
 #import mpi
@@ -77,9 +77,11 @@ class LeastSquaresProblem:
 
     def __init__(self, terms, mpi=None):
         """
-        The argument "terms" must be convertable to a list by the
-        list() subroutine. Each entry of the resulting list must have
-        type LeastSquaresTerm.
+        The argument "terms" must be convertable to a list by the list()
+        subroutine. Each entry of the resulting list must either have
+        type LeastSquaresTerm or else be a list or tuple of the form
+        (function, goal, weight) or (object, attribute_str, goal,
+        weight).
         """
 
         try:
@@ -90,11 +92,31 @@ class LeastSquaresProblem:
         if len(terms) == 0:
             raise ValueError("At least 1 LeastSquaresTerm must be provided " \
                                  "in terms")
+
+        # For each item provided in the list, either convert to a
+        # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
+        # use it directly.
+        self.terms = []
+        msg = 'Each term must be either (1) a LeastSquaresTerm or (2) a list ' \
+            'or tuple of the form (function, goal, weight) or (object, ' \
+            'attribute_str, goal, weight)'
         for term in terms:
-            if not isinstance(term, LeastSquaresTerm):
-                raise ValueError("Each term in terms must be an instance of " \
-                                     "LeastSquaresTerm.")
-        self.terms = terms
+            if isinstance(term, LeastSquaresTerm):
+                self.terms.append(term)
+            else:
+                # Then term should be a list or tuple
+                try:
+                    n = len(term)
+                except:
+                    raise ValueError(msg)
+                
+                if n == 3:
+                    self.terms.append(LeastSquaresTerm(term[0], term[1], term[2]))
+                elif n == 4:
+                    self.terms.append(LeastSquaresTerm(Target(term[0], term[1]), term[2], term[3]))
+                else:
+                    raise ValueError(msg)
+                
         if mpi is None:
             self.mpi = MpiPartition(ngroups=1)
         else:
