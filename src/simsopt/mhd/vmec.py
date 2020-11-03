@@ -12,7 +12,7 @@ import numpy as np
 from mpi4py import MPI
 from monty.dev import requires
 
-from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
+from simsopt.core import Optimizable, optimizable, SurfaceRZFourier, MpiPartition
 try:
     from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
     vmec_found = True
@@ -31,7 +31,7 @@ class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
     """
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, mpi=None):
         """
         Constructor
         """
@@ -45,11 +45,15 @@ class Vmec(Optimizable):
             logger.info("Initializing a VMEC object from file: " + filename)
 
         # Get MPI communicator:
-        comm = MPI.COMM_WORLD
+        if mpi is None:
+            self.mpi = MpiPartition(ngroups=1)
+        else:
+            self.mpi = mpi
+        comm = self.mpi.comm_groups
         self.fcomm = comm.py2f()
 
         self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
-                             verbose=MPI.COMM_WORLD.rank==0)
+                             verbose=MPI.COMM_WORLD.rank==0, group=self.mpi.group)
         objstr = " for Vmec " + str(hex(id(self)))
         # nfp and stelsym are initialized by the Equilibrium constructor:
         #Equilibrium.__init__(self)
@@ -202,14 +206,12 @@ class Vmec(Optimizable):
         max_n = np.max((max_n, self.VMEC.indata.ntor))
         return (max_m, max_n)
 
+    """
     def reset(self):
-        """
-        This method observes all the parameters so we know to run VMEC
-        if any parameters change.
-        """
         logger.info("Resetting VMEC")
         self.need_to_run_code = True
-
+    """
+        
     def finalize(self):
         """
         This subroutine deallocates arrays in VMEC so VMEC can be
