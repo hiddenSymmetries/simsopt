@@ -5,6 +5,9 @@
 """
 This module provides the collect_dofs() function, used by least-squares
 and general optimization problems.
+
+This module should not depend on anything involving communication
+(e.g. MPI) or on specific types of optimization problems.
 """
 
 import numpy as np
@@ -13,7 +16,6 @@ import logging
 from mpi4py import MPI
 from .util import unique
 from .optimizable import function_from_user
-from .mpi import CALCULATE_F
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 

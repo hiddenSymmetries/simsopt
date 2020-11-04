@@ -31,5 +31,5 @@ cd tests/simsopt
 for j in {1..5}
 do
     mpiexec -n $j python -m unittest -k mpi
-    #mpiexec -n $j python -m unittest -v core.test_mpi
+    #mpiexec -n $j python -m unittest -v core.test_mpi -k test_fd_jac
 done
