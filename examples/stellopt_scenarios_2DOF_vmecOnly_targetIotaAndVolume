@@ -5,7 +5,7 @@ import sys
 from mpi4py import MPI
 import numpy as np
 sys.path.append('../src')
-from simsopt import Vmec, LeastSquaresProblem, MpiPartition
+from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -55,10 +55,10 @@ desired_iota = 0.41
 iota_weight = 1
 term2 = (equil.iota_axis, desired_iota, iota_weight)
 
-prob = LeastSquaresProblem([term1, term2], mpi)
+prob = LeastSquaresProblem([term1, term2])
 
 # Solve the minimization problem:
-prob.solve(grad=True)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 objective = prob.objective()
 if mpi.proc0_world:

@@ -3,10 +3,10 @@ from .optimizable import *
 from .surface import *
 from .functions import *
 from .dofs import *
-from .least_squares_problem import *
-from .mpi import MpiPartition, fd_jac_mpi, least_squares_mpi_solve
+from .least_squares_problem import LeastSquaresTerm, LeastSquaresProblem
 from .serial_solve import least_squares_serial_solve
-#from .mpi_solve import least_squares_mpi_solve, fd_jac_mpi
+from .mpi import MpiPartition
+from .mpi_solve import least_squares_mpi_solve, fd_jac_mpi
 
 # This next bit is to suppress a Jax warning:
 import warnings

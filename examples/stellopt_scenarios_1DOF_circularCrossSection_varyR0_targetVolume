@@ -29,7 +29,7 @@ logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 # In the next line, we can adjust how many groups the pool of MPI
 # processes is split into.
-mpi = MpiPartition(ngroups=1)
+mpi = MpiPartition(ngroups=2)
 mpi.write()
 
 # Start with a default surface, which is axisymmetric with major
@@ -46,8 +46,9 @@ surf.set_zs(0, 1, 0.1)
 surf.set_rc(1, 0, 0.1)
 surf.set_zs(1, 0, 0.1)
 
-# VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
-# You can choose which parameters are optimized by setting their 'fixed' attributes.
+# VMEC parameters are all fixed by default, while surface parameters
+# are all non-fixed by default.  You can choose which parameters are
+# optimized by setting their 'fixed' attributes.
 surf.all_fixed()
 surf.set_fixed('rc(0,0)', False)
 
