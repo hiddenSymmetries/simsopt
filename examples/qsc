@@ -6,7 +6,7 @@ import logging
 sys.path.append('/Users/mattland/pyQSC')
 from qsc import Qsc
 sys.path.append('..')
-from simsopt import optimizable, LeastSquaresProblem, Target
+from simsopt import optimizable, LeastSquaresProblem, least_squares_serial_solve
 
 """
 Optimize the Stellarator Quasisymmetry Construction code
@@ -43,7 +43,7 @@ print(' Max elongation: ', stel.max_elongation)
 print(' objective function: ', prob.objective())
 
 # Solve the minimization problem:
-prob.solve()
+least_squares_serial_solve(prob)
 
 print('At the optimum:')
 print(' Global state vector: ', prob.x)
