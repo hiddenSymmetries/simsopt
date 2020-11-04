@@ -14,9 +14,6 @@ import logging
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user, Target
-from .mpi import MpiPartition, CALCULATE_F, CALCULATE_JAC
-#from simsopt import mpi
-#import mpi
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -75,7 +72,7 @@ class LeastSquaresProblem:
     problem. The class stores a list of LeastSquaresTerm objects.
     """
 
-    def __init__(self, terms, mpi=None):
+    def __init__(self, terms):
         """
         The argument "terms" must be convertable to a list by the list()
         subroutine. Each entry of the resulting list must either have
@@ -117,10 +114,6 @@ class LeastSquaresProblem:
                 else:
                     raise ValueError(msg)
                 
-        if mpi is None:
-            self.mpi = MpiPartition(ngroups=1)
-        else:
-            self.mpi = mpi
         self._init()
 
     def _init(self):
@@ -144,7 +137,7 @@ class LeastSquaresProblem:
         Sets the global state vector to x.
         """
         # Delegate to Dofs:
-        self.dof.set(x)
+        self.dofs.set(x)
     
     def objective(self, x=None):
         """
@@ -198,7 +191,30 @@ class LeastSquaresProblem:
         #return np.array(residuals)
         return residuals
         
-    def jac(self, x=None):
+    def scale_dofs_jac(self, jmat):
+        """
+        Given a Jacobian matrix j for the Dofs() associated to this
+        least-squares problem, return the scaled Jacobian matrix for
+        the least-squares residual terms. This function does not
+        actually compute the Dofs() Jacobian, since sometimes we would
+        compute that directly whereas other times we might compute it
+        with serial or parallel finite differences. The provided jmat
+        is scaled in-place.
+        """
+        logger.info("scale_dofs_jac() called")
+
+        # Scale rows by sqrt(weight):
+        start_index = 0
+        for j in range(self.dofs.nfuncs):
+            end_index = start_index + self.dofs.nvals_per_func[j]
+            #jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
+            jmat[start_index:end_index, :] = jmat[start_index:end_index, :] \
+                * np.sqrt(self.terms[j].weight)
+            start_index = end_index
+            
+        return np.array(jmat)
+    
+    def jac(self, x=None, **kwargs):
         """
         This method gives the Jacobian of the residuals with respect to
         the parameters, if it is available, given the state vector
@@ -211,100 +227,22 @@ class LeastSquaresProblem:
         evaluated for the present state vector. If x is supplied, then
         first set_dofs() will be called for each object to set the
         global state vector to x.
+
+        kwargs is passed to Dofs.fd_jac().
         """
         logger.info("jac() called with x=" + str(x))
 
         if x is not None:
             self.dofs.set(x)
 
+        # This next bit does the hard work of evaluating the
+        # Jacobian.
         if self.dofs.grad_avail:
-            # This next line does the hard work of evaluating the Jacobian:
             logger.debug('Calling analytic Jacobian')
-            jac = self.dofs.jac()
+            jmat = self.dofs.jac()
         else:
-            logger.debug('Calling parallel finite-difference Jacobian')
-            jac = self.dofs.fd_jac_par(self.mpi)
-            
-        # Scale rows by sqrt(weight):
-        start_index = 0
-        for j in range(self.dofs.nfuncs):
-            end_index = start_index + self.dofs.nvals_per_func[j]
-            #jac[j, :] = jac[j, :] * np.sqrt(self.terms[j].weight)
-            jac[start_index:end_index, :] = jac[start_index:end_index, :] \
-                * np.sqrt(self.terms[j].weight)
-            start_index = end_index
-            
-        return np.array(jac)
-        
-    def solve(self, grad=None):
-        """
-        Solve the nonlinear-least-squares minimization problem.
-        """
-        logger.info("Beginning solve.")
-        self._init()
-        if grad is None:
-            grad = self.dofs.grad_avail
+            logger.debug('Calling finite_difference Jacobian')
+            jmat = self.dofs.fd_jac(**kwargs)
 
-        x = np.copy(self.x) # For use in Bcast later.
-
-        # Send group leaders and workers into their respective loops
-        self.mpi.together = False
-        if self.mpi.proc0_world:
-            pass
-        elif self.mpi.proc0_groups:
-            self.mpi.leaders_loop(self.dofs)
-        else:
-            self.mpi.worker_loop(self.dofs)
-            
-        if self.mpi.proc0_world:
-            # proc0_world does this block, running the optimization.
-            x0 = np.copy(self.dofs.x)
-            #print("x0:",x0)
-            # Call scipy.optimize:
-            if grad:
-                logger.info("Using derivatives")
-                print("Using derivatives")
-                result = least_squares(self.f_proc0, x0, verbose=2, jac=self.jac_proc0)
-            else:
-                logger.info("Using derivative-free method")
-                print("Using derivative-free method")
-                result = least_squares(self.f_proc0, x0, verbose=2)
-
-            logger.info("Completed solve.")
-            x = result.x
-            self.mpi.stop_leaders() # Proc0_world stops the leaders.
-
-        if self.mpi.proc0_groups:
-            self.mpi.stop_workers() # All group leaders stop their workers.
-
-        self.mpi.together = True
-        # Finally, make sure all procs get the optimal state vector.
-        self.mpi.comm_world.Bcast(x)
-        logger.debug('After Bcast, x={}'.format(x))
-        #print("optimum x:",result.x)
-        #print("optimum residuals:",result.fun)
-        #print("optimum cost function:",result.cost)
-        # Set Parameters to their values for the optimum
-        self.dofs.set(x)
-                
-    def f_proc0(self, x):
-        """
-        Similar to f, except this version is called only by proc 0 while
-        workers are in the worker loop.
-        """
-        self.mpi.mobilize_workers(x, CALCULATE_F)
-        return self.f(x)
-
-    def jac_proc0(self, x):
-        """
-        Similar to jac, except this version is called only by proc 0 while
-        workers are in the worker loop.
-        """
-        if self.dofs.grad_avail:
-            # proc0_world calling mobilize_workers will mobilize only group 0.
-            self.mpi.mobilize_workers(x, CALCULATE_JAC)
-        else:
-            # fd_jac_par will be called
-            self.mpi.mobilize_leaders(x)
-            
-        return self.jac(x)
+        # Scale by sqrt(weight) factor:
+        return self.scale_dofs_jac(jmat)

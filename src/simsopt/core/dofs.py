@@ -343,6 +343,8 @@ class Dofs():
         evaluated for the present state vector. If x is supplied, then
         first get_dofs() will be called for each object to set the
         global state vector to x.
+
+        No parallelization is used here.
         """
 
         if x is not None:
@@ -385,118 +387,6 @@ class Dofs():
                 fplus = self.f()
 
                 jac[:, j] = (fplus - f0) / eps
-
-        # Weird things may happen if we do not reset the state vector
-        # to x0:
-        self.set(x0)
-        return jac
-
-
-    def fd_jac_par(self, mpi, x=None, eps=1e-7, centered=False):
-        """
-        Compute the finite-difference Jacobian of the functions with
-        respect to all non-fixed degrees of freedom. Parallel function
-        evaluations will be used.
-
-        If the argument x is not supplied, the Jacobian will be
-        evaluated for the present state vector. If x is supplied, then
-        first get_dofs() will be called for each object to set the
-        global state vector to x.
-
-        The mpi argument should be an MpiPartition.
-
-        There are 2 ways to call this function. In method 1, all procs
-        (including workers) call this function (so mpi.together is
-        True). In this case, the worker loop will be started
-        automatically. In method 2, the worker loop has already been
-        started before this function is called, as would be the case
-        in LeastSquaresProblem.solve(). Then only the group leaders
-        call this function.
-        """
-
-        together_at_start = mpi.together
-        if mpi.together:
-            mpi.worker_loop(self)
-        if not mpi.proc0_groups:
-            return
-        
-        # Only group leaders execute this next section.
-        
-        if x is not None:
-            self.set(x)
-        
-        logger.info('Beginning parallel finite difference gradient calculation for functions ' + str(self.funcs))
-
-        x0 = self.x
-        # Make sure all leaders have the same x0.
-        mpi.comm_leaders.Bcast(x0)
-        logger.info('  nparams: {}, nfuncs: {}'.format(self.nparams, self.nfuncs))
-        logger.info('  x0: ' + str(x0))
-
-        # Set up the list of parameter values to try
-        if centered:
-            nevals = 2 * self.nparams
-            xs = np.zeros((self.nparams, nevals))
-            for j in range(self.nparams):
-                xs[:, 2 * j] = x0[:] # I don't think I need np.copy(), but not 100% sure.
-                xs[j, 2 * j] = x0[j] + eps
-                xs[:, 2 * j + 1] = x0[:]
-                xs[j, 2 * j + 1] = x0[j] - eps
-        else:
-            # 1-sided differences
-            nevals = self.nparams + 1
-            xs = np.zeros((self.nparams, nevals))
-            xs[:, 0] = x0[:]
-            for j in range(self.nparams):
-                xs[:, j + 1] = x0[:]
-                xs[j, j + 1] = x0[j] + eps
-
-        # proc0_world will be responsible for detecting nvals, since
-        #proc0_world always does at least 1 function evaluation. Other
-        #procs cannot be trusted to evaluate nvals because they may
-        #not have any function evals, in which case they never create
-        #"evals", so the MPI reduce would fail.
-        
-        #evals = np.zeros((self.nfuncs, nevals))
-        evals = None
-        if not mpi.proc0_world:
-            # All procs other than proc0_world should initialize evals
-            # before the nevals loop, since they may not have any
-            # evals.
-            self.nvals = mpi.comm_leaders.bcast(self.nvals)
-            evals = np.zeros((self.nvals, nevals))
-        # Do the hard work of evaluating the functions.
-        for j in range(nevals):
-            # Handle only this group's share of the work:
-            if np.mod(j, mpi.ngroups) == mpi.rank_leaders:
-                mpi.mobilize_workers(xs[:, j], CALCULATE_F)
-                self.set(xs[:, j])
-                f = self.f()
-                if evals is None and mpi.proc0_world:
-                    self.nvals = mpi.comm_leaders.bcast(self.nvals)
-                    evals = np.zeros((self.nvals, nevals))
-                evals[:, j] = f
-                #evals[:, j] = np.array([f() for f in self.funcs])
-
-        # Combine the results from all groups:
-        evals = mpi.comm_leaders.reduce(evals, op=MPI.SUM, root=0)
-
-        if together_at_start:
-            mpi.stop_workers()
-        
-        # Only proc0_world will actually have the Jacobian.
-        if not mpi.proc0_world:
-            return None
-
-        # Use the evals to form the Jacobian
-        jac = np.zeros((self.nvals, self.nparams))
-        if centered:
-            for j in range(self.nparams):
-                jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (2 * eps)
-        else:
-            # 1-sided differences:
-            for j in range(self.nparams):
-                jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / eps
 
         # Weird things may happen if we do not reset the state vector
         # to x0:
