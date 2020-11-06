@@ -1,5 +1,7 @@
-# simsopt
-Simons Stellarator Optimizer Code
+# simsopt (*Sim*ons *S*tellarator *Opt*imizer Code)
+
+![GitHub](https://img.shields.io/github/license/hiddensymmetries/simsopt)
+![Codecov](https://img.shields.io/codecov/c/github/hiddensymmetries/simsopt)
 
 # Status
 
@@ -9,7 +11,7 @@ Simons Stellarator Optimizer Code
 - [ ] Example in which derivatives are available for some functions but not others
 - [x] Example using automatic differentiation
 - [x] Example that uses simsgeo
-- [ ] MPI
+- [x] MPI
 - [ ] SPEC
 - [ ] Standard (non-least-squares) optimization problem
 - [ ] Bound constraints
@@ -32,24 +34,39 @@ objects can be part of an optimization even if they do not directly own a functi
 Suppose we want to solve a least-squares optimization problem in which an object `obj` is optimized. If `obj` has a function `func()`, we can use
 
 ```python
-simsopt.LeastSquaresTerm(obj.func, goal, sigma)
+term1 = simsopt.LeastSquaresTerm(obj.func, goal, weight)
 ```
 
-to create a term `[(obj.func() - goal) / sigma] ** 2` in the least-squares objective function.
+to create a term `((obj.func() - goal) * weight) ** 2` in the least-squares objective function. If
+you prefer, you can specify `sigma = 1 / weight` rather than `weight`, as in 
+`term1 = simsopt.LeastSquaresTerm(obj.func, goal, sigma=0.3)`.
+
+In this example, `func()` could return a scalar, or it could return a 1D numpy array. In the latter case,
+`sum(((obj.func() - goal) * weight) ** 2)` would be included in the objective function, and `goal` could
+be either a scalar or a 1D numpy array of the same length as that returned by `func()`.
 
 The function name `J` is special: if `obj` has a function `J` then we can specify just the object, and the function name `J` will be assumed:
 
 ```python
-simsopt.LeastSquaresTerm(obj, goal, sigma)
+term2 = simsopt.LeastSquaresTerm(obj, goal, weight)
 ```
 
-Or, if we want the objective function to include a @property or attribute that is not a function, we can use simsopt's `Target` object, with the attribute or @property name as a string. For instance, if `obj` has a @property named `prop`, we would write
+Or, if we want the objective function to include a `@property` or attribute that is not a function, we can use simsopt's `Target` object, with the attribute or property name as a string. For instance, if `obj` has a property named `prop`, we would write
 
 ```python
-simsopt.LeastSquaresTerm(simsopt.Target(obj, 'prop'), goal, sigma)
+term3 = simsopt.LeastSquaresTerm(simsopt.Target(obj, 'prop'), goal, weight)
 ```
 
-This more verbose syntax is needed to optimize a @property or attribute because `obj.prop` evaluates to a number.
+This more verbose syntax is needed to optimize a property or attribute because `obj.prop` evaluates to a number.
+As with the previous examples, `prop` could be either a scalar or a 1D numpy array.
+
+The total least-squares objective function is created by listing all the terms that are to be added together:
+
+```python
+prob = LeastSquaresProblem([term1, term2, term3])
+```
+
+The list can include any mixture of terms defined by scalar functions and by 1D numpy array-valued functions.
 
 
 ## Degrees of freedom ("dofs")
