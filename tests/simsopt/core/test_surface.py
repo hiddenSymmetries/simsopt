@@ -177,6 +177,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     fd_jac = dofs.fd_jac()
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
+
+class SurfaceGarabedianTests(unittest.TestCase):
+    def test_convert_back(self):
+        """
+        If we start with a SurfaceRZFourier, convert to Garabedian, and
+        convert back to SurfaceFourier, we should get back what we
+        started with.
+        """
+        for mpol in range(1, 4):
+            for ntor in range(5):
+                for nfp in range(1, 4):
+                    sf1 = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+                    # Set all dofs to random numbers in [-2, 2]:
+                    sf1.set_dofs((np.random.rand(len(sf1.get_dofs())) - 0.5) * 4)
+                    sg = sf1.to_Garabedian()
+                    sf2 = sg.to_RZFourier()
+                    np.testing.assert_allclose(sf1.rc, sf2.rc)
+                    np.testing.assert_allclose(sf1.zs, sf2.zs)
         
 if __name__ == "__main__":
     unittest.main()
