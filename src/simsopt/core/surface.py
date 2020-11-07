@@ -591,10 +591,13 @@ class SurfaceRZFourier(Surface):
     def to_Garabedian(self):
         """
         Return a SurfaceGarabedian object with the identical shape.
+
+        For a derivation of the transformation here, see 
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         if not self.stelsym:
             raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian objects have not been implemented')
-        mmax = np.max((1, self.mpol - 1))
+        mmax = self.mpol + 1
         mmin = np.min((0, 1 - self.mpol))
         s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax, nmin=-self.ntor, nmax=self.ntor)
         for n in range(-self.ntor, self.ntor + 1):
@@ -716,8 +719,7 @@ class SurfaceGarabedian(Surface):
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         mpol = int(np.max((1, self.mmax - 1, 1 - self.mmin)))
-        ntor = int(np.max(self.nmax, -self.nmin))
-        print('mpol:', mpol, '  ntor:', ntor)
+        ntor = int(np.max((self.nmax, -self.nmin)))
         s = SurfaceRZFourier(nfp=self.nfp, stelsym=True, mpol=mpol, ntor=ntor)
         s.set_rc(0, 0, self.get_Delta(1, 0))
         for m in range(mpol + 1):
