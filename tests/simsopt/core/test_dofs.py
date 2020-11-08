@@ -262,7 +262,7 @@ class DofsTests(unittest.TestCase):
             o.t.set_dofs([np.random.rand() * 4 - 2])
             o.t.adder1.set_dofs(np.random.rand(3) * 4 - 2)
             o.t.adder2.set_dofs(np.random.rand(2) * 4 - 2)
-            r = Rosenbrock()
+            r = Rosenbrock(b=3.0)
             r.set_dofs(np.random.rand(2) * 3 - 1.5)
             a = Affine(nparams=3, nvals=3)
 
@@ -274,8 +274,8 @@ class DofsTests(unittest.TestCase):
             r.fixed = np.random.rand(2) > 0.5
             a.fixed = np.random.rand(3) > 0.5
             
-            rtol = 1e-3
-            atol = 1e-3
+            rtol = 1e-6
+            atol = 1e-6
 
             for j in range(4):
                 # Try different sets of the objects:
@@ -298,11 +298,17 @@ class DofsTests(unittest.TestCase):
 
                 jac = dofs.jac()
                 fd_jac = dofs.fd_jac()
+                fd_jac_centered = dofs.fd_jac(centered=True)
+                #print('j=', j, '  Diff in Jacobians:', jac - fd_jac)
+                #print('jac: ', jac)
+                #print('fd_jac: ', fd_jac)
+                #print('fd_jac_centered: ', fd_jac_centered)
+                #print('shapes: jac=', jac.shape, '  fd_jac=', fd_jac.shape, '  fd_jac_centered=', fd_jac_centered.shape)
                 np.testing.assert_allclose(jac, fd_jac, rtol=rtol, atol=atol)
+                np.testing.assert_allclose(fd_jac, fd_jac_centered, rtol=rtol, atol=atol)
                 self.assertEqual(dofs.nvals, nvals)
                 self.assertEqual(list(dofs.nvals_per_func), nvals_per_func)
                 
-                print('Diff in Jacobians:', jac - fd_jac)
 
 if __name__ == "__main__":
     unittest.main()
