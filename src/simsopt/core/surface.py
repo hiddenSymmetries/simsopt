@@ -270,6 +270,8 @@ class SurfaceRZFourier(Surface):
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_rs(self, m, n, val):
         """
@@ -280,6 +282,8 @@ class SurfaceRZFourier(Surface):
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_zc(self, m, n, val):
         """
@@ -290,6 +294,8 @@ class SurfaceRZFourier(Surface):
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_zs(self, m, n, val):
         """
@@ -297,6 +303,8 @@ class SurfaceRZFourier(Surface):
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def area_volume(self):
         """
@@ -630,15 +638,6 @@ class SurfaceGarabedian(Surface):
     shape is parameterized using Garabedian's Delta_{m,n}
     coefficients.
 
-    r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-                     r_{c,m,n} \cos(m \theta - n nfp \phi)
-                     + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
-
-    and the same for z(theta, phi).
-
-    Here, (r, phi, z) are standard cylindrical coordinates, and theta
-    is any poloidal angle.
-
     The present implementation assumes stellarator symmetry. Note that
     non-stellarator-symmetric surfaces require that the Delta_{m,n}
     coefficients be imaginary.
@@ -700,6 +699,8 @@ class SurfaceGarabedian(Surface):
         Set a particular Delta_{m,n} coefficient.
         """
         self.Delta[m - self.mmin, n - self.nmin] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def get_dofs(self):
         """
@@ -755,3 +756,35 @@ class SurfaceGarabedian(Surface):
                 s.set_zs(m, n, Delta1 - Delta2)
 
         return s
+
+    def area_volume(self):
+        """
+        Compute the surface area and the volume enclosed by the surface.
+        """
+        if self.recalculate:
+            logger.info('Running calculation of area and volume')
+        else:
+            logger.info('area_volume called, but no need to recalculate')
+            return
+
+        self.recalculate = False
+
+        # Delegate to the area and volume calculations of SurfaceRZFourier():
+        s = self.to_RZFourier()
+        self._area = s.area()
+        self._volume = s.volume()
+
+    def area(self):
+        """
+        Return the area of the surface.
+        """
+        self.area_volume()
+        return self._area
+
+    def volume(self):
+        """
+        Return the volume of the surface.
+        """
+        self.area_volume()
+        return self._volume
+
