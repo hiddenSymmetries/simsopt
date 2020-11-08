@@ -19,6 +19,7 @@ import numpy as np
 import logging
 from mpi4py import MPI
 from .util import isbool
+from .optimizable import Optimizable
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -102,8 +103,13 @@ def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
 #jit_area_volume_pure = jit(area_volume_pure, static_argnums=(8, 9))
 jit_area_volume_pure = area_volume_pure
 darea_volume_pure = jacrev(area_volume_pure, argnums=(0, 1, 2, 3))
-    
-class Surface:
+
+# Here I have Surface subclass Optimizable, which is convenient while
+# surface.py is part of simsopt instead of being in a separate simsgeo
+# repo. If surface.py is moved to simsgeo, we would no longer have
+# Surface subclass Optimizable. As a result we might need to add
+# optimizable() in a few places, such as vmec.py.
+class Surface(Optimizable):
     """
     Surface is a base class for various representations of toroidal
     surfaces in simsopt.
@@ -588,6 +594,12 @@ class SurfaceRZFourier(Surface):
         self.zs[1:, :] = np.array(v[ntor * 2 + 1 + mpol * (ntor * 2 + 1): \
                                            ntor * 2 + 1 + 2 * mpol * (ntor * 2 + 1)]).reshape(mpol, ntor * 2 + 1)
 
+    def to_RZFourier(self):
+        """
+        No conversion necessary.
+        """
+        return self
+        
     def to_Garabedian(self):
         """
         Return a SurfaceGarabedian object with the identical shape.
@@ -657,6 +669,12 @@ class SurfaceGarabedian(Surface):
         self.set_Delta(1, 0, 1.0)
         self.set_Delta(0, 0, 0.1)
 
+    def __repr__(self):
+        return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
+            str(self.nfp) + ", mmin=" + str(self.mmin) + ", mmax=" + str(self.mmax) \
+            + ", nmin=" + str(self.nmin) + ", nmax=" + str(self.nmax) \
+            + ")"
+
     def allocate(self):
         """
         Create the array for the Delta_{m,n} coefficients.
@@ -667,28 +685,28 @@ class SurfaceGarabedian(Surface):
         myshape = (self.mdim, self.ndim)
         self.Delta = np.zeros(myshape)
         self.names = []
-        for m in range(self.mmin, self.mmax + 1):
-            for n in range(self.nmin, self.nmax + 1):
+        for n in range(self.nmin, self.nmax + 1):
+            for m in range(self.mmin, self.mmax + 1):
                 self.names.append('Delta(' + str(m) + ',' + str(n) + ')')
 
     def get_Delta(self, m, n):
         """
         Return a particular Delta_{m,n} coefficient.
         """
-        return self.Delta[m + self.mmin, n + self.nmin]
+        return self.Delta[m - self.mmin, n - self.nmin]
 
     def set_Delta(self, m, n, val):
         """
         Set a particular Delta_{m,n} coefficient.
         """
-        self.Delta[m + self.mmin, n + self.nmin] = val
+        self.Delta[m - self.mmin, n - self.nmin] = val
 
     def get_dofs(self):
         """
         Return a 1D numpy array with all the degrees of freedom.
         """
         num_dofs = (self.mmax - self.mmin + 1) * (self.nmax - self.nmin + 1)
-        return np.reshape(self.Delta, (num_dofs,))
+        return np.reshape(self.Delta, (num_dofs,), order='F')
 
     def set_dofs(self, v):
         """
@@ -709,7 +727,7 @@ class SurfaceGarabedian(Surface):
         self.recalculate = True
         self.recalculate_derivs = True
 
-        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1))
+        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
 
     def to_RZFourier(self):
         """
