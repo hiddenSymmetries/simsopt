@@ -203,16 +203,16 @@ class TestObject1(Optimizable):
         return np.array([self.val])
     
     def J(self):
-        return (self.val + 2 * self.adder1.J()) / (3 + self.adder2.J())
+        return (self.val + 2 * self.adder1.J()) / (10.0 + self.adder2.J())
 
     def dJ(self):
         v = self.val
         a1 = self.adder1.J()
         a2 = self.adder2.J()
-        # J = (v + 2 * a1) / (3 + a2)
-        return np.concatenate((np.array([1.0 / (3 + a2)]),
-                               np.full(self.adder1.n, 2.0 / (3 + a2)),
-                               np.full(self.adder2.n, -(v + 2 * a1) / ((3 + a2) ** 2))))
+        # J = (v + 2 * a1) / (10 + a2)
+        return np.concatenate((np.array([1.0 / (10.0 + a2)]),
+                               np.full(self.adder1.n, 2.0 / (10.0 + a2)),
+                               np.full(self.adder2.n, -(v + 2 * a1) / ((10.0 + a2) ** 2))))
     @property
     def f(self):
         """

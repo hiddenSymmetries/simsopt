@@ -358,6 +358,19 @@ class Dofs():
         logger.info('  nparams: {}, nfuncs: {}, nvals: {}'.format(self.nparams, self.nfuncs, self.nvals))
         logger.info('  x0: ' + str(x0))
 
+        # Handle the rare case in which nparams==0, so the Jacobian
+        # has size (nvals, 0):
+        if self.nparams == 0:
+            if self.nvals is None:
+                # We don't know nvals yet. In this case, we could
+                # either do a function eval to determine it, or
+                # else return a 2d array of size (1,0), which is
+                # probably the wrong size. For safety, let's do a
+                # function eval to determine nvals.
+                f = self.f()
+            jac = np.zeros((self.nvals, self.nparams))
+            return jac
+        
         if centered:
             # Centered differences:
             jac = None
@@ -378,6 +391,7 @@ class Dofs():
                 fminus = self.f()
 
                 jac[:, j] = (fplus - fminus) / (2 * eps)
+                
         else:
             # 1-sided differences
             f0 = self.f()
