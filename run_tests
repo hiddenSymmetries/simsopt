@@ -18,7 +18,7 @@ cd tests/simsopt
 #python -m unittest -v simsopt.tests.test_mpi
 
 # Example of running a specific test that matches a pattern:
-#python -m unittest -v -k Garabedian
+#python -m unittest -v -k integrated
 
 # Run all tests:
 python -m unittest -v
