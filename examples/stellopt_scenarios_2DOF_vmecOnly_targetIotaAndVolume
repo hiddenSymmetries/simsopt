@@ -5,7 +5,7 @@ import sys
 from mpi4py import MPI
 import numpy as np
 sys.path.append('../src')
-from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, MpiPartition
+from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 # In the next line, we can adjust how many groups the pool of MPI
 # processes is split into.
-mpi = MpiPartition(ngroups=2)
+mpi = MpiPartition(ngroups=3)
 mpi.write()
 
 # Initialize VMEC from an input file:
@@ -45,21 +45,20 @@ surf.set_fixed('rc(1,1)', False)
 surf.set_fixed('zs(1,1)', False)
 
 # Each Target is then equipped with a shift and weight, to become a
-# term in a least-squares objective function
+# term in a least-squares objective function.  A list of terms are
+# combined to form a nonlinear-least-squares problem.
 desired_volume = 0.15
 volume_weight = 1
-term1 = LeastSquaresTerm(equil.volume, desired_volume, volume_weight)
+term1 = (equil.volume, desired_volume, volume_weight)
 
 desired_iota = 0.41
 iota_weight = 1
-term2 = LeastSquaresTerm(equil.iota_axis, desired_iota, iota_weight)
+term2 = (equil.iota_axis, desired_iota, iota_weight)
 
-# A list of terms are combined to form a nonlinear-least-squares
-# problem.
-prob = LeastSquaresProblem([term1, term2], mpi)
+prob = LeastSquaresProblem([term1, term2])
 
 # Solve the minimization problem:
-prob.solve(grad=True)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 objective = prob.objective()
 if mpi.proc0_world:

@@ -3,7 +3,10 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module contains functions related to MPI parallelization.
+This module contains the MpiPartition class.
+
+This module should be completely self-contained, depending only on
+mpi4py and numpy, not on any other simsopt components.
 """
 
 import numpy as np
@@ -11,15 +14,16 @@ from mpi4py import MPI
 import logging
 
 STOP = 0
-CALCULATE_F = 1
-CALCULATE_JAC = 2
-CALCULATE_FD_JAC = 3
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class MpiPartition():
+    """
+    This module contains functions related to dividing up the set of
+    MPI processors into groups, each of which can work together.
+    """
     def __init__(self, ngroups=None, comm_world=MPI.COMM_WORLD):
-        self.together = True
+        self.is_apart = False
         self.comm_world = comm_world
         self.rank_world = comm_world.Get_rank()
         self.nprocs_world = comm_world.Get_size()
@@ -78,28 +82,19 @@ class MpiPartition():
             tag = self.rank_world
             self.comm_world.send(data, 0, tag)
             
-    def mobilize_leaders(self, x):
-        logger.debug('mobilize_leaders, x={}'.format(x))
+    def mobilize_leaders(self, action_const):
+        logger.debug('mobilize_leaders, action_const={}'.format(action_const))
         if not self.proc0_world:
-            raise RuntimeError('Only proc 0 should call mobilize_leaders()')
+            raise RuntimeError('Only proc0_world should call mobilize_leaders()')
 
-        self.comm_leaders.bcast(CALCULATE_FD_JAC, root=0)
+        self.comm_leaders.bcast(action_const, root=0)
 
-        # Next, broadcast the state vector to leaders:
-        self.comm_leaders.bcast(x, root=0)
-
-    def mobilize_workers(self, x, action):
-        logger.debug('mobilize_workers, action={}, x={}'.format(action, x))
+    def mobilize_workers(self, action_const):
+        logger.debug('mobilize_workers, action_const={}'.format(action_const))
         if not self.proc0_groups:
             raise RuntimeError('Only group leaders should call mobilize_workers()')
 
-        # First, notify workers that we will be doing a calculation:
-        if action != CALCULATE_F and action != CALCULATE_JAC:
-            raise ValueError('action must be either CALCULATE_F or CALCULATE_JAC')
-        self.comm_groups.bcast(action, root=0)
-
-        # Next, broadcast the state vector to workers:
-        self.comm_groups.bcast(x, root=0)
+        self.comm_groups.bcast(action_const, root=0)
 
     def stop_leaders(self):
         logger.debug('stop_leaders')
@@ -108,7 +103,6 @@ class MpiPartition():
 
         data = STOP
         self.comm_leaders.bcast(data, root=0)
-        self.together = True
 
     def stop_workers(self):
         logger.debug('stop_workers')
@@ -117,17 +111,19 @@ class MpiPartition():
 
         data = STOP
         self.comm_groups.bcast(data, root=0)
-        self.together = True
 
-    def leaders_loop(self, dofs):
+    def leaders_loop(self, action):
+        """
+        actions should be a dict where the keys are possible integer
+        constants, and the values are callable functions that are
+        called when the corresponding key is sent from
+        mobilize_leaders.
+        """
         if self.proc0_world:
             logger.debug('proc0_world bypassing leaders_loop')
             return
         
         logger.debug('entering leaders_loop')
-
-        # x is a buffer for receiving the state vector:
-        x = np.empty(dofs.nparams, dtype='d')
 
         while True:
             # Wait for proc 0 to send us something:
@@ -136,32 +132,25 @@ class MpiPartition():
             logger.debug('leaders_loop received {}'.format(data))
             if data == STOP:
                 # Tell workers to stop
-                #self.comm_groups.bcast(STOP, root=0)
                 break
 
-            # If we make it here, we must be doing a fd_jac_par
-            # calculation, so receive the state vector: mpi4py has
-            # separate bcast and Bcast functions!!  comm.Bcast(x,
-            # root=0)
-            x = self.comm_leaders.bcast(x, root=0)
-            logger.debug('leaders_loop x={}'.format(x))
-            dofs.set(x)
-
-            dofs.fd_jac_par(self)
+            # Call the requested function:
+            action(self, data)
 
         logger.debug('leaders_loop end')
 
-    def worker_loop(self, dofs):
-        self.together = False
-        
+    def worker_loop(self, action):
+        """
+        actions should be a dict where the keys are possible integer
+        constants, and the values are callable functions that are
+        called when the corresponding key is sent from
+        mobilize_workers.
+        """
         if self.proc0_groups:
             logger.debug('bypassing worker_loop since proc0_groups')
             return
         
         logger.debug('entering worker_loop')
-
-        # x is a buffer for receiving the state vector:
-        x = np.empty(dofs.nparams, dtype='d')
 
         while True:
             # Wait for the group leader to send us something:
@@ -171,23 +160,33 @@ class MpiPartition():
             if data == STOP:
                 break
 
-            # If we make it here, we must be doing a calculation, so
-            # receive the state vector:
-            # mpi4py has separate bcast and Bcast functions!!
-            #comm.Bcast(x, root=0)
-            x = self.comm_groups.bcast(x, root=0)
-            logger.debug('worker_loop worker x={}'.format(x))
-            dofs.set(x)
-
-            # We don't store or do anything with f() or jac(), because
-            # the group leader will handle that.
-            if data == CALCULATE_F:
-                dofs.f()
-            elif data == CALCULATE_JAC:
-                dofs.jac()
-            else:
-                raise ValueError('Unexpected data in worker_loop')
+            # Call the requested function:
+            action(self, data)
 
         logger.debug('worker_loop end')
-        self.together = True
 
+    def apart(self, leaders_action, workers_action):
+        """
+        Send workers and group leaders off to their respective loops to
+        wait for instructions from their group leader or
+        proc0_world, respectively.
+        """
+        self.is_apart = True
+        if self.proc0_world:
+            pass
+        elif self.proc0_groups:
+            self.leaders_loop(leaders_action)
+        else:
+            self.worker_loop(workers_action)
+
+    def together(self):
+        """
+        Bring workers and group leaders back from their respective loops.
+        """
+        if self.proc0_world:
+            self.stop_leaders() # Proc0_world stops the leaders.
+
+        if self.proc0_groups:
+            self.stop_workers() # All group leaders stop their workers.
+
+        self.is_apart = False

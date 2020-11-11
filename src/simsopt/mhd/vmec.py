@@ -120,18 +120,20 @@ class Vmec(Optimizable):
         vi.phiedge = self.phiedge
         vi.curtor = self.curtor
         vi.gamma = self.gamma
+        # Convert boundary to RZFourier if needed:
+        boundary_RZFourier = self.boundary.to_RZFourier()
         # VMEC does not allow mpol or ntor above 101:
-        mpol_capped = np.min((self.boundary.mpol, 101))
-        ntor_capped = np.min((self.boundary.ntor, 101))
+        mpol_capped = np.min((boundary_RZFourier.mpol, 101))
+        ntor_capped = np.min((boundary_RZFourier.ntor, 101))
         vi.mpol = mpol_capped
         vi.ntor = ntor_capped
         vi.rbc[:,:] = 0
         vi.zbs[:,:] = 0
-        # Transfer boundary shape data from the ParameterArray:
+        # Transfer boundary shape data from the surface object to VMEC:
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
-                vi.rbc[101 + n, m] = self.boundary.get_rc(m, n)
-                vi.zbs[101 + n, m] = self.boundary.get_zs(m, n)
+                vi.rbc[101 + n, m] = boundary_RZFourier.get_rc(m, n)
+                vi.zbs[101 + n, m] = boundary_RZFourier.get_zs(m, n)
 
         # Set axis shape to something that is obvious wrong (R=0) to
         # trigger vmec's internal guess_axis.f to run. Otherwise the
@@ -206,12 +208,6 @@ class Vmec(Optimizable):
         max_n = np.max((max_n, self.VMEC.indata.ntor))
         return (max_m, max_n)
 
-    """
-    def reset(self):
-        logger.info("Resetting VMEC")
-        self.need_to_run_code = True
-    """
-        
     def finalize(self):
         """
         This subroutine deallocates arrays in VMEC so VMEC can be

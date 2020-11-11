@@ -18,7 +18,7 @@ cd tests/simsopt
 #python -m unittest -v simsopt.tests.test_mpi
 
 # Example of running a specific test that matches a pattern:
-#python -m unittest -v -k test_mixed_vector_valued
+#python -m unittest -v -k Jacobian
 
 # Run all tests:
 python -m unittest -v

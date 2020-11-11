@@ -1,10 +1,11 @@
 import logging
 import unittest
 import numpy as np
-from simsopt.core.mpi import MpiPartition
 from mpi4py import MPI
 from simsopt.core.dofs import Dofs
-from simsopt.core.least_squares_problem import LeastSquaresTerm, LeastSquaresProblem
+from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.core.mpi import MpiPartition
+from simsopt.core.mpi_solve import fd_jac_mpi, least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
@@ -183,7 +184,7 @@ class MpiPartitionTests(unittest.TestCase):
             o = TestFunction1()
             d = Dofs([o])
             logger.debug('About to do worker loop 1')
-            jac = d.fd_jac_par(mpi, centered=False, eps=1e-7)
+            jac = fd_jac_mpi(d, mpi, centered=False, eps=1e-7)
             jac_reference = np.array([[5.865176283537110e-01, -6.010834349701177e-01, 2.250910244305793e-01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
@@ -195,7 +196,7 @@ class MpiPartitionTests(unittest.TestCase):
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9, -0.4]))
             logger.debug('About to do worker loop 2')
-            jac = d.fd_jac_par(mpi, centered=True, eps=1e-7)
+            jac = fd_jac_mpi(d, mpi, centered=True, eps=1e-7)
             jac_reference = np.array([[5.865175337071982e-01, -6.010834789627051e-01, 2.250910093037906e-01]])
             if mpi.proc0_world:
                 np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
@@ -208,7 +209,7 @@ class MpiPartitionTests(unittest.TestCase):
             o = TestFunction2()
             d = Dofs([o.f0, o.f1, o.f2, o.f3])
             logger.debug('About to do worker loop 3')
-            jac = d.fd_jac_par(mpi, centered=False, eps=1e-7)
+            jac = fd_jac_mpi(d, mpi, centered=False, eps=1e-7)
             jac_reference = np.array([[8.657715439008840e-01, -8.872724499564555e-01],
                                       [2.353411054922816e+00, -2.411856577788640e+00],
                                       [6.397234502131255e+00, -6.556105911492693e+00],
@@ -223,7 +224,7 @@ class MpiPartitionTests(unittest.TestCase):
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9]))
             logger.debug('About to do worker loop 4')
-            jac = d.fd_jac_par(mpi, centered=True, eps=1e-7)
+            jac = fd_jac_mpi(d, mpi, centered=True, eps=1e-7)
             jac_reference = np.array([[8.657714037352271e-01, -8.872725151820582e-01],
                                       [2.353410674116319e+00, -2.411856754314101e+00],
                                       [6.397233469623842e+00, -6.556106388888594e+00],
@@ -243,10 +244,10 @@ class MpiPartitionTests(unittest.TestCase):
             for grad in [True, False]:
                 mpi = MpiPartition(ngroups=ngroups)
                 o = TestFunction3(mpi.comm_groups)
-                term1 = LeastSquaresTerm(o.f0, 0, 1)
-                term2 = LeastSquaresTerm(o.f1, 0, 1)
-                prob = LeastSquaresProblem([term1, term2], mpi)
-                prob.solve(grad=grad)
+                term1 = (o.f0, 0, 1)
+                term2 = (o.f1, 0, 1)
+                prob = LeastSquaresProblem([term1, term2])
+                least_squares_mpi_solve(prob, mpi, grad=grad)
                 self.assertAlmostEqual(prob.x[0], 1)
                 self.assertAlmostEqual(prob.x[1], 1)
                 

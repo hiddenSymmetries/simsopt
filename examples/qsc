@@ -6,14 +6,14 @@ import logging
 sys.path.append('/Users/mattland/pyQSC')
 from qsc import Qsc
 sys.path.append('..')
-from simsopt import optimizable, LeastSquaresTerm, LeastSquaresProblem, Target
+from simsopt import optimizable, LeastSquaresProblem, least_squares_serial_solve
 
 """
 Optimize the Stellarator Quasisymmetry Construction code
 https://github.com/landreman/pyQSC
 """
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 
 stel = optimizable(Qsc(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31))
 print('Initial dofs: ', stel.get_dofs())
@@ -27,13 +27,12 @@ stel.set_fixed('etabar', False)
 
 # Each target function is then equipped with a shift and weight, to
 # become a term in a least-squares objective function
-term1 = LeastSquaresTerm(Target(stel, 'iota'), -0.5, weight=1.0)
-term2 = LeastSquaresTerm(Target(stel, 'max_elongation'), 0.0, weight=0.0001)
+term1 = (stel, 'iota', -0.5, 1.0)
+term2 = (stel, 'max_elongation', 0.0, 0.0001)
 # Note the weight on elongation must be much smaller than the weight on iota!
 
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
-#prob = LeastSquaresProblem([term1])
 prob = LeastSquaresProblem([term1, term2])
 
 print('Before optimization:')
@@ -44,7 +43,7 @@ print(' Max elongation: ', stel.max_elongation)
 print(' objective function: ', prob.objective())
 
 # Solve the minimization problem:
-prob.solve()
+least_squares_serial_solve(prob)
 
 print('At the optimum:')
 print(' Global state vector: ', prob.x)

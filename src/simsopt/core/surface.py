@@ -19,6 +19,7 @@ import numpy as np
 import logging
 from mpi4py import MPI
 from .util import isbool
+from .optimizable import Optimizable
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -102,8 +103,13 @@ def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
 #jit_area_volume_pure = jit(area_volume_pure, static_argnums=(8, 9))
 jit_area_volume_pure = area_volume_pure
 darea_volume_pure = jacrev(area_volume_pure, argnums=(0, 1, 2, 3))
-    
-class Surface:
+
+# Here I have Surface subclass Optimizable, which is convenient while
+# surface.py is part of simsopt instead of being in a separate simsgeo
+# repo. If surface.py is moved to simsgeo, we would no longer have
+# Surface subclass Optimizable. As a result we might need to add
+# optimizable() in a few places, such as vmec.py.
+class Surface(Optimizable):
     """
     Surface is a base class for various representations of toroidal
     surfaces in simsopt.
@@ -264,6 +270,8 @@ class SurfaceRZFourier(Surface):
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_rs(self, m, n, val):
         """
@@ -274,6 +282,8 @@ class SurfaceRZFourier(Surface):
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_zc(self, m, n, val):
         """
@@ -284,6 +294,8 @@ class SurfaceRZFourier(Surface):
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def set_zs(self, m, n, val):
         """
@@ -291,6 +303,8 @@ class SurfaceRZFourier(Surface):
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
 
     def area_volume(self):
         """
@@ -587,3 +601,190 @@ class SurfaceRZFourier(Surface):
                                            ntor * 2 + 1 + mpol * (ntor * 2 + 1)]
         self.zs[1:, :] = np.array(v[ntor * 2 + 1 + mpol * (ntor * 2 + 1): \
                                            ntor * 2 + 1 + 2 * mpol * (ntor * 2 + 1)]).reshape(mpol, ntor * 2 + 1)
+
+    def to_RZFourier(self):
+        """
+        No conversion necessary.
+        """
+        return self
+        
+    def to_Garabedian(self):
+        """
+        Return a SurfaceGarabedian object with the identical shape.
+
+        For a derivation of the transformation here, see 
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        """
+        if not self.stelsym:
+            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian objects have not been implemented')
+        mmax = self.mpol + 1
+        mmin = np.min((0, 1 - self.mpol))
+        s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax, nmin=-self.ntor, nmax=self.ntor)
+        for n in range(-self.ntor, self.ntor + 1):
+            for m in range(mmin, mmax + 1):
+                Delta = 0
+                if m - 1 >= 0:
+                    Delta = 0.5 * (self.get_rc(m - 1, n) - self.get_zs(m - 1, n))
+                if 1 - m >= 0:
+                    Delta += 0.5 * (self.get_rc(1 - m, -n) + self.get_zs(1 - m, -n))
+                s.set_Delta(m, n, Delta)
+                
+        return s
+
+    
+class SurfaceGarabedian(Surface):
+    """
+    SurfaceGarabedian represents a toroidal surface for which the
+    shape is parameterized using Garabedian's Delta_{m,n}
+    coefficients.
+
+    The present implementation assumes stellarator symmetry. Note that
+    non-stellarator-symmetric surfaces require that the Delta_{m,n}
+    coefficients be imaginary.
+    """
+    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
+        if nmin is None:
+            nmin = -nmax
+        # Perform some validation.
+        if mmax < mmin:
+            raise ValueError("mmin must be >= mmax")
+        if nmax < nmin:
+            raise ValueError("nmin must be >= nmax")
+        if mmax < 1:
+            raise ValueError("mmax must be >= 1")
+        if mmin > 0:
+            raise ValueError("mmin must be <= 0")
+        Surface.__init__(self, nfp=nfp, stelsym=True)
+        self.mmin = mmin
+        self.mmax = mmax
+        self.nmin = nmin
+        self.nmax = nmax
+        self.allocate()
+        self.recalculate = True
+        self.recalculate_derivs = True
+
+        # Initialize to an axisymmetric torus with major radius 1m and
+        # minor radius 0.1m
+        self.set_Delta(1, 0, 1.0)
+        self.set_Delta(0, 0, 0.1)
+
+    def __repr__(self):
+        return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
+            str(self.nfp) + ", mmin=" + str(self.mmin) + ", mmax=" + str(self.mmax) \
+            + ", nmin=" + str(self.nmin) + ", nmax=" + str(self.nmax) \
+            + ")"
+
+    def allocate(self):
+        """
+        Create the array for the Delta_{m,n} coefficients.
+        """
+        logger.info("Allocating SurfaceGarabedian")
+        self.mdim = self.mmax - self.mmin + 1
+        self.ndim = self.nmax - self.nmin + 1
+        myshape = (self.mdim, self.ndim)
+        self.Delta = np.zeros(myshape)
+        self.names = []
+        for n in range(self.nmin, self.nmax + 1):
+            for m in range(self.mmin, self.mmax + 1):
+                self.names.append('Delta(' + str(m) + ',' + str(n) + ')')
+
+    def get_Delta(self, m, n):
+        """
+        Return a particular Delta_{m,n} coefficient.
+        """
+        return self.Delta[m - self.mmin, n - self.nmin]
+
+    def set_Delta(self, m, n, val):
+        """
+        Set a particular Delta_{m,n} coefficient.
+        """
+        self.Delta[m - self.mmin, n - self.nmin] = val
+        self.recalculate = True
+        self.recalculate_derivs = True
+
+    def get_dofs(self):
+        """
+        Return a 1D numpy array with all the degrees of freedom.
+        """
+        num_dofs = (self.mmax - self.mmin + 1) * (self.nmax - self.nmin + 1)
+        return np.reshape(self.Delta, (num_dofs,), order='F')
+
+    def set_dofs(self, v):
+        """
+        Set the shape coefficients from a 1D list/array
+        """
+
+        n = len(self.get_dofs())
+        if len(v) != n:
+            raise ValueError('Input vector should have ' + str(n) + \
+                             ' elements but instead has ' + str(len(v)))
+        
+        # Check whether any elements actually change:
+        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
+            logger.info('set_dofs called, but no dofs actually changed')
+            return
+
+        logger.info('set_dofs called, and at least one dof changed')
+        self.recalculate = True
+        self.recalculate_derivs = True
+
+        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
+
+    def to_RZFourier(self):
+        """
+        Return a SurfaceRZFourier object with the identical shape.
+
+        For a derivation of the transformation here, see 
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        """
+        mpol = int(np.max((1, self.mmax - 1, 1 - self.mmin)))
+        ntor = int(np.max((self.nmax, -self.nmin)))
+        s = SurfaceRZFourier(nfp=self.nfp, stelsym=True, mpol=mpol, ntor=ntor)
+        s.set_rc(0, 0, self.get_Delta(1, 0))
+        for m in range(mpol + 1):
+            nmin = -ntor
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, ntor + 1):
+                Delta1 = 0
+                Delta2 = 0
+                if 1 - m >= self.mmin and -n >= self.nmin and -n <= self.nmax:
+                    Delta1 = self.get_Delta(1 - m, -n)
+                if 1 + m <= self.mmax and n >= self.nmin and n <= self.nmax:
+                    Delta2 = self.get_Delta(1 + m, n)
+                s.set_rc(m, n, Delta1 + Delta2)
+                s.set_zs(m, n, Delta1 - Delta2)
+
+        return s
+
+    def area_volume(self):
+        """
+        Compute the surface area and the volume enclosed by the surface.
+        """
+        if self.recalculate:
+            logger.info('Running calculation of area and volume')
+        else:
+            logger.info('area_volume called, but no need to recalculate')
+            return
+
+        self.recalculate = False
+
+        # Delegate to the area and volume calculations of SurfaceRZFourier():
+        s = self.to_RZFourier()
+        self._area = s.area()
+        self._volume = s.volume()
+
+    def area(self):
+        """
+        Return the area of the surface.
+        """
+        self.area_volume()
+        return self._area
+
+    def volume(self):
+        """
+        Return the volume of the surface.
+        """
+        self.area_volume()
+        return self._volume
+

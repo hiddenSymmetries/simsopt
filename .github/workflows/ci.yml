@@ -185,6 +185,12 @@ jobs:
         cd examples
         mpiexec -n 2 python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
 
+    - name: Run test of Garabedian VMEC optimization, 1 proc
+      run: |
+        pwd
+        cd examples
+        mpiexec -n 1 python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
+
     - name: Run 2dof integrated test
       run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 
