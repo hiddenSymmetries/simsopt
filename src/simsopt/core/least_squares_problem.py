@@ -99,7 +99,10 @@ class LeastSquaresProblem:
             if isinstance(term, LeastSquaresTerm):
                 self.terms.append(term)
             else: # Expect the term to be an Iterable, but don't check
-                lst = LeastSquaresTerm(*term)
+                if len(term) == 4: # 4 item list is a special case
+                    lst = LeastSquaresTerm(Target(*term[:2]), *term[2:])
+                else:
+                    lst = LeastSquaresTerm(*term)
                 self.terms.append(lst)
                                 
         self._init()
