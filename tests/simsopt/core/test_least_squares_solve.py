@@ -108,8 +108,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
             iden3.fixed = [True]
             # Try a mix of explicit LeastSquaresTerms and tuples
             term1 = LeastSquaresTerm(Target(iden1, 'x'), 1, 1)
-            term2 = (iden2, 'x', 2, 1 / 4.)
-            term3 = (iden3, 'x', 3, 1 / 9.)
+            term2 = (iden2, 'x', 2)
+            term3 = (iden3, 'x', 3)
             prob = LeastSquaresProblem([term1, term2, term3])
             solver(prob)
             self.assertAlmostEqual(prob.objective(), 10)
@@ -135,9 +135,9 @@ class LeastSquaresProblemTests(unittest.TestCase):
             iden1.fixed = [True]
             iden3.fixed = [True]
             # Try a mix of explicit LeastSquaresTerms and lists
-            term1 = [iden1, 'f', 1, 1]
-            term2 = [iden2, 'f', 2, 1 / 4.]
-            term3 = LeastSquaresTerm(Target(iden3, 'f'), 3, sigma=3)
+            term1 = [iden1, 'f', 1]
+            term2 = [iden2, 'f', 2]
+            term3 = LeastSquaresTerm.from_sigma(Target(iden3, 'f'), 3, sigma=3)
             prob = LeastSquaresProblem([term1, term2, term3])
             solver(prob)
             self.assertAlmostEqual(prob.objective(), 10)
