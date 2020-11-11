@@ -11,8 +11,11 @@
 - [ ] Example in which derivatives are available for some functions but not others
 - [x] Example using automatic differentiation
 - [x] Example that uses simsgeo
+- [x] Optimize either RBC/ZBS or Garabedian coefficients
 - [x] MPI
 - [ ] SPEC
+- [ ] Boozer-coordinate transformation
+- [ ] epsilon_effective
 - [ ] Standard (non-least-squares) optimization problem
 - [ ] Bound constraints
 - [ ] Nonlinear constraints
@@ -31,42 +34,45 @@ objects can be part of an optimization even if they do not directly own a functi
 
 ## Specifying functions that go into the objective function
 
-Suppose we want to solve a least-squares optimization problem in which an object `obj` is optimized. If `obj` has a function `func()`, we can use
+Suppose we want to solve a least-squares optimization problem in which
+an object `obj` is optimized. If `obj` has a function `func()`, we can
+use a 3-element tuple or list
 
 ```python
-term1 = simsopt.LeastSquaresTerm(obj.func, goal, weight)
+term1 = (obj.func, goal, weight)
 ```
 
-to create a term `((obj.func() - goal) * weight) ** 2` in the least-squares objective function. If
-you prefer, you can specify `sigma = 1 / weight` rather than `weight`, as in 
+to represent a term `weight * ((obj.func() - goal) ** 2)` in the least-squares objective function. If
+you prefer, you can specify `sigma = 1 / sqrt(weight)` rather than `weight` and use the `LeastSquaresTerm` object, as in 
 `term1 = simsopt.LeastSquaresTerm(obj.func, goal, sigma=0.3)`.
 
 In this example, `func()` could return a scalar, or it could return a 1D numpy array. In the latter case,
-`sum(((obj.func() - goal) * weight) ** 2)` would be included in the objective function, and `goal` could
+`sum(weight * ((obj.func() - goal) ** 2))` would be included in the objective function, and `goal` could
 be either a scalar or a 1D numpy array of the same length as that returned by `func()`.
 
 The function name `J` is special: if `obj` has a function `J` then we can specify just the object, and the function name `J` will be assumed:
 
 ```python
-term2 = simsopt.LeastSquaresTerm(obj, goal, weight)
+term2 = (obj, goal, weight)
 ```
 
-Or, if we want the objective function to include a `@property` or attribute that is not a function, we can use simsopt's `Target` object, with the attribute or property name as a string. For instance, if `obj` has a property named `prop`, we would write
+Or, if we want the objective function to include a `@property` or attribute that is not a function, we can use a 4-element tuple or list instead of the 3-element form above. In the 4-element syntax, element 1 is the attribute or property name as a string. For instance, if `obj` has a property named `prop`, we would write
 
 ```python
-term3 = simsopt.LeastSquaresTerm(simsopt.Target(obj, 'prop'), goal, weight)
+term3 = (obj, 'prop', goal, weight)
 ```
 
-This more verbose syntax is needed to optimize a property or attribute because `obj.prop` evaluates to a number.
+This longer syntax is needed to optimize a property or attribute because `obj.prop` evaluates to a number.
 As with the previous examples, `prop` could be either a scalar or a 1D numpy array.
 
-The total least-squares objective function is created by listing all the terms that are to be added together:
+The total least-squares objective function is created using a list or tuple of all the terms that are to be added together:
 
 ```python
 prob = LeastSquaresProblem([term1, term2, term3])
 ```
 
-The list can include any mixture of terms defined by scalar functions and by 1D numpy array-valued functions.
+The list can include any mixture of terms defined by scalar functions
+and by 1D numpy array-valued functions.
 
 
 ## Degrees of freedom ("dofs")

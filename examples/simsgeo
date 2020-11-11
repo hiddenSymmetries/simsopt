@@ -4,7 +4,7 @@ from simsgeo import StelleratorSymmetricCylindricalFourierCurve, CurveLength, Fo
 import numpy as np
 import sys
 sys.path.append('..')
-from simsopt import optimizable, LeastSquaresTerm, LeastSquaresProblem
+from simsopt import optimizable, LeastSquaresProblem
 
 """
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.
@@ -40,12 +40,10 @@ obj.depends_on = ['curve']
 print('Initial curve length: ', obj.J())
 
 # Each target function is then equipped with a shift and weight, to
-# become a term in a least-squares objective function
-term1 = LeastSquaresTerm(obj, 0.0, 1.0)
-
+# become a term in a least-squares objective function.
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
-prob = LeastSquaresProblem([term1])
+prob = LeastSquaresProblem([(obj, 0.0, 1.0)])
 
 # At the initial condition, get the Jacobian two ways: analytic
 # derivatives and finite differencing. The difference should be small.
