@@ -99,7 +99,7 @@ class LeastSquaresTermTests(unittest.TestCase):
             lst = LeastSquaresTerm.from_sigma(iden.J, 3, sigma=0.0)
 
         # Cannot specify both weight and sigma
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             lst = LeastSquaresTerm(iden.J, 3, sigma=1.2, weight=3.4)
         # Must specify either weight or sigma
         with self.assertRaises(ValueError):
