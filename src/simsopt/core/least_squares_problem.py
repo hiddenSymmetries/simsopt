@@ -11,7 +11,6 @@ import numpy as np
 import logging
 import warnings
 
-from collections.abc import Iterable
 from scipy.optimize import least_squares
 from mpi4py import MPI
 from .dofs import Dofs
@@ -86,7 +85,7 @@ class LeastSquaresProblem:
         """
 
         try:
-            terms = list(terms)
+           terms = list(terms)
         except:
             raise ValueError("terms must be convertable to a list by the "
                              "list(terms) command.")
@@ -112,7 +111,7 @@ class LeastSquaresProblem:
 
     def _init(self):
         """
-        Call collect_dofs() on the list of terms to set x, mins, maxs, names, 
+        Call collect_dofs() on the list of terms to set x, mins, maxs, names,
         etc. This is done both when the object is created, so 'objective' 
         works immediately, and also at the start of solve()
         """
@@ -131,8 +130,8 @@ class LeastSquaresProblem:
         """
         Sets the global state vector to x.
         """
+        # Delegate to Dofs:
         if x is not None:
-           # Delegate to Dofs:
             self.dofs.set(x)
         else:
             warnings.warn("Supplied a null object as state vector. Ignoring it")
