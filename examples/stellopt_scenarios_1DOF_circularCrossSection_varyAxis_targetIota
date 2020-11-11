@@ -12,16 +12,16 @@ This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
 example from
 https://github.com/landreman/stellopt_scenarios
 
-This optimization problem has one independent variable, representing
-the mean major radius. The problem also has one objective: the plasma
-volume. There is not actually any need to run an equilibrium code like
-VMEC since the objective function can be computed directly from the
-boundary shape. But this problem is a fast way to test the
-optimization infrastructure with VMEC.
+This example demonstrates optimizing a surface shape using the
+Garabedian representation instead of VMEC's RBC/ZBS representation.
+This optimization problem has one independent variable, the Garabedian
+Delta_{m=1, n=-1} coefficient, representing the helical excursion of
+the magnetic axis. The objective function is (iota - iota_target)^2,
+where iota is measured on the magnetic axis.
 
 Details of the optimum and a plot of the objective function landscape
 can be found here:
-https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
+https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
 """
 
 logging.basicConfig(level=logging.DEBUG)
