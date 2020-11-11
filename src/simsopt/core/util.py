@@ -7,27 +7,30 @@ This module contains small utility functions and classes.
 """
 
 import numpy as np
-from .optimizable import Optimizable
+import numbers
+
 
 def isbool(val):
     """
     Test whether val is any boolean type, either the native python
     bool or numpy's bool_.
     """
-    return isinstance(val, bool) or isinstance(val, np.bool_)
+    return isinstance(val, (bool, np.bool_))
+
 
 def isnumber(val):
     """
     Test whether val is any kind of number, including both native
     python types or numpy types.
     """
-    return isinstance(val, int) or isinstance(val, float) or \
-        isinstance(val, np.int_) or isinstance(val, np.float)
+    return isinstance(val, numbers.Number)
 
-class Struct():
+
+class Struct:
     """
     This class is just a dummy mutable object to which we can add attributes.
     """
+
 
 def unique(inlist):
     """
@@ -45,4 +48,3 @@ def unique(inlist):
             outlist.append(j)
             seen.add(j)
     return outlist
-
