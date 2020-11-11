@@ -88,23 +88,23 @@ class LeastSquaresProblem:
         try:
             terms = list(terms)
         except:
-            raise ValueError("terms must be convertable to a list by the " \
-                                 + "list(terms) command.")
+            raise ValueError("terms must be convertable to a list by the "
+                             "list(terms) command.")
         if len(terms) == 0:
-            raise ValueError("At least 1 LeastSquaresTerm must be provided " \
-                                 "in terms")
+            raise ValueError("At least 1 LeastSquaresTerm must be provided "
+                             "in terms")
 
         # For each item provided in the list, either convert to a
         # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
         # use it directly.
         self.terms = []
-        msg = 'Each term must be either (1) a LeastSquaresTerm or (2) a list ' \
-            'or tuple of the form (function, goal, weight) or (object, ' \
-            'attribute_str, goal, weight)'
+        msg = 'Each term must be either (1) a LeastSquaresTerm or (2) a list '
+              'or tuple of the form (function, goal, weight) or (object, ' 
+              'attribute_str, goal, weight)'
         for term in terms:
             if isinstance(term, LeastSquaresTerm):
                 self.terms.append(term)
-            else: # Expect the term to be an Iterable
+            else: # Expect the term to be an Iterable, but don't check
                 lst = LeastSquaresTerm(*term)
                 self.terms.append(lst)
                                 
