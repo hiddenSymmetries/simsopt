@@ -181,7 +181,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
             prob = LeastSquaresProblem(7)
         with self.assertRaises(ValueError):
             prob = LeastSquaresProblem([])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             prob = LeastSquaresProblem([7, 1])
 
 if __name__ == "__main__":
