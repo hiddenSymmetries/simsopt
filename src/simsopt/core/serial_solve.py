@@ -46,4 +46,4 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
     #print("optimum residuals:",result.fun)
     #print("optimum cost function:",result.cost)
     # Set Parameters to their values for the optimum
-    prob.set(result.x)
+    prob.x = result.x
