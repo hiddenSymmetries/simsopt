@@ -34,7 +34,7 @@ class LeastSquaresTerm:
     def __init__(self, f_in, goal, weight): #=None, sigma=None):
         self.f_in = function_from_user(f_in)
         self.goal = goal
-        if not isnumber(weight):
+        if not isnumber(weight): # Bharat's comment: Do we need this check?
             raise TypeError('Weight must be a float or int')
         if weight < 0:
             raise ValueError('Weight cannot be negative')
@@ -44,14 +44,13 @@ class LeastSquaresTerm:
     @classmethod
     def from_sigma(cls, f_in, goal, sigma):
         """
-        Define the LeastSquaresTerm with sigma = 1 / sqrt(weight) instead of
-        weight, so
+        Define the LeastSquaresTerm with sigma = 1 / sqrt(weight), so
 
         f_out = ((f_in - goal) / sigma) ** 2.
         """
         if sigma == 0:
             raise ValueError('sigma cannot be 0')
-        if not isnumber(sigma):
+        if not isnumber(sigma): # Bharat's comment: Do we need this check?
             raise TypeError('sigma must be a float or int')
         return cls(f_in, goal, 1.0 / float(sigma * sigma))
 
@@ -79,14 +78,11 @@ class LeastSquaresProblem:
         weight).
         """
 
-        try:
-           terms = list(terms)
-        except:
-            raise ValueError("terms must be convertable to a list by the "
-                             "list(terms) command.")
-        if len(terms) == 0:
-            raise ValueError("At least 1 LeastSquaresTerm must be provided "
-                             "in terms")
+        #try:
+        #   terms = list(terms)
+        #except:
+        #    raise ValueError("terms must be convertable to a list by the "
+        #                     "list(terms) command.")
 
         # For each item provided in the list, either convert to a
         # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
@@ -104,7 +100,10 @@ class LeastSquaresProblem:
                 else:
                     lst = LeastSquaresTerm(*term)
                 self.terms.append(lst)
-                                
+
+        if not len(self.terms):
+            raise ValueError("At least 1 LeastSquaresTerm must be as argument")
+
         self._init()
 
     def _init(self):
