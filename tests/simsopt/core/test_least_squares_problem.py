@@ -18,7 +18,7 @@ class LeastSquaresTermTests(unittest.TestCase):
         self.assertEqual(lst.goal, 3)
         self.assertAlmostEqual(lst.weight, 0.1, places=13)
 
-        lst = LeastSquaresTerm(iden.J, 3, sigma=0.1)
+        lst = LeastSquaresTerm.from_sigma(iden.J, 3, sigma=0.1)
         self.assertEqual(lst.f_in, iden.J)
         self.assertEqual(lst.goal, 3)
         self.assertAlmostEqual(lst.weight, 100.0, places=13)
@@ -33,7 +33,8 @@ class LeastSquaresTermTests(unittest.TestCase):
         Test that we can supply an object with a J function instead of a function.
         """
         iden = Identity()
-        lst = LeastSquaresTerm(iden, 3, sigma=0.1) # Note here we supply iden instead of iden.J
+        # Note here we supply iden instead of iden.J
+        lst = LeastSquaresTerm.from_sigma(iden, 3, sigma=0.1)
         self.assertEqual(lst.f_in, iden.J)
         self.assertEqual(lst.goal, 3)
         self.assertAlmostEqual(lst.weight, 100, places=13)
@@ -48,7 +49,7 @@ class LeastSquaresTermTests(unittest.TestCase):
         Test that we can supply a property instead of a function.
         """
         iden = Identity()
-        lst = LeastSquaresTerm(Target(iden, 'f'), 3, sigma=0.1)
+        lst = LeastSquaresTerm.from_sigma(Target(iden, 'f'), 3, sigma=0.1)
         self.assertEqual(lst.goal, 3)
         self.assertAlmostEqual(lst.weight, 100, places=13)
 
@@ -85,7 +86,7 @@ class LeastSquaresTermTests(unittest.TestCase):
         #with self.assertRaises(TypeError):
         #    lst = LeastSquaresTerm(iden.J, "hello", sigma=0.1)
         with self.assertRaises(TypeError):
-            lst = LeastSquaresTerm(iden.J, 3, sigma=iden)
+            lst = LeastSquaresTerm.from_sigma(iden.J, 3, sigma=iden)
         #with self.assertRaises(TypeError):
         #    lst = LeastSquaresTerm(iden.J, "hello", weight=0.1)
         with self.assertRaises(TypeError):
@@ -93,9 +94,9 @@ class LeastSquaresTermTests(unittest.TestCase):
 
         # sigma cannot be zero
         with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, 3, sigma=0)
+            lst = LeastSquaresTerm.from_sigma(iden.J, 3, sigma=0)
         with self.assertRaises(ValueError):
-            lst = LeastSquaresTerm(iden.J, 3, sigma=0.0)
+            lst = LeastSquaresTerm.from_sigma(iden.J, 3, sigma=0.0)
 
         # Cannot specify both weight and sigma
         with self.assertRaises(ValueError):
@@ -116,7 +117,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         # Objective function f(x) = ((x - 3) / 2) ** 2
         iden1 = Identity()
-        term1 = LeastSquaresTerm(iden1.J, 3, sigma=2)
+        term1 = LeastSquaresTerm.from_sigma(iden1.J, 3, sigma=2)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective(), 2.25)
         iden1.set_dofs([10])
@@ -129,7 +130,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         # Objective function
         # f(x,y) = ((x - 3) / 2) ** 2 + ((y + 4) / 5) ** 2
         iden2 = Identity()
-        term2 = LeastSquaresTerm(iden2.J, -4, sigma=5)
+        term2 = LeastSquaresTerm.from_sigma(iden2.J, -4, sigma=5)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective(), 12.89)
         iden1.set_dofs([5])

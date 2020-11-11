@@ -29,36 +29,31 @@ class LeastSquaresTerm:
     (sigma).  The overall value of the term is:
 
     f_out = weight * (f_in - goal) ** 2.
-
-    You are also free to specify sigma = 1 / sqrt(weight) instead of
-    weight, so
-
-    f_out = ((f_in - goal) / sigma) ** 2.
     """
 
-    def __init__(self, f_in, goal, weight=None, sigma=None):
-        if (weight is None) and (sigma is None):
-            raise ValueError('You must specify either weight or sigma.')
-        if (weight is not None) and (sigma is not None):
-            raise ValueError('You cannot specify both sigma and weight.')
-        if sigma == 0:
-            raise ValueError('sigma cannot be 0')
-        if weight is not None:
-            # Weight was specified, sigma was not
-            if not isnumber(weight):
-                raise TypeError('Weight must be a float or int')
-            if weight < 0:
-                raise ValueError('Weight cannot be negative')
-            self.weight = float(weight)
-        else:
-            # Sigma was specified, weight was not
-            if not isnumber(sigma):
-                raise TypeError('sigma must be a float or int')
-            self.weight = 1.0 / float(sigma * sigma)
-
+    def __init__(self, f_in, goal, weight): #=None, sigma=None):
         self.f_in = function_from_user(f_in)
         self.goal = goal
+        if not isnumber(weight):
+            raise TypeError('Weight must be a float or int')
+        if weight < 0:
+            raise ValueError('Weight cannot be negative')
+        self.weight = float(weight)
         # self.fixed = np.full(0, False) # What is this line for?
+
+    @classmethod
+    def from_sigma(cls, f_in, goal, sigma):
+        """
+        Define the LeastSquaresTerm with sigma = 1 / sqrt(weight) instead of
+        weight, so
+
+        f_out = ((f_in - goal) / sigma) ** 2.
+        """
+        if sigma == 0:
+            raise ValueError('sigma cannot be 0')
+        if not isnumber(sigma):
+            raise TypeError('sigma must be a float or int')
+        return cls(f_in, goal, 1.0 / float(sigma * sigma))
 
     def f_out(self):
         """
