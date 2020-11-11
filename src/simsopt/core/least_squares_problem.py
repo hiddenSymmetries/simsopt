@@ -85,18 +85,18 @@ class LeastSquaresProblem:
         type LeastSquaresTerm.
         """
 
-        # try:
-        #    terms = list(terms)
-        # except:
-        #    raise ValueError("terms must be convertable to a list by the " \
-        #                         + "list(terms) command.")
-        # if len(terms) == 0:
-        #    raise ValueError("At least 1 LeastSquaresTerm must be provided " \
-        #                         "in terms")
-        # for term in terms:
-        #    if not isinstance(term, LeastSquaresTerm):
-        #        raise ValueError("Each term in terms must be an instance of " \
-        #                             "LeastSquaresTerm.")
+        try:
+           terms = list(terms)
+        except:
+           raise ValueError("terms must be convertable to a list by the " \
+                                + "list(terms) command.")
+        if len(terms) == 0:
+           raise ValueError("At least 1 LeastSquaresTerm must be provided " \
+                               "in terms")
+        for term in terms:
+           if not isinstance(term, LeastSquaresTerm):
+               raise ValueError("Each term in terms must be an instance of " \
+                                    "LeastSquaresTerm.")
         self.terms = terms
         self.mpi = mpi if mpi is not None else MpiPartition(ngroups=1)
         # if mpi is None:
