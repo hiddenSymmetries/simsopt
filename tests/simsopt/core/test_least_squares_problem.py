@@ -178,7 +178,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         # Argument must be a list in which each element is a
         # LeastSquaresTerm or a 3- or 4-element tuple/list.
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             prob = LeastSquaresProblem(7)
         with self.assertRaises(ValueError):
             prob = LeastSquaresProblem([])
