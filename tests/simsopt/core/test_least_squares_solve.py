@@ -137,7 +137,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
             # Try a mix of explicit LeastSquaresTerms and lists
             term1 = [iden1, 'f', 1, 1]
             term2 = [iden2, 'f', 2, 1 / 4.]
-            term3 = LeastSquaresTerm(Target(iden3, 'f'), 3, sigma=3)
+            term3 = LeastSquaresTerm.from_sigma(Target(iden3, 'f'), 3, sigma=3)
             prob = LeastSquaresProblem([term1, term2, term3])
             solver(prob)
             self.assertAlmostEqual(prob.objective(), 10)
