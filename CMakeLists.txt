@@ -16,13 +16,13 @@ add_subdirectory(thirdparty/pybind11)
 
 
 pybind11_add_module(simsgeopp
-    cpp/simsgeopp/python.cpp# simsgeopp/curve.cpp
+    src/simsgeopp/python.cpp# simsgeopp/curve.cpp
     )
 set_target_properties(simsgeopp
     PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(simsgeopp PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xtl/include" ${NUMPY_INCLUDE_DIRS})
+target_include_directories(simsgeopp PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" ${NUMPY_INCLUDE_DIRS})
 target_link_libraries(simsgeopp PUBLIC ${PYTHON_LIBRARY})
 
 
@@ -41,4 +41,4 @@ target_link_libraries(simsgeopp PUBLIC ${PYTHON_LIBRARY})
 #    message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
 
-install(TARGETS simsgeopp LIBRARY DESTINATION .)
+install(TARGETS simsgeopp LIBRARY DESTINATION simsgeopp)
