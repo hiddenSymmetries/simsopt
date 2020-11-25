@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
+import sys
 
-"""
-Minimal setup.py for editable installs
-"""
-
-from setuptools import setup
+try:
+    from skbuild import setup
+except ImportError:
+    print('Please update pip, you need pip 10 or greater,\n'
+          ' or you need to install the PEP 518 requirements in pyproject.toml yourself', file=sys.stderr)
+    raise
 
 setup()
