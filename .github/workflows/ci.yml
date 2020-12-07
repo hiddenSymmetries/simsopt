@@ -15,9 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MACHINE: docker
-      STELLOPT_PATH: /home/runner/work/simsopt/simsopt/STELLOPT
-      #STELLOPT_PATH: ${{ github.workspace }}/STELLOPT
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
 
@@ -56,39 +53,16 @@ jobs:
       #with:
       #  submodules: true
 
-    # We must run actions/checkout@v2 before downloading and building stellopt, since checkout deletes the contents of the directory.
-    - name: git clone stellopt
-      run: git clone https://github.com/PrincetonUniversity/STELLOPT.git
+    # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
+    - name: Download the VMEC2000 standalone repository
+      run: git clone https://gitlab.com/mattland/VMEC2000.git
 
     - name: ls -l again
       run: |
         set -ex
         ls -l
         pwd
-
-    - name: Build libstell
-      run: |
-        set -ex
-        cd STELLOPT
-        ls
-        ./build_all -o release -j 2 LIBSTELL
-        ls -l
-
-    - name: Verify libstell.so was built
-      run: |
-        pwd
-        ls STELLOPT/LIBSTELL/Release
-
-    - name: Add STELLOPT/bin to LD_LIBRARY_PATH so libstell.so can be found
-      run: echo "::set-env name=LD_LIBRARY_PATH::/home/runner/work/simsopt/simsopt/STELLOPT/bin"
-
-    - name: ls -l /
-      run: |
-        set -ex
-        ls -l /
-
-    - name: env
-      run: env
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -131,39 +105,48 @@ jobs:
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
         #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
         sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
-        sudo -H -E $pythonLocation/bin/python -m pip install numpy scipy wheel
+        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
 
-    - name: Install Jax
+    - name: Install more modules
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib
+        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja
+
+    - name: Install f90wrap
+      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+
+    - name: ls in /usr/lib/x86_64-linux-gnu
+      run: ls -l /usr/lib/x86_64-linux-gnu
+
+    - name: Add to LD_LIBRARY_PATH so scalapack etc can be found
+      run: echo "::set-env name=LD_LIBRARY_PATH::/usr/lib/x86_64-linux-gnu"
+
+    - name: env after adding to LD_LIBRARY_PATH
+      run: env
+
+    - name: ls in VMEC2000/python 1
+      run: ls -l VMEC2000/python
+
+    - name: Configure and build VMEC2000 module
+      run: |
+        cd VMEC2000/python
+	cp ubuntu.json cmake_config_file.json
+	pip install -vvv .
+
+    - name: ls in VMEC2000/python 2
+      run: ls -l VMEC2000/python
 
     - name: Install mpi4py
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
-    - name: Install f90wrap
-      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+    - name: Try importing vmec module
+      run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    - name: Build f90wrap-vmec
-      run: |
-        pwd
-        cd src/simsopt/mhd/vmec_f90wrap
-        make
-        ls -l
-
-    - name: test f90wrap-vmec
-      run: |
-        cd src/simsopt/mhd/vmec_f90wrap
-        python -c "print(dir()); import vmec_f90wrap; print(dir()); print(dir(vmec_f90wrap))"
-
-    - name: test f90wrap-vmec more
-      run: |
-        cd src/simsopt/mhd/vmec_f90wrap
-        ./test_vmec_f90wrap.py
+    #- name: Try importing vmec module from where it actually lives
+    #  run: python -c "import sys; sys.path.append('/home/runner/work/vmecCI/vmecCI/VMEC2000/python/_skbuild/linux-x86_64-3.7/cmake-install/vmec'); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
       run: pip install -vvv -e .
-      # We install -e (editable mode) because otherwise the vmec.*.so file is not copied to where simsopt is installed, and hence it cannot be found.
 
     - name: Run mpi unit tests
       run: ./run_tests_mpi
