@@ -129,8 +129,8 @@ jobs:
     - name: Configure and build VMEC2000 module
       run: |
         cd VMEC2000/python
-	cp ubuntu.json cmake_config_file.json
-	pip install -vvv .
+        cp ubuntu.json cmake_config_file.json
+        pip install -vvv .
 
     - name: ls in VMEC2000/python 2
       run: ls -l VMEC2000/python
