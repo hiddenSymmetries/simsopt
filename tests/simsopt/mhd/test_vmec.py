@@ -1,7 +1,9 @@
 import unittest
 import numpy as np
 import os
-from simsopt.mhd.vmec import *
+from simsopt.mhd import vmec_found
+if vmec_found:
+    from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
 @unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
