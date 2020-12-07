@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-import sys
-sys.path.append('../src')
-from mpi4py import MPI
-import numpy as np
 import logging
+import numpy as np
+from mpi4py import MPI
 from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
 
 """

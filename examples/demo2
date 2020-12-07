@@ -2,7 +2,8 @@
 
 import sys
 sys.path.append('../src')
-from simsopt import *
+from simsopt import optimizable, SurfaceRZFourier, LeastSquaresProblem, \
+    least_squares_serial_solve
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
@@ -23,15 +24,15 @@ surf.set_fixed('rc(0,0)')
 
 # Each target function is then equipped with a shift and weight, to
 # become a term in a least-squares objective function
-term1 = LeastSquaresTerm(surf.volume, desired_volume, 1)
-term2 = LeastSquaresTerm(surf.area,   desired_area,   1)
+term1 = (surf.volume, desired_volume, 1)
+term2 = (surf.area,   desired_area,   1)
 
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
 prob = LeastSquaresProblem([term1, term2])
 
 # Solve the minimization problem:
-prob.solve()
+least_squares_serial_solve(prob)
 
 print("At the optimum,")
 print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))
