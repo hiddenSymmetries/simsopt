@@ -118,7 +118,7 @@ jobs:
       run: ls -l /usr/lib/x86_64-linux-gnu
 
     - name: Add to LD_LIBRARY_PATH so scalapack etc can be found
-      run: echo "::set-env name=LD_LIBRARY_PATH::/usr/lib/x86_64-linux-gnu"
+      run: echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
     - name: env after adding to LD_LIBRARY_PATH
       run: env
