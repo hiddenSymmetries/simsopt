@@ -126,24 +126,34 @@ jobs:
     - name: ls in VMEC2000/python 1
       run: ls -l VMEC2000/python
 
-    - name: Configure and build VMEC2000 module
+    - name: Configure VMEC2000 module
       run: |
         cd VMEC2000/python
         cp ubuntu.json cmake_config_file.json
-        pip install -vvv .
+        cat cmake_config_file.json
+
+    - name: Build VMEC2000 module
+      run: |
+        cd VMEC2000/python
+        python setup.py build_ext
+
+    - name: Install VMEC2000 module
+      run: |
+        cd VMEC2000/python
+        python setup.py install
 
     - name: ls in VMEC2000/python 2
       run: ls -l VMEC2000/python
-
-    - name: Install mpi4py
-      run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     #- name: Try importing vmec module from where it actually lives
     #  run: python -c "import sys; sys.path.append('/home/runner/work/vmecCI/vmecCI/VMEC2000/python/_skbuild/linux-x86_64-3.7/cmake-install/vmec'); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
+
+    - name: Install mpi4py
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install simsopt package
       run: pip install -vvv -e .
