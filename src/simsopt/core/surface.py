@@ -150,11 +150,9 @@ class SurfaceRZFourier(Surface):
     is any poloidal angle.
     """
     def __init__(self, nfp=1, stelsym=True, mpol=1, ntor=0):
+        mpol = int(mpol)
+        ntor = int(ntor)
         # Perform some validation.
-        if not isinstance(mpol, int):
-            raise TypeError("mpol must have type int")
-        if not isinstance(ntor, int):
-            raise TypeError("ntor must have type int")
         if mpol < 1:
             raise ValueError("mpol must be at least 1")
         if ntor < 0:

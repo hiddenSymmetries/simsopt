@@ -1,4 +1,5 @@
 from .vmec import vmec_found, Vmec
+from .spec import Spec
 
 #try:
 #    import vmec
