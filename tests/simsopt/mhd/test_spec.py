@@ -106,14 +106,18 @@ class SpecTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, '1DOF_Garabedian.sp')
 
-        s = Spec(filename, exe=exe)
-        s.run()
+        for new_mpol in [2, 3]:
+            for new_ntor in [2, 3]:
+                s = Spec(filename, exe=exe)
+                print('new_mpol: {}, new_ntor: {}'.format(new_mpol, new_ntor))
+                s.update_resolution(new_mpol, new_ntor)
+                s.run()
         
-        self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
+                self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
         
-        self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
+                self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
 
-        self.assertAlmostEqual(s.iota(), 0.544176, places=3)
+                self.assertAlmostEqual(s.iota(), 0.544176, places=3)
     
     @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
     def test_integrated_stellopt_scenarios_1dof(self):
@@ -157,10 +161,6 @@ class SpecTests(unittest.TestCase):
             surf.all_fixed()
             surf.set_fixed('rc(0,0)', False)
 
-            print('equil rbc:', equil.nml['physicslist']['rbc'])
-            print('surf.rc:', surf.rc)
-            print('surf.zs:', surf.zs)
-
             # Turn off Poincare plots and use low resolution, for speed:
             equil.nml['diagnosticslist']['nPtrj'] = 0
             equil.nml['physicslist']['lrad'] = [2]
@@ -187,6 +187,67 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(surf.get_rc(0, 0), 0.7599088773175, places=5)
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
+            self.assertLess(np.abs(prob.objective()), 1.0e-15)
+    
+    @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
+    def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
+        """
+        This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
+        example from
+        https://github.com/landreman/stellopt_scenarios
+
+        This example demonstrates optimizing a surface shape using the
+        Garabedian representation instead of VMEC's RBC/ZBS representation.
+        This optimization problem has one independent variable, the Garabedian
+        Delta_{m=1, n=-1} coefficient, representing the helical excursion of
+        the magnetic axis. The objective function is (iota - iota_target)^2,
+        where iota is measured on the magnetic axis.
+
+        Details of the optimum and a plot of the objective function landscape
+        can be found here:
+        https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
+        """
+        filename = os.path.join(TEST_DIR, '1DOF_Garabedian.sp')
+
+        for mpol_ntor in [2, 4]:
+            # Start with a default surface.
+            equil = Spec(filename, exe=exe)
+            equil.update_resolution(mpol_ntor, mpol_ntor)
+
+            # We will optimize in the space of Garabedian coefficients
+            # rather than RBC/ZBS coefficients. To do this, we convert the
+            # boundary to the Garabedian representation:
+            surf = equil.boundary.to_Garabedian()
+            equil.boundary = surf
+
+            # SPEC parameters are all fixed by default, while surface
+            # parameters are all non-fixed by default. You can choose
+            # which parameters are optimized by setting their 'fixed'
+            # attributes.
+            surf.all_fixed()
+            surf.set_fixed('Delta(1,-1)', False)
+
+            # Use low resolution, for speed:
+            equil.nml['physicslist']['lrad'] = [4]
+            equil.nml['diagnosticslist']['nppts'] = 100
+            
+            # Each Target is then equipped with a shift and weight, to become a
+            # term in a least-squares objective function
+            desired_iota = 0.41 # Sign was + for VMEC
+            prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
+
+            # Check that the problem was set up correctly:
+            self.assertEqual(len(prob.dofs.names), 1)
+            self.assertEqual(prob.dofs.names[0][:11], 'Delta(1,-1)')
+            np.testing.assert_allclose(prob.x, [0.1])
+            self.assertEqual(prob.dofs.all_owners, [equil, surf])
+            self.assertEqual(prob.dofs.dof_owners, [surf])
+
+            # Solve the minimization problem:
+            least_squares_serial_solve(prob)
+            
+            self.assertAlmostEqual(surf.get_Delta(1, -1), 0.08575, places=4)
+            self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
 
 if __name__ == "__main__":

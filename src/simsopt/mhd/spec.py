@@ -112,6 +112,14 @@ class Spec(Optimizable):
                 self.boundary.set_zs(m, n, zs[jm, jn])
 
         # Done transferring boundary shape.
+
+        # py_spec does not allow mpol / ntor to be changed if rbc or
+        # zbs are not the expected dimensions. These next few lines
+        # are a hack to avoid this issue, allowing us to have tests
+        # that involve changing mpol/ntor.
+        del self.nml['physicslist']['rbc']
+        del self.nml['physicslist']['zbs']
+        self.nml._rectify_namelist()
         
         self.depends_on = ["boundary"]
         self.need_to_run_code = True
