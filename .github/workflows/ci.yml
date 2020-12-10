@@ -111,6 +111,12 @@ jobs:
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja
 
+    - name: Download and install py_spec
+      run: |
+        git clone https://github.com/PrincetonUniversity/SPEC.git
+        cd SPEC/Utilities/pythontools
+        sudo -H -E $pythonLocation/bin/python -m pip install -e .
+
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
 
