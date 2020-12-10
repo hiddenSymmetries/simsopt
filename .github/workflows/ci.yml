@@ -115,16 +115,28 @@ jobs:
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
-    - uses: actions/checkout@v2
+    - name: Check out SPEC
+      uses: actions/checkout@v2
       with:
         repository: PrincetonUniversity/SPEC
-        clean: false
+        path: SPEC
         token: ${{ secrets.SPEC_CHECKOUT }}
      
     - name: ls -l again
       run: |
         ls -l
         pwd
+
+    - name: ls -l inside SPEC
+      run: |
+        cd SPEC
+        pwd
+        ls -l
+
+    - name: Install py_spec
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
