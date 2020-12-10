@@ -46,7 +46,7 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git m4 libfftw3-dev
 
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
@@ -138,6 +138,20 @@ jobs:
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
+
+    - name: Build SPEC.
+      run: |
+        cd SPEC
+        cat Makefile | sed 's/CC=intel/CC=gfortran_ubuntu/' > Makefile1
+        cp Makefile1 Makefile
+        head -n30 Makefile
+        make -j
+
+    - name: Add xspec to PATH.
+      run: |
+        cd SPEC
+        ls -l
+        echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
