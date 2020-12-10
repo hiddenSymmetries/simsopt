@@ -111,11 +111,20 @@ jobs:
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja
 
-    - name: Download and install py_spec
+    # Checking out SPEC is a tricky because it is a private repository.
+    # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
+    # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
+    # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
+    - uses: actions/checkout@v2
+      with:
+        repository: PrincetonUniversity/SPEC
+        clean: false
+        token: ${{ secrets.SPEC_CHECKOUT }}
+     
+    - name: ls -l again
       run: |
-        git clone https://github.com/PrincetonUniversity/SPEC.git
-        cd SPEC/Utilities/pythontools
-        sudo -H -E $pythonLocation/bin/python -m pip install -e .
+        ls -l
+        pwd
 
     - name: Install f90wrap
       run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
