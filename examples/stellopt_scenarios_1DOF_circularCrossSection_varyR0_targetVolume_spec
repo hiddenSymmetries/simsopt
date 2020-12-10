@@ -31,7 +31,7 @@ equil = Spec()
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-equil.boundary = SurfaceRZFourier(nfp=5, mpol=5, ntor=4)
+equil.boundary = SurfaceRZFourier(nfp=5, mpol=1, ntor=1)
 surf = equil.boundary
 
 # Set the initial boundary shape. Here is one syntax:

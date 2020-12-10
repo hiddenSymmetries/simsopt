@@ -145,6 +145,9 @@ class Spec(Optimizable):
             return
         logger.info("Preparing to run SPEC.")
 
+        # nfp must be consistent between the surface and SPEC. The surface's value trumps.
+        self.nml['physicslist']['nfp'] = self.boundary.nfp
+
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
 
