@@ -4,7 +4,7 @@
 
 This directory contains integrated/regression tests. Source code for unit tests of each component is stored in the subdirectory for that component under **simsopt** folder.
 
-The layout of the subfolders within **tests/simsopt** mimics that of the simsopt code in **src/simsopt** folder. The test files (inputs, outputs or any other data files) are all collected into **tests/tests_files**.
+The layout of the subfolders within **tests/simsopt** mimics that of the simsopt code in **src/simsopt** folder. The test files (inputs, outputs or any other data files) are all collected into **tests/test_files**.
 
 ## Running tests
 
