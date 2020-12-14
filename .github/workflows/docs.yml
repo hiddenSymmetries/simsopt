@@ -28,5 +28,7 @@ jobs:
       run: |
         ls "$PWD"
         cd docs
-        bash ./build_docs.sh
+        ls "$PWD"
+        chmod +x ./build_docs.sh
+        ./build_docs.sh 
       shell: bash
