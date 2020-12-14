@@ -32,10 +32,10 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
-        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
-        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib # cmake scikit-build ninja
-        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
+        pip install --upgrade pip
+        pip install wheel numpy scipy
+        pip install jax jaxlib # cmake scikit-build ninja
+        pip install mpi4py
 
     - name: Install simsopt package
       run: pip install -vvv -e .
