@@ -22,7 +22,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         sudo apt-get update
-        sudo apt-get install -y git openmpi-bin libopenmpi-dev 
+        sudo apt-get install -y git openmpi-bin libopenmpi-dev rsync
         git clone --depth 1 "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
       shell: bash
  
@@ -42,7 +42,11 @@ jobs:
         sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install simsopt package
-      run: sudo -H -E $pythonLocation/bin/python -m pip install -vvv -e .
+      run: sudo -H -E $pythonLocation/bin/python -m pip install -v -e .
+
+    - name: Install python dependencies for sphinx
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install sphinx-autodoc-typehints sphinx-rtd-theme
 
     - name: Execute script to build our documentation and update pages
       env:
