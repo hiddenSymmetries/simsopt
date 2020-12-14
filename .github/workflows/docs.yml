@@ -21,8 +21,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        apt-get update
-        apt-get install -y git openmpi-bin libopenmpi-dev 
+        sudo apt-get update
+        sudo apt-get install -y git openmpi-bin libopenmpi-dev 
         git clone --depth 1 "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
       shell: bash
  
@@ -36,13 +36,13 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install --upgrade pip
-        pip install wheel numpy scipy
-        pip install jax jaxlib # cmake scikit-build ninja
-        pip install mpi4py
+        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
+        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
+        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib # cmake scikit-build ninja
+        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
 
     - name: Install simsopt package
-      run: pip install -vvv -e .
+      run: sudo -H -E $pythonLocation/bin/python -m pip install -vvv -e .
 
     - name: Execute script to build our documentation and update pages
       env:
