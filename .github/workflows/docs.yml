@@ -3,7 +3,7 @@ name: docs_pages_workflow
 # execute this workflow automatically when a we push to master
 on:
   push:
-    branches: [ master, docs ]
+    branches: [ docs ]
  
 jobs:
  
@@ -27,5 +27,5 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cd docs
-        bash build_docs.sh
+        bash ./build_docs.sh
       shell: bash
