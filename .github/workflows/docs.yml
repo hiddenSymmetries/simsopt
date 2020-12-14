@@ -9,8 +9,12 @@ jobs:
  
   build_docs_job:
     runs-on: ubuntu-latest
-    container: debian:buster-slim
+    #container: debian:buster-slim
  
+    env:
+      OMPI_ALLOW_RUN_AS_ROOT: 1
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
+
     steps:
  
     - name: Prereqs for changing git 
