@@ -13,12 +13,12 @@ jobs:
  
     steps:
  
-    - name: Prereqs
+    - name: Prereqs for changing git 
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         apt-get update
-        apt-get install -y git
+        apt-get install -y git openmpi-bin libopenmpi-dev 
         git clone --depth 1 "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
       shell: bash
  
@@ -26,6 +26,19 @@ jobs:
       uses: actions/checkout@v2
       with:
         ref: docs
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+
+    - name: Install python dependencies
+      run: |
+        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
+        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
+        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib # cmake scikit-build ninja
+        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
+
+    - name: Install simsopt package
+      run: pip install -vvv -e .
 
     - name: Execute script to build our documentation and update pages
       env:
