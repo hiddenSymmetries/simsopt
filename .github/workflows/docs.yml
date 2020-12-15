@@ -28,11 +28,6 @@ jobs:
         git clone --depth 1 "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
       shell: bash
  
-    - name: Checkout docs branch
-      uses: actions/checkout@v2
-      with:
-        ref: docs
-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
 
