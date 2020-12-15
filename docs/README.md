@@ -3,12 +3,12 @@
 This is a guide to building documentation locally. Online documentation gets
 updated whenever master branch is updated.
 
-# Prerequsites
+## Prerequsites
 
 Install *sphinx*, *sphinx-rtd-theme*, *sphinxcontrib-napoleon*,
 *sphinx-autodoc-napoleon-typehints* with pip.
 
-# Build
+## Build
 1. Use sphinx-build
 
 ```bash
@@ -16,7 +16,7 @@ cd docs
 sphinx-build -b html source build
 ```
 The documentation is generated in html format and is in the **docs/build**
-folder. Start with index.html file
+folder. Start with index.html file.
 
 2. Use the supplied makefile
 
@@ -25,4 +25,10 @@ cd docs
 make html 
 ```
 The documentation is generated in html format and is in the **docs/build/html**
-folder. Start with index.html file
+folder. Start with index.html file.
+
+## Update the documentation
+
+Instructions are coming soon.
+
+
