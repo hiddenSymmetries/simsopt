@@ -12,9 +12,10 @@ from mpi4py import MPI
 import numpy as np
 from scipy.optimize import least_squares
 import logging
-from .dofs import Dofs
-from .util import isnumber
-from .optimizable import function_from_user, Target
+
+from simsopt.core.dofs import Dofs
+from simsopt.core.util import isnumber
+from simsopt.core.optimizable import function_from_user, Target
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 

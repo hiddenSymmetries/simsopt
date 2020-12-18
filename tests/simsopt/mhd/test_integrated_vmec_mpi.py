@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 import logging
 from mpi4py import MPI
-from simsopt import MpiPartition, Vmec, LeastSquaresTerm, LeastSquaresProblem, vmec_found
+from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, vmec_found
+from simsopt.solve.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
 
