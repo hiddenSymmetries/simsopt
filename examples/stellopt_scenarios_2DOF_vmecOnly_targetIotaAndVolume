@@ -5,7 +5,9 @@ import sys
 from mpi4py import MPI
 import numpy as np
 sys.path.append('../src')
-from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
+from simsopt import Vmec, LeastSquaresProblem
+from simsopt.solve.mpi import MpiPartition
+from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
