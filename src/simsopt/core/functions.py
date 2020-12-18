@@ -9,10 +9,10 @@ representing a function. These functions are mostly used for testing.
 
 import numpy as np
 import logging
-from mpi4py import MPI
+#from mpi4py import MPI
 from .optimizable import Optimizable
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+#logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 class Identity(Optimizable):
     """
