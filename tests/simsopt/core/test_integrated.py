@@ -3,7 +3,7 @@ import numpy as np
 import logging
 from simsopt import SurfaceRZFourier, optimizable, LeastSquaresProblem, \
     SurfaceGarabedian
-from simsopt.solve.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition
 from simsopt.solve.serial_solve import least_squares_serial_solve
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 

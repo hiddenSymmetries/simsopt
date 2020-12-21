@@ -3,7 +3,7 @@ import numpy as np
 import logging
 from mpi4py import MPI
 from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, vmec_found
-from simsopt.solve.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
 
