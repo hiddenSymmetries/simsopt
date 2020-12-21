@@ -13,7 +13,7 @@ from mpi4py import MPI
 from monty.dev import requires
 
 from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
-from simsopt.solve.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition
 #from simsopt.mhd.vmec_core import VMEC
 try:
     from simsopt.mhd.vmec_core import VMEC # May need to edit this path.
