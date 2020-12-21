@@ -6,7 +6,7 @@ from mpi4py import MPI
 import numpy as np
 import logging
 from simsopt import Vmec, LeastSquaresProblem
-from simsopt.solve.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 """

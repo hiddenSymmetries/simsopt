@@ -5,7 +5,7 @@ from simsopt.core.functions import Identity, Rosenbrock
 from simsopt.core.optimizable import Target
 from simsopt.core.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
 from simsopt.solve.serial_solve import least_squares_serial_solve
-from simsopt.solve.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 def mpi_solve_1group(prob, **kwargs):
