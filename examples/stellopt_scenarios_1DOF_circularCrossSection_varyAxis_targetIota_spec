@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import sys
-sys.path.append('../src')
-from mpi4py import MPI
 import numpy as np
 import logging
 from simsopt import Spec, SurfaceGarabedian, LeastSquaresProblem, \
@@ -33,9 +30,6 @@ equil = Spec('1DOF_Garabedian.sp')
 # should be specified as in the following line:
 # equil = Spec('1DOF_Garabedian.sp', exe='/Users/mattland/SPEC/xspec')
 
-# Start with a default surface, which is axisymmetric with major
-# radius 1 and minor radius 0.1.
-
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the
 # Garabedian representation:
@@ -61,7 +55,7 @@ least_squares_serial_solve(prob, grad=False)
 
 print("At the optimum,")
 print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
-print(" iota on axis = ", equil.iota())
+print(" iota = ", equil.iota())
 print(" objective function = ", prob.objective())
 
 assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
