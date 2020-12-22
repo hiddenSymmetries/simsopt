@@ -16,7 +16,7 @@ cd tests/simsopt
 
 # Example of running all tests for a specific module:
 #python -m unittest -v mhd.test_spec
-#python -m unittest -v mhd.test_spec -k test_integrated_stellopt_scenarios_1dof_Garabedian
+#python -m unittest -v mhd.test_spec -k test_integrated_stellopt_scenarios_2dof
 
 # Example of running a specific test that matches a pattern:
 #python -m unittest -v -k test_vmec_f90wrap
