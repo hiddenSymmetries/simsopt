@@ -8,15 +8,15 @@ import jax.numpy as jnp
 @jit
 def incremental_arclength_pure(d1gamma):
     return jnp.linalg.norm(d1gamma, axis=1)
-incremental_arclengthgrad0 = jit(lambda d1gamma, v: vjp(incremental_arclength_pure, d1gamma)[1](v))
 
+incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_arclength_pure(d1g), d1gamma)[1](v)[0])
 
 @jit
 def kappa_pure(d1gamma, d2gamma):
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
 
-kappavjp0 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d1g: kappa_pure(d1g, d2gamma), d1gamma)[1](v))
-kappavjp1 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d2g: kappa_pure(d1gamma, d2g), d2gamma)[1](v))
+kappavjp0 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d1g: kappa_pure(d1g, d2gamma), d1gamma)[1](v)[0])
+kappavjp1 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d2g: kappa_pure(d1gamma, d2g), d2gamma)[1](v)[0])
 kappagrad0 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d1g: kappa_pure(d1g, d2gamma))(d1gamma))
 kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma, d2g))(d2gamma))
 
@@ -25,14 +25,12 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 def torsion_pure(d1gamma, d2gamma, d3gamma):
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
 
-torsiongrad0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_pure(d1g, d2gamma, d3gamma), d1gamma)[1](v))
-torsiongrad1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v))
-torsiongrad2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v))
+torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_pure(d1g, d2gamma, d3gamma), d1gamma)[1](v)[0])
+torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
+torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
 class Curve():
     def __init__(self):
-        self.dincremental_arclength_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: incremental_arclength_pure(self.gammadash_jax(d)), x)[1](v))
-        self.dincremental_arclength_by_dcoeff_jax = jit(jacfwd(lambda d: incremental_arclength_pure(self.gammadash_jax(d))))
         self.dependencies = []
 
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True, color=None, linestyle=None):
@@ -59,8 +57,8 @@ class Curve():
             plt.show()
         return ax
 
-    # def incremental_arclength(self):
-    #     return np.asarray(incremental_arclength_pure(self.gammadash()))
+    def dincremental_arclength_by_dcoeff_vjp(self, v):
+        return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
 
     def kappa_impl(self, kappa):
         kappa[:] = np.asarray(kappa_pure(self.gammadash(), self.gammadashdash()))
@@ -102,9 +100,9 @@ class Curve():
             + self.dgammadashdash_by_dcoeff_vjp(kappavjp1(self.gammadash(), self.gammadashdash(), v))
 
     def dtorsion_by_dcoeff_vjp(self, v):
-        return self.dgammadash_by_dcoeff_vjp(torsiongrad0(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
-            + self.dgammadashdash_by_dcoeff_vjp(torsiongrad1(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
-            + self.dgammadashdashdash_by_dcoeff_vjp(torsiongrad2(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v))
+        return self.dgammadash_by_dcoeff_vjp(torsionvjp0(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
+            + self.dgammadashdash_by_dcoeff_vjp(torsionvjp1(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
+            + self.dgammadashdashdash_by_dcoeff_vjp(torsionvjp2(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v))
 
     def frenet_frame(self):
         gammadash = self.gammadash()
@@ -188,10 +186,14 @@ class Curve():
         d1_x_d2   = cross(dgamma, d2gamma)
         d1_x_d3   = cross(dgamma, d3gamma)
         normdgamma = norm(dgamma)
+        norm_d1_x_d2 = norm(d1_x_d2)
+        dgamma_dcoeff_  = self.dgammadash_by_dcoeff()
+        d2gamma_dcoeff_ = self.dgammadashdash_by_dcoeff()
+        d3gamma_dcoeff_ = self.dgammadashdashdash_by_dcoeff()
         for i in range(self.num_dofs()):
-            dgamma_dcoeff  = self.dgammadash_by_dcoeff()[:, :, i]
-            d2gamma_dcoeff = self.dgammadashdash_by_dcoeff()[:, :, i]
-            d3gamma_dcoeff = self.dgammadashdashdash_by_dcoeff()[:, :, i]
+            dgamma_dcoeff  = dgamma_dcoeff_[:, :, i]
+            d2gamma_dcoeff = d2gamma_dcoeff_[:, :, i]
+            d3gamma_dcoeff = d3gamma_dcoeff_[:, :, i]
 
             d1coeff_x_d2   = cross(dgamma_dcoeff, d2gamma)
             d1coeff_dot_d2 = inner(dgamma_dcoeff, d2gamma)
@@ -204,28 +206,19 @@ class Curve():
             dkappadash_by_dcoeff[:, i] = (
                 +inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d3)
                 +inner(d1_x_d2, d1coeff_x_d3 + d1_x_d3coeff)
-            )/(norm(d1_x_d2) * normdgamma**3) \
+            )/(norm_d1_x_d2 * normdgamma**3) \
                 -inner(d1_x_d2, d1_x_d3) * (
                     (
-                        inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm(d1_x_d2)**3 * normdgamma**3)
-                        + 3 * inner(dgamma, dgamma_dcoeff)/(norm(d1_x_d2) * normdgamma**5)
+                        inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm_d1_x_d2**3 * normdgamma**3)
+                        + 3 * inner(dgamma, dgamma_dcoeff)/(norm_d1_x_d2 * normdgamma**5)
                     )
                 ) \
                 - 3 * (
-                    + (d1coeff_dot_d2 + d1_dot_d2coeff) * norm(d1_x_d2)/normdgamma**5
-                    + d1_dot_d2 * inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm(d1_x_d2) * normdgamma**5)
-                    - 5 * d1_dot_d2 * norm(d1_x_d2) * d1_dot_d1coeff/normdgamma**7
+                    + (d1coeff_dot_d2 + d1_dot_d2coeff) * norm_d1_x_d2/normdgamma**5
+                    + d1_dot_d2 * inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm_d1_x_d2 * normdgamma**5)
+                    - 5 * d1_dot_d2 * norm_d1_x_d2 * d1_dot_d1coeff/normdgamma**7
                 )
         return dkappadash_by_dcoeff
-
-    # def dincremental_arclength_by_dcoeff(self):
-    #     l = self.incremental_arclength()
-    #     dgamma_by_dphi = self.gammadash()
-    #     dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
-    #     num_coeff = dgamma_by_dphidcoeff.shape[2]
-    #     res = np.zeros((len(self.quadpoints), self.num_dofs()))
-    #     res[:, :] = (1/l[:, None]) * np.sum(dgamma_by_dphi[:, :, None] * dgamma_by_dphidcoeff[:, :, :], axis=1)
-    #     return res
 
 
 
@@ -241,27 +234,27 @@ class JaxCurve(sgpp.Curve, Curve):
 
         self.gamma_jax = jit(lambda dofs: self.gamma_pure(dofs, points))
         self.dgamma_by_dcoeff_jax = jit(jacfwd(self.gamma_jax))
-        self.dgamma_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gamma_jax, x)[1](v))
+        self.dgamma_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gamma_jax, x)[1](v)[0])
 
         self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
         self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
         self.dgammadash_by_dcoeff_jax = jit(jacfwd(self.gammadash_jax))
-        self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v))
+        self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v)[0])
 
         self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
         self.dgammadashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdash_jax))
-        self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v))
+        self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v)[0])
 
         self.gammadashdashdash_pure = lambda x, q: jvp(lambda p: self.gammadashdash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdashdash_jax = jit(lambda x: self.gammadashdashdash_pure(x, points))
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
-        self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v))
+        self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
-        self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v))
+        self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
         self.dkappa_by_dcoeff_jax = jit(jacfwd(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d))))
 
-        self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v))
+        self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
         self.dtorsion_by_dcoeff_jax = jit(jacfwd(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d))))
 
     def gamma_impl(self, gamma):
@@ -312,11 +305,6 @@ class JaxCurve(sgpp.Curve, Curve):
     def dtorsion_by_dcoeff_vjp(self, v):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
-    def dincremental_arclength_by_dcoeff_vjp(self, v):
-        return self.dincremental_arclength_by_dcoeff_vjp_jax(self.get_dofs(), v)
-
-    # def dincremental_arclength_by_dcoeff_impl(self):
-    #     return np.asarray(self.dincremental_arclength_by_dcoeff_jax(self.get_dofs()))
 
 from math import pi, sin, cos
 
@@ -354,6 +342,9 @@ class RotatedCurve(sgpp.Curve, Curve):
     def gammadashdash_impl(self, gammadashdash):
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
 
+    def gammadashdashdash_impl(self, gammadashdashdash):
+        gammadashdashdash[:] = self.curve.gammadashdashdash() @ self.rotmat
+
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         dgamma_by_dcoeff[:] = self.rotmatT @ self.curve.dgamma_by_dcoeff()
 
@@ -365,3 +356,15 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
         dgammadashdashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdashdash_by_dcoeff()
+
+    def dgamma_by_dcoeff_vjp(self, v):
+        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)

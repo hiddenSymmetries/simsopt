@@ -4,20 +4,20 @@ import numpy as np
 from .jit import jit
 
 @jit
-def curve_length_pure(gammadash):
-    return jnp.mean(jnp.linalg.norm(gammadash, axis=1))
+def curve_length_pure(l):
+    return jnp.mean(l)
 
 class CurveLength():
 
     def __init__(self, curve):
         self.curve = curve
-        self.thisgrad = jit(lambda gammadash: grad(curve_length_pure)(gammadash))
+        self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
 
     def J(self):
-        return curve_length_pure(self.curve.gammadash())
+        return curve_length_pure(self.curve.incremental_arclength())
 
     def dJ(self):
-        return self.curve.dgammadash_by_dcoeff_vjp(self.thisgrad(self.curve.gammadash()))
+        return self.curve.dincremental_arclength_by_dcoeff_vjp(self.thisgrad(self.curve.incremental_arclength()))
 
 @jit
 def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
