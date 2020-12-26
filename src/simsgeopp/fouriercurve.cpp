@@ -29,7 +29,7 @@ class FourierCurve : public Curve<Array> {
             };
         }
 
-        inline int num_dofs() {
+        inline int num_dofs() override {
             return 3*(2*order+1);
         }
 
@@ -44,7 +44,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        vector<double> get_dofs() {
+        vector<double> get_dofs() override {
             auto _dofs = vector<double>(num_dofs(), 0.);
             int counter = 0;
             for (int i = 0; i < 3; ++i) {
@@ -57,7 +57,7 @@ class FourierCurve : public Curve<Array> {
             return _dofs;
         }
 
-        void gamma_impl(Array& data) {
+        void gamma_impl(Array& data) override {
             data *= 0;
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -70,7 +70,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void gammadash_impl(Array& data) {
+        void gammadash_impl(Array& data) override {
             data *= 0;
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -82,7 +82,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void gammadashdash_impl(Array& data) {
+        void gammadashdash_impl(Array& data) override {
             data *= 0;
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -94,7 +94,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void gammadashdashdash_impl(Array& data) {
+        void gammadashdashdash_impl(Array& data) override {
             data *= 0;
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -106,7 +106,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void dgamma_by_dcoeff_impl(Array& data) {
+        void dgamma_by_dcoeff_impl(Array& data) override {
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
                     data(k, i, i*(2*order+1)) = 1.;
@@ -118,7 +118,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void dgammadash_by_dcoeff_impl(Array& data) {
+        void dgammadash_by_dcoeff_impl(Array& data) override {
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
                     for (int j = 1; j < order+1; ++j) {
@@ -129,7 +129,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void dgammadashdash_by_dcoeff_impl(Array& data) {
+        void dgammadashdash_by_dcoeff_impl(Array& data) override {
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
                     for (int j = 1; j < order+1; ++j) {
@@ -140,7 +140,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        void dgammadashdashdash_by_dcoeff_impl(Array& data) {
+        void dgammadashdashdash_by_dcoeff_impl(Array& data) override {
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
                     for (int j = 1; j < order+1; ++j) {
@@ -151,7 +151,7 @@ class FourierCurve : public Curve<Array> {
             }
         }
 
-        Array dgamma_by_dcoeff_vjp(Array& v) {
+        Array dgamma_by_dcoeff_vjp(Array& v) override {
             Array res = xt::zeros<double>({num_dofs()});
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -165,7 +165,7 @@ class FourierCurve : public Curve<Array> {
             return res;
         }
 
-        Array dgammadash_by_dcoeff_vjp(Array& v) {
+        Array dgammadash_by_dcoeff_vjp(Array& v) override {
             Array res = xt::zeros<double>({num_dofs()});
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
@@ -178,4 +178,3 @@ class FourierCurve : public Curve<Array> {
             return res;
         }
 };
-

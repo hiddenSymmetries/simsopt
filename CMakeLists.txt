@@ -25,18 +25,18 @@ endif()
 set(CMAKE_CXX_FLAGS "-O3 -march=native")
 
 add_subdirectory(thirdparty/pybind11)
-#set(XTENSOR_USE_OPENMP 0)
+set(XTENSOR_USE_OPENMP 0)
 
 
 
 pybind11_add_module(simsgeopp
-    src/simsgeopp/python.cpp# simsgeopp/curve.cpp
+    src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
     )
 set_target_properties(simsgeopp
     PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(simsgeopp PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" ${NUMPY_INCLUDE_DIRS})
+target_include_directories(simsgeopp PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/blaze" ${NUMPY_INCLUDE_DIRS} "src/simsgeopp/")
 target_link_libraries(simsgeopp PUBLIC ${PYTHON_LIBRARY})
 
 
