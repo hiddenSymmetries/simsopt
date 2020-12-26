@@ -1,8 +1,9 @@
-from .curve import JaxCurve
+from .curve import JaxCurve, Curve
 from math import pi
 from jax.ops import index, index_add
 import jax.numpy as jnp
 import numpy as np
+import simsgeopp as sgpp
 
 
 def stelleratorsymmetriccylindricalfouriercurve_pure(dofs, quadpoints, order, nfp):
@@ -17,7 +18,7 @@ def stelleratorsymmetriccylindricalfouriercurve_pure(dofs, quadpoints, order, nf
     return gamma
 
 
-class StelleratorSymmetricCylindricalFourierCurve(JaxCurve):
+class JaxStelleratorSymmetricCylindricalFourierCurve(JaxCurve):
 
     """ This class can for example be used to describe a magnetic axis. """
 
@@ -42,5 +43,23 @@ class StelleratorSymmetricCylindricalFourierCurve(JaxCurve):
             self.coefficients[0][i] = dofs[i]
         for i in range(self.order):
             self.coefficients[1][i] = dofs[self.order + 1 + i]
+        for d in self.dependencies:
+            d.invalidate_cache()
+
+class StelleratorSymmetricCylindricalFourierCurve(sgpp.StelleratorSymmetricCylindricalFourierCurve, Curve):
+
+    def __init__(self, quadpoints, order, nfp):
+        if isinstance(quadpoints, int):
+            quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
+        elif isinstance(quadpoints, np.ndarray):
+            quadpoints = list(quadpoints)
+        Curve.__init__(self)
+        sgpp.StelleratorSymmetricCylindricalFourierCurve.__init__(self, quadpoints, order, nfp)
+
+    def get_dofs(self):
+        return np.asarray(sgpp.StelleratorSymmetricCylindricalFourierCurve.get_dofs(self))
+
+    def set_dofs(self, dofs):
+        sgpp.StelleratorSymmetricCylindricalFourierCurve.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
