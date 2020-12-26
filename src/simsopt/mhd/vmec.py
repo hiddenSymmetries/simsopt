@@ -12,21 +12,25 @@ import numpy as np
 from mpi4py import MPI
 from monty.dev import requires
 
-from simsopt.core import Optimizable, optimizable, SurfaceRZFourier, MpiPartition
+from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
+from simsopt.util.mpi import MpiPartition
+#from simsopt.mhd.vmec_core import VMEC
 try:
-    from simsopt.mhd.vmec_f90wrap import VMEC # May need to edit this path.
+    from simsopt.mhd.vmec_core import VMEC # May need to edit this path.
     vmec_found = True
 except ImportError as err:
     vmec_found = False
-    print('Unable to load VMEC module, so some functionality will not be available.')
-    print('Reason VMEC module was not loaded:')
+    print('Unable to load VMEC module, so some functionality will not be available. '
+          'You may need to install the VMEC python extension from '
+          'https://gitlab.com/mbkumar/VMEC2000. '
+          'Reason VMEC module was not loaded:')
     print(err)
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 @requires(vmec_found,
           "Running VMEC from simsopt requires VMEC python extension. "
-          "Install the VMEC python extension from <link>.")
+          "Install the VMEC python extension from https://gitlab.com/mbkumar/VMEC2000.")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
