@@ -5,7 +5,9 @@ sys.path.append('../src')
 from mpi4py import MPI
 import numpy as np
 import logging
-from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
+from simsopt import Vmec, LeastSquaresProblem
+from simsopt.util.mpi import MpiPartition
+from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
