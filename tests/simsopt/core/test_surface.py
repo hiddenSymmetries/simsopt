@@ -179,6 +179,43 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
 
+    def test_change_resolution(self):
+        """
+        Check that we can change mpol and ntor.
+        """
+        for mpol in [1, 2]:
+            for ntor in [0, 1]:
+                s = SurfaceRZFourier(mpol=mpol, ntor=ntor)
+                n = len(s.get_dofs())
+                s.set_dofs((np.random.rand(n) - 0.5) * 0.01)
+                s.set_rc(0, 0, 1.0)
+                s.set_rc(1, 0, 0.1)
+                s.set_zs(1, 0, 0.13)
+                v1 = s.volume()
+                a1 = s.area()
+                
+                s.change_resolution(mpol+1, ntor)
+                s.recalculate = True
+                v2 = s.volume()
+                a2 = s.area()
+                self.assertAlmostEqual(v1, v2)
+                self.assertAlmostEqual(a1, a2)
+
+                s.change_resolution(mpol, ntor+1)
+                s.recalculate = True
+                v2 = s.volume()
+                a2 = s.area()
+                self.assertAlmostEqual(v1, v2)
+                self.assertAlmostEqual(a1, a2)
+
+                s.change_resolution(mpol+1, ntor+1)
+                s.recalculate = True
+                v2 = s.volume()
+                a2 = s.area()
+                self.assertAlmostEqual(v1, v2)
+                self.assertAlmostEqual(a1, a2)
+
+        
 class SurfaceGarabedianTests(unittest.TestCase):
     def test_init(self):
         """
