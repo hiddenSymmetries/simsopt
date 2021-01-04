@@ -10,6 +10,7 @@ import logging
 import os.path
 import numpy as np
 import py_spec
+import pyoculus
 
 from simsopt.core import Optimizable, SurfaceRZFourier
 
@@ -178,9 +179,15 @@ class Spec(Optimizable):
         self.nml['physicslist'].start_index['rbc'] = [-ntor, 0]
         self.nml['physicslist'].start_index['zbs'] = [-ntor, 0]
         
-        # For now, set the coordinate axis equal to the m=0 modes of the boundary:
-        self.nml['physicslist']['rac'] = rc[0, ntor:].tolist()
-        self.nml['physicslist']['zas'] = zs[0, ntor:].tolist()
+        ## For now, set the coordinate axis equal to the m=0 modes of the boundary:
+        #self.nml['physicslist']['rac'] = rc[0, ntor:].tolist()
+        #self.nml['physicslist']['zas'] = zs[0, ntor:].tolist()
+
+        # Set the coordinate axis using the lrzaxis=2 feature:
+        self.nml['numericlist']['lrzaxis'] = 2
+        # lrzaxis=2 only seems to work if the axis is not already set
+        self.nml['physicslist']['rac'] = []
+        self.nml['physicslist']['zas'] = []
 
         filename = 'spec{:05}.sp'.format(self.counter)
         logger.info("Running SPEC using filename " + filename)
@@ -203,3 +210,45 @@ class Spec(Optimizable):
         """
         self.run()
         return self.results.transform.fiota[1, 0]
+
+class Residue(Optimizable):
+    """
+    Greene's residue, evaluated from a Spec equilibrum
+    """
+    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=None, s_max=None):
+        """
+        spec: a Spec object
+        pp, qq: Numerator and denominator for the resonant iota = pp / qq
+        vol: Index of the Spec volume to consider
+        theta: Spec's theta coordinate at the periodic field line
+        s_guess: Guess for the value of Spec's s coordinate at the periodic field line
+        s_min, s_max: bounds on s for the search
+        """
+        self.spec = spec
+        self.pp = pp
+        self.qq = qq
+        self.vol = vol
+        self.theta = theta
+        if s_guess is None:
+            self.s_guess = 0.0
+        else:
+            self.s_guess = s_guess
+        self.s_min = s_min
+        self.s_max = s_max
+        self.depends_on = ['spec']
+
+    def J(self):
+        """
+        Run Spec if needed, find the periodic field line, and return the residue
+        """
+        self.spec.run()
+        specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
+        fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta})
+        r = fp.compute(self.s_guess, pp=self.pp, qq=self.qq)
+        return r.GreenesResidue
+    
+    def get_dofs(self):
+        return np.array([])
+
+    def set_dofs(self, x):
+        pass
