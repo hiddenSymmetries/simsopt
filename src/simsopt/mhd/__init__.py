@@ -1,5 +1,5 @@
 from .vmec import vmec_found, Vmec
-from .spec import Spec
+from .spec import Spec, Residue
 
 #try:
 #    import vmec
