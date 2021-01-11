@@ -37,7 +37,6 @@ set_target_properties(simsgeopp
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(simsgeopp PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/blaze" ${NUMPY_INCLUDE_DIRS} "src/simsgeopp/")
-target_link_libraries(simsgeopp PUBLIC ${PYTHON_LIBRARY})
 
 
 #target_include_directories(hello_world PRIVATE  "xtensor/include" "xtensor-python/include" "xsimd/include" "xtl/include" "blaze" "cppplasmaopt" ${PYBIND11_INCLUDE_DIR} ${NUMPY_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIR})
