@@ -215,7 +215,7 @@ class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
     """
-    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=None, s_max=None):
+    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0, s_max=1.0, rtol=1e-9):
         """
         spec: a Spec object
         pp, qq: Numerator and denominator for the resonant iota = pp / qq
@@ -223,12 +223,14 @@ class Residue(Optimizable):
         theta: Spec's theta coordinate at the periodic field line
         s_guess: Guess for the value of Spec's s coordinate at the periodic field line
         s_min, s_max: bounds on s for the search
+        rtol: the relative tolerance of the integrator
         """
         self.spec = spec
         self.pp = pp
         self.qq = qq
         self.vol = vol
         self.theta = theta
+        self.rtol = rtol
         if s_guess is None:
             self.s_guess = 0.0
         else:
@@ -243,8 +245,8 @@ class Residue(Optimizable):
         """
         self.spec.run()
         specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
-        fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta})
-        r = fp.compute(self.s_guess, pp=self.pp, qq=self.qq)
+        fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta}, integrator_params={'rtol':self.rtol})
+        r = fp.compute(self.s_guess, sbegin=self.s_min, send=self.s_max, pp=self.pp, qq=self.qq)
         return r.GreenesResidue
     
     def get_dofs(self):
