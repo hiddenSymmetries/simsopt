@@ -3,7 +3,9 @@
 import logging
 import numpy as np
 from mpi4py import MPI
-from simsopt import Vmec, LeastSquaresProblem, MpiPartition, least_squares_mpi_solve
+from simsopt import Vmec, LeastSquaresProblem
+from simsopt.util.mpi import MpiPartition
+from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
