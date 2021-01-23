@@ -2,8 +2,10 @@ import unittest
 import numpy as np
 import logging
 from simsopt import SurfaceRZFourier, optimizable, LeastSquaresProblem, \
-    least_squares_serial_solve, MpiPartition, least_squares_mpi_solve, \
     SurfaceGarabedian
+from simsopt.util.mpi import MpiPartition
+from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)

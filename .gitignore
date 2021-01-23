@@ -24,3 +24,6 @@ vmec_f90wrap.py
 
 # examples
 examples/VMEC/
+
+# Sphinx related files
+docs/build/
