@@ -50,4 +50,4 @@ endif()
 #    message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
 
-install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+#install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
