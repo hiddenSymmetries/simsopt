@@ -238,19 +238,24 @@ class Residue(Optimizable):
         self.s_min = s_min
         self.s_max = s_max
         self.depends_on = ['spec']
+        self.need_to_run_code = True
+        self.fixed_point = None
 
     def J(self):
         """
         Run Spec if needed, find the periodic field line, and return the residue
         """
-        self.spec.run()
-        specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
-        fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta}, integrator_params={'rtol':self.rtol})
-        r = fp.compute(self.s_guess, sbegin=self.s_min, send=self.s_max, pp=self.pp, qq=self.qq)
-        return r.GreenesResidue
+        if self.need_to_run_code:
+            self.spec.run()
+            specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
+            fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta}, integrator_params={'rtol':self.rtol})
+            self.fixed_point = fp.compute(self.s_guess, sbegin=self.s_min, send=self.s_max, pp=self.pp, qq=self.qq)
+            self.need_to_run_code = False
+
+        return self.fixed_point.GreenesResidue
     
     def get_dofs(self):
         return np.array([])
 
     def set_dofs(self, x):
-        pass
+        self.need_to_run_code = True
