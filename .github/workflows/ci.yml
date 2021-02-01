@@ -111,6 +111,9 @@ jobs:
       run: |
         sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja f90nml h5py
 
+    - name: Install booz_xform
+      run: sudo -H -E $pythonLocation/bin/python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+
     # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
