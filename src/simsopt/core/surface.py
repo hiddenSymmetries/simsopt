@@ -150,11 +150,9 @@ class SurfaceRZFourier(Surface):
     is any poloidal angle.
     """
     def __init__(self, nfp=1, stelsym=True, mpol=1, ntor=0):
+        mpol = int(mpol)
+        ntor = int(ntor)
         # Perform some validation.
-        if not isinstance(mpol, int):
-            raise TypeError("mpol must have type int")
-        if not isinstance(ntor, int):
-            raise TypeError("ntor must have type int")
         if mpol < 1:
             raise ValueError("mpol must be at least 1")
         if ntor < 0:
@@ -197,6 +195,38 @@ class SurfaceRZFourier(Surface):
             self.zc = np.zeros(myshape)
             self.names += self.make_names('rs', False) + self.make_names('zc', True)
 
+    def change_resolution(self, mpol, ntor):
+        """
+        Change the values of mpol and ntor. Any new Fourier amplitudes
+        will have a magnitude of zero.  Any previous nonzero Fourier
+        amplitudes that are not within the new range will be
+        discarded.
+        """
+        old_mpol = self.mpol
+        old_ntor = self.ntor
+        old_rc = self.rc
+        old_zs = self.zs
+        if not self.stelsym:
+            old_rs = self.rs
+            old_zc = self.zc
+        self.mpol = mpol
+        self.ntor = ntor
+        self.allocate()
+        if mpol < old_mpol or ntor < old_ntor:
+            # Don't need to recalculate if we only add zeros
+            self.recalculate = True
+            self.recalculate_derivs = True
+            
+        min_mpol = np.min((mpol, old_mpol))
+        min_ntor = np.min((ntor, old_ntor))
+        for m in range(min_mpol + 1):
+            for n in range(-min_ntor, min_ntor + 1):
+                self.rc[m, n + ntor] = old_rc[m, n + old_ntor]
+                self.zs[m, n + ntor] = old_zs[m, n + old_ntor]
+                if not self.stelsym:
+                    self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
+                    self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
+        
     def make_names(self, prefix, include0):
         """
         Form a list of names of the rc, zs, rs, or zc array elements.

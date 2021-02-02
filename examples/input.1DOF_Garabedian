@@ -42,11 +42,11 @@
   PIOTA_TYPE = 'power_series'
   PCURR_TYPE = 'power_series'
 !----- Axis Parameters ----- 
-  RAXIS_CC =   1 1.0e-1
-  ZAXIS_CS =    0 1.0e-1
+  RAXIS_CC =   1.0 1.0E-1
+  ZAXIS_CS =   0.0 1.0E-1
 !----- Boundary Parameters -----
 ! n comes before m!
-  RBC(0,0) =   1.0E+00     ZBS(0,0) =   0.0000E+00
-  RBC(1,0) =   1.0E-01     ZBS(1,0) =   1.0e-01
+  RBC(0,0) =   1.0E+00     ZBS(0,0) =   0.0E+00
+  RBC(1,0) =   1.0E-01     ZBS(1,0) =   1.0E-01
   RBC(0,1) =   1.0E-02     ZBS(0,1) =   1.0E-02
 /
