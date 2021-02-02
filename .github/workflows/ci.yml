@@ -75,44 +75,15 @@ jobs:
     - name: which pip after python setup
       run: pip --version
 
-    - name: which pip using sudo
-      run: sudo pip --version
-
-    - name: which pip using sudo -E
-      run: sudo -E pip --version
-
-    - name: which python using sudo
-      run: sudo which python3
-
-    - name: which python using sudo -E
-      run: sudo -E which python3
-
     - name: env after adding python
       run: env
 
-    # From sudo, python must be run via $pythonLocation/bin/python for some reason. "python" is not found
-    # and "python3" gives the wrong version, the version of python3 that came with the container instead
-    # of the version of python3 managed by github actions.
-    # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
-    # version of pip is used, (the version of python3 that came with the container).
-    # The -H flag is used because otherwise this warning appears:
-    # WARNING: The directory '/home/runner/.cache/pip' or its parent directory is not owned or is not writable by the current user.
-    # The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you may want sudo's -H flag.
     - name: Install python dependencies
       run: |
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
-        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
-        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
-
-    - name: Install more modules
-      run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja f90nml h5py
+        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py
 
     - name: Install booz_xform
-      run: sudo -H -E $pythonLocation/bin/python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+      run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
@@ -139,7 +110,7 @@ jobs:
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install -e SPEC/Utilities/pythontools
+        pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
     - name: Build SPEC.
@@ -157,7 +128,7 @@ jobs:
         echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
-      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+      run: pip install git+https://github.com/jameskermode/f90wrap
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -193,12 +164,9 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    #- name: Try importing vmec module from where it actually lives
-    #  run: python -c "import sys; sys.path.append('/home/runner/work/vmecCI/vmecCI/VMEC2000/python/_skbuild/linux-x86_64-3.7/cmake-install/vmec'); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
-
     - name: Install mpi4py
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
+        pip install mpi4py
 
     - name: Install simsopt package
       run: pip install -vvv -e .

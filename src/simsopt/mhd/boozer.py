@@ -254,7 +254,6 @@ class Quasisymmetry(Optimizable):
         symmetry_error = []
         for js, s in enumerate(self.s):
             index = self.boozer.s_to_index[s]
-            print('bmnc_b.shape:', self.boozer.bx.bmnc_b.shape)
             bmnc = self.boozer.bx.bmnc_b[:, index]
             xm = self.boozer.bx.xm_b
             xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
