@@ -1,5 +1,6 @@
 from .vmec import vmec_found, Vmec
 from .spec import Spec, Residue
+from .boozer import Boozer, Quasisymmetry
 
 #try:
 #    import vmec

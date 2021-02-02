@@ -88,6 +88,7 @@ class F90wrapVmecTests(unittest.TestCase):
 
 
 
+    #@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
     def test_run_read(self):
         """
         Try running VMEC, then reading in results from the wout file.

@@ -14,7 +14,7 @@
 - [x] Optimize either RBC/ZBS or Garabedian coefficients
 - [x] MPI
 - [x] SPEC
-- [ ] Boozer-coordinate transformation
+- [x] Boozer-coordinate transformation
 - [ ] epsilon_effective
 - [ ] Standard (non-least-squares) optimization problem
 - [ ] Bound constraints
