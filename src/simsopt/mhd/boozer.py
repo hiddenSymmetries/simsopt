@@ -48,8 +48,8 @@ class Boozer(Optimizable):
     """
     def __init__(self,
                  equil: Vmec,
-                 mpol: int = None,
-                 ntor: int = None) -> None:
+                 mpol: int = 32,
+                 ntor: int = 32) -> None:
         """
         Constructor
         """
@@ -63,6 +63,7 @@ class Boozer(Optimizable):
         self.bx = booz_xform.Booz_xform()
         self.s = set()
         self.need_to_run_code = True
+        self._calls = 0 # For testing, keep track of how many times we call bx.run()
 
     def register(self, s: Union[float, Iterable[float]]) -> None:
         """
@@ -97,7 +98,8 @@ class Boozer(Optimizable):
         s = sorted(list(self.s))
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
-        if isinstance(self.equil, Vmec):
+        # In the next line, __wrapped__ is associated with the monty decorator on Vmec.
+        if isinstance(self.equil, Vmec.__wrapped__):
             self.equil.run()
             wout = self.equil.VMEC.wout # Shorthand
 
@@ -107,16 +109,35 @@ class Boozer(Optimizable):
             ds = s_full[1] - s_full[0]
             s_half = s_full[1:] - 0.5 * ds
 
+            # For each float value of s at which the Boozer results
+            # have been requested, we need to find the corresponding
+            # radial index of the booz_xform results. The result is
+            # self.s_to_index. Computing this is tricky because
+            # multiple values of s may get rounded to the same
+            # half-grid surface. The solution here is done in two
+            # steps. First we find a map from each float value of s to
+            # the corresponding radial index among all half-grid
+            # surfaces (even ones where we won't compute the Boozer
+            # transformation.) This resulting map is
+            # s_to_index_all_surfs. In a second step,
+            # s_to_index_all_surfs and the list of compute_surfs are
+            # used to find s_to_index.
+            
             compute_surfs = []
-            self.s_to_index = dict()
+            s_to_index_all_surfs = dict()
             for ss in s:
                 index = np.argmin(np.abs(s_half - ss))
                 compute_surfs.append(index)
-                self.s_to_index[ss] = index
+                s_to_index_all_surfs[ss] = index
                 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
             logger.info("compute_surfs={}".format(compute_surfs))
+            logger.info("s_to_index_all_surfs={}".format(s_to_index_all_surfs))
+            self.s_to_index = dict()
+            for ss in s:
+                self.s_to_index[ss] = compute_surfs.index(s_to_index_all_surfs[ss])
+            logger.info("s_to_index={}".format(self.s_to_index))
 
             # Transfer data in memory from VMEC to booz_xform
             self.bx.asym = bool(wout.lasym)
@@ -128,8 +149,8 @@ class Boozer(Optimizable):
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
             
-            self.bx.mpol_nyq = wout.xm_nyq[-1]
-            self.bx.ntor_nyq = wout.xn_nyq[-1] / nfp
+            self.bx.mpol_nyq = int(wout.xm_nyq[-1])
+            self.bx.ntor_nyq = int(wout.xn_nyq[-1] / wout.nfp)
             self.bx.mnmax_nyq = wout.mnmax_nyq
             self.bx.xm_nyq = wout.xm_nyq
             self.bx.xn_nyq = wout.xn_nyq
@@ -169,6 +190,8 @@ class Boozer(Optimizable):
                                    wout.bsubvmnc,
                                    bsubvmns)
             self.bx.compute_surfs = compute_surfs
+            self.bx.mboz = self.mpol
+            self.bx.nboz = self.ntor            
 
         else:
             # Cases for SPEC, GVEC, etc could be added here.
@@ -177,6 +200,7 @@ class Boozer(Optimizable):
         
         logger.info("About to call booz_xform.Booz_xform.run().")
         self.bx.run()
+        self._calls += 1
         logger.info("Returned from calling booz_xform.Booz_xform.run().")
         self.need_to_run_code = False
         
@@ -230,6 +254,7 @@ class Quasisymmetry(Optimizable):
         symmetry_error = []
         for js, s in enumerate(self.s):
             index = self.boozer.s_to_index[s]
+            print('bmnc_b.shape:', self.boozer.bx.bmnc_b.shape)
             bmnc = self.boozer.bx.bmnc_b[:, index]
             xm = self.boozer.bx.xm_b
             xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
@@ -270,7 +295,7 @@ class Quasisymmetry(Optimizable):
             else:
                 raise ValueError("Unrecognized value for normalization in Quasisymmetry")
 
-            bmnc /= bnorm
+            bmnc = bmnc / bnorm
 
             # Apply any weight that depends on m and/or n:
 
