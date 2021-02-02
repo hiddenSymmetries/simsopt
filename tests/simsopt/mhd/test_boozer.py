@@ -110,7 +110,9 @@ class QuasisymmetryTests(unittest.TestCase):
         
     #@unittest.skipIf((not booz_xform_found) or (not vmec_found),
     #                 "booz_xform python package not found")
-    @unittest.skip("Just for now")
+    @unittest.skip("This test won't work when run with other tests involving"
+                   "vmec until a low-level issue with VMEC is fixed to allow"
+                   "multiple readins.")
     def test_boozer_circular_tokamak(self):
         v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
         b = Boozer(v, mpol=48, ntor=0)
@@ -176,9 +178,12 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, 15],
                                    atol=atol, rtol=rtol)
 
-"""        
-    @unittest.skipIf((not booz_xform_found) or (not vmec_found),
-                     "booz_xform python package not found")
+        
+    #@unittest.skipIf((not booz_xform_found) or (not vmec_found),
+    #                 "booz_xform python package not found")
+    @unittest.skip("This test won't work when run with other tests involving"
+                   "vmec until a low-level issue with VMEC is fixed to allow"
+                   "multiple readins.")
     def test_boozer_li383(self):
         v = Vmec(os.path.join(TEST_DIR, "input.li383_low_res"))
         b = Boozer(v, mpol=32, ntor=16)
@@ -188,17 +193,19 @@ class QuasisymmetryTests(unittest.TestCase):
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
         bmnc = b.bx.bmnc_b
         
-        # Compare to reference boozmn*.nc file
+        # Compare to a reference boozmn*.nc file created by standalone
+        # booz_xform:
         f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
                                mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
+        f.close()
         atol = 1e-12
         rtol = 1e-12
-        #np.testing.assert_allclose(bmnc[:, 0], bmnc_ref[:, 0],
-        #                           atol=atol, rtol=rtol)
+        np.testing.assert_allclose(bmnc[:, 0], bmnc_ref[:, 0],
+                                   atol=atol, rtol=rtol)
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
         
-"""
+
 if __name__ == "__main__":
     unittest.main()

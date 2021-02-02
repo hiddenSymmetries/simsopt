@@ -9,8 +9,18 @@ This module provides a class that handles the SPEC equilibrium code.
 import logging
 import os.path
 import numpy as np
-import py_spec
-import pyoculus
+
+py_spec_found = True
+try:
+    import py_spec
+except:
+    py_spec_found = False
+
+pyoculus_found = True
+try:
+    import pyoculus
+except:
+    pyoculus_found = False
 
 from simsopt.core import Optimizable, SurfaceRZFourier
 
