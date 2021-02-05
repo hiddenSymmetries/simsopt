@@ -65,6 +65,12 @@ class Boozer(Optimizable):
         self.need_to_run_code = True
         self._calls = 0 # For testing, keep track of how many times we call bx.run()
 
+    def get_dofs(self):
+        return np.array([])
+
+    def set_dofs(self, x):
+        self.need_to_run_code = True
+        
     def register(self, s: Union[float, Iterable[float]]) -> None:
         """
         This function is called by objects that depend on this Boozer
@@ -125,10 +131,12 @@ class Boozer(Optimizable):
             
             compute_surfs = []
             s_to_index_all_surfs = dict()
+            self.s_used = dict()
             for ss in s:
                 index = np.argmin(np.abs(s_half - ss))
                 compute_surfs.append(index)
                 s_to_index_all_surfs[ss] = index
+                self.s_used[ss] = s_half[index]
                 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
@@ -148,12 +156,22 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            
+            print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
+            print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            assert len(wout.xm) == wout.mnmax
+            assert len(wout.xn) == wout.mnmax
+            assert len(self.bx.xm) == self.bx.mnmax
+            assert len(self.bx.xn) == self.bx.mnmax
+
             self.bx.mpol_nyq = int(wout.xm_nyq[-1])
             self.bx.ntor_nyq = int(wout.xn_nyq[-1] / wout.nfp)
             self.bx.mnmax_nyq = wout.mnmax_nyq
             self.bx.xm_nyq = wout.xm_nyq
             self.bx.xn_nyq = wout.xn_nyq
+            assert len(wout.xm_nyq) == wout.mnmax_nyq
+            assert len(wout.xn_nyq) == wout.mnmax_nyq
+            assert len(self.bx.xm_nyq) == self.bx.mnmax_nyq
+            assert len(self.bx.xn_nyq) == self.bx.mnmax_nyq
 
             if wout.lasym:
                 rmns = wout.rmns
@@ -243,6 +261,11 @@ class Quasisymmetry(Optimizable):
         self.s = s
         boozer.register(s)
 
+    def get_dofs(self):
+        return np.array([])
+
+    def set_dofs(self, x):
+        self.need_to_run_code = True
 
     def J(self) -> Iterable:
         """
@@ -303,13 +326,28 @@ class Quasisymmetry(Optimizable):
                 symmetry_error.append(bmnc[nonsymmetric])
 
             elif self.weight == "stellopt":
-                # Stellopt applies a m-dependent radial weight:
-                s_used = self.s # This line may need to be changed
-                rad_sigma = np.full_like(xm, s_used * s_used)
+                # Stellopt applies a m-dependent radial weight, assuming sigma > 0.
+                
+                s_used = self.boozer.bx.s_used[s]
+                print('s_used, in Quasisymmetry:', s_used)
+                rad_sigma = np.full(len(xm), s_used * s_used)
                 rad_sigma[xm < 3] = s_used
                 rad_sigma[xm == 3] = s_used ** 1.5
                 temp = bmnc / rad_sigma
                 symmetry_error.append(temp[nonsymmetric])
+
+            elif self.weight == "stellopt_ornl":
+                # This option is similar to "stellopt" except we
+                # return a single number for the residual instead of a
+                # vector of residuals.
+
+                # For this option, stellopt applies a m-dependent
+                # radial weight only when sigma < 0, the opposite of
+                # when using the non-ORNL helicity! Here, we do not
+                # apply such a weight.
+                
+                temp = bmnc[nonsymmetric]
+                symmetry_error.append(np.array([np.sqrt(np.sum(temp * temp))]))
 
             else:
                 raise ValueError("Unrecognized value for weight in Quasisymmetry")
