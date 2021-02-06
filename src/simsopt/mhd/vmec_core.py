@@ -232,7 +232,6 @@ class VMEC(object):
         ierr = 0
         if self.success:
             logger.info("Attempting to read file " + self.output_file)
-            time.sleep(0.1) # Temporary!
             vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
             if self.verbose:
                 if ierr == 0:
@@ -241,7 +240,6 @@ class VMEC(object):
                 else:
                     print('Load VMEC results from {:} failed!'.format(
                             self.output_file))
-            # Begin temporary stuff
             """
             wout = vmec.read_wout_mod
             print('xm:', wout.xm)
@@ -257,7 +255,6 @@ class VMEC(object):
             assert len(wout.xm_nyq) == wout.mnmax_nyq
             assert len(wout.xn_nyq) == wout.mnmax_nyq
             """
-            # End temporary stuff
 
             f = netcdf.netcdf_file(self.output_file, mmap=False)
             self.wout.nfp = f.variables['nfp'][()]
@@ -279,6 +276,8 @@ class VMEC(object):
             self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
             self.wout.iotas = f.variables['iotas'][()]
             self.wout.iotaf = f.variables['iotaf'][()]
+            self.wout.aspect = f.variables['aspect'][()]
+            self.wout.volume = f.variables['volume_p'][()]
             f.close()
             
         return ierr
