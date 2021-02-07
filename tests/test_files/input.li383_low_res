@@ -25,8 +25,7 @@
    74438920.,  -322215650.,  881050800.,
  -1493896600.,  1527468000.,  -867901590.
   210351200.,  0.E+0
-  RAXIS =   1.4757E+00  9.7154E-02  6.1231E-03  2.3576E-04 -3.0796E-05 -1.7145E-05
-  ZAXIS =   0.0000E+00 -6.0712E-02 -4.3777E-03 -2.3272E-04 -5.4560E-05  2.2188E-05
+  ! The axis is not initialized so VMEC's internal algorithm for axis initialization is run, as when vmec is called from simsopt.
   RBC(0,0) =   1.3782E+00     ZBS(0,0) =   0.0000E+00
   RBC(1,0) =  -4.1452E-03     ZBS(1,0) =   7.1634E-03
   RBC(2,0) =  -4.1374E-03     ZBS(2,0) =   7.5995E-03
