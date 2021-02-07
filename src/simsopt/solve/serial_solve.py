@@ -28,15 +28,17 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
 
     logfile = None
     logfile_started = False
+    residuals_file = None
     nevals = 0
     start_time = time()
     
     def objective(x):
-        nonlocal logfile_started, logfile, nevals
+        nonlocal logfile_started, logfile, residuals_file, nevals
         try:
             result = prob.f(x)
             objective_val = prob.objective()
         except:
+            logger.info("Exception caught during function evaluation")
             result = np.full(prob.dofs.nvals, 1.0e12)
             objective_val = prob.dofs.nvals * 1e24
         
@@ -47,25 +49,42 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
         if not logfile_started:
             # Initialize log file
             logfile_started = True
-            filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".dat"
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            filename = "simsopt_" + datestr + ".dat"
             logfile = open(filename, 'w')
             logfile.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
             logfile.write("function_evaluation,seconds")
             for j in range(prob.dofs.nparams):
                 logfile.write(",x({})".format(j))
             logfile.write(",objective_function")
-            for j in range(prob.dofs.nvals):
-                logfile.write(",F({})".format(j))
             logfile.write("\n")
+            
+            filename = "residuals_" + datestr + ".dat"
+            residuals_file = open(filename, 'w')
+            residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            residuals_file.write("function_evaluation,seconds")
+            for j in range(prob.dofs.nparams):
+                residuals_file.write(",x({})".format(j))
+            residuals_file.write(",objective_function")
+            for j in range(prob.dofs.nvals):
+                residuals_file.write(",F({})".format(j))
+            residuals_file.write("\n")
             
         logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
             logfile.write(",{:24.16e}".format(xj))
         logfile.write(",{:24.16e}".format(objective_val))
-        for fj in result:
-            logfile.write(",{:24.16e}".format(fj))
         logfile.write("\n")
         logfile.flush()
+
+        residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        for xj in x:
+            residuals_file.write(",{:24.16e}".format(xj))
+        residuals_file.write(",{:24.16e}".format(objective_val))
+        for fj in result:
+            residuals_file.write(",{:24.16e}".format(fj))
+        residuals_file.write("\n")
+        residuals_file.flush()
 
         nevals += 1
         return result
@@ -88,6 +107,7 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
         result = least_squares(objective, x0, verbose=2, **kwargs)
 
     logfile.close()
+    residuals_file.close()
     logger.info("Completed solve.")
     
     #print("optimum x:",result.x)

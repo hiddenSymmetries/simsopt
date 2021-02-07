@@ -153,6 +153,9 @@ class Vmec(Optimizable):
         self.VMEC.reinit()
         logger.info("Running VMEC.")
         self.VMEC.run()
+        if not self.VMEC.success:
+            logger.info("VMEC did not succeed!")
+            raise RuntimeError("VMEC did not succeed")
         logger.info("VMEC run complete. Now loading output.")
         self.VMEC.load()
         logger.info("Done loading VMEC output.")

@@ -632,6 +632,24 @@ class SurfaceRZFourier(Surface):
         self.zs[1:, :] = np.array(v[ntor * 2 + 1 + mpol * (ntor * 2 + 1): \
                                            ntor * 2 + 1 + 2 * mpol * (ntor * 2 + 1)]).reshape(mpol, ntor * 2 + 1)
 
+    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+        """
+        Set the 'fixed' property for a range of m and n values.
+
+        All modes with m in the interval [mmin, mmax] and n in the
+        interval [nmin, nmax] will have their fixed property set to
+        the value of the 'fixed' parameter. Note that mmax and nmax
+        are included (unlike the upper bound in python's range(min,
+        max).)
+        """
+        for m in range(mmin, mmax + 1):
+            for n in range(nmin, nmax + 1):
+                self.set_fixed('rc({},{})'.format(m, n), fixed)
+                self.set_fixed('zs({},{})'.format(m, n), fixed)
+                if not self.stelsym:
+                    self.set_fixed('rs({},{})'.format(m, n), fixed)
+                    self.set_fixed('zc({},{})'.format(m, n), fixed)
+        
     def to_RZFourier(self):
         """
         No conversion necessary.
@@ -760,6 +778,20 @@ class SurfaceGarabedian(Surface):
 
         self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
 
+    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+        """
+        Set the 'fixed' property for a range of m and n values.
+
+        All modes with m in the interval [mmin, mmax] and n in the
+        interval [nmin, nmax] will have their fixed property set to
+        the value of the 'fixed' parameter. Note that mmax and nmax
+        are included (unlike the upper bound in python's range(min,
+        max).)
+        """
+        for m in range(mmin, mmax + 1):
+            for n in range(nmin, nmax + 1):
+                self.set_fixed('Delta({},{})'.format(m, n), fixed)
+        
     def to_RZFourier(self):
         """
         Return a SurfaceRZFourier object with the identical shape.

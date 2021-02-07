@@ -7,9 +7,15 @@ from __future__ import print_function, absolute_import, division
 import numpy as np
 import os
 import logging
+import time
 from mpi4py import MPI
+from scipy.io import netcdf
 
 import vmec
+
+# Empty mutable object
+class Struct():
+    pass
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -88,7 +94,8 @@ class VMEC(object):
         # create link for indata
         self.indata = vmec.vmec_input
         # create link for read_wout_mod
-        self.wout = vmec.read_wout_mod
+        #self.wout = vmec.read_wout_mod # Removed MJL 2021-02-05
+        self.wout = Struct()
 
         return
 
@@ -233,4 +240,48 @@ class VMEC(object):
                 else:
                     print('Load VMEC results from {:} failed!'.format(
                             self.output_file))
+            """
+            wout = vmec.read_wout_mod
+            print('xm:', wout.xm)
+            print('xn:', wout.xn)
+            print('xm_nyq:', wout.xm_nyq)
+            print('xn_nyq:', wout.xn_nyq)
+            print('type(xm):', type(wout.xm), ' type(xn):', type(wout.xn), ' type(xm_nyq):', type(wout.xm_nyq), ' type(xn_nyq):', type(wout.xn_nyq))
+            print('ierr:', ierr)
+            print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
+            print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            assert len(wout.xm) == wout.mnmax
+            assert len(wout.xn) == wout.mnmax
+            assert len(wout.xm_nyq) == wout.mnmax_nyq
+            assert len(wout.xn_nyq) == wout.mnmax_nyq
+            """
+
+            f = netcdf.netcdf_file(self.output_file, mmap=False)
+            self.wout.ier_flag = f.variables['ier_flag'][()]
+            if self.wout.ier_flag != 0:
+                logger.info("VMEC did not succeed!")
+                raise RuntimeError("VMEC did not succeed")
+            self.wout.nfp = f.variables['nfp'][()]
+            self.wout.lasym = f.variables['lasym__logical__'][()]
+            self.wout.ns = f.variables['ns'][()]
+            self.wout.mnmax = f.variables['mnmax'][()]
+            self.wout.mnmax_nyq = f.variables['mnmax_nyq'][()]
+            self.wout.xm = f.variables['xm'][()]
+            self.wout.xn = f.variables['xn'][()]
+            self.wout.xm_nyq = f.variables['xm_nyq'][()]
+            self.wout.xn_nyq = f.variables['xn_nyq'][()]
+            self.wout.mpol = f.variables['mpol'][()]
+            self.wout.ntor = f.variables['ntor'][()]
+            self.wout.bmnc = f.variables['bmnc'][()].transpose()
+            self.wout.rmnc = f.variables['rmnc'][()].transpose()
+            self.wout.zmns = f.variables['zmns'][()].transpose()
+            self.wout.lmns = f.variables['lmns'][()].transpose()
+            self.wout.bsubumnc = f.variables['bsubumnc'][()].transpose()
+            self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
+            self.wout.iotas = f.variables['iotas'][()]
+            self.wout.iotaf = f.variables['iotaf'][()]
+            self.wout.aspect = f.variables['aspect'][()]
+            self.wout.volume = f.variables['volume_p'][()]
+            f.close()
+            
         return ierr
