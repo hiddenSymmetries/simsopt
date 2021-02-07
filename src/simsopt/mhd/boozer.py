@@ -317,6 +317,7 @@ class Quasisymmetry(Optimizable):
             else:
                 raise ValueError("Unrecognized value for normalization in Quasisymmetry")
 
+            logger.info("For s={}, bnorm={}".format(s, bnorm))
             bmnc = bmnc / bnorm
 
             # Apply any weight that depends on m and/or n:
@@ -326,13 +327,20 @@ class Quasisymmetry(Optimizable):
                 symmetry_error.append(bmnc[nonsymmetric])
 
             elif self.weight == "stellopt":
-                # Stellopt applies a m-dependent radial weight, assuming sigma > 0.
+                # Stellopt appears to apply a m-dependent radial
+                # weight, assuming sigma > 0. However, the m is
+                # evaluated outside of any loop over m, so m ends up
+                # taking the value mboz instead of the actual m for
+                # each mode. As a result, there is an even weight by s_used**2.
                 
-                s_used = self.boozer.bx.s_used[s]
-                print('s_used, in Quasisymmetry:', s_used)
+                s_used = self.boozer.s_used[s]
+                logger.info('s_used, in Quasisymmetry: {}'.format(s_used))
+                """
                 rad_sigma = np.full(len(xm), s_used * s_used)
                 rad_sigma[xm < 3] = s_used
                 rad_sigma[xm == 3] = s_used ** 1.5
+                """
+                rad_sigma = s_used * s_used
                 temp = bmnc / rad_sigma
                 symmetry_error.append(temp[nonsymmetric])
 

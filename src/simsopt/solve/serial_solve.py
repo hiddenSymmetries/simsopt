@@ -38,9 +38,9 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
             result = prob.f(x)
             objective_val = prob.objective()
         except:
+            logger.info("Exception caught during function evaluation")
             result = np.full(prob.dofs.nvals, 1.0e12)
             objective_val = prob.dofs.nvals * 1e24
-            raise # This line is temporary!! 2021-02-05
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the

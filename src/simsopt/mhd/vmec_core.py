@@ -257,6 +257,10 @@ class VMEC(object):
             """
 
             f = netcdf.netcdf_file(self.output_file, mmap=False)
+            self.wout.ier_flag = f.variables['ier_flag'][()]
+            if self.wout.ier_flag != 0:
+                logger.info("VMEC did not succeed!")
+                raise RuntimeError("VMEC did not succeed")
             self.wout.nfp = f.variables['nfp'][()]
             self.wout.lasym = f.variables['lasym__logical__'][()]
             self.wout.ns = f.variables['ns'][()]
