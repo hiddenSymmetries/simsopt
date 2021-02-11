@@ -1,3 +1,8 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the LGPL License
+
+#TODO: Replace blanket imports with targeted imports
 from .util import *
 from .optimizable import *
 from .surface import *

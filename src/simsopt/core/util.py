@@ -6,8 +6,22 @@
 This module contains small utility functions and classes.
 """
 
+import itertools
+from typing import Union
+from collections.abc import Sequence
+from numbers import Integral, Real, Number
+from dataclasses import dataclass
+from abc import ABCMeta
+
 import numpy as np
-import numbers
+from nptyping import NDArray, Float, Int, Bool
+
+Array = Union[Sequence, NDArray]
+RealArray = Union[Sequence[Real], NDArray[Float]]
+IntArray = Union[Sequence[Integral], NDArray[Int]]
+StrArray = Union[Sequence[str], NDArray[str]]
+BoolArray = Union[Sequence[bool], NDArray[Bool]]
+Key = Union[Integral, str]
 
 
 def isbool(val):
@@ -23,7 +37,7 @@ def isnumber(val):
     Test whether val is any kind of number, including both native
     python types or numpy types.
     """
-    return isinstance(val, numbers.Number)
+    return isinstance(val, Number)
 
 
 class Struct:
@@ -48,3 +62,28 @@ def unique(inlist):
             outlist.append(j)
             seen.add(j)
     return outlist
+
+
+@dataclass(frozen=True)
+class ImmutableId:
+    """
+    Immutable class with a single attribute id to represent instance ids. Used
+    in conjuction with InstanceCounterMeta metaclass to generate immutable
+    instance ids starting with 1 for each of the different classes sublcassing
+    InstanceCounterMeta
+    """
+    id: Integral
+
+class InstanceCounterMeta(type):
+    """
+    Metaclass to make instance counter not share count with descendants
+
+    Ref: https://stackoverflow.com/questions/8628123/counting-instances-of-a-class
+    Credits: https://stackoverflow.com/users/3246302/ratiotile
+    """
+    def __init__(cls, name, bases, attrs):
+        super().__init__(name, bases, attrs)
+        cls._ids = itertools.count(1)
+
+class InstanceCounterABCMeta(InstanceCounterMeta, ABCMeta):
+    pass
