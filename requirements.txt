@@ -1,9 +1,12 @@
 numpy~=1.19.4
 mpi4py~=3.0.3
 monty~=4.0.2
-simsopt~=0.0.1
+simsopt~=0.0.2
 jax~=0.2.5
 setuptools~=50.3.1
 scipy~=1.5.4
 py-spec~=3.0.1
 pyoculus~=0.1.1
+Deprecated~=1.2.10
+nptyping~=1.3.0
+pandas~=1.1.4
