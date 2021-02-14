@@ -107,7 +107,7 @@ class Boozer(Optimizable):
         # In the next line, __wrapped__ is associated with the monty decorator on Vmec.
         if isinstance(self.equil, Vmec.__wrapped__):
             self.equil.run()
-            wout = self.equil.VMEC.wout # Shorthand
+            wout = self.equil.wout # Shorthand
 
             # Get the half-grid points that are closest to the requested values
             ns = wout.ns

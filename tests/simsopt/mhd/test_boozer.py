@@ -108,11 +108,11 @@ class QuasisymmetryTests(unittest.TestCase):
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
 
         
-    #@unittest.skipIf((not booz_xform_found) or (not vmec_found),
-    #                 "booz_xform python package not found")
-    @unittest.skip("This test won't work when run with other tests involving"
-                   "vmec until a low-level issue with VMEC is fixed to allow"
-                   "multiple readins.")
+    #@unittest.skip("This test won't work when run with other tests involving"
+    #               "vmec until a low-level issue with VMEC is fixed to allow"
+    #               "multiple readins.")
+    @unittest.skipIf((not booz_xform_found) or (not vmec_found),
+                     "vmec or booz_xform python package not found")
     def test_boozer_circular_tokamak(self):
         v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
         b = Boozer(v, mpol=48, ntor=0)
