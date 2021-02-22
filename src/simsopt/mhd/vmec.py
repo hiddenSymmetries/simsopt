@@ -9,14 +9,17 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 import numpy as np
+from scipy.io import netcdf
 from mpi4py import MPI
 from monty.dev import requires
 
 from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
+from simsopt.core.util import Struct
 from simsopt.util.mpi import MpiPartition
 #from simsopt.mhd.vmec_core import VMEC
 try:
-    from simsopt.mhd.vmec_core import VMEC # May need to edit this path.
+    #from simsopt.mhd.vmec_core import VMEC # May need to edit this path.
+    import vmec
     vmec_found = True
 except ImportError as err:
     vmec_found = False
@@ -27,6 +30,39 @@ except ImportError as err:
     print(err)
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+
+# Flags used by runvmec():
+restart_flag = 1
+readin_flag = 2
+timestep_flag = 4
+output_flag = 8
+cleanup_flag = 16
+reset_jacdt_flag = 32
+"""
+value     flag-name             calls routines to...
+-----     ---------             ---------------------
+  1       restart_flag          reset internal run-control parameters
+                                (for example, if jacobian was bad, to try a smaller time-step)
+  2       readin_flag           read in data from input_file and initialize parameters/arrays
+                                which do not dependent on radial grid size
+                                allocate internal grid-dependent arrays used by vmec;
+                                initialize internal grid-dependent vmec profiles (xc, iota, etc);
+                                setup loop for radial multi-grid meshes or, if ns_index = ictrl_array(4)
+                                is > 0, use radial grid points specified by ns_array[ns_index]
+  4       timestep_flag         iterate vmec either by "niter" time steps or until ftol satisfied,
+                                whichever comes first. If numsteps (see below) > 0, vmec will return
+                                to caller after numsteps, rather than niter, steps.
+  8       output_flag           write out output files (wout, jxbout)
+ 16       cleanup_flag          cleanup (deallocate arrays) - this terminates present run of the sequence
+                                This flag will be ignored if the run might be continued. For example,
+                                if ier_flag (see below) returns the value more_iter_flag, the cleanup
+                                code will be skipped even if cleanup_flag is set, so that the run
+                                could be continued on the next call to runvmec.
+ 32       reset_jacdt_flag      Resets ijacobian flag and time step to delt0
+
+      thus, setting ictrl_flag = 1+2+4+8+16 will perform ALL the tasks thru cleanup_flag
+      in addition, if ns_index = 0 and numsteps = 0 (see below), vmec will control its own run history
+"""
 
 @requires(vmec_found,
           "Running VMEC from simsopt requires VMEC python extension. "
@@ -47,6 +83,7 @@ class Vmec(Optimizable):
                             + filename)
         else:
             logger.info("Initializing a VMEC object from file: " + filename)
+        self.input_file = filename
 
         # Get MPI communicator:
         if mpi is None:
@@ -56,14 +93,33 @@ class Vmec(Optimizable):
         comm = self.mpi.comm_groups
         self.fcomm = comm.py2f()
 
-        self.VMEC = VMEC(input_file=filename, comm=self.fcomm, \
-                             verbose=MPI.COMM_WORLD.rank==0, group=self.mpi.group)
+        self.ictrl = np.zeros(5, dtype=np.int32)
+        self.iter = 0
+        self.wout = Struct()
+
+        self.ictrl[0] = restart_flag + readin_flag
+        self.ictrl[1] = 0 # ierr
+        self.ictrl[2] = 0 # numsteps
+        self.ictrl[3] = 0 # ns_index
+        self.ictrl[4] = 0 # iseq
+        verbose = True
+        reset_file = ''
+        print('About to call runvmec to readin')
+        vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
+        ierr = self.ictrl[1]
+        print('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+        # Deallocate arrays allocated by VMEC's fixaray():
+        vmec.cleanup(False)
+        if ierr != 0:
+            raise RuntimeError("Failed to initialize VMEC from input file {}. "
+                               "error code {}".format(filename, ierr))
+        
         objstr = " for Vmec " + str(hex(id(self)))
         # nfp and stelsym are initialized by the Equilibrium constructor:
         #Equilibrium.__init__(self)
 
         # For each VMEC input parameter in VMEC's fortran modules, create an attribute
-        vi = self.VMEC.indata # Shorthand
+        vi = vmec.vmec_input # Shorthand
         self.nfp = vi.nfp
         self.stelsym = not vi.lasym
         # It probably makes sense for a vmec object to have mpol and
@@ -117,7 +173,7 @@ class Vmec(Optimizable):
             return
         logger.info("Preparing to run VMEC.")
         # Transfer values from Parameters to VMEC's fortran modules:
-        vi = self.VMEC.indata
+        vi = vmec.vmec_input # Shorthand
         vi.nfp = self.nfp
         vi.lasym = int(not self.stelsym)
         vi.delt = self.delt
@@ -150,44 +206,124 @@ class Vmec(Optimizable):
         vi.zaxis_cc[:] = 0
         vi.zaxis_cs[:] = 0
 
-        self.VMEC.reinit()
-        logger.info("Running VMEC.")
-        self.VMEC.run()
-        if not self.VMEC.success:
-            logger.info("VMEC did not succeed!")
-            raise RuntimeError("VMEC did not succeed")
+        self.iter += 1
+        input_file = self.input_file+'_{:03d}_{:06d}'.format(self.mpi.group, self.iter)
+        self.output_file = os.path.join(os.getcwd(), \
+                os.path.basename(input_file).replace('input.', 'wout_')+'.nc')
+        
+        # I should write an input file here.
+        logger.info("Calling VMEC reinit().")
+        vmec.reinit()
+        
+        logger.info("Calling runvmec().")
+        self.ictrl[0] = restart_flag + reset_jacdt_flag \
+            + timestep_flag + output_flag
+        self.ictrl[1] = 0 # ierr
+        self.ictrl[2] = 0 # numsteps
+        self.ictrl[3] = 0 # ns_index
+        self.ictrl[4] = 0 # iseq
+        verbose = True
+        reset_file = ''
+        vmec.runvmec(self.ictrl, input_file, verbose, self.fcomm, reset_file)
+        ierr = self.ictrl[1]
+        
+        # Deallocate arrays, even if vmec did not converge:
+        logger.info("Calling VMEC cleanup().")
+        vmec.cleanup(True)
+        
+        if ierr != 11: # 11 = successful_term_flag, defined in General/vmec_params.f
+            raise RuntimeError("VMEC did not converge. "
+                               "error code {}".format(ierr))
         logger.info("VMEC run complete. Now loading output.")
-        self.VMEC.load()
+        self.load_wout()
         logger.info("Done loading VMEC output.")
         self.need_to_run_code = False
 
+    def load_wout(self):
+        ierr = 0
+        logger.info("Attempting to read file " + self.output_file)
+        """
+        vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
+        if ierr == 0:
+            logger.info('Successufully load VMEC results from ' + \
+                        self.output_file)
+        else:
+            print('Load VMEC results from {:} failed!'.format(
+                self.output_file))
+        """
+        """
+        wout = vmec.read_wout_mod
+        print('xm:', wout.xm)
+        print('xn:', wout.xn)
+        print('xm_nyq:', wout.xm_nyq)
+        print('xn_nyq:', wout.xn_nyq)
+        print('type(xm):', type(wout.xm), ' type(xn):', type(wout.xn), ' type(xm_nyq):', type(wout.xm_nyq), ' type(xn_nyq):', type(wout.xn_nyq))
+        print('ierr:', ierr)
+        print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
+        print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+        assert len(wout.xm) == wout.mnmax
+        assert len(wout.xn) == wout.mnmax
+        assert len(wout.xm_nyq) == wout.mnmax_nyq
+        assert len(wout.xn_nyq) == wout.mnmax_nyq
+        """
+
+        f = netcdf.netcdf_file(self.output_file, mmap=False)
+        self.wout.ier_flag = f.variables['ier_flag'][()]
+        if self.wout.ier_flag != 0:
+            logger.info("VMEC did not succeed!")
+            raise RuntimeError("VMEC did not succeed")
+        self.wout.nfp = f.variables['nfp'][()]
+        self.wout.lasym = f.variables['lasym__logical__'][()]
+        self.wout.ns = f.variables['ns'][()]
+        self.wout.mnmax = f.variables['mnmax'][()]
+        self.wout.mnmax_nyq = f.variables['mnmax_nyq'][()]
+        self.wout.xm = f.variables['xm'][()]
+        self.wout.xn = f.variables['xn'][()]
+        self.wout.xm_nyq = f.variables['xm_nyq'][()]
+        self.wout.xn_nyq = f.variables['xn_nyq'][()]
+        self.wout.mpol = f.variables['mpol'][()]
+        self.wout.ntor = f.variables['ntor'][()]
+        self.wout.bmnc = f.variables['bmnc'][()].transpose()
+        self.wout.rmnc = f.variables['rmnc'][()].transpose()
+        self.wout.zmns = f.variables['zmns'][()].transpose()
+        self.wout.lmns = f.variables['lmns'][()].transpose()
+        self.wout.bsubumnc = f.variables['bsubumnc'][()].transpose()
+        self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
+        self.wout.iotas = f.variables['iotas'][()]
+        self.wout.iotaf = f.variables['iotaf'][()]
+        self.wout.aspect = f.variables['aspect'][()]
+        self.wout.volume = f.variables['volume_p'][()]
+        f.close()
+            
+        return ierr
+    
     def aspect(self):
         """
         Return the plasma aspect ratio.
         """
         self.run()
-        return self.VMEC.wout.aspect
+        return self.wout.aspect
         
     def volume(self):
         """
         Return the volume inside the VMEC last closed flux surface.
         """
         self.run()
-        return self.VMEC.wout.volume
+        return self.wout.volume
         
     def iota_axis(self):
         """
         Return the rotational transform on axis
         """
         self.run()
-        return self.VMEC.wout.iotaf[0]
+        return self.wout.iotaf[0]
 
     def iota_edge(self):
         """
         Return the rotational transform at the boundary
         """
         self.run()
-        return self.VMEC.wout.iotaf[-1]
+        return self.wout.iotaf[-1]
 
     def get_max_mn(self):
         """
@@ -198,29 +334,22 @@ class Vmec(Optimizable):
         max_n = 0
         for m in range(1, 101):
             for n in range(1, 101):
-                if np.abs(self.VMEC.indata.rbc[101+n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.zbs[101+n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.rbs[101+n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.zbc[101+n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.rbc[101-n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.zbs[101-n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.rbs[101-n, m]) > 0 \
-                        or np.abs(self.VMEC.indata.zbc[101-n, m]) > 0:
+                if np.abs(vmec.vmec_input.rbc[101+n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.zbs[101+n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.rbs[101+n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.zbc[101+n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.rbc[101-n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.zbs[101-n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.rbs[101-n, m]) > 0 \
+                        or np.abs(vmec.vmec_input.zbc[101-n, m]) > 0:
                     max_m = np.max((max_m, m))
                     max_n = np.max((max_n, n))
         # It may happen that mpol or ntor exceed the max_m or max_n
         # according to rbc/zbs. In this case, go with the larger
         # value.
-        max_m = np.max((max_m, self.VMEC.indata.mpol))
-        max_n = np.max((max_n, self.VMEC.indata.ntor))
+        max_m = np.max((max_m, vmec.vmec_input.mpol))
+        max_n = np.max((max_n, vmec.vmec_input.ntor))
         return (max_m, max_n)
-
-    def finalize(self):
-        """
-        This subroutine deallocates arrays in VMEC so VMEC can be
-        initialized again.
-        """
-        self.VMEC.finalize()
 
     def __repr__(self):
         """
