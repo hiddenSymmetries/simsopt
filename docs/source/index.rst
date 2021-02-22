@@ -46,13 +46,15 @@ fusion energy project <https://hiddensymmetries.princeton.edu>`_.  It
 is fully open-source, and anyone is welcome to make suggestions,
 contribute, and use.
 
-``simsopt`` is one of several available systems for stellarator optimization.
-Others include `Stellopt <https://github.com/PrincetonUniversity/STELLOPT>`_,
-`ROSE <https://doi.org/10.1088/1741-4326/aaed50>`_, and `LASSO <https://gitlab.com/wistell>`_.
+``simsopt`` is one of several available systems for stellarator
+optimization.  Others include `STELLOPT
+<https://github.com/PrincetonUniversity/STELLOPT>`_, `ROSE
+<https://doi.org/10.1088/1741-4326/aaed50>`_, and `LASSO
+<https://gitlab.com/wistell>`_.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    getting_started
    problems
