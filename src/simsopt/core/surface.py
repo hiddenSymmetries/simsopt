@@ -643,12 +643,17 @@ class SurfaceRZFourier(Surface):
         max).)
         """
         for m in range(mmin, mmax + 1):
-            for n in range(nmin, nmax + 1):
+            this_nmin = nmin
+            if m == 0 and nmin < 0:
+                this_nmin = 0
+            for n in range(this_nmin, nmax + 1):
                 self.set_fixed('rc({},{})'.format(m, n), fixed)
-                self.set_fixed('zs({},{})'.format(m, n), fixed)
+                if m > 0 or n != 0:
+                    self.set_fixed('zs({},{})'.format(m, n), fixed)
                 if not self.stelsym:
-                    self.set_fixed('rs({},{})'.format(m, n), fixed)
                     self.set_fixed('zc({},{})'.format(m, n), fixed)
+                    if m > 0 or n != 0:
+                        self.set_fixed('rs({},{})'.format(m, n), fixed)
         
     def to_RZFourier(self):
         """
