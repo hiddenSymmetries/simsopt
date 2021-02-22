@@ -44,6 +44,7 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
+html_logo = 'logo.png'
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -56,6 +57,13 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# For configuration options of the Read The Docs theme, see
+# https://sphinx-rtd-theme.readthedocs.io/en/latest/configuring.html
+
+html_theme_options = {
+    'collapse_navigation': False
+    }
 
 # -- Napolean extension configuration ----------------------------------------
 
@@ -72,3 +80,9 @@ napoleon_use_param = True
 napoleon_use_rtype = True
 napoleon_type_aliases = None
 napoleon_attr_annotations = True
+
+# This next function is for fixing equation numbers.
+# See links in _static/equation_numbers.css for details.
+
+def setup(app):
+    app.add_css_file('equation_numbers.css')
