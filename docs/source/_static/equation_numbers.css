@@ -1,0 +1,22 @@
+/* See
+https://github.com/readthedocs/sphinx_rtd_theme/pull/383
+https://github.com/billsacks/ctsm/commit/53a32cf5b32da0cddd3cb83338998303db3dd5bc
+https://github.com/altMITgcm/MITgcm/pull/12/files
+*/
+/* Make equation numbers float to the right */
+.eqno {
+    margin-left: 5px;
+    float: right;
+}
+/* Hide the link... */
+.math .headerlink {
+    display: none;
+    visibility: hidden;
+}
+/* ...unless the equation is hovered */
+.math:hover .headerlink {
+    display: inline-block;
+    visibility: visible;
+    /* Place link in margin and keep equation number aligned with boundary */
+    margin-right: -0.7em;
+}
