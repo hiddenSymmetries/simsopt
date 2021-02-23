@@ -13,6 +13,6 @@
 [submodule "thirdparty/xsimd"]
 	path = thirdparty/xsimd
 	url = https://github.com/xtensor-stack/xsimd.git
-[submodule "thirdparty/blaze"]
-	path = thirdparty/blaze
-	url = https://bitbucket.org/blaze-lib/blaze.git
+[submodule "thirdparty/eigen"]
+	path = thirdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git
