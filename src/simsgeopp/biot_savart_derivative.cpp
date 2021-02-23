@@ -6,7 +6,7 @@ void biot_savart_B_only_vjp_impl(vector_type& pointsx, vector_type& pointsy, vec
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
-        auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
+        Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
         auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
                 Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
@@ -20,8 +20,8 @@ void biot_savart_B_only_vjp_impl(vector_type& pointsx, vector_type& pointsy, vec
             }
         }
         for (int j = 0; j < num_quad_points; ++j) {
-            auto gamma_j = Vec3d(3, &gamma(j, 0));
-            auto dgamma_j_by_dphi = Vec3d(3, &dgamma_by_dphi(j, 0));
+            auto gamma_j = Vec3d{ gamma(j, 0), gamma(j, 1), gamma(j, 2)};
+            auto dgamma_j_by_dphi = Vec3d{ dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2)};
             auto diff = point_i - gamma_j;
             auto norm_diff_2 = normsq(diff);
             auto norm_diff = sqrt(norm_diff_2);
@@ -48,7 +48,7 @@ void biot_savart_B_only_vjp_impl(vector_type& pointsx, vector_type& pointsy, vec
             for(int k=0; k<3; k++){
                 auto eksimd = Vec3dSimd();
                 eksimd[k] += 1.;
-                auto ek = Vec3d();
+                Vec3d ek = Vec3d::Zero();
                 ek[k] = 1.;
                 res_grad_dgamma_by_dphi_add += cross(k, vgrad_i[k]) * norm_diff_3_inv;
                 res_grad_dgamma_by_dphi_add -= cross(diff, vgrad_i[k]) * (diff[k] * norm_diff_5_inv_times_3);
@@ -68,9 +68,9 @@ void biot_savart_B_only_vjp_impl(vector_type& pointsx, vector_type& pointsy, vec
     }
     for (int i = num_points - num_points % simd_size; i < num_points; ++i) {
         auto point_i = Vec3d{pointsx[i], pointsy[i], pointsz[i]};
-        auto v_i   = Vec3d();
+        Vec3d v_i   = Vec3d::Zero();
         auto vgrad_i = vector<Vec3d>{
-                Vec3d(), Vec3d(), Vec3d()
+            Vec3d::Zero(), Vec3d::Zero(), Vec3d::Zero()
             };
         for (int d = 0; d < 3; ++d) {
             v_i[d] = v(i, d);
@@ -79,33 +79,33 @@ void biot_savart_B_only_vjp_impl(vector_type& pointsx, vector_type& pointsy, vec
             }
         }
         for (int j = 0; j < num_quad_points; ++j) {
-            auto gamma_j = Vec3d(3, &gamma(j, 0));
-            auto dgamma_j_by_dphi = Vec3d(3, &dgamma_by_dphi(j, 0));
-            auto diff = point_i - gamma_j;
-            auto norm_diff = norm(diff);
-            auto norm_diff_2 = norm_diff*norm_diff;
-            auto norm_diff_3_inv = 1/(norm_diff_2*norm_diff);
-            auto norm_diff_5_inv = norm_diff_3_inv/(norm_diff_2);
-            auto norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
+            Vec3d gamma_j = Vec3d{ gamma(j, 0), gamma(j, 1), gamma(j, 2) };
+            Vec3d dgamma_j_by_dphi = Vec3d{ dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2) };
+            Vec3d diff = point_i - gamma_j;
+            double norm_diff = norm(diff);
+            double norm_diff_2 = norm_diff*norm_diff;
+            double norm_diff_3_inv = 1/(norm_diff_2*norm_diff);
+            double norm_diff_5_inv = norm_diff_3_inv/(norm_diff_2);
+            double norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
 
-            auto res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
+            Vec3d res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
             res_dgamma_by_dphi(j, 0) += res_dgamma_by_dphi_add[0];
             res_dgamma_by_dphi(j, 1) += res_dgamma_by_dphi_add[1];
             res_dgamma_by_dphi(j, 2) += res_dgamma_by_dphi_add[2];
 
-            auto cross_dgamma_j_by_dphi_diff = cross(dgamma_j_by_dphi, diff);
+            Vec3d cross_dgamma_j_by_dphi_diff = cross(dgamma_j_by_dphi, diff);
             Vec3d res_gamma_add = cross(dgamma_j_by_dphi, v_i) * norm_diff_3_inv;
             res_gamma_add += diff * inner(cross_dgamma_j_by_dphi_diff, v_i) * (norm_diff_5_inv_times_3);
             res_gamma(j, 0) += res_gamma_add[0];
             res_gamma(j, 1) += res_gamma_add[1];
             res_gamma(j, 2) += res_gamma_add[2];
 
-            auto norm_diff_7_inv = norm_diff_5_inv/(norm_diff_2);
-            auto res_grad_dgamma_by_dphi_add = Vec3d();
-            auto res_grad_gamma_add = Vec3d();
+            double norm_diff_7_inv = norm_diff_5_inv/(norm_diff_2);
+            Vec3d res_grad_dgamma_by_dphi_add = Vec3d::Zero();
+            Vec3d res_grad_gamma_add = Vec3d::Zero();
 
             for(int k=0; k<3; k++){
-                auto ek = Vec3d();
+                Vec3d ek = Vec3d::Zero();
                 ek[k] = 1.;
                 res_grad_dgamma_by_dphi_add += cross(ek, vgrad_i[k]) * norm_diff_3_inv;
                 res_grad_dgamma_by_dphi_add -= cross(diff, vgrad_i[k]) * (diff[k] * norm_diff_5_inv_times_3);
