@@ -34,9 +34,9 @@ pybind11_add_module(${PROJECT_NAME}
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/blaze" ${NUMPY_INCLUDE_DIRS} "src/simsgeopp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${NUMPY_INCLUDE_DIRS} "src/simsgeopp/")
 
 
 
