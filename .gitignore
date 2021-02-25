@@ -4,6 +4,7 @@
 *.o
 *.mod
 _skbuild/
+simsopt_20*.dat
 
 # f90wrap related
 src.*/

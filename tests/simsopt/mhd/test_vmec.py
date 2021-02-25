@@ -26,7 +26,6 @@ class VmecTests(unittest.TestCase):
         self.assertEqual(v.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
-        v.finalize()
 
     def test_init_from_file(self):
         """
@@ -54,8 +53,6 @@ class VmecTests(unittest.TestCase):
         self.assertEqual(v.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
-
-        v.finalize()
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
