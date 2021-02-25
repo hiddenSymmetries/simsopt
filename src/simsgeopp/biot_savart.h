@@ -1,20 +1,18 @@
 #pragma once
 
-#define BLAZE_USE_SHARED_MEMORY_PARALLELIZATION 0
 
 #include "xtensor/xio.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xmath.hpp"
-#include "blaze/Blaze.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <tuple>
 
 
-typedef blaze::StaticVector<double,3UL> Vec3d;
-typedef blaze::DynamicMatrix<double, blaze::rowMajor> RowMat;
-typedef blaze::DynamicMatrix<double, blaze::columnMajor> ColMat;
 
 typedef xt::pyarray<double> Array;
+#include <Eigen/Core>
+#include <Eigen/Dense>
+typedef Eigen::Vector3d Vec3d;
 
 
 #include <vector>
@@ -22,7 +20,6 @@ using std::vector;
 
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
-using xs::sqrt;
 using vector_type = std::vector<double, xs::aligned_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 #include <optional>
@@ -140,6 +137,18 @@ inline simd_t inner(int i, Vec3dSimd& a){
 }
 
 
+inline double inner(const Vec3d& a, const Vec3d& b){
+    return a.dot(b);
+}
+
+inline Vec3d cross(const Vec3d& a, const Vec3d& b){
+    return a.cross(b);
+}
+
+inline double norm(const Vec3d& a){
+    return a.norm();
+}
+
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3dSimd& b){
     return Vec3dSimd(
             xsimd::fms(a.y, b.z, a.z * b.y),
@@ -180,7 +189,7 @@ inline simd_t normsq(Vec3dSimd& a){
 }
 
 template<class T, int derivs>
-void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, std::optional<T>& dB_by_dX, std::optional<T>& d2B_by_dXdX);
+void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX);
 void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX);
 
 
