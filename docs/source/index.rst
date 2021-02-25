@@ -1,16 +1,65 @@
-.. simsopt documentation master file, created by
-   sphinx-quickstart on Mon Dec 14 06:37:10 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Simsopt documentation
+=====================
 
-Welcome to simsopt's documentation!
-===================================
+``simsopt`` is a system for optimizing `stellarators
+<https://en.wikipedia.org/wiki/Stellarator>`_.  The high-level
+routines are in python, with calls to C++ or fortran where needed for
+performance. Several types of components are included:
+
+- Interfaces to physics codes, e.g. for MHD equilibrium.
+- Tools for defining objective functions and parameter spaces for
+  optimization.
+- Geometric objects that are important for stellarators: surfaces and
+  electromagnetic coils.
+- Tools for parallelized finite-difference gradient calculations.
+
+Some of the physics modules with compiled code reside in separate
+repositories. These separate modules include
+
+- `VMEC <https://github.com/hiddenSymmetries/VMEC2000>`_, for MHD
+  equilibrium.
+- `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
+  equilibrium. (This repository is private.)
+- `booz_xform <https://github.com/hiddenSymmetries/booz_xform>`_, for
+  Boozer coordinates and quasisymmetry.
+  
+The design of ``simsopt`` is guided by several principles:
+
+- Thorough unit testing, regression testing, and continuous
+  integration.
+- Extensibility: It should be possible to add new codes and terms to
+  the objective function without editing modules that already work,
+  i.e. the `open-closed principle
+  <https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle>`_
+  . This is because any edits to working code can potentially introduce bugs.
+- Modularity: Physics modules that are not needed for your
+  optimization problem do not need to be installed. For instance, to
+  optimize SPEC equilibria, the VMEC module need not be installed.
+- Flexibility: The components used to define an objective function can
+  be re-used for applications other than standard optimization. For
+  instance, a ``simsopt`` objective function is a standard python
+  function that can be plotted, passed to optimization packages
+  outside of ``simsopt``, etc.
+
+``simsopt`` was originally begun as part of the `Hidden symmetries and
+fusion energy project <https://hiddensymmetries.princeton.edu>`_.  It
+is fully open-source, and anyone is welcome to make suggestions,
+contribute, and use.
+
+``simsopt`` is one of several available systems for stellarator
+optimization.  Others include `STELLOPT
+<https://github.com/PrincetonUniversity/STELLOPT>`_, `ROSE
+<https://doi.org/10.1088/1741-4326/aaed50>`_, and `LASSO
+<https://gitlab.com/wistell>`_.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
-
+   getting_started
+   problems
+   testing
+   source
 
 Indices and tables
 ==================

@@ -15,10 +15,11 @@ set -ex
 cd tests/simsopt
 
 # Example of running all tests for a specific module:
-#python -m unittest -v mhd.test_vmec_f90wrap
+#python -m unittest -v mhd.test_spec
+#python -m unittest -v mhd.test_spec -k test_integrated_stellopt_scenarios_2dof
 
 # Example of running a specific test that matches a pattern:
-#python -m unittest -v -k test_vmec_f90wrap
+#python -m unittest -v -k test_change_resolution
 
 # Run all tests:
 python -m unittest -v

@@ -2,13 +2,13 @@ import unittest
 import numpy as np
 import logging
 from mpi4py import MPI
-from simsopt import Vmec, LeastSquaresTerm, LeastSquaresProblem, vmec_found
+from simsopt import Vmec, LeastSquaresProblem, vmec_found, least_squares_mpi_solve
 from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
 
-#@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
-@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
+#@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
+@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
 class IntegratedTests(unittest.TestCase):
     def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
@@ -60,15 +60,11 @@ class IntegratedTests(unittest.TestCase):
                 # Each Target is then equipped with a shift and weight, to become a
                 # term in a least-squares objective function
                 desired_volume = 0.15
-                term1 = LeastSquaresTerm(equil.volume, desired_volume, 1)
-
-                # A list of terms are combined to form a nonlinear-least-squares
-                # problem.
-                prob = LeastSquaresProblem([term1], mpi)
+                prob = LeastSquaresProblem([(equil.volume, desired_volume, 1)])
 
                 # Solve the minimization problem. We can choose whether to use a
                 # derivative-free or derivative-based algorithm.
-                prob.solve(grad=grad)
+                least_squares_mpi_solve(prob, mpi=mpi, grad=grad)
 
                 # Make sure all procs call VMEC:
                 objective = prob.objective()
@@ -84,8 +80,6 @@ class IntegratedTests(unittest.TestCase):
                 assert np.abs(surf.volume() - 0.15) < 1.0e-6
                 assert prob.objective() < 1.0e-15
 
-                #equil.VMEC.reinit()
-                equil.finalize()
                 
 if __name__ == "__main__":
     unittest.main()

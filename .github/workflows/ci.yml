@@ -12,7 +12,7 @@ on: [push, pull_request]
 
 jobs:
   CI:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -46,7 +46,7 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git m4 libfftw3-dev
 
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
@@ -75,44 +75,60 @@ jobs:
     - name: which pip after python setup
       run: pip --version
 
-    - name: which pip using sudo
-      run: sudo pip --version
-
-    - name: which pip using sudo -E
-      run: sudo -E pip --version
-
-    - name: which python using sudo
-      run: sudo which python3
-
-    - name: which python using sudo -E
-      run: sudo -E which python3
-
     - name: env after adding python
       run: env
 
-    # From sudo, python must be run via $pythonLocation/bin/python for some reason. "python" is not found
-    # and "python3" gives the wrong version, the version of python3 that came with the container instead
-    # of the version of python3 managed by github actions.
-    # Furthermore, pip must be run via "$pythonLocation/bin/python -m pip" or else the wrong
-    # version of pip is used, (the version of python3 that came with the container).
-    # The -H flag is used because otherwise this warning appears:
-    # WARNING: The directory '/home/runner/.cache/pip' or its parent directory is not owned or is not writable by the current user.
-    # The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you may want sudo's -H flag.
     - name: Install python dependencies
       run: |
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH pip --version
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH python3 -m pip --version
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install --upgrade pip
-        #sudo -S -H -E LD_LIBRARY_PATH=$LD_LIBRARY_PATH PATH=$PATH $pythonLocation/bin/python -m pip install numpy scipy wheel
-        sudo -H -E $pythonLocation/bin/python -m pip install --upgrade pip
-        sudo -H -E $pythonLocation/bin/python -m pip install wheel numpy scipy
+        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py
 
-    - name: Install more modules
+    - name: Install booz_xform
+      run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+
+    # Checking out SPEC is a tricky because it is a private repository.
+    # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
+    # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
+    # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
+    - name: Check out SPEC
+      uses: actions/checkout@v2
+      with:
+        repository: PrincetonUniversity/SPEC
+        path: SPEC
+        token: ${{ secrets.SPEC_CHECKOUT }}
+     
+    - name: ls -l again
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install jax jaxlib cmake scikit-build ninja
+        ls -l
+        pwd
+
+    - name: ls -l inside SPEC
+      run: |
+        cd SPEC
+        pwd
+        ls -l
+
+    # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
+    - name: Install py_spec
+      run: |
+        pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
+
+    - name: Build SPEC.
+      run: |
+        cd SPEC
+        cat Makefile | sed 's/CC=intel/CC=gfortran_ubuntu/' > Makefile1
+        cp Makefile1 Makefile
+        head -n30 Makefile
+        make -j
+
+    - name: Add xspec to PATH.
+      run: |
+        cd SPEC
+        ls -l
+        echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
-      run: sudo -H -E $pythonLocation/bin/python -m pip install git+https://github.com/jameskermode/f90wrap
+      run: pip install git+https://github.com/jameskermode/f90wrap
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -148,12 +164,9 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    #- name: Try importing vmec module from where it actually lives
-    #  run: python -c "import sys; sys.path.append('/home/runner/work/vmecCI/vmecCI/VMEC2000/python/_skbuild/linux-x86_64-3.7/cmake-install/vmec'); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
-
     - name: Install mpi4py
       run: |
-        sudo -H -E $pythonLocation/bin/python -m pip install mpi4py
+        pip install mpi4py
 
     - name: Install simsopt package
       run: pip install -v .

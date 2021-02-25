@@ -1,4 +1,6 @@
 from .vmec import vmec_found, Vmec
+from .spec import py_spec_found, pyoculus_found, Spec, Residue
+from .boozer import booz_xform_found, Boozer, Quasisymmetry
 
 #try:
 #    import vmec
