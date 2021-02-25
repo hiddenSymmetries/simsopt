@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from simsopt.geo import FourierCurve, StelleratorSymmetricCylindricalFourierCurve, BiotSavart
+from simsopt.geo import FourierCurve, StellaratorSymmetricCylindricalFourierCurve, BiotSavart
 
 def get_coil(num_quadrature_points=200):
     coil = FourierCurve(num_quadrature_points, 3)
