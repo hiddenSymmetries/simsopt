@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from simsopt.geo import JaxStelleratorSymmetricCylindricalFourierCurve, StelleratorSymmetricCylindricalFourierCurve, \
+from simsopt.geo import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve, \
     FourierCurve, JaxFourierCurve, RotatedCurve
 from simsopt.geo import parameters
 parameters['jit'] = False
@@ -42,10 +42,10 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = FourierCurve(x, order)
     elif curvetype == "JaxFourierCurve":
         curve = JaxFourierCurve(x, order)
-    elif curvetype == "StelleratorSymmetricCylindricalFourierCurve":
-        curve = StelleratorSymmetricCylindricalFourierCurve(x, order, 2)
-    elif curvetype == "JaxStelleratorSymmetricCylindricalFourierCurve":
-        curve = JaxStelleratorSymmetricCylindricalFourierCurve(x, order, 2)
+    elif curvetype == "StellaratorSymmetricCylindricalFourierCurve":
+        curve = StellaratorSymmetricCylindricalFourierCurve(x, order, 2)
+    elif curvetype == "JaxStellaratorSymmetricCylindricalFourierCurve":
+        curve = JaxStellaratorSymmetricCylindricalFourierCurve(x, order, 2)
     else:
         assert False
     dofs = np.zeros((curve.num_dofs(), ))
@@ -53,7 +53,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order+3] = 1.
         dofs[4*order+3] = 1.
-    elif curvetype in ["StelleratorSymmetricCylindricalFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve"]:
+    elif curvetype in ["StellaratorSymmetricCylindricalFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -71,7 +71,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 def rotated(request):
     return request.param
 
-@pytest.fixture(scope='module', params=["FourierCurve", "JaxFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve", "StelleratorSymmetricCylindricalFourierCurve"])
+@pytest.fixture(scope='module', params=["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"])
 def curvetype(request):
     return request.param
 
