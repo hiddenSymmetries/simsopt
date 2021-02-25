@@ -6,7 +6,7 @@ import numpy as np
 import simsgeopp as sgpp
 
 
-def stelleratorsymmetriccylindricalfouriercurve_pure(dofs, quadpoints, order, nfp):
+def stellaratorsymmetriccylindricalfouriercurve_pure(dofs, quadpoints, order, nfp):
     coefficients0 = dofs[:(order+1)]
     coefficients1 = dofs[(order+1):]
     gamma = jnp.zeros((len(quadpoints), 3))
@@ -18,14 +18,14 @@ def stelleratorsymmetriccylindricalfouriercurve_pure(dofs, quadpoints, order, nf
     return gamma
 
 
-class JaxStelleratorSymmetricCylindricalFourierCurve(JaxCurve):
+class JaxStellaratorSymmetricCylindricalFourierCurve(JaxCurve):
 
     """ This class can for example be used to describe a magnetic axis. """
 
     def __init__(self, quadpoints, order, nfp):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1/nfp, quadpoints, endpoint=False)
-        pure = lambda dofs, points: stelleratorsymmetriccylindricalfouriercurve_pure(dofs, points, order, nfp)
+        pure = lambda dofs, points: stellaratorsymmetriccylindricalfouriercurve_pure(dofs, points, order, nfp)
         super().__init__(quadpoints, pure)
         self.order = order
         self.nfp = nfp
@@ -46,7 +46,7 @@ class JaxStelleratorSymmetricCylindricalFourierCurve(JaxCurve):
         for d in self.dependencies:
             d.invalidate_cache()
 
-class StelleratorSymmetricCylindricalFourierCurve(sgpp.StelleratorSymmetricCylindricalFourierCurve, Curve):
+class StellaratorSymmetricCylindricalFourierCurve(sgpp.StellaratorSymmetricCylindricalFourierCurve, Curve):
 
     def __init__(self, quadpoints, order, nfp):
         if isinstance(quadpoints, int):
@@ -54,12 +54,12 @@ class StelleratorSymmetricCylindricalFourierCurve(sgpp.StelleratorSymmetricCylin
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         Curve.__init__(self)
-        sgpp.StelleratorSymmetricCylindricalFourierCurve.__init__(self, quadpoints, order, nfp)
+        sgpp.StellaratorSymmetricCylindricalFourierCurve.__init__(self, quadpoints, order, nfp)
 
     def get_dofs(self):
-        return np.asarray(sgpp.StelleratorSymmetricCylindricalFourierCurve.get_dofs(self))
+        return np.asarray(sgpp.StellaratorSymmetricCylindricalFourierCurve.get_dofs(self))
 
     def set_dofs(self, dofs):
-        sgpp.StelleratorSymmetricCylindricalFourierCurve.set_dofs(self, dofs)
+        sgpp.StellaratorSymmetricCylindricalFourierCurve.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
