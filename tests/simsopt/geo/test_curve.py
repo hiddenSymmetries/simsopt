@@ -69,7 +69,6 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = RotatedCurve(curve, 0.5, flip=False)
     return curve
 
-
 class Testing(unittest.TestCase):
 
     curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"]
