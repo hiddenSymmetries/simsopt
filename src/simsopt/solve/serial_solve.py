@@ -36,11 +36,11 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
         nonlocal logfile_started, logfile, residuals_file, nevals
         try:
             result = prob.f(x)
-            objective_val = prob.objective()
         except:
             logger.info("Exception caught during function evaluation")
             result = np.full(prob.dofs.nvals, 1.0e12)
-            objective_val = prob.dofs.nvals * 1e24
+        
+        objective_val = prob.objective_from_f(result)
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
@@ -106,6 +106,7 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
         print("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
 
+    logfile_started = False
     logfile.close()
     residuals_file.close()
     logger.info("Completed solve.")
@@ -187,6 +188,7 @@ def serial_solve(prob, grad=None, **kwargs):
         print("Using derivative-free method")
         result = minimize(objective, x0, options={'disp':True}, **kwargs)
 
+    logfile_started = False
     logfile.close()
     logger.info("Completed solve.")
     

@@ -12,13 +12,11 @@ import logging
 import warnings
 
 from scipy.optimize import least_squares
-from mpi4py import MPI
 from .dofs import Dofs
 from .util import isnumber
 from .optimizable import function_from_user, Target
 
-
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 
 class LeastSquaresTerm:
@@ -181,7 +179,31 @@ class LeastSquaresProblem:
         #               term in self.terms]
         # return np.array(residuals)
         return residuals
-        
+
+    
+    def objective_from_f(self, f):
+        """
+        Given a vector of functions (f) that has already been evaluated,
+        convert the result to the overall scalar objective function,
+        without any further function evaluations. This routine is
+        useful if we have already evaluated the residuals and we want
+        to convert the result to the overall scalar objective without
+        the computational expense of further function evaluations.
+        """
+        assert len(f) == self.dofs.nvals
+        residuals = np.zeros(len(f))
+        start_index = 0
+        for j in range(self.dofs.nfuncs):
+            term = self.terms[j]
+            end_index = start_index + self.dofs.nvals_per_func[j]
+            residuals[start_index:end_index] = \
+                (f[start_index:end_index] - term.goal) * \
+                np.sqrt(term.weight)
+            start_index = end_index
+            
+        return np.dot(residuals, residuals)
+
+    
     def scale_dofs_jac(self, jmat):
         """
         Given a Jacobian matrix j for the Dofs() associated to this
