@@ -29,12 +29,6 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
-logfile = None
-logfile_started = False
-residuals_file = None
-nevals = 0
-start_time = 0
-
 def mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
@@ -104,6 +98,12 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     started before this function is called, as would be the case
     in least_squares_mpi_solve(). Then only the group leaders
     call this function.
+
+    This function returns a 3-tuple. The first entry is the
+    Jacobian. The second entry is a matrix, the columns of which give
+    all the values of x at which the functions were evaluated. The
+    third entry is a matrix, the colums of which give the
+    corresponding values of the functions.
     """
 
     apart_at_start = mpi.is_apart
@@ -205,126 +205,7 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
-def _f_proc0(x, prob, mpi):
-    """
-    This function is used for least_squares_mpi_solve.  It is similar
-    to LeastSquaresProblem.f, except this version is called only by
-    proc 0 while workers are in the worker loop.
-    """
-    logger.debug("Entering _f_proc0")
-    mpi.mobilize_workers(CALCULATE_F)
-    # Send workers the state vector:
-    mpi.comm_groups.bcast(x, root=0)
-    logger.debug("Past bcast in _f_proc0")
-    
-    try:
-        result = prob.f(x)
-    except:
-        logger.info("Exception caught during function evaluation")
-        result = np.full(prob.dofs.nvals, 1.0e12)
-    
-    objective_val = prob.objective_from_f(result)
-    
-    global logfile_started, logfile, residuals_file, nevals
-    
-    # Since the number of terms is not known until the first
-    # evaluation of the objective function, we cannot write the
-    # header of the output file until this first evaluation is
-    # done.
-    if not logfile_started:
-        # Initialize log file
-        logfile_started = True
-        datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        filename = "simsopt_" + datestr + ".dat"
-        logfile = open(filename, 'w')
-        logfile.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
-        logfile.write("function_evaluation,seconds")
-        for j in range(prob.dofs.nparams):
-            logfile.write(",x({})".format(j))
-        logfile.write(",objective_function")
-        logfile.write("\n")
-
-        filename = "residuals_" + datestr + ".dat"
-        residuals_file = open(filename, 'w')
-        residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
-        residuals_file.write("function_evaluation,seconds")
-        for j in range(prob.dofs.nparams):
-            residuals_file.write(",x({})".format(j))
-        residuals_file.write(",objective_function")
-        for j in range(prob.dofs.nvals):
-            residuals_file.write(",F({})".format(j))
-        residuals_file.write("\n")
-
-    logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
-    for xj in x:
-        logfile.write(",{:24.16e}".format(xj))
-    logfile.write(",{:24.16e}".format(objective_val))
-    logfile.write("\n")
-    logfile.flush()
-
-    residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
-    for xj in x:
-        residuals_file.write(",{:24.16e}".format(xj))
-    residuals_file.write(",{:24.16e}".format(objective_val))
-    for fj in result:
-        residuals_file.write(",{:24.16e}".format(fj))
-    residuals_file.write("\n")
-    residuals_file.flush()
-
-    nevals += 1
-    return result
-
-
-def _jac_proc0(x, prob, mpi):
-    """
-    This function is used for least_squares_mpi_solve.  It is similar
-    to LeastSquaresProblem.jac, except this version is called only by
-    proc 0 while workers are in the worker loop.
-    """
-    if prob.dofs.grad_avail:
-        # proc0_world calling mobilize_workers will mobilize only group 0.
-        mpi.mobilize_workers(CALCULATE_JAC)
-        # Send workers the state vector:
-        mpi.comm_groups.bcast(x, root=0)
-        
-        return prob.jac(x)
-    
-    else:
-        # Evaluate Jacobian using fd_jac_mpi
-        mpi.mobilize_leaders(CALCULATE_FD_JAC)
-        # Send leaders the state vector:
-        mpi.comm_leaders.bcast(x, root=0)
-
-        jac, xs, evals = fd_jac_mpi(prob.dofs, mpi, x)
-        
-        # Write function evaluations to the files
-        global logfile_started, logfile, residuals_file, nevals
-        nevals_jac = evals.shape[1]
-        for j in range(nevals_jac):
-            objective_val = prob.objective_from_f(evals[:, j])
-            
-            logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
-            for xj in xs[:, j]:
-                logfile.write(",{:24.16e}".format(xj))
-            logfile.write(",{:24.16e}".format(objective_val))
-            logfile.write("\n")
-            logfile.flush()
-
-            residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
-            for xj in xs[:, j]:
-                residuals_file.write(",{:24.16e}".format(xj))
-            residuals_file.write(",{:24.16e}".format(objective_val))
-            for fj in evals[:, j]:
-                residuals_file.write(",{:24.16e}".format(fj))
-            residuals_file.write("\n")
-            residuals_file.flush()
-
-            nevals += 1
-            
-        return prob.scale_dofs_jac(jac)
-
-
-def least_squares_mpi_solve(prob, mpi, grad=None):
+def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
     MPI. All MPI processes (including group leaders and workers)
@@ -333,6 +214,8 @@ def least_squares_mpi_solve(prob, mpi, grad=None):
     prob should be an instance of LeastSquaresProblem.
 
     mpi should be an instance of MpiPartition.
+
+    kwargs allows you to pass any arguments to scipy.optimize.minimize.
     """
     logger.info("Beginning solve.")
     prob._init()
@@ -341,10 +224,134 @@ def least_squares_mpi_solve(prob, mpi, grad=None):
 
     x = np.copy(prob.x) # For use in Bcast later.
 
-    global start_time, nevals
+    logfile = None
+    logfile_started = False
+    residuals_file = None
     nevals = 0
     start_time = time()
 
+    def _f_proc0(x):
+        """
+        This function is used for least_squares_mpi_solve.  It is similar
+        to LeastSquaresProblem.f(), except this version is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        logger.debug("Entering _f_proc0")
+        mpi.mobilize_workers(CALCULATE_F)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        logger.debug("Past bcast in _f_proc0")
+
+        try:
+            f_unshifted = prob.dofs.f(x)
+        except:
+            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
+            logger.info("Exception caught during function evaluation.")
+
+        f_shifted = prob.f_from_unshifted(f_unshifted)
+        objective_val = prob.objective_from_shifted_f(f_shifted)
+
+        nonlocal logfile_started, logfile, residuals_file, nevals
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not logfile_started:
+            # Initialize log file
+            logfile_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            filename = "simsopt_" + datestr + ".dat"
+            logfile = open(filename, 'w')
+            logfile.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            logfile.write("function_evaluation,seconds")
+            for j in range(prob.dofs.nparams):
+                logfile.write(",x({})".format(j))
+            logfile.write(",objective_function")
+            logfile.write("\n")
+
+            filename = "residuals_" + datestr + ".dat"
+            residuals_file = open(filename, 'w')
+            residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            residuals_file.write("function_evaluation,seconds")
+            for j in range(prob.dofs.nparams):
+                residuals_file.write(",x({})".format(j))
+            residuals_file.write(",objective_function")
+            for j in range(prob.dofs.nvals):
+                residuals_file.write(",F({})".format(j))
+            residuals_file.write("\n")
+
+        logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        for xj in x:
+            logfile.write(",{:24.16e}".format(xj))
+        logfile.write(",{:24.16e}".format(objective_val))
+        logfile.write("\n")
+        logfile.flush()
+
+        residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        for xj in x:
+            residuals_file.write(",{:24.16e}".format(xj))
+        residuals_file.write(",{:24.16e}".format(objective_val))
+        for fj in f_unshifted:
+            residuals_file.write(",{:24.16e}".format(fj))
+        residuals_file.write("\n")
+        residuals_file.flush()
+
+        nevals += 1
+        return f_shifted
+
+    # End of _f_proc0
+
+    def _jac_proc0(x):
+        """
+        This function is used for least_squares_mpi_solve.  It is similar
+        to LeastSquaresProblem.jac, except this version is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        if prob.dofs.grad_avail:
+            # proc0_world calling mobilize_workers will mobilize only group 0.
+            mpi.mobilize_workers(CALCULATE_JAC)
+            # Send workers the state vector:
+            mpi.comm_groups.bcast(x, root=0)
+
+            return prob.jac(x)
+
+        else:
+            # Evaluate Jacobian using fd_jac_mpi
+            mpi.mobilize_leaders(CALCULATE_FD_JAC)
+            # Send leaders the state vector:
+            mpi.comm_leaders.bcast(x, root=0)
+
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi, x)
+
+            # Write function evaluations to the files
+            nonlocal logfile_started, logfile, residuals_file, nevals
+            nevals_jac = evals.shape[1]
+            for j in range(nevals_jac):
+                objective_val = prob.objective_from_unshifted_f(evals[:, j])
+
+                logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+                for xj in xs[:, j]:
+                    logfile.write(",{:24.16e}".format(xj))
+                logfile.write(",{:24.16e}".format(objective_val))
+                logfile.write("\n")
+                logfile.flush()
+
+                residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+                for xj in xs[:, j]:
+                    residuals_file.write(",{:24.16e}".format(xj))
+                residuals_file.write(",{:24.16e}".format(objective_val))
+                for fj in evals[:, j]:
+                    residuals_file.write(",{:24.16e}".format(fj))
+                residuals_file.write("\n")
+                residuals_file.flush()
+
+                nevals += 1
+
+            return prob.scale_dofs_jac(jac)
+
+    # End of _jac_proc0
+    
     # Send group leaders and workers into their respective loops:
     leaders_action = lambda mpi2, data: mpi_leaders_task(mpi, prob.dofs, data)
     workers_action = lambda mpi2, data: mpi_workers_task(mpi, prob.dofs, data)
@@ -358,23 +365,21 @@ def least_squares_mpi_solve(prob, mpi, grad=None):
         if grad:
             logger.info("Using derivatives")
             print("Using derivatives")
-            result = least_squares(_f_proc0, x0, verbose=2, jac=_jac_proc0, args=(prob, mpi))
+            result = least_squares(_f_proc0, x0, verbose=2, jac=_jac_proc0, **kwargs)
         else:
             logger.info("Using derivative-free method")
             print("Using derivative-free method")
-            result = least_squares(_f_proc0, x0, verbose=2, args=(prob, mpi))
+            result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
 
         logger.info("Completed solve.")
         x = result.x
 
-        global logfile, residuals_file
         logfile.close()
         residuals_file.close()
         
     # Stop loops for workers and group leaders:
     mpi.together()
 
-    global logfile_started
     logfile_started = False
     logger.info("Completed solve.")
     
