@@ -128,8 +128,6 @@ class LeastSquaresProblem:
         # Delegate to Dofs:
         if x is not None:
             self.dofs.set(x)
-        else:
-            warnings.warn("Supplied a null object as state vector. Ignoring it")
 
     def objective(self, x=None):
         """
@@ -146,6 +144,27 @@ class LeastSquaresProblem:
 
         return sum(t.f_out() for t in self.terms)
 
+    
+    def f_from_unshifted(self, f_unshifted):
+        """
+        This function takes a vector of function values, as returned by
+        dofs, and shifts and scales them. This function does not
+        actually evaluate the dofs.
+        """
+        
+        residuals = np.zeros(len(f_unshifted))
+        start_index = 0
+        for j in range(self.dofs.nfuncs):
+            term = self.terms[j]
+            end_index = start_index + self.dofs.nvals_per_func[j]
+            residuals[start_index:end_index] = \
+                (f_unshifted[start_index:end_index] - term.goal) * \
+                np.sqrt(term.weight)
+            start_index = end_index
+            
+        return residuals
+
+    
     def f(self, x=None):
         """
         This method returns the vector of residuals for a given state
@@ -159,49 +178,43 @@ class LeastSquaresProblem:
         first set_dofs() will be called for each object to set the
         global state vector to x.
         """
-        logger.info("residuals() called with x=" + str(x))
+        logger.info("f() called with x=" + str(x))
         self.x = x
 
         # Importantly for MPI, the next line calls the functions in
         # the same order that Dofs.f() does. Proc0 calls this function
         # whereas worker procs call Dofs.f().
-        f_unscaled = self.dofs.f()
-        residuals = np.zeros(len(f_unscaled))
-        start_index = 0
-        for j in range(self.dofs.nfuncs):
-            term = self.terms[j]
-            end_index = start_index + self.dofs.nvals_per_func[j]
-            residuals[start_index:end_index] = \
-                (f_unscaled[start_index:end_index] - term.goal) * \
-                np.sqrt(term.weight)
-            start_index = end_index
-        # residuals = [(term.f_in() - term.goal) * np.sqrt(term.weight) for \
-        #               term in self.terms]
-        # return np.array(residuals)
-        return residuals
+        f_unshifted = self.dofs.f()
+        return self.f_from_unshifted(f_unshifted)
 
     
-    def objective_from_f(self, f):
+    def objective_from_shifted_f(self, f):
         """
-        Given a vector of functions (f) that has already been evaluated,
-        convert the result to the overall scalar objective function,
-        without any further function evaluations. This routine is
-        useful if we have already evaluated the residuals and we want
-        to convert the result to the overall scalar objective without
-        the computational expense of further function evaluations.
+        Given a vector of functions that has already been evaluated,
+        and already shifted and scaled, convert the result to the
+        overall scalar objective function, without any further
+        function evaluations. This routine is useful if we have
+        already evaluated the residuals and we want to convert the
+        result to the overall scalar objective without the
+        computational expense of further function evaluations.
         """
         assert len(f) == self.dofs.nvals
-        residuals = np.zeros(len(f))
-        start_index = 0
-        for j in range(self.dofs.nfuncs):
-            term = self.terms[j]
-            end_index = start_index + self.dofs.nvals_per_func[j]
-            residuals[start_index:end_index] = \
-                (f[start_index:end_index] - term.goal) * \
-                np.sqrt(term.weight)
-            start_index = end_index
-            
-        return np.dot(residuals, residuals)
+        return np.dot(f, f)
+
+    
+    def objective_from_unshifted_f(self, f_unshifted):
+        """
+        Given a vector of functions that has already been evaluated,
+        but not yet shifted and scaled, convert the result to the
+        overall scalar objective function, without any further
+        function evaluations. This routine is useful if we have
+        already evaluated the residuals and we want to convert the
+        result to the overall scalar objective without the
+        computational expense of further function evaluations.
+        """
+        assert len(f_unshifted) == self.dofs.nvals
+        f_shifted = self.f_from_unshifted(f_unshifted)
+        return self.objective_from_shifted_f(f_shifted)
 
     
     def scale_dofs_jac(self, jmat):

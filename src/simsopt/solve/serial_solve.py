@@ -35,12 +35,15 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
     def objective(x):
         nonlocal logfile_started, logfile, residuals_file, nevals
         try:
-            result = prob.f(x)
+            f_unshifted = prob.dofs.f(x)
         except:
             logger.info("Exception caught during function evaluation")
-            result = np.full(prob.dofs.nvals, 1.0e12)
-        
-        objective_val = prob.objective_from_f(result)
+            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
+
+        f_shifted = prob.f_from_unshifted(f_unshifted)
+        objective_val = prob.objective_from_shifted_f(f_shifted)
+        logger.info("objective_from_f={} objective={}".format(objective_val, prob.objective()))
+        assert np.abs(objective_val - prob.objective()) < 1e-13
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
@@ -81,13 +84,13 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
         for xj in x:
             residuals_file.write(",{:24.16e}".format(xj))
         residuals_file.write(",{:24.16e}".format(objective_val))
-        for fj in result:
+        for fj in f_unshifted:
             residuals_file.write(",{:24.16e}".format(fj))
         residuals_file.write("\n")
         residuals_file.flush()
 
         nevals += 1
-        return result
+        return f_shifted
 
     logger.info("Beginning solve.")
     prob._init() # In case 'fixed', 'mins', etc have changed since the problem was created.
