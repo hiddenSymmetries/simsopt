@@ -17,11 +17,10 @@ from jax import jacrev, jit
 
 import numpy as np
 import logging
-from mpi4py import MPI
 from .util import isbool
 from .optimizable import Optimizable
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 #@jit(static_argnums=(4, 5, 6, 7, 8, 9))
 def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):

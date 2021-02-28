@@ -9,14 +9,32 @@ This module should be completely self-contained, depending only on
 mpi4py and numpy, not on any other simsopt components.
 """
 
-import numpy as np
-from mpi4py import MPI
 import logging
+import numpy as np
+
+mpi_found = True
+try:
+    from mpi4py import MPI
+except:
+    mpi_found = False
 
 STOP = 0
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
+def log(level=logging.INFO):
+    """
+    Turn on logging. If MPI is available, the processor number will be
+    added to all logging entries.
+    """
+    format = "%(levelname)s:%(name)s:%(lineno)d %(message)s"
+    if mpi_found:
+        format = "[{}] ".format(MPI.COMM_WORLD.Get_rank()) + format
+
+    print('in util.log with format=',format)
+    logging.basicConfig(level=level, format=format)
+
+    
 class MpiPartition():
     """
     This module contains functions related to dividing up the set of

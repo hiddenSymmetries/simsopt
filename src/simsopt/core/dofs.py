@@ -12,12 +12,11 @@ This module should not depend on anything involving communication
 
 import logging
 import numpy as np
-from mpi4py import MPI
 
 from .optimizable import function_from_user
 from .util import unique
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 
 def get_owners(obj, owners_so_far=[]):

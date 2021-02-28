@@ -4,6 +4,7 @@
 *.o
 *.mod
 simsopt_20*.dat
+residuals_20*.dat
 
 # f90wrap related
 src.*/

@@ -16,20 +16,14 @@ from monty.dev import requires
 from simsopt.core import Optimizable, optimizable, SurfaceRZFourier
 from simsopt.core.util import Struct
 from simsopt.util.mpi import MpiPartition
-#from simsopt.mhd.vmec_core import VMEC
+
+vmec_found = True
 try:
-    #from simsopt.mhd.vmec_core import VMEC # May need to edit this path.
     import vmec
-    vmec_found = True
 except ImportError as err:
     vmec_found = False
-    print('Unable to load VMEC module, so some functionality will not be available. '
-          'You may need to install the VMEC python extension from '
-          'https://gitlab.com/mbkumar/VMEC2000. '
-          'Reason VMEC module was not loaded:')
-    print(err)
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 # Flags used by runvmec():
 restart_flag = 1

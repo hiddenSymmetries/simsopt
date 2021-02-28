@@ -65,6 +65,15 @@ class Boozer(Optimizable):
         self.need_to_run_code = True
         self._calls = 0 # For testing, keep track of how many times we call bx.run()
 
+        # We may at some point want to allow booz_xform to use a
+        # different partitioning of the MPI processors compared to the
+        # equilibrium code. But for simplicity, we'll use the same mpi
+        # partition for now. For unit tests, we allow equil to be None,
+        # so we have to allow for this case here.
+        self.mpi = None
+        if equil is not None:
+            self.mpi = equil.mpi
+
     def get_dofs(self):
         return np.array([])
 
@@ -98,9 +107,15 @@ class Boozer(Optimizable):
         """
         Run booz_xform on all the surfaces that have been registered.
         """
+        
+        if (self.mpi is not None) and (not self.mpi.proc0_groups):
+            logger.info("This proc is skipping Boozer.run since it is not a group leader.")
+            return
+            
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
+        
         s = sorted(list(self.s))
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
@@ -271,6 +286,12 @@ class Quasisymmetry(Optimizable):
         """
         Carry out the calculation of the quasisymmetry error.
         """
+
+        # Only group leaders do anything:
+        if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
+            logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
+            return np.array([])
+        
         # The next line is the expensive part of the calculation:
         self.boozer.run()
         
