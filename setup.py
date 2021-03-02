@@ -27,8 +27,7 @@ setup(
     package_dir={'': 'src'},
     packages= find_packages(
         where='src'),
-    include_package_data=True,
     package_data = {
-        "": ["input.default", "defaults.sp"]
+        "simsopt.mhd": ["input.default", "defaults.sp"]
     }
 )
