@@ -28,7 +28,6 @@ add_subdirectory(thirdparty/pybind11)
 set(XTENSOR_USE_OPENMP 0)
 
 
-
 pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
     )
@@ -50,4 +49,6 @@ endif()
 #    message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
 
-install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME}
+        #LIBRARY
+        DESTINATION src/${PROJECT_NAME})
