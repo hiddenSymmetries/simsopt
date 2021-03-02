@@ -22,7 +22,7 @@ setup(
         "pyoculus >= 0.1.1",
         "h5py >= 3.1.0",
         "f90nml >= 1.2",
-        "scikit-build >= 0.11.1"
+        #"scikit-build >= 0.11.1"
     ],
     package_dir={'': 'src'},
     packages= find_packages(
