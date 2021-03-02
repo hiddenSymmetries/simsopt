@@ -7,3 +7,4 @@ setuptools~=50.3.1
 scipy~=1.5.4
 py-spec~=3.0.1
 pyoculus~=0.1.1
+scikit-build~=0.11.1
