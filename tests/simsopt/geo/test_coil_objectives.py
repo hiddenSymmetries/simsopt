@@ -1,4 +1,4 @@
-from simsopt.geo import JaxStelleratorSymmetricCylindricalFourierCurve, StelleratorSymmetricCylindricalFourierCurve, CurveLength, LpCurveCurvature, LpCurveTorsion, FourierCurve, MinimumDistance, JaxFourierCurve, RotatedCurve
+from simsopt.geo import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve, CurveLength, LpCurveCurvature, LpCurveTorsion, FourierCurve, MinimumDistance, JaxFourierCurve, RotatedCurve
 import numpy as np
 np.random.seed(1)
 import unittest
@@ -7,22 +7,22 @@ parameters['jit'] = False
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve", "StelleratorSymmetricCylindricalFourierCurve"]
+    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"]
 
     def create_curve(self, curvetype, rotated):
         rand_scale=0.01
         order = 4
         nquadpoints = 200
-        coil = StelleratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
+        coil = StellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
 
         if curvetype == "FourierCurve":
             coil = FourierCurve(nquadpoints, order)
         elif curvetype == "JaxFourierCurve":
             coil = JaxFourierCurve(nquadpoints, order)
-        elif curvetype == "StelleratorSymmetricCylindricalFourierCurve":
-            coil = StelleratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
-        elif curvetype == "JaxStelleratorSymmetricCylindricalFourierCurve":
-            coil = JaxStelleratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
+        elif curvetype == "StellaratorSymmetricCylindricalFourierCurve":
+            coil = StellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
+        elif curvetype == "JaxStellaratorSymmetricCylindricalFourierCurve":
+            coil = JaxStellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
         else:
             # print('Could not find' + curvetype)
             assert False
@@ -31,7 +31,7 @@ class Testing(unittest.TestCase):
             dofs[1] = 1.
             dofs[2*order+3] = 1.
             dofs[4*order+3] = 1.
-        elif curvetype in ["StelleratorSymmetricCylindricalFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve"]:
+        elif curvetype in ["StellaratorSymmetricCylindricalFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve"]:
             dofs[0] = 1.
             dofs[1] = 0.1
             dofs[order+1] = 0.1
