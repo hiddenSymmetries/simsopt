@@ -11,7 +11,7 @@ typedef xt::pyarray<double> PyArray;
 #include "fouriercurve.cpp"
 typedef FourierCurve<PyArray> PyFourierCurve;
 #include "magneticaxis.cpp"
-typedef StelleratorSymmetricCylindricalFourierCurve<PyArray> PyStelleratorSymmetricCylindricalFourierCurve;
+typedef StellaratorSymmetricCylindricalFourierCurve<PyArray> PyStellaratorSymmetricCylindricalFourierCurve;
 
 #include "biot_savart.h"
 
@@ -38,24 +38,24 @@ template <class PyFourierCurveBase = PyFourierCurve> class PyFourierCurveTrampol
         }
 };
 
-template <class PyStelleratorSymmetricCylindricalFourierCurveBase = PyStelleratorSymmetricCylindricalFourierCurve> class PyStelleratorSymmetricCylindricalFourierCurveTrampoline : public PyCurveTrampoline<PyStelleratorSymmetricCylindricalFourierCurveBase> {
+template <class PyStellaratorSymmetricCylindricalFourierCurveBase = PyStellaratorSymmetricCylindricalFourierCurve> class PyStellaratorSymmetricCylindricalFourierCurveTrampoline : public PyCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurveBase> {
     public:
-        using PyCurveTrampoline<PyStelleratorSymmetricCylindricalFourierCurveBase>::PyCurveTrampoline; // Inherit constructors
+        using PyCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurveBase>::PyCurveTrampoline; // Inherit constructors
 
         int num_dofs() override {
-            return PyStelleratorSymmetricCylindricalFourierCurveBase::num_dofs();
+            return PyStellaratorSymmetricCylindricalFourierCurveBase::num_dofs();
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyStelleratorSymmetricCylindricalFourierCurveBase::set_dofs_impl(_dofs);
+            PyStellaratorSymmetricCylindricalFourierCurveBase::set_dofs_impl(_dofs);
         }
 
         vector<double> get_dofs() override {
-            return PyStelleratorSymmetricCylindricalFourierCurveBase::get_dofs();
+            return PyStellaratorSymmetricCylindricalFourierCurveBase::get_dofs();
         }
 
         void gamma_impl(PyArray& data) override {
-            PyStelleratorSymmetricCylindricalFourierCurveBase::gamma_impl(data);
+            PyStellaratorSymmetricCylindricalFourierCurveBase::gamma_impl(data);
         }
 };
 
@@ -116,39 +116,39 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readonly("dofs", &PyFourierCurve::dofs)
         .def_readonly("quadpoints", &PyFourierCurve::quadpoints);
 
-    py::class_<PyStelleratorSymmetricCylindricalFourierCurve, std::shared_ptr<PyStelleratorSymmetricCylindricalFourierCurve>, PyStelleratorSymmetricCylindricalFourierCurveTrampoline<PyStelleratorSymmetricCylindricalFourierCurve>>(m, "StelleratorSymmetricCylindricalFourierCurve")
+    py::class_<PyStellaratorSymmetricCylindricalFourierCurve, std::shared_ptr<PyStellaratorSymmetricCylindricalFourierCurve>, PyStellaratorSymmetricCylindricalFourierCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurve>>(m, "StellaratorSymmetricCylindricalFourierCurve")
         //.def(py::init<int, int>())
         .def(py::init<vector<double>, int, int>())
-        .def("gamma", &PyStelleratorSymmetricCylindricalFourierCurve::gamma)
-        .def("dgamma_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff)
-        .def("dgamma_by_dcoeff_vjp", &PyStelleratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff_vjp)
+        .def("gamma", &PyStellaratorSymmetricCylindricalFourierCurve::gamma)
+        .def("dgamma_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff)
+        .def("dgamma_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff_vjp)
 
-        .def("gammadash", &PyStelleratorSymmetricCylindricalFourierCurve::gammadash)
-        .def("dgammadash_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff)
-        .def("dgammadash_by_dcoeff_vjp", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff_vjp)
+        .def("gammadash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadash)
+        .def("dgammadash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff)
+        .def("dgammadash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff_vjp)
 
-        .def("gammadashdash", &PyStelleratorSymmetricCylindricalFourierCurve::gammadashdash)
-        .def("dgammadashdash_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff)
-        .def("dgammadashdash_by_dcoeff_vjp", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff_vjp)
+        .def("gammadashdash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadashdash)
+        .def("dgammadashdash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff)
+        .def("dgammadashdash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff_vjp)
 
-        .def("gammadashdashdash", &PyStelleratorSymmetricCylindricalFourierCurve::gammadashdashdash)
-        .def("dgammadashdashdash_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff)
-        .def("dgammadashdashdash_by_dcoeff_vjp", &PyStelleratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff_vjp)
+        .def("gammadashdashdash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadashdashdash)
+        .def("dgammadashdashdash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff)
+        .def("dgammadashdashdash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff_vjp)
 
-        .def("incremental_arclength", &PyStelleratorSymmetricCylindricalFourierCurve::incremental_arclength)
-        .def("dincremental_arclength_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dincremental_arclength_by_dcoeff)
-        .def("kappa", &PyStelleratorSymmetricCylindricalFourierCurve::kappa)
-        .def("dkappa_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dkappa_by_dcoeff)
-        .def("torsion", &PyStelleratorSymmetricCylindricalFourierCurve::torsion)
-        .def("dtorsion_by_dcoeff", &PyStelleratorSymmetricCylindricalFourierCurve::dtorsion_by_dcoeff)
+        .def("incremental_arclength", &PyStellaratorSymmetricCylindricalFourierCurve::incremental_arclength)
+        .def("dincremental_arclength_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dincremental_arclength_by_dcoeff)
+        .def("kappa", &PyStellaratorSymmetricCylindricalFourierCurve::kappa)
+        .def("dkappa_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dkappa_by_dcoeff)
+        .def("torsion", &PyStellaratorSymmetricCylindricalFourierCurve::torsion)
+        .def("dtorsion_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dtorsion_by_dcoeff)
 
-        .def("get_dofs", &PyStelleratorSymmetricCylindricalFourierCurve::get_dofs)
-        .def("set_dofs", &PyStelleratorSymmetricCylindricalFourierCurve::set_dofs)
-        .def("num_dofs", &PyStelleratorSymmetricCylindricalFourierCurve::num_dofs)
-        .def("invalidate_cache", &PyStelleratorSymmetricCylindricalFourierCurve::invalidate_cache)
-        .def_readonly("dofs", &PyStelleratorSymmetricCylindricalFourierCurve::dofs)
-        .def_readonly("quadpoints", &PyStelleratorSymmetricCylindricalFourierCurve::quadpoints)
-        .def_property_readonly("nfp", &PyStelleratorSymmetricCylindricalFourierCurve::get_nfp);
+        .def("get_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::get_dofs)
+        .def("set_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::set_dofs)
+        .def("num_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::num_dofs)
+        .def("invalidate_cache", &PyStellaratorSymmetricCylindricalFourierCurve::invalidate_cache)
+        .def_readonly("dofs", &PyStellaratorSymmetricCylindricalFourierCurve::dofs)
+        .def_readonly("quadpoints", &PyStellaratorSymmetricCylindricalFourierCurve::quadpoints)
+        .def_property_readonly("nfp", &PyStellaratorSymmetricCylindricalFourierCurve::get_nfp);
 
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_by_dcoilcoeff_all_vjp_full", &biot_savart_by_dcoilcoeff_all_vjp_full);

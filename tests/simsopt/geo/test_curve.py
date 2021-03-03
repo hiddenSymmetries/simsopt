@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from simsopt.geo import JaxStelleratorSymmetricCylindricalFourierCurve, StelleratorSymmetricCylindricalFourierCurve, \
+from simsopt.geo import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve, \
     FourierCurve, JaxFourierCurve, RotatedCurve
 from simsopt.geo import parameters
 parameters['jit'] = False
@@ -44,10 +44,10 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = FourierCurve(x, order)
     elif curvetype == "JaxFourierCurve":
         curve = JaxFourierCurve(x, order)
-    elif curvetype == "StelleratorSymmetricCylindricalFourierCurve":
-        curve = StelleratorSymmetricCylindricalFourierCurve(x, order, 2)
-    elif curvetype == "JaxStelleratorSymmetricCylindricalFourierCurve":
-        curve = JaxStelleratorSymmetricCylindricalFourierCurve(x, order, 2)
+    elif curvetype == "StellaratorSymmetricCylindricalFourierCurve":
+        curve = StellaratorSymmetricCylindricalFourierCurve(x, order, 2)
+    elif curvetype == "JaxStellaratorSymmetricCylindricalFourierCurve":
+        curve = JaxStellaratorSymmetricCylindricalFourierCurve(x, order, 2)
     else:
         assert False
     dofs = np.zeros((curve.num_dofs(), ))
@@ -55,7 +55,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order+3] = 1.
         dofs[4*order+3] = 1.
-    elif curvetype in ["StelleratorSymmetricCylindricalFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve"]:
+    elif curvetype in ["StellaratorSymmetricCylindricalFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -72,7 +72,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStelleratorSymmetricCylindricalFourierCurve", "StelleratorSymmetricCylindricalFourierCurve"]
+    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"]
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1

@@ -3,7 +3,7 @@
 #include "curve.cpp"
 
 template<class Array>
-class StelleratorSymmetricCylindricalFourierCurve : public Curve<Array> {
+class StellaratorSymmetricCylindricalFourierCurve : public Curve<Array> {
     private:
         int order;
         int nfp;
@@ -12,7 +12,7 @@ class StelleratorSymmetricCylindricalFourierCurve : public Curve<Array> {
         using Curve<Array>::numquadpoints;
         vector<vector<double>> dofs;
 
-        StelleratorSymmetricCylindricalFourierCurve(int _numquadpoints, int _order, int _nfp) : Curve<Array>(std::vector<double>(_numquadpoints, 0.)), order(_order), nfp(_nfp) {
+        StellaratorSymmetricCylindricalFourierCurve(int _numquadpoints, int _order, int _nfp) : Curve<Array>(std::vector<double>(_numquadpoints, 0.)), order(_order), nfp(_nfp) {
             for (int i = 0; i < numquadpoints; ++i) {
                 this->quadpoints[i] = ((double)i)/(nfp*numquadpoints);
             }
@@ -22,7 +22,7 @@ class StelleratorSymmetricCylindricalFourierCurve : public Curve<Array> {
             };
         }
 
-        StelleratorSymmetricCylindricalFourierCurve(vector<double> _quadpoints, int _order, int _nfp) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp) {
+        StellaratorSymmetricCylindricalFourierCurve(vector<double> _quadpoints, int _order, int _nfp) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp) {
             dofs = vector<vector<double>> {
                 vector<double>(order+1, 0.), 
                 vector<double>(order, 0.), 
