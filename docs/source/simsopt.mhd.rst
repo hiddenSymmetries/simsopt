@@ -4,18 +4,26 @@ simsopt.mhd package
 Submodules
 ----------
 
-simsopt.mhd.vmec module
------------------------
+simsopt.mhd.boozer module
+-------------------------
 
-.. automodule:: simsopt.mhd.vmec
+.. automodule:: simsopt.mhd.boozer
    :members:
    :undoc-members:
    :show-inheritance:
 
-simsopt.mhd.vmec\_core module
------------------------------
+simsopt.mhd.spec module
+-----------------------
 
-.. automodule:: simsopt.mhd.vmec_core
+.. automodule:: simsopt.mhd.spec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.mhd.vmec module
+-----------------------
+
+.. automodule:: simsopt.mhd.vmec
    :members:
    :undoc-members:
    :show-inheritance:
