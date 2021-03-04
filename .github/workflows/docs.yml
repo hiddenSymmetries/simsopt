@@ -42,7 +42,9 @@ jobs:
       run: sudo -H -E $pythonLocation/bin/python -m pip install -v -e .
 
     - name: Install python dependencies for sphinx
-      run: sudo -H -E $pythonLocation/bin/python -m pip install sphinx-autodoc-typehints sphinx-rtd-theme
+      run: >-
+        sudo -H -E $pythonLocation/bin/python -m pip install sphinx sphinx-autodoc-typehints
+        sphinx-rtd-theme sphinxcontrib-napoleon sphinx-autodoc-napoleon-typehints
 
     - name: Regenerate the package tree
       run: sphinx-apidoc -o docs/source/ src/simsopt
