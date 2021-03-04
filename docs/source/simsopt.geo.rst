@@ -1,4 +1,4 @@
-simsopt.geo package
+simsopt.geo
 ===================
 
 Submodules
