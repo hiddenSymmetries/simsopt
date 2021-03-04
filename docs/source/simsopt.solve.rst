@@ -1,4 +1,4 @@
-simsopt.solve package
+simsopt.solve
 =====================
 
 Submodules

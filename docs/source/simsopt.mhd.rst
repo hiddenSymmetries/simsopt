@@ -1,4 +1,4 @@
-simsopt.mhd package
+simsopt.mhd
 ===================
 
 Submodules

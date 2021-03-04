@@ -1,4 +1,4 @@
-simsopt.core package
+simsopt.core
 ====================
 
 Submodules

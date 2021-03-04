@@ -61,11 +61,9 @@ optimization.  Others include `STELLOPT
    testing
    source
 
-API
-===
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents
+   :maxdepth: 3
+   :caption: API
 
    simsopt
 
