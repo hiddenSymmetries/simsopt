@@ -17,8 +17,8 @@ python:
    install:
    #- method: pip
    #  path: numpy scipy
-   - method: setuptools
-     path: pyoculus
+   #- method: setuptools
+   #  path: pyoculus
    - requirements: docs/requirements.txt
    - requirements: requirements.txt
    - method: pip
