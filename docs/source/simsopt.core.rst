@@ -1,4 +1,4 @@
-simsopt.core package
+simsopt.core
 ====================
 
 Submodules
@@ -28,34 +28,10 @@ simsopt.core.least\_squares\_problem module
    :undoc-members:
    :show-inheritance:
 
-simsopt.core.mpi module
------------------------
-
-.. automodule:: simsopt.core.mpi
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-simsopt.core.mpi\_solve module
-------------------------------
-
-.. automodule:: simsopt.core.mpi_solve
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 simsopt.core.optimizable module
 -------------------------------
 
 .. automodule:: simsopt.core.optimizable
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-simsopt.core.serial\_solve module
----------------------------------
-
-.. automodule:: simsopt.core.serial_solve
    :members:
    :undoc-members:
    :show-inheritance:
