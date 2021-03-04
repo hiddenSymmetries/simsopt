@@ -47,7 +47,7 @@ jobs:
         sphinx-rtd-theme sphinxcontrib-napoleon sphinx-autodoc-napoleon-typehints
 
     - name: Regenerate the package tree
-      run: sphinx-apidoc -o docs/source/ src/simsopt
+      run: sphinx-apidoc -f -o docs/source/ src/simsopt
 
     - name: Execute script to build our documentation and update pages
       env:
