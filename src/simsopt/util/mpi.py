@@ -20,8 +20,6 @@ except:
 
 STOP = 0
 
-logger = logging.getLogger(__name__)
-
 def log(level=logging.INFO):
     """
     Turn on logging. If MPI is available, the processor number will be
@@ -31,8 +29,9 @@ def log(level=logging.INFO):
     if mpi_found:
         format = "[{}] ".format(MPI.COMM_WORLD.Get_rank()) + format
 
-    print('in util.log with format=',format)
     logging.basicConfig(level=level, format=format)
+
+logger = logging.getLogger(__name__)
 
     
 class MpiPartition():

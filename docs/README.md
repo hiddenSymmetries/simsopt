@@ -29,6 +29,9 @@ folder. Start with index.html file.
 
 ## Update the documentation
 
-Instructions are coming soon.
+Whenever the code is updated, repopulate the code tree and run either step-1  or step-2.
 
-
+```bash
+cd docs
+sphinx-apidoc -o source ../src/simsopt 
+```
