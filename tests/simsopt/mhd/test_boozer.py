@@ -46,6 +46,7 @@ class MockBoozer():
     def __init__(self, mpol, ntor, nfp):
         self.bx = MockBoozXform(mpol, ntor, nfp)
         self.s_to_index = {0: 0, 1: 1}
+        self.mpi = None
         
     def register(self, s):
         pass
