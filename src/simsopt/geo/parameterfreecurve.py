@@ -1,3 +1,7 @@
+import numpy as np
+
+import simsgeopp as sgpp
+from .curve import Curve
 
 class ParameterFreeCurve(sgpp.Curve, Curve):
 

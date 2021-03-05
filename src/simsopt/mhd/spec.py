@@ -8,21 +8,23 @@ This module provides a class that handles the SPEC equilibrium code.
 
 import logging
 import os.path
-import numpy as np
 
-py_spec_found = True
+import numpy as np
+from monty.dev import requires
 try:
     import py_spec
-except:
+    py_spec_found = True
+except ImportError as e:
     py_spec_found = False
 
-pyoculus_found = True
 try:
     import pyoculus
-except:
+    pyoculus_found = True
+except ImportError as e:
     pyoculus_found = False
 
-from simsopt.core import Optimizable, SurfaceRZFourier
+from simsopt.core.optimizable import Optimizable
+from simsopt.core.surface import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,10 @@ def nested_lists_to_array(ll):
                 arr[jm, jn] = x
     return arr
 
-
+@requires(
+    py_spec_found,
+    "Using Spec requires py_spec package to be installed.",
+)
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -221,6 +226,11 @@ class Spec(Optimizable):
         self.run()
         return self.results.transform.fiota[1, 0]
 
+
+@requires(
+    py_spec_found,
+    "Using Residule class requires py_spec package to be installed.",
+)
 class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
@@ -251,6 +261,10 @@ class Residue(Optimizable):
         self.need_to_run_code = True
         self.fixed_point = None
 
+    @requires(
+        pyoculus_found,
+        "Obtaining the residue requires pyoculus package to be installed in addition to py_spec.",
+    )
     def J(self):
         """
         Run Spec if needed, find the periodic field line, and return the residue

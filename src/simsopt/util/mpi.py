@@ -11,12 +11,12 @@ mpi4py and numpy, not on any other simsopt components.
 
 import logging
 import numpy as np
+from monty.dev import requires
 
-mpi_found = True
 try:
     from mpi4py import MPI
-except:
-    mpi_found = False
+except ImportError as err:
+    MPI = None
 
 STOP = 0
 
@@ -26,7 +26,7 @@ def log(level=logging.INFO):
     added to all logging entries.
     """
     format = "%(levelname)s:%(name)s:%(lineno)d %(message)s"
-    if mpi_found:
+    if MPI is not None:
         format = "[{}] ".format(MPI.COMM_WORLD.Get_rank()) + format
 
     logging.basicConfig(level=level, format=format)
@@ -34,18 +34,20 @@ def log(level=logging.INFO):
 logger = logging.getLogger(__name__)
 
     
-class MpiPartition():
+@requires(MPI is not None, "mpi4py package not found. Install it to use MPI")
+class MpiPartition:
     """
     This module contains functions related to dividing up the set of
     MPI processors into groups, each of which can work together.
     """
+
     def __init__(self, ngroups=None, comm_world=MPI.COMM_WORLD):
         self.is_apart = False
         self.comm_world = comm_world
         self.rank_world = comm_world.Get_rank()
         self.nprocs_world = comm_world.Get_size()
         self.proc0_world = (self.rank_world == 0)
-        
+
         if ngroups is None:
             ngroups = self.nprocs_world
         # Force ngroups to be in the range [1, nprocs_world]
@@ -57,10 +59,12 @@ class MpiPartition():
             logger.info('Lowering ngroups to {}'.format(ngroups))
         self.ngroups = ngroups
 
-        self.group = int(np.floor((self.rank_world * ngroups) / self.nprocs_world))
+        self.group = int(
+            np.floor((self.rank_world * ngroups) / self.nprocs_world))
 
         # Set up the "groups" communicator:
-        self.comm_groups = self.comm_world.Split(color=self.group, key=self.rank_world)
+        self.comm_groups = self.comm_world.Split(color=self.group,
+                                                 key=self.rank_world)
         self.rank_groups = self.comm_groups.Get_rank()
         self.nprocs_groups = self.comm_groups.Get_size()
         self.proc0_groups = (self.rank_groups == 0)
@@ -70,7 +74,8 @@ class MpiPartition():
             color = 0
         else:
             color = MPI.UNDEFINED
-        self.comm_leaders = self.comm_world.Split(color=color, key=self.rank_world)
+        self.comm_leaders = self.comm_world.Split(color=color,
+                                                  key=self.rank_world)
         if self.proc0_groups:
             self.rank_leaders = self.comm_leaders.Get_rank()
             self.nprocs_leaders = self.comm_leaders.Get_size()
@@ -82,8 +87,12 @@ class MpiPartition():
 
     def write(self):
         """ Dump info about the MPI configuration """
-        columns = ["rank_world","nprocs_world","group","ngroups","rank_groups","nprocs_groups","rank_leaders","nprocs_leaders"]
-        data = [self.rank_world , self.nprocs_world , self.group , self.ngroups , self.rank_groups , self.nprocs_groups , self.rank_leaders , self.nprocs_leaders]
+        columns = ["rank_world", "nprocs_world", "group", "ngroups",
+                   "rank_groups", "nprocs_groups", "rank_leaders",
+                   "nprocs_leaders"]
+        data = [self.rank_world, self.nprocs_world, self.group, self.ngroups,
+                self.rank_groups, self.nprocs_groups, self.rank_leaders,
+                self.nprocs_leaders]
 
         # Each processor sends their data to proc0_world, and
         # proc0_world writes the result to the file in order.
@@ -98,18 +107,20 @@ class MpiPartition():
         else:
             tag = self.rank_world
             self.comm_world.send(data, 0, tag)
-            
+
     def mobilize_leaders(self, action_const):
         logger.debug('mobilize_leaders, action_const={}'.format(action_const))
         if not self.proc0_world:
-            raise RuntimeError('Only proc0_world should call mobilize_leaders()')
+            raise RuntimeError(
+                'Only proc0_world should call mobilize_leaders()')
 
         self.comm_leaders.bcast(action_const, root=0)
 
     def mobilize_workers(self, action_const):
         logger.debug('mobilize_workers, action_const={}'.format(action_const))
         if not self.proc0_groups:
-            raise RuntimeError('Only group leaders should call mobilize_workers()')
+            raise RuntimeError(
+                'Only group leaders should call mobilize_workers()')
 
         self.comm_groups.bcast(action_const, root=0)
 
@@ -139,7 +150,7 @@ class MpiPartition():
         if self.proc0_world:
             logger.debug('proc0_world bypassing leaders_loop')
             return
-        
+
         logger.debug('entering leaders_loop')
 
         while True:
@@ -166,7 +177,7 @@ class MpiPartition():
         if self.proc0_groups:
             logger.debug('bypassing worker_loop since proc0_groups')
             return
-        
+
         logger.debug('entering worker_loop')
 
         while True:
@@ -201,9 +212,9 @@ class MpiPartition():
         Bring workers and group leaders back from their respective loops.
         """
         if self.proc0_world:
-            self.stop_leaders() # Proc0_world stops the leaders.
+            self.stop_leaders()  # Proc0_world stops the leaders.
 
         if self.proc0_groups:
-            self.stop_workers() # All group leaders stop their workers.
+            self.stop_workers()  # All group leaders stop their workers.
 
         self.is_apart = False
