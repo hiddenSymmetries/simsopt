@@ -11,16 +11,14 @@ the operation of these main functions.
 import logging
 from datetime import datetime
 from time import time
+
 import numpy as np
 from scipy.optimize import least_squares
+from monty.dev import requires
 try:
     from mpi4py import MPI
-except:
-    pass
-
-from simsopt.core.dofs import Dofs
-from simsopt.core.util import isnumber
-from simsopt.core.optimizable import function_from_user, Target
+except ImportError as err:
+    MPI = None
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +27,8 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
@@ -49,8 +49,10 @@ def mpi_leaders_task(mpi, dofs, data):
     logger.debug('mpi_leaders_loop x={}'.format(x))
     dofs.set(x)
     fd_jac_mpi(dofs, mpi)
-    
-            
+
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def mpi_workers_task(mpi, dofs, data):
     """
     This function is called by worker processes when
@@ -75,9 +77,11 @@ def mpi_workers_task(mpi, dofs, data):
     elif data == CALCULATE_JAC:
         dofs.jac()
     else:
-        raise ValueError('Unexpected data in worker_loop')    
+        raise ValueError('Unexpected data in worker_loop')
 
-    
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     """
     Compute the finite-difference Jacobian of the functions in dofs
@@ -205,7 +209,53 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
+<<<<<<< HEAD
 def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
+=======
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
+def _f_proc0(x, prob, mpi):
+    """
+    This function is used for least_squares_mpi_solve.  It is similar
+    to LeastSquaresProblem.f, except this version is called only by
+    proc 0 while workers are in the worker loop.
+    """
+    mpi.mobilize_workers(CALCULATE_F)
+    # Send workers the state vector:
+    mpi.comm_groups.bcast(x, root=0)
+    
+    return prob.f(x)
+
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
+def _jac_proc0(x, prob, mpi):
+    """
+    This function is used for least_squares_mpi_solve.  It is similar
+    to LeastSquaresProblem.jac, except this version is called only by
+    proc 0 while workers are in the worker loop.
+    """
+    if prob.dofs.grad_avail:
+        # proc0_world calling mobilize_workers will mobilize only group 0.
+        mpi.mobilize_workers(CALCULATE_JAC)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        
+        return prob.jac(x)
+    
+    else:
+        # Evaluate Jacobian using fd_jac_mpi
+        mpi.mobilize_leaders(CALCULATE_FD_JAC)
+        # Send leaders the state vector:
+        mpi.comm_leaders.bcast(x, root=0)
+
+        return prob.scale_dofs_jac(fd_jac_mpi(prob.dofs, mpi, x))
+
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
+def least_squares_mpi_solve(prob, mpi, grad=None):
+>>>>>>> 7402d10... Blanket imports removed and optional dependency import checks added
     """
     Solve a nonlinear-least-squares minimization problem using
     MPI. All MPI processes (including group leaders and workers)

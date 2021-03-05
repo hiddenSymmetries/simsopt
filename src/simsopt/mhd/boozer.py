@@ -8,17 +8,16 @@ Boozer coordinates, and an optimization target for quasisymmetry.
 """
 
 import logging
-import os.path
 from typing import Union, Iterable
 import numpy as np
 
 booz_xform_found = True
 try:
     import booz_xform
-except:
+except ImportError as err:
     booz_xform_found = False
 
-from simsopt.core import Optimizable
+from simsopt.core.optimizable import Optimizable
 from simsopt.mhd import Vmec
 
 logger = logging.getLogger(__name__)

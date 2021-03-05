@@ -8,19 +8,21 @@ surfaces.  There is a base class Surface, and several child classes
 corresponding to different discrete representations.
 """
 
+import logging
+
 # These next 2 lines Use double precision:
 from jax.config import config
 config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
 from jax import jacrev, jit
-
 import numpy as np
-import logging
+
 from .util import isbool
 from .optimizable import Optimizable
 
 logger = logging.getLogger(__name__)
+
 
 #@jit(static_argnums=(4, 5, 6, 7, 8, 9))
 def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
@@ -97,11 +99,13 @@ def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
     volume = 0.5 * nfp * dtheta * dphi * jnp.sum(r * r * dzdtheta)
     return jnp.array([area, volume])
 
+
 #area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi)
 #jit_area_volume_pure = jit(area_volume_pure, static_argnums=(4, 5, 6, 7, 8, 9))
 #jit_area_volume_pure = jit(area_volume_pure, static_argnums=(8, 9))
 jit_area_volume_pure = area_volume_pure
 darea_volume_pure = jacrev(area_volume_pure, argnums=(0, 1, 2, 3))
+
 
 # Here I have Surface subclass Optimizable, which is convenient while
 # surface.py is part of simsopt instead of being in a separate simsgeo
@@ -133,6 +137,7 @@ class Surface(Optimizable):
         method.
         """
         raise NotImplementedError
+
 
 class SurfaceRZFourier(Surface):
     """
@@ -271,7 +276,7 @@ class SurfaceRZFourier(Surface):
         Return a particular rs Parameter.
         """
         if self.stelsym:
-            return ValueError( \
+            return ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         return self.rs[m, n + self.ntor]
@@ -281,7 +286,7 @@ class SurfaceRZFourier(Surface):
         Return a particular zc Parameter.
         """
         if self.stelsym:
-            return ValueError( \
+            return ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         return self.zc[m, n + self.ntor]
@@ -307,7 +312,7 @@ class SurfaceRZFourier(Surface):
         Set a particular rs Parameter.
         """
         if self.stelsym:
-            return ValueError( \
+            return ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
@@ -319,7 +324,7 @@ class SurfaceRZFourier(Surface):
         Set a particular zc Parameter.
         """
         if self.stelsym:
-            return ValueError( \
+            return ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
@@ -494,20 +499,20 @@ class SurfaceRZFourier(Surface):
         mpol = self.mpol # Shorthand
         ntor = self.ntor
         if self.stelsym:
-            return np.concatenate( \
-                (self._darea_drc[0, ntor:], \
-                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._darea_dzs[0, ntor + 1:], \
+            return np.concatenate(
+                (self._darea_drc[0, ntor:],
+                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._darea_dzs[0, ntor + 1:],
                  self._darea_dzs[1:, :].reshape(mpol * (ntor * 2 + 1))))
         else:
-            return np.concatenate( \
-                (self._darea_drc[0, ntor:], \
-                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._darea_dzs[0, ntor + 1:], \
-                 self._darea_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._darea_drs[0, ntor + 1:], \
-                 self._darea_drs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._darea_dzc[0, ntor:], \
+            return np.concatenate(
+                (self._darea_drc[0, ntor:],
+                 self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._darea_dzs[0, ntor + 1:],
+                 self._darea_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._darea_drs[0, ntor + 1:],
+                 self._darea_drs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._darea_dzc[0, ntor:],
                  self._darea_dzc[1:, :].reshape(mpol * (ntor * 2 + 1))))
 
     def dvolume(self):
@@ -518,20 +523,20 @@ class SurfaceRZFourier(Surface):
         mpol = self.mpol # Shorthand
         ntor = self.ntor
         if self.stelsym:
-            return np.concatenate( \
-                (self._dvolume_drc[0, ntor:], \
-                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._dvolume_dzs[0, ntor + 1:], \
+            return np.concatenate(
+                (self._dvolume_drc[0, ntor:],
+                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._dvolume_dzs[0, ntor + 1:],
                  self._dvolume_dzs[1:, :].reshape(mpol * (ntor * 2 + 1))))
         else:
-            return np.concatenate( \
-                (self._dvolume_drc[0, ntor:], \
-                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._dvolume_dzs[0, ntor + 1:], \
-                 self._dvolume_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._dvolume_drs[0, ntor + 1:], \
-                 self._dvolume_drs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self._dvolume_dzc[0, ntor:], \
+            return np.concatenate(
+                (self._dvolume_drc[0, ntor:],
+                 self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._dvolume_dzs[0, ntor + 1:],
+                 self._dvolume_dzs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._dvolume_drs[0, ntor + 1:],
+                 self._dvolume_drs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self._dvolume_dzc[0, ntor:],
                  self._dvolume_dzc[1:, :].reshape(mpol * (ntor * 2 + 1))))
 
     @classmethod
@@ -587,20 +592,20 @@ class SurfaceRZFourier(Surface):
         mpol = self.mpol # Shorthand
         ntor = self.ntor
         if self.stelsym:
-            return np.concatenate( \
-                (self.rc[0, ntor:], \
-                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self.zs[0, ntor + 1:], \
+            return np.concatenate(
+                (self.rc[0, ntor:],
+                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self.zs[0, ntor + 1:],
                  self.zs[1:, :].reshape(mpol * (ntor * 2 + 1))))
         else:
-            return np.concatenate( \
-                (self.rc[0, ntor:], \
-                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self.zs[0, ntor + 1:], \
-                 self.zs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self.rs[0, ntor + 1:], \
-                 self.rs[1:, :].reshape(mpol * (ntor * 2 + 1)), \
-                 self.zc[0, ntor:], \
+            return np.concatenate(
+                (self.rc[0, ntor:],
+                 self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self.zs[0, ntor + 1:],
+                 self.zs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self.rs[0, ntor + 1:],
+                 self.rs[1:, :].reshape(mpol * (ntor * 2 + 1)),
+                 self.zc[0, ntor:],
                  self.zc[1:, :].reshape(mpol * (ntor * 2 + 1))))
 
     def set_dofs(self, v):
