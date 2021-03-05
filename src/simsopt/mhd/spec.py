@@ -13,15 +13,13 @@ import numpy as np
 from monty.dev import requires
 try:
     import py_spec
-    py_spec_found = True
 except ImportError as e:
-    py_spec_found = False
+    py_spec = None
 
 try:
     import pyoculus
-    pyoculus_found = True
 except ImportError as e:
-    pyoculus_found = False
+    pyoculus = None
 
 from simsopt.core.optimizable import Optimizable
 from simsopt.core.surface import SurfaceRZFourier
@@ -45,10 +43,8 @@ def nested_lists_to_array(ll):
                 arr[jm, jn] = x
     return arr
 
-@requires(
-    py_spec_found,
-    "Using Spec requires py_spec package to be installed.",
-)
+@requires(py_spec is not None,
+          "Using Spec requires py_spec package to be installed.")
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -83,14 +79,14 @@ class Spec(Optimizable):
         # Transfer the boundary shape from the namelist to a Surface object:
         nfp = self.nml['physicslist']['nfp']
         stelsym = bool(self.nml['physicslist']['istellsym'])
-        """
-        mpol = self.nml['physicslist']['mpol']
-        ntor = self.nml['physicslist']['ntor']
-        for m in range(mpol + 1):
-            for n in range(-ntor, ntor + 1):
-                self.boundary.set_rc(m, n) = self.nml['physicslist']['rbc'][m][n + ntor]
-                self.boundary.set_zs(m, n) = self.nml['physicslist']['zbs'][m][n + ntor]
-        """
+        
+        # mpol = self.nml['physicslist']['mpol']
+        # ntor = self.nml['physicslist']['ntor']
+        # for m in range(mpol + 1):
+        #     for n in range(-ntor, ntor + 1):
+        #         self.boundary.set_rc(m, n) = self.nml['physicslist']['rbc'][m][n + ntor]
+        #         self.boundary.set_zs(m, n) = self.nml['physicslist']['zbs'][m][n + ntor]
+        
         # We can assume rbc and zbs are specified in the namelist.
         # f90nml returns rbc and zbs as a list of lists where the
         # inner lists do not necessarily all have the same
@@ -228,7 +224,7 @@ class Spec(Optimizable):
 
 
 @requires(
-    py_spec_found,
+    py_spec is not None,
     "Using Residule class requires py_spec package to be installed.",
 )
 class Residue(Optimizable):
@@ -261,10 +257,9 @@ class Residue(Optimizable):
         self.need_to_run_code = True
         self.fixed_point = None
 
-    @requires(
-        pyoculus_found,
-        "Obtaining the residue requires pyoculus package to be installed in addition to py_spec.",
-    )
+    @requires(pyoculus is not None,
+              "Obtaining the residue requires pyoculus package to be installed "
+              "in addition to py_spec.")
     def J(self):
         """
         Run Spec if needed, find the periodic field line, and return the residue
