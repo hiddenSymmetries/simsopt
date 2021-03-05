@@ -209,53 +209,9 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
-<<<<<<< HEAD
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
-=======
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
-def _f_proc0(x, prob, mpi):
-    """
-    This function is used for least_squares_mpi_solve.  It is similar
-    to LeastSquaresProblem.f, except this version is called only by
-    proc 0 while workers are in the worker loop.
-    """
-    mpi.mobilize_workers(CALCULATE_F)
-    # Send workers the state vector:
-    mpi.comm_groups.bcast(x, root=0)
-    
-    return prob.f(x)
-
-
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
-def _jac_proc0(x, prob, mpi):
-    """
-    This function is used for least_squares_mpi_solve.  It is similar
-    to LeastSquaresProblem.jac, except this version is called only by
-    proc 0 while workers are in the worker loop.
-    """
-    if prob.dofs.grad_avail:
-        # proc0_world calling mobilize_workers will mobilize only group 0.
-        mpi.mobilize_workers(CALCULATE_JAC)
-        # Send workers the state vector:
-        mpi.comm_groups.bcast(x, root=0)
-        
-        return prob.jac(x)
-    
-    else:
-        # Evaluate Jacobian using fd_jac_mpi
-        mpi.mobilize_leaders(CALCULATE_FD_JAC)
-        # Send leaders the state vector:
-        mpi.comm_leaders.bcast(x, root=0)
-
-        return prob.scale_dofs_jac(fd_jac_mpi(prob.dofs, mpi, x))
-
-
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
-def least_squares_mpi_solve(prob, mpi, grad=None):
->>>>>>> 7402d10... Blanket imports removed and optional dependency import checks added
     """
     Solve a nonlinear-least-squares minimization problem using
     MPI. All MPI processes (including group leaders and workers)
