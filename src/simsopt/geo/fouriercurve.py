@@ -1,6 +1,13 @@
-from .curve import Curve
-import simsgeopp as sgpp
+from math import pi
+
 import numpy as np
+from jax.ops import index, index_add
+import jax.numpy as jnp
+
+import simsgeopp as sgpp
+from .curve import Curve
+from .curve import JaxCurve
+
 
 class FourierCurve(sgpp.FourierCurve, Curve):
 
@@ -22,13 +29,6 @@ class FourierCurve(sgpp.FourierCurve, Curve):
 
     # def kappa_impl(self, kappa):
     #     Curve.kappa_impl(self, kappa)
-
-
-
-from jax.ops import index, index_add
-import jax.numpy as jnp
-from math import pi
-from .curve import JaxCurve
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):

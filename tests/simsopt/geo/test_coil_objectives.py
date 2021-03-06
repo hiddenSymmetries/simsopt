@@ -1,9 +1,16 @@
-from simsopt.geo import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve, CurveLength, LpCurveCurvature, LpCurveTorsion, FourierCurve, MinimumDistance, JaxFourierCurve, RotatedCurve
-import numpy as np
-np.random.seed(1)
 import unittest
+
+import numpy as np
+
 from simsopt.geo import parameters
+from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.fouriercurve import FourierCurve, JaxFourierCurve
+from simsopt.geo.magneticaxis import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.objectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
+
+np.random.seed(1)
 parameters['jit'] = False
+
 
 class Testing(unittest.TestCase):
 
