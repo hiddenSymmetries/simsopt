@@ -5,7 +5,9 @@ import sys
 from mpi4py import MPI
 import numpy as np
 sys.path.append('../src')
-from simsopt import Vmec, LeastSquaresProblem
+
+from simsopt.mdh import Vmec
+from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
