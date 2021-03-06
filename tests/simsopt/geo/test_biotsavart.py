@@ -1,6 +1,11 @@
-import numpy as np
 import unittest
-from simsopt.geo import FourierCurve, StellaratorSymmetricCylindricalFourierCurve, BiotSavart
+
+import numpy as np
+
+from simsopt.geo.fouriercurve import FourierCurve
+from simsopt.geo.magneticaxis import StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.biotsavart import BiotSavart
+
 
 def get_coil(num_quadrature_points=200):
     coil = FourierCurve(num_quadrature_points, 3)
@@ -10,6 +15,7 @@ def get_coil(num_quadrature_points=200):
     coeffs[2][2] = 0.5
     coil.set_dofs(np.concatenate(coeffs))
     return coil
+
 
 class Testing(unittest.TestCase):
 

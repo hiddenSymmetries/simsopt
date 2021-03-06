@@ -9,12 +9,15 @@ Boozer coordinates, and an optimization target for quasisymmetry.
 
 import logging
 from typing import Union, Iterable
+
 import numpy as np
+from monty.dev import requires
 
 booz_xform_found = True
 try:
     import booz_xform
 except ImportError as err:
+    booz_xform = None
     booz_xform_found = False
 
 from simsopt.core.optimizable import Optimizable
@@ -34,7 +37,9 @@ def closest_index(grid: Iterable[float], val: float) -> int:
     """
     return np.argmin(np.abs(grid - val))
 
-
+@requires(booz_xform is not None,
+          "To use a Boozer object, the booz_xform package "
+          "must be installed. Run 'pip install -v booz_xform'")
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -52,9 +57,6 @@ class Boozer(Optimizable):
         """
         Constructor
         """
-        if not booz_xform_found:
-            raise RuntimeError("To use a Boozer object, the booz_xform package"
-                               "must be installed. Run 'pip install -v booz_xform'")
         self.equil = equil
         self.depends_on = ["equil"]
         self.mpol = mpol

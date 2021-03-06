@@ -13,10 +13,13 @@ import numpy as np
 from scipy.io import netcdf
 from mpi4py import MPI
 from monty.dev import requires
+
 try:
     import vmec
+    vmec_found = True
 except ImportError as err:
     vmec = None
+    vmec_found = False
 
 from simsopt.core.optimizable import Optimizable, optimizable
 from simsopt.core.surface import SurfaceRZFourier
