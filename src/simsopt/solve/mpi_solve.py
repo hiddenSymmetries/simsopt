@@ -11,16 +11,14 @@ the operation of these main functions.
 import logging
 from datetime import datetime
 from time import time
+
 import numpy as np
 from scipy.optimize import least_squares
+from monty.dev import requires
 try:
     from mpi4py import MPI
-except:
-    pass
-
-from simsopt.core.dofs import Dofs
-from simsopt.core.util import isnumber
-from simsopt.core.optimizable import function_from_user, Target
+except ImportError as err:
+    MPI = None
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +27,8 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
@@ -49,8 +49,10 @@ def mpi_leaders_task(mpi, dofs, data):
     logger.debug('mpi_leaders_loop x={}'.format(x))
     dofs.set(x)
     fd_jac_mpi(dofs, mpi)
-    
-            
+
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def mpi_workers_task(mpi, dofs, data):
     """
     This function is called by worker processes when
@@ -75,9 +77,11 @@ def mpi_workers_task(mpi, dofs, data):
     elif data == CALCULATE_JAC:
         dofs.jac()
     else:
-        raise ValueError('Unexpected data in worker_loop')    
+        raise ValueError('Unexpected data in worker_loop')
 
-    
+
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     """
     Compute the finite-difference Jacobian of the functions in dofs
@@ -205,6 +209,8 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
+@requires(MPI is not None,
+          "mpi4py package not found. Install the package to use MPI")
 def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using

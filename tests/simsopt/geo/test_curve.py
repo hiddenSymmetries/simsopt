@@ -1,10 +1,12 @@
 import numpy as np
 import unittest
-from simsopt.geo import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve, \
-    FourierCurve, JaxFourierCurve, RotatedCurve
-from simsopt.geo import parameters
-parameters['jit'] = False
 
+from simsopt.geo.fouriercurve import FourierCurve, JaxFourierCurve
+from simsopt.geo.magneticaxis import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.curve import RotatedCurve
+from simsopt.geo import parameters
+
+parameters['jit'] = False
 
 
 def taylor_test(f, df, x, epsilons=None, direction=None):

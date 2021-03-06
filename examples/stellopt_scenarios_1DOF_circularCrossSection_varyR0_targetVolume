@@ -3,7 +3,9 @@
 import logging
 import numpy as np
 from mpi4py import MPI
-from simsopt import Vmec, LeastSquaresProblem
+
+from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.mhd import Vmec
 from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 

@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
 import os
-from simsopt.mhd import vmec_found
+
+from simsopt.mhd.vmec import vmec_found
 if vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
