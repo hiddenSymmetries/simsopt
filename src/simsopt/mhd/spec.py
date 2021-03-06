@@ -11,15 +11,19 @@ import os.path
 
 import numpy as np
 from monty.dev import requires
+spec_found = True
 try:
     import py_spec
 except ImportError as e:
     py_spec = None
+    spec_found = False
 
+pyoculus_found = True
 try:
     import pyoculus
 except ImportError as e:
     pyoculus = None
+    pyoculus_found = False
 
 from simsopt.core.optimizable import Optimizable
 from simsopt.core.surface import SurfaceRZFourier
