@@ -4,5 +4,3 @@ monty>=4.0.2
 jax>=0.2.5
 setuptools>=50.3.1
 scipy>=1.5.4
-py-spec>=3.0.1
-pyoculus>=0.1.1
