@@ -1,4 +1,4 @@
-name: Build
+name: Wheel Builder
 
 on: [push, pull_request]
 
@@ -40,7 +40,7 @@ jobs:
           #  rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB && 
           #  yum install -y intel-mkl-64bit-2020.0-088 &&
           #  yum install -y netcdf-openmpi-devel netcdf-fortran-openmpi-devel 
-          CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy
+          CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy cmake ninja
           #  echo "source /etc/profile.d/modules.sh" >> /root/.bashenv && 
           #  echo "module load mpi" >> /root/.bashenv &&
           #  echo "export MKLROOT=/opt/intel/mkl" >> /root/.bashenv &&
