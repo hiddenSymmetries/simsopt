@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 project(simsgeopp)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-find_package(PythonInterp 3 REQUIRED)
-find_package(PythonLibs 3 REQUIRED)
+#find_package(PythonInterp 3 REQUIRED)
+#find_package(PythonLibs 3 REQUIRED)
+find_package(Python 3 COMPONENTS Interpreter Development.Module)
 find_package(NumPy REQUIRED)
 find_package(OpenMP)
 
