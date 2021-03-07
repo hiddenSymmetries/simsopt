@@ -23,7 +23,7 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     endif()
 endif()
 
-set(CMAKE_CXX_FLAGS "-O3 -march=native")
+set(CMAKE_CXX_FLAGS "-O2 -march=x86-64")
 
 add_subdirectory(thirdparty/pybind11)
 set(XTENSOR_USE_OPENMP 0)
