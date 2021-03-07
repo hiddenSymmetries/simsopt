@@ -1,0 +1,4 @@
+include CMakeLists.txt COPYING* requirements.txt pyproject.toml
+recursive-include thirdparty/* examples/* cmake/*
+
+exclude examples/wout*.nc examples/mercier* examples/jxbout* examples/spec*.sp examples/spec*.sp.* 
