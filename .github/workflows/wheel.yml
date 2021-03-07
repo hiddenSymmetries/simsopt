@@ -45,7 +45,6 @@ jobs:
 
       - name: Build sdit
         run: python setup.py sdit
-        uses: joerick/cibuildwheel@v1.9.0
         
       - uses: actions/upload-artifact@v2
         with:
