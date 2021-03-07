@@ -4,8 +4,11 @@ on: [push, pull_request]
 
 jobs:
   build_linux_wheels:
-    name: Build wheels on ubuntu
-    runs-on: ubuntu-latest
+    name: Build wheels on ${{ matrix.os }} 
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-10.15] 
 
     steps:
       - uses: actions/checkout@v2
@@ -20,33 +23,30 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           # Use manylinux2014
           #CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          #CIBW_MANYLINUX_X86_64_IMAGE: "medbha/vmec_manylinux2014_x86_64:2"
-          CIBW_SKIP: cp27-manylinux*
+          CIBW_SKIP: cp27-*
           CIBW_DEPENDENCY_VERSIONS: latest
-          #CIBW_ENVIRONMENT: > 
-          #  PATH="/usr/lib64/openmpi/bin:${PATH}"
-          #  LD_LIBRARY_PATH="/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH}"
-          # Install the required libraries on linux
-          # Configure MKL repo and install MKL
-          # Install openmpi
-          # Install netcdf
-          # Install python build dependencies
-          #"ls {package}" &&
-          # "cp {package}/centos_gcc_mkl.json {package}/cmake_config_file.json" &&
-          #CIBW_BEFORE_ALL_LINUX: >
-          #  yum install -y epel-release &&
-          #  yum install -y openmpi openmpi-devel  &&
-          #  yum-config-manager --add-repo https://yum.repos.intel.com/mkl/setup/intel-mkl.repo && 
-          #  rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB && 
-          #  yum install -y intel-mkl-64bit-2020.0-088 &&
-          #  yum install -y netcdf-openmpi-devel netcdf-fortran-openmpi-devel 
           CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy cmake ninja
-          #  echo "source /etc/profile.d/modules.sh" >> /root/.bashenv && 
-          #  echo "module load mpi" >> /root/.bashenv &&
-          #  echo "export MKLROOT=/opt/intel/mkl" >> /root/.bashenv &&
-          #  echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/mkl/lib/intel64:/usr/lib64/openmpi/lib/" >> /root/.bashenv &&
-          #  echo "export PATH=$PATH:/usr/lib64/openmpi/bin" >> /root/.bashenv 
 
       - uses: actions/upload-artifact@v2
         with:
           path: ./wheelhouse/*.whl
+
+  build_sdit:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Build sdit
+        run: python setup.py sdit
+        uses: joerick/cibuildwheel@v1.9.0
+        
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
