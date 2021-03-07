@@ -31,7 +31,7 @@ jobs:
         with:
           path: ./wheelhouse/*.whl
 
-  build_sdit:
+  build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
 
