@@ -101,7 +101,7 @@ jobs:
 #          path: ./wheelhouse/*.whl
 
   mac_wheels:
-    name: Build py39 wheel on mac 
+    name: Build  wheel on mac 
     runs-on: macos-10.15
     strategy:
       matrix:
@@ -120,7 +120,7 @@ jobs:
       - name: Build and repair wheels
         run: |
           python -m pip wheel -w wheel --no-deps . # cibuildwheel --output-dir wheelhouse
-          python -m delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
+          delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
          
       - uses: actions/upload-artifact@v2
         with:
