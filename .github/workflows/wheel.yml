@@ -148,7 +148,7 @@ jobs:
           path: dist/*.tar.gz
 
   upload_pypi:
-    needs: [linux_wheels, mac_wheel_py37, mac_wheel_py38, mac_wheel_py39, build_sdist]
+    needs: [linux_wheels, mac_wheels, build_sdist]
     runs-on: ubuntu-latest
     # upload to PyPI on every tag starting with 'v'
     if: github.event_name == 'push' # && startsWith(github.event.ref, 'refs/tags/v')
