@@ -3,10 +3,9 @@ name: Wheel Builder
 on: [push, pull_request]
 
 jobs:
-  build_linux_wheels:
+  linux_wheels:
     name: Build wheels on linux
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
 
@@ -29,40 +28,69 @@ jobs:
           path: ./wheelhouse/*.whl
 
 
-  build_mac_wheels:
-    name: Build wheels on mac
+  mac_wheel_py37:
+    name: Build py37 wheel on mac
     runs-on: macos-10.15
-    strategy:
-      matrix:
-        python-version: [3.7, 3.8, 3.9] 
-
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.7
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==1.10.0
 
       - name: Build wheels
-        if: ${{ matrix.python-version }} == 3.7
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp37-macosx_x86_64
           CIBW_SKIP: cp27-* cp38-* cp39-*
 
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  mac_wheel_py38:
+    name: Build py38 wheel on mac
+    runs-on: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==1.10.0
+
       - name: Build wheels
-        if: ${{ matrix.python-version }} == 3.8
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp38-macosx_x86_64
           CIBW_SKIP: cp27-* cp37-* cp39-*
 
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  mac_wheel_py39:
+    name: Build py39 wheel on mac 
+    runs-on: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==1.10.0
+
       - name: Build wheels
-        if: ${{ matrix.python-version }} == 3.9
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp39-macosx_x86_64
@@ -95,7 +123,7 @@ jobs:
           path: dist/*.tar.gz
 
   upload_pypi:
-    needs: [build_linux_wheels, build_mac_wheels, build_sdist]
+    needs: [linux_wheels, mac_wheel_py37, mac_wheel_py38, mac_wheel_py39, build_sdist]
     runs-on: ubuntu-latest
     # upload to PyPI on every tag starting with 'v'
     if: github.event_name == 'push' # && startsWith(github.event.ref, 'refs/tags/v')
