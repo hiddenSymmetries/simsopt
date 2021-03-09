@@ -3,9 +3,13 @@ name: Wheel Builder
 on: [push, pull_request]
 
 jobs:
-  linux_wheels:
-    name: Build wheels on linux
-    runs-on: ubuntu-latest
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-10.15] 
+
     steps:
       - uses: actions/checkout@v2
 
@@ -100,31 +104,31 @@ jobs:
 #        with:
 #          path: ./wheelhouse/*.whl
 
-  mac_wheels:
-    name: Build  wheel on mac 
-    runs-on: macos-10.15
-    strategy:
-      matrix:
-        python: [3.7, 3.8, 3.9]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python }}
-
-      - name: Install wheel builder packages 
-        run: python -m pip install --upgrade pip setuptools wheel delocate
-
-      - name: Build and repair wheels
-        run: |
-          python -m pip wheel -w wheel --no-deps . # cibuildwheel --output-dir wheelhouse
-          delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
-         
-      - uses: actions/upload-artifact@v2
-        with:
-          path: ./wheelhouse/*.whl
+#  mac_wheels:
+#    name: Build  wheel on mac 
+#    runs-on: macos-10.15
+#    strategy:
+#      matrix:
+#        python: [3.7, 3.8, 3.9]
+#    steps:
+#      - uses: actions/checkout@v2
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v2
+#        with:
+#          python-version: ${{ matrix.python }}
+#
+#      - name: Install wheel builder packages 
+#        run: python -m pip install --upgrade pip setuptools wheel delocate
+#
+#      - name: Build and repair wheels
+#        run: |
+#          python -m pip wheel -w wheel --no-deps . # cibuildwheel --output-dir wheelhouse
+#          delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
+#         
+#      - uses: actions/upload-artifact@v2
+#        with:
+#          path: ./wheelhouse/*.whl
 
   build_sdist:
     name: Build source distribution
@@ -138,17 +142,19 @@ jobs:
         with:
           python-version: '3.8'
 
+      - name: Download all submodules
+        run: git submodule update --init
+        
       - name: Build sdist
-        run: |
-          git submodule update --init
-          python setup.py sdist
+        run: python setup.py sdist
         
       - uses: actions/upload-artifact@v2
         with:
           path: dist/*.tar.gz
 
   upload_pypi:
-    needs: [linux_wheels, mac_wheels, build_sdist]
+    #needs: [linux_wheels, mac_wheels, build_sdist]
+    needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     # upload to PyPI on every tag starting with 'v'
     if: github.event_name == 'push' # && startsWith(github.event.ref, 'refs/tags/v')
