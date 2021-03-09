@@ -1,6 +1,7 @@
 include CMakeLists.txt COPYING* requirements.txt pyproject.toml
 include examples/* 
+exclude examples/wout*.nc examples/mercier* examples/jxbout* examples/spec*.sp examples/spec*.sp.* examples/.gitignore
 
 recursive-include thirdparty *
+recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
 
-exclude examples/wout*.nc examples/mercier* examples/jxbout* examples/spec*.sp examples/spec*.sp.* 
