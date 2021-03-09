@@ -4,9 +4,11 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #find_package(PythonInterp 3 REQUIRED)
 #find_package(PythonLibs 3 REQUIRED)
+#find_package(NumPy REQUIRED)
+
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
-#find_package(NumPy REQUIRED)
+
 find_package(OpenMP)
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
