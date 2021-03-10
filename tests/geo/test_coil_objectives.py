@@ -4,41 +4,40 @@ import numpy as np
 
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.fouriercurve import FourierCurve, JaxFourierCurve
-from simsopt.geo.magneticaxis import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curverzfourier import JaxCurveRZFourier, CurveRZFourier
 from simsopt.geo.objectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
 
-np.random.seed(1)
 parameters['jit'] = False
 
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "JaxCurveRZFourier", "CurveRZFourier"]
 
     def create_curve(self, curvetype, rotated):
+        np.random.seed(1)
         rand_scale=0.01
         order = 4
         nquadpoints = 200
-        coil = StellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
 
-        if curvetype == "FourierCurve":
-            coil = FourierCurve(nquadpoints, order)
-        elif curvetype == "JaxFourierCurve":
-            coil = JaxFourierCurve(nquadpoints, order)
-        elif curvetype == "StellaratorSymmetricCylindricalFourierCurve":
-            coil = StellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
-        elif curvetype == "JaxStellaratorSymmetricCylindricalFourierCurve":
-            coil = JaxStellaratorSymmetricCylindricalFourierCurve(nquadpoints, order, 2)
+        if curvetype == "CurveXYZFourier":
+            coil = CurveXYZFourier(nquadpoints, order)
+        elif curvetype == "JaxCurveXYZFourier":
+            coil = JaxCurveXYZFourier(nquadpoints, order)
+        elif curvetype == "CurveRZFourier":
+            coil = CurveRZFourier(nquadpoints, order, 2, False)
+        elif curvetype == "JaxCurveRZFourier":
+            coil = JaxCurveRZFourier(nquadpoints, order, 2)
         else:
             # print('Could not find' + curvetype)
             assert False
         dofs = np.zeros((coil.num_dofs(), ))
-        if curvetype in ["FourierCurve", "JaxFourierCurve"]:
+        if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
             dofs[1] = 1.
             dofs[2*order+3] = 1.
             dofs[4*order+3] = 1.
-        elif curvetype in ["StellaratorSymmetricCylindricalFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve"]:
+        elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier"]:
             dofs[0] = 1.
             dofs[1] = 0.1
             dofs[order+1] = 0.1

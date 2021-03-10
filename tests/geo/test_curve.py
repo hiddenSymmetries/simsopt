@@ -1,8 +1,8 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.fouriercurve import FourierCurve, JaxFourierCurve
-from simsopt.geo.magneticaxis import JaxStellaratorSymmetricCylindricalFourierCurve, StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curverzfourier import JaxCurveRZFourier, CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 
@@ -42,22 +42,22 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     rand_scale=0.01
     order = 4
 
-    if curvetype == "FourierCurve":
-        curve = FourierCurve(x, order)
-    elif curvetype == "JaxFourierCurve":
-        curve = JaxFourierCurve(x, order)
-    elif curvetype == "StellaratorSymmetricCylindricalFourierCurve":
-        curve = StellaratorSymmetricCylindricalFourierCurve(x, order, 2)
-    elif curvetype == "JaxStellaratorSymmetricCylindricalFourierCurve":
-        curve = JaxStellaratorSymmetricCylindricalFourierCurve(x, order, 2)
+    if curvetype == "CurveXYZFourier":
+        curve = CurveXYZFourier(x, order)
+    elif curvetype == "JaxCurveXYZFourier":
+        curve = JaxCurveXYZFourier(x, order)
+    elif curvetype == "CurveRZFourier":
+        curve = CurveRZFourier(x, order, 2, True)
+    elif curvetype == "JaxCurveRZFourier":
+        curve = JaxCurveRZFourier(x, order, 2)
     else:
         assert False
     dofs = np.zeros((curve.num_dofs(), ))
-    if curvetype in ["FourierCurve", "JaxFourierCurve"]:
+    if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
         dofs[1] = 1.
         dofs[2*order+3] = 1.
         dofs[4*order+3] = 1.
-    elif curvetype in ["StellaratorSymmetricCylindricalFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve"]:
+    elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -73,7 +73,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["FourierCurve", "JaxFourierCurve", "JaxStellaratorSymmetricCylindricalFourierCurve", "StellaratorSymmetricCylindricalFourierCurve"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "JaxCurveRZFourier", "CurveRZFourier"]
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1
@@ -280,7 +280,7 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_curve_torsion_derivative(curvetype, rotated)
 
-    def subtest_magnetic_axis_frenet_frame(self, curvetype, rotated):
+    def subtest_curve_frenet_frame(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
         (t, n, b) = ma.frenet_frame()
         assert np.allclose(np.sum(n*t, axis=1), 0)
@@ -290,13 +290,13 @@ class Testing(unittest.TestCase):
         assert np.allclose(np.sum(n*n, axis=1), 1)
         assert np.allclose(np.sum(b*b, axis=1), 1)
 
-    def test_magnetic_axis_frenet_frame(self):
+    def test_curve_frenet_frame(self):
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_magnetic_axis_frenet_frame(curvetype, rotated)
+                    self.subtest_curve_frenet_frame(curvetype, rotated)
 
-    def subtest_magnetic_axis_frenet_frame_derivative(self, curvetype, rotated):
+    def subtest_curve_frenet_frame_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
         coeffs = ma.get_dofs()
         def f(dofs):
@@ -323,13 +323,13 @@ class Testing(unittest.TestCase):
             return ma.dfrenet_frame_by_dcoeff()[2].copy()
         taylor_test(f, df, coeffs)
 
-    def test_magnetic_axis_frenet_frame_derivative(self):
+    def test_curve_frenet_frame_derivative(self):
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_magnetic_axis_frenet_frame_derivative(curvetype, rotated)
+                    self.subtest_curve_frenet_frame_derivative(curvetype, rotated)
 
-    def subtest_magnetic_axis_dkappa_by_dphi_derivative(self, curvetype, rotated):
+    def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
         coeffs = ma.get_dofs()
         def f(dofs):
@@ -340,11 +340,11 @@ class Testing(unittest.TestCase):
             return ma.dkappadash_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
-    def test_magnetic_axis_dkappa_by_dphi_derivative(self):
+    def test_curve_dkappa_by_dphi_derivative(self):
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_magnetic_axis_dkappa_by_dphi_derivative(curvetype, rotated)
+                    self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated)
 
 if __name__ == "__main__":
     unittest.main()
