@@ -14,7 +14,7 @@ from time import time
 
 import numpy as np
 from scipy.optimize import least_squares
-from monty.dev import requires
+
 try:
     from mpi4py import MPI
 except ImportError as err:
@@ -27,8 +27,6 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
 def mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
@@ -51,8 +49,6 @@ def mpi_leaders_task(mpi, dofs, data):
     fd_jac_mpi(dofs, mpi)
 
 
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
 def mpi_workers_task(mpi, dofs, data):
     """
     This function is called by worker processes when
@@ -80,8 +76,6 @@ def mpi_workers_task(mpi, dofs, data):
         raise ValueError('Unexpected data in worker_loop')
 
 
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
 def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     """
     Compute the finite-difference Jacobian of the functions in dofs
@@ -109,6 +103,8 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     third entry is a matrix, the colums of which give the
     corresponding values of the functions.
     """
+    if MPI is None:
+        raise RuntimeError("fd_jac_mpi requires the mpi4py package.")
 
     apart_at_start = mpi.is_apart
     if not apart_at_start:
@@ -209,8 +205,6 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
-@requires(MPI is not None,
-          "mpi4py package not found. Install the package to use MPI")
 def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -223,6 +217,9 @@ def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
 
     kwargs allows you to pass any arguments to scipy.optimize.minimize.
     """
+    if MPI is None:
+        raise RuntimeError("least_squares_mpi_solve requires the mpi4py package.")
+    
     logger.info("Beginning solve.")
     prob._init()
     if grad is None:
