@@ -120,8 +120,7 @@ class Boozer(Optimizable):
         s = sorted(list(self.s))
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
-        # In the next line, __wrapped__ is associated with the monty decorator on Vmec.
-        if isinstance(self.equil, Vmec.__wrapped__):
+        if isinstance(self.equil, Vmec):
             self.equil.run()
             wout = self.equil.wout # Shorthand
 
