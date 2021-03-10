@@ -12,7 +12,7 @@
 set -ex
 # In the above line, "set -x" causes this script to exit as soon as any line fails. "set -e" causes each line of this script to be printed (with a + in front) before it is executed, so if a step fails, you can see from the travis log what command failed.
 
-cd tests/simsopt
+cd tests
 
 # Example of running all tests for a specific module:
 #python -m unittest -v mhd.test_spec
