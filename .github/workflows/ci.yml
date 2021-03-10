@@ -176,7 +176,7 @@ jobs:
 
     - name: Run serial unit tests
       run: |
-        cd tests/simsopt
+        cd tests
         python3 -m unittest -v
 
     - name: Run 1dof integrated test
