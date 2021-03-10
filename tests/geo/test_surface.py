@@ -10,8 +10,8 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         direction = np.random.rand(*(x.shape))-0.5
     dfx = df(x)@direction
     if epsilons is None:
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
-    # print("################################################################################")
+        epsilons = np.power(2., -np.asarray(range(8, 20)))
+    print("################################################################################")
     err_old = 1e9
     counter = 0
     for eps in epsilons:
@@ -29,7 +29,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         counter += 1
     if err > 1e-10:
         assert counter > 3
-    # print("################################################################################")
+    print("################################################################################")
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     mpol = 4

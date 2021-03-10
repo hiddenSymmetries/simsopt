@@ -2,13 +2,12 @@ import unittest
 
 import numpy as np
 
-from simsopt.geo.fouriercurve import FourierCurve
-from simsopt.geo.magneticaxis import StellaratorSymmetricCylindricalFourierCurve
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.biotsavart import BiotSavart
 
 
 def get_coil(num_quadrature_points=200):
-    coil = FourierCurve(num_quadrature_points, 3)
+    coil = CurveXYZFourier(num_quadrature_points, 3)
     coeffs = coil.dofs
     coeffs[1][0] = 1.
     coeffs[1][1] = 0.5
