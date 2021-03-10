@@ -168,6 +168,12 @@ jobs:
       run: |
         pip install mpi4py
 
+    - name: Install tox dependencies
+      run: pip install tox tox-gh-actions tox-wheel
+
+    - name: Test with tox
+      run: tox --wheel
+
     - name: Install simsopt package
       run: pip install -v .
 
@@ -202,10 +208,4 @@ jobs:
     #  run: |
     #    cd tests
     #    python3 -m unittest -v
-
-    - name: Install tox dependencies
-      run: pip install tox tox-gh-actions
-
-    - name: Test with tox
-      run: tox
 
