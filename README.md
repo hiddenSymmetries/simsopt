@@ -4,5 +4,5 @@
 ![Codecov](https://img.shields.io/codecov/c/github/hiddensymmetries/simsopt)
 
 `simsopt` is a framework for optimizing stellarators.
-For more information, see the [main simsopt documentation here.](https://hiddensymmetries.github.io/simsopt)
+For more information, see the [main simsopt documentation here.](https://simsopt.readthedocs.io)
 
