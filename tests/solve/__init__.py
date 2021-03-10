@@ -1,4 +1,3 @@
-import os
+from pathlib import Path
 
-TEST_DIR = os.path.join(os.path.dirname(__file__), "..", "..", 
-                        "test_files")
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()

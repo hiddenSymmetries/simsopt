@@ -5,7 +5,7 @@ from simsopt.core.surface import *
 from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable
 
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 class SurfaceTests(unittest.TestCase):
     def test_init(self):
