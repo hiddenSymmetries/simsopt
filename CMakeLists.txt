@@ -1,12 +1,20 @@
 cmake_minimum_required(VERSION 3.5)
 project(simsgeopp)
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #find_package(PythonInterp 3 REQUIRED)
 #find_package(PythonLibs 3 REQUIRED)
-find_package(Python 3 COMPONENTS Interpreter Development.Module)
-find_package(NumPy REQUIRED)
+#find_package(NumPy REQUIRED)
+
+set(Python_FIND_STRATEGY LOCATION)
+find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
+
 find_package(OpenMP)
+message(status "Python executable is ${Python_EXECUTABLE}")
+message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
+message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
+message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
+message(status "Python version is ${Python_VERSION}")
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -36,7 +44,7 @@ set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${NUMPY_INCLUDE_DIRS} "src/simsgeopp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
 
 
 
