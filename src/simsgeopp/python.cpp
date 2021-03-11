@@ -203,8 +203,9 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def("dkappa_by_dcoeff", &PyCurve::dkappa_by_dcoeff)
         .def("torsion", &PyCurve::torsion)
         .def("dtorsion_by_dcoeff", &PyCurve::dtorsion_by_dcoeff)
-        .def("invalidate_cache", &PyCurveXYZFourier::invalidate_cache)
-        .def("set_dofs", &PyCurveXYZFourier::set_dofs)
+        .def("invalidate_cache", &PyCurve::invalidate_cache)
+        .def("least_squares_fit", &PyCurve::least_squares_fit)
+        .def("set_dofs", &PyCurve::set_dofs)
         .def_readonly("quadpoints", &PyCurve::quadpoints);
 
 
@@ -234,6 +235,8 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def("dkappa_by_dcoeff", &PyCurveXYZFourier::dkappa_by_dcoeff)
         .def("torsion", &PyCurveXYZFourier::torsion)
         .def("dtorsion_by_dcoeff", &PyCurveXYZFourier::dtorsion_by_dcoeff)
+
+        .def("least_squares_fit", &PyCurveXYZFourier::least_squares_fit)
 
         .def("get_dofs", &PyCurveXYZFourier::get_dofs)
         .def("set_dofs", &PyCurveXYZFourier::set_dofs)
@@ -272,6 +275,8 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def("dkappa_by_dcoeff", &PyCurveRZFourier::dkappa_by_dcoeff)
         .def("torsion", &PyCurveRZFourier::torsion)
         .def("dtorsion_by_dcoeff", &PyCurveRZFourier::dtorsion_by_dcoeff)
+
+        .def("least_squares_fit", &PyCurveRZFourier::least_squares_fit)
 
         .def("get_dofs", &PyCurveRZFourier::get_dofs)
         .def("set_dofs", &PyCurveRZFourier::set_dofs)
