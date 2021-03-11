@@ -56,12 +56,11 @@ class Testing(unittest.TestCase):
         bs.set_points(points)
         coil_dofs = np.asarray(coil.get_dofs())
         B = bs.B()
-        dBdX = bs.dB_by_dX()
         J0 = np.sum(B**2)
-        dJ = bs.B_and_dB_vjp(B, dBdX)
+        dJ = bs.B_vjp(B)
 
         h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
-        dJ_dh = 2*np.sum(dJ[0][0] * h)
+        dJ_dh = 2*np.sum(dJ[0] * h)
         err = 1e6
         for i in range(5, 10):
             eps = 0.5**i

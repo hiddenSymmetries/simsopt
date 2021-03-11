@@ -286,7 +286,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_property_readonly("nfp", &PyCurveRZFourier::get_nfp);
 
     m.def("biot_savart", &biot_savart);
-    m.def("biot_savart_by_dcoilcoeff_all_vjp_full", &biot_savart_by_dcoilcoeff_all_vjp_full);
+    m.def("biot_savart_vjp", &biot_savart_vjp);
 
 
 #ifdef VERSION_INFO
