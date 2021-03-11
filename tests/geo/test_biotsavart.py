@@ -17,6 +17,16 @@ def get_coil(num_quadrature_points=200):
 
 class Testing(unittest.TestCase):
 
+    def test_biotsavart_both_interfaces_give_same_result(self):
+        coils = [get_coil()]
+        currents = [1e4]
+        points = np.asarray(10 * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04 ]])
+        B1 = BiotSavart(coils, currents).set_points(points).B(compute_derivatives=0)
+        from simsgeopp import biot_savart_B
+        B2 = biot_savart_B(points, [c.gamma() for c in coils], [c.gammadash() for c in coils], currents)
+        assert np.linalg.norm(B1) > 1e-5
+        assert np.allclose(B1, B2)
+
     def test_biotsavart_exponential_convergence(self):
         coil = get_coil()
         from time import time
