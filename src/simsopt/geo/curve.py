@@ -57,6 +57,13 @@ class Curve():
             plt.show()
         return ax
 
+    def plot_mayavi(self, show=True):
+        from mayavi import mlab
+        g = self.gamma()
+        mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
+        if show:
+            mlab.show()
+
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
 
@@ -233,6 +240,7 @@ class JaxCurve(sgpp.Curve, Curve):
         ones = jnp.ones_like(points)
 
         self.gamma_jax = jit(lambda dofs: self.gamma_pure(dofs, points))
+        self.gamma_impl_jax = jit(lambda dofs, p: self.gamma_pure(dofs, p))
         self.dgamma_by_dcoeff_jax = jit(jacfwd(self.gamma_jax))
         self.dgamma_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gamma_jax, x)[1](v)[0])
 
@@ -257,8 +265,8 @@ class JaxCurve(sgpp.Curve, Curve):
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
         self.dtorsion_by_dcoeff_jax = jit(jacfwd(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d))))
 
-    def gamma_impl(self, gamma):
-        gamma[:, :] = self.gamma_jax(self.get_dofs())
+    def gamma_impl(self, gamma, quadpoints):
+        gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
@@ -333,8 +341,9 @@ class RotatedCurve(sgpp.Curve, Curve):
     def num_dofs(self):
         return self.curve.num_dofs()
 
-    def gamma_impl(self, gamma):
-        gamma[:] = self.curve.gamma() @ self.rotmat
+    def gamma_impl(self, gamma, quadpoints):
+        self.curve.gamma_impl(gamma, quadpoints)
+        gamma[:] = gamma @ self.rotmat
 
     def gammadash_impl(self, gammadash):
         gammadash[:] = self.curve.gammadash() @ self.rotmat

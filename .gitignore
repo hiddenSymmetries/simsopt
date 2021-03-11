@@ -6,6 +6,9 @@
 simsopt_20*.dat
 residuals_20*.dat
 _skbuild/
+build/
+dist/
+pip-wheel-metadata/
 
 # f90wrap related
 src.*/

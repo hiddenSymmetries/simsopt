@@ -22,8 +22,8 @@ template <class CurveBase = PyCurve> class PyCurveTrampoline : public CurveBase 
             PYBIND11_OVERLOAD_PURE(vector<double>, CurveBase, get_dofs);
         }
 
-        virtual void gamma_impl(PyArray& data) override {
-            PYBIND11_OVERLOAD_PURE(void, CurveBase, gamma_impl, data);
+        virtual void gamma_impl(PyArray& data, PyArray& quadpoints) override {
+            PYBIND11_OVERLOAD_PURE(void, CurveBase, gamma_impl, data, quadpoints);
         }
 
         virtual void gammadash_impl(PyArray& data) override {
