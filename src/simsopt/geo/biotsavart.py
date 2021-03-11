@@ -92,11 +92,12 @@ class BiotSavart():
                         for j2 in range(3):
                             term1 = 3 * (diff[:, j1] * diff[:, j2]/dist**5)[:, None] * dgamma_by_dphi
                             if j1 == j2:
-                                term2 = - (1./dist**5)[:, None] * dgamma_by_dphi
+                                term2 = - (1./dist**3)[:, None] * dgamma_by_dphi
                             else:
                                 term2 = 0
-                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] += np.sum(term1 + term2 , axis=0)
+                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] = np.sum(term1 + term2 , axis=0)
 
+            self._dA_by_dcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
             if compute_derivatives >= 1:
                 self._d2A_by_dXdcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
             if compute_derivatives >= 2:
