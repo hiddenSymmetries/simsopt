@@ -13,6 +13,7 @@ using std::logic_error;
 #include "xtensor/xarray.hpp"
 #include "cachedarray.hpp"
 
+#include <Eigen/Dense>
 
 template<class Array>
 Array curve_vjp_contraction(const Array& mat, const Array& v){
@@ -65,6 +66,8 @@ class Curve {
             return (loc->second).data;
         }
 
+        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
+
     // We'd really like these to be protected, but I'm not sure that plays well
     // with accessing them from python child classes. 
     public://protected:
@@ -102,6 +105,38 @@ class Curve {
         void set_dofs(const vector<double>& _dofs) {
             this->set_dofs_impl(_dofs);
             this->invalidate_cache();
+        }
+
+        void least_squares_fit(Array& target_values) {
+            if(target_values.shape(0) != numquadpoints)
+                throw std::runtime_error("Wrong first dimension for target_values. Should match numquadpoints.");
+            if(target_values.shape(1) != 3)
+                throw std::runtime_error("Wrong third dimension for target_values. Should be 3.");
+
+            if(!qr){
+                auto dg_dc = this->dgamma_by_dcoeff();
+                Eigen::MatrixXd A = Eigen::MatrixXd(numquadpoints*3, num_dofs());
+                int counter = 0;
+                for (int i = 0; i < numquadpoints; ++i) {
+                    for (int d = 0; d < 3; ++d) {
+                        for (int c = 0; c  < num_dofs(); ++c ) {
+                            A(counter, c) = dg_dc(i, d, c);
+                        }
+                        counter++;
+                    }
+                }
+                qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>>(A.fullPivHouseholderQr());
+            }
+            Eigen::VectorXd b = Eigen::VectorXd(numquadpoints*3);
+            int counter = 0;
+            for (int i = 0; i < numquadpoints; ++i) {
+                for (int d = 0; d < 3; ++d) {
+                    b(counter++) = target_values(i, d);
+                }
+            }
+            Eigen::VectorXd x = qr->solve(b);
+            vector<double> dofs(x.data(), x.data() + x.size());
+            this->set_dofs(dofs);
         }
 
         virtual int num_dofs() = 0;

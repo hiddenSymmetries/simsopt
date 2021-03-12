@@ -217,3 +217,19 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
         }
     }
 }
+
+Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents){
+    auto dB_by_dXs = vector<Array>();
+    auto d2B_by_dXdXs = vector<Array>();
+    int num_coils = currents.size();
+    auto Bs = vector<Array>(num_coils, Array());
+    for (int i = 0; i < num_coils; ++i) {
+        Bs[i] = xt::zeros<double>({points.shape(0), points.shape(1)});
+    }
+    biot_savart(points, gammas, dgamma_by_dphis, Bs, dB_by_dXs, d2B_by_dXdXs);
+    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    for (int i = 0; i < num_coils; ++i) {
+        B += currents[i] * Bs[i];
+    }
+    return B;
+}
