@@ -36,21 +36,21 @@ class SurfaceRZFourier : public Surface<Array> {
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 numquadpoints_phi = quadpoints_phi.size();
                 numquadpoints_theta = quadpoints_theta.size();
-                rc = xt::zeros<double>({mpol, 2*ntor+1});
-                rs = xt::zeros<double>({mpol, 2*ntor+1});
-                zc = xt::zeros<double>({mpol, 2*ntor+1});
-                zs = xt::zeros<double>({mpol, 2*ntor+1});
+                rc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                rs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
             }
 
         int num_dofs() override {
             if(stellsym)
-                return 2*mpol*(2*ntor+1) - ntor - (ntor+1);
+                return 2*(mpol+1)*(2*ntor+1) - ntor - (ntor+1);
             else
-                return 4*mpol*(2*ntor+1) - 2*ntor - 2*(ntor+1);
+                return 4*(mpol+1)*(2*ntor+1) - 2*ntor - 2*(ntor+1);
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
-            int shift = mpol*(2*ntor+1);
+            int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
                 for (int i = ntor; i < shift; ++i)
@@ -72,7 +72,7 @@ class SurfaceRZFourier : public Surface<Array> {
 
         vector<double> get_dofs() override {
             auto res = vector<double>(num_dofs(), 0.);
-            int shift = mpol*(2*ntor+1);
+            int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
                 for (int i = ntor; i < shift; ++i)
@@ -99,7 +99,7 @@ class SurfaceRZFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     double r = 0;
                     double z = 0;
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int i = 0; i < 2*ntor+1; ++i) {
                             int n  = i - ntor;
                             r += rc(m, i) * cos(m*theta-n*nfp*phi);
@@ -127,7 +127,7 @@ class SurfaceRZFourier : public Surface<Array> {
                     double zd = 0;
                     for (int i = 0; i < 2*ntor+1; ++i) {
                         int n  = i - ntor;
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             r  += rc(m, i) * cos(m*theta-n*nfp*phi);
                             rd += rc(m, i) * (n*nfp) * sin(m*theta-n*nfp*phi);
                             if(!stellsym) {
@@ -153,7 +153,7 @@ class SurfaceRZFourier : public Surface<Array> {
                     double zd = 0;
                     for (int i = 0; i < 2*ntor+1; ++i) {
                         int n  = i - ntor;
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             rd += rc(m, i) * (-m) * sin(m*theta-n*nfp*phi);
                             if(!stellsym) {
                                 rd += rs(m, i) * m * cos(m*theta-n*nfp*phi);
@@ -175,7 +175,7 @@ class SurfaceRZFourier : public Surface<Array> {
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<0) continue;
                             data(k1, k2, 0, counter) = cos(m*theta-n*nfp*phi) * cos(phi);
@@ -185,7 +185,7 @@ class SurfaceRZFourier : public Surface<Array> {
                         }
                     }
                     if(!stellsym) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 data(k1, k2, 0, counter) = sin(m*theta-n*nfp*phi) * cos(phi);
@@ -194,7 +194,7 @@ class SurfaceRZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 data(k1, k2, 0, counter) = 0;
@@ -204,7 +204,7 @@ class SurfaceRZFourier : public Surface<Array> {
                             }
                         }
                     }
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<=0) continue;
                             data(k1, k2, 0, counter) = 0;
@@ -223,7 +223,7 @@ class SurfaceRZFourier : public Surface<Array> {
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<0) continue;
                             data(k1, k2, 0, counter) = 2*M_PI*((n*nfp) * sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi));
@@ -233,7 +233,7 @@ class SurfaceRZFourier : public Surface<Array> {
                         }
                     }
                     if(!stellsym) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 data(k1, k2, 0, counter) = 2*M_PI*((-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi));
@@ -242,7 +242,7 @@ class SurfaceRZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 data(k1, k2, 0, counter) = 0;
@@ -252,7 +252,7 @@ class SurfaceRZFourier : public Surface<Array> {
                             }
                         }
                     }
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<=0) continue;
                             data(k1, k2, 0, counter) = 0;
@@ -271,7 +271,7 @@ class SurfaceRZFourier : public Surface<Array> {
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<0) continue;
                             data(k1, k2, 0, counter) = 2*M_PI*(-m) * sin(m*theta-n*nfp*phi)*cos(phi);
@@ -281,7 +281,7 @@ class SurfaceRZFourier : public Surface<Array> {
                         }
                     }
                     if(!stellsym) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 data(k1, k2, 0, counter) = 2*M_PI*m * cos(m*theta-n*nfp*phi)*cos(phi);
@@ -290,7 +290,7 @@ class SurfaceRZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 data(k1, k2, 0, counter) = 0;
@@ -300,7 +300,7 @@ class SurfaceRZFourier : public Surface<Array> {
                             }
                         }
                     }
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int n = -ntor; n <= ntor; ++n) {
                             if(m==0 && n<=0) continue;
                             data(k1, k2, 0, counter) = 0;

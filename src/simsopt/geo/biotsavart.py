@@ -92,11 +92,12 @@ class BiotSavart():
                         for j2 in range(3):
                             term1 = 3 * (diff[:, j1] * diff[:, j2]/dist**5)[:, None] * dgamma_by_dphi
                             if j1 == j2:
-                                term2 = - (1./dist**5)[:, None] * dgamma_by_dphi
+                                term2 = - (1./dist**3)[:, None] * dgamma_by_dphi
                             else:
                                 term2 = 0
-                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] += np.sum(term1 + term2 , axis=0)
+                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] = np.sum(term1 + term2 , axis=0)
 
+            self._dA_by_dcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
             if compute_derivatives >= 1:
                 self._d2A_by_dXdcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
             if compute_derivatives >= 2:
@@ -156,6 +157,18 @@ class BiotSavart():
             self.compute(self.points, compute_derivatives)
         return self._d3B_by_dXdXdcoilcurrents
 
+    def B_vjp(self, v):
+        gammas                 = [coil.gamma() for coil in self.coils]
+        dgamma_by_dphis        = [coil.gammadash() for coil in self.coils]
+        currents = self.coil_currents
+        dgamma_by_dcoeffs      = [coil.dgamma_by_dcoeff() for coil in self.coils]
+        d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in self.coils]
+        n = len(self.coils)
+        coils = self.coils
+        res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
+        sgpp.biot_savart_vjp(self.points, gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
+        return res_B
+
     def B_and_dB_vjp(self, v, vgrad):
         gammas                 = [coil.gamma() for coil in self.coils]
         dgamma_by_dphis        = [coil.gammadash() for coil in self.coils]
@@ -166,7 +179,7 @@ class BiotSavart():
         coils = self.coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         res_dB = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
-        sgpp.biot_savart_by_dcoilcoeff_all_vjp_full(self.points, gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
+        sgpp.biot_savart_vjp(self.points, gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
         return (res_B, res_dB)
 
     # def compute_by_dcoilcoeff(self, points):
