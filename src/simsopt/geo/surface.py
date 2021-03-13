@@ -8,7 +8,10 @@ class Surface(Optimizable):
     """
 
     def __init__(self):
+        Optimizable.__init__(self)
         self.dependencies = []
+        self.fixed = np.full(len(self.get_dofs()), False)
+                             
     
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
         gamma = self.gamma()
@@ -29,12 +32,6 @@ class Surface(Optimizable):
             mlab.quiver3d(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], n[:,:,0], n[:,:,1], n[:,:,2])
         if show:
             mlab.show()
-
-    def darea(self):
-        return self.darea_by_dcoeff()
-
-    def dvolume(self):
-        return self.dvolume_by_dcoeff()
 
     def __repr__(self):
         return "Surface " + str(hex(id(self)))

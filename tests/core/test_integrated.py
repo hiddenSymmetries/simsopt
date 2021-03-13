@@ -3,7 +3,8 @@ import logging
 
 import numpy as np
 
-from simsopt.core.surface import SurfaceRZFourier, SurfaceGarabedian
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.core.optimizable import optimizable
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition
@@ -30,7 +31,7 @@ class IntegratedTests(unittest.TestCase):
 
             # Start with a default surface, which is axisymmetric with major
             # radius 1 and minor radius 0.1.
-            surf = optimizable(SurfaceRZFourier())
+            surf = SurfaceRZFourier()
 
             # Set initial surface shape. It helps to make zs(1,0) larger
             # than rc(1,0) since there are two solutions to this
@@ -57,7 +58,7 @@ class IntegratedTests(unittest.TestCase):
             self.assertEqual(prob.dofs.names[1][:28], 'zs(1,0) of SurfaceRZFourier ')
 
             # Solve the minimization problem:
-            solver(prob)
+            solver(prob, ftol=1e-14, xtol=1e-14, gtol=1e-14)
 
             # Check results
             self.assertAlmostEqual(surf.get_rc(0, 0), 1.0, places=13)
@@ -112,7 +113,7 @@ class IntegratedTests(unittest.TestCase):
             self.assertEqual(prob.dofs.names[1][:31], 'Delta(2,0) of SurfaceGarabedian')
 
             # Solve the minimization problem:
-            solver(prob)
+            solver(prob, ftol=1e-14, xtol=1e-14, gtol=1e-14)
 
             # Check results
             self.assertAlmostEqual(surf.get_Delta(0, 0), 0.193449881648249, places=11)

@@ -9,6 +9,9 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
         sgpp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        self.rc[0, ntor] = 1.0
+        self.rc[1, ntor] = 0.1
+        self.zs[1, ntor] = 0.1
         Surface.__init__(self)
         self.make_names()
 
@@ -259,3 +262,10 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
                 s.set_Delta(m, n, Delta)
                 
         return s
+
+    def darea(self):
+        return self.darea_by_dcoeff()
+
+    def dvolume(self):
+        return self.dvolume_by_dcoeff()
+

@@ -29,7 +29,6 @@ class SurfaceGarabedian(Surface):
             raise ValueError("mmax must be >= 1")
         if mmin > 0:
             raise ValueError("mmin must be <= 0")
-        Surface.__init__(self)
         self.mmin = mmin
         self.mmax = mmax
         self.nmin = nmin
@@ -44,6 +43,7 @@ class SurfaceGarabedian(Surface):
         # minor radius 0.1m
         self.set_Delta(1, 0, 1.0)
         self.set_Delta(0, 0, 0.1)
+        Surface.__init__(self)
 
     def __repr__(self):
         return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
