@@ -1,28 +1,9 @@
-# coding: utf-8
-# Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
 
-"""
-This module provides several classes for representing toroidal
-surfaces.  There is a base class Surface, and several child classes
-corresponding to different discrete representations.
-"""
+from .surface import Surface
+from .surfacerzfourier import SurfaceRZFourier
 
-import logging
-
-# These next 2 lines Use double precision:
-from jax.config import config
-config.update("jax_enable_x64", True)
-
-import jax.numpy as jnp
-from jax import jacrev, jit
 import numpy as np
-
-from .util import isbool
-from .optimizable import Optimizable
-from simsopt.geo.surface import Surface
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-
+import logging
 logger = logging.getLogger(__name__)
 
 
