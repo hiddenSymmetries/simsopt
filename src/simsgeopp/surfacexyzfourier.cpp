@@ -53,8 +53,16 @@ class SurfaceXYZFourier : public Surface<Array> {
 
         SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                numquadpoints_phi = quadpoints_phi.size();
-                numquadpoints_theta = quadpoints_theta.size();
+                xc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                xs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                yc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                ys = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+            }
+
+        SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
+            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 xc = xt::zeros<double>({mpol+1, 2*ntor+1});
                 xs = xt::zeros<double>({mpol+1, 2*ntor+1});
                 yc = xt::zeros<double>({mpol+1, 2*ntor+1});
