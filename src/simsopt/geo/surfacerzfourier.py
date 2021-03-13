@@ -245,7 +245,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         """
         if not self.stellsym:
             raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian objects have not been implemented')
-        from simsopt.core.surface import SurfaceGarabedian
+        from simsopt.geo.surfacegarabedian import SurfaceGarabedian
         mmax = self.mpol + 1
         mmin = np.min((0, 1 - self.mpol))
         s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax, nmin=-self.ntor, nmax=self.ntor)

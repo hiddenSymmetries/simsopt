@@ -5,7 +5,7 @@ import numpy as np
 from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.core.surface import SurfaceGarabedian
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
