@@ -1,16 +1,15 @@
 import numpy as np
+from simsopt.core.optimizable import Optimizable
 
-class Surface():
-    def __init__(self, quadpoints_phi, quadpoints_theta):
+class Surface(Optimizable):
+    """
+    Surface is a base class for various representations of toroidal
+    surfaces in simsopt.
+    """
+
+    def __init__(self):
         self.dependencies = []
-        self.phi_grid, self.theta_grid = np.meshgrid(quadpoints_phi, quadpoints_theta)
-        self.phi_grid = self.phi_grid.T    
-        self.theta_grid = self.theta_grid.T 
     
-    def print_metadata(self):
-        print("Surface area is {:.8f}".format(np.abs(self.surface_area()) ) )
-        print("*************************") 
-
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
         gamma = self.gamma()
         
@@ -30,3 +29,20 @@ class Surface():
             mlab.quiver3d(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], n[:,:,0], n[:,:,1], n[:,:,2])
         if show:
             mlab.show()
+
+    def darea(self):
+        return self.darea_by_dcoeff()
+
+    def dvolume(self):
+        return self.dvolume_by_dcoeff()
+
+    def __repr__(self):
+        return "Surface " + str(hex(id(self)))
+
+    def to_RZFourier(self):
+        """
+        Return a SurfaceRZFourier instance corresponding to the shape of this
+        surface.  All subclasses should implement this abstract
+        method.
+        """
+        raise NotImplementedError
