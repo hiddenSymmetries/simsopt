@@ -20,7 +20,7 @@ repositories. These separate modules include
   equilibrium.
 - `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
   equilibrium. (This repository is private.)
-- `booz_xform <https://github.com/hiddenSymmetries/booz_xform>`_, for
+- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
   Boozer coordinates and quasisymmetry.
   
 The design of ``simsopt`` is guided by several principles:
@@ -57,9 +57,18 @@ optimization.  Others include `STELLOPT
    :caption: Contents
 
    getting_started
+   concepts
    problems
    testing
    source
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Examples
+
+   example_vmec_only
+   example_quasisymmetry
+   example_islands
 
 .. toctree::
    :maxdepth: 3

@@ -60,14 +60,6 @@ simsopt.geo.objectives module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.parameterfreecurve module
--------------------------------------
-
-.. automodule:: simsopt.geo.parameterfreecurve
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 
