@@ -135,6 +135,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("fit_to_curve", &T::fit_to_curve, py::arg("curve"), py::arg("radius"), py::arg("flip_theta") = false)
      .def("scale", &T::scale)
      .def("extend_via_normal", &T::extend_via_normal)
+     .def("least_squares_fit", &T::least_squares_fit)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("set_dofs", &T::set_dofs)
      .def("get_dofs", &T::get_dofs)
@@ -180,7 +181,7 @@ PYBIND11_MODULE(simsgeopp, m) {
     register_common_surface_methods<PySurface>(pysurface);
 
     auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, std::shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
-        .def(py::init<int, int, int, bool, vector<double>,vector<double>>())
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
         .def_readwrite("rs", &PySurfaceRZFourier::rs)
@@ -194,7 +195,8 @@ PYBIND11_MODULE(simsgeopp, m) {
     register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
 
     auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, std::shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
-        .def(py::init<int, int, int, bool, vector<double>,vector<double>>())
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("xc", &PySurfaceXYZFourier::xc)
         .def_readwrite("xs", &PySurfaceXYZFourier::xs)
         .def_readwrite("yc", &PySurfaceXYZFourier::yc)
