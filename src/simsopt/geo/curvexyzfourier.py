@@ -46,7 +46,13 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 
 class JaxCurveXYZFourier(JaxCurve):
 
-    """ A Python+Jax implementation of the CurveXYZFourier """
+    """ 
+    A Python+Jax implementation of the CurveXYZFourier class.  There is
+    actually no reason why one should use this over the C++ implementation in
+    simsgeopp, but the point of this class is to illustrate how jax can be used
+    to define a geometric object class and calculate all the derivatives (both
+    with respect to dofs and with respect to the angle phi) automatically.
+    """
 
     def __init__(self, quadpoints, order):
         if isinstance(quadpoints, int):
