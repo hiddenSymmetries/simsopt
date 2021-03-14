@@ -4,7 +4,7 @@ from .surface import Surface
 
 
 class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=32, quadpoints_theta=32):
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63, quadpoints_theta=62):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
