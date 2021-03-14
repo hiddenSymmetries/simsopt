@@ -3,7 +3,7 @@ import unittest
 from simsopt.geo import parameters
 parameters['jit'] = False
 
-def taylor_test(f, df, x, epsilons=None, direction=None):
+def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
     np.random.seed(1)
     f0 = f(x)
     if direction is None:
@@ -19,19 +19,29 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
             break
         fpluseps = f(x + eps * direction)
         fminuseps = f(x - eps * direction)
-        dfest = (fpluseps-fminuseps)/(2*eps)
+        if order == 2:
+            fak = 0.3
+            dfest = (fpluseps-fminuseps)/(2*eps)
+        elif order == 4:
+            fplus2eps = f(x + 2*eps * direction)
+            fminus2eps = f(x - 2*eps * direction)
+            fak = 0.13
+            dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps - (1/12)*fplus2eps)/eps
+        else:
+            raise NotImplementedError
         err = np.linalg.norm(dfest - dfx)
         print(err)
         assert err < 1e-9 or err < 0.3 * err_old
+        counter += 1
         if err < 1e-9:
             break
         err_old = err
-        counter += 1
     if err > 1e-10:
-        assert counter > 3
+        assert counter > 2
     print("################################################################################")
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None):
+    np.random.seed(2)
     mpol = 4
     ntor = 3
     nfp = 2
@@ -39,13 +49,15 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     thetas = thetas if thetas is not None else np.linspace(0, 1, 31, endpoint=False)
     if surfacetype == "SurfaceRZFourier":
         from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-        s = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpo, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(s.get_dofs()*0.)
         s.rc[0, ntor + 0] = 1
         s.rc[1, ntor + 0] = 0.3
         s.zs[1, ntor + 0] = 0.3
     elif surfacetype == "SurfaceXYZFourier":
         from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-        s = SurfaceXYZFourier(mpol, ntor, nfp, stellsym, phis, thetas)
+        s = SurfaceXYZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(s.get_dofs()*0.)
         s.xc[0, ntor + 1] = 1.
         s.xc[1, ntor + 1] = 0.1
         s.ys[0, ntor + 1] = 1.
@@ -128,7 +140,7 @@ class Testing(unittest.TestCase):
         def df(dofs):
             s.set_dofs(dofs)
             return s.darea_by_dcoeff()[None, :].copy()
-        taylor_test(f, df, coeffs)
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(11, 20))), order=4)
 
 
     def test_surface_area_coefficient_derivative(self):

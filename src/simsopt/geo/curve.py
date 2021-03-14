@@ -260,10 +260,8 @@ class JaxCurve(sgpp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
-        self.dkappa_by_dcoeff_jax = jit(jacfwd(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d))))
 
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
-        self.dtorsion_by_dcoeff_jax = jit(jacfwd(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d))))
 
     def gamma_impl(self, gamma, quadpoints):
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
@@ -301,14 +299,8 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.dgammadashdashdash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
-    # def dkappa_by_dcoeff_impl(self, dkappa_by_dcoeff):
-    #     dkappa_by_dcoeff[:, :] = np.asarray(self.dkappa_by_dcoeff_jax(self.get_dofs()))
-
     def dkappa_by_dcoeff_vjp(self, v):
         return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
-
-    # def dtorsion_by_dcoeff_impl(self, dtorsion_by_dcoeff):
-    #     dtorsion_by_dcoeff[:] = self.dtorsion_by_dcoeff_jax(self.get_dofs())
 
     def dtorsion_by_dcoeff_vjp(self, v):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
