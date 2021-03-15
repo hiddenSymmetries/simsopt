@@ -13,8 +13,8 @@ class CurveRZFourier(sgpp.CurveRZFourier, Curve):
             quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        Curve.__init__(self)
         sgpp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
+        Curve.__init__(self)
 
     def get_dofs(self):
         return np.asarray(sgpp.CurveRZFourier.get_dofs(self))
