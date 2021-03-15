@@ -9,8 +9,8 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        Curve.__init__(self)
         sgpp.CurveXYZFourier.__init__(self, quadpoints, order)
+        Curve.__init__(self)
 
     def get_dofs(self):
         return np.asarray(sgpp.CurveXYZFourier.get_dofs(self))
