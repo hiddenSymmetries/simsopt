@@ -26,7 +26,7 @@ except ImportError as e:
     pyoculus_found = False
 
 from simsopt.core.optimizable import Optimizable
-from simsopt.core.surface import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class Spec(Optimizable):
 
         # Transfer the boundary shape from the namelist to a Surface object:
         nfp = self.nml['physicslist']['nfp']
-        stelsym = bool(self.nml['physicslist']['istellsym'])
+        stellsym = bool(self.nml['physicslist']['istellsym'])
         
         # mpol = self.nml['physicslist']['mpol']
         # ntor = self.nml['physicslist']['ntor']
@@ -111,7 +111,7 @@ class Spec(Optimizable):
         zbs_last_m = zbs_first_m + rc.shape[0] - 1
         mpol_boundary = np.max((rbc_last_m, zbs_last_m))
         logger.debug('Input file has ntor_boundary={} mpol_boundary={}'.format(ntor_boundary, mpol_boundary))
-        self.boundary = SurfaceRZFourier(nfp=nfp, stelsym=stelsym,
+        self.boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym,
                                          mpol=mpol_boundary, ntor=ntor_boundary)
         
         # Transfer boundary shape data from the namelist to the surface object:
