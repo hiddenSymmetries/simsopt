@@ -34,7 +34,7 @@ class SurfaceGarabedian(Surface):
         self.nmin = nmin
         self.nmax = nmax
         self.nfp = nfp
-        self.stelsym = True
+        self.stellsym = True
         self.allocate()
         self.recalculate = True
         self.recalculate_derivs = True
