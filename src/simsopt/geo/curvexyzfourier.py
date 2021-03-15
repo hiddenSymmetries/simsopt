@@ -58,9 +58,9 @@ class JaxCurveXYZFourier(JaxCurve):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
-        super().__init__(quadpoints, pure)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
+        super().__init__(quadpoints, pure)
 
     def num_dofs(self):
         return 3*(2*self.order+1)
