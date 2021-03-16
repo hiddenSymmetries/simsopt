@@ -9,7 +9,10 @@ _skbuild/
 build/
 dist/
 pip-wheel-metadata/
-
+.DS_Store
+.coverage
+.tox
+	
 # f90wrap related
 src.*/
 .f2py_f2cmap 
@@ -27,6 +30,11 @@ jxbout*
 parvmecinfo.txt
 threed*
 vmec_f90wrap.py
+
+# SPEC specific
+spec*.sp
+spec*.sp.end
+spec*.sp.h5
 
 # examples
 examples/VMEC/
