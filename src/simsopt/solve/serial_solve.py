@@ -42,8 +42,15 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
 
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
-        logger.info("objective_from_f={} objective={}".format(objective_val, prob.objective()))
-        assert np.abs(objective_val - prob.objective()) < 1e-13
+        
+        # Check that 2 ways of computing the objective give same
+        # answer within roundoff:
+        objective2 = prob.objective()
+        logger.info("objective_from_f={} objective={} diff={}".format(
+            objective_val, objective2, objective_val - objective2))
+        abs_diff = np.abs(objective_val - objective2)
+        rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
+        assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
