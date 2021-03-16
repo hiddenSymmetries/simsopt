@@ -11,7 +11,6 @@ mpi4py and numpy, not on any other simsopt components.
 
 import logging
 import numpy as np
-from monty.dev import requires
 
 try:
     from mpi4py import MPI
@@ -34,7 +33,6 @@ def log(level=logging.INFO):
 logger = logging.getLogger(__name__)
 
     
-@requires(MPI is not None, "mpi4py package not found. Install it to use MPI")
 class MpiPartition:
     """
     This module contains functions related to dividing up the set of
@@ -42,6 +40,9 @@ class MpiPartition:
     """
 
     def __init__(self, ngroups=None, comm_world=MPI.COMM_WORLD):
+        if MPI is None:
+            raise RuntimeError("MpiPartition class requires the mpi4py package.")
+                
         self.is_apart = False
         self.comm_world = comm_world
         self.rank_world = comm_world.Get_rank()

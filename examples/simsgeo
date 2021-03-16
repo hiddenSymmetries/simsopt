@@ -18,7 +18,7 @@ The result should be a circle
 nquadrature = 100
 nfourier = 4
 nfp = 5
-curve = optimizable(CurveRZFourier(nquadrature, nfourier, nfp, True))
+curve = CurveRZFourier(nquadrature, nfourier, nfp, True)
 
 # Initialize the Fourier amplitudes to some random values
 x0 = np.random.rand(curve.num_dofs()) - 0.5
