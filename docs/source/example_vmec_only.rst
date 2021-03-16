@@ -16,15 +16,15 @@ directory
 where there is also a `Jupyter notebook
 <https://github.com/hiddenSymmetries/simsopt/blob/master/examples/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.ipynb>`_
 
-The two independent variables are ``RBC(1,1)`` and ``ZBS(1,1)``, which
-control the shape of the plasma boundary::
+For this problem the two independent variables are ``RBC(1,1)`` and
+``ZBS(1,1)``, which control the shape of the plasma boundary::
   
   R(phi) = 1 + 0.1 * cos(theta) + RBC(1,1) * cos(theta - 5 * phi),
   Z(phi) =     0.1 * sin(theta) + ZBS(1,1) * sin(theta - 5 * phi).
 
-We consider the vacuum field inside this boundary magnetic surface,
-i.e.  there is no plasma current or pressure.  The objective function
-is
+Note that this boundary has five field periods. We consider the vacuum
+field inside this boundary magnetic surface, i.e. there is no plasma
+current or pressure.  The objective function is
 
 .. code-block::
    
@@ -42,7 +42,8 @@ Here is what the objective function landscape looks like:
    :width: 500
 
 It can be seen that the total objective function has two long narrow
-valleys that are fairly straight.  When either of the two independent
+valleys that are fairly straight.  There are two symmetric optima, one
+at the bottom of each valley.  When either of the two independent
 variables is +/- 0.1m, the boundary surface becomes infinitesmally
 thin, so equilibrium codes are likely to fail.
 	   
