@@ -1,4 +1,4 @@
-simsopt.util
+simsopt.util package
 ====================
 
 Submodules
