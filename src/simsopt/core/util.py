@@ -7,8 +7,7 @@ This module contains small utility functions and classes.
 """
 
 import itertools
-from typing import Union
-from collections.abc import Sequence
+from typing import Union, Sequence
 from numbers import Integral, Real, Number
 from dataclasses import dataclass
 from abc import ABCMeta
