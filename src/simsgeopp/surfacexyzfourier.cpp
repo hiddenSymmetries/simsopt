@@ -53,27 +53,35 @@ class SurfaceXYZFourier : public Surface<Array> {
 
         SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                numquadpoints_phi = quadpoints_phi.size();
-                numquadpoints_theta = quadpoints_theta.size();
-                xc = xt::zeros<double>({mpol, 2*ntor+1});
-                xs = xt::zeros<double>({mpol, 2*ntor+1});
-                yc = xt::zeros<double>({mpol, 2*ntor+1});
-                ys = xt::zeros<double>({mpol, 2*ntor+1});
-                zc = xt::zeros<double>({mpol, 2*ntor+1});
-                zs = xt::zeros<double>({mpol, 2*ntor+1});
+                xc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                xs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                yc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                ys = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+            }
+
+        SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
+            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+                xc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                xs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                yc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                ys = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
+                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
             }
 
 
 
         int num_dofs() override {
             if(stellsym)
-                return 3*mpol*(2*ntor+1) - 1*ntor - 2*(ntor+1);
+                return 3*(mpol+1)*(2*ntor+1) - 1*ntor - 2*(ntor+1);
             else
-                return 6*mpol*(2*ntor+1) - 3*ntor - 3*(ntor+1);
+                return 6*(mpol+1)*(2*ntor+1) - 3*ntor - 3*(ntor+1);
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
-            int shift = mpol*(2*ntor+1);
+            int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
                 for (int i = ntor; i < shift; ++i)
@@ -101,28 +109,28 @@ class SurfaceXYZFourier : public Surface<Array> {
 
         vector<double> get_dofs() override {
             auto res = vector<double>(num_dofs(), 0.);
-            int shift = mpol*(2*ntor+1);
+            int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = xc[i];
+                    res[counter++] = xc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = ys[i];
+                    res[counter++] = ys.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = zs[i];
+                    res[counter++] = zs.data()[i];
             } else {
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = xc[i];
+                    res[counter++] = xc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = xs[i];
+                    res[counter++] = xs.data()[i];
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = yc[i];
+                    res[counter++] = yc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = ys[i];
+                    res[counter++] = ys.data()[i];
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = zc[i];
+                    res[counter++] = zc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = zs[i];
+                    res[counter++] = zs.data()[i];
             }
             return res;
         }
@@ -147,7 +155,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int i = 0; i < 2*ntor+1; ++i) {
                             int n  = i - ntor;
                             double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
@@ -170,7 +178,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int i = 0; i < 2*ntor+1; ++i) {
                             int n  = i - ntor;
                             double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
@@ -195,7 +203,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m < mpol; ++m) {
+                    for (int m = 0; m <= mpol; ++m) {
                         for (int i = 0; i < 2*ntor+1; ++i) {
                             int n  = i - ntor;
                             double xhatdash = get_coeff(0, true, m, i) * (-m)* sin(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * m * cos(m*theta-n*nfp*phi);
@@ -220,7 +228,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 if(d == 0) {
@@ -240,7 +248,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 if(d == 0) {
@@ -270,7 +278,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 if(d == 0) {
@@ -290,7 +298,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 if(d == 0) {
@@ -321,7 +329,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<0) continue;
                                 if(d == 0) {
@@ -341,7 +349,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                                 counter++;
                             }
                         }
-                        for (int m = 0; m < mpol; ++m) {
+                        for (int m = 0; m <= mpol; ++m) {
                             for (int n = -ntor; n <= ntor; ++n) {
                                 if(m==0 && n<=0) continue;
                                 if(d == 0) {
