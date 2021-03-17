@@ -180,6 +180,23 @@ class Testing(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_theta_derivative(surfacetype, stellsym)
 
+    def test_aspect_ratio(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+
+        stellsym = False
+        from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+        s = SurfaceXYZFourier(mpol, ntor, nfp, stellsym, phis, thetas)
+        s.xc[0, ntor] = 1.
+        s.xc[1, ntor] = 0.1
+        s.zs[1, ntor] = 0.1
+        assert np.abs(s.aspect_ratio() - 10) < 1e-13
+
+
+
 if __name__ == "__main__":
     print('wtf')
     unittest.main()
