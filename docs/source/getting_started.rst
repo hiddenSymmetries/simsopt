@@ -26,7 +26,7 @@ Optional Packages
 - py_spec
 - pyoculus
 - h5py
-- f90nml (Last four packages for interfacing iwth SPEC code)
+- f90nml (Last four packages for interfacing with SPEC code)
 - https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
 
 For requirements of separate physics modules like VMEC, see the
