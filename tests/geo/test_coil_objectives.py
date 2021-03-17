@@ -5,7 +5,7 @@ import numpy as np
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curverzfourier import JaxCurveRZFourier, CurveRZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.objectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False
@@ -13,7 +13,7 @@ parameters['jit'] = False
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "JaxCurveRZFourier", "CurveRZFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier"]
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
@@ -27,8 +27,6 @@ class Testing(unittest.TestCase):
             coil = JaxCurveXYZFourier(nquadpoints, order)
         elif curvetype == "CurveRZFourier":
             coil = CurveRZFourier(nquadpoints, order, 2, False)
-        elif curvetype == "JaxCurveRZFourier":
-            coil = JaxCurveRZFourier(nquadpoints, order, 2)
         else:
             # print('Could not find' + curvetype)
             assert False
@@ -37,7 +35,7 @@ class Testing(unittest.TestCase):
             dofs[1] = 1.
             dofs[2*order+3] = 1.
             dofs[4*order+3] = 1.
-        elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier"]:
+        elif curvetype in ["CurveRZFourier"]:
             dofs[0] = 1.
             dofs[1] = 0.1
             dofs[order+1] = 0.1

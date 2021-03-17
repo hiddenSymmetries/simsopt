@@ -34,13 +34,20 @@ class SurfaceRZFourier : public Surface<Array> {
 
         SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                numquadpoints_phi = quadpoints_phi.size();
-                numquadpoints_theta = quadpoints_theta.size();
-                rc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                rs = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                this->allocate();
             }
+
+        SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
+            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+                this->allocate();
+            }
+
+        void allocate() {
+            rc = xt::zeros<double>({mpol+1, 2*ntor+1});
+            rs = xt::zeros<double>({mpol+1, 2*ntor+1});
+            zc = xt::zeros<double>({mpol+1, 2*ntor+1});
+            zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+        }
 
         int num_dofs() override {
             if(stellsym)
@@ -76,18 +83,18 @@ class SurfaceRZFourier : public Surface<Array> {
             int counter = 0;
             if(stellsym) {
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = rc[i];
+                    res[counter++] = rc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = zs[i];
+                    res[counter++] = zs.data()[i];
             } else {
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = rc[i];
+                    res[counter++] = rc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = rs[i];
+                    res[counter++] = rs.data()[i];
                 for (int i = ntor; i < shift; ++i)
-                    res[counter++] = zc[i];
+                    res[counter++] = zc.data()[i];
                 for (int i = ntor+1; i < shift; ++i)
-                    res[counter++] = zs[i];
+                    res[counter++] = zs.data()[i];
             }
             return res;
         }

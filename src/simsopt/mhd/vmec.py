@@ -20,7 +20,7 @@ except ImportError as err:
     vmec_found = False
 
 from simsopt.core.optimizable import Optimizable, optimizable
-from simsopt.core.surface import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.core.util import Struct
 from simsopt.util.mpi import MpiPartition
 
@@ -123,14 +123,14 @@ class Vmec(Optimizable):
                                "error code {}".format(filename, ierr))
 
         objstr = " for Vmec " + str(hex(id(self)))
-        # nfp and stelsym are initialized by the Equilibrium constructor:
+        # nfp and stellsym are initialized by the Equilibrium constructor:
         # Equilibrium.__init__(self)
 
         # Create an attribute for each VMEC input parameter in VMEC's fortran
         # modules,
         vi = vmec.vmec_input  # Shorthand
         self.nfp = vi.nfp
-        self.stelsym = not vi.lasym
+        self.stellsym = not vi.lasym
         # It probably makes sense for a vmec object to have mpol and
         # ntor attributes independent of the boundary, since the
         # boundary may be a kind of surface that does not use the same
@@ -146,7 +146,7 @@ class Vmec(Optimizable):
         self.curtor = vi.curtor
         self.gamma = vi.gamma
         self.boundary = optimizable(SurfaceRZFourier(nfp=self.nfp,
-                                                     stelsym=self.stelsym,
+                                                     stellsym=self.stellsym,
                                                      mpol=self.mpol,
                                                      ntor=self.ntor))
         self.ncurr = vi.ncurr
@@ -187,7 +187,7 @@ class Vmec(Optimizable):
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = vmec.vmec_input  # Shorthand
         vi.nfp = self.nfp
-        vi.lasym = int(not self.stelsym)
+        vi.lasym = int(not self.stellsym)
         vi.delt = self.delt
         vi.phiedge = self.phiedge
         vi.curtor = self.curtor
