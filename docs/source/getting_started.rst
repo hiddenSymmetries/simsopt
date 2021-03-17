@@ -5,12 +5,12 @@ Getting started
 Requirements
 ^^^^^^^^^^^^
 
-``simsopt`` is a python package and requires python 3.6+.  
-``simsopt``  requires some mandatory
-python packages, listed in ``requirements.txt``.  These packages are
-all installed automatically when you install using ``pip``, as
-discussed below.  If you prefer to install via ``python setup.py
-install``, you will need to install these python packages manually
+``simsopt`` is a python package and requires python 3.6+.  ``simsopt``
+requires some mandatory python packages, listed in
+``requirements.txt``.  These packages are all installed automatically
+when you install using ``pip``, as discussed below.  If you prefer to
+install via ``python setup.py install`` or ``python setup.py
+develop``, you will need to install these python packages manually
 using ``pip`` or another python package manager such as ``conda``.
 
 Mandatory Packages
@@ -28,6 +28,8 @@ Optional Packages
 - h5py
 - f90nml (Last four packages for interfacing with SPEC code)
 - https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
+- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_,
+  for optimizing for quasisymmetry
 
 For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
@@ -66,6 +68,12 @@ being a copy of the source files at the time of installation. Hence,
 edits to code in your local repository are immediately reflected in
 the package you can import.
 
+On some systems, you may not have permission to install packages to
+the default location. In this case, add the ``--user`` flag to ``pip``
+so the package can be installed for your user only::
+
+    pip install --user -e .
+
 Post-Installation
 -----------------
 
@@ -74,10 +82,4 @@ python environment. You should now be able to import the module from
 python::
 
   >>> import simsopt
-
-On some systems, you may not have permission to install packages to
-the default location. In this case, add the ``--user`` flag to ``pip``
-so the package can be installed for your user only::
-
-    pip install --user -e .
 
