@@ -7,12 +7,11 @@ This module provides classes and functions that are useful for
 setting up optimizable objects and objective functions.
 """
 
-import numpy as np
-import types
 import logging
-from mpi4py import MPI
+import types
+import numpy as np
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 class Optimizable():
     """

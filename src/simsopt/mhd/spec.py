@@ -8,21 +8,23 @@ This module provides a class that handles the SPEC equilibrium code.
 
 import logging
 import os.path
+
 import numpy as np
 
-py_spec_found = True
+spec_found = True
 try:
     import py_spec
-except:
-    py_spec_found = False
+except ImportError as e:
+    spec_found = False
 
 pyoculus_found = True
 try:
     import pyoculus
-except:
+except ImportError as e:
     pyoculus_found = False
 
-from simsopt.core import Optimizable, SurfaceRZFourier
+from simsopt.core.optimizable import Optimizable
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,6 @@ def nested_lists_to_array(ll):
                 arr[jm, jn] = x
     return arr
 
-
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -63,6 +64,11 @@ class Spec(Optimizable):
         filename: SPEC input file to use to initialize parameters.
         exe: Path to the xspec executable.
         """
+
+        if not spec_found:
+            raise RuntimeError(
+                "Using Spec requires py_spec package to be installed.")
+            
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
@@ -77,15 +83,15 @@ class Spec(Optimizable):
 
         # Transfer the boundary shape from the namelist to a Surface object:
         nfp = self.nml['physicslist']['nfp']
-        stelsym = bool(self.nml['physicslist']['istellsym'])
-        """
-        mpol = self.nml['physicslist']['mpol']
-        ntor = self.nml['physicslist']['ntor']
-        for m in range(mpol + 1):
-            for n in range(-ntor, ntor + 1):
-                self.boundary.set_rc(m, n) = self.nml['physicslist']['rbc'][m][n + ntor]
-                self.boundary.set_zs(m, n) = self.nml['physicslist']['zbs'][m][n + ntor]
-        """
+        stellsym = bool(self.nml['physicslist']['istellsym'])
+        
+        # mpol = self.nml['physicslist']['mpol']
+        # ntor = self.nml['physicslist']['ntor']
+        # for m in range(mpol + 1):
+        #     for n in range(-ntor, ntor + 1):
+        #         self.boundary.set_rc(m, n) = self.nml['physicslist']['rbc'][m][n + ntor]
+        #         self.boundary.set_zs(m, n) = self.nml['physicslist']['zbs'][m][n + ntor]
+        
         # We can assume rbc and zbs are specified in the namelist.
         # f90nml returns rbc and zbs as a list of lists where the
         # inner lists do not necessarily all have the same
@@ -106,7 +112,7 @@ class Spec(Optimizable):
         zbs_last_m = zbs_first_m + rc.shape[0] - 1
         mpol_boundary = np.max((rbc_last_m, zbs_last_m))
         logger.debug('Input file has ntor_boundary={} mpol_boundary={}'.format(ntor_boundary, mpol_boundary))
-        self.boundary = SurfaceRZFourier(nfp=nfp, stelsym=stelsym,
+        self.boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym,
                                          mpol=mpol_boundary, ntor=ntor_boundary)
         
         # Transfer boundary shape data from the namelist to the surface object:
@@ -221,6 +227,7 @@ class Spec(Optimizable):
         self.run()
         return self.results.transform.fiota[1, 0]
 
+
 class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
@@ -235,6 +242,13 @@ class Residue(Optimizable):
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
         """
+        if not spec_found:
+            raise RuntimeError(
+              "Residue requires py_spec package to be installed.")
+        if not pyoculus_found:
+            raise RuntimeError(
+              "Residue requires pyoculus package to be installed.")
+        
         self.spec = spec
         self.pp = pp
         self.qq = qq

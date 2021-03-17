@@ -6,7 +6,9 @@ import logging
 sys.path.append('/Users/mattland/pyQSC')
 from qsc import Qsc
 sys.path.append('..')
-from simsopt import optimizable, LeastSquaresProblem, least_squares_serial_solve
+from simsopt.core.optimizable import optimizable
+from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.solve.serial_solve import least_squares_serial_solve
 
 """
 Optimize the Stellarator Quasisymmetry Construction code

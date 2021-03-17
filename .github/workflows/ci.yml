@@ -169,14 +169,14 @@ jobs:
         pip install mpi4py
 
     - name: Install simsopt package
-      run: pip install -vvv -e .
+      run: pip install -v .
 
     - name: Run mpi unit tests
       run: ./run_tests_mpi
 
     - name: Run serial unit tests
       run: |
-        cd tests/simsopt
+        cd tests
         python3 -m unittest -v
 
     - name: Run 1dof integrated test

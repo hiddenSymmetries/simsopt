@@ -1,8 +1,15 @@
-# coding: utf-8
-# Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# ===================ATTENTION=================================================
+# Don't abuse this file by importing all variables from all modules to top-level.
+# Import only the important classes that should be at top-level.
+# Follow the same logic in the sub-packages.
+# ===================END ATTENTION=============================================
+  
+try:
+    from importlib import metadata
+except ImportError:
+    # Running on pre-3.8 Python; use importlib-metadata package
+    import importlib_metadata as metadata
 
-from .core import *
-from .mhd import *
-from .solve import *
+__version__ = metadata.version('simsopt')
+
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm', 'Surface', 'Target']
