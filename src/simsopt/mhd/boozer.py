@@ -8,17 +8,17 @@ Boozer coordinates, and an optimization target for quasisymmetry.
 """
 
 import logging
-import os.path
 from typing import Union, Iterable
+
 import numpy as np
 
 booz_xform_found = True
 try:
     import booz_xform
-except:
+except ImportError as err:
     booz_xform_found = False
 
-from simsopt.core import Optimizable
+from simsopt.core.optimizable import Optimizable
 from simsopt.mhd import Vmec
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,10 @@ class Boozer(Optimizable):
         Constructor
         """
         if not booz_xform_found:
-            raise RuntimeError("To use a Boozer object, the booz_xform package"
-                               "must be installed. Run 'pip install -v booz_xform'")
+            raise RuntimeError(
+                "To use a Boozer object, the booz_xform package "
+                "must be installed. Run 'pip install -v booz_xform'")
+                
         self.equil = equil
         self.depends_on = ["equil"]
         self.mpol = mpol
@@ -64,6 +66,15 @@ class Boozer(Optimizable):
         self.s = set()
         self.need_to_run_code = True
         self._calls = 0 # For testing, keep track of how many times we call bx.run()
+
+        # We may at some point want to allow booz_xform to use a
+        # different partitioning of the MPI processors compared to the
+        # equilibrium code. But for simplicity, we'll use the same mpi
+        # partition for now. For unit tests, we allow equil to be None,
+        # so we have to allow for this case here.
+        self.mpi = None
+        if equil is not None:
+            self.mpi = equil.mpi
 
     def get_dofs(self):
         return np.array([])
@@ -98,14 +109,19 @@ class Boozer(Optimizable):
         """
         Run booz_xform on all the surfaces that have been registered.
         """
+        
+        if (self.mpi is not None) and (not self.mpi.proc0_groups):
+            logger.info("This proc is skipping Boozer.run since it is not a group leader.")
+            return
+            
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
+        
         s = sorted(list(self.s))
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
-        # In the next line, __wrapped__ is associated with the monty decorator on Vmec.
-        if isinstance(self.equil, Vmec.__wrapped__):
+        if isinstance(self.equil, Vmec):
             self.equil.run()
             wout = self.equil.wout # Shorthand
 
@@ -271,6 +287,12 @@ class Quasisymmetry(Optimizable):
         """
         Carry out the calculation of the quasisymmetry error.
         """
+
+        # Only group leaders do anything:
+        if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
+            logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
+            return np.array([])
+        
         # The next line is the expensive part of the calculation:
         self.boozer.run()
         

@@ -27,7 +27,7 @@ Key = Union[Integral, str]
 def isbool(val):
     """
     Test whether val is any boolean type, either the native python
-    bool or numpy's bool_.
+    ``bool`` or numpy's ``bool_``.
     """
     return isinstance(val, (bool, np.bool_))
 

@@ -10,9 +10,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../../src'))
 
 
 # -- Project information -----------------------------------------------------
@@ -22,7 +22,7 @@ copyright = '2020, Simsopt Development Team'
 author = 'Simsopt Development Team'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = '0.0.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -35,6 +35,8 @@ extensions = [
               'sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
 ]
+
+autodoc_mock_imports=['mpi4py', 'pyoculus', 'py_spec']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
-from simsgeo import StelleratorSymmetricCylindricalFourierCurve, CurveLength, FourierCurve
-import numpy as np
 import sys
 sys.path.append('..')
-from simsopt import optimizable, LeastSquaresProblem
+import numpy as np
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.objectives import CurveLength
+from simsopt.core.optimizable import optimizable
+from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.solve.serial_solve import least_squares_serial_solve
 
 """
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.
@@ -15,8 +18,7 @@ The result should be a circle
 nquadrature = 100
 nfourier = 4
 nfp = 5
-curve = optimizable(StelleratorSymmetricCylindricalFourierCurve(nquadrature, nfourier, nfp))
-#curve = optimizable(FourierCurve(nquadrature, nfourier))
+curve = CurveRZFourier(nquadrature, nfourier, nfp, True)
 
 # Initialize the Fourier amplitudes to some random values
 x0 = np.random.rand(curve.num_dofs()) - 0.5
@@ -57,7 +59,7 @@ print('Difference:')
 print(fd_jac - jac)
 
 # Solve the minimization problem:
-prob.solve()
+least_squares_serial_solve(prob)
 
 print('At the optimum, x: ', prob.x)
 print(' Final curve dofs: ', curve.get_dofs())
