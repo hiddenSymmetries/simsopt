@@ -66,6 +66,8 @@ being a copy of the source files at the time of installation. Hence,
 edits to code in your local repository are immediately reflected in
 the package you can import.
 
+Post-Installation
+-----------------
 
 If the installation is successful, ``simsopt`` will be added to your
 python environment. You should now be able to import the module from
