@@ -1,7 +1,5 @@
 import numpy as np
-<<<<<<< HEAD
 import ipdb
-=======
 from simsopt.core.optimizable import Optimizable
 class Surface(Optimizable):
     """
