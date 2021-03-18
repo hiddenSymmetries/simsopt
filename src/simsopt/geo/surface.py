@@ -110,16 +110,6 @@ class Surface(Optimizable):
         AR =  R_major/R_minor
         return AR
 
-    
-    def volume(self):
-        xyz = self.gamma()
-        x = xyz[:,:,0]
-        dgamma1 = self.gammadash1()
-        dgamma2 = self.gammadash2()
-        nor =  np.cross( dgamma1.reshape( (-1,3) ), dgamma2.reshape( (-1,3) ) ).reshape( xyz.shape ) 
-        prod = x * nor[:,:,0]
-        return np.mean( prod )
-
     def __repr__(self):
         return "Surface " + str(hex(id(self)))
 
