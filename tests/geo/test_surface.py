@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 import numpy as np
+import ipdb
 
 from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable
@@ -245,14 +246,14 @@ class SurfaceGarabedianTests(unittest.TestCase):
         nfp = 2
         phis = np.linspace(0, 1, 31, endpoint=False)
         thetas = np.linspace(0, 1, 31, endpoint=False)
-
+        
         stellsym = False
         from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-        s = SurfaceXYZFourier(mpol, ntor, nfp, stellsym, phis, thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
         s.xc[0, ntor] = 1.
         s.xc[1, ntor] = 0.1
         s.zs[1, ntor] = 0.1
-        self.assertAlmostEqual(s.aspect_ratio() - 10)
+        self.assertAlmostEqual(s.aspect_ratio() , 10)
 
 
 
