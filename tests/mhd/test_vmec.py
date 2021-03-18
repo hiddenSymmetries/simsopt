@@ -16,7 +16,7 @@ class VmecTests(unittest.TestCase):
         """
         v = Vmec()
         self.assertEqual(v.nfp, 5)
-        self.assertTrue(v.stelsym)
+        self.assertTrue(v.stellsym)
         self.assertEqual(v.mpol, 5)
         self.assertEqual(v.ntor, 4)
         self.assertEqual(v.delt, 0.5)

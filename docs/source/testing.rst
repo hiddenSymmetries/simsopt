@@ -7,7 +7,7 @@ Python test suite
 *****************
 
 The main test suite is based on the standard ``unittest`` python module.
-Source code for the python tests is located in the ``tests/simsopt`` directory.
+Source code for the python tests is located in the ``tests`` directory.
 These tests will use the installed version of the ``simsopt`` python package,
 which may differ from the code in your local repository if you did not
 make an editable install (see :doc:`getting_started`).
@@ -25,7 +25,7 @@ you can run
 
     python -m unittest
 
-from the ``tests/simsopt`` directory.
+from the ``tests`` directory.
 
 For some of the tests involving MPI, it is useful to execute the tests
 for various numbers of processes to make sure the tests pass in each

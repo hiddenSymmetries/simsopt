@@ -4,11 +4,8 @@ on: [push, pull_request]
 
 jobs:
   linux_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest] 
+    name: Build wheels on ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -32,78 +29,6 @@ jobs:
           path: ./wheelhouse/*.whl
 
 
-  #mac_wheel_py37:
-  #  name: Build py37 wheel on mac
-  #  runs-on: macos-10.15
-  #  steps:
-  #    - uses: actions/checkout@v2
-#
-#      - name: Set up Python
-#        uses: actions/setup-python@v2
-#        with:
-#          python-version: 3.7
-#
-#      - name: Install cibuildwheel
-#        run: python -m pip install cibuildwheel==1.10.0
-#
-#      - name: Build wheels
-##        run: python -m cibuildwheel --output-dir wheelhouse
-#        env:
-#          CIBW_BUILD: cp37-macosx_x86_64
-#          CIBW_SKIP: cp27-* cp38-* cp39-*
-#
-#      - uses: actions/upload-artifact@v2
-#        with:
-#          path: ./wheelhouse/*.whl
-#
-#  mac_wheel_py38:
-#    name: Build py38 wheel on mac
-#    runs-on: macos-10.15
-#    steps:
-#      - uses: actions/checkout@v2
-#
-#      - name: Set up Python
-#        uses: actions/setup-python@v2
-#        with:
-#          python-version: 3.8
-#
-#      - name: Install cibuildwheel
-#        run: python -m pip install cibuildwheel==1.10.0
-#
-#      - name: Build wheels
-#        run: python -m cibuildwheel --output-dir wheelhouse
-#        env:
-#          CIBW_BUILD: cp38-macosx_x86_64
-#          CIBW_SKIP: cp27-* cp37-* cp39-*
-#
-#      - uses: actions/upload-artifact@v2
-#        with:
-#          path: ./wheelhouse/*.whl
-#
-#  mac_wheel_py39:
-#    name: Build py39 wheel on mac 
-#    runs-on: macos-10.15
-#    steps:
-#      - uses: actions/checkout@v2
-#
-#      - name: Set up Python
-#        uses: actions/setup-python@v2
-#        with:
-#          python-version: 3.9
-#
-#      - name: Install cibuildwheel
-#        run: python -m pip install cibuildwheel==1.10.0
-#
-#      - name: Build wheels
-#        run: python -m cibuildwheel --output-dir wheelhouse
-#        env:
-#          CIBW_BUILD: cp39-macosx_x86_64
-#          CIBW_SKIP: cp27-* cp37-* cp38-*
-#
-#      - uses: actions/upload-artifact@v2
-#        with:
-#          path: ./wheelhouse/*.whl
-
   # Alternate setup for mac_wheel because cibuildwheel is failing for mac
   mac_wheels:
     name: Build wheels on mac 
@@ -124,7 +49,7 @@ jobs:
 
       - name: Build and repair wheels
         run: |
-          python -m pip wheel -w wheel --no-deps . # cibuildwheel --output-dir wheelhouse
+          python -m pip wheel -w wheel --no-deps .
           delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
          
       - uses: actions/upload-artifact@v2
