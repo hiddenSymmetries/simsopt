@@ -2,7 +2,7 @@ import numpy as np
 import unittest
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curverzfourier import JaxCurveRZFourier, CurveRZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 
@@ -48,8 +48,6 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = JaxCurveXYZFourier(x, order)
     elif curvetype == "CurveRZFourier":
         curve = CurveRZFourier(x, order, 2, True)
-    elif curvetype == "JaxCurveRZFourier":
-        curve = JaxCurveRZFourier(x, order, 2)
     else:
         assert False
     dofs = np.zeros((curve.num_dofs(), ))
@@ -57,7 +55,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order+3] = 1.
         dofs[4*order+3] = 1.
-    elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier"]:
+    elif curvetype in ["CurveRZFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -73,7 +71,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "JaxCurveRZFourier", "CurveRZFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier"]
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1

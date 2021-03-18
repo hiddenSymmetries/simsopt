@@ -3,7 +3,8 @@ import logging
 
 import numpy as np
 
-from simsopt.core.surface import SurfaceRZFourier, SurfaceGarabedian
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.core.optimizable import optimizable
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition
@@ -30,7 +31,7 @@ class IntegratedTests(unittest.TestCase):
 
             # Start with a default surface, which is axisymmetric with major
             # radius 1 and minor radius 0.1.
-            surf = optimizable(SurfaceRZFourier())
+            surf = SurfaceRZFourier(quadpoints_phi=62, quadpoints_theta=63)
 
             # Set initial surface shape. It helps to make zs(1,0) larger
             # than rc(1,0) since there are two solutions to this

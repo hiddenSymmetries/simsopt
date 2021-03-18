@@ -9,8 +9,8 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        Curve.__init__(self)
         sgpp.CurveXYZFourier.__init__(self, quadpoints, order)
+        Curve.__init__(self)
 
     def get_dofs(self):
         return np.asarray(sgpp.CurveXYZFourier.get_dofs(self))
@@ -46,15 +46,21 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 
 class JaxCurveXYZFourier(JaxCurve):
 
-    """ A Python+Jax implementation of the CurveXYZFourier """
+    """ 
+    A Python+Jax implementation of the CurveXYZFourier class.  There is
+    actually no reason why one should use this over the C++ implementation in
+    simsgeopp, but the point of this class is to illustrate how jax can be used
+    to define a geometric object class and calculate all the derivatives (both
+    with respect to dofs and with respect to the angle phi) automatically.
+    """
 
     def __init__(self, quadpoints, order):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
-        super().__init__(quadpoints, pure)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
+        super().__init__(quadpoints, pure)
 
     def num_dofs(self):
         return 3*(2*self.order+1)
