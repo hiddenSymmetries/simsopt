@@ -23,4 +23,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         surf.least_squares_fit(self.gamma())
         return surf
 
-
+    def set_dofs(self, dofs):
+        sgpp.SurfaceXYZFourier.set_dofs(self, dofs)
+        for d in self.dependencies:
+            d.invalidate_cache()
