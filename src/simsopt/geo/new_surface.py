@@ -18,8 +18,8 @@ from jax import jacrev
 from mpi4py import MPI
 #import xarray as xr
 
-from .util import isbool
-from .new_optimizable import Optimizable
+from ..core.util import isbool
+from ..core.new_optimizable import Optimizable
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
