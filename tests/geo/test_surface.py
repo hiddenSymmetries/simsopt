@@ -7,8 +7,23 @@ from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
+from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+
+class SurfaceXYZFourierTests(unittest.TestCase):
+
+    # definitely need a better test case for the aspect ratio computation
+    def test_aspect_ratio(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+        
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        self.assertAlmostEqual(s.aspect_ratio() , 10)
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
@@ -240,21 +255,6 @@ class SurfaceGarabedianTests(unittest.TestCase):
         s.set_Delta(5, 2, -50)
         self.assertAlmostEqual(s.Delta[7, 3], -50)
         
-    def test_aspect_ratio(self):
-        mpol = 4
-        ntor = 3
-        nfp = 2
-        phis = np.linspace(0, 1, 31, endpoint=False)
-        thetas = np.linspace(0, 1, 31, endpoint=False)
-        
-        stellsym = False
-        from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
-        s.xc[0, ntor] = 1.
-        s.xc[1, ntor] = 0.1
-        s.zs[1, ntor] = 0.1
-        self.assertAlmostEqual(s.aspect_ratio() , 10)
-
 
 
        
