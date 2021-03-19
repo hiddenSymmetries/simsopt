@@ -15,6 +15,7 @@ class ToroidalFlux(object):
         self.biotsavart = biotsavart
         self.idx = idx 
         self.surface.dependencies.append(self)
+        self.invalidate_cache()
 
     def invalidate_cache(self):
         x = self.surface.gamma()[self.idx]
