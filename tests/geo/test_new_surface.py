@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from simsopt.core.new_surface import *
+from simsopt.geo.new_surface import *
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
