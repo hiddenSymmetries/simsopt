@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 
-import logging
-import sys
-from mpi4py import MPI
 import numpy as np
-sys.path.append('../src')
 
 from simsopt.mhd import Vmec
 from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.util.mpi import MpiPartition
+from simsopt.util.mpi import MpiPartition, log
 from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
 """
@@ -31,7 +27,7 @@ https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_target
 
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
-logging.basicConfig(level=logging.INFO)
+log()
 
 # In the next line, we can adjust how many groups the pool of MPI
 # processes is split into.
@@ -42,8 +38,9 @@ mpi.write()
 equil = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume', mpi)
 surf = equil.boundary
 
-# VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
-# You can choose which parameters are optimized by setting their 'fixed' attributes.
+# VMEC parameters are all fixed by default, while surface parameters
+# are all non-fixed by default.  You can choose which parameters are
+# optimized by setting their 'fixed' attributes.
 surf.all_fixed()
 surf.set_fixed('rc(1,1)', False)
 surf.set_fixed('zs(1,1)', False)

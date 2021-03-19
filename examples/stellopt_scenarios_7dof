@@ -6,11 +6,15 @@ https://github.com/landreman/stellopt_scenarios/tree/master/7DOF_varyAxisAndElon
 See that website for a detailed description of the problem.
 """
 
+from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt.solve.mpi_solve import least_squares_mpi_solve
 
-vmec = Vmec("input.stellopt_scenarios_7dof")
+log()
+
+mpi = MpiPartition()
+vmec = Vmec("input.stellopt_scenarios_7dof", mpi)
 
 # We will optimize in the space of Garabedian coefficients:
 surf = vmec.boundary.to_Garabedian()
@@ -25,34 +29,36 @@ surf.set_fixed("Delta(0,0)") # toroidally-averaged minor radius
 # Define objective function:
 boozer = Boozer(vmec, mpol=32, ntor=16)
 qs = Quasisymmetry(boozer,
-                      1.0, # Radius to target
-                      1, 0, # (M, N) you want in |B|
-                      normalization="symmetric",
-                      weight="stellopt")
+                   1.0, # Radius to target
+                   1, 0, # (M, N) you want in |B|
+                   normalization="symmetric",
+                   weight="stellopt")
 
 # Objective function is 100 * (iota - (-0.41))^2 + 1 * (qs - 0)^2
 prob = LeastSquaresProblem([(vmec.iota_axis, -0.41, 100),
-                               (qs, 0, 1)])
+                            (qs, 0, 1)])
 
 residuals = prob.f()
 vals = prob.dofs.f()
-print("Initial values before shifting and scaling:  ", vals[:10])
-print("Initial residuals after shifting and scaling:", residuals[:10])
-print("size of residuals:", len(residuals))
-print("Initial objective function:", prob.objective())
-print("Parameter space:")
-for name in prob.dofs.names:
-    print(name)
-print("Initial state vector:", prob.x)
-print("Initial iota on axis:", vmec.iota_axis())
+if mpi.proc0_world:
+    print("Initial values before shifting and scaling:  ", vals[:10])
+    print("Initial residuals after shifting and scaling:", residuals[:10])
+    print("size of residuals:", len(residuals))
+    print("Initial objective function:", prob.objective())
+    print("Parameter space:")
+    for name in prob.dofs.names:
+        print(name)
+    print("Initial state vector:", prob.x)
+    print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
-least_squares_serial_solve(prob)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 residuals = prob.f()
 vals = prob.dofs.f()
-print("Final values before shifting and scaling:  ", vals[:10])
-print("Final residuals after shifting and scaling:", residuals[:10])
-print("Final objective function:", prob.objective())
-print("Final state vector:", prob.x)
-print("Final iota on axis:", vmec.iota_axis())
+if mpi.proc0_world:
+    print("Final values before shifting and scaling:  ", vals[:10])
+    print("Final residuals after shifting and scaling:", residuals[:10])
+    print("Final objective function:", prob.objective())
+    print("Final state vector:", prob.x)
+    print("Final iota on axis:", vmec.iota_axis())
