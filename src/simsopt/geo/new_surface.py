@@ -16,7 +16,7 @@ config.update("jax_enable_x64", True) # Use double precision:
 import jax.numpy as jnp
 from jax import jacrev
 from mpi4py import MPI
-import xarray as xr
+#import xarray as xr
 
 from .util import isbool
 from .new_optimizable import Optimizable

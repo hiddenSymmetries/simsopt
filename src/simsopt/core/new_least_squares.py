@@ -26,9 +26,10 @@ logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 class LeastSquaresProblem(Optimizable):
     """
     This class represents a nonlinear-least-squares
-    problem. A LeastSquaresTerm instance has 3 basic attributes: a
-    function (called f_in), a goal value (called goal), and a weight
-    (sigma).  The overall value of the term is:
+    problem. A LeastSquaresProblem instance has 3 basic attributes: a
+    set of functions (called f_in), target values for each of the functions
+    (called goal), and weights (sigma).  The function returns f_out for each
+    of the term defined as:
 
     f_out = weight * (f_in - goal) ** 2.
     """
@@ -93,17 +94,27 @@ class LeastSquaresProblem(Optimizable):
         Return the overall value of this least-squares term.
         """
         s = 0
-        terms = []
+        residuals = []
         for i, opt in enumerate(self.parents):
-            output = np.array(opt())
+            out = opt()
+            output = np.array([out]) if np.isscalar(out) else np.array(out)
             if self.func_masks is None:
-                terms += [output]
+                fn_value = output
+            elif self.func_masks[i] is None:
+                fn_value = output
             else:
-                terms += [output[self.func_masks[i]]]
+                fn_value = output[self.func_masks[i]]
+            residuals += [(fn_value - self.goals[i]) * np.sqrt(self.weights[i])]
 
-        terms = np.concatenate(terms)
-        s = np.multiply(terms, terms)
-        return np.sum(np.multiply(s, self.weights))
+        #print('terms at line 104', terms)
+        #print('goals', self.goals )
+        #terms = np.concatenate(terms) - self.goals
+        #print('after subtraction', terms)
+        #s = np.dot(terms, terms)
+        #print('dot product', s)
+        #objective = np.sum(np.multiply(s, self.weights))
+        #print('final objective', objective)
+        return np.concatenate(residuals)
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
 
@@ -112,10 +123,9 @@ class LeastSquaresProblem(Optimizable):
                                    np.concatenate([self.weights, other.weights])
                                    )
 
-    def residuals(self, x: Union[RealArray, IntArray] = None):
-        if x is not None:
-            self.x = x
+    #def residuals(self, x: Union[RealArray, IntArray] = None):
+    #    if x is not None:
+    #        self.x = x
 
-        temp = np.append([f() for f in self.parents]) - self.goal
-        return np.sqrt(self.weights) * temp
-
+    #    temp = np.append([f() for f in self.parents]) - self.goal
+    #    return np.sqrt(self.weights) * temp

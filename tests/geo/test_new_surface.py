@@ -1,9 +1,8 @@
 import unittest
-import os
+from pathlib import Path
 from simsopt.core.new_surface import *
-#from . import TEST_DIR
-TEST_DIR = os.path.join(os.path.dirname(__file__), "..", "..",
-                        "test_files")
+
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 class SurfaceTests(unittest.TestCase):
     def test_init(self):
@@ -154,7 +153,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Try reading in a focus-format file.
         """
-        filename = os.path.join(TEST_DIR, 'tf_only_half_tesla.plasma')
+        #filename = os.path.join(TEST_DIR, 'tf_only_half_tesla.plasma')
+        filename = TEST_DIR / 'tf_only_half_tesla.plasma'
 
         s = SurfaceRZFourier.from_focus(filename)
 
