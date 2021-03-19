@@ -22,7 +22,6 @@ using std::vector;
 namespace xs = xsimd;
 using vector_type = std::vector<double, xs::aligned_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
-#include <optional>
 
 
 struct Vec3dSimd {
