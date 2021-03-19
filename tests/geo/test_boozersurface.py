@@ -102,123 +102,123 @@ stellsym_list = [True, False]
 
 
 class BoozerSurfaceTests(unittest.TestCase):
-#    def test_BoozerConstrainedScalarized_Gradient(self):
-#        for surfacetype in surfacetypes_list:
-#            for stellsym in stellsym_list:
-#                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-#                    self.subtest_BoozerConstrainedScalarized_Gradient(surfacetype,stellsym)
-#    def test_BoozerConstrainedScalarized_Hessian(self):
-#        for surfacetype in surfacetypes_list:
-#            for stellsym in stellsym_list:
-#                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-#                    self.subtest_BoozerConstrainedScalarized_Hessian(surfacetype,stellsym)
-#    def subtest_BoozerConstrainedScalarized_Gradient(self,surfacetype, stellsym):
-#        coils, currents, ma = get_ncsx_data()
-#        stellarator = CoilCollection(coils, currents, 3, True)
-#        
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-#        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-#        
-#        s = get_surface(surfacetype,stellsym)
-#        s.fit_to_curve(ma, 0.1)
-#        
-#        tf = ToroidalFlux(s, bs_tf)
-#
-#        tf_target = 0.1
-#        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
-#
-#        iota = -0.3
-#        x = np.concatenate((s.get_dofs(), [iota]))
-#        f0, J0 = boozerSurface.BoozerConstrainedScalarized(x, derivatives = 1)
-#
-#        h = np.random.uniform(size=x.shape)-0.5
-#        Jex = J0@h
-#
-#        err_old = 1e9
-#        epsilons = np.power(2., -np.asarray(range(7, 20)))
-#        print("################################################################################")
-#        for eps in epsilons:
-#            f1 = boozerSurface.BoozerConstrainedScalarized(x + eps*h, derivatives = 0)
-#            Jfd = (f1-f0)/eps
-#            err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
-#            print(err/err_old)
-#            assert err < err_old * 0.55
-#            err_old = err
-#        print("################################################################################")
-#    def subtest_BoozerConstrainedScalarized_Hessian(self,surfacetype, stellsym):
-#        coils, currents, ma = get_ncsx_data()
-#        stellarator = CoilCollection(coils, currents, 3, True)
-#        
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-#        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-#        
-#        s = get_surface(surfacetype,stellsym)
-#        s.fit_to_curve(ma, 0.1)
-#        
-#        tf = ToroidalFlux(s, bs_tf)
-#
-#        tf_target = 0.1
-#        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
-#
-#        iota = -0.3
-#        x = np.concatenate((s.get_dofs(), [iota]))
-#        f0, J0, H0 = boozerSurface.BoozerConstrainedScalarized(x, derivatives = 2)
-#
-#        h1 = np.random.uniform(size=x.shape)-0.5
-#        h2 = np.random.uniform(size=x.shape)-0.5
-#        d2f = h1@H0@h2
-#
-#        err_old = 1e9
-#        epsilons = np.power(2., -np.asarray(range(8, 20)))
-#        print("################################################################################")
-#        for eps in epsilons:
-#            fp, Jp = boozerSurface.BoozerConstrainedScalarized(x + eps*h1, derivatives = 1)
-#            d2f_fd = (Jp@h2-J0@h2)/eps
-#            err = np.abs(d2f_fd-d2f)/np.abs(d2f)
-#            print(err/err_old)
-#            assert err < err_old * 0.55
-#            err_old = err
-#
-#    def test_BoozerConstrianed_Jacobian(self):
-#        for surfacetype in surfacetypes_list:
-#                    for stellsym in stellsym_list:
-#                        with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-#                            self.subtest_BoozerConstrained_Jacobian(surfacetype,stellsym)
-#
-#    def subtest_BoozerConstrained_Jacobian(self,surfacetype, stellsym):
-#        coils, currents, ma = get_ncsx_data()
-#        stellarator = CoilCollection(coils, currents, 3, True)
-#        
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-#        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-#        
-#        s = get_surface(surfacetype,stellsym)
-#        s.fit_to_curve(ma, 0.1)
-#        
-#        tf = ToroidalFlux(s, bs_tf)
-#
-#        tf_target = 0.1
-#        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
-#
-#        iota = -0.3
-#        lm = 0.
-#        xl = np.concatenate((s.get_dofs(), [iota,lm]))
-#        res0, dres0 = boozerSurface.BoozerConstrained(xl, derivatives = 1)
-#
-#        h = np.random.uniform(size=xl.shape)-0.5
-#        dres_exact = dres0@h
-#
-#        err_old = 1e9
-#        epsilons = np.power(2., -np.asarray(range(7, 20)))
-#        print("################################################################################")
-#        for eps in epsilons:
-#            res1 = boozerSurface.BoozerConstrained(xl + eps*h, derivatives = 0)
-#            dres_fd = (res1-res0)/eps
-#            err = np.linalg.norm(dres_fd-dres_exact)/np.linalg.norm(dres_exact)
-#            print(err/err_old)
-#            assert err < err_old * 0.55
-#            err_old = err
-#        print("################################################################################")
+    def test_BoozerConstrainedScalarized_Gradient(self):
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
+                    self.subtest_BoozerConstrainedScalarized_Gradient(surfacetype,stellsym)
+    def test_BoozerConstrainedScalarized_Hessian(self):
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
+                    self.subtest_BoozerConstrainedScalarized_Hessian(surfacetype,stellsym)
+    def subtest_BoozerConstrainedScalarized_Gradient(self,surfacetype, stellsym):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        
+        s = get_surface(surfacetype,stellsym)
+        s.fit_to_curve(ma, 0.1)
+        
+        tf = ToroidalFlux(s, bs_tf)
+
+        tf_target = 0.1
+        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
+
+        iota = -0.3
+        x = np.concatenate((s.get_dofs(), [iota]))
+        f0, J0 = boozerSurface.BoozerConstrainedScalarized(x, derivatives = 1)
+
+        h = np.random.uniform(size=x.shape)-0.5
+        Jex = J0@h
+
+        err_old = 1e9
+        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        print("################################################################################")
+        for eps in epsilons:
+            f1 = boozerSurface.BoozerConstrainedScalarized(x + eps*h, derivatives = 0)
+            Jfd = (f1-f0)/eps
+            err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
+            print(err/err_old)
+            assert err < err_old * 0.55
+            err_old = err
+        print("################################################################################")
+    def subtest_BoozerConstrainedScalarized_Hessian(self,surfacetype, stellsym):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        
+        s = get_surface(surfacetype,stellsym)
+        s.fit_to_curve(ma, 0.1)
+        
+        tf = ToroidalFlux(s, bs_tf)
+
+        tf_target = 0.1
+        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
+
+        iota = -0.3
+        x = np.concatenate((s.get_dofs(), [iota]))
+        f0, J0, H0 = boozerSurface.BoozerConstrainedScalarized(x, derivatives = 2)
+
+        h1 = np.random.uniform(size=x.shape)-0.5
+        h2 = np.random.uniform(size=x.shape)-0.5
+        d2f = h1@H0@h2
+
+        err_old = 1e9
+        epsilons = np.power(2., -np.asarray(range(8, 20)))
+        print("################################################################################")
+        for eps in epsilons:
+            fp, Jp = boozerSurface.BoozerConstrainedScalarized(x + eps*h1, derivatives = 1)
+            d2f_fd = (Jp@h2-J0@h2)/eps
+            err = np.abs(d2f_fd-d2f)/np.abs(d2f)
+            print(err/err_old)
+            assert err < err_old * 0.55
+            err_old = err
+
+    def test_BoozerConstrianed_Jacobian(self):
+        for surfacetype in surfacetypes_list:
+                    for stellsym in stellsym_list:
+                        with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
+                            self.subtest_BoozerConstrained_Jacobian(surfacetype,stellsym)
+
+    def subtest_BoozerConstrained_Jacobian(self,surfacetype, stellsym):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        
+        s = get_surface(surfacetype,stellsym)
+        s.fit_to_curve(ma, 0.1)
+        
+        tf = ToroidalFlux(s, bs_tf)
+
+        tf_target = 0.1
+        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
+
+        iota = -0.3
+        lm = 0.
+        xl = np.concatenate((s.get_dofs(), [iota,lm]))
+        res0, dres0 = boozerSurface.BoozerConstrained(xl, derivatives = 1)
+
+        h = np.random.uniform(size=xl.shape)-0.5
+        dres_exact = dres0@h
+
+        err_old = 1e9
+        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        print("################################################################################")
+        for eps in epsilons:
+            res1 = boozerSurface.BoozerConstrained(xl + eps*h, derivatives = 0)
+            dres_fd = (res1-res0)/eps
+            err = np.linalg.norm(dres_fd-dres_exact)/np.linalg.norm(dres_exact)
+            print(err/err_old)
+            assert err < err_old * 0.55
+            err_old = err
+        print("################################################################################")
 
     def test_BoozerSurface(self):
         stellsym = False
