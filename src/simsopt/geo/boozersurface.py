@@ -132,7 +132,7 @@ class BoozerSurface():
         s = self.surface
         x = np.concatenate((s.get_dofs(), [iota]))
         res = minimize(lambda x: self.BoozerConstrainedScalarized(x,derivatives = 1, constraint_weight = constraint_weight), \
-                              x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'tol' : tol})
+                              x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'gtol' : tol})
         s.set_dofs(res.x[:-1])
         iota = x[-1]
         return s,iota
@@ -160,7 +160,7 @@ class BoozerSurface():
         iota = x[-1]
         return s, iota
 
-    def minimizeBoozerConstrainedNewton(self, tol = 1e-12, maxiter = 10, iota = 0.):
+    def minimizeBoozerConstrainedNewton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = 0.):
         """
         This function solves the constrained optimization problem
         min || f(x) ||^2_2
@@ -168,7 +168,7 @@ class BoozerSurface():
         using Lagrange multipliers and Newton's method.
         """
         s = self.surface 
-        xl = np.concatenate( (s.get_dofs(), [iota], [0.]) )
+        xl = np.concatenate( (s.get_dofs(), [iota], [lm]) )
         val,dval = self.BoozerConstrained(xl, derivatives = 1)
         norm =np.linalg.norm(val) 
         i = 0   
