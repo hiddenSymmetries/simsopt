@@ -23,8 +23,10 @@ class BoozerSurface():
             r = BoozerSurfaceResidual(s, iota, bs, derivatives = 0)
             
             l = self.label.J()
-            rl = (l-self.targetlabel) 
-            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl]) )
+            rl = (l-self.targetlabel)
+            ry = (s.gamma()[0,0,1] - 0.)
+            rz = (s.gamma()[0,0,2] - 0.)
+            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl,np.sqrt(constraint_weight) *ry,np.sqrt(constraint_weight) *rz]) )
             
             val = 0.5 * np.sum(r**2)  
             return val
@@ -33,18 +35,26 @@ class BoozerSurface():
             r, Js, Jiota = BoozerSurfaceResidual(s, iota, bs, derivatives = 1)
             J = np.concatenate((Js, Jiota), axis=1)
             dl  = np.zeros( x.shape )
+            dry  = np.zeros( x.shape )
+            drz  = np.zeros( x.shape )
             d2l = np.zeros( (x.shape[0], x.shape[0] ) )
  
             l = self.label.J()
             dl[:-1]      = self.label.dJ_by_dsurfacecoefficients()
             
             rl = (l-self.targetlabel) 
-            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl]) )
-            J = np.concatenate( (J,  np.sqrt(constraint_weight) *dl[None,:]),  axis = 0)
+            ry = (s.gamma()[0,0,1] - 0.)
+            rz = (s.gamma()[0,0,2] - 0.)
+            dry[:-1] = s.dgamma_by_dcoeff()[0,0,1,:]
+            drz[:-1] = s.dgamma_by_dcoeff()[0,0,2,:]
+            
+
+            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl,np.sqrt(constraint_weight) *ry,np.sqrt(constraint_weight) *rz]) )
+            J = np.concatenate( (J,  np.sqrt(constraint_weight) *dl[None,:] ,np.sqrt(constraint_weight) *dry[None,:],np.sqrt(constraint_weight) *drz[None,:]  ),  axis = 0)
             
             val = 0.5 * np.sum(r**2) 
             dval = np.sum(r[:, None]*J, axis=0) 
-            
+            print(val, np.linalg.norm(dval))    
             return val,dval
 
         elif derivatives == 2:
@@ -54,6 +64,8 @@ class BoozerSurface():
             col = np.concatenate( (Hsiota, Hiota), axis = 1)
             H = np.concatenate( (Htemp,col[...,None,:]), axis = 1) 
  
+            dry  = np.zeros( x.shape )
+            drz  = np.zeros( x.shape )
             dl  = np.zeros( x.shape )
             d2l = np.zeros( (x.shape[0], x.shape[0] ) )
     
@@ -62,9 +74,13 @@ class BoozerSurface():
             d2l[:-1,:-1] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients() 
     
             rl = l-self.targetlabel 
-            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl]) )
-            J = np.concatenate( (J,  np.sqrt(constraint_weight) *dl[None,:]),  axis = 0)
-            H = np.concatenate( (H,  np.sqrt(constraint_weight) *d2l[None,:,:]), axis = 0)
+            ry = (s.gamma()[0,0,1] - 0.)
+            rz = (s.gamma()[0,0,2] - 0.)
+            dry[:-1] = s.dgamma_by_dcoeff()[0,0,1,:]
+            drz[:-1] = s.dgamma_by_dcoeff()[0,0,2,:]
+            r = np.concatenate( (r, [np.sqrt(constraint_weight) *rl,np.sqrt(constraint_weight) *ry,np.sqrt(constraint_weight) *rz]) )
+            J = np.concatenate( (J,  np.sqrt(constraint_weight) *dl[None,:] ,np.sqrt(constraint_weight) *dry[None,:],np.sqrt(constraint_weight) *drz[None,:]  ),  axis = 0)
+            H = np.concatenate( (H,  np.sqrt(constraint_weight) *d2l[None,:,:], np.zeros(d2l[None,:,:].shape), np.zeros(d2l[None,:,:].shape) ), axis = 0)
     
             val = 0.5 * np.sum(r**2) 
             dval = np.sum(r[:, None]*J, axis=0) 
@@ -133,6 +149,7 @@ class BoozerSurface():
         x = np.concatenate((s.get_dofs(), [iota]))
         res = minimize(lambda x: self.BoozerConstrainedScalarized(x,derivatives = 1, constraint_weight = constraint_weight), \
                               x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'gtol' : tol})
+        print(res.fun)
         s.set_dofs(res.x[:-1])
         iota = x[-1]
         return s,iota
@@ -156,6 +173,7 @@ class BoozerSurface():
             norm = np.linalg.norm(dval) 
             print(norm)
             i = i +1
+        ipdb.set_trace()
         s.set_dofs(x[:-1])
         iota = x[-1]
         return s, iota
