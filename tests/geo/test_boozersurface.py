@@ -237,14 +237,16 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf_target = -0.075
         
         boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
-        s,iota = boozerSurface.minimizeBoozerScalarizedLBFGS(tol = 1e-3, maxiter = 500, constraint_weight = 1000., iota = -0.3)
-        tf_lbfgs = tf.J()
+        s,iota = boozerSurface.minimizeBoozerScalarizedLBFGS(tol = 1e-3, maxiter = 250, constraint_weight = 1000., iota = -0.3)
         s,iota = boozerSurface.minimizeBoozerScalarizedNewton(tol = 1e-12, maxiter = 10, constraint_weight = 1000., iota = iota)
-        tf_newton = tf.J()
         s,iota,lm = boozerSurface.minimizeBoozerConstrainedNewton(tol = 1e-12, maxiter = 10,iota = iota)
-        tf_constrained = tf.J()
         
-        assert np.abs(tf_constrained - tf_target) < 1e-13
+        boozerSurface.targetlabel = -0.1
+        s,iota,lm = boozerSurface.minimizeBoozerConstrainedNewton(tol = 1e-12, maxiter = 10,iota = iota, lm = lm)
+        assert np.abs(tf.J()  -  boozerSurface.targetlabel) < 1e-13
+        boozerSurface.targetlabel = -0.125
+        s,iota,lm = boozerSurface.minimizeBoozerConstrainedNewton(tol = 1e-12, maxiter = 10,iota = iota, lm = lm)
+        assert np.abs(tf.J()  -  boozerSurface.targetlabel) < 1e-13
 
 if __name__ == "__main__":
     unittest.main()
