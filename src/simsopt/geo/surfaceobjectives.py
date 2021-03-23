@@ -82,7 +82,7 @@ class ToroidalFlux(object):
 
 
 
-def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
+def boozer_surface_residual(surface, iota, biotsavart, derivatives = 0):
     """
     For a given surface with points x on it, this function computes the
     residual
