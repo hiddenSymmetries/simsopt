@@ -11,7 +11,17 @@ from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 class SurfaceXYZFourierTests(unittest.TestCase):
+ # definitely need a better test case for the aspect ratio computation
+    def test_aspect_ratio(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
 
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        self.assertAlmostEqual(s.aspect_ratio() , 10)
 
 class SurfaceRZFourierTests(unittest.TestCase):
     def test_init(self):
