@@ -202,7 +202,8 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("yc", &PySurfaceXYZFourier::yc)
         .def_readwrite("ys", &PySurfaceXYZFourier::ys)
         .def_readwrite("zc", &PySurfaceXYZFourier::zc)
-        .def_readwrite("zs", &PySurfaceXYZFourier::zs);
+        .def_readwrite("zs", &PySurfaceXYZFourier::zs)
+        .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
 
 

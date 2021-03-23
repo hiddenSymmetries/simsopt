@@ -1,4 +1,16 @@
 import numpy as np
+
+class Area(object):
+    def __init__(self, surface):
+        self.surface = surface
+
+    def J(self):
+        return self.surface.area()
+    def dJ_by_dsurfacecoefficients(self):
+        return self.surface.darea_by_dcoeff()
+    def d2J_by_dsurfacecoeffcientsdsurfacecoefficients(self):
+        return None
+
 class ToroidalFlux(object):
 
     r"""
