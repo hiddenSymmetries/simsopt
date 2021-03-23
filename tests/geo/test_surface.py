@@ -10,7 +10,6 @@ from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
-class SurfaceXYZFourierTests(unittest.TestCase):
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
