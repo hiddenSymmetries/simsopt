@@ -165,8 +165,7 @@ class BoozerSurface():
         +constraint_weight * (y(varphi=0,theta=0) -0)^2
         +constraint_weight * (z(varphi=0,theta=0) -0)^2
         where || f(x)||^2_2 is the sum of squares of the Boozer residual at
-        the quadrature points.  This is done using LBFGS. The final two terms
-        are automatically satisfied by stellarator symmetric surfaces.
+        the quadrature points.  This is done using LBFGS. 
         """
 
         s = self.surface
@@ -209,9 +208,7 @@ class BoozerSurface():
         label - targetlabel = 0
         y(varphi=0,theta=0) - 0 = 0
         z(varphi=0,theta=0) - 0 = 0
-        using Lagrange multipliers and Newton's method.  The final two constraints
-        are automatically satisfied by stellarator symmetric surfaces, and so
-        are disregarded in this case.
+        using Lagrange multipliers and Newton's method.
         """
         s = self.surface 
         xl = np.concatenate( (s.get_dofs(), [iota], lm) )
