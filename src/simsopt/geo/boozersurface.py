@@ -162,8 +162,11 @@ class BoozerSurface():
         """
         This function tries to find the surface that approximately solves
         min || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
+        +constraint_weight * (y(varphi=0,theta=0) -0)^2
+        +constraint_weight * (z(varphi=0,theta=0) -0)^2
         where || f(x)||^2_2 is the sum of squares of the Boozer residual at
-        the quadrature points.  This is done using LBFGS.
+        the quadrature points.  This is done using LBFGS. The final two terms
+        are automatically satisfied by stellarator symmetric surfaces.
         """
 
         s = self.surface
@@ -202,8 +205,13 @@ class BoozerSurface():
         """
         This function solves the constrained optimization problem
         min || f(x) ||^2_2
-        subject to label - targetlabel = 0
-        using Lagrange multipliers and Newton's method.
+        subject to 
+        label - targetlabel = 0
+        y(varphi=0,theta=0) - 0 = 0
+        z(varphi=0,theta=0) - 0 = 0
+        using Lagrange multipliers and Newton's method.  The final two constraints
+        are automatically satisfied by stellarator symmetric surfaces, and so
+        are disregarded in this case.
         """
         s = self.surface 
         xl = np.concatenate( (s.get_dofs(), [iota], lm) )
