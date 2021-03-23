@@ -12,7 +12,6 @@ from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area 
 surfacetypes = ["SurfaceXYZFourier", "SurfaceRZFourier"]
 
-import ipdb
 class CoilCollection():
     """
     Given some input coils and currents, this performs the reflection and

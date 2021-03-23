@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 import numpy as np
-import ipdb
 
 from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable

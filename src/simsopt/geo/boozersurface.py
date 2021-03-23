@@ -2,7 +2,6 @@ from scipy.optimize import minimize
 import numpy as np
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
 from simsopt.geo.surfaceobjectives import BoozerSurfaceResidual 
-import ipdb
 
 class BoozerSurface():
     def __init__(self, biotsavart, surface, label, targetlabel):
