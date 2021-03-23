@@ -6,9 +6,14 @@ from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.coilobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
+from simsopt.geo.coilobjectives import (
+    CurveLength,
+    LpCurveCurvature,
+    LpCurveTorsion,
+    MinimumDistance,
+)
 
-parameters['jit'] = False
+parameters["jit"] = False
 
 
 class Testing(unittest.TestCase):
@@ -17,7 +22,7 @@ class Testing(unittest.TestCase):
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
-        rand_scale=0.01
+        rand_scale = 0.01
         order = 4
         nquadpoints = 200
 
@@ -30,15 +35,15 @@ class Testing(unittest.TestCase):
         else:
             # print('Could not find' + curvetype)
             assert False
-        dofs = np.zeros((coil.num_dofs(), ))
+        dofs = np.zeros((coil.num_dofs(),))
         if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
-            dofs[1] = 1.
-            dofs[2*order+3] = 1.
-            dofs[4*order+3] = 1.
+            dofs[1] = 1.0
+            dofs[2 * order + 3] = 1.0
+            dofs[4 * order + 3] = 1.0
         elif curvetype in ["CurveRZFourier"]:
-            dofs[0] = 1.
+            dofs[0] = 1.0
             dofs[1] = 0.1
-            dofs[order+1] = 0.1
+            dofs[order + 1] = 0.1
         else:
             assert False
         coil.set_dofs(dofs)
@@ -58,11 +63,11 @@ class Testing(unittest.TestCase):
         deriv = np.sum(dJ * h)
         err = 1e6
         for i in range(5, 15):
-            eps = 0.5**i
+            eps = 0.5 ** i
             curve.set_dofs(curve_dofs + eps * h)
             Jh = J.J()
-            deriv_est = (Jh-J0)/eps
-            err_new = np.linalg.norm(deriv_est-deriv)
+            deriv_est = (Jh - J0) / eps
+            err_new = np.linalg.norm(deriv_est - deriv)
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
@@ -84,11 +89,11 @@ class Testing(unittest.TestCase):
         assert np.abs(deriv) > 1e-10
         err = 1e6
         for i in range(5, 15):
-            eps = 0.5**i
+            eps = 0.5 ** i
             curve.set_dofs(curve_dofs + eps * h)
             Jh = J.J()
-            deriv_est = (Jh-J0)/eps
-            err_new = np.linalg.norm(deriv_est-deriv)
+            deriv_est = (Jh - J0) / eps
+            err_new = np.linalg.norm(deriv_est - deriv)
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
@@ -110,11 +115,11 @@ class Testing(unittest.TestCase):
         assert np.abs(deriv) > 1e-10
         err = 1e6
         for i in range(10, 20):
-            eps = 0.5**i
+            eps = 0.5 ** i
             curve.set_dofs(curve_dofs + eps * h)
             Jh = J.J()
-            deriv_est = (Jh-J0)/eps
-            err_new = np.linalg.norm(deriv_est-deriv)
+            deriv_est = (Jh - J0) / eps
+            err_new = np.linalg.norm(deriv_est - deriv)
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
@@ -128,8 +133,15 @@ class Testing(unittest.TestCase):
 
     def subtest_curve_minimum_distance_taylor_test(self, curve):
         ncurves = 3
-        curve_t = curve.curve.__class__.__name__ if isinstance(curve, RotatedCurve) else curve.__class__.__name__
-        curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
+        curve_t = (
+            curve.curve.__class__.__name__
+            if isinstance(curve, RotatedCurve)
+            else curve.__class__.__name__
+        )
+        curves = [curve] + [
+            RotatedCurve(self.create_curve(curve_t, False), 0.1 * i, True)
+            for i in range(1, ncurves)
+        ]
         J = MinimumDistance(curves, 0.2)
         for k in range(ncurves):
             curve_dofs = np.asarray(curves[k].get_dofs())
@@ -140,11 +152,11 @@ class Testing(unittest.TestCase):
             assert np.abs(deriv) > 1e-10
             err = 1e6
             for i in range(5, 15):
-                eps = 0.5**i
+                eps = 0.5 ** i
                 curves[k].set_dofs(curve_dofs + eps * h)
                 Jh = J.J()
-                deriv_est = (Jh-J0)/eps
-                err_new = np.linalg.norm(deriv_est-deriv)
+                deriv_est = (Jh - J0) / eps
+                err_new = np.linalg.norm(deriv_est - deriv)
                 # print("err_new %s" % (err_new))
                 assert err_new < 0.55 * err
                 err = err_new
@@ -155,6 +167,7 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_minimum_distance_taylor_test(curve)
+
 
 if __name__ == "__main__":
     unittest.main()
