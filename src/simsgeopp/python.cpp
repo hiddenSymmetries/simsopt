@@ -85,8 +85,8 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
             return PySurfaceRZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PySurfaceRZFourierBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
         }
 
         void fit_to_curve(PyCurve& curve, double radius) {
@@ -110,8 +110,8 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
             return PySurfaceXYZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PySurfaceXYZFourierBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
         }
 
         void fit_to_curve(PyCurve& curve, double radius) {

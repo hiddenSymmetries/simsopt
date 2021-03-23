@@ -19,7 +19,7 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual vector<double> get_dofs() override {
             PYBIND11_OVERLOAD_PURE(vector<double>, SurfaceBase, get_dofs);
         }
-        virtual void gamma_impl(PyArray& data) override {
+        virtual void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_impl, data);
         }
         virtual void gammadash1_impl(PyArray& data) override {
