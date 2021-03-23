@@ -1,5 +1,4 @@
 import numpy as np
-import ipdb
 from simsopt.core.optimizable import Optimizable
 class Surface(Optimizable):
     """
