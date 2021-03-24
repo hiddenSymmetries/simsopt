@@ -340,6 +340,9 @@ class DOFs(pd.DataFrame):
             self.iloc[key, 2] = val[0]
             self.iloc[key, 3] = val[1]
 
+    @property
+    def names(self):
+        return self.index.values
 
 class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
     """
@@ -657,6 +660,16 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
     def local_upper_bounds(self, lub: RealArray) -> None:
         self._dofs.upper_bounds = lub
 
+    @property
+    def dof_names(self) -> StrArray:
+        opts = self.ancestors + [self]
+        return np.concatenate([opt._dofs.names for opt in opts])
+
+    @property
+    def local_dof_names(self) -> StrArray:
+        return self._dofs.names
+
+
     def get(self, key: Key) -> Real:
         """
         Return a the value of degree of freedom specified by its name
@@ -679,6 +692,15 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
             self._dofs.loc[key, '_x'] = new_val
         else:
             self._dofs.iloc[key, 0] = new_val
+
+    @property
+    def dofs_free_status(self) -> BoolArray:
+        opts = self.ancestors + [self]
+        return np.concatenate([opt._dofs.free.to_numpy() for opt in opts])
+
+    @property
+    def local_dofs_free_status(self) -> BoolArray:
+        return self._dofs.free.to_numpy()
 
     def is_fixed(self, key: Key) -> bool:
         """
