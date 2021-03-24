@@ -209,6 +209,7 @@ class Surface {
         virtual vector<double> get_dofs() = 0;
 
         virtual void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gammadash1_impl(Array& data)  { throw logic_error("gammadash1_impl was not implemented"); };
         virtual void gammadash2_impl(Array& data)  { throw logic_error("gammadash2_impl was not implemented"); };
 
