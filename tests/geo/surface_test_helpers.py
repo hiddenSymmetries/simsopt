@@ -1,5 +1,5 @@
-import numpy as np
 from math import pi
+import numpy as np
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
@@ -7,6 +7,10 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
+import os
+from pathlib import Path
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+
 
 class CoilCollection():
     """
@@ -40,7 +44,8 @@ class CoilCollection():
         self.dof_ranges = dof_ranges
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
-    coil_data = np.loadtxt("NCSX_coil_coeffs.dat", delimiter=',')
+    filename = os.path.join(TEST_DIR, 'NCSX_test_data/NCSX_coil_coeffs.dat')
+    coil_data = np.loadtxt(filename, delimiter=',')
     nfp = 3
     num_coils = 3
     coils = [CurveXYZFourier(Nt_coils*ppp, Nt_coils) for i in range(num_coils)]
@@ -90,9 +95,12 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     return s
 
 def get_exact_surface():
-    X = np.loadtxt('./NCSX_xyz_points/X.txt')
-    Y = np.loadtxt('./NCSX_xyz_points/Y.txt')
-    Z = np.loadtxt('./NCSX_xyz_points/Z.txt')
+    filename_X = os.path.join(TEST_DIR, 'NCSX_test_data/X.dat')
+    filename_Y = os.path.join(TEST_DIR, 'NCSX_test_data/Y.dat')
+    filename_Z = os.path.join(TEST_DIR, 'NCSX_test_data/Z.dat')
+    X = np.loadtxt(filename_X)
+    Y = np.loadtxt(filename_Y)
+    Z = np.loadtxt(filename_Z)
     xyz = np.concatenate( (X[:,:, None] ,  Y[:,:,None], Z[:,:, None]), axis = 2) 
     ntor = 16 
     mpol = 10
