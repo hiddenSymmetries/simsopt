@@ -105,11 +105,12 @@ class Rosenbrock(Optimizable):
         t2 = self.term2
         return t1 * t1 + t2 * t2
 
+    @property
     def terms(self):
         """
         Returns term1 and term2 together as a 2-element numpy vector.
         """
-        return np.array([self.term1(), self.term2()])
+        return np.array([self.term1, self.term2])
 
     def dterms(self):
         """
