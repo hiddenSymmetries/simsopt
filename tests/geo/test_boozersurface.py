@@ -52,6 +52,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                 with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
                     self.subtest_boozer_constrained_scalarized_hessian(surfacetype,stellsym)
     def subtest_boozer_constrained_scalarized_gradient(self,surfacetype, stellsym):
+        np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
          
@@ -88,6 +89,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_old = err
         print("################################################################################")
     def subtest_boozer_constrained_scalarized_hessian(self,surfacetype, stellsym):
+        np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
         
@@ -128,6 +130,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                             self.subtest_boozer_constrained_jacobian(surfacetype,stellsym)
 
     def subtest_boozer_constrained_jacobian(self,surfacetype, stellsym):
+        np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
         
@@ -177,9 +180,9 @@ class BoozerSurfaceTests(unittest.TestCase):
         s.fit_to_curve(ma, 0.1)
         iota = -0.3
         
-        tf = Area(s)
-        tf_target = tf.J()
-        boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
+        ar = Area(s)
+        ar_target = ar.J()
+        boozerSurface = BoozerSurface(bs, s, ar, ar_target) 
        
         # compute surface first using LBFGS and an area constraint
         s,iota = boozerSurface.minimize_boozer_scalarized_LBFGS(tol = 1e-12, maxiter = 1000, constraint_weight = 100., iota = iota)
@@ -200,6 +203,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         print("Surface computed using Newton and toroidal flux constraint") 
         s,iota,lm = boozerSurface.minimize_boozer_constrained_newton(tol = 1e-11, maxiter = 10,iota = iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
-        assert np.abs(tf_target - tf.J()) < 1e-14 
+        assert np.abs(tf_target - tf.J()) < 1e-11
+
 if __name__ == "__main__":
     unittest.main()
