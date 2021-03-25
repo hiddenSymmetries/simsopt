@@ -31,18 +31,35 @@ def get_exact_surface():
     return s
 
 class SurfaceXYZFourierTests(unittest.TestCase):
-    def test_aspect_ratio(self):
+    def test_aspect_ratio1(self):
+        """
+        This is a simple aspect ratio validation on a torus with minor radius = 0.1
+        and major radius = 1.
+        """
         mpol = 4
         ntor = 3
         nfp = 2
         phis = np.linspace(0, 1, 31, endpoint=False)
         thetas = np.linspace(0, 1, 31, endpoint=False)
+        
 
         stellsym = False
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
-        self.assertAlmostEqual(s.aspect_ratio() , 10)
+        s.xc = s.xc * 0
+        s.ys = s.xs * 0
+        s.zs = s.zs * 0
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1,r2])
+        minor_R = np.min([r1,r2])
+        s.xc[0, ntor] = major_R
+        s.xc[1, ntor] = minor_R
+        s.zs[1, ntor] = minor_R
+        
+        print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
+        self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
 
-    def test_aspect_ratio(self):
+    def test_aspect_ratio2(self):
         """
         This test validates the VMEC aspect ratio computation in the Surface class by 
         comparing with an approximation based on cross section computations.
