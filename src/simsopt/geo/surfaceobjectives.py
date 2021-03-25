@@ -47,8 +47,8 @@ class ToroidalFlux(object):
         Calculate the derivatives with respect to the surface coefficients
         """
         ntheta = self.surface.gamma().shape[1]
-        A = self.biotsavart.A()
         dA_by_dX = self.biotsavart.dA_by_dX()
+        A = self.biotsavart.A()
         dgammadash2 = self.surface.gammadash2()[self.idx,:]
         dgammadash2_by_dc = self.surface.dgammadash2_by_dcoeff()[self.idx,:]
 
@@ -65,8 +65,8 @@ class ToroidalFlux(object):
         """
         ntheta = self.surface.gamma().shape[1]
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
-        dA_by_dX = self.biotsavart.dA_by_dX()
         d2A_by_dXdX = self.biotsavart.d2A_by_dXdX().reshape((ntheta,3,3,3))
+        dA_by_dX = self.biotsavart.dA_by_dX()
         dA_dc = np.sum(dA_by_dX[...,:,None] * dx_dc[...,None,:],axis=1)
         d2A_dcdc = np.einsum('jkpl,jpn,jkm->jlmn', d2A_by_dXdX, dx_dc, dx_dc)
 
@@ -82,7 +82,7 @@ class ToroidalFlux(object):
 
 
 
-def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
+def boozer_surface_residual(surface, iota, biotsavart, derivatives = 0):
     """
     For a given surface with points x on it, this function computes the
     residual
@@ -104,10 +104,7 @@ def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
 
     biotsavart.set_points(xsemiflat)
 
-
-    B = biotsavart.B(compute_derivatives = derivatives).reshape((nphi, ntheta, 3))
-    dB_by_dX    = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi,ntheta,3,3,3))
+    B = biotsavart.B(compute_derivatives=derivatives).reshape((nphi, ntheta, 3))
     
     tang = xphi + iota * xtheta
     # G = np.sum(np.abs(biotsavart.coil_currents))
@@ -123,6 +120,7 @@ def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
     dxphi_dc = surface.dgammadash1_by_dcoeff()
     dxtheta_dc = surface.dgammadash2_by_dcoeff()
 
+    dB_by_dX    = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
     dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
     
     dresidual_dc =  dB_dc \
@@ -136,8 +134,7 @@ def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
         return residual_flattened, dresidual_dc_flattened, dresidual_diota_flattened
 
 
-
-
+    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi,ntheta,3,3,3))
     B2 = np.sum( B**2, axis = -1)
     d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
     dB2_dc = 2.* np.einsum('ijl,ijlm->ijm', B, dB_dc)
@@ -161,4 +158,3 @@ def BoozerSurfaceResidual(surface, iota, biotsavart, derivatives = 0):
     return residual_flattened, \
            dresidual_dc_flattened, dresidual_diota_flattened,\
            d2residual_by_dcdc_flattened, d2residual_by_dcdiota_flattened, d2residual_by_diotadiota_flattened
-

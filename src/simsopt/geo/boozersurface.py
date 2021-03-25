@@ -1,7 +1,7 @@
 from scipy.optimize import minimize
 import numpy as np
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
-from simsopt.geo.surfaceobjectives import BoozerSurfaceResidual 
+from simsopt.geo.surfaceobjectives import boozer_surface_residual 
 
 class BoozerSurface():
     def __init__(self, biotsavart, surface, label, targetlabel):
@@ -10,7 +10,7 @@ class BoozerSurface():
         self.label = label
         self.targetlabel = targetlabel
 
-    def BoozerConstrainedScalarized(self,x, derivatives = 0,  constraint_weight = 1.):
+    def boozer_constrained_scalarized(self,x, derivatives = 0,  constraint_weight = 1.):
         sdofs = x[:-1]
         iota = x[-1]
         s = self.surface
@@ -19,7 +19,7 @@ class BoozerSurface():
         s.set_dofs(sdofs)
 
         if derivatives == 0:
-            r = BoozerSurfaceResidual(s, iota, bs, derivatives = 0)
+            r = boozer_surface_residual(s, iota, bs, derivatives = 0)
             
             l = self.label.J()
             rl = (l-self.targetlabel)
@@ -31,7 +31,7 @@ class BoozerSurface():
             return val
 
         elif derivatives == 1:
-            r, Js, Jiota = BoozerSurfaceResidual(s, iota, bs, derivatives = 1)
+            r, Js, Jiota = boozer_surface_residual(s, iota, bs, derivatives = 1)
             J = np.concatenate((Js, Jiota), axis=1)
             dl  = np.zeros( x.shape )
             dry  = np.zeros( x.shape )
@@ -57,7 +57,7 @@ class BoozerSurface():
             return val,dval
 
         elif derivatives == 2:
-            r, Js, Jiota, Hs, Hsiota, Hiota = BoozerSurfaceResidual(s, iota, bs, derivatives = 2)
+            r, Js, Jiota, Hs, Hsiota, Hiota = boozer_surface_residual(s, iota, bs, derivatives = 2)
             J = np.concatenate((Js, Jiota), axis=1)
             Htemp = np.concatenate((Hs,Hsiota[...,None]),axis=2)
             col = np.concatenate( (Hsiota, Hiota), axis = 1)
@@ -89,7 +89,7 @@ class BoozerSurface():
             raise "Not implemented"
 
 
-    def BoozerConstrained(self,xl, derivatives = 0):
+    def boozer_constrained(self,xl, derivatives = 0):
         sdofs = xl[:-4]
         iota = xl[-4]
         lm = xl[-3:]
@@ -98,7 +98,7 @@ class BoozerSurface():
         s.set_dofs(sdofs)
         
         if derivatives == 0:
-            r, Js, Jiota = BoozerSurfaceResidual(s, iota, bs, derivatives = 1)
+            r, Js, Jiota = boozer_surface_residual(s, iota, bs, derivatives = 1)
             J = np.concatenate((Js, Jiota), axis=1)
             dl  = np.zeros( (xl.shape[0]-3,) )
     
@@ -119,7 +119,7 @@ class BoozerSurface():
             res[-1] = rz
             return res
         elif derivatives == 1:
-            r, Js, Jiota, Hs, Hsiota, Hiota = BoozerSurfaceResidual(s, iota, bs, derivatives = 2)
+            r, Js, Jiota, Hs, Hsiota, Hiota = boozer_surface_residual(s, iota, bs, derivatives = 2)
             J = np.concatenate((Js, Jiota), axis=1)
             Htemp = np.concatenate((Hs,Hsiota[...,None]),axis=2)
             col = np.concatenate( (Hsiota, Hiota), axis = 1)
@@ -157,7 +157,7 @@ class BoozerSurface():
             dres[ -1,:-3] =  drz
             return res,dres
  
-    def minimizeBoozerScalarizedLBFGS(self,tol = 1e-3, maxiter = 1000, constraint_weight = 1., iota = 0.):
+    def minimize_boozer_scalarized_LBFGS(self,tol = 1e-3, maxiter = 1000, constraint_weight = 1., iota = 0.):
         """
         This function tries to find the surface that approximately solves
         min || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
@@ -169,7 +169,7 @@ class BoozerSurface():
 
         s = self.surface
         x = np.concatenate((s.get_dofs(), [iota]))
-        res = minimize(lambda x: self.BoozerConstrainedScalarized(x,derivatives = 1, constraint_weight = constraint_weight), \
+        res = minimize(lambda x: self.boozer_constrained_scalarized(x,derivatives = 1, constraint_weight = constraint_weight), \
                 x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'ftol' : tol,'gtol' : tol, 'maxcor' : 50})
         print(res.fun)
         s.set_dofs(res.x[:-1])
@@ -177,7 +177,7 @@ class BoozerSurface():
         return s,iota
        
 
-    def minimizeBoozerScalarizedNewton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0.):
+    def minimize_boozer_scalarized_newton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0.):
         """
         This function does the same as the above, but instead of LBFGS it uses
         Newton's method.
@@ -186,10 +186,10 @@ class BoozerSurface():
         x = np.concatenate((s.get_dofs(), [iota]))
         i = 0
         
-        val,dval = self.BoozerConstrainedScalarized(x, derivatives = 1, constraint_weight = constraint_weight)
+        val,dval = self.boozer_constrained_scalarized(x, derivatives = 1, constraint_weight = constraint_weight)
         norm =np.linalg.norm(dval) 
         while i < maxiter and norm > tol:
-            val,dval,d2val = self.BoozerConstrainedScalarized(x, derivatives = 2, constraint_weight = constraint_weight)
+            val,dval,d2val = self.boozer_constrained_scalarized(x, derivatives = 2, constraint_weight = constraint_weight)
             dx = np.linalg.solve(d2val,dval)
             x = x - dx
             norm = np.linalg.norm(dval) 
@@ -199,7 +199,7 @@ class BoozerSurface():
         iota = x[-1]
         return s, iota
 
-    def minimizeBoozerConstrainedNewton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = [0.,0.,0.] ):
+    def minimize_boozer_constrained_newton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = [0.,0.,0.] ):
         """
         This function solves the constrained optimization problem
         min || f(x) ||^2_2
@@ -211,11 +211,11 @@ class BoozerSurface():
         """
         s = self.surface 
         xl = np.concatenate( (s.get_dofs(), [iota], lm) )
-        val,dval = self.BoozerConstrained(xl, derivatives = 1)
+        val,dval = self.boozer_constrained(xl, derivatives = 1)
         norm =np.linalg.norm(val) 
         i = 0   
         while i < maxiter and norm > tol:
-            val,dval = self.BoozerConstrained(xl, derivatives = 1)
+            val,dval = self.boozer_constrained(xl, derivatives = 1)
             if s.stellsym:
                 dx = np.linalg.solve(dval[:-2,:-2],val[:-2])
                 xl[:-2] = xl[:-2] - dx
