@@ -33,8 +33,8 @@ def get_exact_surface():
 class SurfaceXYZFourierTests(unittest.TestCase):
     def test_aspect_ratio1(self):
         """
-        This is a simple aspect ratio validation on a torus with minor radius = 0.1
-        and major radius = 1.
+        This is a simple aspect ratio validation on a torus with minor radius = r1
+        and major radius = r2, where 0.1 <= r1 <= r2 are random numbers
         """
         mpol = 4
         ntor = 3
@@ -90,6 +90,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         rel_err = np.abs(AR-AR_cs) / AR
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-4
+
 #    def test_cross_section(self):
 #        s = get_exact_surface()
 #        cs = s.cross_section(2. * np.pi*2.1342432, theta_resolution = 50)
