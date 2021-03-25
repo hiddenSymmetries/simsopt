@@ -53,6 +53,14 @@ class Surface(Optimizable):
         curve.
         """
 
+        # phi is assumed to be between [-pi,pi] 
+        if phi > np.pi:
+            n = np.floor( np.abs(phi) / np.pi )
+            phi = phi - n * np.pi
+        if phi < -np.pi:
+            n = np.floor( np.abs(phi) / np.pi )
+            phi = phi + n * np.pi
+        
         varphi_resolution = 8
         if theta_resolution is None:
             theta_resolution = self.gamma().shape[1]
@@ -83,14 +91,13 @@ class Surface(Optimizable):
         prefix_sum = np.cumsum(inc, axis = 0)
         varphigrid[1:] = varphigrid[1:] + prefix_sum
         
-        idx_right = np.argmax( cyl_phi > 0 , axis = 0)
+        idx_right = np.argmax( cyl_phi >= phi , axis = 0)
         idx_left = idx_right-1
         cyl_phi_left  = cyl_phi[ idx_left, np.arange(idx_left.size) ]
         cyl_phi_right = cyl_phi[ idx_right, np.arange(idx_right.size) ]
         varphi_left  = varphigrid[ idx_left, np.arange(idx_left.size) ]
         varphi_right = varphigrid[ idx_right, np.arange(idx_right.size) ]
         
-
         def varphi2phi(varphi_in, left_bound, right_bound):
             gamma = np.zeros( (varphi_in.size, 3) )
             self.gamma_lin(gamma,varphi_in,theta)
@@ -105,7 +112,7 @@ class Surface(Optimizable):
                 b = (a + c)/2.
                 phib = varphi2phi(b, phia, phic)
                 
-                flag1 = (phia - phi) * (phib - phi) > 0
+                flag1 = (phia - phi) * (phib - phi) >= 0
                 flag2 = (phia - phi) * (phib - phi) < 0
                 phia = np.where( flag1 , phib, phia)
                 phic = np.where( flag2 , phib, phic)
