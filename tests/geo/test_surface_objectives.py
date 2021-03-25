@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
-from surface_test_helpers import CoilCollection, get_ncsx_data,get_surface 
+from surface_test_helpers import CoilCollection, get_ncsx_data,get_surface,get_exact_surface 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
 stellsym_list = [True, False]
@@ -63,6 +63,26 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 
 
 class ToroidalFluxTests(unittest.TestCase):
+    def test_toroidal_flux_is_constant(self):
+        # this test ensures that the toroidal flux does not change, regardless
+        # of the cross section (varphi = constant) across which it is computed
+        s = get_exact_surface()
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        
+        gamma = s.gamma()
+        num_phi = gamma.shape[0]
+        
+        tf_list = np.zeros( (num_phi,) )
+        for idx in range(num_phi):
+            tf = ToroidalFlux(s, bs_tf,idx = idx)
+            tf_list[idx] = tf.J()
+        mean_tf = np.mean(tf_list)
+
+        max_err = np.max( np.abs(mean_tf - tf_list) ) / mean_tf
+        assert max_err < 1e-2
+
     def test_toroidal_flux_first_derivative(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
