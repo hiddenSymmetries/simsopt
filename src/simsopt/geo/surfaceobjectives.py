@@ -113,7 +113,7 @@ def boozer_surface_residual(surface, iota, biotsavart, derivatives = 0):
     
     residual_flattened = residual.reshape((nphi*ntheta*3, ))
     if derivatives == 0:
-        return residual_flattened
+        return residual_flattened, 
 
 
     dx_dc = surface.dgamma_by_dcoeff()
