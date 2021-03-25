@@ -32,19 +32,24 @@ def get_exact_surface():
 
 class SurfaceXYZFourierTests(unittest.TestCase):
  # definitely need a better test case for the aspect ratio computation
-    def test_aspect_ratio(self):
-        mpol = 4
-        ntor = 3
-        nfp = 2
-        phis = np.linspace(0, 1, 31, endpoint=False)
-        thetas = np.linspace(0, 1, 31, endpoint=False)
-
-        stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
-        self.assertAlmostEqual(s.aspect_ratio() , 10)
+#    def test_aspect_ratio(self):
+#        mpol = 4
+#        ntor = 3
+#        nfp = 2
+#        phis = np.linspace(0, 1, 31, endpoint=False)
+#        thetas = np.linspace(0, 1, 31, endpoint=False)
+#
+#        stellsym = False
+#        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+#        self.assertAlmostEqual(s.aspect_ratio() , 10)
     def test_cross_section(self):
         s = get_exact_surface()
-        s.cross_section(0.)
+        cs = s.cross_section(2. * np.pi * 0.25, theta_resolution = 50)
+        cs = np.concatenate( (cs, cs[0,:][None,:]) , axis = 0 )
+        import matplotlib.pyplot as plt
+        plt.plot( np.sqrt(cs[:,0]**2 + cs[:,1]**2), cs[:,2])
+        plt.axis('equal')
+        plt.show()
 #class SurfaceRZFourierTests(unittest.TestCase):
 #    def test_init(self):
 #        s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)

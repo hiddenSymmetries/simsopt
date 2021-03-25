@@ -46,57 +46,57 @@ class Surface(Optimizable):
 
     def cross_section(self, phi, theta_resolution = None):
         """
-        This function takes in a list of the cylindrical angle phis and returns the cross
+        This function takes in a cylindrical angle phi and returns the cross
         section of the surface in that plane. This is done using the method of bisection.
 
         This function assumes that the surface intersection with the plane is a single
         curve.
         """
-#        if theta_resolution is None:
-#            theta_resolution = self.numquadpoints_theta
 
-        gamma = self.gamma()
-        varphi,theta = np.meshgrid(self.quadpoints_phi,self.quadpoints_theta)
-        varphi = varphi.T
-        theta = theta.T
+        varphi_resolution = 8
+        if theta_resolution is None:
+            theta_resolution = self.gamma().shape[1]
+        varphi = np.linspace(0,1,varphi_resolution, endpoint = False)
+        theta = np.linspace(0,1,theta_resolution, endpoint = False)
+        varphigrid,thetagrid = np.meshgrid(varphi,theta)
+        varphigrid = varphigrid.T
+        thetagrid = thetagrid.T
 
+        gamma = np.zeros( (varphigrid.shape[0], varphigrid.shape[1],3) )
+        self.gamma_impl(gamma, varphi, theta)
         cyl_phi = np.arctan2(gamma[:,:,1], gamma[:,:,0])
         
         # reorder varphi, theta with respect to increasing cylindrical phi
         idx = np.argsort(cyl_phi,axis = 0)
         cyl_phi = np.take_along_axis(cyl_phi,idx, axis=0)
-        varphi      = np.take_along_axis(varphi, idx, axis=0)
-        theta       = np.take_along_axis(theta,  idx, axis=0)
+        varphigrid      = np.take_along_axis(varphigrid, idx, axis=0)
         
         # make all matrices periodic
         cyl_phi = np.concatenate( (cyl_phi[-1,:][None,:]-2.*np.pi, cyl_phi, cyl_phi[0,:][None,:]+2.*np.pi) , axis = 0)
-        varphi = np.concatenate( (varphi[-1,:][None,:]-1., varphi, varphi[0,:][None,:]+1.) , axis = 0)
-        theta  = np.concatenate( (theta[-1,:][None,:], theta, theta[0,:][None,:]) , axis = 0)
+        varphigrid = np.concatenate( (varphigrid[-1,:][None,:]-1., varphigrid, varphigrid[0,:][None,:]+1.) , axis = 0)
         
         # ensure that varphi does not have massive jumps
-        diff = varphi[1:]-varphi[:-1]
+        diff = varphigrid[1:]-varphigrid[:-1]
         pinc = np.abs(diff+1) < np.abs(diff)
         minc = np.abs(diff-1) < np.abs(diff)
         inc = pinc.astype(int) - minc.astype(int)
         prefix_sum = np.cumsum(inc, axis = 0)
-        varphi[1:] = varphi[1:] + prefix_sum
+        varphigrid[1:] = varphigrid[1:] + prefix_sum
         
         idx_right = np.argmax( cyl_phi > 0 , axis = 0)
         idx_left = idx_right-1
         cyl_phi_left  = cyl_phi[ idx_left, np.arange(idx_left.size) ]
         cyl_phi_right = cyl_phi[ idx_right, np.arange(idx_right.size) ]
-        varphi_left  = varphi[ idx_left, np.arange(idx_left.size) ]
-        varphi_right = varphi[ idx_right, np.arange(idx_right.size) ]
+        varphi_left  = varphigrid[ idx_left, np.arange(idx_left.size) ]
+        varphi_right = varphigrid[ idx_right, np.arange(idx_right.size) ]
         
-        varphi_lin = self.quadpoints_phi
-        theta_lin = self.quadpoints_theta
+
         def varphi2phi(varphi_in, left_bound, right_bound):
             gamma = np.zeros( (varphi_in.size, 3) )
-            self.gamma_lin(gamma,varphi_in,theta_lin)
+            self.gamma_lin(gamma,varphi_in,theta)
             phi = np.arctan2( gamma[:,1], gamma[:,0] )
             pinc = (phi < left_bound ).astype(int) 
             minc = (phi > right_bound).astype(int)
-            phi = np.arctan2(gamma[:,1], gamma[:,0])
             phi = phi + 2.*np.pi *(pinc - minc)
             return phi
         def bisection(phia,a,phic,c):
@@ -105,18 +105,20 @@ class Surface(Optimizable):
                 b = (a + c)/2.
                 phib = varphi2phi(b, phia, phic)
                 
-                phia = np.where( (phia - phi) * (phib - phi) > 0, phib, phia)
-                phic = np.where( (phia - phi) * (phib - phi) < 0, phib, phic)
-                a = np.where( (phia - phi) * (phib - phi) > 0, b, a)
-                c = np.where( (phia - phi) * (phib - phi) < 0, b, c)
+                flag1 = (phia - phi) * (phib - phi) > 0
+                flag2 = (phia - phi) * (phib - phi) < 0
+                phia = np.where( flag1 , phib, phia)
+                phic = np.where( flag2 , phib, phic)
+                a = np.where( flag1, b, a)
+                c = np.where( flag2, b, c)
                 err = np.max( np.abs(a-c) )
             
             b = (a + c)/2.
             return b          
         # bisect cyl_phi to compute the cross section
         sol = bisection( cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
-        gamma = np.zeros( (sol.size, 3) )
-        self.gamma_lin( gamma, sol, theta_lin ) 
+        cross_section = np.zeros( (sol.size, 3) )
+        self.gamma_lin( cross_section, sol, theta ) 
         return cross_section
 
     def aspect_ratio(self):

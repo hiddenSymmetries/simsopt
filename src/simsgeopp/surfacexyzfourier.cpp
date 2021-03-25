@@ -180,7 +180,7 @@ class SurfaceXYZFourier : public Surface<Array> {
         void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
             int numquadpoints = quadpoints_phi.size();
             data *= 0.;
-            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            for (int k1 = 0; k1 < numquadpoints; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 double theta  = 2*M_PI*quadpoints_theta[k1];
                 for (int m = 0; m <= mpol; ++m) {
