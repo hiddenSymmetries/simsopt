@@ -20,8 +20,37 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
         for d in self.dependencies:
             d.invalidate_cache()
 
-    # def kappa_impl(self, kappa):
-    #     Curve.kappa_impl(self, kappa)
+    @staticmethod
+    def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
+        """
+        This function loads a file containing Fourier coefficients for several coils.
+        The file is expected to have 6 * num_coils many columns, and order+1 many rows.
+        The columns are in the following order,
+
+            sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
+
+        """
+        coil_data = np.loadtxt(filename, delimiter=delimiter)
+
+        assert coil_data.shape[1] % 6 == 0
+        assert order <= coil_data.shape[0]-1
+
+        num_coils = coil_data.shape[1]//6
+        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
+        for ic in range(num_coils):
+            dofs = coils[ic].dofs
+            dofs[0][0] = coil_data[0, 6*ic + 1]
+            dofs[1][0] = coil_data[0, 6*ic + 3]
+            dofs[2][0] = coil_data[0, 6*ic + 5]
+            for io in range(0, min(order, coil_data.shape[0]-1)):
+                dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
+                dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
+                dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
+                dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
+                dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
+                dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
+            coils[ic].set_dofs(np.concatenate(dofs))
+        return coils
 
 
 
