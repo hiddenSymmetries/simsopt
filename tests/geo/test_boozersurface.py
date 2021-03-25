@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from math import pi
+from simsopt.geo.coilcollection import CoilCollection
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -10,7 +11,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
 from simsopt.geo.surfaceobjectives import Area 
-from surface_test_helpers import CoilCollection, get_ncsx_data,get_surface, get_exact_surface 
+from surface_test_helpers import get_ncsx_data,get_surface, get_exact_surface 
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
