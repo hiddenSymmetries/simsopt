@@ -54,12 +54,11 @@ class Surface(Optimizable):
         """
 
         # phi is assumed to be between [-pi,pi] 
+        phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
         if phi > np.pi:
-            n = np.floor( np.abs(phi) / np.pi )
-            phi = phi - n * np.pi
+            phi = phi - 2. * np.pi
         if phi < -np.pi:
-            n = np.floor( np.abs(phi) / np.pi )
-            phi = phi + n * np.pi
+            phi = phi + 2. * np.pi
         
         varphi_resolution = 8
         if theta_resolution is None:
