@@ -7,28 +7,9 @@ from simsopt.core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from surface_test_helpers import CoilCollection, get_ncsx_data,get_surface, get_exact_surface 
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
-
-def get_exact_surface():
-    X = np.loadtxt('./NCSX_xyz_points/X.txt')
-    Y = np.loadtxt('./NCSX_xyz_points/Y.txt')
-    Z = np.loadtxt('./NCSX_xyz_points/Z.txt')
-    xyz = np.concatenate( (X[:,:, None] ,  Y[:,:,None], Z[:,:, None]), axis = 2) 
-    ntor = 16 
-    mpol = 10
-    
-    nfp = 1
-    stellsym = False
-    nphi = 33
-    ntheta = 21
-    
-    phis = np.linspace(0, 1, nphi, endpoint=False)
-    thetas = np.linspace(0, 1, ntheta, endpoint=False)
-    s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym=stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
-    
-    s.least_squares_fit(xyz)
-    return s
 
 class SurfaceXYZFourierTests(unittest.TestCase):
     def test_aspect_ratio1(self):
@@ -100,7 +81,6 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 #        from mayavi import mlab
 #        mlab.points3d(cs[:,0], cs[:,1], cs[:,2])
 #        s.plot()
-
 
 class SurfaceRZFourierTests(unittest.TestCase):
     def test_init(self):
