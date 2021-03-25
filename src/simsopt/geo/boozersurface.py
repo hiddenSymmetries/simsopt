@@ -160,7 +160,7 @@ class BoozerSurface():
     def minimize_boozer_scalarized_LBFGS(self,tol = 1e-3, maxiter = 1000, constraint_weight = 1., iota = 0.):
         """
         This function tries to find the surface that approximately solves
-        min || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
+        min 0.5*|| f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
         +constraint_weight * (y(varphi=0,theta=0) -0)^2
         +constraint_weight * (z(varphi=0,theta=0) -0)^2
         where || f(x)||^2_2 is the sum of squares of the Boozer residual at
@@ -202,7 +202,7 @@ class BoozerSurface():
     def minimize_boozer_constrained_newton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = [0.,0.,0.] ):
         """
         This function solves the constrained optimization problem
-        min || f(x) ||^2_2
+        min 0.5 * || f(x) ||^2_2
         subject to 
         label - targetlabel = 0
         y(varphi=0,theta=0) - 0 = 0
