@@ -44,7 +44,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi, theta_resolution = None):
+    def cross_section(self, phi, varphi_resolution = None, theta_resolution = None):
         """
         This function takes in a cylindrical angle phi and returns the cross
         section of the surface in that plane. This is done using the method of bisection.
@@ -60,7 +60,8 @@ class Surface(Optimizable):
         if phi < -np.pi:
             phi = phi + 2. * np.pi
         
-        varphi_resolution = 8
+        if varphi_resolution is None:
+            varphi_resolution = self.gamma().shape[0]
         if theta_resolution is None:
             theta_resolution = self.gamma().shape[1]
         varphi = np.linspace(0,1,varphi_resolution, endpoint = False)

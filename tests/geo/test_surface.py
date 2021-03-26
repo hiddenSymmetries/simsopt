@@ -117,17 +117,16 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         comparing with an approximation based on cross section computations.
         """
         s = get_exact_surface()
-        num_cs = 100
-        cs_area = np.zeros( (num_cs,) )
+        vpr = s.quadpoints_phi.size  + 20 
+        tr = s.quadpoints_theta.size + 20
+        cs_area = np.zeros( (vpr,) )
         
-        angle = np.linspace( -np.pi, np.pi, num_cs , endpoint = False)
-        for idx in range(num_cs):
-            if idx % 10 == 0:
-                print("cs number:", idx, angle[idx])
-            cs = s.cross_section(angle[idx], theta_resolution = 100)
+        from scipy import fftpack
+        angle = np.linspace(-np.pi,np.pi, vpr, endpoint = False)
+        for idx in range(angle.size):
+            cs = s.cross_section(angle[idx], varphi_resolution = vpr, theta_resolution = tr )
             R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
             Z = cs[:,2]
-            from scipy import fftpack
             Rp = fftpack.diff(R)
             Zp = fftpack.diff(Z)
             ar = np.mean(Z*Rp) * 2. * np.pi
