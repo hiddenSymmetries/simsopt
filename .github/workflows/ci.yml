@@ -22,6 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.7, 3.8]
+        test-type: [unit, integrated]
 
     steps:
     # First print out lots of information. We do this in separate 
@@ -172,33 +173,17 @@ jobs:
       run: pip install -v .
 
     - name: Run mpi unit tests
+      if: "contains(matrix.test-type, 'unit')"
       run: ./run_tests_mpi
 
     - name: Run serial unit tests
+      if: "contains(matrix.test-type, 'unit')"
       run: |
         cd tests
         python3 -m unittest -v
 
-    - name: Run 1dof integrated test
+    - name: Run integrated tests
+      if: "contains(matrix.test-type, 'integrated')"
       run: |
-        pwd
         cd examples
-        python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-
-    - name: Run 1dof integrated test, 2 procs
-      run: |
-        pwd
-        cd examples
-        mpiexec -n 2 python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-
-    - name: Run test of Garabedian VMEC optimization, 1 proc
-      run: |
-        pwd
-        cd examples
-        mpiexec -n 1 python3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-
-    - name: Run 2dof integrated test
-      run: cd examples && python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-
-    - name: Run 2dof integrated test, 2 procs
-      run: cd examples && mpiexec -n 2 python3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+        ./run_examples
