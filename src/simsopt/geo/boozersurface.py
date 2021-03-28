@@ -199,7 +199,7 @@ class BoozerSurface():
         s.set_dofs(x[:-1])
         iota = x[-1]
         
-        if norm < tol:
+        if norm <= tol:
             message = "SUCCESS : norm of optimality condition is less than tol"
         else:
             message = "FAIL : maximum number of iterations exceeded"
@@ -262,7 +262,7 @@ class BoozerSurface():
         else:
             lm = xl[-3:]
         
-        if norm < tol:
+        if norm <= tol:
             message = "SUCCESS : norm of optimality condition is less than tol"
         else:
             message = "FAIL : maximum number of iterations exceeded"
