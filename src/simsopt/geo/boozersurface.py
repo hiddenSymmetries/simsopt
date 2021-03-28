@@ -174,7 +174,9 @@ class BoozerSurface():
                 x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'ftol' : tol,'gtol' : tol, 'maxcor' : 50})
         s.set_dofs(res.x[:-1])
         iota = res.x[-1]
-        return s,iota, res.message
+
+        out = (s,iota,res.message)
+        return out
        
 
     def minimize_boozer_penalty_constraints_newton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0.):
@@ -201,8 +203,9 @@ class BoozerSurface():
             message = "SUCCESS : norm of optimality condition is less than tol"
         else:
             message = "FAIL : maximum number of iterations exceeded"
-
-        return s, iota, message
+        
+        out = (s, iota, message)
+        return out
 
     def minimize_boozer_penalty_constraints_ls(self, tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., method='lm'):
         """
@@ -216,7 +219,9 @@ class BoozerSurface():
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         s.set_dofs(res.x[:-1])
         iota = res.x[-1]
-        return s,iota, res.message
+
+        out = (s,iota,res.message)
+        return out
 
     def minimize_boozer_exact_constraints_newton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = [0.,0.,0.] ):
         """
@@ -261,7 +266,7 @@ class BoozerSurface():
             message = "SUCCESS : norm of optimality condition is less than tol"
         else:
             message = "FAIL : maximum number of iterations exceeded"
-
-        return s, iota, lm, message
-
+        
+        out = (s,iota, lm, message)
+        return out
 
