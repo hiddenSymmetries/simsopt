@@ -224,7 +224,9 @@ class BoozerSurface():
             y(varphi=0,theta=0) - 0 = 0
             z(varphi=0,theta=0) - 0 = 0
 
-        using Lagrange multipliers and Newton's method.
+        using Lagrange multipliers and Newton's method.  The final two constraints
+        are not necessary for stellarator symmetric surfaces as they are automatically
+        satisfied by the SurfaceXYZFourier parameterization.
         """
         s = self.surface 
         xl = np.concatenate( (s.get_dofs(), [iota], lm) )

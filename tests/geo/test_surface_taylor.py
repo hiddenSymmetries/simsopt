@@ -72,11 +72,34 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     s.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
     return s
 
+def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = None):
+    np.random.seed(1)
+    if direction1 is None:
+        direction1 = np.random.rand(*(x.shape))-0.5
+    if direction2 is None:
+        direction2 = np.random.rand(*(x.shape))-0.5
+    
+
+    f0 = f(x)
+    df0 = df(x) @ direction1
+    d2fval = direction2.T @ d2f(x) @ direction1
+    if epsilons is None:
+        epsilons = np.power(2., -np.asarray(range(7, 20)))
+    print("################################################################################")
+    err_old = 1e9
+    for eps in epsilons:
+        fpluseps = df(x + eps * direction2) @ direction1
+        d2fest = (fpluseps-df0)/eps
+        err = np.abs(d2fest - d2fval)
+        
+        print(err/err_old)
+        assert err < 0.6 * err_old
+        err_old = err
+    print("################################################################################")
 
 class Testing(unittest.TestCase):
 
     surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier"]
-
     def subtest_surface_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
@@ -149,6 +172,52 @@ class Testing(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_area_coefficient_derivative(s)
+
+    def test_surface_area_coefficient_second_derivative(self):
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_surface_area_coefficient_second_derivative(s)
+    def subtest_surface_area_coefficient_second_derivative(self, s):
+        coeffs = s.get_dofs()
+        s.invalidate_cache()
+        def f(dofs):
+            s.set_dofs(dofs)
+            return s.area()
+        def df(dofs):
+            s.set_dofs(dofs)
+            return s.darea_by_dcoeff()
+        def d2f(dofs):
+            s.set_dofs(dofs)
+            return s.d2area_by_dcoeffdcoeff()
+        taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+
+    def test_volume_coefficient_second_derivative(self):
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_volume_coefficient_second_derivative(s)
+    def subtest_volume_coefficient_second_derivative(self, s):
+        coeffs = s.get_dofs()
+        s.invalidate_cache()
+        def f(dofs):
+            s.set_dofs(dofs)
+            return s.volume()
+        def df(dofs):
+            s.set_dofs(dofs)
+            return s.dvolume_by_dcoeff()
+        def d2f(dofs):
+            s.set_dofs(dofs)
+            return s.d2volume_by_dcoeffdcoeff()
+        taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+
+
+
+
 
     def subtest_surface_volume_coefficient_derivative(self, s):
         coeffs = s.get_dofs()

@@ -246,6 +246,28 @@ class Surface {
                 }
             }
         };
+        void d2normal_by_dcoeffdcoeff_impl(Array& data)  { 
+            auto dg1 = this->gammadash1();
+            auto dg2 = this->gammadash2();
+            auto dg1_dc = this->dgammadash1_by_dcoeff();
+            auto dg2_dc = this->dgammadash2_by_dcoeff();
+            int ndofs = num_dofs();
+            for (int i = 0; i < numquadpoints_phi; ++i) {
+                for (int j = 0; j < numquadpoints_theta; ++j) {
+                    for (int m = 0; m < ndofs; ++m ) {
+                        for (int n = 0; n < ndofs; ++n ) {
+                            data(i, j, 0, m, n) =  dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n);
+                            data(i, j, 0, m, n) += dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m);
+                            data(i, j, 1, m, n) =  dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n);
+                            data(i, j, 1, m, n) += dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m);
+                            data(i, j, 2, m, n) =  dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n);
+                            data(i, j, 2, m, n) += dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m);
+                        }
+                    }
+                }
+            }
+        };
+
 
         double area() {
             double area = 0.;
@@ -272,6 +294,36 @@ class Surface {
             }
             data *= 1./ (numquadpoints_phi*numquadpoints_theta);
         }
+        void d2area_by_dcoeffdcoeff_impl(Array& data) {
+            data *= 0.;
+            double norm, dnorm_dcoeffn;
+            auto nor = this->normal();
+            auto dnor_dc = this->dnormal_by_dcoeff();
+            auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+            int ndofs = num_dofs();
+            for (int i = 0; i < numquadpoints_phi; ++i) {
+                for (int j = 0; j < numquadpoints_theta; ++j) {
+                    for (int m = 0; m < ndofs; ++m) {
+                        for (int n = 0; n < ndofs; ++n) {
+                            norm = sqrt(nor(i,j,0)*nor(i,j,0)
+                                      + nor(i,j,1)*nor(i,j,1) 
+                                      + nor(i,j,2)*nor(i,j,2));
+                            dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0) 
+                                           + dnor_dc(i,j,1,n)*nor(i,j,1) 
+                                           + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
+                            data(m,n) +=  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
+                                        + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
+                                        + dnor_dc(i,j,2,m) * (dnor_dc(i,j,2,n) * norm - dnorm_dcoeffn * nor(i,j,2)) / (norm*norm)
+                                        + d2nor_dcdc(i,j,0,m,n) * nor(i,j,0) / norm
+                                        + d2nor_dcdc(i,j,1,m,n) * nor(i,j,1) / norm
+                                        + d2nor_dcdc(i,j,2,m,n) * nor(i,j,2) / norm;
+                        }
+                    }
+                }
+            }
+            data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+        }
+
 
         double volume() {
             double volume = 0.;
@@ -302,6 +354,31 @@ class Surface {
             }
             data *= 1./ (numquadpoints_phi*numquadpoints_theta);
         }
+        void d2volume_by_dcoeffdcoeff_impl(Array& data) {
+            data *= 0.;
+            auto nor = this->normal();
+            auto dnor_dc = this->dnormal_by_dcoeff();
+            auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+            auto xyz = this->gamma();
+            auto dxyz_dc = this->dgamma_by_dcoeff();
+            int ndofs = num_dofs();
+            for (int i = 0; i < numquadpoints_phi; ++i) {
+                for (int j = 0; j < numquadpoints_theta; ++j) {
+                    for (int m = 0; m < ndofs; ++m){ 
+                        for (int n = 0; n < ndofs; ++n){ 
+                            data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+                                                  +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+                                                  +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+                            data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+                                                  +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+                                                  +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+                        }
+                    }
+                }
+            }
+            data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+        }
+
 
         Array& gamma() {
             return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A);});
@@ -327,12 +404,22 @@ class Surface {
         Array& dnormal_by_dcoeff() {
             return check_the_cache("dnormal_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3, num_dofs()}, [this](Array& A) { return dnormal_by_dcoeff_impl(A);});
         }
+        Array& d2normal_by_dcoeffdcoeff() {
+            return check_the_cache("d2normal_by_dcoeffdcoeff", {numquadpoints_phi, numquadpoints_theta,3, num_dofs(), num_dofs() }, [this](Array& A) { return d2normal_by_dcoeffdcoeff_impl(A);});
+        }
         Array& darea_by_dcoeff() {
             return check_the_cache("darea_by_dcoeff", {num_dofs()}, [this](Array& A) { return darea_by_dcoeff_impl(A);});
+        }
+        Array& d2area_by_dcoeffdcoeff() {
+            return check_the_cache("d2area_by_dcoeffdcoeff", {num_dofs(), num_dofs()}, [this](Array& A) { return d2area_by_dcoeffdcoeff_impl(A);});
         }
         Array& dvolume_by_dcoeff() {
             return check_the_cache("dvolume_by_dcoeff", {num_dofs()}, [this](Array& A) { return dvolume_by_dcoeff_impl(A);});
         }
+        Array& d2volume_by_dcoeffdcoeff() {
+            return check_the_cache("d2volume_by_dcoeffdcoeff", {num_dofs(), num_dofs()}, [this](Array& A) { return d2volume_by_dcoeffdcoeff_impl(A);});
+        }
+
 
         virtual ~Surface() = default;
 };
