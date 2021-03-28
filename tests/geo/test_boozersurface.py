@@ -188,25 +188,25 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozerSurface = BoozerSurface(bs, s, ar, ar_target) 
        
         # compute surface first using LBFGS exact and an area constraint
-        s,iota = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
-        s,iota = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
 
         tf = ToroidalFlux(s, bs_tf)
         tf_target = 0.1
         boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
         print("Initial toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target)
         print("Surface computed using LBFGS and penalised toroidal flux constraint") 
-        s,iota = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
-        s,iota = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         
         print("Surface computed using Newton and penalised toroidal flux constraint") 
-        s, iota = boozerSurface.minimize_boozer_penalty_constraints_newton(tol = 1e-11, maxiter = 10, constraint_weight = 100., iota = iota)
+        s, iota,message = boozerSurface.minimize_boozer_penalty_constraints_newton(tol = 1e-11, maxiter = 10, constraint_weight = 100., iota = iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         
 
         print("Surface computed using Newton and exact toroidal flux constraint") 
-        s, iota, lm = boozerSurface.minimize_boozer_exact_constraints_newton(tol = 1e-11, maxiter = 10,iota = iota)
+        s, iota, lm, message = boozerSurface.minimize_boozer_exact_constraints_newton(tol = 1e-11, maxiter = 10,iota = iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         assert np.abs(tf_target - tf.J()) < 1e-11
 
