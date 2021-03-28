@@ -222,7 +222,7 @@ class BoozerSurface():
         """
         This function solves the constrained optimization problem
 
-            min || f(x) ||^2_2
+            min 0.5 * || f(x) ||^2_2
 
             subject to 
 
