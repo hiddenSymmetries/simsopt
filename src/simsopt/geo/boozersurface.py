@@ -93,9 +93,9 @@ class BoozerSurface():
 
     def boozer_exact_constraints(self, xl, derivatives=0):
         """
-        This function returns the optimality conditions correspondong to the minimisation problem
+        This function returns the optimality conditions corresponding to the minimisation problem
 
-            min || f(x) ||^2_2
+            min 0.5 * || f(x) ||^2_2
 
             subject to 
 
@@ -174,7 +174,7 @@ class BoozerSurface():
                 x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'ftol' : tol,'gtol' : tol, 'maxcor' : 50})
         s.set_dofs(res.x[:-1])
         iota = res.x[-1]
-        return s,iota
+        return s,iota, res.message
        
 
     def minimize_boozer_penalty_constraints_newton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0.):
@@ -196,11 +196,17 @@ class BoozerSurface():
             i = i +1
         s.set_dofs(x[:-1])
         iota = x[-1]
-        return s, iota
+        
+        if norm < tol:
+            message = "SUCCESS : norm of optimality condition is less than tol"
+        else:
+            message = "FAIL : maximum number of iterations exceeded"
+
+        return s, iota, message
 
     def minimize_boozer_penalty_constraints_ls(self, tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., method='lm'):
         """
-        This function does the same as the above, but instead of LBFGS it a nonlinear least squares algorithm.
+        This function does the same as the above, but instead of LBFGS it uses a nonlinear least squares algorithm.
         Options for method are the same as for scipy.optimize.least_squares.
         """
         s = self.surface
@@ -210,7 +216,7 @@ class BoozerSurface():
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         s.set_dofs(res.x[:-1])
         iota = res.x[-1]
-        return s,iota
+        return s,iota, res.message
 
     def minimize_boozer_exact_constraints_newton(self, tol = 1e-12, maxiter = 10, iota = 0., lm = [0.,0.,0.] ):
         """
@@ -246,6 +252,12 @@ class BoozerSurface():
         s.set_dofs(xl[:-4])
         iota = xl[-4]
         lm = xl[-3:]
-        return s, iota, lm
+        
+        if norm < tol:
+            message = "SUCCESS : norm of optimality condition is less than tol"
+        else:
+            message = "FAIL : maximum number of iterations exceeded"
+
+        return s, iota, lm, message
 
 
