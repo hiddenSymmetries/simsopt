@@ -251,7 +251,11 @@ class BoozerSurface():
             i = i + 1
         s.set_dofs(xl[:-4])
         iota = xl[-4]
-        lm = xl[-3:]
+        
+        if s.stellsym:
+            lm = xl[-3]
+        else:
+            lm = xl[-3:]
         
         if norm < tol:
             message = "SUCCESS : norm of optimality condition is less than tol"
