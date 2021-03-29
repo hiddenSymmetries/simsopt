@@ -63,6 +63,13 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
         s.ys[0, ntor + 1] = 1.
         s.ys[1, ntor + 1] = 0.1
         s.zs[1, ntor] = 0.1
+    elif surfacetype == "SurfaceXYZTensorFourier":
+        from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+        s = SurfaceXYZTensorFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(s.get_dofs()*0.)
+        s.x[0, 0] = 1.0
+        s.x[1, 0] = 0.1
+        s.z[mpol+1, 0] = 0.1
     else:
         assert False
 
@@ -99,7 +106,8 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 
 class Testing(unittest.TestCase):
 
-    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier"]
+    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
+
     def subtest_surface_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
@@ -179,6 +187,7 @@ class Testing(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_area_coefficient_second_derivative(s)
+
     def subtest_surface_area_coefficient_second_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
@@ -193,13 +202,13 @@ class Testing(unittest.TestCase):
             return s.d2area_by_dcoeffdcoeff()
         taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
 
-
     def test_volume_coefficient_second_derivative(self):
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_volume_coefficient_second_derivative(s)
+
     def subtest_volume_coefficient_second_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
@@ -213,11 +222,6 @@ class Testing(unittest.TestCase):
             s.set_dofs(dofs)
             return s.d2volume_by_dcoeffdcoeff()
         taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
-
-
-
-
-
 
     def subtest_surface_volume_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
