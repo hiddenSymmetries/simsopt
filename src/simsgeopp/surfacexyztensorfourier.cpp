@@ -12,6 +12,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
            \sum_{i=0}^{2*mpol} \sum_{j=0}^{2*ntor} x_{ij} w_i(\theta)*v_j(\phi)
        \hat y(theta, phi) = 
            \sum_{i=0}^{2*mpol} \sum_{j=0}^{2*ntor} y_{ij} w_i(\theta)*v_j(\phi)
+           + extra_dof * w_{2*mpol+1} sin((mpol+1)*\theta) v_j(\phi)
 
        x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
        y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
@@ -25,7 +26,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
        
        and {w_i} are given by
 
-        {1, cos(1*\theta), ..., cos(ntor*theta), sin(1*theta), ..., sin(ntor*theta)}
+        {1, cos(1*\theta), ..., cos(mpol*theta), sin(1*theta), ..., sin(mpol*theta)}
 
        When enforcing stellarator symmetry, ...
        */
@@ -47,23 +48,23 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
+                z = xt::zeros<double>({2*mpol+2, 2*ntor+1});
             }
 
         SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
             : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
+                z = xt::zeros<double>({2*mpol+2, 2*ntor+1});
             }
 
 
 
         int num_dofs() override {
             if(stellsym)
-                return (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1);
+                return (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1) + 1;
             else
-                return 3 * (2*mpol+1) * (2*ntor+1);
+                return 3 * (2*mpol+1) * (2*ntor+1) + 1;
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
@@ -80,7 +81,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     y(m, n) = dofs[counter++];
                 }
             }
-            for (int m = 0; m <= 2*mpol; ++m) {
+            for (int m = 0; m <= 2*mpol+1; ++m) {
                 for (int n = 0; n <= 2*ntor; ++n) {
                     if(skip(2, m, n)) continue;
                     z(m, n) = dofs[counter++];
@@ -103,7 +104,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     res[counter++] = y(m, n);
                 }
             }
-            for (int m = 0; m <= 2*mpol; ++m) {
+            for (int m = 0; m <= 2*mpol+1; ++m) {
                 for (int n = 0; n <= 2*ntor; ++n) {
                     if(skip(2, m, n)) continue;
                     res[counter++] = z(m, n);
@@ -141,6 +142,12 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         inline bool skip(int dim, int m, int n){
+            if(m == 2*mpol+1) {
+                if(n == 0 && dim == 2)
+                    return false;
+                else
+                    return true;
+            }
             if (!stellsym)
                 return false;
             if (dim == 0)
@@ -171,7 +178,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int m = 0; m <= 2*mpol+1; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
                             double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
                             double xhat = get_coeff(0, m, n) * wivj;
@@ -194,7 +201,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int m = 0; m <= 2*mpol+1; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
                             double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
                             double wivjdash = basis_fun_theta(m, theta) * basis_fun_phi_dash(n, phi);
@@ -220,7 +227,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
-                    for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int m = 0; m <= 2*mpol+1; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
                             double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
                             double wivjdash = basis_fun_theta_dash(m, theta) * basis_fun_phi(n, phi);
@@ -245,7 +252,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m <= 2*mpol; ++m) {
+                        for (int m = 0; m <= 2*mpol+1; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
                                 double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
@@ -282,7 +289,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m <= 2*mpol; ++m) {
+                        for (int m = 0; m <= 2*mpol+1; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
                                 double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
@@ -324,7 +331,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     int counter = 0;
                     for (int d = 0; d < 3; ++d) {
-                        for (int m = 0; m <= 2*mpol; ++m) {
+                        for (int m = 0; m <= 2*mpol+1; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
                                 double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
