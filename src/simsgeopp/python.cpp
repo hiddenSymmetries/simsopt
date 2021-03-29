@@ -10,6 +10,8 @@ typedef xt::pyarray<double> PyArray;
 typedef SurfaceRZFourier<PyArray> PySurfaceRZFourier;
 #include "surfacexyzfourier.cpp"
 typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
+#include "surfacexyztensorfourier.cpp"
+typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
 
 #include "curve.cpp"
@@ -119,6 +121,31 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
         }
 };
 
+template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceXYZTensorFourierBase {
+    public:
+        using PySurfaceXYZTensorFourierBase::PySurfaceXYZTensorFourierBase;
+
+        int num_dofs() override {
+            return PySurfaceXYZTensorFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceXYZTensorFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceXYZTensorFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data) override {
+            PySurfaceXYZTensorFourierBase::gamma_impl(data);
+        }
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
+        }
+};
+
 template <typename T, typename S> void register_common_surface_methods(S &s) {
     s.def("gamma", &T::gamma)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
@@ -208,6 +235,17 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("zs", &PySurfaceXYZFourier::zs)
         .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
+
+    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, std::shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, int, int>())
+        .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
+        .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
+        .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
+        .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
+        .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
+    register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
 
     auto pycurve = py::class_<PyCurve, std::shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
