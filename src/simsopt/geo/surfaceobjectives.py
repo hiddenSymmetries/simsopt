@@ -8,8 +8,20 @@ class Area(object):
         return self.surface.area()
     def dJ_by_dsurfacecoefficients(self):
         return self.surface.darea_by_dcoeff()
-    def d2J_by_dsurfacecoeffcientsdsurfacecoefficients(self):
-        return None
+    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        return self.surface.d2area_by_dcoeffdcoeff()
+
+class Volume(object):
+    def __init__(self, surface):
+        self.surface = surface
+
+    def J(self):
+        return self.surface.volume()
+    def dJ_by_dsurfacecoefficients(self):
+        return self.surface.dvolume_by_dcoeff()
+    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        return self.surface.d2volume_by_dcoeffdcoeff()
+
 
 class ToroidalFlux(object):
 
@@ -113,7 +125,7 @@ def boozer_surface_residual(surface, iota, biotsavart, derivatives = 0):
     
     residual_flattened = residual.reshape((nphi*ntheta*3, ))
     if derivatives == 0:
-        return residual_flattened
+        return residual_flattened, 
 
 
     dx_dc = surface.dgamma_by_dcoeff()
