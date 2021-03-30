@@ -11,27 +11,37 @@ from .surface_test_helpers import get_ncsx_data,get_surface, get_exact_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
+surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
+stellsym_list = [True, False]
 class SurfaceXYZFourierTests(unittest.TestCase):
-    def test_toRZFourier(self):
+    def test_toRZFourier1(self):
+        for stellsym in stellsym_list:
+            with self.subTest(stellsym=stellsym):
+                self.subtest_toRZFourier1("SurfaceXYZFourier",stellsym)
+
+    def subtest_toRZFourier1(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym)
+        sRZ = s.to_RZFourier()
+        
+        np.random.seed(0)
+        angle = np.random.random()*1000
+        scs = s.cross_section(angle, theta_resolution = 100)
+        sRZcs = sRZ.cross_section(angle, theta_resolution = 100)
+
+        maxerr = np.max(np.abs(scs - sRZcs))
+        print(maxerr)
+        assert maxerr < 1e-12
+
+    def test_toRZFourier2(self):
         s = get_exact_surface()
         sRZ = s.to_RZFourier()
         
+        np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle)
-        sRZcs = sRZ.cross_section(angle)
+        scs = s.cross_section(angle, theta_resolution = 100)
+        sRZcs = sRZ.cross_section(angle, theta_resolution = 100)
         
-        R1 = np.sqrt(scs[:,0]**2 + scs[:,1]**2)
-        Z1 = scs[:,2]
-        R2 = np.sqrt(sRZcs[:,0]**2 + sRZcs[:,1]**2)
-        Z2 = sRZcs[:,2]
-        
-
-#        import matplotlib.pyplot as plt
-#        plt.plot(R1,Z1,c='r')
-#        plt.plot(R2,Z2,c='k')
-#        plt.show()
-
-        maxerr = np.max(np.abs(scs - sRZcs)/scs)
+        maxerr = np.max(np.abs(scs - sRZcs))
         print(maxerr)
         assert maxerr < 1e-2
 

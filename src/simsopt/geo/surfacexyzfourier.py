@@ -19,10 +19,19 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         return np.asarray(sgpp.SurfaceXYZFourier.get_dofs(self))
 
     def to_RZFourier(self):
-        surf = SurfaceRZFourier(nfp=self.nfp, stellsym=self.stellsym, mpol=self.mpol, ntor=self.ntor, quadpoints_phi=self.quadpoints_phi, quadpoints_theta=self.quadpoints_theta)
-        gamma = np.zeros( (self.quadpoints_phi.size, self.quadpoints_theta.size, 3) )
+        mpol = self.mpol  
+        ntor = self.ntor
+        surf = SurfaceRZFourier(nfp=self.nfp, 
+                                stellsym=self.stellsym, 
+                                mpol=mpol, 
+                                ntor=ntor, 
+                                quadpoints_phi = 2*ntor+1, 
+                                quadpoints_theta=2*mpol+1)
+        
+
+        gamma = np.zeros( (surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3) )
         for idx in range(gamma.shape[0]):
-            gamma[idx,:,:] = self.cross_section(self.quadpoints_phi[idx]*2*np.pi)
+            gamma[idx,:,:] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi, theta_resolution=surf.quadpoints_theta.size)
         
         surf.least_squares_fit(gamma)
         return surf
