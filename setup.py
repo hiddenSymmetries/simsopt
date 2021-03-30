@@ -16,6 +16,7 @@ PLAT_TO_CMAKE = {
     "win-arm64": "ARM64",
 }
 
+
 # A CMakeExtension needs a sourcedir instead of a file list.
 # The name must be the _single_ output extension from the CMake build.
 # If you need multiple extensions, see scikit-build.
