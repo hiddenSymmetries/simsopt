@@ -78,7 +78,6 @@ class ToroidalField(MagneticField):
 		self._B = np.multiply(self.B0*self.R0,phiUnitVectorOverR)
 
 		if compute_derivatives >= 1:
-			# Toroidal magnetic field derivatives
 			x=points[:,0]
 			y=points[:,1]
 			dB_by_dX1=np.vstack((
@@ -93,7 +92,6 @@ class ToroidalField(MagneticField):
 
 			dToroidal_by_dX=np.array([dB_by_dX1,dB_by_dX2,dB_by_dX3]).T
 
-			# Sum the two
 			self._dB_by_dX = dToroidal_by_dX
 
 		return self
