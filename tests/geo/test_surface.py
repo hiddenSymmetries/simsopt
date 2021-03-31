@@ -61,6 +61,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
         surface representations coincide at the points where the least squares fit was completed,
         i.e., the conversion is lossless at the quadrature points.
+
+        Additionally, this test checks that the cross sectional angle is correct.
         """
         s = get_exact_surface()
         sRZ = s.to_RZFourier()
@@ -97,6 +99,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         """
         Away from the quadrature points, the conversion is not lossless and this test verifies that the
         error is small.
+
+        Additionally, this test checks that the cross sectional angle is correct.        
         """
         s = get_exact_surface()
         sRZ = s.to_RZFourier()
@@ -135,6 +139,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         Test that the cross sectional area at a certain number of cross sections of a torus
         is what it should be.  The cross sectional angles are chosen to test any degenerate 
         cases of the bisection algorithm.
+
+        Additionally, this test checks that the cross sectional angle is correct.
         """
         mpol = 4
         ntor = 3
