@@ -26,13 +26,33 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     ma.rc[:] = cR[0:(Nt_ma+1)]
     ma.zs[:] = sZ[0:Nt_ma]
     return (coils, currents, ma)
-
 def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     nfp = 3
     ntor = 5
     mpol = 5
     nphi = 15
     ntheta = 15 
+    
+    if phis is None:
+        phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
+    if thetas is None:
+        thetas = np.linspace(0, 1/(1. + (stellsym == True)), ntheta, endpoint=False)
+    
+    if surfacetype == "SurfaceXYZFourier":
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym=stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+    elif surfacetype == "SurfaceRZFourier":
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym=stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+    else:
+        raise "surface type not implemented"
+    return s
+
+
+def get_surface2(surfacetype, stellsym, phis=None, thetas=None):
+    nfp = 3
+    ntor = 5
+    mpol = 5
+    nphi = 11
+    ntheta = 11 
     
     if phis is None:
         phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
