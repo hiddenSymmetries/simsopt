@@ -81,7 +81,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_cross_section(self):
         """
-        Test that the cross sectional area at a certain number of cross sections is what it should be
+        Test that the cross sectional area at a certain number of cross sections is what it should be.  The
+        cross sectional angles are chosen to test any degenerate cases of the bisection algorithm.
         """
         mpol = 4
         ntor = 3
@@ -107,16 +108,20 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         s.xc[1, ntor] = minor_R
         s.zs[1, ntor] = minor_R
         
-        cs = np.zeros((5,100,3))
+        cs = np.zeros((9,100,3))
         cs[0,:,:] = s.cross_section(0., theta_resolution = 100)
         cs[1,:,:] = s.cross_section(np.pi/2., theta_resolution = 100)
         cs[2,:,:] = s.cross_section(np.pi, theta_resolution = 100)
         cs[3,:,:] = s.cross_section(3. * np.pi/2., theta_resolution = 100)
         cs[4,:,:] = s.cross_section(2. * np.pi, theta_resolution = 100)
+        cs[5,:,:] = s.cross_section(-np.pi/2., theta_resolution = 100)
+        cs[6,:,:] = s.cross_section(-np.pi, theta_resolution = 100)
+        cs[7,:,:] = s.cross_section(-3. * np.pi/2., theta_resolution = 100)
+        cs[8,:,:] = s.cross_section(-2. * np.pi, theta_resolution = 100)
         
         from scipy import fftpack
-        cs_area = np.zeros( (5,) )
-        for i in range(5):
+        cs_area = np.zeros( (9,) )
+        for i in range(9):
             R = np.sqrt( cs[i,:,0]**2 + cs[i,:,1]**2)
             Z = cs[i,:,2]
             Rp = fftpack.diff(R, period = 1.)
