@@ -41,7 +41,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale=0.01
-    order = 7
+    order = 4
 
     if curvetype == "CurveXYZFourier":
         curve = CurveXYZFourier(x, order)
@@ -79,32 +79,13 @@ class Testing(unittest.TestCase):
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
 
     def test_curve_helical_xyzfourier(self):
-        curvetype1 = "CurveHelical"
-        curvetype2 = "CurveXYZFourier"
-        for rotated in [True, False]:
-            with self.subTest(curvetype=curvetype1, rotated=rotated):
-                self.subtest_helical_xyzfourier(curvetype1, curvetype2, rotated)
-
-    def subtest_helical_xyzfourier(self, curvetype1, curvetype2, rotated):
-        epss   = [0.5**i for i in range(10, 15)] 
-        x      = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve1 = get_curve(curvetype1, rotated, x)
-        curve2 = get_curve(curvetype2, rotated, x)
+        x      = np.asarray([0.6])
+        curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
+        curve1.set_dofs([np.pi/2,0,0,0])
+        curve2 = CurveXYZFourier(x, 7)
         curve2.set_dofs([0,0,0,0,1,-0.15,0,0,0,0,0,0,0,-0.15,0,0,0,0,1,0,0,-0.15,0,0,0,0,0,0,0,0.15,0,0,0,0,0,0,0,0,0,0,-0.3,0,0,0,0])
-        errfh_old    = 1e-2
-        errderiv_old = 1e0
-        for i in range(len(epss)):
-            fhcurve1        = curve1.gamma()[i+1]
-            fhcurve2        = curve2.gamma()[i+1]
-            derivcurve1     = curve1.gammadash()[i+1]
-            derivcurve2     = curve2.gammadash()[i+1]
-            diffCurvesfh    = (np.subtract(fhcurve1,fhcurve2))
-            diffCurvesderiv = (np.subtract(derivcurve1,derivcurve2))
-            errfh           = np.linalg.norm(diffCurvesfh)
-            errderiv        = np.linalg.norm(diffCurvesderiv)
-            assert errfh    < errfh_old
-            assert errderiv < errderiv_old
-            errfh_old       = errfh
+        assert np.allclose(curve1.gamma(),curve2.gamma())
+        assert np.allclose(curve1.gammadash(),curve2.gammadash())
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1
