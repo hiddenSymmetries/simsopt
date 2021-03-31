@@ -2,6 +2,9 @@ import numpy as np
 import unittest
 
 from simsopt.geo.magneticfieldclasses import ToroidalField
+from simsopt.geo.magneticfield import MagneticFieldSum
+from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.biotsavart import BiotSavart
 
 class Testing(unittest.TestCase):
 
@@ -24,6 +27,26 @@ class Testing(unittest.TestCase):
         # Verify
         assert np.allclose(B1, B2)
         assert np.allclose(dB1_by_dX, dB2_by_dX)
+
+    def test_sum_Bfields(self):
+        # Set up helical field
+        coils     = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
+        coils[0].set_dofs(np.concatenate(([np.pi,0],[0,0])))
+        coils[1].set_dofs(np.concatenate(([0    ,0],[0,0])))
+        currents  = [-2.1e5,2.1e5]
+        Bhelical  = BiotSavart(coils, currents)
+        # Set up toroidal field
+        Btoroidal = ToroidalField(1.,1.)
+        # Set up sum of the two
+        Btotal    = MagneticFieldSum(Bhelical,Btoroidal)
+        # Evaluate at a given point
+        points    = np.array([[1.1,0.9,0.3]])
+        Bhelical.set_points(points)
+        Btoroidal.set_points(points)
+        Btotal.set_points(points)
+        # Verify
+        assert np.allclose(Bhelical.B()+Btoroidal.B(),Btotal.B())
+        assert np.allclose(Bhelical.dB_by_dX()+Btoroidal.dB_by_dX(),Btotal.dB_by_dX())
 
 if __name__ == "__main__":
     unittest.main()
