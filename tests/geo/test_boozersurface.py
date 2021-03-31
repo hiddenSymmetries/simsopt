@@ -11,7 +11,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
 from simsopt.geo.surfaceobjectives import Area 
-from surface_test_helpers import get_ncsx_data,get_surface, get_exact_surface 
+from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface 
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]

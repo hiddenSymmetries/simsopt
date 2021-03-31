@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
-from surface_test_helpers import CoilCollection, get_ncsx_data,get_surface,get_exact_surface 
+from .surface_test_helpers import CoilCollection, get_ncsx_data,get_surface,get_exact_surface 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
 stellsym_list = [True, False]
