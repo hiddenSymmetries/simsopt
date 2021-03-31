@@ -127,8 +127,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         comparing with an approximation based on cross section computations.
         """
         s = get_exact_surface()
-        vpr = s.quadpoints_phi.size  + 20 
-        tr = s.quadpoints_theta.size + 20
+        vpr = s.quadpoints_phi.size  +20
+        tr = s.quadpoints_theta.size +20
         cs_area = np.zeros( (vpr,) )
         
         from scipy import fftpack
@@ -137,9 +137,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
             cs = s.cross_section(angle[idx], varphi_resolution = vpr, theta_resolution = tr )
             R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
             Z = cs[:,2]
-            Rp = fftpack.diff(R)
-            Zp = fftpack.diff(Z)
-            ar = np.mean(Z*Rp) * 2. * np.pi
+            Rp = fftpack.diff(R, period = 1.)
+            Zp = fftpack.diff(Z, period = 1.)
+            ar = np.mean( Z*Rp ) 
             cs_area[idx] = ar
 
 
@@ -150,6 +150,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         AR = s.aspect_ratio()
 
         rel_err = np.abs(AR-AR_cs) / AR
+        print( AR, AR_cs )
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
 
