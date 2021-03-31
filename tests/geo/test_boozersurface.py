@@ -36,8 +36,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
         x = np.concatenate((s.get_dofs(), [iota]))
         f0 = boozerSurface.boozer_penalty_constraints(x, derivatives = 0, constraint_weight = weight)
-        # f0 should be close to 0, but it's not within machine precision because tf_target and iota
-        # are only known to 8 significant figures
         assert f0 < 1e-5
 
         
