@@ -18,7 +18,7 @@ class Surface(Optimizable):
         from mayavi import mlab
         mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], scalars=scalars)
         if wireframe:
-            mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], representation='wireframe', color = (0,0,0))
+            mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], representation='wireframe', color = (0,0,0), opacity=0.5)
         
 
         if plot_derivative:
