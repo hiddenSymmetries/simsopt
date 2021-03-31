@@ -42,16 +42,17 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         int mpol;
         int ntor;
         bool stellsym;
+        std::vector<bool> clamped_dims;
 
-        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
-            : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, std::vector<bool> _clamped_dims, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+            : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym), clamped_dims(_clamped_dims) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
             }
 
-        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
-            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, std::vector<bool> _clamped_dims, int _numquadpoints_phi, int _numquadpoints_theta)
+            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym), clamped_dims(_clamped_dims) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
@@ -110,6 +111,49 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 }
             }
             return res;
+        }
+
+        inline double bc_enforcer_fun(int dim, int n, double phi, int m, double theta){
+            if(n<=ntor && m<=mpol)
+                return clamped_dims[dim] ? pow(sin(nfp*phi/2), 2) + pow(sin(theta/2), 2) : 1.;
+            else
+                return 1;
+        }
+
+        inline double bc_enforcer_dphi_fun(int dim, int n, double phi, int m, double theta){
+            if(n<=ntor && m<=mpol)
+                return clamped_dims[dim] ? nfp*cos(nfp*phi/2)*sin(nfp*phi/2) : 0.;
+            else
+                return 0;
+        }
+
+        inline double bc_enforcer_dtheta_fun(int dim, int n, double phi, int m, double theta){
+            if(n<=ntor && m<=mpol)
+                return clamped_dims[dim] ? cos(theta/2)*sin(theta/2) : 0.;
+            else
+                return 0;
+        }
+
+        inline double basis_fun(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer = bc_enforcer_fun(dim, n, phi, m, theta);
+            //double bc_enforcer =  (dim > 1) ? (phi*(2*M_PI-phi) + theta*(2*M_PI-theta)) : 1.;
+            return basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer;
+        }
+
+        inline double basis_fun_dphi(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
+            //double bc_enforcer =  (dim > 1) ? (phi*(2*M_PI-phi) + theta*(2*M_PI-theta)) : 1.;
+            //double bc_enforcer_dphi =  (dim > 1) ? (2*M_PI-2*phi) : 0.;
+            return basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer + basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dphi;
+        }
+
+        inline double basis_fun_dtheta(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            //double bc_enforcer =  (dim > 1) ? (phi*(2*M_PI-phi) + theta*(2*M_PI-theta)) : 1.;
+            //double bc_enforcer_dtheta =  (dim > 1) ? (2*M_PI-2*theta) : 0.;
+            return basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer + basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
         }
 
         inline double basis_fun_phi(int n, double phi){
@@ -173,12 +217,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     for (int m = 0; m <= 2*mpol; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
-                            double xhat = get_coeff(0, m, n) * wivj;
-                            double yhat = get_coeff(1, m, n) * wivj;
+                            double xhat = get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                            double yhat = get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
                             double x = xhat * cos(phi) - yhat * sin(phi);
                             double y = xhat * sin(phi) + yhat * cos(phi);
-                            double z = get_coeff(2, m, n) * wivj;
+                            //double x = xhat;
+                            //double y = yhat;
+                            double z = get_coeff(2, m, n) * basis_fun(2, n, phi, m, theta);
                             data(k1, k2, 0) += x;
                             data(k1, k2, 1) += y;
                             data(k1, k2, 2) += z;
@@ -196,15 +241,15 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     for (int m = 0; m <= 2*mpol; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
-                            double wivjdash = basis_fun_theta(m, theta) * basis_fun_phi_dash(n, phi);
-                            double xhat = get_coeff(0, m, n) * wivj;
-                            double yhat = get_coeff(1, m, n) * wivj;
-                            double xhatdash = get_coeff(0, m, n) * (wivjdash);
-                            double yhatdash = get_coeff(1, m, n) * (wivjdash);
+                            double xhat = get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                            double yhat = get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                            double xhatdash = get_coeff(0, m, n) * basis_fun_dphi(0, n, phi, m, theta);
+                            double yhatdash = get_coeff(1, m, n) * basis_fun_dphi(1, n, phi, m, theta);
                             double xdash = xhatdash * cos(phi) - yhatdash * sin(phi) - xhat * sin(phi) - yhat * cos(phi);
                             double ydash = xhatdash * sin(phi) + yhatdash * cos(phi) + xhat * cos(phi) - yhat * sin(phi);
-                            double zdash = get_coeff(2, m, n) * wivjdash;
+                            //double xdash = xhatdash;
+                            //double ydash = yhatdash;
+                            double zdash = get_coeff(2, m, n) * basis_fun_dphi(2, n, phi, m, theta);
                             data(k1, k2, 0) += 2*M_PI*xdash;
                             data(k1, k2, 1) += 2*M_PI*ydash;
                             data(k1, k2, 2) += 2*M_PI*zdash;
@@ -222,13 +267,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     for (int m = 0; m <= 2*mpol; ++m) {
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
-                            double wivjdash = basis_fun_theta_dash(m, theta) * basis_fun_phi(n, phi);
-                            double xhatdash = get_coeff(0, m, n) * (wivjdash);
-                            double yhatdash = get_coeff(1, m, n) * (wivjdash);
+                            double xhatdash = get_coeff(0, m, n) * basis_fun_dtheta(0, n, phi, m, theta);
+                            double yhatdash = get_coeff(1, m, n) * basis_fun_dtheta(1, n, phi, m, theta);
                             double xdash = xhatdash * cos(phi) - yhatdash * sin(phi);
                             double ydash = xhatdash * sin(phi) + yhatdash * cos(phi);
-                            double zdash = get_coeff(2, m, n) * wivjdash;
+                            //double xdash = xhatdash;
+                            //double ydash = yhatdash;
+                            double zdash = get_coeff(2, m, n) * basis_fun_dtheta(2, n, phi, m, theta);;
                             data(k1, k2, 0) += 2*M_PI*xdash;
                             data(k1, k2, 1) += 2*M_PI*ydash;
                             data(k1, k2, 2) += 2*M_PI*zdash;
@@ -248,12 +293,14 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
+                                double wivj = basis_fun(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0;
                                     double dx = dxhat * cos(phi) - dyhat * sin(phi);
                                     double dy = dxhat * sin(phi) + dyhat * cos(phi);
+                                    //double dx = dxhat;
+                                    //double dy = dyhat;
                                     data(k1, k2, 0, counter) = dx;
                                     data(k1, k2, 1, counter) = dy;
                                 }else if(d==1) {
@@ -261,6 +308,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                                     double dyhat = wivj;
                                     double dx = dxhat * cos(phi) - dyhat * sin(phi);
                                     double dy = dxhat * sin(phi) + dyhat * cos(phi);
+                                    //double dx = dxhat;
+                                    //double dy = dyhat;
                                     data(k1, k2, 0, counter) = dx;
                                     data(k1, k2, 1, counter) = dy;
                                 }else {
@@ -285,8 +334,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
-                                double wivjdash = basis_fun_theta(m, theta) * basis_fun_phi_dash(n, phi);
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjdash = basis_fun_dphi(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0.;
@@ -294,6 +343,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                                     double dyhatdash = 0.;
                                     double dxdash = dxhatdash * cos(phi) - dyhatdash * sin(phi) - dxhat * sin(phi) - dyhat * cos(phi);
                                     double dydash = dxhatdash * sin(phi) + dyhatdash * cos(phi) + dxhat * cos(phi) - dyhat * sin(phi);
+                                    //double dxdash = dxhatdash;
+                                    //double dydash = dyhatdash;
                                     data(k1, k2, 0, counter) = 2*M_PI*dxdash;
                                     data(k1, k2, 1, counter) = 2*M_PI*dydash;
                                 }else if(d==1) {
@@ -303,6 +354,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                                     double dyhatdash = wivjdash;
                                     double dxdash = dxhatdash * cos(phi) - dyhatdash * sin(phi) - dxhat * sin(phi) - dyhat * cos(phi);
                                     double dydash = dxhatdash * sin(phi) + dyhatdash * cos(phi) + dxhat * cos(phi) - dyhat * sin(phi);
+                                    //double dxdash = dxhatdash;
+                                    //double dydash = dyhatdash;
                                     data(k1, k2, 0, counter) = 2*M_PI*dxdash;
                                     data(k1, k2, 1, counter) = 2*M_PI*dydash;
                                 }else {
@@ -327,8 +380,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun_theta(m, theta) * basis_fun_phi(n, phi);
-                                double wivjdash = basis_fun_theta_dash(m, theta) * basis_fun_phi(n, phi);
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjdash = basis_fun_dtheta(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0.;
@@ -336,6 +389,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                                     double dyhatdash = 0.;
                                     double dxdash = dxhatdash * cos(phi) - dyhatdash * sin(phi);
                                     double dydash = dxhatdash * sin(phi) + dyhatdash * cos(phi);
+                                    //double dxdash = dxhatdash;
+                                    //double dydash = dyhatdash;
                                     data(k1, k2, 0, counter) = 2*M_PI*dxdash;
                                     data(k1, k2, 1, counter) = 2*M_PI*dydash;
                                 }else if(d==1) {
@@ -345,6 +400,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                                     double dyhatdash = wivjdash;
                                     double dxdash = dxhatdash * cos(phi) - dyhatdash * sin(phi);
                                     double dydash = dxhatdash * sin(phi) + dyhatdash * cos(phi);
+                                    //double dxdash = dxhatdash;
+                                    //double dydash = dyhatdash;
                                     data(k1, k2, 0, counter) = 2*M_PI*dxdash;
                                     data(k1, k2, 1, counter) = 2*M_PI*dydash;
                                 }else {

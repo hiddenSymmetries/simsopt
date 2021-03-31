@@ -5,11 +5,11 @@ from .surfacerzfourier import SurfaceRZFourier
 
 
 class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1, quadpoints_phi=32, quadpoints_theta=32):
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1, clamped_dims=[False, False, False], quadpoints_phi=32, quadpoints_theta=32):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sgpp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sgpp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym, clamped_dims, quadpoints_phi, quadpoints_theta)
         self.x[0, 0] = 1.0
         self.x[1, 0] = 0.1
         self.z[mpol+1, 0] = 0.1
