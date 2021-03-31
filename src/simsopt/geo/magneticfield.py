@@ -43,14 +43,14 @@ class MagneticFieldSum(MagneticField):
 
     def set_points(self, points):
         self.points = points
-        self.Bfield1.points = points
-        self.Bfield2.points = points
         self.clear_cached_properties()
-        self.Bfield1.clear_cached_properties()
-        self.Bfield2.clear_cached_properties()
+        self.Bfield1.set_points(points)
+        self.Bfield2.set_points(points)
         return self
 
     def compute(self, points, compute_derivatives):
+        self.Bfield1.compute(points, compute_derivatives)
+        self.Bfield2.compute(points, compute_derivatives)
         self._B = self.Bfield1._B + self.Bfield2._B
         if compute_derivatives >= 1:
             self._dB_by_dX = self.Bfield1._dB_by_dX + self.Bfield2._dB_by_dX
