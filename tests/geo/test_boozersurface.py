@@ -47,14 +47,16 @@ class BoozerSurfaceTests(unittest.TestCase):
     def test_boozer_penalty_constraints_gradient(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_boozer_penalty_constraints_gradient(surfacetype,stellsym)
+                for optimize_G in [True, False]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G)
 
     def test_boozer_penalty_constraints_hessian(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_boozer_penalty_constraints_hessian(surfacetype,stellsym)
+                for optimize_G in [True, False]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_hessian(surfacetype, stellsym, optimize_G)
 
     def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym, optimize_G=False):
         np.random.seed(1)
@@ -77,6 +79,8 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
+        if optimize_G:
+            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
         f0, J0 = boozerSurface.boozer_penalty_constraints(x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
 
         h = np.random.uniform(size=x.shape)-0.5
@@ -112,6 +116,8 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
+        if optimize_G:
+            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
         f0, J0, H0 = boozerSurface.boozer_penalty_constraints(x, derivatives=2, optimize_G=optimize_G)
 
         h1 = np.random.uniform(size=x.shape)-0.5
@@ -132,8 +138,9 @@ class BoozerSurfaceTests(unittest.TestCase):
     def test_boozer_constrained_jacobian(self):
         for surfacetype in surfacetypes_list:
                     for stellsym in stellsym_list:
-                        with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                            self.subtest_boozer_constrained_jacobian(surfacetype,stellsym)
+                        for optimize_G in [True, False]:
+                            with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
+                                self.subtest_boozer_constrained_jacobian(surfacetype, stellsym, optimize_G)
 
     def subtest_boozer_constrained_jacobian(self, surfacetype, stellsym, optimize_G=False):
         np.random.seed(1)
@@ -153,7 +160,10 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         iota = -0.3
         lm = [0.,0.,0.]
-        xl = np.concatenate((s.get_dofs(), [iota], lm ))
+        x = np.concatenate((s.get_dofs(), [iota]))
+        if optimize_G:
+            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+        xl = np.concatenate((x, lm ))
         res0, dres0 = boozerSurface.boozer_exact_constraints(xl, derivatives=1, optimize_G=optimize_G)
         
         h = np.random.uniform(size=xl.shape)-0.5
@@ -191,25 +201,25 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozerSurface = BoozerSurface(bs, s, ar, ar_target) 
        
         # compute surface first using LBFGS exact and an area constraint
-        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
-        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s, iota, message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-12, maxiter=100, constraint_weight=100., iota=iota)
+        s, iota, message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-12, maxiter=100, constraint_weight=100., iota=iota)
 
         tf = ToroidalFlux(s, bs_tf)
         tf_target = 0.1
         boozerSurface = BoozerSurface(bs, s, tf, tf_target) 
         print("Initial toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target)
         print("Surface computed using LBFGS and penalised toroidal flux constraint") 
-        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
-        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol = 1e-12, maxiter = 100, constraint_weight = 100., iota = iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-12, maxiter=100, constraint_weight=100., iota=iota)
+        s,iota,message = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-12, maxiter=100, constraint_weight=100., iota=iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         
         print("Surface computed using Newton and penalised toroidal flux constraint") 
-        s, iota,message = boozerSurface.minimize_boozer_penalty_constraints_newton(tol = 1e-11, maxiter = 10, constraint_weight = 100., iota = iota)
+        s, iota,message = boozerSurface.minimize_boozer_penalty_constraints_newton(tol=1e-11, maxiter=10, constraint_weight=100., iota=iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         
 
         print("Surface computed using Newton and exact toroidal flux constraint") 
-        s, iota, lm, message = boozerSurface.minimize_boozer_exact_constraints_newton(tol = 1e-11, maxiter = 10,iota = iota)
+        s, iota, lm, message = boozerSurface.minimize_boozer_exact_constraints_newton(tol=1e-11, maxiter=10, iota=iota)
         print("Toroidal flux is :", tf.J(), "Target toroidal flux is: ", tf_target, "\n")
         assert np.abs(tf_target - tf.J()) < 1e-11
 
