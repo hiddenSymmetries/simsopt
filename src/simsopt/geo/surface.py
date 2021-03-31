@@ -134,12 +134,13 @@ class Surface(Optimizable):
                 b = (a + c)/2.
                 phib = varphi2phi(b, phia, phic)
                 
-                flag1 = (phia - phi) * (phib - phi) >= 0
-                flag2 = (phia - phi) * (phib - phi) < 0
-                phia = np.where( flag1 , phib, phia)
-                phic = np.where( flag2 , phib, phic)
-                a = np.where( flag1, b, a)
-                c = np.where( flag2, b, c)
+                flag = (phib - phi) * (phic - phi) > 0
+                # if flag is true,  then root lies on interval [a,b)
+                # if flag is false, then root lies on interval [b,c]
+                phia = np.where( flag , phia, phib)
+                phic = np.where( flag , phib, phic)
+                a = np.where( flag, a, b)
+                c = np.where( flag, b, c)
                 err = np.max( np.abs(a-c) )
             b = (a + c)/2.
             return b          
