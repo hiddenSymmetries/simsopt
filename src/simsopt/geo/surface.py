@@ -14,7 +14,7 @@ class Surface(Optimizable):
     
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
         gamma = self.gamma()
-        
+
         from mayavi import mlab
         mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], scalars=scalars)
         if wireframe:
@@ -64,8 +64,12 @@ class Surface(Optimizable):
             varphi_resolution = self.gamma().shape[0]
         if theta_resolution is None:
             theta_resolution = self.gamma().shape[1]
-        varphi = np.linspace(0,1,varphi_resolution, endpoint = False)
-        theta = np.linspace(0,1,theta_resolution, endpoint = False)
+        varphi = np.linspace(0,1/self.nfp,varphi_resolution, endpoint = False)
+        if self.stellsym:
+            theta = np.linspace(0,1./2.,theta_resolution, endpoint = False)
+        else:
+            theta = np.linspace(0,1.,theta_resolution, endpoint = False)
+
         varphigrid,thetagrid = np.meshgrid(varphi,theta)
         varphigrid = varphigrid.T
         thetagrid = thetagrid.T
