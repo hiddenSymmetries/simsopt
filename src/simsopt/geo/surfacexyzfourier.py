@@ -20,13 +20,13 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
 
     def to_RZFourier(self):
         ntor = self.ntor
-        mpol = self.mpol  
+        mpol = self.mpol 
         surf = SurfaceRZFourier(nfp=self.nfp, 
                                 stellsym=self.stellsym, 
                                 mpol=mpol, 
                                 ntor=ntor, 
-                                quadpoints_phi  = 2*ntor+1, 
-                                quadpoints_theta= 2*mpol+1)
+                                quadpoints_phi  = self.quadpoints_phi, 
+                                quadpoints_theta= self.quadpoints_theta)
         
 
         gamma = np.zeros( (surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3) )

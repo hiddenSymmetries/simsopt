@@ -14,15 +14,24 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
 stellsym_list = [True, False]
 class SurfaceXYZFourierTests(unittest.TestCase):
-    def test_toRZFourier1(self):
+    def test_toRZFourier_perfect_torus(self):
+
+        """
+        This test checks that a perfect torus can be converted from SurfaceXYZFourier to SurfaceRZFourier
+        completely losslessly.
+        """
         for stellsym in stellsym_list:
             with self.subTest(stellsym=stellsym):
-                self.subtest_toRZFourier1("SurfaceXYZFourier",stellsym)
+                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier",stellsym)
 
-    def subtest_toRZFourier1(self, surfacetype, stellsym):
+    def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
+        """
+        The test obtains a perfect torus as a SurfaceXYZFourier, then converts it to a SurfaceRZFourier.  Next,
+        it computes the cross section of both surfaces at a random angle and compares the pointwise values.
+        """
         s = get_surface(surfacetype, stellsym)
         sRZ = s.to_RZFourier()
-        
+
         np.random.seed(0)
         angle = np.random.random()*1000
         scs = s.cross_section(angle, theta_resolution = 100)
@@ -32,18 +41,43 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print(maxerr)
         assert maxerr < 1e-12
 
-    def test_toRZFourier2(self):
+    def test_toRZFourier_lossless_at_quadraturepoints(self):
+        """
+        This test obtains a more complex surface (not a perfect torus) as a SurfaceXYZFourier, then
+        converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
+        surface representations coincide at the points where the least squares fit was completed,
+        i.e., the conversion is lossless at the quadrature points.
+        """
+        s = get_exact_surface()
+        sRZ = s.to_RZFourier()
+        
+        maxerror = -1
+        for angle in sRZ.quadpoints_phi:
+            scs = s.cross_section( angle * 2 * np.pi )
+            sRZcs = sRZ.cross_section( angle * 2 * np.pi )
+            maxerr = np.max(np.abs(scs - sRZcs))
+            if maxerror < maxerr:
+                maxerror = maxerr
+        assert maxerr < 1e-12
+
+
+    def test_toRZFourier_small_loss_elsewhere(self):
+        """
+        Away from the quadrature points, the conversion is not lossless and this test verifies that the
+        error is small.
+        """
         s = get_exact_surface()
         sRZ = s.to_RZFourier()
         
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle, theta_resolution = 100)
-        sRZcs = sRZ.cross_section(angle, theta_resolution = 100)
+        scs = s.cross_section(angle )
+        sRZcs = sRZ.cross_section(angle)
         
         maxerr = np.max(np.abs(scs - sRZcs))
         print(maxerr)
-        assert maxerr < 1e-2
+        assert maxerr < 1e-3
+
 
     def test_cross_section(self):
         """
@@ -55,6 +89,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         phis = np.linspace(0, 1, 31, endpoint=False)
         thetas = np.linspace(0, 1, 31, endpoint=False)
         
+        np.random.seed(0)
 
         stellsym = False
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
@@ -72,8 +107,6 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         s.xc[1, ntor] = minor_R
         s.zs[1, ntor] = minor_R
         
-        def polygon_area(x,y):
-            return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
         cs = np.zeros((5,100,3))
         cs[0,:,:] = s.cross_section(0., theta_resolution = 100)
         cs[1,:,:] = s.cross_section(np.pi/2., theta_resolution = 100)
@@ -81,16 +114,19 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         cs[3,:,:] = s.cross_section(3. * np.pi/2., theta_resolution = 100)
         cs[4,:,:] = s.cross_section(2. * np.pi, theta_resolution = 100)
         
+        from scipy import fftpack
         cs_area = np.zeros( (5,) )
         for i in range(5):
             R = np.sqrt( cs[i,:,0]**2 + cs[i,:,1]**2)
             Z = cs[i,:,2]
-            cs_area[i] = polygon_area(R,Z)
+            Rp = fftpack.diff(R, period = 1.)
+            Zp = fftpack.diff(Z, period = 1.)
+            cs_area[i] = np.mean( Z*Rp ) 
         exact_area = np.pi * minor_R**2.
         assert np.max( np.abs( cs_area - cs_area ) ) < 1e-14
 
 
-    def test_aspect_ratio1(self):
+    def test_aspect_ratio_random_torus(self):
         """
         This is a simple aspect ratio validation on a torus with minor radius = r1
         and major radius = r2, where 0.1 <= r1 <= r2 are random numbers
@@ -110,6 +146,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         s.yc = s.yc * 0
         s.zs = s.zs * 0
         s.zc = s.zc * 0
+        np.random.seed(0)
         r1 = np.random.random_sample() + 0.1
         r2 = np.random.random_sample() + 0.1
         major_R = np.max([r1,r2])
@@ -121,7 +158,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
         self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
 
-    def test_aspect_ratio2(self):
+    def test_aspect_ratio_compare_with_cross_sectional_computation(self):
         """
         This test validates the VMEC aspect ratio computation in the Surface class by 
         comparing with an approximation based on cross section computations.
@@ -156,6 +193,11 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
 class SurfaceRZFourierTests(unittest.TestCase):
     def test_aspect_ratio(self):
+        """
+        Test that the aspect ratio of a torus with random minor and major radius 0.1 <= minor_R <= major_R
+        is properly computed to be major_R/minor_R.
+        """
+
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
         s.rc = s.rc * 0
         s.rs = s.rs * 0
