@@ -64,7 +64,7 @@ class Surface(Optimizable):
             varphi_resolution = self.gamma().shape[0]
         if theta_resolution is None:
             theta_resolution = self.gamma().shape[1]
-        varphi = np.linspace(0,1/self.nfp,varphi_resolution, endpoint = False)
+        varphi = np.linspace(0.,1.,varphi_resolution, endpoint = False)
         if self.stellsym:
             theta = np.linspace(0,1./2.,theta_resolution, endpoint = False)
         else:
