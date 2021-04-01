@@ -180,18 +180,23 @@ class BoozerSurface():
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
         res = minimize(lambda x: self.boozer_penalty_constraints(x,derivatives = 1, constraint_weight = constraint_weight, optimize_G=G is not None), \
-                x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'ftol' : tol,'gtol' : tol, 'maxcor' : 50})
+                x, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'ftol' : tol,'gtol' : tol, 'maxcor' : 200})
+
+        resdict = { 
+            "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None,
+        }
         if G is None:
             s.set_dofs(res.x[:-1])
             iota = res.x[-1]
-            out = (s, iota, res.message)
         else:
             s.set_dofs(res.x[:-2])
             iota = res.x[-2]
             G = res.x[-1]
-            out = (s, iota, G, res.message)
+            resdict['G'] = G
+        resdict['s'] = s
+        resdict['iota'] = iota
 
-        return out
+        return resdict
        
 
     def minimize_boozer_penalty_constraints_newton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., G=None):
@@ -206,31 +211,29 @@ class BoozerSurface():
             x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         
-        val, dval = self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
+        val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval) 
         while i < maxiter and norm > tol:
-            val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             dx = np.linalg.solve(d2val,dval)
             x = x - dx
+            val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval) 
-            print(norm)
             i = i+1
 
-        if norm <= tol:
-            message = "SUCCESS : norm of optimality condition is less than tol"
-        else:
-            message = "FAIL : maximum number of iterations exceeded"
-        
+        res = { 
+            "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
+        }
         if G is None:
             s.set_dofs(x[:-1])
             iota = x[-1]
-            out = (s, iota, message)
         else:
             s.set_dofs(x[:-2])
             iota = x[-2]
             G = x[-1]
-            out = (s, iota, G, message)
-        return out
+            res['G'] = G
+        res['s'] = s
+        res['iota'] = iota
+        return res
 
     def minimize_boozer_penalty_constraints_ls(self, tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., G=None, method='lm'):
         """
@@ -246,43 +249,51 @@ class BoozerSurface():
         if method == 'manual':
             i = 0   
             lam = 1.
+            r, J = self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+            b = J.T@r
+            JTJ = J.T@J 
             while i < maxiter and norm > tol:
+                dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
+                x -= dx
                 r, J = self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
-                print(J.shape, np.linalg.matrix_rank(J))
                 b = J.T@r
                 JTJ = J.T@J 
-                A =  JTJ + lam * np.diag(np.diag(J.T@J))
-                dx = np.linalg.solve(A, b)
-                x -= dx
                 norm = np.linalg.norm(b)
                 lam *= 1/3
-                print(0.5*np.sum(r**2), norm)
                 i += 1
+            resdict = { 
+                "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol
+            }
             if G is None:
                 s.set_dofs(x[:-1])
                 iota = x[-1]
-                out = (s, iota)
             else:
                 s.set_dofs(x[:-2])
                 iota = x[-2]
                 G = x[-1]
-                out = (s, iota, G)
-            return out
+                resdict['G'] = G
+            resdict['s'] = s
+            resdict['iota'] = iota
+            return resdict
         fun = lambda x: self.boozer_penalty_constraints(x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
         jac = lambda x: self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)[1]
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
+        resdict = { 
+            "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,  "G": None,
+        }
         if G is None:
             s.set_dofs(res.x[:-1])
             iota = res.x[-1]
-            out = (s, iota, res.message)
         else:
             s.set_dofs(res.x[:-2])
             iota = res.x[-2]
             G = res.x[-1]
-            out = (s, iota, G, res.message)
-        return out
+            resdict['G'] = G
+        resdict['s'] = s
+        resdict['iota'] = iota
+        return resdict
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0.,0.,0.] ):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0.,0.,0.], stab=0. ):
         """
         This function solves the constrained optimization problem
 
@@ -304,37 +315,43 @@ class BoozerSurface():
         else:
             xl = np.concatenate( (s.get_dofs(), [iota], lm) )
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
+        dval += stab * np.identity(dval.shape[0])
         norm = np.linalg.norm(val) 
         i = 0   
         while i < maxiter and norm > tol:
             if s.stellsym:
-                dx = np.linalg.solve(dval[:-2,:-2],val[:-2])
+                A = dval[:-2,:-2]
+                b = val[:-2]
+                dx = np.linalg.solve(A, b)
+                if norm < 1e-9: # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    dx += np.linalg.solve(A, b-A@dx)
                 xl[:-2] = xl[:-2] - dx
             else:
-                dx = np.linalg.solve(dval,val)
+                dx = np.linalg.solve(dval, val)
+                if norm < 1e-9: # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    dx += np.linalg.solve(dval, val-dval@dx)
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)
+            print("norm", norm)
             i = i + 1
-
-        if norm <= tol:
-            message = "SUCCESS : norm of optimality condition is less than tol"
-        else:
-            message = "FAIL : maximum number of iterations exceeded"
 
         if s.stellsym:
             lm = xl[-3]
         else:
             lm = xl[-3:]
 
+        res = { 
+            "residual": val, "jacobian": dval, "iter": i, "success": norm <= tol, "lm": lm, "G": None,
+        }
         if G is not None:
             s.set_dofs(xl[:-5])
             iota = xl[-5]
             G = xl[-4]
-            out = (s, iota, G, lm, message)
+            res['G'] = G
         else:
             s.set_dofs(xl[:-4])
             iota = xl[-4]
-            out = (s, iota, lm, message)
-        
-        return out
+        res['s'] = s
+        res['iota'] = iota
+        return res
