@@ -40,6 +40,12 @@ class MagneticFieldSum(MagneticField):
     def __init__(self,Bfield1,Bfield2):
         self.Bfield1 = Bfield1
         self.Bfield2 = Bfield2
+        if hasattr(Bfield1, 'coils'):
+            self.coils = Bfield1.coils
+        elif hasattr(Bfield2, 'coils'):
+            self.coils = Bfield2.coils
+        else:
+            self.coils = None
 
     def set_points(self, points):
         self.points = points
