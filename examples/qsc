@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
-import numpy as np
-import sys
 import logging
-sys.path.append('/Users/mattland/pyQSC')
+import numpy as np
 from qsc import Qsc
-sys.path.append('..')
 from simsopt.core.optimizable import optimizable
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.solve.serial_solve import least_squares_serial_solve
