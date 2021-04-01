@@ -214,7 +214,9 @@ class BoozerSurface():
         val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval) 
         while i < maxiter and norm > tol:
-            dx = np.linalg.solve(d2val,dval)
+            dx = np.linalg.solve(d2val, dval)
+            if norm < 1e-9:
+                dx += np.linalg.solve(d2val, dval - d2val@dx)
             x = x - dx
             val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval) 
