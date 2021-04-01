@@ -218,11 +218,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         # compute surface first using LBFGS exact and an area constraint
         res = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-4, maxiter=400, constraint_weight=100., iota=iota, G=G)
         if second_stage == 'ls':
-            res = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=2e-10, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
+            res = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
-            res = boozerSurface.minimize_boozer_penalty_constraints_newton(tol=2e-10, maxiter=10, constraint_weight=100., iota=res['iota'], G=res['G'], stab=1e-4)
+            res = boozerSurface.minimize_boozer_penalty_constraints_newton(tol=1e-9, maxiter=10, constraint_weight=100., iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
-            res = boozerSurface.minimize_boozer_exact_constraints_newton(tol=2e-10, maxiter=10, iota=res['iota'], G=res['G'])
+            res = boozerSurface.minimize_boozer_exact_constraints_newton(tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
 
         assert res['success']
 
@@ -230,7 +230,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert np.linalg.norm(res['residual']) < 1e-9
 
         if second_stage == 'newton_exact' or surfacetype == 'SurfaceXYZTensorFourier':
-            assert np.abs(ar_target - ar.J()) < 1e-11
+            assert np.abs(ar_target - ar.J()) < 1e-9
 
 if __name__ == "__main__":
     unittest.main()
