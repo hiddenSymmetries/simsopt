@@ -6,7 +6,7 @@ from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.coilobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
+from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False
 
