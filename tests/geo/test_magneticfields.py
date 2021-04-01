@@ -1,8 +1,10 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil
+from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoilXY
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
+from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.biotsavart import BiotSavart
 
@@ -12,7 +14,7 @@ class Testing(unittest.TestCase):
         R0test    = 1.3
         B0test    = 0.8
         pointVar  = 1e-2
-        npoints   = 10
+        npoints   = 20
         # point locations
         points    = np.asarray(npoints * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]])
         points   += pointVar * (np.random.rand(*points.shape)-0.5)
@@ -36,17 +38,19 @@ class Testing(unittest.TestCase):
         currents  = [-2.1e5,2.1e5]
         Bhelical  = BiotSavart(coils, currents)
         # Set up toroidal field
-        Btoroidal = ToroidalField(1.,1.)
+        Btoroidal1 = ToroidalField(1.,1.)
+        Btoroidal2 = ToroidalField(1.2,0.1)
         # Set up sum of the two
-        Btotal    = MagneticFieldSum([Bhelical,Btoroidal])
+        Btotal    = MagneticFieldSum([Bhelical,Btoroidal1,Btoroidal2])
         # Evaluate at a given point
         points    = np.array([[1.1,0.9,0.3]])
         Bhelical.set_points(points)
-        Btoroidal.set_points(points)
+        Btoroidal1.set_points(points)
+        Btoroidal2.set_points(points)
         Btotal.set_points(points)
         # Verify
-        assert np.allclose(Bhelical.B()+Btoroidal.B(),Btotal.B())
-        assert np.allclose(Bhelical.dB_by_dX()+Btoroidal.dB_by_dX(),Btotal.dB_by_dX())
+        assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(),Btotal.B())
+        assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(),Btotal.dB_by_dX())
 
     def test_scalarpotential_Bfield(self):
         # Set up magnetic field scalar potential
@@ -72,11 +76,40 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1,B2)
         assert np.allclose(dB1_by_dX,dB2_by_dX)
 
-    def test_circularcoil_Bfield(self):
-        Bfield = CircularCoil(I=1e7, r0=1)
-        points=np.array([[1e-10,0,0.]])
+    def test_circularcoilXY_Bfield(self):
+        current = 1e7
+        radius  = 1.0
+        pointVar  = 1e-2
+        npoints   = 20
+        Bfield  = CircularCoilXY(I=current, r0=radius)
+        ## verify the field at the center of the coil
+        points  = np.array([[1e-10,0,0.]])
         Bfield.set_points(points)
         assert np.allclose(Bfield.B(),[[0,0,2*np.pi]])
+        ## compare to biosavart(circular_coil)
+        # at these points
+        points    = np.asarray(npoints * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]])
+        points   += pointVar * (np.random.rand(*points.shape)-0.5)
+        # verify with a x^2+y^2=radius^2 circular coil
+        coils = [CurveRZFourier(300, 1, 1, True)]
+        coils[0].set_dofs([radius,0,0])
+        Bcircular = BiotSavart(coils, [current])
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        assert np.allclose(Bfield.B(),Bcircular.B())
+
+    def test_helicalcoil_Bfield(self):
+        point = [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]]
+        field = [[-0.00101961,0.20767292,-0.00224908]]
+        derivative = [[[0.47545098,0.01847397,1.10223595],[0.01847426,-2.66700072,0.01849548],[1.10237535,0.01847085,2.19154973]]]
+        coils     = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
+        coils[0].set_dofs(np.concatenate(([0,0],[0,0])))
+        coils[1].set_dofs(np.concatenate(([np.pi/2,0],[0,0])))
+        currents  = [-3.07e5,3.07e5]
+        Bhelical  = BiotSavart(coils, currents)
+        Bhelical.set_points(point)
+        assert np.allclose(Bhelical.B(),field)
+        assert np.allclose(Bhelical.dB_by_dX(),derivative)
 
 if __name__ == "__main__":
     unittest.main()

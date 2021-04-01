@@ -1,15 +1,22 @@
 from simsopt.geo.magneticfield import MagneticField
+from scipy.special import ellipk, ellipe
 import numpy as np
 try:
     from sympy.parsing.sympy_parser import parse_expr
-    from scipy.special import ellipk, ellipe
     import sympy as sp
+    sympy_found = True
 except:
-    print("No sympy and/or scipy modules available, some magnetic field classes may be unavailable")
+    sympy_found = False
+    pass
 
 class ToroidalField(MagneticField):
     '''Magnetic field purely in the toroidal direction, that is, in the phi direction with (R,phi,Z) the standard cylindrical coordinates.
-       Its modulus is given by B = B0*R0/R where R0 is the first input and B0 the second input to the function.'''
+       Its modulus is given by B = B0*R0/R where R0 is the first input and B0 the second input to the function.    
+
+    Args:
+        B0:  modulus of the magnetic field at R0
+        R0:  radius of normalization
+    '''
     def __init__(self, R0, B0):
         self.R0=R0
         self.B0=B0
@@ -48,8 +55,14 @@ class ScalarPotentialRZMagneticField(MagneticField):
     '''Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the magnetic field scalar potential.
        It takes Phi as an input string, which should contain an expression involving the standard cylindrical coordinates (R, phi, Z)
        Example: ScalarPotentialRZMagneticField("2*phi") yields a magnetic field B = grad(2*phi) = (0,2/R,0).
-       Note: this function needs sympy.'''
+       Note: this function needs sympy.    
+
+    Args:
+        PhiStr:  string containing vacuum scalar potential expression as a function of R, Z and phi
+    '''
     def __init__(self, PhiStr):
+        if not sympy_found:
+            raise RuntimeError("Sympy is required for the ScalarPotentialRZMagneticField class")
         self.PhiStr = PhiStr
         self.Phiparsed = parse_expr(PhiStr)
         R,Z,Phi = sp.symbols('R Z phi')
@@ -69,14 +82,20 @@ class ScalarPotentialRZMagneticField(MagneticField):
             self._dB_by_dX = [self.dBlambdify_by_dX(r[i],z[i],phi[i]) for i in range(len(r))]
 
 
-class CircularCoil(MagneticField):
-    '''Magnetic field created by a single circular coil evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
+class CircularCoilXY(MagneticField):
+    '''Magnetic field created by a single circular coil in the xy plane evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
     As inputs, it takes the radius of the coil (r0), its center and current (I).
-    Note: this function needs scipy.'''
+    Note: this function needs scipy.
+
+    Args:
+        r0: radius of the coil
+        center: point at the coil center
+        I: current of the coil in Ampere's
+    '''
     def __init__(self, r0=0.1, center=[0,0,0], I=5e5/np.pi):
-        self.r0 = r0
-        self.Inorm = I*4e-7
-        self.center = np.array(center)
+        self.r0     = r0
+        self.Inorm  = I*4e-7
+        self.center = center
 
     def compute(self, points, compute_derivatives=0):
         points = np.array([np.subtract(point,self.center) for point in points])
@@ -85,34 +104,13 @@ class CircularCoil(MagneticField):
         alpha = np.sqrt(self.r0**2 + np.power(r,2) - 2*self.r0*rho)
         beta  = np.sqrt(self.r0**2 + np.power(r,2) + 2*self.r0*rho)
         k     = np.sqrt(1-np.divide(np.power(alpha,2),np.power(beta,2)))
-        gamma = np.power(points[:,0],2) - np.power(points[:,1],2)
-        self._B = [
+        self._B = np.array([
             [self.Inorm*point[0]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm*point[1]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm/(2*alpha[i]**2*beta[i])*((self.r0**2-r[i]**2)*ellipe(k[i]**2)+alpha[i]**2*ellipk(k[i]**2))]
-            for i,point in enumerate(points)]
+            for i,point in enumerate(points)])
 
-        # if compute_derivatives >= 1:
-        #     self._dB_by_dX =  [
-        #         [[self.Inorm*point[2]/(2*alpha[i]**4*beta[i]**3*rho[i]**4)*((self.r0**4*(-gamma[i]*(3*point[2]*self.r0**2)+rho[i]**2*(8*point[0]**2-point[1]**2))-self.r0**2*(rho[i]**4*(5*point[0]**2+point[1]**2)-2*rho[i]**2*point[2]**2*(2*point[0]**2+point[1]**2)+3*point[2]**4*gamma[i])-self.r0*(2*point[0]**4+gamma[i]*(point[1]**2+point[z]**2))))*alpha[i]**2*ellipk(k[i]**2)),
-        #         self.Inorm*,
-        #         self.Inorm*],
-        #         [self.Inorm*,
-        #         self.Inorm*,
-        #         self.Inorm*],
-        #         [self.Inorm*,
-        #         self.Inorm*,
-        #         self.Inorm*]]
-        #         for i,point in enumerate(points)]
-
-## Next magnetic field classes to work on
+## Next magnetic field classes to implement
 # class ReimanModel(MagneticField):
 # class DommaschkPotential(MagneticField):
-# class CircularCoils(MagneticField):
-# class PointDipole(MagneticField):
-
-## Method to add magnetic fields
-# class MagneticFieldSum(MagneticField):
-#     def __add__(self, other: MagneticField) -> MagneticField:
-
-#         return MagneticField(self._B1 + self._B2)
+# class PointDipole(MagneticField): (equation 14 of https://arxiv.org/pdf/2009.06535)
