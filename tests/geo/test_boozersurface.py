@@ -216,7 +216,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             G = None
        
         # compute surface first using LBFGS exact and an area constraint
-        res = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-9, maxiter=400, constraint_weight=100., iota=iota, G=G)
+        res = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
         print('Squared residual after LBFGS', res['fun'])
         if second_stage == 'ls':
             res = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
@@ -225,6 +225,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif second_stage == 'newton_exact':
             res = boozerSurface.minimize_boozer_exact_constraints_newton(tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
 
+        print('Residual after second stage', np.linalg.norm(res['residual']))
         assert res['success']
 
         if surfacetype == 'SurfaceXYZTensorFourier':
