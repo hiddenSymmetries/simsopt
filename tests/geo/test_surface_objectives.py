@@ -10,7 +10,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
 from .surface_test_helpers import CoilCollection, get_ncsx_data,get_surface,get_exact_surface 
 
-surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
+surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
 
 
@@ -33,6 +33,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         assert err < 0.55 * err_old
         err_old = err
     print("################################################################################")
+
 def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = None):
     np.random.seed(1)
     if direction1 is None:
@@ -56,11 +57,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
         assert err < 0.6 * err_old
         err_old = err
     print("################################################################################")
-
-
-
-
-
 
 class ToroidalFluxTests(unittest.TestCase):
     def test_toroidal_flux_is_constant(self):
@@ -93,8 +89,6 @@ class ToroidalFluxTests(unittest.TestCase):
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
                     self.subtest_toroidal_flux2(surfacetype,stellsym)
-
-
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()
@@ -133,4 +127,3 @@ class ToroidalFluxTests(unittest.TestCase):
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs) 
- 

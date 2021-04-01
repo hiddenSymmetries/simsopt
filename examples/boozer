@@ -19,8 +19,8 @@ bs = BiotSavart(coils, currents)
 bs_tf = BiotSavart(coils, currents)
 G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
-mpol = 8
-ntor = 8
+mpol = 5 # try increasing this to 8 or 10 for smoother surfaces
+ntor = 5 # try increasing this to 8 or 10 for smoother surfaces
 stellsym = True
 nfp = 3
 
