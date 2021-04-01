@@ -5,11 +5,7 @@ from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.curverzfourier import CurveRZFourier 
-from simsopt.geo.curvexyzfourier import CurveXYZFourier 
 from simsopt.geo.surfaceobjectives import ToroidalFlux 
-from simsopt.geo.surfaceobjectives import Area 
 from surface_test_helpers import get_ncsx_data,get_surface2, get_exact_surface 
 
 
