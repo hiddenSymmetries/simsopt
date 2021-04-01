@@ -44,6 +44,8 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     
     if surfacetype == "SurfaceXYZFourier":
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+    elif surfacetype == "SurfaceRZFourier":
+         s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surfacetype == "SurfaceXYZTensorFourier":
         s = SurfaceXYZTensorFourier(
             mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, 
