@@ -162,7 +162,7 @@ class BoozerSurface():
         dres[ -1,:-3] =  drz
         return res, dres
  
-    def minimize_boozer_penalty_constraints_LBFGS(self,tol = 1e-3, maxiter = 1000, constraint_weight = 1., iota = 0., G=None):
+    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
         """
         This function tries to find the surface that approximately solves
 
@@ -199,7 +199,7 @@ class BoozerSurface():
         return resdict
        
 
-    def minimize_boozer_penalty_constraints_newton(self,tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., G=None):
+    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
         """
         This function does the same as the above, but instead of LBFGS it uses
         Newton's method.
@@ -214,12 +214,14 @@ class BoozerSurface():
         val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval) 
         while i < maxiter and norm > tol:
+            d2val += stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(d2val, dval)
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
             x = x - dx
             val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval) 
+            print("norm", norm)
             i = i+1
 
         res = { 
@@ -237,7 +239,7 @@ class BoozerSurface():
         res['iota'] = iota
         return res
 
-    def minimize_boozer_penalty_constraints_ls(self, tol = 1e-12, maxiter = 10,constraint_weight = 1., iota = 0., G=None, method='lm'):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10,constraint_weight=1., iota=0., G=None, method='lm'):
         """
         This function does the same as the above, but instead of LBFGS it uses a nonlinear least squares algorithm.
         Options for method are the same as for scipy.optimize.least_squares.
@@ -295,7 +297,7 @@ class BoozerSurface():
         resdict['iota'] = iota
         return resdict
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0.,0.,0.], stab=0. ):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0.,0.,0.]):
         """
         This function solves the constrained optimization problem
 
@@ -317,7 +319,6 @@ class BoozerSurface():
         else:
             xl = np.concatenate( (s.get_dofs(), [iota], lm) )
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
-        dval += stab * np.identity(dval.shape[0])
         norm = np.linalg.norm(val) 
         i = 0   
         while i < maxiter and norm > tol:
