@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField
+from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil
 from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.biotsavart import BiotSavart
@@ -71,6 +71,12 @@ class Testing(unittest.TestCase):
         # Verify
         assert np.allclose(B1,B2)
         assert np.allclose(dB1_by_dX,dB2_by_dX)
+
+    def test_circularcoil_Bfield(self):
+        Bfield = CircularCoil(I=1e7, r0=1)
+        points=np.array([[1e-10,0,0.]])
+        Bfield.set_points(points)
+        assert np.allclose(Bfield.B(),[[0,0,2*np.pi]])
 
 if __name__ == "__main__":
     unittest.main()

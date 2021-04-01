@@ -31,8 +31,20 @@ class MagneticField():
             self.compute(self.points, compute_derivatives)
         return self._d2B_by_dXdX
 
-    def compute(self, points, compute_derivatives):
+    def compute(self, points, compute_derivatives=0):
         self._B = None
+        if compute_derivatives >= 1:
+            self._dB_by_dX = None
+        if compute_derivatives >= 2:
+            self._d2B_by_dXdX = None
+        return self
+
+    def compute_A(self, points, compute_derivatives=0):
+        self._A = None
+        if compute_derivatives >= 1:
+            self._dA_by_dX = None
+        if compute_derivatives >= 2:
+            self._d2A_by_dXdX = None
         return self
 
 class MagneticFieldSum(MagneticField):
@@ -54,7 +66,7 @@ class MagneticFieldSum(MagneticField):
         self.Bfield2.set_points(points)
         return self
 
-    def compute(self, points, compute_derivatives):
+    def compute(self, points, compute_derivatives=0):
         self.Bfield1.compute(points, compute_derivatives)
         self.Bfield2.compute(points, compute_derivatives)
         self._B = self.Bfield1._B + self.Bfield2._B
@@ -62,3 +74,12 @@ class MagneticFieldSum(MagneticField):
             self._dB_by_dX = self.Bfield1._dB_by_dX + self.Bfield2._dB_by_dX
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = self.Bfield1._d2B_by_dXdX + self.Bfield2._d2B_by_dXdX
+
+    def compute_A(self, points, compute_derivatives=0):
+        self.Bfield1.compute_A(points, compute_derivatives)
+        self.Bfield2.compute_A(points, compute_derivatives)
+        self._A = self.Bfield1._A + self.Bfield2._A
+        if compute_derivatives >= 1:
+            self._dA_by_dX = self.Bfield1._dA_by_dX + self.Bfield2._dA_by_dX
+        if compute_derivatives >= 2:
+            self._d2A_by_dXdX = self.Bfield1._d2A_by_dXdX + self.Bfield2._d2A_by_dXdX

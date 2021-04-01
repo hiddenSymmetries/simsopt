@@ -18,6 +18,16 @@ def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     return gamma
 
 class CurveHelical(JaxCurve):
+    '''Curve representation of a helical coil.
+    The helical coil positions are specified by a poloidal angle eta that is a function of the toroidal angle phi with Fourier coefficients A_k and B_k.
+    The poloidal angle is represented as eta = m0*phi/l0 + Sum_k A_k cos(n0*phi*k/l0) + B_k sin(n0*phi*k/l0)
+    The CurveHelical function takes as inputs:
+    quadpoints - number of grid points/resolution along the curve;
+    order - number of fourier coefficients, i.e., the length of the array A (or B);
+    n0 - toroidal periodicity/number of field periods
+    l0 - number of 2*pi turns in phi
+    R0 - major radius
+    r0 - minor radius'''
     def __init__(self, quadpoints, order, n0, l0, R0, r0):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
