@@ -49,15 +49,15 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
 
 def get_surface2(surfacetype, stellsym, phis=None, thetas=None):
     nfp = 3
-    ntor = 5
-    mpol = 5
-    nphi = 11
-    ntheta = 11 
+    ntor = 6
+    mpol = 6
+    nphi = 13
+    ntheta = 13 
     
     if phis is None:
         phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
     if thetas is None:
-        thetas = np.linspace(0, 1/(1. + (stellsym == True)), ntheta, endpoint=False)
+        thetas = np.linspace(0, 1., ntheta, endpoint=False)
     
     if surfacetype == "SurfaceXYZFourier":
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym=stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
