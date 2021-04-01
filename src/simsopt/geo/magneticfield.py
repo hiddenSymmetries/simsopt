@@ -1,3 +1,4 @@
+import numpy as np
 
 class MagneticField():
 
@@ -49,37 +50,31 @@ class MagneticField():
 
 class MagneticFieldSum(MagneticField):
 
-    def __init__(self,Bfield1,Bfield2):
-        self.Bfield1 = Bfield1
-        self.Bfield2 = Bfield2
-        if hasattr(Bfield1, 'coils'):
-            self.coils = Bfield1.coils
-        elif hasattr(Bfield2, 'coils'):
-            self.coils = Bfield2.coils
-        else:
-            self.coils = None
+    def __init__(self,Bfields):
+        self.Bfields = Bfields
+        for Bfield in self.Bfields:
+            if hasattr(Bfield, 'coils'):
+                self.coils = Bfield.coils
+                break
 
     def set_points(self, points):
         self.points = points
         self.clear_cached_properties()
-        self.Bfield1.set_points(points)
-        self.Bfield2.set_points(points)
+        [Bfield.set_points(points) for Bfield in self.Bfields]
         return self
 
     def compute(self, points, compute_derivatives=0):
-        self.Bfield1.compute(points, compute_derivatives)
-        self.Bfield2.compute(points, compute_derivatives)
-        self._B = self.Bfield1._B + self.Bfield2._B
+        [Bfield.compute(points, compute_derivatives) for Bfield in self.Bfields]
+        self._B = np.sum([Bfield._B for Bfield in self.Bfields],0)
         if compute_derivatives >= 1:
-            self._dB_by_dX = self.Bfield1._dB_by_dX + self.Bfield2._dB_by_dX
+            self._dB_by_dX = self._B = np.sum([Bfield._dB_by_dX for Bfield in self.Bfields],0)
         if compute_derivatives >= 2:
-            self._d2B_by_dXdX = self.Bfield1._d2B_by_dXdX + self.Bfield2._d2B_by_dXdX
+            self._d2B_by_dX = self._B = np.sum([Bfield._d2B_by_dX for Bfield in self.Bfields],0)
 
     def compute_A(self, points, compute_derivatives=0):
-        self.Bfield1.compute_A(points, compute_derivatives)
-        self.Bfield2.compute_A(points, compute_derivatives)
-        self._A = self.Bfield1._A + self.Bfield2._A
+        [Bfield.compute_A(points, compute_derivatives) for Bfield in self.Bfields]
+        self._A =np.sum([Bfield._A for Bfield in self.Bfields],0)
         if compute_derivatives >= 1:
-            self._dA_by_dX = self.Bfield1._dA_by_dX + self.Bfield2._dA_by_dX
+            self._dA_by_dX = self._B = np.sum([Bfield._dA_by_dX for Bfield in self.Bfields],0)
         if compute_derivatives >= 2:
-            self._d2A_by_dXdX = self.Bfield1._d2A_by_dXdX + self.Bfield2._d2A_by_dXdX
+            self._d2A_by_dX = self._B = np.sum([Bfield._d2A_by_dX for Bfield in self.Bfields],0)

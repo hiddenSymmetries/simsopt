@@ -31,14 +31,14 @@ class Testing(unittest.TestCase):
     def test_sum_Bfields(self):
         # Set up helical field
         coils     = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
-        coils[0].set_dofs(np.concatenate(([np.pi,0],[0,0])))
+        coils[0].set_dofs(np.concatenate(([np.pi/2,0],[0,0])))
         coils[1].set_dofs(np.concatenate(([0    ,0],[0,0])))
         currents  = [-2.1e5,2.1e5]
         Bhelical  = BiotSavart(coils, currents)
         # Set up toroidal field
         Btoroidal = ToroidalField(1.,1.)
         # Set up sum of the two
-        Btotal    = MagneticFieldSum(Bhelical,Btoroidal)
+        Btotal    = MagneticFieldSum([Bhelical,Btoroidal])
         # Evaluate at a given point
         points    = np.array([[1.1,0.9,0.3]])
         Bhelical.set_points(points)
