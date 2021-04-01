@@ -11,7 +11,7 @@ class MagneticField():
         self._d2A_by_dXdX = None
 
     def set_points(self, points):
-        self.points = points
+        self.points = np.array(points)
         self.clear_cached_properties()
         return self
 
@@ -58,7 +58,7 @@ class MagneticFieldSum(MagneticField):
                 break
 
     def set_points(self, points):
-        self.points = points
+        self.points = np.array(points)
         self.clear_cached_properties()
         [Bfield.set_points(points) for Bfield in self.Bfields]
         return self
