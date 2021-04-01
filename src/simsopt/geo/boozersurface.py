@@ -333,7 +333,6 @@ class BoozerSurface():
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)
-            print("norm", norm)
             i = i + 1
 
         if s.stellsym:
