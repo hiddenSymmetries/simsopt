@@ -3,6 +3,7 @@ import numpy as np
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
