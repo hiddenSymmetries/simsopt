@@ -221,7 +221,6 @@ class BoozerSurface():
             x = x - dx
             val, dval, d2val = self.boozer_penalty_constraints(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval) 
-            print('Norm in Newton', norm)
             i = i+1
 
         res = { 
