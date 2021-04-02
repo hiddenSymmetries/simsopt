@@ -227,7 +227,7 @@ class NonQuasiSymmetricComponentPenalty(object):
     def __init__(self,surface, biotsavart, N = 0):
         self.surface = surface
         self.biotsavart = biotsavart
-        self.N = N
+        self.N = N # what the variety of quasisymmetry we're optimizing for
         self.surface.dependencies.append(self)
         self.invalidate_cache()
         
@@ -294,9 +294,8 @@ class NonQuasiSymmetricComponentPenalty(object):
         dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
 
         dJ_dc = np.mean(  dmodB_dc, axis = (0,1) )
-
         dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
                          + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
         return dJ_dc
 
-#    def d2J_by_dsuracecoefficientsdsurfacecoefficients():
+
