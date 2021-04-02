@@ -108,7 +108,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
     print("################################################################################")
 
 
-class Testing(unittest.TestCase):
+class SurfaceTaylorTests(unittest.TestCase):
 
     surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
 
