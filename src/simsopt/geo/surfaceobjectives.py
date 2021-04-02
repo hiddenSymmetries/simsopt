@@ -1,15 +1,20 @@
 import numpy as np
 
+
 class Area(object):
+
     def __init__(self, surface):
         self.surface = surface
 
     def J(self):
         return self.surface.area()
+
     def dJ_by_dsurfacecoefficients(self):
         return self.surface.darea_by_dcoeff()
+
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         return self.surface.d2area_by_dcoeffdcoeff()
+
 
 class Volume(object):
     def __init__(self, surface):
@@ -17,8 +22,10 @@ class Volume(object):
 
     def J(self):
         return self.surface.volume()
+
     def dJ_by_dsurfacecoefficients(self):
         return self.surface.dvolume_by_dcoeff()
+
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         return self.surface.d2volume_by_dcoeffdcoeff()
 
@@ -37,22 +44,20 @@ class ToroidalFlux(object):
     def __init__(self, surface, biotsavart, idx=0):
         self.surface = surface
         self.biotsavart = biotsavart
-        self.idx = idx 
+        self.idx = idx
         self.surface.dependencies.append(self)
         self.invalidate_cache()
 
     def invalidate_cache(self):
         x = self.surface.gamma()[self.idx]
         self.biotsavart.set_points(x)
-        
+
     def J(self):
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
-        
         A = self.biotsavart.A()
         tf = np.sum(A * xtheta)/ntheta
         return tf
-
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -66,11 +71,12 @@ class ToroidalFlux(object):
 
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
         dA_dc = np.sum(dA_by_dX[..., :, None] * dx_dc[..., None, :], axis=1)
-        term1 = np.sum(dA_dc * dgammadash2[..., None], axis=(0, 1)) 
+        term1 = np.sum(dA_dc * dgammadash2[..., None], axis=(0, 1))
         term2 = np.sum(A[..., None] * dgammadash2_by_dc, axis=(0, 1))
 
         out = (term1+term2)/ntheta
         return out
+
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
         Calculate the second derivatives with respect to the surface coefficients
@@ -88,7 +94,7 @@ class ToroidalFlux(object):
         term1 = np.sum(d2A_dcdc * dgammadash2[..., None, None], axis=-3)
         term2 = np.sum(dA_dc[..., :, None] * dgammadash2_by_dc[..., None, :], axis=-3)
         term3 = np.sum(dA_dc[..., None, :] * dgammadash2_by_dc[..., :, None], axis=-3)
-        
+
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
 
@@ -107,7 +113,6 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     value is used instead.
     """
 
-
     user_provided_G = G is not None
     if not user_provided_G:
         G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
@@ -123,15 +128,14 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     biotsavart.set_points(xsemiflat)
 
     B = biotsavart.B(compute_derivatives=derivatives).reshape((nphi, ntheta, 3))
-    
+
     tang = xphi + iota * xtheta
     residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
-    
+
     residual_flattened = residual.reshape((nphi*ntheta*3, ))
     r = residual_flattened
     if derivatives == 0:
-        return r, 
-
+        return r,
 
     dx_dc = surface.dgamma_by_dcoeff()
     dxphi_dc = surface.dgammadash1_by_dcoeff()
@@ -140,7 +144,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     dB_by_dX = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
     dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
-    
+
     dresidual_dc = G*dB_dc \
         - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] \
         - np.sum(B**2, axis=2)[..., None, None] * (dxphi_dc + iota * dxtheta_dc)
@@ -163,11 +167,10 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     B2 = np.sum(B**2, axis=-1)
     d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
     dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc)
-    
+
     term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc)
     term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B)
-    d2B2_dcdc = 2*(term1 + term2) 
-    
+    d2B2_dcdc = 2*(term1 + term2)
 
     term1 = -(dxphi_dc[..., None, :] + iota * dxtheta_dc[..., None, :]) * dB2_dc[..., None, :, None]
     term2 = -(dxphi_dc[..., :, None] + iota * dxtheta_dc[..., :, None]) * dB2_dc[..., None, None, :]
