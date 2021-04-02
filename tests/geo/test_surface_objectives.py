@@ -31,7 +31,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         fpluseps = f(x + eps * direction)
         dfest = (fpluseps-f0)/eps
         err = np.linalg.norm(dfest - dfx)
-        print(err/err_old, dfest, dfx)
+        print(err/err_old)
         assert err < 0.55 * err_old
         err_old = err
     print("################################################################################")
@@ -146,5 +146,5 @@ class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
         def df(dofs):
             s.set_dofs(dofs)
             return non_qs.dJ_by_dsurfacecoefficients() 
-        taylor_test1(f, df, coeffs, epsilons = np.power(2., -np.asarray(range(15, 20))) )
+        taylor_test1(f, df, coeffs )
 

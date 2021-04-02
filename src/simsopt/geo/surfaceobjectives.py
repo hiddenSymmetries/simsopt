@@ -281,7 +281,7 @@ class NonQuasiSymmetricComponentPenalty(object):
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
 
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        dmodB_dc = (dB_dc[:,:,0,:] + dB_dc[:,:,1,:] + dB_dc[:,:,2,:])/modB[:,:,None]
+        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
         
         non_qs_func     = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
         dnon_qs_func_dc = np.fft.irfft2(
@@ -291,12 +291,12 @@ class NonQuasiSymmetricComponentPenalty(object):
         nor = self.surface.normal()
         dnor_dc = self.surface.dnormal_by_dcoeff()
         dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-        dS_dc = (dnor_dc[:,:,0,:] + dnor_dc[:,:,1,:] + dnor_dc[:,:,2,:])/dS[:,:,None]
+        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+
+        dJ_dc = np.mean(  dmodB_dc, axis = (0,1) )
 
         dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
                          + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
         return dJ_dc
-
-
 
 #    def d2J_by_dsuracecoefficientsdsurfacecoefficients():
