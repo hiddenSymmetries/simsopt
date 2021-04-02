@@ -185,10 +185,10 @@ class BoozerSurfaceTests(unittest.TestCase):
     
     def test_BoozerSurface(self):
         configs = [
-            ("SurfaceXYZTensorFourier", False, True,  'ls'),
-            ("SurfaceXYZTensorFourier", True,  True,  'newton'),
+            ("SurfaceXYZTensorFourier", True,  True,  'residual_exact'),
             ("SurfaceXYZTensorFourier", True,  True,  'newton_exact'),
-            ("SurfaceXYZTensorFourier", True,  True,  'ls'),
+            ("SurfaceXYZTensorFourier", True,  True,  'newton'),
+            ("SurfaceXYZTensorFourier", False, True,  'ls'),
             ("SurfaceXYZFourier",       True,  False, 'ls'),
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
@@ -217,22 +217,28 @@ class BoozerSurfaceTests(unittest.TestCase):
        
         # compute surface first using LBFGS exact and an area constraint
         res = boozerSurface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
-        print('Squared residual after LBFGS', res['fun'])
+        print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
         if second_stage == 'ls':
-            res = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
+            res = boozerSurface.minimize_boozer_penalty_constraints_ls(tol=1e-11, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozerSurface.minimize_boozer_penalty_constraints_newton(tol=1e-9, maxiter=10, constraint_weight=100., iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozerSurface.minimize_boozer_exact_constraints_newton(tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
+        elif second_stage == 'residual_exact':
+            res = boozerSurface.solve_residual_equation_exactly_newton(tol=1e-12, maxiter=10, iota=res['iota'], G=res['G'])
 
-        print('Residual after second stage', np.linalg.norm(res['residual']))
+        print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
 
         if surfacetype == 'SurfaceXYZTensorFourier':
             assert np.linalg.norm(res['residual']) < 1e-9
 
-        if second_stage == 'newton_exact' or surfacetype == 'SurfaceXYZTensorFourier':
+        print(ar_target, ar.J())
+        print(res['residual'][-10:])
+        if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
             assert np.abs(ar_target - ar.J()) < 1e-9
+        else:
+            assert np.abs(ar_target - ar.J()) < 1e-4
 
 if __name__ == "__main__":
     unittest.main()

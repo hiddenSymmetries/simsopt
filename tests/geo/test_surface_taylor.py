@@ -65,7 +65,10 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
         s.zs[1, ntor] = 0.1
     elif surfacetype == "SurfaceXYZTensorFourier":
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-        s = SurfaceXYZTensorFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZTensorFourier(
+            nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
+            clamped_dims=[False, not stellsym, True],
+            quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(s.get_dofs()*0.)
         s.x[0, 0] = 1.0
         s.x[1, 0] = 0.1
@@ -106,7 +109,8 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 
 class Testing(unittest.TestCase):
 
-    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
+    # surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
+    surfacetypes = ["SurfaceXYZTensorFourier"]
 
     def subtest_surface_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
