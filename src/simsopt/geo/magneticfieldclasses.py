@@ -47,7 +47,8 @@ class ToroidalField(MagneticField):
             self._dB_by_dX = dToroidal_by_dX
 
         if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None # To be implemented
+            self._d2B_by_dXdX = None
+            raise RuntimeError("Second derivative of toroidal magnetic field not implemented yet")
 
         return self
 
@@ -81,6 +82,10 @@ class ScalarPotentialRZMagneticField(MagneticField):
         if compute_derivatives >= 1:
             self._dB_by_dX = [self.dBlambdify_by_dX(r[i],z[i],phi[i]) for i in range(len(r))]
 
+        if compute_derivatives >= 2:
+            self._d2B_by_dXdX = None
+            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
+
 
 class CircularCoilXY(MagneticField):
     '''Magnetic field created by a single circular coil in the xy plane evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
@@ -109,8 +114,3 @@ class CircularCoilXY(MagneticField):
              self.Inorm*point[1]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm/(2*alpha[i]**2*beta[i])*((self.r0**2-r[i]**2)*ellipe(k[i]**2)+alpha[i]**2*ellipk(k[i]**2))]
             for i,point in enumerate(points)])
-
-## Next magnetic field classes to implement
-# class ReimanModel(MagneticField):
-# class DommaschkPotential(MagneticField):
-# class PointDipole(MagneticField): (equation 14 of https://arxiv.org/pdf/2009.06535)
