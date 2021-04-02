@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 class Area(object):
     def __init__(self, surface):
@@ -205,3 +206,97 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives = 0):
         H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened #(1, 1) diotadiota
 
     return r, J, H
+
+class NonQuasiSymmetricComponentPenalty(object):
+    """
+    This class computes a measure of quasisymmetry on a given surface.  It does so by taking a 
+    Fourier transform of the field magnitude.  Then, it separates the quasisymmetric harmonics 
+    from the non-quasisymmetric ones.  From these harmonics, we can define a 
+    quasisymmetric and non-quasisymmetric component of the field strength:
+
+    modB(varphi,theta) = modB_QS + modB_nonQS
+    where modB_QS    = ifft2(quasisymmetric harmonics)
+    and   modB_nonQS = ifft2(nonquasisymmetric harmonics)
+
+    The quasisymmetric harmonics have indices (n,m) = (m * N, m) and the non quasisymmetric
+    harmonics have indices (n,m) != (m * N , m)
+
+    This penalty term returns J = 0.5\int_{surface} modB_nonQS^2 dS and its derivatives with respect
+    to the surface degrees of freedom.
+    """
+    def __init__(self,surface, biotsavart, N = 0):
+        self.surface = surface
+        self.biotsavart = biotsavart
+        self.N = N
+        self.surface.dependencies.append(self)
+        self.invalidate_cache()
+        
+        original_dim = surface.gamma().shape 
+        if original_dim[1] % 2 == 0:
+            rfft_dim2 = original_dim[1] // 2 + 1
+        else:
+            rfft_dim2 = (original_dim[1] + 1) // 2
+        rfft_dim = (original_dim[0], rfft_dim2)
+
+        # the quasisymmetric harmonics have index (N*m, m)
+        qs_idx1 = self.N*np.arange( min(rfft_dim) )
+        qs_idx2 =        np.arange( min(rfft_dim) )
+        
+        qs_filter = np.zeros( rfft_dim )
+        qs_filter[qs_idx1,qs_idx2] = 1.
+
+        non_qs_filter = np.ones( rfft_dim )
+        non_qs_filter[qs_idx1,qs_idx2] = 0.
+        
+        self.nqs_filter = non_qs_filter
+        self.qs_filter = qs_filter
+    
+    def invalidate_cache(self):
+        x = self.surface.gamma().reshape((-1,3))
+        self.biotsavart.set_points(x)
+
+
+    def J(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        
+        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        J = 0.5 * np.mean( dS * non_qs_func**2 )
+        return J
+
+    def dJ_by_dsurfacecoefficients(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B().reshape( (nphi,ntheta,3) )
+        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dx_dc = self.surface.dgamma_by_dcoeff()
+        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        dmodB_dc = (dB_dc[:,:,0,:] + dB_dc[:,:,1,:] + dB_dc[:,:,2,:])/modB[:,:,None]
+        
+        non_qs_func     = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
+        dnon_qs_func_dc = np.fft.irfft2(
+                          np.fft.rfft2(dmodB_dc, axes=(0,1)) * self.nqs_filter[:,:,None], \
+                          axes=(0,1), s = modB.shape)
+        
+        nor = self.surface.normal()
+        dnor_dc = self.surface.dnormal_by_dcoeff()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS_dc = (dnor_dc[:,:,0,:] + dnor_dc[:,:,1,:] + dnor_dc[:,:,2,:])/dS[:,:,None]
+
+        dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
+                         + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
+        return dJ_dc
+
+
+
+#    def d2J_by_dsuracecoefficientsdsurfacecoefficients():
