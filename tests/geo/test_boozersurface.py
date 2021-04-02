@@ -23,7 +23,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         weight = 1.
         tf = ToroidalFlux(s, bs_tf)
 
-        ## these data are obtained from `boozer` branch of pyplamsaopt
+        # these data are obtained from `boozer` branch of pyplamsaopt
         tf_target = 0.41431152
         iota = -0.44856192
 
@@ -176,8 +176,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_old = err
         print("################################################################################")
 
-
-    def test_BoozerSurface(self):
+    def test_boozer_surface_optimisation_convergence(self):
         configs = [
             ("SurfaceXYZTensorFourier", False, True,  'ls'),
             ("SurfaceXYZTensorFourier", True,  True,  'newton'),
@@ -186,10 +185,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             ("SurfaceXYZFourier",       True,  False, 'ls'),
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G, second_stage=second_stage):
-                    self.subtest_BoozerSurface(surfacetype, stellsym, optimize_G, second_stage)
+            with self.subTest(
+                surfacetype=surfacetype, stellsym=stellsym,
+                    optimize_G=optimize_G, second_stage=second_stage):
+                self.subtest_boozer_surface_optimisation_convergence(surfacetype, stellsym, optimize_G, second_stage)
 
-    def subtest_BoozerSurface(self, surfacetype, stellsym, optimize_G, second_stage):
+    def subtest_boozer_surface_optimisation_convergence(self, surfacetype, stellsym, optimize_G, second_stage):
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
 
