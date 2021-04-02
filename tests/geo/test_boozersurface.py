@@ -74,7 +74,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
             x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        f0, J0 = boozer_surface.boozer_penalty_constraints(x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
+        f0, J0 = boozer_surface.boozer_penalty_constraints(
+            x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
 
         h = np.random.uniform(size=x.shape)-0.5
         Jex = J0@h
