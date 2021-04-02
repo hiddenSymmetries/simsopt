@@ -278,10 +278,21 @@ class Vmec(Optimizable):
         #assert len(wout.xn_nyq) == wout.mnmax_nyq
 
         f = netcdf.netcdf_file(self.output_file, mmap=False)
-        self.wout.ier_flag = f.variables['ier_flag'][()]
+        for key, val in f.variables.items():
+            # 2D arrays need to be transposed.
+            val2 = val[()] # Convert to numpy array
+            val3 = val2.T if len(val2.shape) == 2 else val2
+            self.wout.__setattr__(key, val3)
+            
+        #self.wout.ier_flag = f.variables['ier_flag'][()]
         if self.wout.ier_flag != 0:
             logger.info("VMEC did not succeed!")
             raise RuntimeError("VMEC did not succeed")
+
+        # Shorthand for a long variable name:
+        self.wout.lasym = f.variables['lasym__logical__'][()]
+        self.wout.volume = self.wout.volume_p
+        """
         self.wout.nfp = f.variables['nfp'][()]
         self.wout.lasym = f.variables['lasym__logical__'][()]
         self.wout.ns = f.variables['ns'][()]
@@ -303,6 +314,7 @@ class Vmec(Optimizable):
         self.wout.iotaf = f.variables['iotaf'][()]
         self.wout.aspect = f.variables['aspect'][()]
         self.wout.volume = f.variables['volume_p'][()]
+        """
         f.close()
 
         return ierr
