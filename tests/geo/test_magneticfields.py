@@ -1,12 +1,12 @@
-import numpy as np
-import unittest
-
 from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoilXY
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.biotsavart import BiotSavart
+
+import numpy as np
+import unittest
 
 class Testing(unittest.TestCase):
 
@@ -29,28 +29,38 @@ class Testing(unittest.TestCase):
         # Verify
         assert np.allclose(B1, B2)
         assert np.allclose(dB1_by_dX, dB2_by_dX)
+        # Verify that divergence is zero
+        assert (dB1_by_dX[:,0,0]+dB1_by_dX[:,1,1]+dB1_by_dX[:,2,2]==np.zeros((npoints))).all()
+        assert (dB2_by_dX[:,0,0]+dB2_by_dX[:,1,1]+dB2_by_dX[:,2,2]==np.zeros((npoints))).all() 
 
     def test_sum_Bfields(self):
+        pointVar  = 1e-1
+        npoints   = 20
+        points    = np.asarray(npoints * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]])
+        points   += pointVar * (np.random.rand(*points.shape)-0.5)
         # Set up helical field
         coils     = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
         coils[0].set_dofs(np.concatenate(([np.pi/2,0],[0,0])))
         coils[1].set_dofs(np.concatenate(([0    ,0],[0,0])))
         currents  = [-2.1e5,2.1e5]
         Bhelical  = BiotSavart(coils, currents)
-        # Set up toroidal field
+        # Set up toroidal fields
         Btoroidal1 = ToroidalField(1.,1.)
         Btoroidal2 = ToroidalField(1.2,0.1)
-        # Set up sum of the two
-        Btotal    = MagneticFieldSum([Bhelical,Btoroidal1,Btoroidal2])
+        # Set up sum of the three in two different ways
+        Btotal1 = MagneticFieldSum([Bhelical,Btoroidal1,Btoroidal2])
+        Btotal2 = Bhelical+Btoroidal1+Btoroidal2
         # Evaluate at a given point
-        points    = np.array([[1.1,0.9,0.3]])
         Bhelical.set_points(points)
         Btoroidal1.set_points(points)
         Btoroidal2.set_points(points)
-        Btotal.set_points(points)
+        Btotal1.set_points(points)
+        Btotal2.set_points(points)
         # Verify
-        assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(),Btotal.B())
-        assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(),Btotal.dB_by_dX())
+        assert np.allclose(Btotal1.B(),Btotal2.B())
+        assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(),Btotal1.B())
+        assert np.allclose(Btotal1.dB_by_dX(),Btotal2.dB_by_dX())
+        assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(),Btotal1.dB_by_dX())
 
     def test_scalarpotential_Bfield(self):
         # Set up magnetic field scalar potential
