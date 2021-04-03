@@ -398,9 +398,21 @@ class BoozerSurface():
                 mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
                 quadpoints_phi=phis, quadpoints_theta=thetas)
 
-        Note that the quadrature points are the same both for the stellsym and
-        the not stellsym case. The redundancy is taken care of inside this
-        function.
+        Or the following two are also possible in the stellsym case
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
+        or
+            phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+
+        and then
+
+            s = SurfaceXYZTensorFourier(
+                mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
+                quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        For the stellsym case, there is some redundancy between dofs.  This is
+        taken care of inside this function.
 
         Not stellsym:
             The surface has (2*ntor+1)*(2*mpol+1) many quadrature points and
@@ -422,17 +434,17 @@ class BoozerSurface():
                 D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
                   = 6*ntor*mpol + 3*ntor + 3*mpol + 1
 
-            many dofs in the surface. Of the
-
-                (2*ntor+1)*(2*mpol+1) = 4*ntor*mpol + 2*ntor + 2*mpol + 1
-
-            quadrature points, one can show that just under half, i.e.
+            many dofs in the surface. After calling surface.get_stellsym_mask() we have kicked out
 
                 2*ntor*mpol + ntor + mpol
 
-            quadrature points are completely redundant and can be kicked out.
-            In addition we know that the x coordinate of the residual at
-            phi=0=theta is also always satisfied. In total this leaves us with
+            quadrature points, i.e. we have
+
+                2*ntor*mpol + ntor + mpol + 1
+
+            quadrature points remaining. In addition we know that the x coordinate of the
+            residual at phi=0=theta is also always satisfied. In total this
+            leaves us with
 
                 3*(2*ntor*mpol + ntor + mpol) + 2 equations for the boozer residual.
                 1 equation for the label
@@ -446,15 +458,6 @@ class BoozerSurface():
         if not isinstance(s, SurfaceXYZTensorFourier):
             raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
 
-        ntor = s.ntor
-        mpol = s.mpol
-        nphi = len(s.quadpoints_phi)
-        ntheta = len(s.quadpoints_theta)
-        if not nphi == 2*ntor+1:
-            raise RuntimeError('Need exactly 2*ntor+1 many quadrature points in phi direction')
-        if not ntheta == 2*mpol+1:
-            raise RuntimeError('Need exactly 2*mpol+1 many quadrature points in theta direction')
-
         # In the case of stellarator symmetry, some of the information is
         # redundant, since the coordinates at (-phi, -theta) are the same (up
         # to sign changes) to those at (phi, theta). In addition, for stellsym
@@ -462,21 +465,11 @@ class BoozerSurface():
         # component is always satisfied at phi=theta=0, so we ignore that one
         # too. The mask object below is True for those parts of the residual
         # that we need to keep, and False for those that we ignore.
-        mask = np.zeros_like(s.gamma())
+        m = s.get_stellsym_mask()
+        mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
         if s.stellsym:
-            for phi in reversed(range(0, nphi)):
-                for theta in reversed(range(0, ntheta)):
-                    for d in range(3):
-                        negphi = nphi-phi if phi > 0 else phi
-                        negtheta = ntheta-theta if theta > 0 else theta
-                        mask[phi, theta, d] = 1.
-                        mask[negphi, negtheta, d] = -1.
-            mask[0, 0, 0] = -1
-            mask[0, 0, 1] = 1
-            mask[0, 0, 2] = 1
-        else:
-            mask[:] = 1
-        mask = (mask > 0.5).flatten()
+            mask[0, 0, 0] = False
+        mask = mask.flatten()
 
         label = self.label
         if G is None:

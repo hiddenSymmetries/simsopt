@@ -242,6 +242,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
         .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
         .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
