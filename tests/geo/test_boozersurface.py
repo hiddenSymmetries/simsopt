@@ -35,7 +35,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         # and z coordinate at phi=0 and theta=0 (and the corresponding rotations)
         ignores_idxs = np.zeros_like(r0)
         ignores_idxs[[1, 2, 693, 694, 695, 1386, 1387, 1388, -2, -1]] = 1
-        assert np.max(np.abs(r0[ignores_idxs<0.5])) < 1e-8
+        assert np.max(np.abs(r0[ignores_idxs < 0.5])) < 1e-8
         assert np.max(np.abs(r0[-2:])) < 1e-6
 
     def test_boozer_penalty_constraints_gradient(self):
@@ -60,7 +60,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
-        s = get_surface(surfacetype,stellsym)
+        s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
         weight = 11.1232
@@ -101,7 +101,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
-        s = get_surface(surfacetype,stellsym)
+        s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -145,7 +145,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
-        s = get_surface(surfacetype,stellsym)
+        s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -154,11 +154,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
 
         iota = -0.3
-        lm = [0.,0.,0.]
+        lm = [0., 0., 0.]
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
             x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        xl = np.concatenate((x, lm ))
+        xl = np.concatenate((x, lm))
         res0, dres0 = boozer_surface.boozer_exact_constraints(xl, derivatives=1, optimize_G=optimize_G)
 
         h = np.random.uniform(size=xl.shape)-0.5
@@ -179,11 +179,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def test_boozer_surface_optimisation_convergence(self):
         configs = [
-            ("SurfaceXYZTensorFourier", False, True,  'ls'),
-            ("SurfaceXYZTensorFourier", True,  True,  'newton'),
-            ("SurfaceXYZTensorFourier", True,  True,  'newton_exact'),
-            ("SurfaceXYZTensorFourier", True,  True,  'ls'),
-            ("SurfaceXYZFourier",       True,  False, 'ls'),
+            ("SurfaceXYZTensorFourier", False, True, 'ls'),
+            ("SurfaceXYZTensorFourier", True, True, 'newton'),
+            ("SurfaceXYZTensorFourier", True, True, 'newton_exact'),
+            ("SurfaceXYZTensorFourier", True, True, 'ls'),
+            ("SurfaceXYZFourier", True, False, 'ls'),
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             with self.subTest(

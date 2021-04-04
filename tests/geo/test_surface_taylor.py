@@ -77,12 +77,12 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
 
     dofs = np.asarray(s.get_dofs())
     np.random.seed(2)
-    rand_scale=0.01
+    rand_scale = 0.01
     s.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
     return s
 
 
-def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = None):
+def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None):
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
