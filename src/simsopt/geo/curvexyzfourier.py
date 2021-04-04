@@ -69,7 +69,7 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
         gamma = index_add(gamma, index[:, i], coeffs[i][0])
         for j in range(1, order+1):
             gamma = index_add(gamma, index[:, i], coeffs[i][2*j-1] * jnp.sin(2*pi*j*points))
-            gamma = index_add(gamma, index[:, i], coeffs[i][2*j]   * jnp.cos(2*pi*j*points))
+            gamma = index_add(gamma, index[:, i], coeffs[i][2*j] * jnp.cos(2*pi*j*points))
     return gamma
 
 
