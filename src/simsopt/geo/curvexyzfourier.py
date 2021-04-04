@@ -1,8 +1,26 @@
 from .curve import Curve
 import simsgeopp as sgpp
 import numpy as np
+from jax.ops import index, index_add
+import jax.numpy as jnp
+from math import pi
+from .curve import JaxCurve
+
 
 class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
+
+    r"""
+       CurveXYZFourier is a curve that is represented in cartesian
+       coordinates using the following Fourier series:
+
+           x(phi) = \sum_{m=0}^{order} x_{c,m}cos(m*phi) + \sum_{m=1}^order x_{s,m}sin(m*phi)
+           y(phi) = \sum_{m=0}^{order} y_{c,m}cos(m*phi) + \sum_{m=1}^order y_{s,m}sin(m*phi)
+           z(phi) = \sum_{m=0}^{order} z_{c,m}cos(m*phi) + \sum_{m=1}^order z_{s,m}sin(m*phi)
+
+       The dofs are stored in the order
+
+           [x_{c,0},...,x_{c,order},x_{s,1},...,x_{s,order},y_{c,0},....]
+    """
 
     def __init__(self, quadpoints, order):
         if isinstance(quadpoints, int):
@@ -53,13 +71,6 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
         return coils
 
 
-
-from jax.ops import index, index_add
-import jax.numpy as jnp
-from math import pi
-from .curve import JaxCurve
-
-
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
@@ -75,7 +86,7 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 
 class JaxCurveXYZFourier(JaxCurve):
 
-    """ 
+    """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
     actually no reason why one should use this over the C++ implementation in
     simsgeopp, but the point of this class is to illustrate how jax can be used
