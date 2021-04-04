@@ -9,24 +9,6 @@ class BiotSavart(MagneticField):
         self.coils = coils
         self.coil_currents = coil_currents
 
-    def A(self, compute_derivatives = 0):
-        if self._A is None:
-            assert compute_derivatives >= 0
-            self.compute_A(self.points, compute_derivatives)
-        return self._A
-
-    def dA_by_dX(self, compute_derivatives = 1):
-        if self._dA_by_dX is None:
-            assert compute_derivatives >= 1
-            self.compute_A(self.points, compute_derivatives)
-        return self._dA_by_dX
-
-    def d2A_by_dXdX(self, compute_derivatives = 2):
-        if self._d2A_by_dXdX is None:
-            assert compute_derivatives >= 2
-            self.compute_A(self.points, compute_derivatives)
-        return self._d2A_by_dXdX
-
     def compute_A(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
