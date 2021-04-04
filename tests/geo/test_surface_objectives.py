@@ -28,7 +28,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
     print("################################################################################")
 
 
-def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = None):
+def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None):
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
@@ -65,26 +65,26 @@ class ToroidalFluxTests(unittest.TestCase):
         gamma = s.gamma()
         num_phi = gamma.shape[0]
 
-        tf_list = np.zeros( (num_phi,) )
+        tf_list = np.zeros((num_phi,))
         for idx in range(num_phi):
-            tf = ToroidalFlux(s, bs_tf,idx = idx)
+            tf = ToroidalFlux(s, bs_tf, idx=idx)
             tf_list[idx] = tf.J()
         mean_tf = np.mean(tf_list)
 
-        max_err = np.max( np.abs(mean_tf - tf_list) ) / mean_tf
+        max_err = np.max(np.abs(mean_tf - tf_list)) / mean_tf
         assert max_err < 1e-2
 
     def test_toroidal_flux_first_derivative(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux1(surfacetype,stellsym)
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_toroidal_flux1(surfacetype, stellsym)
 
     def test_toroidal_flux_second_derivative(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux2(surfacetype,stellsym)
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_toroidal_flux2(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()

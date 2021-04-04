@@ -86,7 +86,7 @@ class Curve(Optimizable):
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
             np.cross(dgamma_by_dphidcoeff[:, :, :], dgamma_by_dphidphi[:, :, None], axis=1) +
-            np.cross(dgamma_by_dphi[:, :, None], dgamma_by_dphidphidcoeff[:, :, :], axis=1)) , axis=1) \
+            np.cross(dgamma_by_dphi[:, :, None], dgamma_by_dphidphidcoeff[:, :, :], axis=1)), axis=1) \
             - (norm(numerator) * 3 / denominator**5)[:, None] * np.sum(dgamma_by_dphi[:, :, None] * dgamma_by_dphidcoeff[:, :, :], axis=1)
 
     def torsion_impl(self, torsion):
@@ -101,7 +101,7 @@ class Curve(Optimizable):
         d3gammadcoeff = self.dgammadashdashdash_by_dcoeff()
         dtorsion_by_dcoeff[:, :] = (
             np.sum(np.cross(d1gamma, d2gamma, axis=1)[:, :, None] * d3gammadcoeff, axis=1)
-            + np.sum((np.cross(d1gammadcoeff, d2gamma[:, :, None], axis=1) +  np.cross(d1gamma[:, :, None], d2gammadcoeff, axis=1)) * d3gamma[:, :, None], axis=1)
+            + np.sum((np.cross(d1gammadcoeff, d2gamma[:, :, None], axis=1) + np.cross(d1gamma[:, :, None], d2gammadcoeff, axis=1)) * d3gamma[:, :, None], axis=1)
         )/np.sum(np.cross(d1gamma, d2gamma, axis=1)**2, axis=1)[:, None]
         dtorsion_by_dcoeff[:, :] -= np.sum(np.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1)[:, None] * np.sum(2 * np.cross(d1gamma, d2gamma, axis=1)[:, :, None] * (np.cross(d1gammadcoeff, d2gamma[:, :, None], axis=1) + np.cross(d1gamma[:, :, None], d2gammadcoeff, axis=1)), axis=1)/np.sum(np.cross(d1gamma, d2gamma, axis=1)**2, axis=1)[:, None]**2
 
@@ -122,14 +122,14 @@ class Curve(Optimizable):
         inner = lambda a, b: np.sum(a*b, axis=1)
         N = len(self.quadpoints)
         t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
-        t[:,:] = (1./l[:, None]) * gammadash
+        t[:, :] = (1./l[:, None]) * gammadash
 
         tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-            - (inner(gammadash, gammadashdash)/l)[:, None] *  gammadash
+            - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
         )
         kappa = self.kappa
-        n[:,:] = (1./norm(tdash))[:, None] * tdash
-        b[:,:] = np.cross(t, n, axis=1)
+        n[:, :] = (1./norm(tdash))[:, None] * tdash
+        b[:, :] = np.cross(t, n, axis=1)
         return t, n, b
 
     def kappadash(self):
@@ -166,16 +166,16 @@ class Curve(Optimizable):
 
         tdash = (1./l[:, None])**2 * (
             l[:, None] * d2gamma_by_dphidphi
-            - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None] *  dgamma_by_dphi
+            - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None] * dgamma_by_dphi
         )
 
-        dtdash_by_dcoeff = (-2 * dl_by_dcoeff[:, None, :] / l[:, None, None]**3) * (l[:, None] * d2gamma_by_dphidphi - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None] *  dgamma_by_dphi)[:, :, None] \
+        dtdash_by_dcoeff = (-2 * dl_by_dcoeff[:, None, :] / l[:, None, None]**3) * (l[:, None] * d2gamma_by_dphidphi - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None] * dgamma_by_dphi)[:, :, None] \
             + (1./l[:, None, None])**2 * (
                 dl_by_dcoeff[:, None, :] * d2gamma_by_dphidphi[:, :, None] + l[:, None, None] * d3gamma_by_dphidphidcoeff
-                - (inner(d2gamma_by_dphidcoeff, d2gamma_by_dphidphi[:, :, None])[:, None, :]/l[:, None, None]) *  dgamma_by_dphi[:, :, None]
-                - (inner(dgamma_by_dphi[:, :, None], d3gamma_by_dphidphidcoeff)[:, None, :]/l[:, None, None]) *  dgamma_by_dphi[:, :, None]
-                + (inner(dgamma_by_dphi, d2gamma_by_dphidphi)[:, None, None] * dl_by_dcoeff[:, None, :]/l[:, None, None]**2) *  dgamma_by_dphi[:, :, None]
-                - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None, None] *  d2gamma_by_dphidcoeff
+                - (inner(d2gamma_by_dphidcoeff, d2gamma_by_dphidphi[:, :, None])[:, None, :]/l[:, None, None]) * dgamma_by_dphi[:, :, None]
+                - (inner(dgamma_by_dphi[:, :, None], d3gamma_by_dphidphidcoeff)[:, None, :]/l[:, None, None]) * dgamma_by_dphi[:, :, None]
+                + (inner(dgamma_by_dphi, d2gamma_by_dphidphi)[:, None, None] * dl_by_dcoeff[:, None, :]/l[:, None, None]**2) * dgamma_by_dphi[:, :, None]
+                - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None, None] * d2gamma_by_dphidcoeff
             )
         dn_by_dcoeff[:, :, :] = (1./norm(tdash))[:, None, None] * dtdash_by_dcoeff \
             - (inner(tdash[:, :, None], dtdash_by_dcoeff)[:, None, :]/inner(tdash, tdash)[:, None, None]**1.5) * tdash[:, :, None]
@@ -215,9 +215,9 @@ class Curve(Optimizable):
 
             dkappadash_by_dcoeff[:, i] = (
                 +inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d3)
-                +inner(d1_x_d2, d1coeff_x_d3 + d1_x_d3coeff)
+                + inner(d1_x_d2, d1coeff_x_d3 + d1_x_d3coeff)
             )/(norm_d1_x_d2 * normdgamma**3) \
-                -inner(d1_x_d2, d1_x_d3) * (
+                - inner(d1_x_d2, d1_x_d3) * (
                     (
                         inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm_d1_x_d2**3 * normdgamma**3)
                         + 3 * inner(dgamma, dgamma_dcoeff)/(norm_d1_x_d2 * normdgamma**5)
@@ -323,7 +323,7 @@ class RotatedCurve(sgpp.Curve, Curve):
             [0, 0, 1]
         ]).T
         if flip:
-            self.rotmat = self.rotmat @ np.asarray([[1,0,0],[0,-1,0],[0,0,-1]])
+            self.rotmat = self.rotmat @ np.asarray([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         self.rotmatT = self.rotmat.T
         curve.dependencies.append(self)
 
