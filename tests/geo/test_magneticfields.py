@@ -31,7 +31,12 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX, dB2_by_dX)
         # Verify that divergence is zero
         assert (dB1_by_dX[:,0,0]+dB1_by_dX[:,1,1]+dB1_by_dX[:,2,2]==np.zeros((npoints))).all()
-        assert (dB2_by_dX[:,0,0]+dB2_by_dX[:,1,1]+dB2_by_dX[:,2,2]==np.zeros((npoints))).all() 
+        assert (dB2_by_dX[:,0,0]+dB2_by_dX[:,1,1]+dB2_by_dX[:,2,2]==np.zeros((npoints))).all()
+        # Verify that, as a vacuum field, grad B=grad grad phi so that grad_i B_j = grad_j B_i
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        transpGradB2 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(dB1_by_dX,transpGradB1)
+        assert np.allclose(dB2_by_dX,transpGradB2)
 
     def test_sum_Bfields(self):
         pointVar  = 1e-1
