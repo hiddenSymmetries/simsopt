@@ -45,6 +45,7 @@ def nested_lists_to_array(ll):
                 arr[jm, jn] = x
     return arr
 
+
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -104,14 +105,17 @@ class Spec(Optimizable):
         rbc_last_n = rbc_first_n + rc.shape[1] - 1
         zbs_first_n = self.nml['physicslist'].start_index['zbs'][0]
         zbs_last_n = zbs_first_n + rc.shape[1] - 1
-        ntor_boundary = np.max(np.abs(np.array([rbc_first_n, rbc_last_n, zbs_first_n, zbs_last_n], dtype='i')))
+        ntor_boundary = np.max(np.abs(np.array(
+            [rbc_first_n, rbc_last_n, zbs_first_n, zbs_last_n],
+            dtype='i')))
 
         rbc_first_m = self.nml['physicslist'].start_index['rbc'][1]
         rbc_last_m = rbc_first_m + rc.shape[0] - 1
         zbs_first_m = self.nml['physicslist'].start_index['zbs'][1]
         zbs_last_m = zbs_first_m + rc.shape[0] - 1
         mpol_boundary = np.max((rbc_last_m, zbs_last_m))
-        logger.debug('Input file has ntor_boundary={} mpol_boundary={}'.format(ntor_boundary, mpol_boundary))
+        logger.debug('Input file has ntor_boundary={} mpol_boundary={}'.format(
+            ntor_boundary, mpol_boundary))
         self.boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym,
                                          mpol=mpol_boundary, ntor=ntor_boundary)
         
@@ -158,7 +162,8 @@ class Spec(Optimizable):
 
     def update_resolution(self, mpol, ntor):
         """ For convenience, to save ".nml" """
-        logger.info('Calling update_resolution(mpol={}, ntor={})'.format(mpol, ntor))
+        logger.info('Calling update_resolution(mpol={}, ntor={})'.format(
+            mpol, ntor))
         self.nml.update_resolution(mpol, ntor)
         
     def run(self):
@@ -170,7 +175,8 @@ class Spec(Optimizable):
             return
         logger.info("Preparing to run SPEC.")
 
-        # nfp must be consistent between the surface and SPEC. The surface's value trumps.
+        # nfp must be consistent between the surface and SPEC.
+        # The surface's value trumps.
         self.nml['physicslist']['nfp'] = self.boundary.nfp
 
         # Convert boundary to RZFourier if needed:
@@ -232,13 +238,15 @@ class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
     """
-    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0, s_max=1.0, rtol=1e-9):
+    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0,
+                 s_max=1.0, rtol=1e-9):
         """
         spec: a Spec object
         pp, qq: Numerator and denominator for the resonant iota = pp / qq
         vol: Index of the Spec volume to consider
         theta: Spec's theta coordinate at the periodic field line
-        s_guess: Guess for the value of Spec's s coordinate at the periodic field line
+        s_guess: Guess for the value of Spec's s coordinate at the periodic
+                field line
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
         """
@@ -272,8 +280,12 @@ class Residue(Optimizable):
         if self.need_to_run_code:
             self.spec.run()
             specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
-            fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta}, integrator_params={'rtol':self.rtol})
-            self.fixed_point = fp.compute(self.s_guess, sbegin=self.s_min, send=self.s_max, pp=self.pp, qq=self.qq)
+            fp = pyoculus.solvers.FixedPoint(
+                specb, {'theta': self.theta},
+                integrator_params={'rtol': self.rtol})
+            self.fixed_point = fp.compute(
+                self.s_guess, sbegin=self.s_min, send=self.s_max,
+                pp=self.pp, qq=self.qq)
             self.need_to_run_code = False
 
         return self.fixed_point.GreenesResidue
