@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from surface_test_helpers import get_ncsx_data
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.boozersurface import BoozerSurface
@@ -9,6 +8,7 @@ import numpy as np
 import sys
 import os
 sys.path.append(os.path.join("..", "tests", "geo"))
+from surface_test_helpers import get_ncsx_data
 
 """
 This example demonstrate how to compute surfaces in Boozer coordinates for a
