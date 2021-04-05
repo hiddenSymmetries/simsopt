@@ -154,7 +154,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
 
         iota = -0.3
-        lm = [0., 0., 0.]
+        lm = [0., 0.]
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
             x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
@@ -193,7 +193,21 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def subtest_boozer_surface_optimisation_convergence(self, surfacetype, stellsym, optimize_G, second_stage):
         coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
+
+        if stellsym:
+            stellarator = CoilCollection(coils, currents, 3, True)
+        else:
+            # Create a stellarator that still has rotational symmetry but
+            # doesn't have stellarator symmetry. We do this by first applying
+            # stellarator symmetry, then breaking this slightly, and then
+            # applying rotational symmetry
+            from simsopt.geo.curve import RotatedCurve
+            coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
+            currents_flipped = [-cur for cur in currents]
+            for c in coils_flipped:
+                c.rotmat += 0.001*np.random.uniform(low=-1., high=1., size=c.rotmat.shape)
+                c.rotmatT = c.rotmat.T
+            stellarator = CoilCollection(coils + coils_flipped, currents + currents_flipped, 3, False)
 
         bs = BiotSavart(stellarator.coils, stellarator.currents)
 
@@ -226,6 +240,14 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         print('Residual after second stage', np.linalg.norm(res['residual']))
         assert res['success']
+        # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
+        # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
+        gammazero = s.gamma()[0, 0, :]
+        assert np.abs(gammazero[2]) < 1e-10
+        if stellsym:
+            assert np.abs(gammazero[1]) < 1e-10
+        else:
+            assert np.abs(gammazero[1]) > 1e-6
 
         if surfacetype == 'SurfaceXYZTensorFourier':
             assert np.linalg.norm(res['residual']) < 1e-9
