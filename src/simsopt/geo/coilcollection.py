@@ -1,5 +1,7 @@
 from math import pi
 from simsopt.geo.curve import RotatedCurve
+
+
 class CoilCollection():
     """
     Given some input coils and currents, this performs the reflection and
@@ -11,7 +13,7 @@ class CoilCollection():
         self._base_currents = currents
         self.coils = []
         self.currents = []
-        flip_list = [False, True] if stellarator_symmetry else [False] 
+        flip_list = [False, True] if stellarator_symmetry else [False]
         self.map = []
         self.current_sign = []
         for k in range(0, nfp):
@@ -30,5 +32,3 @@ class CoilCollection():
         for i in range(1, len(self._base_coils)):
             dof_ranges.append((dof_ranges[-1][1], dof_ranges[-1][1] + len(self._base_coils[i].get_dofs())))
         self.dof_ranges = dof_ranges
-
-
