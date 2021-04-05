@@ -123,11 +123,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.rc[10, 12], -6.047097E-05)
         self.assertAlmostEqual(s.zs[10, 12], 3.663233E-05)
 
-        self.assertAlmostEqual(s.get_rc(0,0), 1.408922E+00)
-        self.assertAlmostEqual(s.get_rc(0,1), 2.794370E-02)
-        self.assertAlmostEqual(s.get_zs(0,1), -1.909220E-02)
-        self.assertAlmostEqual(s.get_rc(10,6), -6.047097E-05)
-        self.assertAlmostEqual(s.get_zs(10,6), 3.663233E-05)
+        self.assertAlmostEqual(s.get_rc(0, 0), 1.408922E+00)
+        self.assertAlmostEqual(s.get_rc(0, 1), 2.794370E-02)
+        self.assertAlmostEqual(s.get_zs(0, 1), -1.909220E-02)
+        self.assertAlmostEqual(s.get_rc(10, 6), -6.047097E-05)
+        self.assertAlmostEqual(s.get_zs(10, 6), 3.663233E-05)
 
         true_area = 24.5871075268402
         true_volume = 2.96201898538042

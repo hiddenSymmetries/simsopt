@@ -17,7 +17,7 @@ class Testing(unittest.TestCase):
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
-        rand_scale=0.01
+        rand_scale = 0.01
         order = 4
         nquadpoints = 200
 

@@ -74,7 +74,7 @@ def get_exact_surface():
     X = np.loadtxt(filename_X)
     Y = np.loadtxt(filename_Y)
     Z = np.loadtxt(filename_Z)
-    xyz = np.concatenate((X[:, :, None],  Y[:, :, None], Z[:, :, None]), axis=2)
+    xyz = np.concatenate((X[:, :, None], Y[:, :, None], Z[:, :, None]), axis=2)
     ntor = 16
     mpol = 10
 
