@@ -113,6 +113,12 @@ class Testing(unittest.TestCase):
         Bcircular.set_points(points)
         assert np.allclose(Bfield.B(),Bcircular.B())
         assert np.allclose(Bfield.dB_by_dX(),Bcircular.dB_by_dX())
+        # Verify that divergence is zero
+        dB1_by_dX=Bfield.dB_by_dX()
+        assert np.allclose(dB1_by_dX[:,0,0]+dB1_by_dX[:,1,1]+dB1_by_dX[:,2,2],np.zeros((npoints)))
+        # Verify that, as a vacuum field, grad B=grad grad phi so that grad_i B_j = grad_j B_i
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(dB1_by_dX,transpGradB1)
 
     def test_helicalcoil_Bfield(self):
         point = [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]]
