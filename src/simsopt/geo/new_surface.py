@@ -25,7 +25,7 @@ logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
 
 # @jit(static_argnums=(4, 5, 6, 7, 8, 9))
-def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
+def area_volume_pure(rc, rs, zc, zs, stellsym, nfp, mpol, ntor, ntheta, nphi):
     """
     Compute the area and volume of a surface. This pure function is
     designed for automatic differentiation.
@@ -73,7 +73,7 @@ def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
             dxdphi += rmnc * (n * sinangle * cosphi + cosangle * (-sinphi))
             dydphi += rmnc * (n * sinangle * sinphi + cosangle * cosphi)
             dzdphi += zmns * (-n * cosangle)
-            if not stelsym:
+            if not stellsym:
                 rmns = rs[m, jn]
                 zmnc = zc[m, jn]
                 r += rmns * sinangle
@@ -100,7 +100,7 @@ def area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi):
     return jnp.array([area, volume])
 
 def dataset_area_volume(surface_rz_fourier,
-                        stelsym,
+                        stellsym,
                         nfp,
                         mpol,
                         ntor,
@@ -159,7 +159,7 @@ def dataset_area_volume(surface_rz_fourier,
             dxdphi += rmnc * (n * sinangle * cosphi + cosangle * (-sinphi))
             dydphi += rmnc * (n * sinangle * sinphi + cosangle * cosphi)
             dzdphi += zmns * (-n * cosangle)
-            if not stelsym:
+            if not stellsym:
                 rmns = rs[m, jn]
                 zmnc = zc[m, jn]
                 r += rmns * sinangle
@@ -186,7 +186,7 @@ def dataset_area_volume(surface_rz_fourier,
     return jnp.array([area, volume])
 
 
-# area_volume_pure(rc, rs, zc, zs, stelsym, nfp, mpol, ntor, ntheta, nphi)
+# area_volume_pure(rc, rs, zc, zs, stellsym, nfp, mpol, ntor, ntheta, nphi)
 # jit_area_volume_pure = jit(area_volume_pure, static_argnums=(4, 5, 6, 7, 8, 9))
 # jit_area_volume_pure = jit(area_volume_pure, static_argnums=(8, 9))
 jit_area_volume_pure = area_volume_pure
@@ -201,17 +201,17 @@ class Surface(abc.ABC):
     surfaces in simsopt.
     """
 
-    def __init__(self, nfp=1, stelsym=True):
+    def __init__(self, nfp=1, stellsym=True):
         #if not isinstance(nfp, int):
         #    raise TypeError('nfp must be an integer')
-        #if not isbool(stelsym):
-        #    raise TypeError('stelsym must be a bool')
+        #if not isbool(stellsym):
+        #    raise TypeError('stellsym must be a bool')
         self.nfp = nfp
-        self.stelsym = stelsym
+        self.stellsym = stellsym
 
     def __repr__(self):
         return "Surface " + str(hex(id(self))) + " (nfp=" + str(self.nfp) \
-               + ", stelsym=" + str(self.stelsym) + ")"
+               + ", stellsym=" + str(self.stellsym) + ")"
 
     @abc.abstractmethod
     def to_RZFourier(self):
@@ -238,9 +238,9 @@ class SurfaceRZFourier(Surface, Optimizable):
     is any poloidal angle.
     """
 
-    def __init__(self, nfp=1, stelsym=True, mpol=1, ntor=0):
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0):
 
-        Surface.__init__(self, nfp=nfp, stelsym=stelsym)
+        Surface.__init__(self, nfp=nfp, stellsym=stellsym)
         if mpol < 1:
             raise ValueError("mpol must be at least 1")
         if ntor < 0:
@@ -272,7 +272,7 @@ class SurfaceRZFourier(Surface, Optimizable):
             zs_fixed += [False] * (2*self.ntor + 1)
         dofs_fixed = np.concatenate([np.array(rc_fixed), np.array(zs_fixed)])
 
-        if not self.stelsym:
+        if not self.stellsym:
             rs = np.zeros(self.shape)
             zc = np.zeros(self.shape)
             dofs = np.concatenate([dofs, rs.flatten(), zc.flatten()])
@@ -307,7 +307,7 @@ class SurfaceRZFourier(Surface, Optimizable):
 
     def __repr__(self):
         return "SurfaceRZFourier " + str(hex(id(self))) + " (nfp=" + \
-               str(self.nfp) + ", stelsym=" + str(self.stelsym) + \
+               str(self.nfp) + ", stellsym=" + str(self.stellsym) + \
                ", mpol=" + str(self.mpol) + ", ntor=" + str(self.ntor) \
                + ")"
 
@@ -346,7 +346,7 @@ class SurfaceRZFourier(Surface, Optimizable):
 
     @property
     def rs(self):
-        if self.stelsym:
+        if self.stellsym:
             return None
         return self.local_full_x[2*self.size:3*self.size].reshape(self.shape)
 
@@ -358,7 +358,7 @@ class SurfaceRZFourier(Surface, Optimizable):
 
     @property
     def zc(self):
-        if self.stelsym:
+        if self.stellsym:
             return None
         return self.local_full_x[3*self.size:].reshape(self.shape)
 
@@ -380,7 +380,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         """
         Return a particular rs Parameter.
         """
-        if self.stelsym:
+        if self.stellsym:
             return ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
@@ -391,7 +391,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         """
         Return a particular zc Parameter.
         """
-        if self.stelsym:
+        if self.stellsym:
             return ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
@@ -422,7 +422,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         """
         Set a particular rs Parameter.
         """
-        if self.stelsym:
+        if self.stellsym:
             return ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
@@ -437,7 +437,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         """
         Set a particular zc Parameter.
         """
-        if self.stelsym:
+        if self.stellsym:
             return ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
@@ -472,7 +472,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         rc = self.local_full_x[0:self.size].reshape(self.shape)
         zs = self.local_full_x[self.size:2*self.size].reshape(self.shape)
 
-        if self.stelsym:
+        if self.stellsym:
             rs = None
             zc = None
         else:
@@ -482,7 +482,7 @@ class SurfaceRZFourier(Surface, Optimizable):
             zc = self.local_full_x[3*self.size:].reshape(self.shape)
 
         results = jit_area_volume_pure(rc, rs, zc, zs,
-                                       self.stelsym, self.nfp, self.mpol,
+                                       self.stellsym, self.nfp, self.mpol,
                                        self.ntor, self.ntheta, self.nphi)
 
         self._area = float(results[0])
@@ -522,7 +522,7 @@ class SurfaceRZFourier(Surface, Optimizable):
 
         rc = self.local_full_x[0:self.size].reshape(self.shape)
         zs = self.local_full_x[self.size:2*self.size].reshape(self.shape)
-        if self.stelsym:
+        if self.stellsym:
             rs = None
             zc = None
         else:
@@ -530,14 +530,14 @@ class SurfaceRZFourier(Surface, Optimizable):
             zc = self.local_full_x[3*self.size:].reshape(self.shape)
 
         results = darea_volume_pure(rc, rs, zc, zs,
-                                    self.stelsym, self.nfp, self.mpol,
+                                    self.stellsym, self.nfp, self.mpol,
                                     self.ntor, self.ntheta, self.nphi)
 
         self._darea_drc = np.array(results[0][0, :, :])
         self._dvolume_drc = np.array(results[0][1, :, :])
         self._darea_dzs = np.array(results[3][0, :, :])
         self._dvolume_dzs = np.array(results[3][1, :, :])
-        if not self.stelsym:
+        if not self.stellsym:
             self._darea_drs = np.array(results[1][0, :, :])
             self._dvolume_drs = np.array(results[1][1, :, :])
             self._darea_dzc = np.array(results[2][0, :, :])
@@ -550,7 +550,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         self.darea_volume()
         mpol = self.mpol  # Shorthand
         ntor = self.ntor
-        if self.stelsym:
+        if self.stellsym:
             return np.concatenate(
                 (self._darea_drc[0, ntor:],
                  self._darea_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
@@ -574,7 +574,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         self.darea_volume()
         mpol = self.mpol  # Shorthand
         ntor = self.ntor
-        if self.stelsym:
+        if self.stellsym:
             return np.concatenate(
                 (self._dvolume_drc[0, ntor:],
                  self._dvolume_drc[1:, :].reshape(mpol * (ntor * 2 + 1)),
@@ -623,15 +623,15 @@ class SurfaceRZFourier(Surface, Optimizable):
             zc[j] = float(splitline[4])
             zs[j] = float(splitline[5])
         assert np.min(m) == 0
-        stelsym = np.max(np.abs(rs)) == 0 and np.max(np.abs(zc)) == 0
+        stellsym = np.max(np.abs(rs)) == 0 and np.max(np.abs(zc)) == 0
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
-        surf = cls(nfp=nfp, stelsym=stelsym, mpol=mpol, ntor=ntor)
+        surf = cls(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
         for j in range(Nfou):
             surf.set_rc(m[j], n[j], rc[j])
             surf.set_zs(m[j], n[j], zs[j])
-            if not stelsym:
+            if not stellsym:
                 surf.set_rs(m[j], n[j], rs[j])
                 surf.set_zc(m[j], n[j], zc[j])
 
@@ -643,7 +643,7 @@ class SurfaceRZFourier(Surface, Optimizable):
     #    """
     #    mpol = self.mpol  # Shorthand
     #    ntor = self.ntor
-    #    if self.stelsym:
+    #    if self.stellsym:
     #        return np.concatenate(
     #            (self.rc[0, ntor:],
     #             self.rc[1:, :].reshape(mpol * (ntor * 2 + 1)),
@@ -701,7 +701,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         For a derivation of the transformation here, see 
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
-        if not self.stelsym:
+        if not self.stellsym:
             raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian '
                                'objects have not been implemented')
         mmax = self.mpol + 1
@@ -742,7 +742,7 @@ class SurfaceGarabedian(Surface, Optimizable):
             raise ValueError("mmax must be >= 1")
         if mmin > 0:
             raise ValueError("mmin must be <= 0")
-        Surface.__init__(self, nfp=nfp, stelsym=True)
+        Surface.__init__(self, nfp=nfp, stellsym=True)
         self.mmin = mmin
         self.mmax = mmax
         self.nmin = nmin
@@ -842,7 +842,7 @@ class SurfaceGarabedian(Surface, Optimizable):
         """
         mpol = int(np.max((1, self.mmax - 1, 1 - self.mmin)))
         ntor = int(np.max((self.nmax, -self.nmin)))
-        s = SurfaceRZFourier(nfp=self.nfp, stelsym=True, mpol=mpol, ntor=ntor)
+        s = SurfaceRZFourier(nfp=self.nfp, stellsym=True, mpol=mpol, ntor=ntor)
         s.set_rc(0, 0, self.get_Delta(1, 0))
         for m in range(mpol + 1):
             nmin = -ntor
