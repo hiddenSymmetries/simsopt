@@ -1,9 +1,10 @@
 import numpy as np
 import simsgeopp as sgpp
 from simsopt.core.optimizable import Optimizable
-from jax import grad, vjp, jacfwd, jvp
+from jax import vjp, jacfwd, jvp
 from .jit import jit
 import jax.numpy as jnp
+from math import sin, cos
 
 
 @jit
@@ -30,6 +31,7 @@ torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_p
 torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
 torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
+
 class Curve(Optimizable):
     def __init__(self):
         Optimizable.__init__(self)
@@ -38,7 +40,6 @@ class Curve(Optimizable):
 
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True, color=None, linestyle=None):
         import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
 
         gamma = self.gamma()
         gammadash = self.gammadash()
@@ -308,8 +309,6 @@ class JaxCurve(sgpp.Curve, Curve):
     def dtorsion_by_dcoeff_vjp(self, v):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
-
-from math import pi, sin, cos
 
 class RotatedCurve(sgpp.Curve, Curve):
 
