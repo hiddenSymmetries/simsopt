@@ -18,7 +18,6 @@ class BoozerSurface():
         r(x) = [
             f_1(x),...,f_n(x),
             sqrt(constraint_weight) * (label-targetlabel),
-            sqrt(constraint_weight) * (y(varphi=0, theta=0) - 0),
             sqrt(constraint_weight) * (z(varphi=0, theta=0) - 0),
         ]
 
@@ -55,11 +54,9 @@ class BoozerSurface():
 
         l = self.label.J()
         rl = (l-self.targetlabel)
-        ry = (s.gamma()[0, 0, 1] - 0.)
         rz = (s.gamma()[0, 0, 2] - 0.)
         r = np.concatenate((r, [
             np.sqrt(constraint_weight) * rl,
-            np.sqrt(constraint_weight) * ry,
             np.sqrt(constraint_weight) * rz
         ]))
 
@@ -73,17 +70,14 @@ class BoozerSurface():
         J = boozer[1]
 
         dl = np.zeros(x.shape)
-        dry = np.zeros(x.shape)
         drz = np.zeros(x.shape)
 
         dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
 
-        dry[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 1, :]
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
         J = np.concatenate((
             J,
             np.sqrt(constraint_weight) * dl[None, :],
-            np.sqrt(constraint_weight) * dry[None, :],
             np.sqrt(constraint_weight) * drz[None, :]), axis=0)
         dval = np.sum(r[:, None]*J, axis=0)
         if derivatives == 1:
@@ -102,11 +96,9 @@ class BoozerSurface():
         H = np.concatenate((
             H,
             np.sqrt(constraint_weight) * d2l[None, :, :],
-            np.zeros(d2l[None, :, :].shape),
             np.zeros(d2l[None, :, :].shape)), axis=0)
         d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
         return val, dval, d2val
-
 
     def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True):
         """
@@ -117,21 +109,20 @@ class BoozerSurface():
             subject to 
 
             label - targetlabel = 0
-            y(varphi=0,theta=0) - 0 = 0
             z(varphi=0,theta=0) - 0 = 0
 
         as well as optionally the first derivatives for these optimality conditions.
         """
         assert derivatives in [0, 1]
         if optimize_G:
-            sdofs = xl[:-5]
-            iota = xl[-5]
-            G = xl[-4]
-        else:
             sdofs = xl[:-4]
             iota = xl[-4]
+            G = xl[-3]
+        else:
+            sdofs = xl[:-3]
+            iota = xl[-3]
             G = None
-        lm = xl[-3:]
+        lm = xl[-2:]
         s = self.surface
         bs = self.bs
         s.set_dofs(sdofs)
@@ -140,40 +131,34 @@ class BoozerSurface():
         boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives+1)
         r, J = boozer[0:2]
 
-        dl = np.zeros((xl.shape[0]-3,))
+        dl = np.zeros((xl.shape[0]-2,))
 
         l = self.label.J()
         dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
-        dry = np.zeros((xl.shape[0]-3,))
-        drz = np.zeros((xl.shape[0]-3,))
+        drz = np.zeros((xl.shape[0]-2,))
         g = [l-self.targetlabel]
-        ry = (s.gamma()[0, 0, 1] - 0.)
         rz = (s.gamma()[0, 0, 2] - 0.)
-        dry[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 1, :]
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
 
         res = np.zeros(xl.shape)
-        res[:-3] = np.sum(r[:, None]*J, axis=0) - lm[-3] * dl - lm[-2] * dry - lm[-1] * drz 
-        res[-3] = g[0]
-        res[-2] = ry
+        res[:-2] = np.sum(r[:, None]*J, axis=0) - lm[-2] * dl - lm[-1] * drz
+        res[-2] = g[0]
         res[-1] = rz
         if derivatives == 0:
             return res
 
         H = boozer[2]
 
-        d2l = np.zeros((xl.shape[0]-3, xl.shape[0]-3))
+        d2l = np.zeros((xl.shape[0]-2, xl.shape[0]-2))
         d2l[:nsurfdofs, :nsurfdofs] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         dres = np.zeros((xl.shape[0], xl.shape[0]))
-        dres[:-3, :-3] = J.T @ J + np.sum(r[:, None, None] * H, axis=0) - lm[-3]*d2l
-        dres[:-3, -3] = -dl
-        dres[:-3, -2] = -dry
-        dres[:-3, -1] = -drz
+        dres[:-2, :-2] = J.T @ J + np.sum(r[:, None, None] * H, axis=0) - lm[-2]*d2l
+        dres[:-2, -2] = -dl
+        dres[:-2, -1] = -drz
 
-        dres[-3, :-3] = dl
-        dres[-2, :-3] = dry
-        dres[-1, :-3] = drz
+        dres[-2, :-2] = dl
+        dres[-1, :-2] = drz
         return res, dres
 
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
@@ -181,11 +166,10 @@ class BoozerSurface():
         This function tries to find the surface that approximately solves
 
         min 0.5 * || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
-                                 + 0.5 * constraint_weight * (y(varphi=0, theta=0) - 0)^2
                                  + 0.5 * constraint_weight * (z(varphi=0, theta=0) - 0)^2
 
         where || f(x)||^2_2 is the sum of squares of the Boozer residual at
-        the quadrature points.  This is done using LBFGS. 
+        the quadrature points.  This is done using LBFGS.
         """
 
         s = self.surface
@@ -319,7 +303,7 @@ class BoozerSurface():
         resdict['iota'] = iota
         return resdict
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0., 0.]):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
         """
         This function solves the constrained optimization problem
 
@@ -328,12 +312,11 @@ class BoozerSurface():
             subject to 
 
             label - targetlabel = 0
-            y(varphi=0,theta=0) - 0 = 0
             z(varphi=0,theta=0) - 0 = 0
 
-        using Lagrange multipliers and Newton's method.  The final two constraints
-        are not necessary for stellarator symmetric surfaces as they are automatically
-        satisfied by the SurfaceXYZFourier parameterization.
+        using Lagrange multipliers and Newton's method.  The final constraint
+        is not necessary for stellarator symmetric surfaces as it is automatically
+        satisfied by stellarator symmetric surfaces.
         """
         s = self.surface
         if G is not None:
@@ -345,12 +328,12 @@ class BoozerSurface():
         i = 0
         while i < maxiter and norm > tol:
             if s.stellsym:
-                A = dval[:-2, :-2]
-                b = val[:-2]
+                A = dval[:-1, :-1]
+                b = val[:-1]
                 dx = np.linalg.solve(A, b)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     dx += np.linalg.solve(A, b-A@dx)
-                xl[:-2] = xl[:-2] - dx
+                xl[:-1] = xl[:-1] - dx
             else:
                 dx = np.linalg.solve(dval, val)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
@@ -361,21 +344,21 @@ class BoozerSurface():
             i = i + 1
 
         if s.stellsym:
-            lm = xl[-3]
+            lm = xl[-2]
         else:
-            lm = xl[-3:]
+            lm = xl[-2:]
 
         res = {
             "residual": val, "jacobian": dval, "iter": i, "success": norm <= tol, "lm": lm, "G": None,
         }
         if G is not None:
-            s.set_dofs(xl[:-5])
-            iota = xl[-5]
-            G = xl[-4]
-            res['G'] = G
-        else:
             s.set_dofs(xl[:-4])
             iota = xl[-4]
+            G = xl[-3]
+            res['G'] = G
+        else:
+            s.set_dofs(xl[:-3])
+            iota = xl[-3]
         res['s'] = s
         res['iota'] = iota
         return res
