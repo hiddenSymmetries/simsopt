@@ -14,9 +14,9 @@ import copy
 import logging
 import types
 import hashlib
-from collections.abc import Callable, Hashable, Sequence, MutableSequence
+from collections.abc import Callable as ABC_Callable, Hashable
 from numbers import Real, Integral
-from typing import Union, Any, Tuple
+from typing import Union, Any, Tuple, Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ from deprecated import deprecated
 #from monty.json import MSONable
 
 from .util import unique, Array, RealArray, StrArray, BoolArray, Key, IntArray
-from .util import ImmutableId, InstanceCounterABCMeta
+from .util import ImmutableId, OptimizableMeta
 
 #logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
@@ -345,7 +345,7 @@ class DOFs(pd.DataFrame):
         return self.index.values
 
 
-class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
+class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     """
     Callable ABC that provides useful features for optimizable objects.
 
@@ -381,7 +381,9 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
                  fixed: BoolArray = None,
                  lower_bounds: RealArray = None,
                  upper_bounds: RealArray = None,
-                 funcs_in: Sequence[Optimizable] = None):
+                 opts_in: Sequence[Optimizable] = None,
+                 opt_return_fns: Sequence[Sequence[str]] = None,
+                 funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None):
         """
         Args:
             x0: Initial state (or initial values of DOFs)
@@ -389,8 +391,25 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
             fixed: Array describing whether the DOFs are free or fixed
             lower_bounds: Lower bounds for the DOFs
             upper_bounds: Upper bounds for the DOFs
-            funcs_in: Optimizable objects to define the optimization problem
-                      in conjuction with the DOFs
+            opts_in: Sequence of Optimizable objects to define the optimization
+                problem in conjuction with the DOFs. If the optimizable problem
+                can be thought of as a direct acyclic graph based on
+                dependencies, the optimizable objects
+                supplied with opts_in act as parent nodes to the current
+                Optimizable object in such an optimization graph
+            opt_return_fns: Specifies the return value for each of the
+                Optimizable object. Used in the case, where Optimizable object
+                can return different return values. Typically return values are
+                computed by different functions defined in the Optimizable
+                object. The return values are selected by choosing the
+                functions. To know the various return values, use the
+                Optimizable.print_return_fn_names function. If the list is
+                empty, default return value is used. If the Optimizable
+                object can return multiple values, the default is the array
+                of all possible return values.
+            funcs_in: Instead of specifying opts_in and opt_return_fns, specify
+                the functions of the Optimizable objects directly. The parent
+                objects are identified automatically.
         """
         self._dofs = DOFs(x0,
                           names,
@@ -404,7 +423,7 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
         self.name = self.__class__.__name__ + str(self._id.id)
 
         # Assign self as child to parents
-        self.parents = funcs_in if funcs_in is not None else []
+        self.parents = opts_in if opts_in is not None else []
         for parent in self.parents:
             parent.add_child(self)
 
@@ -417,18 +436,6 @@ class Optimizable(Callable, Hashable, metaclass=InstanceCounterABCMeta):
         # Compute the indices of all the DOFs
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
-        #dof_indices = [0]
-        #free_dof_size = 0
-        #full_dof_size = 0
-        #for opt in (self.ancestors + [self]):
-        #    size = opt.local_dof_size
-        #    free_dof_size += size
-        #    full_dof_size += opt.local_full_dof_size
-        #    dof_indices.append(free_dof_size)
-        #self.dof_indices = dict(zip(self.ancestors + [self],
-        #                            zip(dof_indices[:-1], dof_indices[1:])))
-        #self._free_dof_size = free_dof_size
-        #self._full_dof_size =  full_dof_size
 
         self.new_x = True   # Set this True for dof setter and set it to False
                             # after evaluation of function if True
