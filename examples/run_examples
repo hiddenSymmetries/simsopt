@@ -43,3 +43,4 @@ mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 
+mpiexec $MPI_OPTIONS -n 2 ./resolution_increase
