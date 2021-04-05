@@ -131,13 +131,12 @@ class Vmec(Optimizable):
         vi = vmec.vmec_input  # Shorthand
         self.nfp = vi.nfp
         self.stellsym = not vi.lasym
-        # It probably makes sense for a vmec object to have mpol and
-        # ntor attributes independent of the boundary, since the
-        # boundary may be a kind of surface that does not use the same
-        # Fourier representation. But if the surface is a
-        # SurfaceRZFourier, how then should the mpol and ntor of this
-        # surface be coordinated with the mpol and ntor of the Vmec
-        # object?
+        # A vmec object has mpol and ntor attributes independent of
+        # the boundary. The boundary surface object is initialized
+        # with mpol and ntor values that match those of the vmec
+        # object, but the mpol/ntor values of either the vmec object
+        # or the boundary surface object can be changed independently
+        # by the user.
         self.mpol = vi.mpol
         self.ntor = vi.ntor
         self.delt = vi.delt
@@ -145,10 +144,10 @@ class Vmec(Optimizable):
         self.phiedge = vi.phiedge
         self.curtor = vi.curtor
         self.gamma = vi.gamma
-        self.boundary = optimizable(SurfaceRZFourier(nfp=self.nfp,
-                                                     stellsym=self.stellsym,
-                                                     mpol=self.mpol,
-                                                     ntor=self.ntor))
+        self.boundary = SurfaceRZFourier(nfp=self.nfp,
+                                         stellsym=self.stellsym,
+                                         mpol=self.mpol,
+                                         ntor=self.ntor)
         self.ncurr = vi.ncurr
         self.free_boundary = bool(vi.lfreeb)
 
@@ -195,19 +194,23 @@ class Vmec(Optimizable):
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
         # VMEC does not allow mpol or ntor above 101:
-        mpol_capped = np.min((boundary_RZFourier.mpol, 101))
-        ntor_capped = np.min((boundary_RZFourier.ntor, 101))
-        vi.mpol = mpol_capped
-        vi.ntor = ntor_capped
+        if self.mpol > 101:
+            raise RuntimeError("VMEC does not allow mpol > 101")
+        if self.ntor > 101:
+            raise RuntimeError("VMEC does not allow ntor > 101")
+        vi.mpol = self.mpol
+        vi.ntor = self.ntor
         vi.rbc[:, :] = 0
         vi.zbs[:, :] = 0
+        mpol_capped = np.min([boundary_RZFourier.mpol, 101])
+        ntor_capped = np.min([boundary_RZFourier.ntor, 101])
         # Transfer boundary shape data from the surface object to VMEC:
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
                 vi.rbc[101 + n, m] = boundary_RZFourier.get_rc(m, n)
                 vi.zbs[101 + n, m] = boundary_RZFourier.get_zs(m, n)
 
-        # Set axis shape to something that is obvious wrong (R=0) to
+        # Set axis shape to something that is obviously wrong (R=0) to
         # trigger vmec's internal guess_axis.f to run. Otherwise the
         # initial axis shape for run N will be the final axis shape
         # from run N-1, which makes VMEC results depend slightly on
