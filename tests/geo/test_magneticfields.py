@@ -112,6 +112,7 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         Bcircular.set_points(points)
         assert np.allclose(Bfield.B(),Bcircular.B())
+        assert np.allclose(Bfield.dB_by_dX(),Bcircular.dB_by_dX())
 
     def test_helicalcoil_Bfield(self):
         point = [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04]]
