@@ -104,13 +104,63 @@ class CircularCoilXY(MagneticField):
 
     def compute(self, points, compute_derivatives=0):
         points = np.array([np.subtract(point,self.center) for point in points])
-        rho   = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
-        r     = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2) + np.power(points[:,2],2))
-        alpha = np.sqrt(self.r0**2 + np.power(r,2) - 2*self.r0*rho)
-        beta  = np.sqrt(self.r0**2 + np.power(r,2) + 2*self.r0*rho)
-        k     = np.sqrt(1-np.divide(np.power(alpha,2),np.power(beta,2)))
+        rho    = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
+        r      = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2) + np.power(points[:,2],2))
+        alpha  = np.sqrt(self.r0**2 + np.power(r,2) - 2*self.r0*rho)
+        beta   = np.sqrt(self.r0**2 + np.power(r,2) + 2*self.r0*rho)
+        k      = np.sqrt(1-np.divide(np.power(alpha,2),np.power(beta,2)))
+        gamma  = np.power(points[:,0],2) - np.power(points[:,1],2)
         self._B = np.array([
             [self.Inorm*point[0]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm*point[1]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm/(2*alpha[i]**2*beta[i])*((self.r0**2-r[i]**2)*ellipe(k[i]**2)+alpha[i]**2*ellipk(k[i]**2))]
             for i,point in enumerate(points)])
+
+        if compute_derivatives >= 1:
+
+            dBxdx = np.array([
+                    (self.Inorm*point[2]*(ellipk(k[i]**2)*alpha[i]**2*((2*point[0]**4 + gamma[i]*(point[1]**2 + 
+                    point[2]**2))*r[i]**2 + self.r0**2*(gamma[i]*(self.r0**2 + 2*point[2]**2) - 
+                    (3*point[0]**2 - 2*point[1]**2)*rho[i]**2)) + ellipe(k[i]**2)*(-((2*point[0]**4 + gamma[i]*(point[1]**2 + 
+                    point[2]**2))*r[i]**4) + self.r0**4*(-(gamma[i]*(self.r0**2 + 3*point[2]**2)) + (8*point[0]**2 - point[1]**2)*rho[i]**2) - 
+                    self.r0**2*(3*gamma[i]*point[2]**4 - 2*(2*point[0]**2 + point[1]**2)*point[2]**2*
+                    rho[i]**2 + (5*point[0]**2 + point[1]**2)*rho[i]**4))))/(2*alpha[i]**4*beta[i]**3*rho[i]**4)
+                    for i,point in enumerate(points)])
+            
+            dBydx = np.array([
+                    (self.Inorm*point[0]*point[1]*point[2]*(ellipk(k[i]**2)*alpha[i]**2*(2*self.r0**4 + r[i]**2*(2*r[i]**2 + rho[i]**2) - 
+                    self.r0**2*(-4*point[2]**2 + 5*rho[i]**2)) + ellipe(k[i]**2)*(-2*self.r0**6 - r[i]**4*(2*r[i]**2 + rho[i]**2) + 
+                    3*self.r0**4*(-2*point[2]**2 + 3*rho[i]**2) - 2*self.r0**2*(3*point[2]**4 - point[2]**2*rho[i]**2 + 
+                    2*rho[i]**4))))/(2*alpha[i]**4*beta[i]**3*rho[i]**4)
+                    for i,point in enumerate(points)])
+
+            dBzdx = np.array([
+                    (self.Inorm*point[0]*(-(ellipk(k[i]**2)*alpha[i]**2*((-self.r0**2 + rho[i]**2)**2 + 
+                    point[2]**2*(self.r0**2 + rho[i]**2))) + ellipe(k[i]**2)*(point[2]**4*(self.r0**2 + rho[i]**2) + 
+                    (-self.r0**2 + rho[i]**2)**2*(self.r0**2 + rho[i]**2) + 2*point[2]**2*(self.r0**4 - 6*self.r0**2*rho[i]**2 + 
+                    rho[i]**4))))/(2*alpha[i]**4*beta[i]**3*rho[i]**2)
+                    for i,point in enumerate(points)])
+
+            dBxdy = dBydx
+
+            dBydy = np.array([
+                    (self.Inorm*point[2]*(ellipk(k[i]**2)*alpha[i]**2*((2*point[1]**4 - gamma[i]*(point[0]**2 + point[2]**2))*r[i]**2 + 
+                    self.r0**2*(-(gamma[i]*(self.r0**2 + 2*point[2]**2)) - (-2*point[0]**2 + 3*point[1]**2)*rho[i]**2)) + 
+                    ellipe(k[i]**2)*(-((2*point[1]**4 - gamma[i]*(point[0]**2 + point[2]**2))*r[i]**4) + 
+                    self.r0**4*(gamma[i]*(self.r0**2 + 3*point[2]**2) + (-point[0]**2 + 8*point[1]**2)*rho[i]**2) - 
+                    self.r0**2*(-3*gamma[i]*point[2]**4 - 2*(point[0]**2 + 2*point[1]**2)*point[2]**2*rho[i]**2 + 
+                    (point[0]**2 + 5*point[1]**2)*rho[i]**4))))/(2*alpha[i]**4*beta[i]**3*rho[i]**4)
+                    for i,point in enumerate(points)])
+
+            dBzdy = np.array([dBzdx[i]*point[1]/point[0]for i,point in enumerate(points)])
+
+            dBxdz = dBzdx
+
+            dBydz = dBzdy
+
+            dBzdz = np.array([
+                    (self.Inorm*point[2]*(ellipk(k[i]**2)*alpha[i]**2*(self.r0**2 - r[i]**2) + 
+                    ellipe(k[i]**2)*(-7*self.r0**4 + r[i]**4 + 6*self.r0**2*(-point[2]**2 + rho[i]**2))))/(2*alpha[i]**4*beta[i]**3)
+                    for i,point in enumerate(points)])
+
+            self._dB_by_dX = np.array([[[dBxdx[i],dBydx[i],dBzdx[i]],[dBxdy[i],dBydy[i],dBzdy[i]],[dBxdz[i],dBydz[i],dBzdz[i]]] for i in range(len(points))])
