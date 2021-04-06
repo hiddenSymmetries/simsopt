@@ -18,10 +18,17 @@ class Optimizable():
     This base class provides some useful features for optimizable functions.
     """
     def get_dofs(self):
-        raise NotImplementedError
+        """
+        This base Optimizable object has no degrees of freedom, so return
+        an empty array
+        """
+        return np.array([])
     
     def set_dofs(self, x):
-        raise NotImplementedError
+        """
+        This base Optimizable object has no degrees of freedom, so do nothing.
+        """
+        pass
     
     def index(self, dof_str):
         """

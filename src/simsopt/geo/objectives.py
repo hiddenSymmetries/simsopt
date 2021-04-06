@@ -2,16 +2,18 @@ from jax import grad, vjp
 import jax.numpy as jnp
 import numpy as np
 from .jit import jit
+from simsopt.core.optimizable import Optimizable
 
 @jit
 def curve_length_pure(l):
     return jnp.mean(l)
 
-class CurveLength():
+class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
         self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
+        self.depends_on = ["curve"]
 
     def J(self):
         return curve_length_pure(self.curve.incremental_arclength())
@@ -24,10 +26,11 @@ def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
         arc_length = jnp.linalg.norm(gammadash, axis=1)
         return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
 
-class LpCurveCurvature():
+class LpCurveCurvature(Optimizable):
 
     def __init__(self, curve, p, desired_length=None):
         self.curve = curve
+        self.depends_on = ["curve"]
         if desired_length is None:
             self.desired_kappa = 0
         else:
@@ -51,10 +54,11 @@ def Lp_torsion_pure(torsion, gammadash, p):
         arc_length = jnp.linalg.norm(gammadash, axis=1)
         return (1./p)*jnp.mean(jnp.abs(torsion)**p * arc_length)
 
-class LpCurveTorsion():
+class LpCurveTorsion(Optimizable):
 
     def __init__(self, curve, p):
         self.curve = curve
+        self.depends_on = ["curve"]
         
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
@@ -73,10 +77,11 @@ def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     alen = jnp.linalg.norm(l1, axis=1) * jnp.linalg.norm(l2, axis=1)
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
 
-class MinimumDistance():
+class MinimumDistance(Optimizable):
 
     def __init__(self, curves, minimum_distance):
         self.curves = curves
+        self.depends_on = ["curves"]
         self.minimum_distance = minimum_distance
         
         self.J_jax = jit(lambda gamma1, l1, gamma2, l2: distance_pure(gamma1, l1, gamma2, l2, minimum_distance))

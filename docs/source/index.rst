@@ -9,8 +9,10 @@ performance. Several types of components are included:
 - Interfaces to physics codes, e.g. for MHD equilibrium.
 - Tools for defining objective functions and parameter spaces for
   optimization.
-- Geometric objects that are important for stellarators: surfaces and
-  electromagnetic coils.
+- Geometric objects that are important for stellarators -- surfaces and
+  curves -- with several available parameterizations.
+- An efficient implementation of the Biot-Savart law, including
+  derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
 Some of the physics modules with compiled code reside in separate
