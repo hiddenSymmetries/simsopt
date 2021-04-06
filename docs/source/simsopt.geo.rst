@@ -1,4 +1,4 @@
-simsopt.geo
+simsopt.geo package
 ===================
 
 Submodules
@@ -28,10 +28,18 @@ simsopt.geo.curve module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.fouriercurve module
--------------------------------
+simsopt.geo.curverzfourier module
+---------------------------------
 
-.. automodule:: simsopt.geo.fouriercurve
+.. automodule:: simsopt.geo.curverzfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.curvexyzfourier module
+----------------------------------
+
+.. automodule:: simsopt.geo.curvexyzfourier
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,14 +52,6 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.magneticaxis module
--------------------------------
-
-.. automodule:: simsopt.geo.magneticaxis
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 simsopt.geo.objectives module
 -----------------------------
 
@@ -60,10 +60,34 @@ simsopt.geo.objectives module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.parameterfreecurve module
--------------------------------------
+simsopt.geo.surface module
+--------------------------
 
-.. automodule:: simsopt.geo.parameterfreecurve
+.. automodule:: simsopt.geo.surface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.surfacegarabedian module
+------------------------------------
+
+.. automodule:: simsopt.geo.surfacegarabedian
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.surfacerzfourier module
+-----------------------------------
+
+.. automodule:: simsopt.geo.surfacerzfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.surfacexyzfourier module
+------------------------------------
+
+.. automodule:: simsopt.geo.surfacexyzfourier
    :members:
    :undoc-members:
    :show-inheritance:

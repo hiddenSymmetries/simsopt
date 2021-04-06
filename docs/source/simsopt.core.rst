@@ -1,4 +1,4 @@
-simsopt.core
+simsopt.core package
 ====================
 
 Submodules
@@ -32,14 +32,6 @@ simsopt.core.optimizable module
 -------------------------------
 
 .. automodule:: simsopt.core.optimizable
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-simsopt.core.surface module
----------------------------
-
-.. automodule:: simsopt.core.surface
    :members:
    :undoc-members:
    :show-inheritance:

@@ -11,13 +11,9 @@ using std::map;
 using std::logic_error;
 
 #include "xtensor/xarray.hpp"
+#include "cachedarray.hpp"
 
-template<class Array>
-struct CachedArray {
-    Array data;
-    bool status;
-    CachedArray(Array _data) : data(_data), status(false) {}
-};
+#include <Eigen/Dense>
 
 template<class Array>
 Array curve_vjp_contraction(const Array& mat, const Array& v){
@@ -37,7 +33,14 @@ Array curve_vjp_contraction(const Array& mat, const Array& v){
 template<class Array>
 class Curve {
     private:
+        /* The cache object contains data that has to be recomputed everytime
+         * the dofs change.  However, some data does not have to be recomputed,
+         * e.g. dgamma_by_dcoeff, since we assume a representation that is
+         * linear in the dofs.  For that data we use the cache_persistent
+         * object */
         map<string, CachedArray<Array>> cache;
+        map<string, CachedArray<Array>> cache_persistent;
+
 
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
@@ -51,16 +54,46 @@ class Curve {
             return (loc->second).data;
         }
 
+        Array& check_the_persistent_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
+            auto loc = cache_persistent.find(key);
+            if(loc == cache_persistent.end()){ // Key not found --> allocate array
+                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+            }
+            if(!((loc->second).status)){ // needs recomputing
+                impl((loc->second).data);
+                (loc->second).status = true;
+            }
+            return (loc->second).data;
+        }
+
+        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
+
     // We'd really like these to be protected, but I'm not sure that plays well
     // with accessing them from python child classes. 
     public://protected:
         int numquadpoints;
-        vector<double> quadpoints;
+        Array quadpoints;
 
     public:
 
-        Curve(vector<double> _quadpoints) : quadpoints(_quadpoints) {
-            numquadpoints = quadpoints.size();
+        Curve(int _numquadpoints) {
+            numquadpoints = _numquadpoints;
+            quadpoints = xt::zeros<double>({_numquadpoints});
+            for (int i = 0; i < numquadpoints; ++i) {
+                quadpoints[i] = (double(i))/numquadpoints;
+            }
+        }
+
+        Curve(vector<double> _quadpoints) {
+            numquadpoints = _quadpoints.size();
+            quadpoints = xt::zeros<double>({_quadpoints.size()});
+            for (int i = 0; i < numquadpoints; ++i) {
+                quadpoints[i] = _quadpoints[i];
+            }
+        }
+
+        Curve(Array _quadpoints) : quadpoints(_quadpoints) {
+            numquadpoints = _quadpoints.size();
         }
 
         void invalidate_cache() {
@@ -74,11 +107,47 @@ class Curve {
             this->invalidate_cache();
         }
 
+        void least_squares_fit(Array& target_values) {
+            if(target_values.shape(0) != numquadpoints)
+                throw std::runtime_error("Wrong first dimension for target_values. Should match numquadpoints.");
+            if(target_values.shape(1) != 3)
+                throw std::runtime_error("Wrong third dimension for target_values. Should be 3.");
+
+            if(!qr){
+                auto dg_dc = this->dgamma_by_dcoeff();
+                Eigen::MatrixXd A = Eigen::MatrixXd(numquadpoints*3, num_dofs());
+                int counter = 0;
+                for (int i = 0; i < numquadpoints; ++i) {
+                    for (int d = 0; d < 3; ++d) {
+                        for (int c = 0; c  < num_dofs(); ++c ) {
+                            A(counter, c) = dg_dc(i, d, c);
+                        }
+                        counter++;
+                    }
+                }
+                qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>>(A.fullPivHouseholderQr());
+            }
+            Eigen::VectorXd b = Eigen::VectorXd(numquadpoints*3);
+            int counter = 0;
+            for (int i = 0; i < numquadpoints; ++i) {
+                for (int d = 0; d < 3; ++d) {
+                    b(counter++) = target_values(i, d);
+                }
+            }
+            Eigen::VectorXd x = qr->solve(b);
+            vector<double> dofs(x.data(), x.data() + x.size());
+            this->set_dofs(dofs);
+        }
+
         virtual int num_dofs() = 0;
         virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
         virtual vector<double> get_dofs() = 0;
 
-        virtual void gamma_impl(Array& data) = 0;
+/* The interface for gamma_impl is a little different than the other ones, in
+ * the sense that we allow the user to pass the quadrature points.  This is
+ * useful for evaluation the curve on e.g. finer or different grid.  */
+        virtual void gamma_impl(Array& data, Array& quadpoints) = 0; 
+
         virtual void gammadash_impl(Array& data) { throw logic_error("gammadash_impl was not implemented"); };
         virtual void gammadashdash_impl(Array& data) { throw logic_error("gammadashdash_impl was not implemented"); };
         virtual void gammadashdashdash_impl(Array& data) { throw logic_error("gammadashdashdash_impl was not implemented"); };
@@ -112,7 +181,7 @@ class Curve {
         };
 
         Array& gamma() {
-            return check_the_cache("gamma", {numquadpoints, 3}, [this](Array& A) { return gamma_impl(A);});
+            return check_the_cache("gamma", {numquadpoints, 3}, [this](Array& A) { return gamma_impl(A, this->quadpoints);});
         }
         Array& gammadash() {
             return check_the_cache("gammadash", {numquadpoints, 3}, [this](Array& A) { return gammadash_impl(A);});
@@ -125,16 +194,16 @@ class Curve {
         }
 
         Array& dgamma_by_dcoeff() {
-            return check_the_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
         }
         Array& dgammadash_by_dcoeff() {
-            return check_the_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
         }
         Array& dgammadashdash_by_dcoeff() {
-            return check_the_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
         }
         Array& dgammadashdashdash_by_dcoeff() {
-            return check_the_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
         virtual Array dgamma_by_dcoeff_vjp(Array& v) {

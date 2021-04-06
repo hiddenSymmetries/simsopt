@@ -9,8 +9,10 @@ performance. Several types of components are included:
 - Interfaces to physics codes, e.g. for MHD equilibrium.
 - Tools for defining objective functions and parameter spaces for
   optimization.
-- Geometric objects that are important for stellarators: surfaces and
-  electromagnetic coils.
+- Geometric objects that are important for stellarators -- surfaces and
+  curves -- with several available parameterizations.
+- An efficient implementation of the Biot-Savart law, including
+  derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
 Some of the physics modules with compiled code reside in separate
@@ -20,7 +22,7 @@ repositories. These separate modules include
   equilibrium.
 - `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
   equilibrium. (This repository is private.)
-- `booz_xform <https://github.com/hiddenSymmetries/booz_xform>`_, for
+- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
   Boozer coordinates and quasisymmetry.
   
 The design of ``simsopt`` is guided by several principles:
@@ -57,9 +59,18 @@ optimization.  Others include `STELLOPT
    :caption: Contents
 
    getting_started
+   concepts
    problems
    testing
    source
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Examples
+
+   example_vmec_only
+   example_quasisymmetry
+   example_islands
 
 .. toctree::
    :maxdepth: 3

@@ -1,34 +1,34 @@
-from math import pi
-
-import numpy as np
-from jax.ops import index, index_add
-import jax.numpy as jnp
-
-import simsgeopp as sgpp
 from .curve import Curve
-from .curve import JaxCurve
+import simsgeopp as sgpp
+import numpy as np
 
-
-class FourierCurve(sgpp.FourierCurve, Curve):
+class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
 
     def __init__(self, quadpoints, order):
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
+        sgpp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self)
-        sgpp.FourierCurve.__init__(self, quadpoints, order)
 
     def get_dofs(self):
-        return np.asarray(sgpp.FourierCurve.get_dofs(self))
+        return np.asarray(sgpp.CurveXYZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
-        sgpp.FourierCurve.set_dofs(self, dofs)
+        sgpp.CurveXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 
     # def kappa_impl(self, kappa):
     #     Curve.kappa_impl(self, kappa)
+
+
+
+from jax.ops import index, index_add
+import jax.numpy as jnp
+from math import pi
+from .curve import JaxCurve
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
@@ -44,17 +44,23 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
     return gamma
 
 
-class JaxFourierCurve(JaxCurve):
+class JaxCurveXYZFourier(JaxCurve):
 
-    """ A Python+Jax implementation of the FourierCurve """
+    """ 
+    A Python+Jax implementation of the CurveXYZFourier class.  There is
+    actually no reason why one should use this over the C++ implementation in
+    simsgeopp, but the point of this class is to illustrate how jax can be used
+    to define a geometric object class and calculate all the derivatives (both
+    with respect to dofs and with respect to the angle phi) automatically.
+    """
 
     def __init__(self, quadpoints, order):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
-        super().__init__(quadpoints, pure)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
+        super().__init__(quadpoints, pure)
 
     def num_dofs(self):
         return 3*(2*self.order+1)
