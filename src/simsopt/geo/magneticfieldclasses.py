@@ -214,3 +214,27 @@ class CircularCoil(MagneticField):
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = None
             raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
+
+    def compute_A(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+
+        points = np.array(np.dot(self.rotMatrix,np.array([np.subtract(point,self.center) for point in points]).T).T)
+        rho    = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
+        r      = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2) + np.power(points[:,2],2))
+        alpha  = np.sqrt(self.r0**2 + np.power(r,2) - 2*self.r0*rho)
+        beta   = np.sqrt(self.r0**2 + np.power(r,2) + 2*self.r0*rho)
+        k = np.sqrt(1-np.divide(np.power(alpha,2),np.power(beta,2)))
+
+        self._A = -self.Inorm/2*np.dot(self.rotMatrixInv,np.array([
+            (2*self.r0*+np.sqrt(point[0]**2+point[1]**2)*ellipe(k[i]**2)+(self.r0**2+point[0]**2+point[1]**2+point[2]**2)*(ellipe(k[i]**2)-ellipk(k[i]**2)))/
+            ((point[0]**2+point[1]**2)*np.sqrt(self.r0**2+point[0]**2+point[1]**2+2*self.r0*np.sqrt(point[0]**2+point[1]**2)+point[2]**2))*
+            np.array([-point[1],point[0],0])
+             for i,point in enumerate(points)]).T)
+        
+        if compute_derivatives >= 1:
+            self._dA_by_dX = None
+            raise RuntimeError("First derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
+
+        if compute_derivatives >= 2:
+            self._d2A_by_dXdX = None
+            raise RuntimeError("Second derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
