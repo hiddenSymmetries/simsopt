@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 import logging
-import sys
-sys.path.append('..')
 from simsopt.core.functions import Identity
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.solve.serial_solve import least_squares_serial_solve
