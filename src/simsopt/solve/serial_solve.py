@@ -10,6 +10,7 @@ general optimization problems.
 
 from datetime import datetime
 from time import time
+import traceback
 import numpy as np
 from scipy.optimize import least_squares, minimize
 import logging
@@ -39,6 +40,7 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
             f_unshifted = prob.dofs.f(x)
         except:
             logger.info("Exception caught during function evaluation")
+            traceback.print_exc()  # Print traceback
             f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
             success = False
 
@@ -152,6 +154,7 @@ def serial_solve(prob, grad=None, **kwargs):
         try:
             result = prob.objective(x)
         except:
+            traceback.print_exc()  # Print traceback
             result = 1e+12
         
         # Since the number of terms is not known until the first

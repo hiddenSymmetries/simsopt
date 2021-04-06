@@ -50,12 +50,12 @@ prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
 for step in range(3):
     max_mode = step + 1
     
-    # VMEC's mpol & ntor will be 4, 5, 6:
-    vmec.mpol = 4 + step
+    # VMEC's mpol & ntor will be 3, 4, 5:
+    vmec.mpol = 3 + step
     vmec.ntor = vmec.mpol
 
-    # booz_xform's mpol & ntor will be 24, 32, 40:
-    boozer.mpol = 24 + step * 8
+    # booz_xform's mpol & ntor will be 16, 24, 32:
+    boozer.mpol = 16 + step * 8
     boozer.ntor = boozer.mpol
     
     if mpi.proc0_world:

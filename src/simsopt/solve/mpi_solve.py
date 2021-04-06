@@ -11,6 +11,7 @@ the operation of these main functions.
 import logging
 from datetime import datetime
 from time import time
+import traceback
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -73,12 +74,14 @@ def mpi_workers_task(mpi, dofs, data):
             dofs.f()
         except:
             logger.info("Exception caught by worker during dofs.f()")
+            traceback.print_exc()  # Print traceback
 
     elif data == CALCULATE_JAC:
         try:
             dofs.jac()
         except:
             logger.info("Exception caught by worker during dofs.jac()")
+            traceback.print_exc()  # Print traceback
 
     else:
         raise ValueError('Unexpected data in worker_loop')
@@ -178,6 +181,7 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
                 f = dofs.f()
             except:
                 logger.info("Exception caught during function evaluation")
+                traceback.print_exc()  # Print traceback
                 f = np.full(prob.dofs.nvals, 1.0e12)
                 
             if evals is None and mpi.proc0_world:
@@ -258,6 +262,7 @@ def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
         except:
             f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
             logger.info("Exception caught during function evaluation.")
+            traceback.print_exc()  # Print traceback
 
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
