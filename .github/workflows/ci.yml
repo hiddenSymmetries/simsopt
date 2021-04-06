@@ -80,7 +80,8 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py sympy
+        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py qsc sympy
+        # qsc is used for an integrated test.
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
