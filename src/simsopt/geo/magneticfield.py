@@ -71,7 +71,7 @@ class MagneticField():
         return MagneticFieldSum([self,other])
 
 class MagneticFieldSum(MagneticField):
-    '''Class that is called when two or more magnetic fields are added together.
+    '''Class used to sum two or more magnetic field together.
     It can either be called directly with a list of magnetic fields given as input and outputing another magnetic field with B, A and its derivatives added together or it can be called by summing magnetic fields classes as Bfield1 + Bfield1
     '''
     def __init__(self,Bfields):

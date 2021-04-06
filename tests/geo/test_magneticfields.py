@@ -92,7 +92,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX,dB2_by_dX)
 
     def test_circularcoil_Bfield(self):
-        current = 1e7
+        current = 1.2e7
         radius  = 1.12345
         center    = [0.12345,0.6789,1.23456]
         pointVar  = 1e-1
@@ -101,7 +101,7 @@ class Testing(unittest.TestCase):
         Bfield  = CircularCoil(I=current, r0=radius)
         points  = np.array([[1e-10,0,0.]])
         Bfield.set_points(points)
-        assert np.allclose(Bfield.B(),[[0,0,2*np.pi/radius]])
+        assert np.allclose(Bfield.B(),[[0,0,current/1e7*2*np.pi/radius]])
         # Verify that divergence is zero
         dB1_by_dX=Bfield.dB_by_dX()
         assert np.allclose(dB1_by_dX[:,0,0]+dB1_by_dX[:,1,1]+dB1_by_dX[:,2,2],np.zeros((npoints)))
