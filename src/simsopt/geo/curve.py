@@ -1,5 +1,6 @@
 import numpy as np
 import simsgeopp as sgpp
+from simsopt.core.optimizable import Optimizable
 from jax import grad, vjp, jacfwd, jvp
 from .jit import jit
 import jax.numpy as jnp
@@ -29,9 +30,11 @@ torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_p
 torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
 torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
-class Curve():
+class Curve(Optimizable):
     def __init__(self):
+        Optimizable.__init__(self)
         self.dependencies = []
+        self.fixed = np.full(len(self.get_dofs()), False)
 
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True, color=None, linestyle=None):
         import matplotlib.pyplot as plt
@@ -56,6 +59,13 @@ class Curve():
         if show:
             plt.show()
         return ax
+
+    def plot_mayavi(self, show=True):
+        from mayavi import mlab
+        g = self.gamma()
+        mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
+        if show:
+            mlab.show()
 
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
@@ -233,6 +243,7 @@ class JaxCurve(sgpp.Curve, Curve):
         ones = jnp.ones_like(points)
 
         self.gamma_jax = jit(lambda dofs: self.gamma_pure(dofs, points))
+        self.gamma_impl_jax = jit(lambda dofs, p: self.gamma_pure(dofs, p))
         self.dgamma_by_dcoeff_jax = jit(jacfwd(self.gamma_jax))
         self.dgamma_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gamma_jax, x)[1](v)[0])
 
@@ -252,13 +263,11 @@ class JaxCurve(sgpp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
-        self.dkappa_by_dcoeff_jax = jit(jacfwd(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d))))
 
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
-        self.dtorsion_by_dcoeff_jax = jit(jacfwd(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d))))
 
-    def gamma_impl(self, gamma):
-        gamma[:, :] = self.gamma_jax(self.get_dofs())
+    def gamma_impl(self, gamma, quadpoints):
+        gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
@@ -293,14 +302,8 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.dgammadashdashdash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
-    # def dkappa_by_dcoeff_impl(self, dkappa_by_dcoeff):
-    #     dkappa_by_dcoeff[:, :] = np.asarray(self.dkappa_by_dcoeff_jax(self.get_dofs()))
-
     def dkappa_by_dcoeff_vjp(self, v):
         return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
-
-    # def dtorsion_by_dcoeff_impl(self, dtorsion_by_dcoeff):
-    #     dtorsion_by_dcoeff[:] = self.dtorsion_by_dcoeff_jax(self.get_dofs())
 
     def dtorsion_by_dcoeff_vjp(self, v):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
@@ -311,8 +314,9 @@ from math import pi, sin, cos
 class RotatedCurve(sgpp.Curve, Curve):
 
     def __init__(self, curve, theta, flip):
-        Curve.__init__(self)
+        self.curve = curve
         sgpp.Curve.__init__(self, curve.quadpoints)
+        Curve.__init__(self)
         self.rotmat = np.asarray([
             [cos(theta), -sin(theta), 0],
             [sin(theta), cos(theta), 0],
@@ -321,7 +325,6 @@ class RotatedCurve(sgpp.Curve, Curve):
         if flip:
             self.rotmat = self.rotmat @ np.asarray([[1,0,0],[0,-1,0],[0,0,-1]])
         self.rotmatT = self.rotmat.T
-        self.curve = curve
         curve.dependencies.append(self)
 
     def get_dofs(self):
@@ -333,8 +336,9 @@ class RotatedCurve(sgpp.Curve, Curve):
     def num_dofs(self):
         return self.curve.num_dofs()
 
-    def gamma_impl(self, gamma):
-        gamma[:] = self.curve.gamma() @ self.rotmat
+    def gamma_impl(self, gamma, quadpoints):
+        self.curve.gamma_impl(gamma, quadpoints)
+        gamma[:] = gamma @ self.rotmat
 
     def gammadash_impl(self, gammadash):
         gammadash[:] = self.curve.gammadash() @ self.rotmat

@@ -6,7 +6,15 @@
 simsopt_20*.dat
 residuals_20*.dat
 _skbuild/
-
+build/
+build-cmake/
+dist/
+pip-wheel-metadata/
+src/SIMSOPT.egg-info/
+.DS_Store
+.coverage
+.tox
+	
 # f90wrap related
 src.*/
 .f2py_f2cmap 
@@ -24,6 +32,11 @@ jxbout*
 parvmecinfo.txt
 threed*
 vmec_f90wrap.py
+
+# SPEC specific
+spec*.sp
+spec*.sp.end
+spec*.sp.h5
 
 # examples
 examples/VMEC/

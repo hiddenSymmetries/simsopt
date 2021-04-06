@@ -12,17 +12,15 @@ import os.path
 import numpy as np
 from scipy.io import netcdf
 from mpi4py import MPI
-from monty.dev import requires
 
+vmec_found = True
 try:
     import vmec
-    vmec_found = True
 except ImportError as err:
-    vmec = None
     vmec_found = False
 
 from simsopt.core.optimizable import Optimizable, optimizable
-from simsopt.core.surface import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.core.util import Struct
 from simsopt.util.mpi import MpiPartition
 
@@ -36,44 +34,40 @@ output_flag = 8
 cleanup_flag = 16
 reset_jacdt_flag = 32
 
-"""
-value flag-name         calls routines to...
------ ---------         ---------------------
-  1   restart_flag      reset internal run-control parameters
-                        (for example, if jacobian was bad, to try a smaller 
-                        time-step)
-  2   readin_flag       read in data from input_file and initialize parameters
-                        or arrays which do not dependent on radial grid size
-                        allocate internal grid-dependent arrays used by vmec;
-                        initialize internal grid-dependent vmec profiles (xc,
-                        iota, etc);
-                        setup loop for radial multi-grid meshes or, if
-                        ns_index = ictrl_array(4) is > 0, use radial grid
-                        points specified by ns_array[ns_index]
-  4   timestep_flag     iterate vmec either by "niter" time steps or until ftol
-                        satisfied, whichever comes first.
-                        If numsteps (see below) > 0, vmec will return
-                        to caller after numsteps, rather than niter, steps.
-  8   output_flag       write out output files (wout, jxbout)
- 16   cleanup_flag      cleanup (deallocate arrays) - this terminates present
-                        run of the sequence
-                        This flag will be ignored if the run might be continued.
-                        For example, if ier_flag (see below) returns the value
-                        more_iter_flag, the cleanup code will be skipped even if
-                        cleanup_flag is set, so that the run could be continued
-                        on the next call to runvmec.
- 32   reset_jacdt_flag  Resets ijacobian flag and time step to delt0
-                        thus, setting ictrl_flag = 1+2+4+8+16 will perform ALL
-                        the tasks thru cleanup_flag in addition,
-                        if ns_index = 0 and numsteps = 0 (see below), vmec will
-                        control its own run history
-"""
+# Documentation of flags for runvmec() from the VMEC source code:
+#
+#value flag-name         calls routines to...
+#----- ---------         ---------------------
+#  1   restart_flag      reset internal run-control parameters
+#                        (for example, if jacobian was bad, to try a smaller 
+#                        time-step)
+#  2   readin_flag       read in data from input_file and initialize parameters
+#                        or arrays which do not dependent on radial grid size
+#                        allocate internal grid-dependent arrays used by vmec;
+#                        initialize internal grid-dependent vmec profiles (xc,
+#                        iota, etc);
+#                        setup loop for radial multi-grid meshes or, if
+#                        ns_index = ictrl_array(4) is > 0, use radial grid
+#                        points specified by ns_array[ns_index]
+#  4   timestep_flag     iterate vmec either by "niter" time steps or until ftol
+#                        satisfied, whichever comes first.
+#                        If numsteps (see below) > 0, vmec will return
+#                        to caller after numsteps, rather than niter, steps.
+#  8   output_flag       write out output files (wout, jxbout)
+# 16   cleanup_flag      cleanup (deallocate arrays) - this terminates present
+#                        run of the sequence
+#                        This flag will be ignored if the run might be continued.
+#                        For example, if ier_flag (see below) returns the value
+#                        more_iter_flag, the cleanup code will be skipped even if
+#                        cleanup_flag is set, so that the run could be continued
+#                        on the next call to runvmec.
+# 32   reset_jacdt_flag  Resets ijacobian flag and time step to delt0
+#                        thus, setting ictrl_flag = 1+2+4+8+16 will perform ALL
+#                        the tasks thru cleanup_flag in addition,
+#                        if ns_index = 0 and numsteps = 0 (see below), vmec will
+#                        control its own run history
 
 
-@requires(vmec is not None,
-          "Running VMEC from simsopt requires VMEC python extension. "
-          "Install the VMEC python extension from "
-          "https://https://github.com/hiddenSymmetries/VMEC2000")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
@@ -83,6 +77,12 @@ class Vmec(Optimizable):
         """
         Constructor
         """
+        if not vmec_found:
+            raise RuntimeError(
+                "Running VMEC from simsopt requires VMEC python extension. "
+                "Install the VMEC python extension from "
+                "https://https://github.com/hiddenSymmetries/VMEC2000")
+        
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
@@ -112,10 +112,10 @@ class Vmec(Optimizable):
         self.ictrl[4] = 0  # iseq
         verbose = True
         reset_file = ''
-        print('About to call runvmec to readin')
+        logger.info('About to call runvmec to readin')
         vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
-        print('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+        logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
         # Deallocate arrays allocated by VMEC's fixaray():
         vmec.cleanup(False)
         if ierr != 0:
@@ -123,14 +123,14 @@ class Vmec(Optimizable):
                                "error code {}".format(filename, ierr))
 
         objstr = " for Vmec " + str(hex(id(self)))
-        # nfp and stelsym are initialized by the Equilibrium constructor:
+        # nfp and stellsym are initialized by the Equilibrium constructor:
         # Equilibrium.__init__(self)
 
         # Create an attribute for each VMEC input parameter in VMEC's fortran
         # modules,
         vi = vmec.vmec_input  # Shorthand
         self.nfp = vi.nfp
-        self.stelsym = not vi.lasym
+        self.stellsym = not vi.lasym
         # It probably makes sense for a vmec object to have mpol and
         # ntor attributes independent of the boundary, since the
         # boundary may be a kind of surface that does not use the same
@@ -146,7 +146,7 @@ class Vmec(Optimizable):
         self.curtor = vi.curtor
         self.gamma = vi.gamma
         self.boundary = optimizable(SurfaceRZFourier(nfp=self.nfp,
-                                                     stelsym=self.stelsym,
+                                                     stellsym=self.stellsym,
                                                      mpol=self.mpol,
                                                      ntor=self.ntor))
         self.ncurr = vi.ncurr
@@ -187,7 +187,7 @@ class Vmec(Optimizable):
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = vmec.vmec_input  # Shorthand
         vi.nfp = self.nfp
-        vi.lasym = int(not self.stelsym)
+        vi.lasym = int(not self.stellsym)
         vi.delt = self.delt
         vi.phiedge = self.phiedge
         vi.curtor = self.curtor

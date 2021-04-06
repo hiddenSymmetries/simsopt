@@ -3,17 +3,27 @@
 #include "curve.cpp"
 
 template<class Array>
-class FourierCurve : public Curve<Array> {
+class CurveXYZFourier : public Curve<Array> {
+    /*
+       CurveXYZFourier is a curve that is represented in cartesian
+       coordinates using the following Fourier series: 
+
+       x(phi) = \sum_{m=0}^{order} x_{c,m}cos(m*phi) + \sum_{m=1}^order x_{s,m}sin(m*phi)
+       y(phi) = \sum_{m=0}^{order} y_{c,m}cos(m*phi) + \sum_{m=1}^order y_{s,m}sin(m*phi)
+       z(phi) = \sum_{m=0}^{order} z_{c,m}cos(m*phi) + \sum_{m=1}^order z_{s,m}sin(m*phi)
+
+       The dofs are stored in the order 
+       [x_{c,0},...,x_{c,order},x_{s,1},...,x_{s,order},y_{c,0},....]
+
+       */
     private:
         int order;
     public:
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
         vector<vector<double>> dofs;
-        FourierCurve(int _numquadpoints, int _order) : Curve<Array>(std::vector<double>(_numquadpoints, 0.)), order(_order) {
-            for (int i = 0; i < numquadpoints; ++i) {
-                this->quadpoints[i] = ((double)i)/numquadpoints;
-            }
+
+        CurveXYZFourier(int _numquadpoints, int _order) : Curve<Array>(_numquadpoints), order(_order) {
             dofs = vector<vector<double>> {
                 vector<double>(2*order+1, 0.), 
                 vector<double>(2*order+1, 0.), 
@@ -21,7 +31,15 @@ class FourierCurve : public Curve<Array> {
             };
         }
 
-        FourierCurve(vector<double> _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
+        CurveXYZFourier(vector<double> _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
+            dofs = vector<vector<double>> {
+                vector<double>(2*order+1, 0.), 
+                vector<double>(2*order+1, 0.), 
+                vector<double>(2*order+1, 0.)
+            };
+        }
+
+        CurveXYZFourier(Array _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
             dofs = vector<vector<double>> {
                 vector<double>(2*order+1, 0.), 
                 vector<double>(2*order+1, 0.), 
@@ -57,7 +75,8 @@ class FourierCurve : public Curve<Array> {
             return _dofs;
         }
 
-        void gamma_impl(Array& data) override {
+        void gamma_impl(Array& data, Array& quadpoints) override {
+            int numquadpoints = quadpoints.size();
             data *= 0;
             for (int k = 0; k < numquadpoints; ++k) {
                 for (int i = 0; i < 3; ++i) {
