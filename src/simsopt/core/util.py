@@ -87,6 +87,38 @@ class InstanceCounterMeta(type):
 
 
 class RegisterMeta(type):
+    """
+    RegisterMeta class is used to register functions with easy to identify
+    names. At present, it is used mainly to register the functions of
+    Optimizable subclasses that return a value.
+
+    The functionality is explained with Spec class implemented in
+    simsopt.mhd.spec module. Spec class, which is a subclass of Optimizable,
+    implements two functions volume and iota, which are used by child
+    Optimizables nodes.
+
+    One could register the two functions of Spec class in a couple of ways.
+    1) `Spec.return_fn_map = {'volume': Spec.volume, 'iota': Spec.iota}`
+
+    2) ```
+        Spec.volume = Spec.register_return_fn("volume")(Spec.volume)
+        Spec.iota = Spec.register_return_fn("iota")(Spec.iota)
+        ```
+
+    3) TO BE IMPLEMENTED:
+        ```
+        class Spec
+            ...
+
+            @register_return_fn("volume")
+            def volume(self, ...):
+                ...
+
+            @register_return_fn("iota")
+            def iota(self, ...):
+                ...
+        ```
+    """
     def __init__(cls, name, bases, attrs):
         super().__init__(name, bases, attrs)
         cls.return_fn_map = {}
@@ -101,4 +133,7 @@ class RegisterMeta(type):
 
 
 class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
+    """
+    Meta class for Optimizable class
+    """
     pass
