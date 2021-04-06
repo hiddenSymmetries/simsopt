@@ -87,34 +87,39 @@ class ScalarPotentialRZMagneticField(MagneticField):
             raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
 
 
-class CircularCoilXY(MagneticField):
-    '''Magnetic field created by a single circular coil in the xy plane evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
-    As inputs, it takes the radius of the coil (r0), its center and current (I).
-    Note: this function needs scipy.
+class CircularCoil(MagneticField):
+    '''Magnetic field created by a single circular coil evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
+    As inputs, it takes the radius of the coil (r0), its center, current (I) and its normal vector spherical angle components (normal=[theta,phi]).
 
     Args:
         r0: radius of the coil
         center: point at the coil center
         I: current of the coil in Ampere's
+        normal: spherical angles theta and phi of the normal vector to the plane of the coil centered at the coil center
     '''
-    def __init__(self, r0=0.1, center=[0,0,0], I=5e5/np.pi):
+    def __init__(self, r0=0.1, center=[0,0,0], I=5e5/np.pi, normal=[0,0]):
         self.r0     = r0
         self.Inorm  = I*4e-7
         self.center = center
+        self.normal = normal
+        self.rotMatrix = np.array([[np.cos(normal[1]), np.sin(normal[0])*np.sin(normal[1]),  np.cos(normal[0])*np.sin(normal[1])],
+                                   [0,                 np.cos(normal[0])                  , -np.sin(normal[0])],
+                                   [np.sin(normal[1]), np.sin(normal[0])*np.cos(normal[1]),  np.cos(normal[0])*np.cos(normal[1])]])
+        self.rotMatrixInv = np.array(self.rotMatrix.T)
 
     def compute(self, points, compute_derivatives=0):
-        points = np.array([np.subtract(point,self.center) for point in points])
+        points = np.array(np.dot(self.rotMatrix,np.array([np.subtract(point,self.center) for point in points]).T).T)
         rho    = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
         r      = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2) + np.power(points[:,2],2))
         alpha  = np.sqrt(self.r0**2 + np.power(r,2) - 2*self.r0*rho)
         beta   = np.sqrt(self.r0**2 + np.power(r,2) + 2*self.r0*rho)
         k      = np.sqrt(1-np.divide(np.power(alpha,2),np.power(beta,2)))
         gamma  = np.power(points[:,0],2) - np.power(points[:,1],2)
-        self._B = np.array([
+        self._B = np.dot(self.rotMatrixInv,np.array([
             [self.Inorm*point[0]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm*point[1]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipe(k[i]**2)-alpha[i]**2*ellipk(k[i]**2)),
              self.Inorm/(2*alpha[i]**2*beta[i])*((self.r0**2-r[i]**2)*ellipe(k[i]**2)+alpha[i]**2*ellipk(k[i]**2))]
-            for i,point in enumerate(points)])
+            for i,point in enumerate(points)]).T).T
 
         if compute_derivatives >= 1:
 
@@ -163,4 +168,14 @@ class CircularCoilXY(MagneticField):
                     ellipe(k[i]**2)*(-7*self.r0**4 + r[i]**4 + 6*self.r0**2*(-point[2]**2 + rho[i]**2))))/(2*alpha[i]**4*beta[i]**3)
                     for i,point in enumerate(points)])
 
-            self._dB_by_dX = np.array([[[dBxdx[i],dBydx[i],dBzdx[i]],[dBxdy[i],dBydy[i],dBzdy[i]],[dBxdz[i],dBydz[i],dBzdz[i]]] for i in range(len(points))])
+            dB_by_dXm = np.array([[
+                [dBxdx[i],dBydx[i],dBzdx[i]],
+                [dBxdy[i],dBydy[i],dBzdy[i]],
+                [dBxdz[i],dBydz[i],dBzdz[i]]
+                ] for i in range(len(points))])
+
+            self._dB_by_dX = np.array([[
+                [np.dot(self.rotMatrix[:,0],np.dot(self.rotMatrixInv[0,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,1],np.dot(self.rotMatrixInv[0,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,2],np.dot(self.rotMatrixInv[0,:],dB_by_dXm[i]))],
+                [np.dot(self.rotMatrix[:,0],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,1],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,2],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i]))],
+                [np.dot(self.rotMatrix[:,0],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,1],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,2],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i]))]
+                ] for i in range(len(points))])
