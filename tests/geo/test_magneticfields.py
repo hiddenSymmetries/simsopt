@@ -37,6 +37,21 @@ class Testing(unittest.TestCase):
         transpGradB2 = [dBdx.T for dBdx in dB1_by_dX]
         assert np.allclose(dB1_by_dX,transpGradB1)
         assert np.allclose(dB2_by_dX,transpGradB2)
+        # Verify values of the vector potential
+        Afield1   = Bfield.A()
+        newA1     = np.array([[B0test*R0test*point[0]*point[2]/(point[0]**2+point[1]**2),B0test*R0test*point[1]*point[2]/(point[0]**2+point[1]**2),0] for point in points])
+        assert np.allclose(Afield1,newA1)
+        # Verify that curl of magnetic vector potential is the toroidal magnetic field
+        dA1_by_dX = Bfield.dA_by_dX()
+        newB1     = np.array([[dA1bydX[1,2]-dA1bydX[2,1],dA1bydX[2,0]-dA1bydX[0,2],dA1bydX[0,1]-dA1bydX[1,0]] for dA1bydX in dA1_by_dX])
+        assert np.allclose(B1,newB1)
+        # Verify symmetry of the Hessians
+        GradGradB1       = Bfield.d2B_by_dXdX()
+        GradGradA1       = Bfield.d2A_by_dXdX()
+        transpGradGradB1 = np.array([[gradgradB1.T for gradgradB1 in gradgradB]for gradgradB in GradGradB1])
+        transpGradGradA1 = np.array([[gradgradA1.T for gradgradA1 in gradgradA]for gradgradA in GradGradA1])
+        assert np.allclose(GradGradB1,transpGradGradB1)
+        assert np.allclose(GradGradA1,transpGradGradA1)
 
     def test_sum_Bfields(self):
         pointVar  = 1e-1
