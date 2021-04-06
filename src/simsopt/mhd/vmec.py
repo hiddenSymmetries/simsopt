@@ -261,14 +261,21 @@ class Vmec(Optimizable):
         self.load_wout()
         logger.info("Done loading VMEC output.")
 
-        # Delete some files produced by VMEC that we never care about:
-        if os.path.isfile(mercier_file):
+        # Delete some files produced by VMEC that we never care
+        # about. For some reason the os.remove statements give a 'file
+        # not found' error in the CI, hence the try-except blocks.
+        try:
             os.remove(mercier_file)
-        if os.path.isfile(jxbout_file):
+        except:
+            pass
+        try:
             os.remove(jxbout_file)
-        tempfile = 'fort.9'
-        if os.path.isfile(tempfile):
-            os.remove(tempfile)
+        except:
+            pass
+        try:
+            os.remove("fort.9")
+        except:
+            pass
             
         self.need_to_run_code = False
 
