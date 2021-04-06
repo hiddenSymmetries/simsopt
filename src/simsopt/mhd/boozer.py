@@ -23,19 +23,6 @@ from simsopt.mhd import Vmec
 
 logger = logging.getLogger(__name__)
 
-# This next function can be deleted I think.
-def closest_index(grid: Iterable[float], val: float) -> int:
-    """
-    Given a grid of values, find the grid point that is closest to an
-    abitrary value.
-
-    Args:
-        grid: A list of values.
-        val: We will return the index of the closest grid point to this value.
-    """
-    return np.argmin(np.abs(grid - val))
-
-
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -243,6 +230,20 @@ class Quasisymmetry(Optimizable):
     """
     This class is used to compute the departure from quasisymmetry on
     a given flux surface based on the Boozer spectrum.
+
+    Args:
+        boozer: A Boozer object on which the calculation will be based.
+        s: The normalized toroidal magnetic flux for the flux surface to analyze. Should be in the range [0, 1].
+        m: The poloidal mode number of the symmetry you want to achive.
+           The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
+        n: The toroidal mode number of the symmetry you want to achieve.
+           The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
+        normalization: A uniform normalization applied to all bmnc harmonics.
+           If ``"B00"``, the symmetry-breaking modes will be divided by the m=n=0 mode amplitude
+           on the same surface. If ``"symmetric"``, the symmetry-breaking modes will be
+           divided by the square root of the sum of the squares of all the symmetric
+           modes on the same surface. This is the normalization used in stellopt.
+        weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
     """
     def __init__(self,
                  boozer: Boozer,
@@ -254,13 +255,6 @@ class Quasisymmetry(Optimizable):
         """
         Constructor
 
-        Args:
-            boozer: A Boozer object on which the calculation will be based.
-            s: The normalized toroidal magnetic flux for the flux surface to analyze. Should be in the range [0, 1].
-            m: The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
-            n: The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
-            normalization: A uniform normalization applied to all bmnc harmonics.
-            weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
         """
         self.boozer = boozer
         self.m = m
@@ -283,9 +277,13 @@ class Quasisymmetry(Optimizable):
     def set_dofs(self, x):
         self.need_to_run_code = True
 
-    def J(self) -> Iterable:
+    def J(self) -> np.ndarray:
         """
         Carry out the calculation of the quasisymmetry error.
+
+        Returns:
+            1D numpy array listing all the normalized mode amplitudes of 
+            symmetry-breaking Fourier modes of ``|B|``.
         """
 
         # Only group leaders do anything:

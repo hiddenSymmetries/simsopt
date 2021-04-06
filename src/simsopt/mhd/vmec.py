@@ -227,6 +227,12 @@ class Vmec(Optimizable):
         self.output_file = os.path.join(
             os.getcwd(),
             os.path.basename(input_file).replace('input.', 'wout_') + '.nc')
+        mercier_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(input_file).replace('input.', 'mercier.'))
+        jxbout_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(input_file).replace('input.', 'jxbout_') + '.nc')
 
         # I should write an input file here.
         logger.info("Calling VMEC reinit().")
@@ -254,6 +260,16 @@ class Vmec(Optimizable):
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
         logger.info("Done loading VMEC output.")
+
+        # Delete some files produced by VMEC that we never care about:
+        if os.path.isfile(mercier_file):
+            os.remove(mercier_file)
+        if os.path.isfile(jxbout_file):
+            os.remove(jxbout_file)
+        tempfile = 'fort.9'
+        if os.path.isfile(tempfile):
+            os.remove(tempfile)
+            
         self.need_to_run_code = False
 
     def load_wout(self):
