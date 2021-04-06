@@ -22,6 +22,8 @@ class ToroidalField(MagneticField):
         self.B0=B0
 
     def compute(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+
         phi = np.arctan2(points[:,1],points[:,0])
         R   = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
         phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi),R),np.divide(np.cos(phi),R),np.zeros(len(phi)))).T
@@ -47,10 +49,35 @@ class ToroidalField(MagneticField):
             self._dB_by_dX = dToroidal_by_dX
 
         if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of toroidal magnetic field not implemented yet")
+            self._d2B_by_dXdX = 2*self.B0*self.R0*np.array([(1/(point[0]**2+point[1]**2)**3)*np.array([
+                    [ [ 3*point[0]**2+point[1]**3         , point[0]**3-3*point[0]*point[1]**2, 0] , [ point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3 , 0] , [ 0, 0, 0] ],
+                    [ [ point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3, 0] , [ 3*point[0]**2*point[1]-point[1]**3, -point[0]**3+3*point[0]*point[1]**2, 0] , [ 0, 0, 0] ],
+                    [ [ 0                                 , 0                                 , 0] , [ 0                                 , 0                                  , 0] , [ 0, 0, 0] ] ])
+            for point in points])
 
         return self
+
+    def compute_A(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+
+        self._A = self.B0*self.R0*np.array([
+            [point[2]*point[0]/(point[0]**2+point[1]**2),
+             point[2]*point[1]/(point[0]**2+point[1]**2),
+            0] for point in points])
+
+        if compute_derivatives >= 1:
+            self._dA_by_dX = self.B0*self.R0*np.array([(point[2]/(point[0]**2+point[1]**2)**2)*np.array(
+                [[-point[0]**2+point[1]**2,-2*point[0]*point[1],0],
+                [-2*point[0]*point[1],point[0]**2-point[1]**2,0],
+                [point[0]*(point[0]**2+point[1]**2)/point[2],point[1]*(point[0]**2+point[1]**2)/point[2],0]])
+                for point in points])
+
+        if compute_derivatives >= 2:
+            self._d2A_by_dXdX = 2*self.B0*self.R0*np.array([(point[2]/(point[0]**2+point[1]**2)**3)*np.array([
+                    [ [ point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3, (-point[0]**4+point[1]**4)/(2*point[2])                ] , [ 3*point[0]**2*point[1]-point[1]**3,-point[0]**3+3*point[0]*point[1]**2, -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2]] , [ (-point[0]**4+point[1]**4)/(2*point[2])               , -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2], 0 ] ],
+                    [ [ 3*point[0]**2*point[1]-point[1]**3,-point[0]**3+3*point[0]*point[1]**2,  -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2] ] , [-point[0]**3+3*point[0]*point[1]**2,-3*point[0]**2*point[1]+point[1]**3, (point[0]**4-point[1]**4)/(2*point[2])]                 , [ -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2], (point[0]**4-point[1]**4)/(2*point[2])               , 0 ] ],
+                    [ [ 0                                 , 0                                 , 0                                                      ] , [ 0                                 , 0                                 , 0                                     ]                 , [ 0                                                    , 0                                                    , 0 ] ]])
+            for point in points])
 
 class ScalarPotentialRZMagneticField(MagneticField):
     '''Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the magnetic field scalar potential.
@@ -74,6 +101,8 @@ class ScalarPotentialRZMagneticField(MagneticField):
                              [self.Phiparsed.diff(R).diff(Z),(self.Phiparsed.diff(Phi)/R).diff(Z),self.Phiparsed.diff(Z).diff(Z)]])
         
     def compute(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+
         r   = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
         z   = points[:,2]
         phi = np.arctan2(points[:,1],points[:,0])
@@ -108,6 +137,8 @@ class CircularCoil(MagneticField):
         self.rotMatrixInv = np.array(self.rotMatrix.T)
 
     def compute(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+
         points = np.array(np.dot(self.rotMatrix,np.array([np.subtract(point,self.center) for point in points]).T).T)
         rho    = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
         r      = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2) + np.power(points[:,2],2))
@@ -179,3 +210,7 @@ class CircularCoil(MagneticField):
                 [np.dot(self.rotMatrix[:,0],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,1],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,2],np.dot(self.rotMatrixInv[1,:],dB_by_dXm[i]))],
                 [np.dot(self.rotMatrix[:,0],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,1],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i])),np.dot(self.rotMatrix[:,2],np.dot(self.rotMatrixInv[2,:],dB_by_dXm[i]))]
                 ] for i in range(len(points))])
+
+        if compute_derivatives >= 2:
+            self._d2B_by_dXdX = None
+            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
