@@ -9,29 +9,20 @@ setting up optimizable objects and objective functions.
 
 from __future__ import annotations
 
-import abc
-import copy
-import logging
 import types
 import hashlib
 from collections.abc import Callable as ABC_Callable, Hashable
 from collections import defaultdict
 from numbers import Real, Integral
-from typing import Union, Any, Tuple, Callable, Sequence
+from typing import Union, Tuple, Dict, Callable, Sequence
 
 import numpy as np
 import pandas as pd
-#from mpi4py import MPI
 from deprecated import deprecated
-#from monty.json import MSONable
 
-from .util import unique, Array, RealArray, StrArray, BoolArray, Key, IntArray
+from .util import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta
 
-#logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
-
-# Types
-  # To denote arguments for accessing individual dof
 
 class DOF:
     """
@@ -180,7 +171,7 @@ class DOFs(pd.DataFrame):
         if x is None:
             x = np.array([])
         else:
-            x = np.array(x, dtype=np.float)
+            x = np.array(x, dtype=np.double)
         if names is None:
             names = ["x{}".format(i) for i in range(len(x))]
 
@@ -190,12 +181,12 @@ class DOFs(pd.DataFrame):
             free = np.full(len(x), True)
 
         if lower_bounds is not None:
-            lb = np.array(lower_bounds, np.float)
+            lb = np.array(lower_bounds, np.double)
         else:
             lb = np.full(len(x), np.NINF)
 
         if upper_bounds is not None:
-            ub = np.array(upper_bounds, np.float)
+            ub = np.array(upper_bounds, np.double)
         else:
             ub = np.full(len(x), np.inf)
         super().__init__(data={"_x": x, "free": free, "_lb": lb, "_ub": ub},
@@ -378,6 +369,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     Note: __init__ takes instances of subclasses of Optimizable as
           input and modifies them to define the children for input objects
     """
+    return_fn_map: Dict[str, Callable]
+
     def __init__(self,
                  x0: RealArray = None,
                  names: StrArray = None,
@@ -480,7 +473,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         #        self._id.id == other._id.id)
         return self.name == other.name
 
-    def __call__(self, child, *args, x: RealArray = None, **kwargs):
+    def __call__(self, *args, x: RealArray = None, child=None, **kwargs):
         if x is not None:
             self.x = x
             self.new_x = True
@@ -494,8 +487,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self._val = result
             self.new_x = False
 
-        return_fns = self.return_fns[child] if self.return_fns[child] else \
-            return_fn_map.values()
+        if child:
+            return_fns = self.return_fns[child] if self.return_fns[child] else \
+                return_fn_map.values()
+        else:
+            return_fns = return_fn_map.values()
+
         return_result = []
         for fn in return_fns:
             i = list(return_fn_map.values()).index(fn)
@@ -524,6 +521,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return self.__class__.return_fn_map.keys()
 
     def add_return_fn(self, child: Optimizable, fn: Union[str, Callable]):
+        if child not in self._children:
+            self._children.append(child)
+
         if isinstance(fn, str):
             fn = self.__class__.return_fn_map[fn]
         self.return_fns[child].append(fn)
@@ -540,6 +540,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def remove_child(self, other: Optimizable) -> None:
         self._children.remove(other)
+        del self.return_fns[other]
 
     def add_parent(self, index: int, other: Optimizable) -> None:
         """
