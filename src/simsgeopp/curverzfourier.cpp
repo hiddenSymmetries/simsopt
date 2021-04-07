@@ -8,8 +8,8 @@ class CurveRZFourier : public Curve<Array> {
        CurveRZFourier is a curve that is represented in cylindrical
        coordinates using the following Fourier series: 
 
-       r(phi) = \sum_{m=0}^{order} x_{c,m}cos(nfp*phi) + \sum_{m=1}^order x_{s,m}sin(nfp*phi)
-       z(phi) = \sum_{m=0}^{order} z_{c,m}cos(nfp*phi) + \sum_{m=1}^order z_{s,m}sin(nfp*phi)
+       r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
+       z(phi) = \sum_{n=0}^{order} z_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order z_{s,n}sin(n*nfp*phi)
 
        If stellsym = true, then the sin terms for r and the cos terms for z are zero.
 
