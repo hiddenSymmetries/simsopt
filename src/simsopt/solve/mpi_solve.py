@@ -69,9 +69,17 @@ def mpi_workers_task(mpi, dofs, data):
     # We don't store or do anything with f() or jac(), because
     # the group leader will handle that.
     if data == CALCULATE_F:
-        dofs.f()
+        try:
+            dofs.f()
+        except:
+            logger.info("Exception caught by worker during dofs.f()")
+
     elif data == CALCULATE_JAC:
-        dofs.jac()
+        try:
+            dofs.jac()
+        except:
+            logger.info("Exception caught by worker during dofs.jac()")
+
     else:
         raise ValueError('Unexpected data in worker_loop')
 
