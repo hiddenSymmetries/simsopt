@@ -13,35 +13,156 @@ class Adder(Optimizable):
         x = x0 if x0 is not None else np.zeros(n)
         super().__init__(x, names=dof_names, fixed=dof_fixed)
 
-    def f(self):
-        return np.sum(self._dofs.full_x)
+    def sum(self):
+        return np.sum(self.local_full_x)
+
+    return_fn_map = {'sum': sum}
 
 
 class OptClassWithParents(Optimizable):
-    def __init__(self, val, opts=None):
-        if opts is None:
-            opts = [Adder(3), Adder(2)]
-        super().__init__(x0=[val], names=['val'], funcs_in=opts)
+    def __init__(self, val, opts_in=None):
+        if opts_in is None:
+            opts_in = [Adder(3), Adder(2)]
+        super().__init__(x0=[val], names=['val'], opts_in=opts_in)
 
     def f(self):
-        return (self._dofs.full_x[0] + 2 * self.parents[0]()) \
-                / (10.0 + self.parents[1]())
+        return (self.local_full_x[0] + 2 * self.parents[0](self)) \
+                / (10.0 + self.parents[1](self))
+
+    return_fn_map = {'f': f}
+
+class N_No(Optimizable):
+    """This class defines a minimal object that can be optimized. It has
+    n degrees of freedom, and has couple of functions that return the sum
+    and product of these dofs. This class is used for testing.
+    """
+    def __init__(self, n=3, x0=None, dof_names=None, dof_fixed=None):
+        self.n = n
+        x = x0 if x0 is not None else np.zeros(n)
+        super().__init__(x, names=dof_names, fixed=dof_fixed)
+
+    def sum(self):
+        return np.sum(self.local_full_x)
+
+    def product(self):
+        return np.product(self.local_full_x)
+
+    return_fn_map = {'sum': sum, 'prod': product}
+
+
+class OptClassWithParentsReturnFns(Optimizable):
+    def __init__(self, val):
+        self.opt1 = N_No(3, x0=[2, 3, 4]) # Computes to [9, 24]
+        self.opt2 = N_No(2, x0=[1, 2])    # Computes to [3, 2]
+        super().__init__(x0=[val], names=['val'],
+                         opts_in=[self.opt1, self.opt2],
+                         opt_return_fns=[['sum'], ['sum', 'prod']])
+
+    def f1(self):
+        return (self.local_full_x[0] + 2 * self.opt1(self)) \
+               / (10.0 + np.sum(self.opt2(self)))
+
+    # The value returned by f2 should be identical to f1
+    def f2(self):
+        return (self.local_full_x[0] + 2 * self.opt1()) \
+               / (10.0 + np.sum(self.opt2()))
+
+    return_fn_map = {'f1': f1, 'f2': f2}
+
+class OptimizableTestsWithParentsReturnFns(unittest.TestCase):
+    def setUp(self) -> None:
+        self.opt = OptClassWithParentsReturnFns(10)
+
+    def tearDown(self) -> None:
+        self.opt = None
+
+    def test_name(self):
+        self.assertTrue('OptClassWithParentsReturnFns' in self.iden.name)
+        self.assertNotEqual(self.opt.name, OptClassWithParentsReturnFns().name)
+
+    def test_hash(self):
+        hash1 = hash(self.opt)
+        hash2 = hash(OptimizableTestsWithParentsReturnFns())
+        self.assertNotEqual(hash1, hash2)
+
+    def test_eq(self):
+        raise self.assertNotEqual(self.opt,
+                                  OptimizableTestsWithParentsReturnFns())
+
+    def test_print_return_fn_names(self):
+        ret_fn_names = self.opt.print_return_fn_names()
+        self.assertEqual(ret_fn_names[0], 'f1')
+        self.assertEqual(ret_fn_names[1], 'f2')
+
+    def test_add_return_fn_by_name(self):
+        opt1 = self.opt.opt1
+        self.assertEqual(len(opt1.return_fns[self.opt]), 1)
+        opt2 = self.opt.opt2
+        self.assertEqual(len(opt2.return_fns[self.opt]), 2)
+        opt1.add_return_fn(self.opt, 'prod')
+        self.assertEqual(len(opt1.return_fns[self.opt]), 2)
+
+    def test_add_return_fn_by_reference(self):
+        opt1 = self.opt.opt1
+        self.assertEqual(len(opt1.return_fns[self.opt]), 1)
+        opt2 = self.opt.opt2
+        self.assertEqual(len(opt2.return_fns[self.opt]), 2)
+        opt1.add_return_fn(self.opt, opt1.product)
+        self.assertEqual(len(opt1.return_fns[self.opt]), 2)
+
+    def test_call(self):
+        # Test for leaf nodes
+        self.assertAlmostEqual(self.opt.f1(), 28.0/15)
+        self.assertAlmostEqual(self.opt.f2(), 28.0/15)
+        np.allclose(self.opt(), [28.0/15, 28.0/15])
+
+class OptClassWithDirectParentFnCalls(Optimizable):
+    def __init__(self, val):
+        self.opt1 = N_No(3)
+        self.opt2 = N_No(2)
+        super().__init__(x0=[val], names=['val'],
+                         opts_in=[self.opt1, self.opt2])
+
+    # The value returned by f3 should be identical to f1
+    def f(self):
+        return (self.local_full_x[0] + 2 * self.opt1.sum()) \
+               / (10.0 + self.opt2.sum() + self.opt2.product())
+
+    return_fn_map = {'f': f}
+
+
+class OptClassWithDirectRegisterParentFn(Optimizable):
+    def __init__(self, val):
+        self.opt1 = N_No(3)
+        self.opt2 = N_No(2)
+        super().__init__(x0=[val], names=['val'],
+                         funcs_in=[self.opt1.sum, self.opt2.sum,
+                                   self.opt2.product])
+
+    # The value returned by f3 should be identical to f1
+    def f(self):
+        return (self.local_full_x[0] + 2 * self.opt1.sum()) \
+               / (10.0 + self.opt2.sum() + self.opt2.product())
+
+    return_fn_map = {'f': f}
 
 
 class OptClassWith2LevelParents(Optimizable):
     def __init__(self, val1, val2):
         x = [val1, val2]
         names = ['v1', 'v2']
-        funcs = [OptClassWithParents(0.0), Adder(2)]
-        super().__init__(x0=x, names=names, funcs_in=funcs)
+        opts = [OptClassWithParents(0.0), Adder(2)]
+        super().__init__(x0=x, names=names, opts_in=opts)
 
     def f(self):
         x = self.local_full_x
         v1 = x[0]
         v2 = x[1]
-        t = self.parents[0]()
-        a = self.parents[1]()
+        t = self.parents[0](self)
+        a = self.parents[1](self)
         return v1 + a * np.cos(v2 + t)
+
+    return_fn_map = {'f': f}
 
 
 class OptimizableTests(unittest.TestCase):
@@ -68,11 +189,36 @@ class OptimizableTests(unittest.TestCase):
         hash2 = hash(Adder())
         self.assertNotEqual(hash1, hash2)
 
+    def test_eq(self):
+        raise self.fail("Not Implemented")
+
+    def test_print_return_fn_names(self):
+        raise self.fail("Not Implemented")
+
+    def test_add_return_fn(self):
+        raise self.fail("Not Implemented")
+
+    def test_add_child(self):
+        raise self.fail("Not Implemented")
+
+    def test_remove_child(self):
+        raise self.fail("Not Implemented")
+
+    def append_parent(self):
+        raise self.fail("Not Implemented")
+
+    def pop_parent(self):
+        raise self.fail("Not Implemented")
+
+    def remove_parent(self):
+        raise self.fail("Not Implemented")
+
     def test_dof_size(self):
         # Define Null class
         class EmptyOptimizable(Optimizable):
             def f(self):
                 return 0
+            return_fn_map = {'f': f}
 
         opt = EmptyOptimizable()
         self.assertEqual(opt.dof_size, 0)
@@ -585,7 +731,7 @@ class OptimizableTests(unittest.TestCase):
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
         iden = Identity(x=10, dof_fixed=True)
-        test_obj1 = OptClassWithParents(20, opts=[iden, adder])
+        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
         # Value returned by test_obj1 is (val + 2*iden())/(10.0 + adder())
         self.assertAlmostEqual(test_obj1(), 2.5)
 
