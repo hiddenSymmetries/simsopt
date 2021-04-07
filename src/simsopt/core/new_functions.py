@@ -33,6 +33,8 @@ class Identity(Optimizable):
                 self.x = x
         return np.array([1.0])
 
+    return_fn_map = {'f': f}
+
 
 class Adder(Optimizable):
     """This class defines a minimal object that can be optimized. It has
@@ -44,7 +46,7 @@ class Adder(Optimizable):
         x = x0 if x0 is not None else np.zeros(n)
         super().__init__(x, names=dof_names)
 
-    def f(self):
+    def sum(self):
         return np.sum(self._dofs.full_x)
 
     def dJ(self):
@@ -56,6 +58,8 @@ class Adder(Optimizable):
         Same as the function dJ(), but a property instead of a function.
         """
         return self.dJ()
+
+    return_fn_map = {'sum': sum}
 
 
 class Rosenbrock(Optimizable):
@@ -72,15 +76,15 @@ class Rosenbrock(Optimizable):
         Returns the first of the two quantities that is squared and summed.
         """
         #return self._x - 1
-        return self._dofs.full_x[0] - 1
+        return self.local_full_x[0] - 1
 
     @property
     def term2(self):
         """
         Returns the second of the two quantities that is squared and summed.
         """
-        x = self._dofs.full_x[0]
-        y = self._dofs.full_x[1]
+        x = self.local_full_x[0]
+        y = self.local_full_x[1]
         return (x * x - y) / self._sqrtb
 
     @property
@@ -95,7 +99,7 @@ class Rosenbrock(Optimizable):
         """
         Returns the gradient of term2
         """
-        return np.array([2 * self._dofs.full_x[0], -1.0]) / self._sqrtb
+        return np.array([2 * self.local_full_x[0], -1.0]) / self._sqrtb
     
     def f(self):
         """
@@ -104,6 +108,8 @@ class Rosenbrock(Optimizable):
         t1 = self.term1
         t2 = self.term2
         return t1 * t1 + t2 * t2
+
+    return_fn_map = {'f': f}
 
     @property
     def terms(self):
@@ -117,7 +123,7 @@ class Rosenbrock(Optimizable):
         Returns the 2x2 Jacobian for term1 and term2.
         """
         return np.array([[1.0, 0.0],
-                         [2 * self._x / self._sqrtb, -1.0 / self._sqrtb]])
+                         [2 * self.local_full_x['x'] / self._sqrtb, -1.0 / self._sqrtb]])
 
 
 class TestObject1(Optimizable):
