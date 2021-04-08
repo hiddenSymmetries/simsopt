@@ -349,6 +349,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     The calling objects could then call
     the Optimizable object directly using the __call__ hook or could
     call the individual methods.
+    If the Optimizable object is called using __call__ hook, make sure to
+    supply the argument `child=self`
 
     Optimizable and its subclasses define the optimization problem. The
     optimization problem can be thought of a DAG, which each instance of
@@ -425,7 +427,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         # Assign self as child to parents
         self.parents = opts_in if opts_in is not None else []
         for i, parent in enumerate(self.parents):
-            parent.add_child(self)
+            parent._add_child(self)
             return_fns = opt_return_fns[i] if opt_return_fns else []
             for fn in return_fns:
                 parent.add_return_fn(self, fn)
@@ -433,6 +435,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         # Process funcs_in (Assumes opts_in is empty)
         if opts_in is None or not len(opts_in):
             opts_in = set()
+            funcs_in = funcs_in if funcs_in is not None else []
             for fn in funcs_in:
                 opt_in = fn.__self__
                 opts_in.add(opt_in)
@@ -440,7 +443,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
             self.parents = opts_in if opts_in is not None else []
             for i, parent in enumerate(self.parents):
-                parent.add_child(self)
+                parent._add_child(self)
 
         # Obtain unique list of the ancestors
         self.ancestors = self._get_ancestors()
@@ -473,7 +476,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         #        self._id.id == other._id.id)
         return self.name == other.name
 
-    def __call__(self, *args, x: RealArray = None, child=None, **kwargs):
+    def __call__(self, x: RealArray = None, *args, child=None, **kwargs):
         if x is not None:
             self.x = x
             self.new_x = True
@@ -498,7 +501,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             i = list(return_fn_map.values()).index(fn)
             return_result.append(self._val[i])
 
-        return return_result
+        return return_result if len(return_result) > 1 else return_result[0]
 
     #@abc.abstractmethod
     #def f(self, *args, **kwargs):
@@ -518,29 +521,29 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     #    """
 
     def print_return_fn_names(self):
-        return self.__class__.return_fn_map.keys()
+        return list(self.__class__.return_fn_map.keys())
 
     def add_return_fn(self, child: Optimizable, fn: Union[str, Callable]):
-        if child not in self._children:
-            self._children.append(child)
+        self._add_child(child)
 
         if isinstance(fn, str):
             fn = self.__class__.return_fn_map[fn]
         self.return_fns[child].append(fn)
 
-    def add_child(self, other: Optimizable) -> None:
+    def _add_child(self, child: Optimizable) -> None:
         """
         Adds another Optimizable object as child. All the
         required processing of the dependencies is done in the child node.
         This method is used mainly to maintain 2-way link between parent
         and child.
         """
-        if other not in self._children:
-            self._children.append(other)
+        if child not in self._children:
+            self._children.append(child)
 
-    def remove_child(self, other: Optimizable) -> None:
+    def _remove_child(self, other: Optimizable) -> None:
         self._children.remove(other)
-        del self.return_fns[other]
+        if other in self.return_fns:
+            del self.return_fns[other]
 
     def add_parent(self, index: int, other: Optimizable) -> None:
         """
@@ -548,10 +551,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         if other not in self.parents:
             self.parents.insert(index, other)
-            other.add_child(self)
+            other._add_child(self)
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
+            self.new_x = True
         else:
             print("The given Optimizable object is already a parent")
 
@@ -561,10 +565,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         if other not in self.parents:
             self.parents.append(other)
-            other.add_child(self)
+            other._add_child(self)
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
+            self.new_x = True
         else:
             print("The given Optimizable object is already a parent")
 
@@ -573,19 +578,21 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Removes the parent Optimizable object at specified index.
         """
         discarded_parent = self.parents.pop(index)
-        discarded_parent.remove_child(self)
+        discarded_parent._remove_child(self)
         self.ancestors = self._get_ancestors()
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
+        self.new_x = True
 
         return discarded_parent
 
     def remove_parent(self, other: Optimizable):
         self.parents.remove(other)
-        other.remove_child(self)
+        other._remove_child(self)
         self.ancestors = self._get_ancestors()
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
+        self.new_x = True
 
     @property
     def full_dof_size(self) -> Integral:
