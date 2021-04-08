@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
-from simsopt.geo.new_surface import *
+import numpy as np
+from simsopt.geo.new_surface import Surface, SurfaceRZFourier, SurfaceGarabedian
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -14,41 +15,41 @@ class SurfaceTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             s = Surface()
         #self.assertEqual(s.nfp, 1)
-        #self.assertTrue(s.stelsym)
+        #self.assertTrue(s.stellsym)
 
         #s = Surface(nfp=3)
         #self.assertEqual(s.nfp, 3)
-        #self.assertTrue(s.stelsym, True)
+        #self.assertTrue(s.stellsym, True)
 
-        #s = Surface(stelsym=False)
+        #s = Surface(stellsym=False)
         #self.assertEqual(s.nfp, 1)
-        #self.assertFalse(s.stelsym)
+        #self.assertFalse(s.stellsym)
 
-        # Now let's check that we can change nfp and stelsym.
+        # Now let's check that we can change nfp and stellsym.
         #s.nfp = 5
         #self.assertEqual(s.nfp, 5)
-        #self.assertFalse(s.stelsym)
+        #self.assertFalse(s.stellsym)
 
-        #s.stelsym = True
+        #s.stellsym = True
         #self.assertEqual(s.nfp, 5)
-        #self.assertTrue(s.stelsym)
+        #self.assertTrue(s.stellsym)
 
 class SurfaceRZFourierTests(unittest.TestCase):
     def test_init(self):
         s = SurfaceRZFourier(mpol=3, ntor=2)
         self.assertEqual(s.nfp, 1)
-        self.assertTrue(s.stelsym)
+        self.assertTrue(s.stellsym)
 
         s = SurfaceRZFourier(nfp=3, mpol=3, ntor=2)
         self.assertEqual(s.nfp, 3)
-        self.assertTrue(s.stelsym)
+        self.assertTrue(s.stellsym)
 
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
 
         self.assertEqual(s.rc.shape, (4, 5))
         self.assertEqual(s.zs.shape, (4, 5))
 
-        s = SurfaceRZFourier(nfp=10, mpol=1, ntor=3, stelsym=False)
+        s = SurfaceRZFourier(nfp=10, mpol=1, ntor=3, stellsym=False)
         self.assertEqual(s.rc.shape, (2, 7))
         self.assertEqual(s.zs.shape, (2, 7))
         self.assertEqual(s.rs.shape, (2, 7))
@@ -77,7 +78,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.rc.shape, (4, 5))
         self.assertEqual(s.zs.shape, (4, 5))
 
-        s = SurfaceRZFourier(nfp=10, mpol=1, ntor=3, stelsym=False)
+        s = SurfaceRZFourier(nfp=10, mpol=1, ntor=3, stellsym=False)
         self.assertEqual(s.rc.shape, (2, 7))
         self.assertEqual(s.zs.shape, (2, 7))
         self.assertEqual(s.rs.shape, (2, 7))
@@ -159,7 +160,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s = SurfaceRZFourier.from_focus(filename)
 
         self.assertEqual(s.nfp, 3)
-        self.assertTrue(s.stelsym)
+        self.assertTrue(s.stellsym)
         self.assertEqual(s.rc.shape, (11, 13))
         self.assertEqual(s.zs.shape, (11, 13))
         self.assertAlmostEqual(s.rc[0, 6], 1.408922E+00)
