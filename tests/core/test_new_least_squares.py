@@ -8,7 +8,7 @@ from simsopt.core.new_least_squares import LeastSquaresProblem
 #logging.basicConfig(level=logging.DEBUG)
 
 class LeastSquaresProblemTests(unittest.TestCase):
-    def test_single_value_func_in(self):
+    def test_single_value_opt_in(self):
         iden = Identity()
         lst = LeastSquaresProblem.from_sigma(iden, 3, 0.1)
 

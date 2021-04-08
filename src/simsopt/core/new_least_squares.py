@@ -22,6 +22,7 @@ from .util import RealArray, IntArray, BoolArray
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 
+StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
 class LeastSquaresProblem(Optimizable):
     """
@@ -35,10 +36,10 @@ class LeastSquaresProblem(Optimizable):
     """
 
     def __init__(self,
-                 funcs_in: Union[Optimizable, Sequence[Optimizable]],
+                 opts_in: Union[Optimizable, Sequence[Optimizable]],
                  goals: Union[Real, RealArray],
                  weights: Union[Real, RealArray],
-                 func_masks: Union[bool, BoolArray, Sequence[BoolArray]] = None):
+                 opt_return_fns: StrSeq = None):
         """
 
         Args:
@@ -58,23 +59,24 @@ class LeastSquaresProblem(Optimizable):
         else:
             self.weights = np.array(weights)
 
-        if not isinstance(funcs_in, Sequence):
-            funcs_in = [funcs_in]
+        if not isinstance(opts_in, Sequence):
+            opts_in = [opts_in]
+            if opt_return_fns is not None:
+                opt_return_fns = [opt_return_fns]
 
-        if isinstance(func_masks, bool):
-            self.func_masks = [np.array([func_masks])]
-        else:
-            self.func_masks = func_masks
+        #if isinstance(func_masks, bool):
+        #    self.func_masks = [np.array([func_masks])]
+        #else:
+        #    self.func_masks = func_masks
 
-        super().__init__(funcs_in=funcs_in)
+        super().__init__(opts_in=opts_in, opt_return_fns=opt_return_fns )
 
     @classmethod
     def from_sigma(cls,
-                   funcs_in: Union[Optimizable, Sequence[Optimizable]],
+                   opts_in: Union[Optimizable, Sequence[Optimizable]],
                    goals: Union[Real, RealArray],
                    sigma: Union[Real, RealArray],
-                   func_masks: Union[bool, BoolArray, Sequence[BoolArray]] = None)\
-            -> LeastSquaresProblem:
+                   opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
         """
         Define the LeastSquaresProblem with sigma = 1 / sqrt(weight), so
 
@@ -87,7 +89,7 @@ class LeastSquaresProblem(Optimizable):
         else:
             sigma = np.array(sigma)
 
-        return cls(funcs_in, goals, 1.0 / (sigma * sigma), func_masks)
+        return cls(opts_in, goals, 1.0 / (sigma * sigma), opt_return_fns)
 
     def f(self):
         """
@@ -96,15 +98,15 @@ class LeastSquaresProblem(Optimizable):
         s = 0
         residuals = []
         for i, opt in enumerate(self.parents):
-            out = opt()
+            out = opt(child=self)
             output = np.array([out]) if np.isscalar(out) else np.array(out)
-            if self.func_masks is None:
-                fn_value = output
-            elif self.func_masks[i] is None:
-                fn_value = output
-            else:
-                fn_value = output[self.func_masks[i]]
-            residuals += [(fn_value - self.goals[i]) * np.sqrt(self.weights[i])]
+            #if self.opt_return_fns is None:
+            #    fn_value = output
+            #elif self.func_masks[i] is None:
+            #    fn_value = output
+            #else:
+            #    fn_value = output[self.func_masks[i]]
+            residuals += [(output - self.goals[i]) * np.sqrt(self.weights[i])]
 
         #print('terms at line 104', terms)
         #print('goals', self.goals )
@@ -129,3 +131,5 @@ class LeastSquaresProblem(Optimizable):
 
     #    temp = np.append([f() for f in self.parents]) - self.goal
     #    return np.sqrt(self.weights) * temp
+
+    return_fn_map = {'f': f}
