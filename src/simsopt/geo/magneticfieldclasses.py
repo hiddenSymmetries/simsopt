@@ -1,8 +1,6 @@
 from simsopt.geo.magneticfield import MagneticField
 from scipy.special import ellipk, ellipe
-from math import factorial
-import jax.numpy as jnp
-from jax import grad, jit
+import simsgeopp as sgpp
 import numpy as np
 try:
     from sympy.parsing.sympy_parser import parse_expr
@@ -244,151 +242,23 @@ class CircularCoil(MagneticField):
 
 class Dommaschk(MagneticField):
     '''Vacuum magnetic field created by an explicit representation of the magnetic field scalar potential as proposed by W. Dommaschk (1986), Computer Physics Communications 40, 203-218
-    As inputs, the scalar coefficients a, b, c, d
+    As inputs, it takes the arrays for the harmonics m, n and its corresponding coefficients
 
     Args:
-        a: Cos coefficients of the Dirichlet solution
-        b: Sin coefficients of the Dirichlet solution
-        c: Cos coefficients of the Neumann solution
-        d: Sin coefficients of the Neumann solution
+        m: first harmonic array
+        n: second harmonic array
+        coeffs: coefficient for Vml for each of the ith index of the harmonics m andn 
     '''
-    def __init__(self, a=[[0]], b=[[0]], c=[[0]], d=[[0]]):
-        self.a = a
-        self.b = b
-        self.c = c
-        self.d = d
-        self.maxm = int(np.array(a).shape[0])
-        self.maxl = int(np.array(a).shape[1])
-        # Compilated gradient of the scalar potential in cylindrical coordinates
-        self.gradV     = jit(grad(self.V,(0,1,2)))
-        # Compilated magnetic field B
-        self.Bcylx     = jit(self.Bcylindricalx)
-        self.Bcyly     = jit(self.Bcylindricaly)
-        self.Bcylz     = jit(self.Bcylindricalz)
-        # Compilated derivatives of B
-        self.dBxdRphiz = jit(grad(self.Bcylx,(0,1,2)))
-        self.dBydRphiz = jit(grad(self.Bcyly,(0,1,2)))
-        self.dBzdRphiz = jit(grad(self.Bcylz,(0,1,2)))
-        # # Compilated derivatives of gradB
-        self.dBxdxdRphiz = jit(grad(self.dBxdx,(0,1,2)))
-        self.dBydxdRphiz = jit(grad(self.dBydx,(0,1,2)))
-        self.dBzdxdRphiz = jit(grad(self.dBzdx,(0,1,2)))
-        self.dBxdydRphiz = jit(grad(self.dBxdy,(0,1,2)))
-        self.dBydydRphiz = jit(grad(self.dBydy,(0,1,2)))
-        self.dBzdydRphiz = jit(grad(self.dBzdy,(0,1,2)))
-        self.dBxdzdRphiz = jit(grad(self.dBxdz,(0,1,2)))
-        self.dBydzdRphiz = jit(grad(self.dBydz,(0,1,2)))
-        self.dBzdzdRphiz = jit(grad(self.dBzdz,(0,1,2)))
+    def __init__(self, m=[0], n=[0], coeffs=[0]):
+        self.m = m
+        self.n = n
+        self.coeffs = coeffs
+        self.Btor = ToroidalField(1,1)
 
-    # Functions needed to compute the magnetic scalar potential
-    def alpha(self,n,m):
-        if n<0:
-            return 0
-        else:
-            return (-1)**n/(factorial(m+n)*factorial(n)*2**(2*n+m))
-    def alphas(self,n,m):
-        return (2*n+m)*self.alpha(n,m)
-    def beta(self,n,m):
-        if n<0:
-            return 0
-        elif n>=m:
-            return 0
-        else:
-            return factorial(m-n-1)/(factorial(n)*2**(2*n-m+1))
-    def betas(self,n,m):
-        return (2*n-m)*self.beta(n,m)
-    def gamma(self,n,m):
-        if n<=0:
-            return 0
-        else:
-            return self.alpha(n,m)/2*(jnp.sum(jnp.array([1/i for i in range(1,n+1)]))+jnp.sum(jnp.array([1/i for i in range(1,n+m+1)])))
-    def gammas(self,n,m):
-        return (2*n+m)*self.gamma(n,m)
-    def CD(self,R,m,k):
-        CDtemp = jnp.array([-(self.alpha(j,m)*(self.alphas(k-m-j,m)*jnp.log(R)+self.gammas(k-m-j,m)-self.alpha(k-m-j,m))-self.gamma(j,m)*self.alphas(k-m-j,m)+self.alpha(j,m)*self.betas(k-j,m))*R**(2*j+m)+self.beta(j,m)*self.alphas(k-j,m)*R**(2*j-m) for j in range(k+1)])
-        return jnp.sum(CDtemp)
-    def CN(self,R,m,k):
-        CNtemp = jnp.array([+(self.alpha(j,m)*(self.alpha(k-m-j,m)*jnp.log(R)+self.gamma(k-m-j,m))-self.gamma(j,m)*self.alpha(k-m-j,m)+self.alpha(j,m)*self.beta(k-j,m))*R**(2*j+m)-self.beta(j,m)*self.alpha(k-j,m)*R**(2*j-m) for j in range(k+1)])
-        return jnp.sum(CNtemp)
-    def ImnD(self,m,n,R,Z):
-        ImnDtemp = jnp.array([Z**(n-2*k)/factorial(n-2*k)*self.CD(R,m,k) for k in range(int(np.floor(n/2)+1))])
-        return jnp.sum(ImnDtemp)
-    def ImnN(self,m,n,R,Z):
-        ImnNtemp = jnp.array([Z**(n-2*k)/factorial(n-2*k)*self.CN(R,m,k) for k in range(int(np.floor(n/2)+1))])
-        return jnp.sum(ImnNtemp)
-    def Vml(self,m,l,R,phi,Z):
-        return (self.a[m,l]*jnp.cos(m*phi)+self.b[m,l]*jnp.sin(m*phi))*self.ImnD(m,l,R,Z)+(self.c[m,l]*jnp.cos(m*phi)+self.d[m,l]*jnp.sin(m*phi))*self.ImnN(m,l-1,R,Z)
-    def V(self,R,phi,Z):
-        return phi+jnp.sum(jnp.array([[self.Vml(m,l,R,phi,Z) for m in range(self.maxm)] for l in range(self.maxl)]))
-
-    # Functions to compute B in cartesian coordinates and then compile them
-    def Bcylindricalx(self,R,phi,Z):
-        return self.gradV(R,phi,Z)[0]*jnp.cos(phi)-self.gradV(R,phi,Z)[1]*jnp.sin(phi)/R
-    def Bcylindricaly(self,R,phi,Z):
-        return self.gradV(R,phi,Z)[0]*jnp.sin(phi)+self.gradV(R,phi,Z)[1]*jnp.cos(phi)/R
-    def Bcylindricalz(self,R,phi,Z):
-        return self.gradV(R,phi,Z)[2]
-
-    # Functions to compute gradB in cartesian coordinates and then compile them
-    def dBxdx(self,R,phi,Z):
-        return self.dBxdRphiz(R,phi,Z)[0]*jnp.cos(phi)-self.dBxdRphiz(R,phi,Z)[1]*jnp.sin(phi)/R
-    def dBxdy(self,R,phi,Z):
-        return self.dBxdRphiz(R,phi,Z)[0]*jnp.sin(phi)+self.dBxdRphiz(R,phi,Z)[1]*jnp.cos(phi)/R
-    def dBxdz(self,R,phi,Z):
-        return self.dBxdRphiz(R,phi,Z)[2]
-    def dBydx(self,R,phi,Z):
-        return self.dBydRphiz(R,phi,Z)[0]*jnp.cos(phi)-self.dBydRphiz(R,phi,Z)[1]*jnp.sin(phi)/R
-    def dBydy(self,R,phi,Z):
-        return self.dBydRphiz(R,phi,Z)[0]*jnp.sin(phi)+self.dBydRphiz(R,phi,Z)[1]*jnp.cos(phi)/R
-    def dBydz(self,R,phi,Z):
-        return self.dBydRphiz(R,phi,Z)[2]
-    def dBzdx(self,R,phi,Z):
-        return self.dBzdRphiz(R,phi,Z)[0]*jnp.cos(phi)-self.dBzdRphiz(R,phi,Z)[1]*jnp.sin(phi)/R
-    def dBzdy(self,R,phi,Z):
-        return self.dBzdRphiz(R,phi,Z)[0]*jnp.sin(phi)+self.dBzdRphiz(R,phi,Z)[1]*jnp.cos(phi)/R
-    def dBzdz(self,R,phi,Z):
-        return self.dBzdRphiz(R,phi,Z)[2]
-
-    # Compute magnetic field and its derivatives
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
-
-        R   = np.sqrt(np.power(points[:,0],2) + np.power(points[:,1],2))
-        phi = np.arctan2(points[:,1],points[:,0])
-        Z   = points[:,2]
-
-        self._B = np.array([[self.Bcylx(R[i],phi[i],Z[i]),self.Bcyly(R[i],phi[i],Z[i]),self.Bcylz(R[i],phi[i],Z[i])] for i in range(len(points))])
+        self.Btor.set_points(points)
+        self._B = np.add.reduce([self.coeffs[i]*sgpp.DommaschkB(self.m[i],self.n[i],points) for i in range(len(self.m))])+self.Btor.B()
 
         if compute_derivatives >= 1:
-            dBxdRphizvec = np.array([self.dBxdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBydRphizvec = np.array([self.dBydRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBzdRphizvec = np.array([self.dBzdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-
-            self._dB_by_dX = np.array([
-                [[ dBxdRphizvec[i,0]*np.cos(phi[i])-dBxdRphizvec[i,1]*np.sin(phi[i])/R[i], dBydRphizvec[i,0]*np.cos(phi[i])-dBydRphizvec[i,1]*np.sin(phi[i])/R[i], dBzdRphizvec[i,0]*np.cos(phi[i])-dBzdRphizvec[i,1]*np.sin(phi[i])/R[i]],
-                 [ dBxdRphizvec[i,0]*np.sin(phi[i])+dBxdRphizvec[i,1]*np.cos(phi[i])/R[i], dBydRphizvec[i,0]*np.sin(phi[i])+dBydRphizvec[i,1]*np.cos(phi[i])/R[i], dBzdRphizvec[i,0]*np.sin(phi[i])+dBzdRphizvec[i,1]*np.cos(phi[i])/R[i]],
-                 [ dBxdRphizvec[i,2]                                                     , dBydRphizvec[i,2]                                                     , dBzdRphizvec[i,2]                                                     ]]
-                for i in range(len(points))])
-
-        if compute_derivatives >= 2:
-            dBxdxdRphizvec = np.array([self.dBxdxdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBydxdRphizvec = np.array([self.dBydxdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBzdxdRphizvec = np.array([self.dBzdxdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBxdydRphizvec = np.array([self.dBxdydRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBydydRphizvec = np.array([self.dBydydRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBzdydRphizvec = np.array([self.dBzdydRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBxdzdRphizvec = np.array([self.dBxdzdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBydzdRphizvec = np.array([self.dBydzdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-            dBzdzdRphizvec = np.array([self.dBzdzdRphiz(R[i],phi[i],Z[i]) for i in range(len(points))])
-
-            self._d2B_by_dX = np.array([
-                [[[ dBxdxdRphizvec[i,0]*np.cos(phi[i])-dBxdxdRphizvec[i,1]*np.sin(phi[i])/R[i], dBydxdRphizvec[i,0]*np.cos(phi[i])-dBydxdRphizvec[i,1]*np.sin(phi[i])/R[i], dBzdxdRphizvec[i,0]*np.cos(phi[i])-dBzdxdRphizvec[i,1]*np.sin(phi[i])/R[i]],
-                  [ dBxdxdRphizvec[i,0]*np.sin(phi[i])+dBxdxdRphizvec[i,1]*np.cos(phi[i])/R[i], dBydxdRphizvec[i,0]*np.sin(phi[i])+dBydxdRphizvec[i,1]*np.cos(phi[i])/R[i], dBzdxdRphizvec[i,0]*np.sin(phi[i])+dBzdxdRphizvec[i,1]*np.cos(phi[i])/R[i]],
-                  [ dBxdxdRphizvec[i,2]                                                       , dBydxdRphizvec[i,2]                                                       , dBzdxdRphizvec[i,2]                                                       ]],
-                 [[ dBxdydRphizvec[i,0]*np.cos(phi[i])-dBxdydRphizvec[i,1]*np.sin(phi[i])/R[i], dBydydRphizvec[i,0]*np.cos(phi[i])-dBydydRphizvec[i,1]*np.sin(phi[i])/R[i], dBzdydRphizvec[i,0]*np.cos(phi[i])-dBzdydRphizvec[i,1]*np.sin(phi[i])/R[i]],
-                  [ dBxdydRphizvec[i,0]*np.sin(phi[i])+dBxdydRphizvec[i,1]*np.cos(phi[i])/R[i], dBydydRphizvec[i,0]*np.sin(phi[i])+dBydydRphizvec[i,1]*np.cos(phi[i])/R[i], dBzdydRphizvec[i,0]*np.sin(phi[i])+dBzdydRphizvec[i,1]*np.cos(phi[i])/R[i]],
-                  [ dBxdydRphizvec[i,2]                                                       , dBydydRphizvec[i,2]                                                       , dBzdydRphizvec[i,2]                                                       ]],
-                 [[ dBxdzdRphizvec[i,0]*np.cos(phi[i])-dBxdzdRphizvec[i,1]*np.sin(phi[i])/R[i], dBydzdRphizvec[i,0]*np.cos(phi[i])-dBydzdRphizvec[i,1]*np.sin(phi[i])/R[i], dBzdzdRphizvec[i,0]*np.cos(phi[i])-dBzdzdRphizvec[i,1]*np.sin(phi[i])/R[i]],
-                  [ dBxdzdRphizvec[i,0]*np.sin(phi[i])+dBxdzdRphizvec[i,1]*np.cos(phi[i])/R[i], dBydzdRphizvec[i,0]*np.sin(phi[i])+dBydzdRphizvec[i,1]*np.cos(phi[i])/R[i], dBzdzdRphizvec[i,0]*np.sin(phi[i])+dBzdzdRphizvec[i,1]*np.cos(phi[i])/R[i]],
-                  [ dBxdzdRphizvec[i,2]                                                       , dBydzdRphizvec[i,2]                                                       , dBzdzdRphizvec[i,2]                                                       ]]]
-                for i in range(len(points))])
+            self._dB_by_dX = np.add.reduce([self.coeffs[i]*sgpp.DommaschkdB(self.m[i],self.n[i],points) for i in range(len(self.m))])+self.Btor.dB_by_dX()

@@ -191,50 +191,18 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bhelical.dB_by_dX(),derivative)
 
     def test_Dommaschk(self):
-        a       = np.zeros((16,4))
-        b       = np.zeros((16,4))
-        c       = np.zeros((16,4))
-        d       = np.zeros((16,4))
-        b[10,2] =-2.18
-        c[10,2] =-2.18
-        a[15,3] = 25.8
-        d[15,3] =-25.8
-        Bfield  = Dommaschk(a=a, b=b, c=c, d=d)
-        # verify CD and CN
-        assert  np.allclose(Bfield.CD(1.12341,0,0),1)
-        assert  np.allclose(Bfield.CN(1.12341,0,0),np.log(1.12341))
-        test1   = np.sum([[Bfield.CD(0.9923456,m,k) for m in range(6)] for k in range(6)])
-        test2   = np.sum([[Bfield.CN(0.9923456,m,k) for m in range(6)] for k in range(6)])
-        assert  np.allclose(test1,6.03205)
-        assert  np.allclose(test2,-0.0463384)
-        # verify ImnD and ImnN
-        assert  np.allclose(Bfield.ImnD(0,0,1.12341,0.2),1)
-        assert  np.allclose(Bfield.ImnN(0,0,1.12341,0.2),np.log(1.12341))
-        test3   = np.sum([[Bfield.ImnD(m,n,0.9923456,0.231231) for m in range(6)] for n in range(6)])
-        test4   = np.sum([[Bfield.ImnN(m,n,0.9923456,0.231231) for m in range(6)] for n in range(6)])
-        assert  np.allclose(test3,7.6012)
-        assert  np.allclose(test4,-0.0583926)
-        # verify Vml
-        assert  np.allclose(Bfield.Vml(10,2,0.9923456,0.83216793,0.231231),-0.0538655)
-        assert  np.allclose(Bfield.Vml(15,3,0.9923456,0.83216793,0.231231),0.0527084)
-        # verify V
-        assert  np.allclose(Bfield.V(0.9923456,0.83216793,0.231231),0.831011)
-        # verify B
-        # calling the function the first time takes a compilation time of around 30 seconds
+        m=[10,15]
+        n=[2,3]
+        coeffs=[-2.18,25.8]
+        Bfield  = Dommaschk(m=m, n=n, coeffs=coeffs)
         Bfield.set_points([[0.9231, 0.8423, -0.1123]])
-        assert  np.allclose(Bfield.B(),[[-1.72696, 3.26173, -2.22013]])
-        # verify gradB
-        # calling the function the first time takes a compilation time of around 2 minutes
-        # gradB       = np.array(Bfield.dB_by_dX())
-        # transpGradB = np.array([dBdx.T for dBdx in gradB])
-        # assert np.allclose(gradB,np.array([[-59.9602, 8.96793, -24.8844],[8.96793, 49.0327, -18.4131],[-24.8844, -18.4131, 10.9275]]))
-        # assert np.allclose(gradB,transpGradB)
-        # verify gradgradB
-        # calling the function the first time takes a compilation time of around (many) minutes
-        # GradGradB1   = np.array(Bfield.d2B_by_dXdX())
-        # transpGradGradB1 = np.array([[gradgradB1.T for gradgradB1 in gradgradB]for gradgradB in GradGradB1])
-        # assert np.allclose(GradGradB1,transpGradGradB1)
-        # assert np.allclose(GradGradB1,[[[-930.936, -396.415, 129.123],[-396.415, 430.684, -375.609],[129.123, -375.609, 500.252]],[[-396.415,430.684,-375.609],[430.684,691.762,-165.373],[-375.609,-165.373,-295.348]],[[129.123,-375.609,500.252],[-375.609,-165.373,-295.348],[500.252,-295.348,36.2501]]])
+        gradB       = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        assert np.allclose(Bfield.B(),[[-1.72696, 3.26173, -2.22013]])
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB,transpGradB)
+        assert np.allclose(gradB,np.array([[-59.9602, 8.96793, -24.8844],[8.96793, 49.0327, -18.4131],[-24.8844, -18.4131, 10.9275]]))
 
 if __name__ == "__main__":
     unittest.main()
