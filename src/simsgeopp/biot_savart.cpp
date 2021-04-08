@@ -12,6 +12,27 @@
 #define MYIF(c) if(c)
 #endif
 
+
+inline simd_t rsqrt_approx_intrin(const simd_t& r2){
+    return simd_t(_mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2()))));
+}
+
+
+inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
+  // Newton iteration: rinv = 0.5 rinv_approx ( 3 - r2 rinv_approx^2 )
+  rinv = rinv*(1.5-r2*rinv*rinv);
+}
+
+inline simd_t rsqrt_intrin3(simd_t r2){
+  simd_t rinv=rsqrt_approx_intrin(r2);
+  r2 *= 0.5;
+  rsqrt_newton_intrin(rinv, r2);
+  rsqrt_newton_intrin(rinv, r2);
+  //rsqrt_newton_intrin(rinv, r2);
+  return rinv;
+}
+
+
 template<class T, int derivs>
 void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
     int num_points         = pointsx.size();
@@ -38,52 +59,56 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
             auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
             auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
 
-            auto norm_diff_2     = normsq(diff);
-            auto norm_diff       = sqrt(norm_diff_2);
+            auto norm_diff_2   = normsq(diff);
+            //auto norm_diff_inv = norm_diff_2;
+            //auto norm_diff_inv = rsqrt_intrin3(norm_diff_2);
+            auto norm_diff_inv = 1/sqrt(norm_diff_2);
 
-            auto norm_diff_3_inv = 1./(norm_diff_2 * norm_diff);
+            //auto norm_diff       = sqrt(norm_diff_2);
+
+            auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
 
-            MYIF(derivs > 0) {
-                auto norm_diff_4_inv = 1/(norm_diff_2*norm_diff_2);
-                auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff * (3/norm_diff);
-                auto dgamma_by_dphi_j_simd_norm_diff = dgamma_by_dphi_j_simd * norm_diff;
-                for(int k=0; k<3; k++) {
-                    auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
-                    auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
-                    auto temp = (numerator1-numerator2);
-                    dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
-                    dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
-                    dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
-                }
-                MYIF(derivs > 1) {
-                    auto norm_diff_5_inv = norm_diff_4_inv/norm_diff;
-                    auto norm_diff_7_inv = norm_diff_5_inv/norm_diff_2;
-                    for(int k1=0; k1<3; k1++) {
-                        for(int k2=0; k2<=k1; k2++) {
-                            auto term12 = cross(dgamma_by_dphi_j_simd, k2)*diff[k1];
-                            term12 += cross(dgamma_by_dphi_j_simd, k1)*diff[k2];
+            //MYIF(derivs > 0) {
+            //    auto norm_diff_4_inv = 1/(norm_diff_2*norm_diff_2);
+            //    auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff * (3/norm_diff);
+            //    auto dgamma_by_dphi_j_simd_norm_diff = dgamma_by_dphi_j_simd * norm_diff;
+            //    for(int k=0; k<3; k++) {
+            //        auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
+            //        auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
+            //        auto temp = (numerator1-numerator2);
+            //        dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
+            //        dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
+            //        dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
+            //    }
+            //    MYIF(derivs > 1) {
+            //        auto norm_diff_5_inv = norm_diff_4_inv/norm_diff;
+            //        auto norm_diff_7_inv = norm_diff_5_inv/norm_diff_2;
+            //        for(int k1=0; k1<3; k1++) {
+            //            for(int k2=0; k2<=k1; k2++) {
+            //                auto term12 = cross(dgamma_by_dphi_j_simd, k2)*diff[k1];
+            //                term12 += cross(dgamma_by_dphi_j_simd, k1)*diff[k2];
 
-                            auto term124fak = (-3.)*norm_diff_5_inv;
+            //                auto term124fak = (-3.)*norm_diff_5_inv;
 
-                            d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term124fak, term12.x, d2B_dXdX_i[3*k1 + k2].x);
-                            d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term124fak, term12.y, d2B_dXdX_i[3*k1 + k2].y);
-                            d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term124fak, term12.z, d2B_dXdX_i[3*k1 + k2].z);
+            //                d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term124fak, term12.x, d2B_dXdX_i[3*k1 + k2].x);
+            //                d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term124fak, term12.y, d2B_dXdX_i[3*k1 + k2].y);
+            //                d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term124fak, term12.z, d2B_dXdX_i[3*k1 + k2].z);
 
-                            auto term3fak = (15. * (diff[k1] * diff[k2] * norm_diff_7_inv));
-                            if(k1 == k2) {
-                                term3fak += term124fak;
-                            }
-                            d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.x, d2B_dXdX_i[3*k1 + k2].x);
-                            d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.y, d2B_dXdX_i[3*k1 + k2].y);
-                            d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.z, d2B_dXdX_i[3*k1 + k2].z);
-                        }
-                    }
-                }
-            }
+            //                auto term3fak = (15. * (diff[k1] * diff[k2] * norm_diff_7_inv));
+            //                if(k1 == k2) {
+            //                    term3fak += term124fak;
+            //                }
+            //                d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.x, d2B_dXdX_i[3*k1 + k2].x);
+            //                d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.y, d2B_dXdX_i[3*k1 + k2].y);
+            //                d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.z, d2B_dXdX_i[3*k1 + k2].z);
+            //            }
+            //        }
+            //    }
+            //}
         }
 
         for(int j=0; j<simd_size; j++){
