@@ -191,10 +191,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bhelical.dB_by_dX(),derivative)
 
     def test_Dommaschk(self):
-        m=[10,15]
-        n=[2,3]
-        coeffs=[-2.18,25.8]
-        Bfield  = Dommaschk(m=m, n=n, coeffs=coeffs)
+        mn=[[10,2],[15,3]]
+        coeffs=[[-2.18,-2.18],[25.8,-25.8]]
+        Bfield  = Dommaschk(mn=mn, coeffs=coeffs)
         Bfield.set_points([[0.9231, 0.8423, -0.1123]])
         gradB       = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])

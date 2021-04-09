@@ -249,16 +249,16 @@ class Dommaschk(MagneticField):
         n: second harmonic array
         coeffs: coefficient for Vml for each of the ith index of the harmonics m andn 
     '''
-    def __init__(self, m=[0], n=[0], coeffs=[0]):
-        self.m = [int(mm) for mm in m]
-        self.n = [int(nn) for nn in n]
+    def __init__(self, mn=[[0,0]], coeffs=[[0,0]]):
+        self.m = [int(mmnn[0]) for mmnn in mn]
+        self.n = [int(mmnn[1]) for mmnn in mn]
         self.coeffs = coeffs
         self.Btor = ToroidalField(1,1)
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
         self.Btor.set_points(points)
-        self._B = np.add.reduce([self.coeffs[i]*sgpp.DommaschkB(self.m[i],self.n[i],points) for i in range(len(self.m))])+self.Btor.B()
+        self._B = np.add.reduce([sgpp.DommaschkB(self.m[i],self.n[i],self.coeffs[i],points) for i in range(len(self.m))])+self.Btor.B()
 
         if compute_derivatives >= 1:
-            self._dB_by_dX = np.add.reduce([self.coeffs[i]*sgpp.DommaschkdB(self.m[i],self.n[i],points) for i in range(len(self.m))])+self.Btor.dB_by_dX()
+            self._dB_by_dX = np.add.reduce([sgpp.DommaschkdB(self.m[i],self.n[i],self.coeffs[i],points) for i in range(len(self.m))])+self.Btor.dB_by_dX()
