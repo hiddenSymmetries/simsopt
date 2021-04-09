@@ -5,16 +5,16 @@ import numpy as np
 from .curve import JaxCurve
 
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
-    A   = dofs[:order]
-    B   = dofs[order:]
+    A = dofs[:order]
+    B = dofs[order:]
     phi = quadpoints*2*pi*l0
     AcosArray = sum([A[count]*jnp.cos(count*n0*phi/l0) for count in range(order)])
     BsinArray = sum([B[count]*jnp.sin(count*n0*phi/l0) for count in range(order)])
-    eta       = n0*phi/l0+AcosArray+BsinArray
-    gamma     = jnp.zeros((len(quadpoints), 3))
-    gamma     = index_add(gamma, index[:, 0], (R0+r0*jnp.cos(eta))*jnp.cos(phi))
-    gamma     = index_add(gamma, index[:, 1], (R0+r0*jnp.cos(eta))*jnp.sin(phi))
-    gamma     = index_add(gamma, index[:, 2], -r0*jnp.sin(eta))
+    eta = n0*phi/l0+AcosArray+BsinArray
+    gamma = jnp.zeros((len(quadpoints), 3))
+    gamma = index_add(gamma, index[:, 0], (R0+r0*jnp.cos(eta))*jnp.cos(phi))
+    gamma = index_add(gamma, index[:, 1], (R0+r0*jnp.cos(eta))*jnp.sin(phi))
+    gamma = index_add(gamma, index[:, 2], -r0*jnp.sin(eta))
     return gamma
 
 class CurveHelical(JaxCurve):
@@ -49,6 +49,6 @@ class CurveHelical(JaxCurve):
         return np.concatenate(self.coefficients)
 
     def set_dofs_impl(self, dofs):
-        order=int(len(dofs)/2)
+        order = int(len(dofs)/2)
         for i in range(2):
-            self.coefficients[i]=dofs[i*order:(i+1)*order]
+            self.coefficients[i] = dofs[i*order:(i+1)*order]

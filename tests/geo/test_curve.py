@@ -79,9 +79,9 @@ class Testing(unittest.TestCase):
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
 
     def test_curve_helical_xyzfourier(self):
-        x      = np.asarray([0.6])
+        x = np.asarray([0.6])
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
-        curve1.set_dofs([np.pi/2,0,0,0])
+        curve1.set_dofs([np.pi/2, 0, 0, 0])
         curve2 = CurveXYZFourier(x, 7)
         curve2.set_dofs([0,0,0,0,1,-0.15,0,0,0,0,0,0,0,-0.15,0,0,0,0,1,0,0,-0.15,0,0,0,0,0,0,0,0.15,0,0,0,0,0,0,0,0,0,0,-0.3,0,0,0,0])
         assert np.allclose(curve1.gamma(),curve2.gamma())
