@@ -150,7 +150,7 @@ inline double norm(const Vec3d& a){
 
 inline void cross(Vec3dSimd& a, Vec3dSimd& b, Vec3dSimd& c){
     c.x = xsimd::fma(a.y, b.z, c.x);
-    c.x = xsimd::fnma(a.z, b.x, c.x);
+    c.x = xsimd::fnma(a.z, b.y, c.x);
     c.y = xsimd::fma(a.z, b.x, c.y);
     c.y = xsimd::fnma(a.x, b.z, c.y);
     c.z = xsimd::fma(a.x, b.y, c.z);
@@ -159,7 +159,7 @@ inline void cross(Vec3dSimd& a, Vec3dSimd& b, Vec3dSimd& c){
 
 inline void cross(Vec3dSimd& a, Vec3dSimd& b, simd_t& cx, simd_t& cy, simd_t& cz){
     cx = xsimd::fma(a.y, b.z, cx);
-    cx = xsimd::fnma(a.z, b.x, cx);
+    cx = xsimd::fnma(a.z, b.y, cx);
     cy = xsimd::fma(a.z, b.x, cy);
     cy = xsimd::fnma(a.x, b.z, cy);
     cz = xsimd::fma(a.x, b.y, cz);

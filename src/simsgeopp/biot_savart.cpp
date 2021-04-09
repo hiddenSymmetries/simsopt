@@ -78,6 +78,7 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                     temp*dgamma_by_dphi_ptr[3*j+0],
                     temp*dgamma_by_dphi_ptr[3*j+1],
                     temp*dgamma_by_dphi_ptr[3*j+2]);
+            //B_i += cross(dgamma_by_dphi_j_simd, diff);
             //cross(dgamma_by_dphi_j_simd, diff, B_i);
             cross(dgamma_by_dphi_j_simd, diff, B_i.x, B_i.y, B_i.z);
 

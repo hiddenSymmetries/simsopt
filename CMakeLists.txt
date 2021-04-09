@@ -32,14 +32,14 @@ add_subdirectory(thirdparty/pybind11)
 set(XTENSOR_USE_OPENMP 0)
 
 
-#pybind11_add_module(${PROJECT_NAME}
-#    src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
-#    )
-#set_target_properties(${PROJECT_NAME}
-#    PROPERTIES
-#    CXX_STANDARD 14
-#    CXX_STANDARD_REQUIRED ON)
-#target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
+pybind11_add_module(${PROJECT_NAME}
+    src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
+    )
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON)
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
 
 
 
