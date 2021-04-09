@@ -86,7 +86,7 @@ double Nmn(int m, int n, double R, double Z) {
 }
 
 double dRDmn(int m, int n, double R, double Z) {
-	double sumD= 0.0, y=0.0, intval;
+	double sumD= 0.0, y=0.0;
 	int j, k;
 	for (k=0; k<=floor(n/2); k++) {
 		sumD = 0.0;
@@ -106,7 +106,12 @@ double dZDmn(int m, int n, double R, double Z) {
 		for (j=0; j<k+1;j++) {
 			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m)) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m);
 		}
-		y += ((n-2*k)*pow(Z,n-2*k-1)/tgamma(n-2*k+1))*sumD;
+        if (n-2*k==0){
+            y += 0;
+        }
+        else {
+		    y += ((n-2*k)*pow(Z,n-2*k-1)/tgamma(n-2*k+1))*sumD;
+        }
 	}
 	return y;
 }
@@ -132,7 +137,12 @@ double dZZDmn(int m, int n, double R, double Z) {
 		for (j=0; j<k+1; j++) {
 			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m)) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m);
 		}
-		y += ((n-2*k-1)*pow(Z,n-2*k-2)/tgamma(n-2*k))*sumD;
+        if (n-2*k==0 || n-2*k-1==0){
+            y += 0;
+        }
+        else {
+		    y += ((n-2*k-1)*pow(Z,n-2*k-2)/tgamma(n-2*k))*sumD;
+        }
 	}
 	return y;
 }
@@ -145,7 +155,12 @@ double dRZDmn(int m, int n, double R, double Z) {
 		for (j=0; j<k+1; j++) {
 			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
 		}
-		y += (pow(Z,n-2*k-1)/tgamma(n-2*k))*sumD;
+        if (n-2*k==0){
+            y += 0;
+        }
+        else {
+		    y += (pow(Z,n-2*k-1)/tgamma(n-2*k))*sumD;
+        }
 	}
 	return y;
 }
@@ -171,7 +186,12 @@ double dZNmn(int m, int n, double R, double Z) {
 		for (j=0; j<k+1; j++) {
 			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m)) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m);
 		}
-		y += ((n-2*k)*pow(Z,n-2*k-1)/tgamma(n-2*k+1))*sumN;
+        if (n-2*k==0 || n<0) {
+            y += 0;
+        }
+        else {
+		    y += ((n-2*k)*pow(Z,n-2*k-1)/tgamma(n-2*k+1))*sumN;
+        }
 	}
 	return y;
 }
@@ -197,7 +217,12 @@ double dZZNmn(int m, int n, double R, double Z) {
 		for (j =0; j<k+1; j++) {
 			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m)) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m);
 		}
-		y += ((n-2*k-1)*pow(Z,n-2*k-2)/tgamma(n-2*k))*sumN;
+        if (n-2*k==0 || n-2*k-1==0 || n<0) {
+            y += 0;
+        }
+        else {
+		    y += ((n-2*k-1)*pow(Z,n-2*k-2)/tgamma(n-2*k))*sumN;
+        }
 	}
 	return y;
 }
@@ -210,7 +235,12 @@ double dRZNmn(int m, int n, double R, double Z) {
 		for (j=0; j< k+1; j++) {
 			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
 		}
-		y += (pow(Z,n-2*k-1)/tgamma(n-2*k))*sumN;
+        if (n-2*k==0 || n<0) {
+            y += 0;
+        }
+        else {
+		    y += ((n-2*k)*pow(Z,n-2*k-1)/tgamma(n-2*k+1))*sumN;
+        }
 	}
 	return y;
 }
