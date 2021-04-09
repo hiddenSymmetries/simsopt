@@ -12,6 +12,29 @@
 #define MYIF(c) if(c)
 #endif
 
+#if __AVX512F__ 
+// On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
+// 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
+// root _mm512_rsqrt14_pd which takes 2 CPI (but only gives 4 digits or so) and
+// then refine that result using two iterations of Newton's method, which is
+// fairly cheap.
+inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
+  rinv = rinv*(1.5-r2*rinv*rinv);
+}
+inline simd_t rsqrt(simd_t r2){
+  simd_t rinv = _mm512_rsqrt14_pd(r2);
+  r2 *= 0.5;
+  rsqrt_newton_intrin(rinv, r2);
+  rsqrt_newton_intrin(rinv, r2);
+  //rsqrt_newton_intrin(rinv, r2);
+  return rinv;
+}
+#else
+inline simd_t rsqrt(const simd_t& r2){
+    return 1./sqrt(r2);
+}
+#endif
+
 template<class T, int derivs>
 void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
     int num_points         = pointsx.size();
@@ -34,22 +57,26 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                 };
             }
         }
+        double *gamma_ptr = &(gamma(0, 0));
+        double *dgamma_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
         for (int j = 0; j < num_quad_points; ++j) {
             auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
-            auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
-
             auto norm_diff_2     = normsq(diff);
-            auto norm_diff       = sqrt(norm_diff_2);
+            auto norm_diff_inv   = rsqrt(norm_diff_2);
+            auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
-            auto norm_diff_3_inv = 1./(norm_diff_2 * norm_diff);
+            auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
+            //auto temp = dgamma_by_dphi_j_simd*norm_diff_3_inv;
+            //cross(temp, diff, B_i.x, B_i.y, B_i.z);
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
 
             MYIF(derivs > 0) {
-                auto norm_diff_4_inv = 1/(norm_diff_2*norm_diff_2);
-                auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff * (3/norm_diff);
+                auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
+                auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff*(3.*norm_diff_inv);
+                auto norm_diff = 1./norm_diff_inv;
                 auto dgamma_by_dphi_j_simd_norm_diff = dgamma_by_dphi_j_simd * norm_diff;
                 for(int k=0; k<3; k++) {
                     auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
@@ -60,8 +87,8 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                     dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
                 }
                 MYIF(derivs > 1) {
-                    auto norm_diff_5_inv = norm_diff_4_inv/norm_diff;
-                    auto norm_diff_7_inv = norm_diff_5_inv/norm_diff_2;
+                    auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
+                    auto norm_diff_7_inv = norm_diff_5_inv*norm_diff_inv*norm_diff_inv;
                     for(int k1=0; k1<3; k1++) {
                         for(int k2=0; k2<=k1; k2++) {
                             auto term12 = cross(dgamma_by_dphi_j_simd, k2)*diff[k1];
