@@ -250,8 +250,8 @@ class Dommaschk(MagneticField):
         coeffs: coefficient for Vml for each of the ith index of the harmonics m andn 
     '''
     def __init__(self, m=[0], n=[0], coeffs=[0]):
-        self.m = m
-        self.n = n
+        self.m = [int(mm) for mm in m]
+        self.n = [int(nn) for nn in n]
         self.coeffs = coeffs
         self.Btor = ToroidalField(1,1)
 
