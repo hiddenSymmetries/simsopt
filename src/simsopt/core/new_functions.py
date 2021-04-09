@@ -101,10 +101,12 @@ class Rosenbrock(Optimizable):
         """
         return np.array([2 * self.local_full_x[0], -1.0]) / self._sqrtb
     
-    def f(self):
+    def f(self, x=None):
         """
         Returns the total function, squaring and summing the two terms.
         """
+        if x is not None:
+            self.x = x
         t1 = self.term1
         t2 = self.term2
         return t1 * t1 + t2 * t2
