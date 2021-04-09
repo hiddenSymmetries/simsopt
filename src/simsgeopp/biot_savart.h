@@ -156,15 +156,6 @@ inline Vec3dSimd cross(Vec3dSimd& a, Vec3dSimd& b){
             );
 }
 
-inline void cross(Vec3dSimd& a, Vec3dSimd& b, simd_t& cx, simd_t& cy, simd_t& cz){
-    cx = xsimd::fma(a.y, b.z, cx);
-    cx = xsimd::fnma(a.z, b.y, cx);
-    cy = xsimd::fma(a.z, b.x, cy);
-    cy = xsimd::fnma(a.x, b.z, cy);
-    cz = xsimd::fma(a.x, b.y, cz);
-    cz = xsimd::fnma(a.y, b.x, cz);
-}
-
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3d& b){
     return Vec3dSimd(a.y * b[2] - a.z * b[1], a.z * b[0] - a.x * b[2], a.x * b[1] - a.y * b[0]);
 
