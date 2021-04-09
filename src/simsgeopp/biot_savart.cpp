@@ -38,6 +38,9 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
+    vector_type Bx(simd_size);
+    vector_type By(simd_size);
+    vector_type Bz(simd_size);
     auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
     auto d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
@@ -55,22 +58,28 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                 };
             }
         }
+        double *dgamma_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+        double *gamma_ptr = &(gamma(0, 0));
         for (int j = 0; j < num_quad_points; ++j) {
-            auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
-            auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
+            //auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
+            auto diffx = point_i.x - gamma_ptr[3*j+0];
+            auto diffy = point_i.y - gamma_ptr[3*j+1];
+            auto diffz = point_i.z - gamma_ptr[3*j+2];
+            auto diff = Vec3dSimd(diffx, diffy, diffz);
+            //auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
 
-            auto norm_diff_2   = normsq(diff);
-            //auto norm_diff_inv = norm_diff_2;
-            //auto norm_diff_inv = rsqrt_intrin3(norm_diff_2);
-            auto norm_diff_inv = 1/sqrt(norm_diff_2);
-
-            //auto norm_diff       = sqrt(norm_diff_2);
-
-            auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
-            auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
-            B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
-            B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
-            B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
+            //auto norm_diff_2   = normsq(diff);
+            //auto norm_diff_inv = 1/sqrt(norm_diff_2);
+            //auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
+            auto temp   = normsq(diff);
+            temp = 1/sqrt(temp);
+            temp = temp*temp*temp;
+            auto dgamma_by_dphi_j_simd = Vec3dSimd(
+                    temp*dgamma_by_dphi_ptr[3*j+0],
+                    temp*dgamma_by_dphi_ptr[3*j+1],
+                    temp*dgamma_by_dphi_ptr[3*j+2]);
+            //cross(dgamma_by_dphi_j_simd, diff, B_i);
+            cross(dgamma_by_dphi_j_simd, diff, B_i.x, B_i.y, B_i.z);
 
             //MYIF(derivs > 0) {
             //    auto norm_diff_4_inv = 1/(norm_diff_2*norm_diff_2);
@@ -111,7 +120,13 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
             //}
         }
 
+        //xsimd::store_aligned(&(Bx[0]), B_i.x);
+        //xsimd::store_aligned(&(By[0]), B_i.y);
+        //xsimd::store_aligned(&(Bz[0]), B_i.z);
         for(int j=0; j<simd_size; j++){
+            //B(i+j, 0) = Bx[j];
+            //B(i+j, 1) = By[j];
+            //B(i+j, 2) = Bz[j];
             B(i+j, 0) = B_i.x[j];
             B(i+j, 1) = B_i.y[j];
             B(i+j, 2) = B_i.z[j];

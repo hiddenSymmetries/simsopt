@@ -19,7 +19,7 @@ uint64_t rdtsc(){
 
 
 int main() {
-    int N = 10000;
+    int N = 16384;
     xt::xarray<double> points         = xt::random::randn<double>({N, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({N, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({N, 3});
@@ -51,7 +51,7 @@ int main() {
     auto t2 = std::chrono::high_resolution_clock::now();
     auto clockcycles = rdtsc() - tick;
     double simdtime = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-    std::cout << "Time: " << simdtime << " ms." << std::endl;
+    std::cout << "Time: " << simdtime/n << " ms." << std::endl;
     double interactions = points.shape(0) * gamma.shape(0) * n;
     std::cout << "Gigainteractions per second:" << (interactions/(1e9 * simdtime/1000.)) << std::endl;
     std::cout << "Gigaclockcycles: "<< clockcycles/1e9 << std::endl;
