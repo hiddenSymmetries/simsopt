@@ -245,221 +245,221 @@ double dRZNmn(int m, int n, double R, double Z) {
 	return y;
 }
 
-double Phi(int m, int nn, double R, double Z, double phi) {
+double Phi(int m, int nn, double R, double Z, double phi,double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (nn%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1; 
-		d = -1; 
+		a = coeff1; 
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*Dmn(m,nn,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*Nmn(m,nn-1,R,Z);
 	return y;
 }
 
-double BR(int m, int n, double R, double Z, double phi) {
+double BR(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1; 
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dRDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dRNmn(m,n-1,R,Z);
 	return y;
 }
 
-double BZ(int m, int n, double R, double Z, double phi) {
+double BZ(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dZDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dZNmn(m,n-1,R,Z);
 	return y;
 }
 
-double Bphi(int m, int n, double R, double Z, double phi) {
+double Bphi(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = m*(-a*sin(m*phi) + b*cos(m*phi))*Dmn(m,n,R,Z)/R + m*(-c*sin(m*phi) + d*cos(m*phi))*Nmn(m,n-1,R,Z)/R;
 	return y;
 }
 
-double dphiBR(int m, int n, double R, double Z, double phi) {
+double dphiBR(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1; 
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = m*((-a*sin(m*phi) + b*cos(m*phi))*dRDmn(m,n,R,Z) + (-c*sin(m*phi) + d*cos(m*phi))*dRNmn(m,n-1,R,Z));
 	return y;
 }
 
-double dphiBZ(int m, int n, double R, double Z, double phi) {
+double dphiBZ(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = m*((-a*sin(m*phi) + b*cos(m*phi))*dZDmn(m,n,R,Z) + (-c*sin(m*phi) + d*cos(m*phi))*dZNmn(m,n-1,R,Z));
 	return y;
 }
 
-double dphiBphi(int m, int n, double R, double Z, double phi) {
+double dphiBphi(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = m*(m*(-a*cos(m*phi) - b*sin(m*phi))*Dmn(m,n,R,Z)/R + m*(-c*cos(m*phi) - d*sin(m*phi))*Nmn(m,n-1,R,Z)/R);
 	return y;
 }
 
-double dRBR(int m, int n, double R, double Z, double phi) {
+double dRBR(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dRRDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dRRNmn(m,n-1,R,Z);
 	return y;
 }
 
-double dZBZ(int m, int n, double R, double Z, double phi) {
+double dZBZ(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1 ;
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dZZDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dZZNmn(m,n-1,R,Z);
 	return y;
 }
 
-double dRBZ(int m, int n, double R, double Z, double phi) {
+double dRBZ(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1; 
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dRZDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dRZNmn(m,n-1,R,Z);
 	return y;
 }
 
-double dZBR(int m, int n, double R, double Z, double phi) {
+double dZBR(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0; 
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1; 
-		d = -1; 
+		a = coeff1;
+		d = coeff2; 
 		b = c = 0;
 	}
 	y = (a*cos(m*phi) + b*sin(m*phi))*dRZDmn(m,n,R,Z) + (c*cos(m*phi) + d*sin(m*phi))*dRZNmn(m,n-1,R,Z);
 	return y;
 }
 
-double dRBphi(int m, int n, double R, double Z, double phi) {
+double dRBphi(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0) {
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1 ; 
-		d = -1; 
+		a = coeff1; 
+		d = coeff2;
 		b = c = 0;
 	}
 	y =  m*(-a*sin(m*phi) + b*cos(m*phi))*dRDmn(m,n,R,Z)/R + m*(-c*sin(m*phi) + d*cos(m*phi))*dRNmn(m,n-1,R,Z)/R - m*(-a*sin(m*phi) + b*cos(m*phi))*Dmn(m,n,R,Z)/pow(R,2) - m*(-c*sin(m*phi) + d*cos(m*phi))*Nmn(m,n-1,R,Z)/pow(R,2);
 	return y;
 }
 
-double dZBphi(int m, int n, double R, double Z, double phi) {
+double dZBphi(int m, int n, double R, double Z, double phi, double coeff1, double coeff2) {
 	double y;
-	int a, b, c, d;
+	double a, b, c, d;
 	if (n%2 == 0){
 		a = d = 0;
-		b = 1;
-		c = 1;
+		b = coeff1;
+		c = coeff2;
 	}
 	else {
-		a = 1 ;
-		d = -1;
+		a = coeff1; 
+		d = coeff2;
 		b = c = 0;
 	}
 	y = m*(-a*sin(m*phi) + b*cos(m*phi))*dZDmn(m,n,R,Z)/R + m*(-c*sin(m*phi) + d*cos(m*phi))*dZNmn(m,n-1,R,Z)/R;
@@ -468,10 +468,12 @@ double dZBphi(int m, int n, double R, double Z, double phi) {
 
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
-Array DommaschkB(int m, int n, Array& points){
+Array DommaschkB(int m, int n, Array& coeffs, Array& points){
     int num_points = points.shape(0);
     Array B        = xt::zeros<double>({points.shape(0), points.shape(1)});
     double x,y,z,R,phi,cosphi,sinphi;
+    double coeff1 = coeffs(0);
+    double coeff2 = coeffs(1);
 #pragma omp parallel for
     for (int i = 0; i < num_points; ++i) {
         x    = points(i, 0);
@@ -481,17 +483,19 @@ Array DommaschkB(int m, int n, Array& points){
         phi  = atan2(y,x);
         cosphi = x/R;
         sinphi = y/R;
-        B(i,0) = BR(m,n,R,z,phi)*cosphi-Bphi(m,n,R,z,phi)*sinphi;
-        B(i,1) = BR(m,n,R,z,phi)*sinphi+Bphi(m,n,R,z,phi)*cosphi;
-        B(i,2) = BZ(m,n,R,z,phi);
+        B(i,0) = BR(m,n,R,z,phi,coeff1,coeff2)*cosphi-Bphi(m,n,R,z,phi,coeff1,coeff2)*sinphi;
+        B(i,1) = BR(m,n,R,z,phi,coeff1,coeff2)*sinphi+Bphi(m,n,R,z,phi,coeff1,coeff2)*cosphi;
+        B(i,2) = BZ(m,n,R,z,phi,coeff1,coeff2);
     }
     return B;
 }
 
-Array DommaschkdB(int m, int n, Array& points){
+Array DommaschkdB(int m, int n, Array& coeffs, Array& points){
     int num_points = points.shape(0);
     Array dB       = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double x,y,z,R,phi,cosphi,sinphi;
+    double coeff1 = coeffs(0);
+    double coeff2 = coeffs(1);
 #pragma omp parallel for
     for (int i = 0; i < num_points; ++i) {
         x    = points(i, 0);
@@ -501,15 +505,15 @@ Array DommaschkdB(int m, int n, Array& points){
         phi  = atan2(y,x);
         cosphi = x/R;
         sinphi = y/R;
-        dB(i,0,0) = dRBR(m,n,R,z,phi)*cosphi*cosphi-(dphiBR(m,n,R,z,phi)-Bphi(m,n,R,z,phi)+dRBphi(m,n,R,z,phi)*R)*cosphi*sinphi/R+sinphi*sinphi*(dphiBphi(m,n,R,z,phi)+BR(m,n,R,z,phi))/R;
-        dB(i,0,1) = sinphi*cosphi*(dRBR(m,n,R,z,phi)*R-dphiBphi(m,n,R,z,phi)-BR(m,n,R,z,phi))/R+sinphi*sinphi*(Bphi(m,n,R,z,phi)-dphiBR(m,n,R,z,phi))/R+cosphi*cosphi*dRBphi(m,n,R,z,phi);
-        dB(i,0,2) = dRBZ(m,n,R,z,phi)*cosphi-dphiBZ(m,n,R,z,phi)*sinphi/R;
-        dB(i,1,0) = sinphi*cosphi*(dRBR(m,n,R,z,phi)*R-dphiBphi(m,n,R,z,phi)-BR(m,n,R,z,phi))/R+cosphi*cosphi*(dphiBR(m,n,R,z,phi)-Bphi(m,n,R,z,phi))/R-sinphi*sinphi*dRBphi(m,n,R,z,phi);
-        dB(i,1,1) = dRBR(m,n,R,z,phi)*sinphi*sinphi+(dphiBR(m,n,R,z,phi)-Bphi(m,n,R,z,phi)+dRBphi(m,n,R,z,phi)*R)*cosphi*sinphi/R+cosphi*cosphi*(dphiBphi(m,n,R,z,phi)+BR(m,n,R,z,phi))/R;
-        dB(i,1,2) = dRBZ(m,n,R,z,phi)*sinphi+dphiBZ(m,n,R,z,phi)*cosphi/R;
-        dB(i,2,0) = dZBR(m,n,R,z,phi)*cosphi-dZBphi(m,n,R,z,phi)*sinphi;
-        dB(i,2,1) = dZBR(m,n,R,z,phi)*sinphi+dZBphi(m,n,R,z,phi)*cosphi;
-        dB(i,2,2) = dZBZ(m,n,R,z,phi);
+        dB(i,0,0) = dRBR(m,n,R,z,phi,coeff1,coeff2)*cosphi*cosphi-(dphiBR(m,n,R,z,phi,coeff1,coeff2)-Bphi(m,n,R,z,phi,coeff1,coeff2)+dRBphi(m,n,R,z,phi,coeff1,coeff2)*R)*cosphi*sinphi/R+sinphi*sinphi*(dphiBphi(m,n,R,z,phi,coeff1,coeff2)+BR(m,n,R,z,phi,coeff1,coeff2))/R;
+        dB(i,0,1) = sinphi*cosphi*(dRBR(m,n,R,z,phi,coeff1,coeff2)*R-dphiBphi(m,n,R,z,phi,coeff1,coeff2)-BR(m,n,R,z,phi,coeff1,coeff2))/R+sinphi*sinphi*(Bphi(m,n,R,z,phi,coeff1,coeff2)-dphiBR(m,n,R,z,phi,coeff1,coeff2))/R+cosphi*cosphi*dRBphi(m,n,R,z,phi,coeff1,coeff2);
+        dB(i,0,2) = dRBZ(m,n,R,z,phi,coeff1,coeff2)*cosphi-dphiBZ(m,n,R,z,phi,coeff1,coeff2)*sinphi/R;
+        dB(i,1,0) = sinphi*cosphi*(dRBR(m,n,R,z,phi,coeff1,coeff2)*R-dphiBphi(m,n,R,z,phi,coeff1,coeff2)-BR(m,n,R,z,phi,coeff1,coeff2))/R+cosphi*cosphi*(dphiBR(m,n,R,z,phi,coeff1,coeff2)-Bphi(m,n,R,z,phi,coeff1,coeff2))/R-sinphi*sinphi*dRBphi(m,n,R,z,phi,coeff1,coeff2);
+        dB(i,1,1) = dRBR(m,n,R,z,phi,coeff1,coeff2)*sinphi*sinphi+(dphiBR(m,n,R,z,phi,coeff1,coeff2)-Bphi(m,n,R,z,phi,coeff1,coeff2)+dRBphi(m,n,R,z,phi,coeff1,coeff2)*R)*cosphi*sinphi/R+cosphi*cosphi*(dphiBphi(m,n,R,z,phi,coeff1,coeff2)+BR(m,n,R,z,phi,coeff1,coeff2))/R;
+        dB(i,1,2) = dRBZ(m,n,R,z,phi,coeff1,coeff2)*sinphi+dphiBZ(m,n,R,z,phi,coeff1,coeff2)*cosphi/R;
+        dB(i,2,0) = dZBR(m,n,R,z,phi,coeff1,coeff2)*cosphi-dZBphi(m,n,R,z,phi,coeff1,coeff2)*sinphi;
+        dB(i,2,1) = dZBR(m,n,R,z,phi,coeff1,coeff2)*sinphi+dZBphi(m,n,R,z,phi,coeff1,coeff2)*cosphi;
+        dB(i,2,2) = dZBZ(m,n,R,z,phi,coeff1,coeff2);
     }
     return dB;
 }
