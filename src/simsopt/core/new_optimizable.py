@@ -14,7 +14,8 @@ import hashlib
 from collections.abc import Callable as ABC_Callable, Hashable
 from collections import defaultdict
 from numbers import Real, Integral
-from typing import Union, Tuple, Dict, Callable, Sequence
+from typing import Union, Tuple, Dict, Callable, Sequence, \
+    MutableSequence as MutSeq, List
 
 import numpy as np
 import pandas as pd
@@ -434,14 +435,14 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         # Process funcs_in (Assumes opts_in is empty)
         if opts_in is None or not len(opts_in):
-            opts_in = set()
+            opts_in = []
             funcs_in = funcs_in if funcs_in is not None else []
             for fn in funcs_in:
                 opt_in = fn.__self__
-                opts_in.add(opt_in)
+                opts_in.append(opt_in)
                 opt_in.add_return_fn(self, fn.__func__)
-
-            self.parents = opts_in if opts_in is not None else []
+            opts_in = list(dict.fromkeys(opts_in))
+            self.parents = list(opts_in) if opts_in is not None else []
             for i, parent in enumerate(self.parents):
                 parent._add_child(self)
 
@@ -529,6 +530,21 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if isinstance(fn, str):
             fn = self.__class__.return_fn_map[fn]
         self.return_fns[child].append(fn)
+
+    def get_return_fns(self, child: Optimizable) -> List[Callable]:
+        return self.return_fns.get(child, list(self.return_fn_map.values()))
+
+    def get_return_fn_list(self) -> List[List[Callable]]:
+        return list(self.return_fns.values())
+
+    def get_parent_return_fns_list(self) -> List[List[Callable]]:
+        """
+        Returns a list of the funcs returned by the parents as list of lists
+        """
+        return_fn_list = []
+        for parent in self.parents:
+            return_fn_list.append(parent.get_return_fns(self))
+        return return_fn_list
 
     def _add_child(self, child: Optimizable) -> None:
         """
