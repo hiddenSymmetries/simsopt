@@ -372,7 +372,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     Note: __init__ takes instances of subclasses of Optimizable as
           input and modifies them to define the children for input objects
     """
-    return_fn_map: Dict[str, Callable]
+    return_fn_map: Dict[str, Callable] = NotImplemented
 
     def __init__(self,
                  x0: RealArray = None,
