@@ -31,7 +31,13 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     endif()
 endif()
 
-set(CMAKE_CXX_FLAGS "-O2 -march=x86-64")
+IF(DEFINED ENV{CI})
+    message(STATUS "CI environment detected. Set compilation flags accordingly (target ivybridge which supports avx).")
+    set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge")
+else()
+    message(STATUS "Local build detected. Set compilation flags accordingly (march=native).")
+    set(CMAKE_CXX_FLAGS "-O3 -march=native")
+endif()
 
 add_subdirectory(thirdparty/pybind11)
 set(XTENSOR_USE_OPENMP 0)
@@ -46,6 +52,13 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
 
+add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp)
+set_target_properties(profiling
+    PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON)
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${PYTHON_INCLUDE_DIRS} ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/" ${PYBIND11_INCLUDE_DIR})
+target_link_libraries(profiling PRIVATE ${PYTHON_LIBRARIES})
 
 
 if(OpenMP_CXX_FOUND)
