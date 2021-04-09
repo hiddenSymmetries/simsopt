@@ -12,8 +12,8 @@ import numpy as np
 import logging
 import warnings
 
-from collections.abc import Sequence
-from typing import Union, Callable, Tuple
+from collections.abc import Sequence as ABC_Sequence
+from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
 from mpi4py import MPI
 from .new_optimizable import DOFs, Optimizable
@@ -58,7 +58,7 @@ class LeastSquaresProblem(Optimizable):
         self.weights = np.array(weights)
 
         if opts_in is not None:
-            if not isinstance(opts_in, Sequence):
+            if not isinstance(opts_in, ABC_Sequence):
                 opts_in = [opts_in]
                 #goals = [goals]
                 #weights = [weights]
