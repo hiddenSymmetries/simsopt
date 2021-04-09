@@ -13,7 +13,7 @@ import logging
 import warnings
 
 from collections.abc import Sequence
-from typing import Union
+from typing import Union, Callable, Tuple
 from numbers import Real
 from mpi4py import MPI
 from .new_optimizable import DOFs, Optimizable
@@ -36,10 +36,11 @@ class LeastSquaresProblem(Optimizable):
     """
 
     def __init__(self,
-                 opts_in: Union[Optimizable, Sequence[Optimizable]],
                  goals: Union[Real, RealArray],
                  weights: Union[Real, RealArray],
-                 opt_return_fns: StrSeq = None):
+                 opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
+                 opt_return_fns: StrSeq = None,
+                 funcs_in: Sequence[Callable] = None):
         """
 
         Args:
@@ -48,55 +49,65 @@ class LeastSquaresProblem(Optimizable):
             weights:
         """
         if isinstance(goals, Real):
-            self.goals = np.array([goals])
-        else:
-            self.goals = np.array(goals)
-
-        if np.any(weights < 0):
-            raise ValueError('Weight cannot be negative')
+            goals = [goals]
         if isinstance(weights, Real):
-            self.weights = np.array([weights])
-        else:
-            self.weights = np.array(weights)
+            weights = [weights]
+        if np.any(np.array(weights) < 0):
+            raise ValueError('Weight cannot be negative')
+        self.goals = np.array(goals)
+        self.weights = np.array(weights)
 
-        if not isinstance(opts_in, Sequence):
-            opts_in = [opts_in]
-            if opt_return_fns is not None:
-                opt_return_fns = [opt_return_fns]
+        if opts_in is not None:
+            if not isinstance(opts_in, Sequence):
+                opts_in = [opts_in]
+                #goals = [goals]
+                #weights = [weights]
+                if opt_return_fns is not None:
+                    opt_return_fns = [opt_return_fns]
 
-        #if isinstance(func_masks, bool):
-        #    self.func_masks = [np.array([func_masks])]
-        #else:
-        #    self.func_masks = func_masks
 
-        super().__init__(opts_in=opts_in, opt_return_fns=opt_return_fns )
+        super().__init__(opts_in=opts_in, opt_return_fns=opt_return_fns,
+                         funcs_in=funcs_in)
 
     @classmethod
     def from_sigma(cls,
-                   opts_in: Union[Optimizable, Sequence[Optimizable]],
                    goals: Union[Real, RealArray],
                    sigma: Union[Real, RealArray],
-                   opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
+                   opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
+                   opt_return_fns: StrSeq = None,
+                   funcs_in: Sequence[Callable] = None) -> LeastSquaresProblem:
         """
         Define the LeastSquaresProblem with sigma = 1 / sqrt(weight), so
 
         f_out = ((f_in - goal) / sigma) ** 2.
         """
-        if np.any(sigma == 0):
+        if np.any(np.array(sigma) == 0):
             raise ValueError('sigma cannot be 0')
-        if isinstance(sigma, Real):
-            sigma = np.array([sigma])
-        else:
+        if not isinstance(sigma, Real):
             sigma = np.array(sigma)
 
-        return cls(opts_in, goals, 1.0 / (sigma * sigma), opt_return_fns)
+        return cls(goals, 1.0 / (sigma * sigma),
+                   opts_in=opts_in,
+                   opt_return_fns=opt_return_fns,
+                   funcs_in=funcs_in)
 
-    def f(self):
+    @classmethod
+    def from_tuples(cls,
+                    tuples: Sequence[Tuple[Callable, Real, Real]]
+                    ) -> LeastSquaresProblem:
+        funcs_in, goals, weights = zip(*tuples)
+        #funcs_in = list(funcs_in)
+        #goals = list(goals)
+        #weights = list(weights)
+        return cls(goals, weights, funcs_in=funcs_in)
+
+    def residuals(self, x=None, *args, **kwargs):
         """
-        Return the overall value of this least-squares term.
+        Return the residuals
         """
-        s = 0
-        residuals = []
+        if x is not None:
+            self.x = x
+        outputs = []
         for i, opt in enumerate(self.parents):
             out = opt(child=self)
             output = np.array([out]) if np.isscalar(out) else np.array(out)
@@ -106,7 +117,10 @@ class LeastSquaresProblem(Optimizable):
             #    fn_value = output
             #else:
             #    fn_value = output[self.func_masks[i]]
-            residuals += [(output - self.goals[i]) * np.sqrt(self.weights[i])]
+            outputs += [output]
+        outputs = np.concatenate(outputs)
+        residuals = (outputs - self.goals) * np.sqrt(self.weights)
+        return residuals
 
         #print('terms at line 104', terms)
         #print('goals', self.goals )
@@ -116,14 +130,38 @@ class LeastSquaresProblem(Optimizable):
         #print('dot product', s)
         #objective = np.sum(np.multiply(s, self.weights))
         #print('final objective', objective)
-        return np.concatenate(residuals)
+        #return np.concatenate(residuals)
+
+    def objective(self, x=None, *args, **kwargs):
+        """
+        Return the least squares sum
+        """
+        if x is not None:
+            self.x = x
+
+        outputs = []
+        for i, opt in enumerate(self.parents):
+            out = opt(child=self)
+            output = np.array([out]) if np.isscalar(out) else np.array(out)
+            outputs += [output]
+        outputs = np.concatenate(outputs)
+        diff_values = outputs - self.goals
+        s = 0
+        for i, val in enumerate(diff_values):
+            s += np.dot(val, val) * self.weights[i]
+
+        return s
+
+    return_fn_map = {'residuals': residuals}
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
 
-        return LeastSquaresProblem(self.parents + other.parents,
-                                   np.concatenate([self.goals, other.goals]),
-                                   np.concatenate([self.weights, other.weights])
-                                   )
+        return LeastSquaresProblem(
+            np.concatenate([self.goals, other.goals]),
+            np.concatenate([self.weights, other.weights]),
+            self.parents + other.parents,
+            self.get_parent_return_fns_list() + other.get_parent_return_fns_list(),
+            )
 
     #def residuals(self, x: Union[RealArray, IntArray] = None):
     #    if x is not None:
@@ -131,5 +169,3 @@ class LeastSquaresProblem(Optimizable):
 
     #    temp = np.append([f() for f in self.parents]) - self.goal
     #    return np.sqrt(self.weights) * temp
-
-    return_fn_map = {'f': f}
