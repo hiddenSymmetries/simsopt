@@ -507,6 +507,8 @@ class SurfaceRZFourier(Surface, Optimizable):
         self.area_volume()
         return self._volume
 
+    return_fn_map = {'area': area, 'volume': volume}
+
     def darea_volume(self):
         """
         Compute the derivative of the surface area and the volume enclosed
@@ -894,4 +896,6 @@ class SurfaceGarabedian(Surface, Optimizable):
         """
         return self.area_volume()[1]
         #return self._volume
+
+    return_fn_map = {'area': area, 'volume': volume}
 
