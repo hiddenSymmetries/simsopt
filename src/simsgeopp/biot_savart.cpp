@@ -67,8 +67,6 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
 
             auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
-            //auto temp = dgamma_by_dphi_j_simd*norm_diff_3_inv;
-            //cross(temp, diff, B_i.x, B_i.y, B_i.z);
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
