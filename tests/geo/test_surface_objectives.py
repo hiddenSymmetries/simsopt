@@ -55,8 +55,10 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
 
 class ToroidalFluxTests(unittest.TestCase):
     def test_toroidal_flux_is_constant(self):
-        # this test ensures that the toroidal flux does not change, regardless
-        # of the cross section (varphi = constant) across which it is computed
+        """
+        this test ensures that the toroidal flux does not change, regardless
+        of the cross section (varphi = constant) across which it is computed
+        """
         s = get_exact_surface()
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -75,12 +77,20 @@ class ToroidalFluxTests(unittest.TestCase):
         assert max_err < 1e-2
 
     def test_toroidal_flux_first_derivative(self):
+        """
+        Taylor test for gradient of toroidal flux
+        """
+
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_toroidal_flux1(surfacetype, stellsym)
 
     def test_toroidal_flux_second_derivative(self):
+        """
+        Taylor test for Hessian of toroidal flux
+        """
+
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):

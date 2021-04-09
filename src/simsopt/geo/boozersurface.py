@@ -18,8 +18,8 @@ class BoozerSurface():
     The surface label can be area, volume, or toroidal flux. The surface is constrained
     by the user-provided targetlabel.
 
-    This constrained least squares problem can be solved by scalarizing the constraint and
-    adding it as an additional penalty term to the objective.  This is done in
+    This constrained least squares problem can be solved by scalarizing and adding
+    the constraint as an additional penalty term to the objective.  This is done in
         
         minimize_boozer_penalty_constraints_LBFGS
         minimize_boozer_penalty_constraints_newton
