@@ -19,7 +19,7 @@ class BoozerSurface():
     by the user-provided targetlabel.
 
     This constrained least squares problem can be solved by scalarizing the constraint and
-    adding it as an additional penalty function.  This is done in
+    adding it as an additional penalty term to the objective.  This is done in
         
         minimize_boozer_penalty_constraints_LBFGS
         minimize_boozer_penalty_constraints_newton
