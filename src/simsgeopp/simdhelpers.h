@@ -189,7 +189,7 @@ inline simd_t normsq(Vec3dSimd& a){
 // fairly cheap.
 inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
   //rinv = rinv*(1.5-r2*rinv*rinv);
-  rinv = xsimd::fma(rinv*rinv, r2, rinv*1.5);
+  rinv = xsimd::fnma(rinv*rinv*rinv, r2, rinv*1.5);
 }
 inline simd_t rsqrt(simd_t r2){
   simd_t rinv = _mm512_rsqrt14_pd(r2);
