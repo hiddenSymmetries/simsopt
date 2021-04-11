@@ -31,6 +31,12 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
+    double* gamma_j_ptr = &(gamma(0, 0));
+    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+    double* res_gamma_ptr = &(res_gamma(0, 0));
+    double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+    double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
@@ -49,12 +55,6 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
                 }
             }
         }
-        double* gamma_j_ptr = &(gamma(0, 0));
-        double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
-        double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
-        double* res_gamma_ptr = &(res_gamma(0, 0));
-        double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
-        double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
@@ -122,29 +122,29 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
             }
         }
         for (int j = 0; j < num_quad_points; ++j) {
-            Vec3d gamma_j = Vec3d{ gamma(j, 0), gamma(j, 1), gamma(j, 2) };
-            Vec3d dgamma_j_by_dphi = Vec3d{ dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2) };
-            Vec3d diff = point_i - gamma_j;
+            Vec3d diff = point_i - Vec3d{gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]};
+            Vec3d dgamma_j_by_dphi = Vec3d{dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]};
             double norm_diff = norm(diff);
-            double norm_diff_2 = norm_diff*norm_diff;
-            double norm_diff_3_inv = 1/(norm_diff_2*norm_diff);
-            double norm_diff_5_inv = norm_diff_3_inv/(norm_diff_2);
+            double norm_diff_inv = 1/norm_diff;
+            double norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
+            double norm_diff_3_inv = norm_diff_2_inv*norm_diff_inv;
+            double norm_diff_5_inv = norm_diff_3_inv*norm_diff_2_inv;
             double norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
 
             Vec3d res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
-            res_dgamma_by_dphi(j, 0) += res_dgamma_by_dphi_add[0];
-            res_dgamma_by_dphi(j, 1) += res_dgamma_by_dphi_add[1];
-            res_dgamma_by_dphi(j, 2) += res_dgamma_by_dphi_add[2];
+            res_dgamma_by_dphi(j, 0) += res_dgamma_by_dphi_add.coeff(0);
+            res_dgamma_by_dphi(j, 1) += res_dgamma_by_dphi_add.coeff(1);
+            res_dgamma_by_dphi(j, 2) += res_dgamma_by_dphi_add.coeff(2);
 
             Vec3d cross_dgamma_j_by_dphi_diff = cross(dgamma_j_by_dphi, diff);
             Vec3d res_gamma_add = cross(dgamma_j_by_dphi, v_i) * norm_diff_3_inv;
             res_gamma_add += diff * inner(cross_dgamma_j_by_dphi_diff, v_i) * (norm_diff_5_inv_times_3);
-            res_gamma(j, 0) += res_gamma_add[0];
-            res_gamma(j, 1) += res_gamma_add[1];
-            res_gamma(j, 2) += res_gamma_add[2];
+            res_gamma(j, 0) += res_gamma_add.coeff(0);
+            res_gamma(j, 1) += res_gamma_add.coeff(1);
+            res_gamma(j, 2) += res_gamma_add.coeff(2);
 
             MYIF(derivs>0) {
-                double norm_diff_7_inv = norm_diff_5_inv/(norm_diff_2);
+                double norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
                 Vec3d res_grad_dgamma_by_dphi_add = Vec3d::Zero();
                 Vec3d res_grad_gamma_add = Vec3d::Zero();
 
@@ -152,20 +152,20 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
                 for(int k=0; k<3; k++){
                     Vec3d ek = Vec3d::Zero();
                     ek[k] = 1.;
-                    res_grad_dgamma_by_dphi_add += cross(ek, vgrad_i[k]) * norm_diff_3_inv;
+                    res_grad_dgamma_by_dphi_add += cross(k, vgrad_i[k]) * norm_diff_3_inv;
                     res_grad_dgamma_by_dphi_add -= cross(diff, vgrad_i[k]) * (diff[k] * norm_diff_5_inv_times_3);
 
-                    res_grad_gamma_add += diff * (inner(cross(dgamma_j_by_dphi, ek), vgrad_i[k]) * norm_diff_5_inv_times_3);
+                    res_grad_gamma_add += diff * (inner(cross(dgamma_j_by_dphi, k), vgrad_i[k]) * norm_diff_5_inv_times_3);
                     res_grad_gamma_add += ek * (inner(cross_dgamma_j_by_dphi_diff, vgrad_i[k]) * norm_diff_5_inv_times_3);
                     res_grad_gamma_add += cross(vgrad_i[k], dgamma_j_by_dphi) * (norm_diff_5_inv_times_3 * diff[k]);
                     res_grad_gamma_add -= diff * (15. * diff[k] * inner(cross_dgamma_j_by_dphi_diff, vgrad_i[k]) * norm_diff_7_inv);
                 }
-                res_grad_dgamma_by_dphi(j, 0) += res_grad_dgamma_by_dphi_add[0];
-                res_grad_dgamma_by_dphi(j, 1) += res_grad_dgamma_by_dphi_add[1];
-                res_grad_dgamma_by_dphi(j, 2) += res_grad_dgamma_by_dphi_add[2];
-                res_grad_gamma(j, 0) += res_grad_gamma_add[0];
-                res_grad_gamma(j, 1) += res_grad_gamma_add[1];
-                res_grad_gamma(j, 2) += res_grad_gamma_add[2];
+                res_grad_dgamma_by_dphi(j, 0) += res_grad_dgamma_by_dphi_add.coeff(0);
+                res_grad_dgamma_by_dphi(j, 1) += res_grad_dgamma_by_dphi_add.coeff(1);
+                res_grad_dgamma_by_dphi(j, 2) += res_grad_dgamma_by_dphi_add.coeff(2);
+                res_grad_gamma(j, 0) += res_grad_gamma_add.coeff(0);
+                res_grad_gamma(j, 1) += res_grad_gamma_add.coeff(1);
+                res_grad_gamma(j, 2) += res_grad_gamma_add.coeff(2);
             }
         }
     }

@@ -72,10 +72,10 @@ void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){
         pointsz[i] = points(i, 2);
     }
 
-    auto res_gamma = xt::xarray<double>::from_shape({points.shape(0), 3});
-    auto res_dgamma_by_dphi = xt::xarray<double>::from_shape({points.shape(0), 3});
-    auto res_grad_gamma = xt::xarray<double>::from_shape({points.shape(0), 3});
-    auto res_grad_dgamma_by_dphi = xt::xarray<double>::from_shape({points.shape(0), 3});
+    xt::xarray<double> res_gamma = xt::zeros<double>({nsources, 3});
+    xt::xarray<double> res_dgamma_by_dphi = xt::zeros<double>({nsources, 3});
+    xt::xarray<double> res_grad_gamma = xt::zeros<double>({nsources, 3});
+    xt::xarray<double> res_grad_dgamma_by_dphi = xt::zeros<double>({nsources, 3});
 
 
     int n = int(1e8/(nsources*ntargets));

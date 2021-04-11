@@ -26,24 +26,34 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
+    MYIF(derivs > 0) {
+        dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+            Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
+        };
+    }
     auto d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
+    MYIF(derivs > 1) {
+        d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+            Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
+            Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
+            Vec3dSimd(), Vec3dSimd(), Vec3dSimd() 
+        };
+    }
+    double* gamma_j_ptr = &(gamma(0, 0));
+    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dSimd();
         MYIF(derivs > 0) {
-            dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
-                Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
-            };
-            MYIF(derivs > 1) {
-                d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
-                    Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
-                    Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
-                    Vec3dSimd(), Vec3dSimd(), Vec3dSimd() 
-                };
-            }
+            dB_dX_i[0] *= 0.;
+            dB_dX_i[1] *= 0.;
+            dB_dX_i[2] *= 0.;
         }
-        double* gamma_j_ptr = &(gamma(0, 0));
-        double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+        MYIF(derivs > 1) {
+            d2B_dXdX_i[0] *= 0.; d2B_dXdX_i[1] *= 0.; d2B_dXdX_i[2] *= 0.;
+            d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
+            d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
+        }
         for (int j = 0; j < num_quad_points; ++j) {
             auto diff = point_i - Vec3dSimd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2     = normsq(diff);
@@ -139,55 +149,55 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
         }
     }
     for (int i = num_points - num_points % simd_size; i < num_points; ++i) {
-        auto point = Vec3d{pointsx[i], pointsy[i], pointsz[i]};
+        auto point_i = Vec3d{pointsx[i], pointsy[i], pointsz[i]};
         B(i, 0) = 0;
         B(i, 1) = 0;
         B(i, 2) = 0;
         for (int j = 0; j < num_quad_points; ++j) {
-            Vec3d gamma_j = Vec3d { gamma(j, 0), gamma(j, 1), gamma(j, 2)};
-            Vec3d dgamma_by_dphi_j = Vec3d { dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2)};
-            Vec3d diff = point - gamma_j;
-            double norm_diff = norm(diff);
+            Vec3d diff = point_i - Vec3d{gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]};
+            Vec3d dgamma_by_dphi_j = Vec3d{dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]};
+            double norm_diff_2 = diff.coeff(0)*diff.coeff(0) + diff.coeff(1)*diff.coeff(1) + diff.coeff(2)*diff.coeff(2);
+            double norm_diff = sqrt(norm_diff_2);
+            double norm_diff_inv = 1./norm_diff;
+            double norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
+            double norm_diff_3_inv = norm_diff_2_inv*norm_diff_inv;
             Vec3d dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j, diff);
-            Vec3d B_i = dgamma_by_dphi_j_cross_diff / (norm_diff * norm_diff * norm_diff);
+            Vec3d B_i = dgamma_by_dphi_j_cross_diff*norm_diff_3_inv;
 
-            B(i, 0) += B_i[0];
-            B(i, 1) += B_i[1];
-            B(i, 2) += B_i[2];
+            B(i, 0) += B_i.coeff(0);
+            B(i, 1) += B_i.coeff(1);
+            B(i, 2) += B_i.coeff(2);
             MYIF(derivs > 0) {
-                double norm_diff_4_inv = 1/(norm_diff*norm_diff*norm_diff*norm_diff);
-                Vec3d three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff * 3 / norm_diff;
+                double norm_diff_4_inv = norm_diff_2_inv*norm_diff_2_inv;
+                Vec3d three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff * 3 * norm_diff_inv;
+                Vec3d dgamma_by_dphi_j_norm_diff = dgamma_by_dphi_j*norm_diff;
+#pragma unroll
                 for(int k=0; k<3; k++) {
-                    Vec3d ek = Vec3d{0., 0., 0.};
-                    ek[k] = 1.0;
-                    Vec3d numerator1 = cross(dgamma_by_dphi_j, ek) * norm_diff;
+                    Vec3d numerator1 = cross(dgamma_by_dphi_j_norm_diff, k);
                     Vec3d numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
                     Vec3d temp = (numerator1-numerator2) * norm_diff_4_inv;
-                    dB_by_dX(i, k, 0) += temp[0];
-                    dB_by_dX(i, k, 1) += temp[1];
-                    dB_by_dX(i, k, 2) += temp[2];
+                    dB_by_dX(i, k, 0) += temp.coeff(0);
+                    dB_by_dX(i, k, 1) += temp.coeff(1);
+                    dB_by_dX(i, k, 2) += temp.coeff(2);
                 }
                 MYIF(derivs > 1) {
-                    double norm_diff_5_inv = norm_diff_4_inv/norm_diff;
-                    double norm_diff_7_inv = norm_diff_5_inv/(norm_diff*norm_diff);
+                    double norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;
+                    double norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
+#pragma unroll
                     for(int k1=0; k1<3; k1++) {
+#pragma unroll
                         for(int k2=0; k2<3; k2++) {
-                            Vec3d ek1 = Vec3d{0., 0., 0.};
-                            ek1[k1] = 1.0;
-                            Vec3d ek2 = Vec3d{0., 0., 0.};
-                            ek2[k2] = 1.0;
-
-                            Vec3d term1 = -3 * (diff[k1]*norm_diff_5_inv) * cross(dgamma_by_dphi_j, ek2);
-                            Vec3d term2 = -3 * (diff[k2]*norm_diff_5_inv) * cross(dgamma_by_dphi_j, ek1);
+                            Vec3d term1 = -3 * (diff[k1]*norm_diff_5_inv) * cross(dgamma_by_dphi_j, k2);
+                            Vec3d term2 = -3 * (diff[k2]*norm_diff_5_inv) * cross(dgamma_by_dphi_j, k1);
                             Vec3d term3 = 15 * (diff[k1] * diff[k2] * norm_diff_7_inv) * dgamma_by_dphi_j_cross_diff;
                             Vec3d term4 = Vec3d{0., 0., 0.};
                             if(k1 == k2) {
                                 term4 = -3 * norm_diff_5_inv * dgamma_by_dphi_j_cross_diff;
                             }
                             Vec3d temp = (term1 + term2 + term3 + term4);
-                            d2B_by_dXdX(i, k1, k2, 0) += temp[0];
-                            d2B_by_dXdX(i, k1, k2, 1) += temp[1];
-                            d2B_by_dXdX(i, k1, k2, 2) += temp[2];
+                            d2B_by_dXdX(i, k1, k2, 0) += temp.coeff(0);
+                            d2B_by_dXdX(i, k1, k2, 1) += temp.coeff(1);
+                            d2B_by_dXdX(i, k1, k2, 2) += temp.coeff(2);
                         }
                     }
                 }
