@@ -1,20 +1,5 @@
 #pragma once
 
-
-#include "xtensor/xio.hpp"
-#include "xtensor/xarray.hpp"
-#include "xtensor/xmath.hpp"
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-#include <tuple>
-
-
-
-typedef xt::pyarray<double> Array;
-#include <Eigen/Core>
-#include <Eigen/Dense>
-typedef Eigen::Vector3d Vec3d;
-
-
 #include <vector>
 using std::vector;
 
@@ -23,6 +8,9 @@ namespace xs = xsimd;
 using vector_type = std::vector<double, xs::aligned_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 
+#include <Eigen/Core>
+#include <Eigen/Dense>
+typedef Eigen::Vector3d Vec3d;
 
 struct Vec3dSimd {
     simd_t x;
@@ -135,7 +123,6 @@ inline simd_t inner(int i, Vec3dSimd& a){
         return a.z;
 }
 
-
 inline double inner(const Vec3d& a, const Vec3d& b){
     return a.dot(b);
 }
@@ -187,15 +174,30 @@ inline simd_t normsq(Vec3dSimd& a){
     return xsimd::fma(a.x, a.x, xsimd::fma(a.y, a.y, a.z*a.z));
 }
 
-template<class T, int derivs>
-void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX);
-void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX);
-
-Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents);
-
-
-
-template<class T, int derivs>
-void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi);
-
-void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, Array& vgrad, vector<Array>& dgamma_by_dcoeffs, vector<Array>& d2gamma_by_dphidcoeffs, vector<Array>& res_B, vector<Array>& res_dB);
+#if __AVX512F__ 
+// On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
+// 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
+// root _mm512_rsqrt14_pd which takes 2 CPI (but only gives 4 digits or so) and
+// then refine that result using two iterations of Newton's method, which is
+// fairly cheap.
+inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
+  //rinv = rinv*(1.5-r2*rinv*rinv);
+  rinv = xsimd::fma(rinv*rinv, r2, rinv*1.5);
+}
+inline simd_t rsqrt(simd_t r2){
+  simd_t rinv = _mm512_rsqrt14_pd(r2);
+  r2 *= 0.5;
+  rsqrt_newton_intrin(rinv, r2);
+  rsqrt_newton_intrin(rinv, r2);
+  //rsqrt_newton_intrin(rinv, r2);
+  return rinv;
+}
+#else
+inline simd_t rsqrt(const simd_t& r2){
+    //On my avx2 machine, computing the sqrt and then the inverse is actually a
+    //bit faster. just keeping this line here to remind myself how to compute
+    //the approximate inverse square root in that case.
+    //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
+    return 1./sqrt(r2);
+}
+#endif

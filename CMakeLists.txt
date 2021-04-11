@@ -44,7 +44,7 @@ set(XTENSOR_USE_OPENMP 0)
 
 
 pybind11_add_module(${PROJECT_NAME}
-    src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
+    src/simsgeopp/python.cpp src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
@@ -52,13 +52,12 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
 
-add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp)
+add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${PYTHON_INCLUDE_DIRS} ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/" ${PYBIND11_INCLUDE_DIR})
-target_link_libraries(profiling PRIVATE ${PYTHON_LIBRARIES})
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsgeopp/")
 
 
 if(OpenMP_CXX_FOUND)

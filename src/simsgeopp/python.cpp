@@ -19,7 +19,8 @@ typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.cpp"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
-#include "biot_savart.h"
+#include "biot_savart_py.h"
+#include "biot_savart_vjp_py.h"
 
 namespace py = pybind11;
 
