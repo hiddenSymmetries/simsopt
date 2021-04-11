@@ -99,7 +99,7 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                     auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
                     auto norm_diff_7_inv = norm_diff_4_inv*norm_diff_3_inv;
                     auto term124fak = (-3.)*norm_diff_5_inv;
-                    auto norm_diff_7_inv_15 = norm_diff_5_inv*15.;
+                    auto norm_diff_7_inv_15 = norm_diff_7_inv*15.;
 #pragma unroll
                     for(int k1=0; k1<3; k1++) {
 #pragma unroll
