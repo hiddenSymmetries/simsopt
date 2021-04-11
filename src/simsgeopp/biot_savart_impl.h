@@ -1,4 +1,6 @@
 #include "simdhelpers.h"
+#include <stdexcept>
+#include "xtensor/xlayout.hpp"
 
 
 // When compiled with C++17, then we use `if constexpr` to check for
@@ -16,6 +18,10 @@
 
 template<class T, int derivs>
 void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
+    if(gamma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("gamma needs to be in row-major storage order");
+    if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -31,18 +37,20 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
             MYIF(derivs > 1) {
                 d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
                     Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
-                        Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
-                        Vec3dSimd(), Vec3dSimd(), Vec3dSimd() 
+                    Vec3dSimd(), Vec3dSimd(), Vec3dSimd(), 
+                    Vec3dSimd(), Vec3dSimd(), Vec3dSimd() 
                 };
             }
         }
+        double* gamma_j_ptr = &(gamma(0, 0));
+        double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
         for (int j = 0; j < num_quad_points; ++j) {
-            auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
+            auto diff = point_i - Vec3dSimd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2     = normsq(diff);
             auto norm_diff_inv   = rsqrt(norm_diff_2);
             auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
-            auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2));
+            auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);

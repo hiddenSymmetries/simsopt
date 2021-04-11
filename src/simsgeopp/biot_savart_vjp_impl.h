@@ -22,8 +22,12 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
           throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     if(res_gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("res_gamma needs to be in row-major storage order");
+    if(res_dgamma_by_dphi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("res_dgamma_by_dphi needs to be in row-major storage order");
     if(res_grad_gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("res_grad_gamma needs to be in row-major storage order");
+    if(res_grad_dgamma_by_dphi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
