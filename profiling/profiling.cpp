@@ -28,7 +28,7 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
     auto B = xt::xarray<double>::from_shape({points.shape(0), 3});
     auto dB_by_dX = xt::xarray<double>::from_shape({points.shape(0), 3, 3});
     auto d2B_by_dXdX = xt::xarray<double>::from_shape({points.shape(0), 3, 3, 3});
-    int n = int(1e9/(nsources*ntargets));
+    int n = int(1e8/(nsources*ntargets));
 
     uint64_t tick = rdtsc();  // tick before
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -51,15 +51,16 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
     double interactions = points.shape(0) * gamma.shape(0) * n;
     std::cout << std::setw (10) << nsources*ntargets 
         << std::setw (13) << simdtime/n 
-        << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) << std::endl;
+        << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) 
+        << std::setw (19)<< clockcycles/interactions << std::endl;
 }
 
 
 int main() {
     for(int nd=0; nd<3; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
-        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << std::endl;
-        for(int nst=100; nst<=10000; nst*=10)
+        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+        for(int nst=10; nst<=10000; nst*=10)
             profile_biot_savart(nst, nst, nd);
     }
     return 0;

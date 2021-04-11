@@ -19,7 +19,8 @@
 // then refine that result using two iterations of Newton's method, which is
 // fairly cheap.
 inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
-  rinv = rinv*(1.5-r2*rinv*rinv);
+  //rinv = rinv*(1.5-r2*rinv*rinv);
+  rinv = xsimd::fma(rinv*rinv, r2, rinv*1.5);
 }
 inline simd_t rsqrt(simd_t r2){
   simd_t rinv = _mm512_rsqrt14_pd(r2);
@@ -31,6 +32,10 @@ inline simd_t rsqrt(simd_t r2){
 }
 #else
 inline simd_t rsqrt(const simd_t& r2){
+    //On my avx2 machine, computing the sqrt and then the inverse is actually a
+    //bit faster. just keeping this line here to remind myself how to compute
+    //the approximate inverse square root in that case.
+    //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
     return 1./sqrt(r2);
 }
 #endif
@@ -57,8 +62,6 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                 };
             }
         }
-        double *gamma_ptr = &(gamma(0, 0));
-        double *dgamma_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
         for (int j = 0; j < num_quad_points; ++j) {
             auto diff = Vec3dSimd(point_i.x - gamma(j, 0), point_i.y - gamma(j, 1), point_i.z - gamma(j, 2));
             auto norm_diff_2     = normsq(diff);
@@ -76,29 +79,44 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
                 auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff*(3.*norm_diff_inv);
                 auto norm_diff = 1./norm_diff_inv;
                 auto dgamma_by_dphi_j_simd_norm_diff = dgamma_by_dphi_j_simd * norm_diff;
+#pragma unroll
                 for(int k=0; k<3; k++) {
                     auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
                     auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
-                    auto temp = (numerator1-numerator2);
-                    dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
-                    dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
-                    dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
+                    //auto temp = numerator2-numerator1;
+                    //dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
+                    //dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
+                    //dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
+
+                    auto tempx = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.x, diff[k], numerator1.x);
+                    auto tempy = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.y, diff[k], numerator1.y);
+                    auto tempz = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.z, diff[k], numerator1.z);
+                    dB_dX_i[k].x = xsimd::fma(tempx, norm_diff_4_inv, dB_dX_i[k].x);
+                    dB_dX_i[k].y = xsimd::fma(tempy, norm_diff_4_inv, dB_dX_i[k].y);
+                    dB_dX_i[k].z = xsimd::fma(tempz, norm_diff_4_inv, dB_dX_i[k].z);
                 }
                 MYIF(derivs > 1) {
                     auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
-                    auto norm_diff_7_inv = norm_diff_5_inv*norm_diff_inv*norm_diff_inv;
+                    auto norm_diff_7_inv = norm_diff_4_inv*norm_diff_3_inv;
+                    auto term124fak = (-3.)*norm_diff_5_inv;
+                    auto norm_diff_7_inv_15 = norm_diff_5_inv*15.;
+#pragma unroll
                     for(int k1=0; k1<3; k1++) {
+#pragma unroll
                         for(int k2=0; k2<=k1; k2++) {
                             auto term12 = cross(dgamma_by_dphi_j_simd, k2)*diff[k1];
-                            term12 += cross(dgamma_by_dphi_j_simd, k1)*diff[k2];
+                            auto dgamma_by_dphi_j_simd_cross_k1 = cross(dgamma_by_dphi_j_simd, k1);
+                            term12.x = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.x, diff[k2], term12.x);
+                            term12.y = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.y, diff[k2], term12.y);
+                            term12.z = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.z, diff[k2], term12.z);
+                            //term12 += cross(dgamma_by_dphi_j_simd, k1)*diff[k2];
 
-                            auto term124fak = (-3.)*norm_diff_5_inv;
 
                             d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term124fak, term12.x, d2B_dXdX_i[3*k1 + k2].x);
                             d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term124fak, term12.y, d2B_dXdX_i[3*k1 + k2].y);
                             d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term124fak, term12.z, d2B_dXdX_i[3*k1 + k2].z);
 
-                            auto term3fak = (15. * (diff[k1] * diff[k2] * norm_diff_7_inv));
+                            auto term3fak = diff[k1] * diff[k2] * norm_diff_7_inv_15;
                             if(k1 == k2) {
                                 term3fak += term124fak;
                             }
