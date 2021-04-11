@@ -7,15 +7,21 @@ class SurfaceRZFourier : public Surface<Array> {
     /*
        SurfaceRZFourier is a surface that is represented in cylindrical
        coordinates using the following Fourier series: 
-       r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       r_{c,m,n} \cos(m \theta - n nfp \phi)
-       + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
+
+           r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+               r_{c,m,n} \cos(m \theta - n nfp \phi)
+               + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
+
        and the same for z(theta, phi).
+
        Here, (r, phi, z) are standard cylindrical coordinates, and theta
        is any poloidal angle.
 
        Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
        for the sin terms.
+       
+       In addition, in the stellsym=True case, we skip the sin terms for r, and
+       the cos terms for z.
        */
 
     public:
