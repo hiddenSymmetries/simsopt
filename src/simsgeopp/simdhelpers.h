@@ -103,15 +103,15 @@ struct Vec3dSimd {
 
 
 inline simd_t inner(const Vec3dSimd& a, const Vec3dSimd& b){
-    return a.x*b.x+a.y*b.y+a.z*b.z;
+    return xsimd::fma(a.x, b.x, xsimd::fma(a.y, b.y, a.z*b.z));
 }
 
 inline simd_t inner(const Vec3d& b, const Vec3dSimd& a){
-    return a.x*b[0]+a.y*b[1]+a.z*b[2];
+    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(const Vec3dSimd& a, const Vec3d& b){
-    return a.x*b[0]+a.y*b[1]+a.z*b[2];
+    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(int i, Vec3dSimd& a){
@@ -144,12 +144,19 @@ inline Vec3dSimd cross(Vec3dSimd& a, Vec3dSimd& b){
 }
 
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3d& b){
-    return Vec3dSimd(a.y * b[2] - a.z * b[1], a.z * b[0] - a.x * b[2], a.x * b[1] - a.y * b[0]);
-
+    return Vec3dSimd(
+            xsimd::fms(a.y, simd_t(b[2]), a.z * b[1]),
+            xsimd::fms(a.z, simd_t(b[0]), a.x * b[2]),
+            xsimd::fms(a.x, simd_t(b[1]), a.y * b[0])
+            );
 }
 
 inline Vec3dSimd cross(Vec3d& a, Vec3dSimd& b){
-    return Vec3dSimd(a[1] * b.z - a[2] * b.y, a[2] * b.x - a[0] * b.z, a[0] * b.y - a[1] * b.x);
+    return Vec3dSimd(
+            xsimd::fms(simd_t(a[1]), b.z, a[2] * b.y),
+            xsimd::fms(simd_t(a[2]), b.x, a[0] * b.z),
+            xsimd::fms(simd_t(a[0]), b.y, a[1] * b.x)
+            );
 }
 
 inline Vec3dSimd cross(Vec3dSimd& a, int i){

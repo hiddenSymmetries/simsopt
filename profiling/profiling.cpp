@@ -1,12 +1,10 @@
-//#define FORCE_IMPORT_ARRAY
-#include "xtensor/xnpy.hpp"
 #include "xtensor/xrandom.hpp"
-
 #include "biot_savart_c.h"
 #include "biot_savart_vjp_c.h"
 
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <cstdlib>
 #include <stdint.h>
 uint64_t rdtsc(){
