@@ -184,7 +184,7 @@ inline Vec3dSimd cross(int i, Vec3dSimd& b){
 }
 
 inline simd_t normsq(Vec3dSimd& a){
-    return a.x*a.x+a.y*a.y+a.z*a.z;
+    return xsimd::fma(a.x, a.x, xsimd::fma(a.y, a.y, a.z*a.z));
 }
 
 template<class T, int derivs>
