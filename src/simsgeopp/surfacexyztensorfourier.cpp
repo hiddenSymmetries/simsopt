@@ -209,7 +209,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             }
         }
 
-        void gamma_impl(Array& data) override {
+        void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+            int numquadpoints_theta = quadpoints_theta.size();
             data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -232,6 +234,29 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 }
             }
         }
+        void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+            data *= 0.;
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        double xhat = get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                        double yhat = get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                        double x = xhat * cos(phi) - yhat * sin(phi);
+                        double y = xhat * sin(phi) + yhat * cos(phi);
+                        //double x = xhat;
+                        //double y = yhat;
+                        double z = get_coeff(2, m, n) * basis_fun(2, n, phi, m, theta);
+                        data(k1, 0) += x;
+                        data(k1, 1) += y;
+                        data(k1, 2) += z;
+                    }
+                }
+            }
+        }
+
 
         void gammadash1_impl(Array& data) override {
             data *= 0.;
