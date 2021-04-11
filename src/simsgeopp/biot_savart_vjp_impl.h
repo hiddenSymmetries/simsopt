@@ -1,4 +1,6 @@
 #include "simdhelpers.h"
+#include <stdexcept>
+#include "xtensor/xlayout.hpp"
 
 // When compiled with C++17, then we use `if constexpr` to check for
 // derivatives that need to be computed.  These are actually evaluated at
@@ -11,8 +13,17 @@
 #define MYIF(c) if(c)
 #endif
 
+#include <iostream>
 template<class T, int derivs>
 void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
+    if(gamma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("gamma needs to be in row-major storage order");
+    if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
+    if(res_gamma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("res_gamma needs to be in row-major storage order");
+    if(res_grad_gamma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("res_grad_gamma needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -22,43 +33,53 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
         auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
                 Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
             };
+#pragma unroll
         for(int k=0; k<simd_size; k++){
             for (int d = 0; d < 3; ++d) {
                 v_i[d][k] = v(i+k, d);
                 MYIF(derivs>0) {
+#pragma unroll
                     for (int dd = 0; dd < 3; ++dd) {
                         vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
                     }
                 }
             }
         }
+        double* gamma_j_ptr = &(gamma(0, 0));
+        double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+        double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+        double* res_gamma_ptr = &(res_gamma(0, 0));
+        double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+        double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+
         for (int j = 0; j < num_quad_points; ++j) {
-            auto gamma_j = Vec3d{ gamma(j, 0), gamma(j, 1), gamma(j, 2)};
-            auto dgamma_j_by_dphi = Vec3d{ dgamma_by_dphi(j, 0), dgamma_by_dphi(j, 1), dgamma_by_dphi(j, 2)};
-            auto diff = point_i - gamma_j;
+            auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
+            auto diff = point_i - Vec3dSimd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2 = normsq(diff);
-            auto norm_diff = sqrt(norm_diff_2);
-            auto norm_diff_3_inv = 1/(norm_diff_2*norm_diff);
-            auto norm_diff_5_inv = norm_diff_3_inv/(norm_diff_2);
+            auto norm_diff_inv = rsqrt(norm_diff_2);
+            auto norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
+            auto norm_diff_3_inv = norm_diff_2_inv*norm_diff_inv;
+            auto norm_diff_5_inv = norm_diff_3_inv*norm_diff_2_inv;
             auto norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
 
             auto res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
-            res_dgamma_by_dphi(j, 0) += xsimd::hadd(res_dgamma_by_dphi_add.x);
-            res_dgamma_by_dphi(j, 1) += xsimd::hadd(res_dgamma_by_dphi_add.y);
-            res_dgamma_by_dphi(j, 2) += xsimd::hadd(res_dgamma_by_dphi_add.z);
+            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_dgamma_by_dphi_add.x);
+            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_dgamma_by_dphi_add.y);
+            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_dgamma_by_dphi_add.z);
 
             auto cross_dgamma_j_by_dphi_diff = cross(dgamma_j_by_dphi, diff);
             auto res_gamma_add = cross(dgamma_j_by_dphi, v_i) * norm_diff_3_inv;
             res_gamma_add += diff * inner(cross_dgamma_j_by_dphi_diff, v_i) * (norm_diff_5_inv_times_3);
-            res_gamma(j, 0) += xsimd::hadd(res_gamma_add.x);
-            res_gamma(j, 1) += xsimd::hadd(res_gamma_add.y);
-            res_gamma(j, 2) += xsimd::hadd(res_gamma_add.z);
+            res_gamma_ptr[3*j+0] += xsimd::hadd(res_gamma_add.x);
+            res_gamma_ptr[3*j+1] += xsimd::hadd(res_gamma_add.y);
+            res_gamma_ptr[3*j+2] += xsimd::hadd(res_gamma_add.z);
 
             MYIF(derivs>0) {
-                auto norm_diff_7_inv = norm_diff_5_inv/(norm_diff_2);
+                auto norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
                 auto res_grad_dgamma_by_dphi_add = Vec3dSimd();
                 auto res_grad_gamma_add = Vec3dSimd();
 
+#pragma unroll
                 for(int k=0; k<3; k++){
                     auto eksimd = Vec3dSimd();
                     eksimd[k] += 1.;
@@ -72,12 +93,12 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
                     res_grad_gamma_add += cross(vgrad_i[k], dgamma_j_by_dphi) * (norm_diff_5_inv_times_3 * diff[k]);
                     res_grad_gamma_add -= diff * (15. * diff[k] * inner(cross_dgamma_j_by_dphi_diff, vgrad_i[k]) * norm_diff_7_inv);
                 }
-                res_grad_dgamma_by_dphi(j, 0) += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
-                res_grad_dgamma_by_dphi(j, 1) += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
-                res_grad_dgamma_by_dphi(j, 2) += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);
-                res_grad_gamma(j, 0) += xsimd::hadd(res_grad_gamma_add.x);
-                res_grad_gamma(j, 1) += xsimd::hadd(res_grad_gamma_add.y);
-                res_grad_gamma(j, 2) += xsimd::hadd(res_grad_gamma_add.z);
+                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
+                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
+                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);
+                res_grad_gamma_ptr[3*j+0] += xsimd::hadd(res_grad_gamma_add.x);
+                res_grad_gamma_ptr[3*j+1] += xsimd::hadd(res_grad_gamma_add.y);
+                res_grad_gamma_ptr[3*j+2] += xsimd::hadd(res_grad_gamma_add.z);
             }
         }
     }
@@ -87,6 +108,7 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
         auto vgrad_i = vector<Vec3d>{
             Vec3d::Zero(), Vec3d::Zero(), Vec3d::Zero()
             };
+#pragma unroll
         for (int d = 0; d < 3; ++d) {
             v_i[d] = v(i, d);
             MYIF(derivs>0) {
@@ -122,6 +144,7 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
                 Vec3d res_grad_dgamma_by_dphi_add = Vec3d::Zero();
                 Vec3d res_grad_gamma_add = Vec3d::Zero();
 
+#pragma unroll
                 for(int k=0; k<3; k++){
                     Vec3d ek = Vec3d::Zero();
                     ek[k] = 1.;
