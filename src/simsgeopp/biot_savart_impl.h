@@ -1,4 +1,5 @@
-#include "biot_savart.h"
+#include "simdhelpers.h"
+
 
 // When compiled with C++17, then we use `if constexpr` to check for
 // derivatives that need to be computed.  These are actually evaluated at
@@ -12,33 +13,6 @@
 #define MYIF(c) if(c)
 #endif
 
-#if __AVX512F__ 
-// On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
-// 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
-// root _mm512_rsqrt14_pd which takes 2 CPI (but only gives 4 digits or so) and
-// then refine that result using two iterations of Newton's method, which is
-// fairly cheap.
-inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
-  //rinv = rinv*(1.5-r2*rinv*rinv);
-  rinv = xsimd::fma(rinv*rinv, r2, rinv*1.5);
-}
-inline simd_t rsqrt(simd_t r2){
-  simd_t rinv = _mm512_rsqrt14_pd(r2);
-  r2 *= 0.5;
-  rsqrt_newton_intrin(rinv, r2);
-  rsqrt_newton_intrin(rinv, r2);
-  //rsqrt_newton_intrin(rinv, r2);
-  return rinv;
-}
-#else
-inline simd_t rsqrt(const simd_t& r2){
-    //On my avx2 machine, computing the sqrt and then the inverse is actually a
-    //bit faster. just keeping this line here to remind myself how to compute
-    //the approximate inverse square root in that case.
-    //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
-    return 1./sqrt(r2);
-}
-#endif
 
 template<class T, int derivs>
 void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
@@ -218,61 +192,4 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
         dB_by_dX *= fak;
     MYIF(derivs > 1)
         d2B_by_dXdX *= fak;
-}
-
-template void biot_savart_kernel<xt::xarray<double>, 0>(vector_type&, vector_type&, vector_type&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&);
-template void biot_savart_kernel<xt::xarray<double>, 1>(vector_type&, vector_type&, vector_type&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&);
-template void biot_savart_kernel<xt::xarray<double>, 2>(vector_type&, vector_type&, vector_type&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&, xt::xarray<double>&);
-
-
-void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX) {
-    auto pointsx = vector_type(points.shape(0), 0);
-    auto pointsy = vector_type(points.shape(0), 0);
-    auto pointsz = vector_type(points.shape(0), 0);
-    int num_points = points.shape(0);
-    for (int i = 0; i < num_points; ++i) {
-        pointsx[i] = points(i, 0);
-        pointsy[i] = points(i, 1);
-        pointsz[i] = points(i, 2);
-    }
-    int num_coils  = gammas.size();
-
-    Array dummyjac = xt::zeros<double>({1, 1, 1});
-    Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
-
-    int nderivs = 0;
-    if(dB_by_dX.size() == num_coils) {
-        nderivs = 1;
-        if(d2B_by_dXdX.size() == num_coils) {
-            nderivs = 2;
-        }
-    }
-
-#pragma omp parallel for
-    for(int i=0; i<num_coils; i++) {
-        if(nderivs == 2)
-            biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], d2B_by_dXdX[i]);
-        else {
-            if(nderivs == 1) 
-                biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], dummyhess);
-            else
-                biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dummyjac, dummyhess);
-        }
-    }
-}
-
-Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents){
-    auto dB_by_dXs = vector<Array>();
-    auto d2B_by_dXdXs = vector<Array>();
-    int num_coils = currents.size();
-    auto Bs = vector<Array>(num_coils, Array());
-    for (int i = 0; i < num_coils; ++i) {
-        Bs[i] = xt::zeros<double>({points.shape(0), points.shape(1)});
-    }
-    biot_savart(points, gammas, dgamma_by_dphis, Bs, dB_by_dXs, d2B_by_dXdXs);
-    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
-    for (int i = 0; i < num_coils; ++i) {
-        B += currents[i] * Bs[i];
-    }
-    return B;
 }
