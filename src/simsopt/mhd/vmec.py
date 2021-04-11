@@ -112,10 +112,10 @@ class Vmec(Optimizable):
         self.ictrl[4] = 0  # iseq
         verbose = True
         reset_file = ''
-        print('About to call runvmec to readin')
+        logger.info('About to call runvmec to readin')
         vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
-        print('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+        logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
         # Deallocate arrays allocated by VMEC's fixaray():
         vmec.cleanup(False)
         if ierr != 0:

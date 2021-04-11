@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-import sys
-sys.path.append('..')
 import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.objectives import CurveLength
+from simsopt.geo.curveobjectives import CurveLength
 from simsopt.core.optimizable import optimizable
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.solve.serial_solve import least_squares_serial_solve
@@ -14,7 +12,7 @@ Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.
 The result should be a circle
 """
 
-# Create a simsgeo curve:
+# Create a curve:
 nquadrature = 100
 nfourier = 4
 nfp = 5
@@ -31,13 +29,9 @@ print('Initial curve dofs: ', curve.get_dofs())
 curve.all_fixed(False)
 curve.fixed[0] = True
 
-# Presently in simsgeo, the length objective is a separate object
-# rather than a function of Curve itself.
-obj = optimizable(CurveLength(curve))
-
-# For now, we need to add this attribute to CurveLength. Eventually
-# this would hopefully be done in simsgeo, but for now I'll put it here.
-obj.depends_on = ['curve']
+# The length objective is a separate object rather than a function of
+# Curve itself.
+obj = CurveLength(curve)
 
 print('Initial curve length: ', obj.J())
 

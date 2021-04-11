@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from simsopt.mhd import Spec
-from simsopt.core.surface import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.solve.serial_solve import least_squares_serial_solve
 
@@ -25,6 +25,7 @@ can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
 """
 
+# Print detailed logging info. This could be commented out if desired.
 logging.basicConfig(level=logging.DEBUG)
 
 # Create a Spec object:
@@ -49,11 +50,9 @@ surf.set_zs(1, 0, 0.1)
 
 print('rc:', surf.rc)
 print('zs:', surf.zs)
-#exit(0)
 
-# VMEC parameters are all fixed by default, while surface parameters
-# are all non-fixed by default.  You can choose which parameters are
-# optimized by setting their 'fixed' attributes.
+# Surface parameters are all non-fixed by default.  You can choose
+# which parameters are optimized by setting their 'fixed' attributes.
 surf.all_fixed()
 surf.set_fixed('rc(0,0)', False)
 
