@@ -70,7 +70,10 @@ class Surface(Optimizable):
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
         varphi = np.linspace(0.,1.,varphi_resolution * self.nfp, endpoint = False)
-        theta = np.linspace(0,1.,theta_resolution, endpoint = False)
+        if self.stellsym:
+            theta = np.linspace(0,1./2.,theta_resolution, endpoint = False)
+        else:
+            theta = np.linspace(0,1.,theta_resolution, endpoint = False)
 
         varphigrid,thetagrid = np.meshgrid(varphi,theta)
         varphigrid = varphigrid.T
