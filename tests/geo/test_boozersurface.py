@@ -59,7 +59,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
         Taylor test to verify the Hessian of the scalarized constrained optimization problem.
         """
-       for surfacetype in surfacetypes_list:
+        for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
                     with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
