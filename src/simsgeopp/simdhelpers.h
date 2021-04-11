@@ -79,6 +79,13 @@ struct Vec3dSimd {
         return *this;
     }
 
+    Vec3dSimd& operator*=(const double& rhs) {
+        this->x *= rhs;
+        this->y *= rhs;
+        this->z *= rhs;
+        return *this;
+    }
+
     friend Vec3dSimd operator-(Vec3dSimd lhs, const Vec3d& rhs) {
         lhs.x -= rhs[0];
         lhs.y -= rhs[1];
@@ -175,6 +182,24 @@ inline Vec3dSimd cross(int i, Vec3dSimd& b){
         return Vec3dSimd(b.z, simd_t(0.), -b.x);
     else
         return Vec3dSimd(-b.y, b.x, simd_t(0.));
+}
+
+inline Vec3d cross(int i, Vec3d& b){
+    if(i==0)
+        return Vec3d{0., -b.coeff(2), b.coeff(1)};
+    else if(i == 1)
+        return Vec3d{b.coeff(2), 0., -b.coeff(0)};
+    else
+        return Vec3d{-b.coeff(1), b.coeff(0), 0.};
+}
+
+inline Vec3d cross(Vec3d& a, int i){
+    if(i==0)
+        return Vec3d{0., a.coeff(2), -a.coeff(1)};
+    else if(i == 1)
+        return Vec3d{-a.coeff(2), 0., a.coeff(0)};
+    else
+        return Vec3d{a.coeff(1), -a.coeff(0), 0.};
 }
 
 inline simd_t normsq(Vec3dSimd& a){
