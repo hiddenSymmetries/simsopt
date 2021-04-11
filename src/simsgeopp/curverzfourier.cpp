@@ -8,20 +8,18 @@ class CurveRZFourier : public Curve<Array> {
        CurveRZFourier is a curve that is represented in cylindrical
        coordinates using the following Fourier series: 
 
-       r(phi) = \sum_{m=0}^{order} x_{c,m}cos(nfp*phi) + \sum_{m=1}^order x_{s,m}sin(nfp*phi)
-       z(phi) = \sum_{m=0}^{order} z_{c,m}cos(nfp*phi) + \sum_{m=1}^order z_{s,m}sin(nfp*phi)
+           r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
+           z(phi) = \sum_{n=0}^{order} z_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order z_{s,n}sin(n*nfp*phi)
 
        If stellsym = true, then the sin terms for r and the cos terms for z are zero.
 
        For the stellsym = False case, the dofs are stored in the order 
 
-       [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order},z_{c,0},....]
+           [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order},z_{c,0},....]
 
        or in the stellsym = true case they are stored 
 
-       [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
-
-
+           [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
        */
     private:
         int order;

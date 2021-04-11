@@ -16,19 +16,19 @@ class Surface(Optimizable):
         gamma = self.gamma()
 
         from mayavi import mlab
-        mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], scalars=scalars)
+        mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
         if wireframe:
-            mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], representation='wireframe', color = (0,0,0))
+            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
         
 
         if plot_derivative:
             dg1 = 0.05 * self.gammadash1()
             dg2 = 0.05 * self.gammadash2()
-            mlab.quiver3d(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], dg1[:,:,0], dg1[:,:,1], dg1[:,:,2])
-            mlab.quiver3d(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], dg2[:,:,0], dg2[:,:,1], dg2[:,:,2])
+            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
+            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
         if plot_normal:
             n = 0.005 * self.normal()
-            mlab.quiver3d(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2], n[:,:,0], n[:,:,1], n[:,:,2])
+            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
         if show:
             mlab.show()
 
