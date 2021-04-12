@@ -7,7 +7,7 @@ from simsopt.core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from .surface_test_helpers import get_ncsx_data,get_surface, get_exact_surface 
+from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface 
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -22,7 +22,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         """
         for stellsym in stellsym_list:
             with self.subTest(stellsym=stellsym):
-                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier",stellsym)
+                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier", stellsym)
 
     def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
         """
@@ -34,21 +34,21 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle, theta_resolution = 100)
-        sRZcs = sRZ.cross_section(angle, theta_resolution = 100)
+        scs = s.cross_section(angle, theta_resolution=100)
+        sRZcs = sRZ.cross_section(angle, theta_resolution=100)
 
         max_pointwise_err = np.max(np.abs(scs - sRZcs))
         print(max_pointwise_err)
         
         # compute the cylindrical angle error of the cross section
-        an = np.arctan2( scs[:,1], scs[:,0] )
+        an = np.arctan2(scs[:, 1], scs[:, 0])
         phi = angle
-        phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+        phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
         if phi > np.pi:
             phi = phi - 2. * np.pi
         if phi < -np.pi:
             phi = phi + 2. * np.pi
-        max_angle_err = np.max( np.abs( an - phi ) )
+        max_angle_err = np.max(np.abs(an - phi))
         
         # check that the angle error is what we expect
         assert max_angle_err < 1e-12
@@ -70,19 +70,19 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         max_angle_error = -1
         max_pointwise_error = -1
         for angle in sRZ.quadpoints_phi:
-            scs = s.cross_section( angle * 2 * np.pi )
-            sRZcs = sRZ.cross_section( angle * 2 * np.pi )
+            scs = s.cross_section(angle * 2 * np.pi)
+            sRZcs = sRZ.cross_section(angle * 2 * np.pi)
 
             # compute the cylindrical angle error of the cross section
             phi = angle * 2. * np.pi
-            phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+            phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
             if phi > np.pi:
                 phi = phi - 2. * np.pi
             if phi < -np.pi:
                 phi = phi + 2. * np.pi
             
-            an = np.arctan2( scs[:,1], scs[:,0] )
-            curr_angle_err = np.max( np.abs( an - phi ) )
+            an = np.arctan2(scs[:, 1], scs[:, 0])
+            curr_angle_err = np.max(np.abs(an - phi))
             if max_angle_error < curr_angle_err:
                 max_angle_error = curr_angle_err
             curr_pointwise_err = np.max(np.abs(scs - sRZcs))
@@ -107,13 +107,13 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle )
+        scs = s.cross_section(angle)
         sRZcs = sRZ.cross_section(angle)
         
        
         # compute the cylindrical angle error of the cross section
         phi = angle
-        phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+        phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
         if phi > np.pi:
             phi = phi - 2. * np.pi
         if phi < -np.pi:
@@ -125,12 +125,12 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print(max_pointwise_err)
         assert max_pointwise_err < 1e-3
 
-        an = np.arctan2( scs[:,1], scs[:,0] )
-        max_angle_err1 = np.max( np.abs( an - phi ) )
+        an = np.arctan2(scs[:, 1], scs[:, 0])
+        max_angle_err1 = np.max(np.abs(an - phi))
         assert max_angle_err1 < 1e-12
 
-        an = np.arctan2( sRZcs[:,1], sRZcs[:,0] )
-        max_angle_err2 = np.max( np.abs( an - phi ) )
+        an = np.arctan2(sRZcs[:, 1], sRZcs[:, 0])
+        max_angle_err2 = np.max(np.abs(an - phi))
         assert max_angle_err2 < 1e-12
 
 
@@ -151,7 +151,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         np.random.seed(0)
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -160,14 +160,14 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         s.zc = s.zc * 0
         r1 = np.random.random_sample() + 0.1
         r2 = np.random.random_sample() + 0.1
-        major_R = np.max([r1,r2])
-        minor_R = np.min([r1,r2])
+        major_R = np.max([r1, r2])
+        minor_R = np.min([r1, r2])
         s.xc[0, ntor] = major_R
         s.xc[1, ntor] = minor_R
         s.zs[1, ntor] = minor_R
         
         num_cs = 9
-        angle = np.zeros( (num_cs,) )
+        angle = np.zeros((num_cs,))
         angle[0] = 0.
         angle[1] = np.pi/2.
         angle[2] = np.pi
@@ -177,39 +177,39 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         angle[6] = -np.pi
         angle[7] = -3. * np.pi / 2.
         angle[8] = -2. * np.pi
-        cs = np.zeros((num_cs,100,3))
+        cs = np.zeros((num_cs, 100, 3))
         for idx in range(angle.size):
-            cs[idx,:,:] = s.cross_section(angle[idx], theta_resolution = 100)
+            cs[idx, :, :] = s.cross_section(angle[idx], theta_resolution=100)
        
-        cs_area = np.zeros( (num_cs,) )
+        cs_area = np.zeros((num_cs,))
         max_angle_error = -1
         
         from scipy import fftpack
         for i in range(num_cs):
 
             phi = angle[i]
-            phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+            phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
             if phi > np.pi:
                 phi = phi - 2. * np.pi
             if phi < -np.pi:
                 phi = phi + 2. * np.pi
             
             # check that the angle of the cross section is what we expect
-            an = np.arctan2( cs[i,:,1], cs[i,:,0] )
-            curr_angle_err = np.max( np.abs( an - phi ) )
+            an = np.arctan2(cs[i, :, 1], cs[i, :, 0])
+            curr_angle_err = np.max(np.abs(an - phi))
             
             if max_angle_error < curr_angle_err:
                 max_angle_error = curr_angle_err
 
-            R = np.sqrt( cs[i,:,0]**2 + cs[i,:,1]**2)
-            Z = cs[i,:,2]
-            Rp = fftpack.diff(R, period = 1.)
-            Zp = fftpack.diff(Z, period = 1.)
-            cs_area[i] = np.mean( Z*Rp ) 
+            R = np.sqrt(cs[i, :, 0]**2 + cs[i, :, 1]**2)
+            Z = cs[i, :, 2]
+            Rp = fftpack.diff(R, period=1.)
+            Zp = fftpack.diff(Z, period=1.)
+            cs_area[i] = np.mean(Z*Rp) 
         exact_area = np.pi * minor_R**2.
        
         # check that the cross sectional area is what we expect
-        assert np.max( np.abs( cs_area - cs_area ) ) < 1e-14
+        assert np.max(np.abs(cs_area - cs_area)) < 1e-14
         # check that the angle error is what we expect
         assert max_angle_error < 1e-12
 
@@ -227,7 +227,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -237,14 +237,14 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         np.random.seed(0)
         r1 = np.random.random_sample() + 0.1
         r2 = np.random.random_sample() + 0.1
-        major_R = np.max([r1,r2])
-        minor_R = np.min([r1,r2])
+        major_R = np.max([r1, r2])
+        minor_R = np.min([r1, r2])
         s.xc[0, ntor] = major_R
         s.xc[1, ntor] = minor_R
         s.zs[1, ntor] = minor_R
         
-        print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
-        self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
+        print("AR approx: ", s.aspect_ratio(), "Exact: ", major_R/minor_R)
+        self.assertAlmostEqual(s.aspect_ratio(), major_R/minor_R)
 
     def test_aspect_ratio_compare_with_cross_sectional_computation(self):
         """
@@ -252,30 +252,30 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         comparing with an approximation based on cross section computations.
         """
         s = get_exact_surface()
-        vpr = s.quadpoints_phi.size  +20
-        tr = s.quadpoints_theta.size +20
-        cs_area = np.zeros( (vpr,) )
+        vpr = s.quadpoints_phi.size + 20
+        tr = s.quadpoints_theta.size + 20
+        cs_area = np.zeros((vpr,))
         
         from scipy import fftpack
-        angle = np.linspace(-np.pi,np.pi, vpr, endpoint = False)
+        angle = np.linspace(-np.pi, np.pi, vpr, endpoint=False)
         for idx in range(angle.size):
-            cs = s.cross_section(angle[idx], varphi_resolution = vpr, theta_resolution = tr )
-            R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
-            Z = cs[:,2]
-            Rp = fftpack.diff(R, period = 1.)
-            Zp = fftpack.diff(Z, period = 1.)
-            ar = np.mean( Z*Rp ) 
+            cs = s.cross_section(angle[idx], varphi_resolution=vpr, theta_resolution=tr)
+            R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
+            Z = cs[:, 2]
+            Rp = fftpack.diff(R, period=1.)
+            Zp = fftpack.diff(Z, period=1.)
+            ar = np.mean(Z*Rp) 
             cs_area[idx] = ar
 
 
         mean_cross_sectional_area = np.mean(cs_area)
-        R_minor = np.sqrt( mean_cross_sectional_area / np.pi )
+        R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
         R_major = np.abs(s.volume()) / (2. * np.pi**2 * R_minor**2)
         AR_cs = R_major / R_minor
         AR = s.aspect_ratio()
 
         rel_err = np.abs(AR-AR_cs) / AR
-        print( AR, AR_cs )
+        print(AR, AR_cs)
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
 
@@ -293,13 +293,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.zs = s.zs * 0
         r1 = np.random.random_sample() + 0.1
         r2 = np.random.random_sample() + 0.1
-        major_R = np.max([r1,r2])
-        minor_R = np.min([r1,r2])
+        major_R = np.max([r1, r2])
+        minor_R = np.min([r1, r2])
         s.rc[0, 2] = major_R
         s.rc[1, 2] = minor_R
         s.zs[1, 2] = minor_R
-        print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
-        self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
+        print("AR approx: ", s.aspect_ratio(), "Exact: ", major_R/minor_R)
+        self.assertAlmostEqual(s.aspect_ratio(), major_R/minor_R)
 
     def test_init(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
