@@ -1,0 +1,11 @@
+#!/bin/bash
+# https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+set -ex
+
+EXCLUDE="E1,E226,E265,E266,E3,E4,E5,E7,W,F"
+flake8  --ignore $EXCLUDE src/ || (exit 0)
+flake8  --ignore $EXCLUDE tests/ || (exit 0)
+find src/ -name '*.py' -exec autopep8 --ignore=$EXCLUDE --in-place '{}' \;
+find tests/ -name '*.py' -exec autopep8 --ignore=$EXCLUDE --in-place '{}' \;
+flake8  --ignore $EXCLUDE src/
+flake8  --ignore $EXCLUDE tests/
