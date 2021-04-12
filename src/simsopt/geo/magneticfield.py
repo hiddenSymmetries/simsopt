@@ -37,7 +37,6 @@ class MagneticField():
             self.compute(self.points, compute_derivatives)
         return self._d2B_by_dXdX
 
-
     def A(self, compute_derivatives = 0):
         if self._A is None:
             assert compute_derivatives >= 0
@@ -73,13 +72,8 @@ class MagneticFieldSum(MagneticField):
     another magnetic field with B, A and its derivatives added together or it
     can be called by summing magnetic fields classes as Bfield1 + Bfield1
     '''
-
     def __init__(self, Bfields):
         self.Bfields = Bfields
-        for Bfield in self.Bfields:
-            if hasattr(Bfield, 'coils'):
-                self.coils = Bfield.coils
-                break
 
     def set_points(self, points):
         self.points = np.array(points)

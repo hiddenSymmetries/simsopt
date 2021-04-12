@@ -1,12 +1,12 @@
-from simsopt.geo.magneticfield import MagneticField
-from scipy.special import ellipk, ellipe
-import simsgeopp as sgpp
 import numpy as np
+from scipy.special import ellipk, ellipe
+from simsopt.geo.magneticfield import MagneticField
+import simsgeopp as sgpp
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
     sympy_found = True
-except:
+except ImportError:
     sympy_found = False
     pass
 
