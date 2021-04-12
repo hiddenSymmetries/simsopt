@@ -47,7 +47,8 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def test_boozer_penalty_constraints_gradient(self):
         """
-        Taylor test to verify the gradient of the scalarized constrained optimization problem.
+        Taylor test to verify the gradient of the scalarized constrained optimization problem's
+        objective.
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
@@ -57,7 +58,8 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def test_boozer_penalty_constraints_hessian(self):
         """
-        Taylor test to verify the Hessian of the scalarized constrained optimization problem.
+        Taylor test to verify the Hessian of the scalarized constrained optimization problem's
+        objective.
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
