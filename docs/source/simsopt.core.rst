@@ -20,14 +20,6 @@ simsopt.core.functions module
    :undoc-members:
    :show-inheritance:
 
-simsopt.core.least\_squares\_problem module
--------------------------------------------
-
-.. automodule:: simsopt.core.least_squares_problem
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 simsopt.core.optimizable module
 -------------------------------
 
