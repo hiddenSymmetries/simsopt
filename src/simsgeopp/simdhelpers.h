@@ -1,20 +1,5 @@
 #pragma once
 
-
-#include "xtensor/xio.hpp"
-#include "xtensor/xarray.hpp"
-#include "xtensor/xmath.hpp"
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-#include <tuple>
-
-
-
-typedef xt::pyarray<double> Array;
-#include <Eigen/Core>
-#include <Eigen/Dense>
-typedef Eigen::Vector3d Vec3d;
-
-
 #include <vector>
 using std::vector;
 
@@ -23,6 +8,9 @@ namespace xs = xsimd;
 using vector_type = std::vector<double, xs::aligned_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 
+#include <Eigen/Core>
+#include <Eigen/Dense>
+typedef Eigen::Vector3d Vec3d;
 
 struct Vec3dSimd {
     simd_t x;
@@ -91,6 +79,13 @@ struct Vec3dSimd {
         return *this;
     }
 
+    Vec3dSimd& operator*=(const double& rhs) {
+        this->x *= rhs;
+        this->y *= rhs;
+        this->z *= rhs;
+        return *this;
+    }
+
     friend Vec3dSimd operator-(Vec3dSimd lhs, const Vec3d& rhs) {
         lhs.x -= rhs[0];
         lhs.y -= rhs[1];
@@ -115,15 +110,15 @@ struct Vec3dSimd {
 
 
 inline simd_t inner(const Vec3dSimd& a, const Vec3dSimd& b){
-    return a.x*b.x+a.y*b.y+a.z*b.z;
+    return xsimd::fma(a.x, b.x, xsimd::fma(a.y, b.y, a.z*b.z));
 }
 
 inline simd_t inner(const Vec3d& b, const Vec3dSimd& a){
-    return a.x*b[0]+a.y*b[1]+a.z*b[2];
+    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(const Vec3dSimd& a, const Vec3d& b){
-    return a.x*b[0]+a.y*b[1]+a.z*b[2];
+    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(int i, Vec3dSimd& a){
@@ -134,7 +129,6 @@ inline simd_t inner(int i, Vec3dSimd& a){
     else
         return a.z;
 }
-
 
 inline double inner(const Vec3d& a, const Vec3d& b){
     return a.dot(b);
@@ -157,12 +151,19 @@ inline Vec3dSimd cross(Vec3dSimd& a, Vec3dSimd& b){
 }
 
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3d& b){
-    return Vec3dSimd(a.y * b[2] - a.z * b[1], a.z * b[0] - a.x * b[2], a.x * b[1] - a.y * b[0]);
-
+    return Vec3dSimd(
+            xsimd::fms(a.y, simd_t(b[2]), a.z * b[1]),
+            xsimd::fms(a.z, simd_t(b[0]), a.x * b[2]),
+            xsimd::fms(a.x, simd_t(b[1]), a.y * b[0])
+            );
 }
 
 inline Vec3dSimd cross(Vec3d& a, Vec3dSimd& b){
-    return Vec3dSimd(a[1] * b.z - a[2] * b.y, a[2] * b.x - a[0] * b.z, a[0] * b.y - a[1] * b.x);
+    return Vec3dSimd(
+            xsimd::fms(simd_t(a[1]), b.z, a[2] * b.y),
+            xsimd::fms(simd_t(a[2]), b.x, a[0] * b.z),
+            xsimd::fms(simd_t(a[0]), b.y, a[1] * b.x)
+            );
 }
 
 inline Vec3dSimd cross(Vec3dSimd& a, int i){
@@ -183,19 +184,52 @@ inline Vec3dSimd cross(int i, Vec3dSimd& b){
         return Vec3dSimd(-b.y, b.x, simd_t(0.));
 }
 
-inline simd_t normsq(Vec3dSimd& a){
-    return a.x*a.x+a.y*a.y+a.z*a.z;
+inline Vec3d cross(int i, Vec3d& b){
+    if(i==0)
+        return Vec3d{0., -b.coeff(2), b.coeff(1)};
+    else if(i == 1)
+        return Vec3d{b.coeff(2), 0., -b.coeff(0)};
+    else
+        return Vec3d{-b.coeff(1), b.coeff(0), 0.};
 }
 
-template<class T, int derivs>
-void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX);
-void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX);
+inline Vec3d cross(Vec3d& a, int i){
+    if(i==0)
+        return Vec3d{0., a.coeff(2), -a.coeff(1)};
+    else if(i == 1)
+        return Vec3d{-a.coeff(2), 0., a.coeff(0)};
+    else
+        return Vec3d{a.coeff(1), -a.coeff(0), 0.};
+}
 
-Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents);
+inline simd_t normsq(Vec3dSimd& a){
+    return xsimd::fma(a.x, a.x, xsimd::fma(a.y, a.y, a.z*a.z));
+}
 
-
-
-template<class T, int derivs>
-void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi);
-
-void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, Array& vgrad, vector<Array>& dgamma_by_dcoeffs, vector<Array>& d2gamma_by_dphidcoeffs, vector<Array>& res_B, vector<Array>& res_dB);
+#if __AVX512F__ 
+// On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
+// 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
+// root _mm512_rsqrt14_pd which takes 2 CPI (but only gives 4 digits or so) and
+// then refine that result using two iterations of Newton's method, which is
+// fairly cheap.
+inline void rsqrt_newton_intrin(simd_t& rinv, const simd_t& r2){
+  //rinv = rinv*(1.5-r2*rinv*rinv);
+  rinv = xsimd::fnma(rinv*rinv*rinv, r2, rinv*1.5);
+}
+inline simd_t rsqrt(simd_t r2){
+  simd_t rinv = _mm512_rsqrt14_pd(r2);
+  r2 *= 0.5;
+  rsqrt_newton_intrin(rinv, r2);
+  rsqrt_newton_intrin(rinv, r2);
+  //rsqrt_newton_intrin(rinv, r2);
+  return rinv;
+}
+#else
+inline simd_t rsqrt(const simd_t& r2){
+    //On my avx2 machine, computing the sqrt and then the inverse is actually a
+    //bit faster. just keeping this line here to remind myself how to compute
+    //the approximate inverse square root in that case.
+    //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
+    return 1./sqrt(r2);
+}
+#endif
