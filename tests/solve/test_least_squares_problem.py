@@ -2,7 +2,7 @@ import unittest
 import logging
 from simsopt.core.functions import Identity, Rosenbrock
 from simsopt.core.optimizable import Target
-from simsopt.core.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
+from simsopt.solve.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
 
 #logging.basicConfig(level=logging.DEBUG)
 
