@@ -203,5 +203,38 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[-59.9602, 8.96793, -24.8844], [8.96793, 49.0327, -18.4131], [-24.8844, -18.4131, 10.9275]]))
 
+    def test_BifieldMultiply(self):
+        scalar   = 1.2345
+        pointVar = 1e-1
+        npoints  = 20
+        points   = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points  += pointVar * (np.random.rand(*points.shape)-0.5)
+        ## Multiply by left side
+        Bfield1 = ToroidalField(1.23498,0.012389)
+        Bfield2 = scalar*ToroidalField(1.23498,0.012389)
+        Bfield1.set_points(points)
+        Bfield2.set_points(points)
+        # Verify B
+        assert np.allclose(Bfield2.B(), scalar*np.array(Bfield1.B()))
+        assert np.allclose(Bfield2.dB_by_dX(), scalar*np.array(Bfield1.dB_by_dX()))
+        assert np.allclose(Bfield2.d2B_by_dXdX(), scalar*np.array(Bfield1.d2B_by_dXdX()))
+        # Verify A
+        assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
+        assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
+        assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+        ## Multiply by right side
+        Bfield1 = ToroidalField(1.91784391874,0.2836482)
+        Bfield2 = ToroidalField(1.91784391874,0.2836482)*scalar
+        Bfield1.set_points(points)
+        Bfield2.set_points(points)
+        # Verify B
+        assert np.allclose(Bfield2.B(), scalar*np.array(Bfield1.B()))
+        assert np.allclose(Bfield2.dB_by_dX(), scalar*np.array(Bfield1.dB_by_dX()))
+        assert np.allclose(Bfield2.d2B_by_dXdX(), scalar*np.array(Bfield1.d2B_by_dXdX()))
+        # Verify A
+        assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
+        assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
+        assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+
 if __name__ == "__main__":
     unittest.main()
