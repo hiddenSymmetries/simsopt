@@ -39,7 +39,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
-    rand_scale=0.01
+    rand_scale = 0.01
     order = 4
 
     if curvetype == "CurveXYZFourier":
