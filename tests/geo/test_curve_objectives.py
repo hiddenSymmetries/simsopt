@@ -6,7 +6,7 @@ from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.objectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
+from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False
 
@@ -17,7 +17,7 @@ class Testing(unittest.TestCase):
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
-        rand_scale=0.01
+        rand_scale = 0.01
         order = 4
         nquadpoints = 200
 

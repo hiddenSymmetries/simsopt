@@ -10,6 +10,8 @@ typedef xt::pyarray<double> PyArray;
 typedef SurfaceRZFourier<PyArray> PySurfaceRZFourier;
 #include "surfacexyzfourier.cpp"
 typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
+#include "surfacexyztensorfourier.cpp"
+typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
 
 #include "curve.cpp"
@@ -87,9 +89,14 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
             return PySurfaceRZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PySurfaceRZFourierBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
         }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
 
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceRZFourierBase::fit_to_curve(curve, radius);
@@ -112,8 +119,12 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
             return PySurfaceXYZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PySurfaceXYZFourierBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
         }
 
         void fit_to_curve(PyCurve& curve, double radius) {
@@ -121,8 +132,40 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
         }
 };
 
+template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceXYZTensorFourierBase {
+    public:
+        using PySurfaceXYZTensorFourierBase::PySurfaceXYZTensorFourierBase;
+
+        int num_dofs() override {
+            return PySurfaceXYZTensorFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceXYZTensorFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceXYZTensorFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
+        }
+};
+
 template <typename T, typename S> void register_common_surface_methods(S &s) {
     s.def("gamma", &T::gamma)
+     .def("gamma_impl", &T::gamma_impl)
+     .def("gamma_lin", &T::gamma_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
      .def("gammadash1", &T::gammadash1)
      .def("dgammadash1_by_dcoeff", &T::dgammadash1_by_dcoeff)
@@ -130,10 +173,13 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("dgammadash2_by_dcoeff", &T::dgammadash2_by_dcoeff)
      .def("normal", &T::normal)
      .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
+     .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
      .def("area", &T::area)
      .def("darea_by_dcoeff", &T::darea_by_dcoeff)
+     .def("d2area_by_dcoeffdcoeff", &T::d2area_by_dcoeffdcoeff)
      .def("volume", &T::volume)
      .def("dvolume_by_dcoeff", &T::dvolume_by_dcoeff)
+     .def("d2volume_by_dcoeffdcoeff", &T::d2volume_by_dcoeffdcoeff)
      .def("fit_to_curve", &T::fit_to_curve, py::arg("curve"), py::arg("radius"), py::arg("flip_theta") = false)
      .def("scale", &T::scale)
      .def("extend_via_normal", &T::extend_via_normal)
@@ -204,8 +250,24 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("yc", &PySurfaceXYZFourier::yc)
         .def_readwrite("ys", &PySurfaceXYZFourier::ys)
         .def_readwrite("zc", &PySurfaceXYZFourier::zc)
-        .def_readwrite("zs", &PySurfaceXYZFourier::zs);
+        .def_readwrite("zs", &PySurfaceXYZFourier::zs)
+        .def_readwrite("mpol",&PySurfaceXYZFourier::mpol)
+        .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
+        .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
+
+    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, std::shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
+        .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, vector<bool>, int, int>())
+        .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
+        .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
+        .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
+        .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
+    register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
 
     auto pycurve = py::class_<PyCurve, std::shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")

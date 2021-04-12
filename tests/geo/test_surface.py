@@ -6,11 +6,301 @@ from simsopt.core.dofs import Dofs
 from simsopt.core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
+from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from .surface_test_helpers import get_ncsx_data,get_surface, get_exact_surface 
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
+surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
+stellsym_list = [True, False]
+class SurfaceXYZFourierTests(unittest.TestCase):
+    def test_toRZFourier_perfect_torus(self):
+
+        """
+        This test checks that a perfect torus can be converted from SurfaceXYZFourier to SurfaceRZFourier
+        completely losslessly.
+        """
+        for stellsym in stellsym_list:
+            with self.subTest(stellsym=stellsym):
+                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier",stellsym)
+
+    def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
+        """
+        The test obtains a perfect torus as a SurfaceXYZFourier, then converts it to a SurfaceRZFourier.  Next,
+        it computes the cross section of both surfaces at a random angle and compares the pointwise values.
+        """
+        s = get_surface(surfacetype, stellsym)
+        sRZ = s.to_RZFourier()
+
+        np.random.seed(0)
+        angle = np.random.random()*1000
+        scs = s.cross_section(angle, theta_resolution = 100)
+        sRZcs = sRZ.cross_section(angle, theta_resolution = 100)
+
+        max_pointwise_err = np.max(np.abs(scs - sRZcs))
+        print(max_pointwise_err)
+        
+        # compute the cylindrical angle error of the cross section
+        an = np.arctan2( scs[:,1], scs[:,0] )
+        phi = angle
+        phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+        if phi > np.pi:
+            phi = phi - 2. * np.pi
+        if phi < -np.pi:
+            phi = phi + 2. * np.pi
+        max_angle_err = np.max( np.abs( an - phi ) )
+        
+        # check that the angle error is what we expect
+        assert max_angle_err < 1e-12
+        # check that the pointwise error is what we expect
+        assert max_pointwise_err < 1e-12
+
+    def test_toRZFourier_lossless_at_quadraturepoints(self):
+        """
+        This test obtains a more complex surface (not a perfect torus) as a SurfaceXYZFourier, then
+        converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
+        surface representations coincide at the points where the least squares fit was completed,
+        i.e., the conversion is lossless at the quadrature points.
+
+        Additionally, this test checks that the cross sectional angle is correct.
+        """
+        s = get_exact_surface()
+        sRZ = s.to_RZFourier()
+        
+        max_angle_error = -1
+        max_pointwise_error = -1
+        for angle in sRZ.quadpoints_phi:
+            scs = s.cross_section( angle * 2 * np.pi )
+            sRZcs = sRZ.cross_section( angle * 2 * np.pi )
+
+            # compute the cylindrical angle error of the cross section
+            phi = angle * 2. * np.pi
+            phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+            if phi > np.pi:
+                phi = phi - 2. * np.pi
+            if phi < -np.pi:
+                phi = phi + 2. * np.pi
+            
+            an = np.arctan2( scs[:,1], scs[:,0] )
+            curr_angle_err = np.max( np.abs( an - phi ) )
+            if max_angle_error < curr_angle_err:
+                max_angle_error = curr_angle_err
+            curr_pointwise_err = np.max(np.abs(scs - sRZcs))
+            if max_pointwise_error < curr_pointwise_err:
+                max_pointwise_error = curr_pointwise_err
+        
+        # check that the angle of the cross section is what we expect
+        assert max_pointwise_error < 1e-12
+        # check that the pointwise error is what we expect
+        assert max_angle_error < 1e-12
+
+
+    def test_toRZFourier_small_loss_elsewhere(self):
+        """
+        Away from the quadrature points, the conversion is not lossless and this test verifies that the
+        error is small.
+
+        Additionally, this test checks that the cross sectional angle is correct.        
+        """
+        s = get_exact_surface()
+        sRZ = s.to_RZFourier()
+        
+        np.random.seed(0)
+        angle = np.random.random()*1000
+        scs = s.cross_section(angle )
+        sRZcs = sRZ.cross_section(angle)
+        
+       
+        # compute the cylindrical angle error of the cross section
+        phi = angle
+        phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+        if phi > np.pi:
+            phi = phi - 2. * np.pi
+        if phi < -np.pi:
+            phi = phi + 2. * np.pi
+        
+
+
+        max_pointwise_err = np.max(np.abs(scs - sRZcs))
+        print(max_pointwise_err)
+        assert max_pointwise_err < 1e-3
+
+        an = np.arctan2( scs[:,1], scs[:,0] )
+        max_angle_err1 = np.max( np.abs( an - phi ) )
+        assert max_angle_err1 < 1e-12
+
+        an = np.arctan2( sRZcs[:,1], sRZcs[:,0] )
+        max_angle_err2 = np.max( np.abs( an - phi ) )
+        assert max_angle_err2 < 1e-12
+
+
+    def test_cross_section_torus(self):
+        """
+        Test that the cross sectional area at a certain number of cross sections of a torus
+        is what it should be.  The cross sectional angles are chosen to test any degenerate 
+        cases of the bisection algorithm.
+
+        Additionally, this test checks that the cross sectional angle is correct.
+        """
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+        
+        np.random.seed(0)
+
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        s.xc = s.xc * 0
+        s.xs = s.xs * 0
+        s.ys = s.ys * 0
+        s.yc = s.yc * 0
+        s.zs = s.zs * 0
+        s.zc = s.zc * 0
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1,r2])
+        minor_R = np.min([r1,r2])
+        s.xc[0, ntor] = major_R
+        s.xc[1, ntor] = minor_R
+        s.zs[1, ntor] = minor_R
+        
+        num_cs = 9
+        angle = np.zeros( (num_cs,) )
+        angle[0] = 0.
+        angle[1] = np.pi/2.
+        angle[2] = np.pi
+        angle[3] = 3 * np.pi / 2.
+        angle[4] = 2. * np.pi
+        angle[5] = -np.pi/2.
+        angle[6] = -np.pi
+        angle[7] = -3. * np.pi / 2.
+        angle[8] = -2. * np.pi
+        cs = np.zeros((num_cs,100,3))
+        for idx in range(angle.size):
+            cs[idx,:,:] = s.cross_section(angle[idx], theta_resolution = 100)
+       
+        cs_area = np.zeros( (num_cs,) )
+        max_angle_error = -1
+        
+        from scipy import fftpack
+        for i in range(num_cs):
+
+            phi = angle[i]
+            phi = phi - np.sign(phi) * np.floor( np.abs(phi) / (2*np.pi) ) * (2. * np.pi)
+            if phi > np.pi:
+                phi = phi - 2. * np.pi
+            if phi < -np.pi:
+                phi = phi + 2. * np.pi
+            
+            # check that the angle of the cross section is what we expect
+            an = np.arctan2( cs[i,:,1], cs[i,:,0] )
+            curr_angle_err = np.max( np.abs( an - phi ) )
+            
+            if max_angle_error < curr_angle_err:
+                max_angle_error = curr_angle_err
+
+            R = np.sqrt( cs[i,:,0]**2 + cs[i,:,1]**2)
+            Z = cs[i,:,2]
+            Rp = fftpack.diff(R, period = 1.)
+            Zp = fftpack.diff(Z, period = 1.)
+            cs_area[i] = np.mean( Z*Rp ) 
+        exact_area = np.pi * minor_R**2.
+       
+        # check that the cross sectional area is what we expect
+        assert np.max( np.abs( cs_area - cs_area ) ) < 1e-14
+        # check that the angle error is what we expect
+        assert max_angle_error < 1e-12
+
+
+    def test_aspect_ratio_random_torus(self):
+        """
+        This is a simple aspect ratio validation on a torus with minor radius = r1
+        and major radius = r2, where 0.1 <= r1 <= r2 are random numbers
+        """
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+        
+
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp = nfp, stellsym = stellsym, quadpoints_phi = phis, quadpoints_theta = thetas)
+        s.xc = s.xc * 0
+        s.xs = s.xs * 0
+        s.ys = s.ys * 0
+        s.yc = s.yc * 0
+        s.zs = s.zs * 0
+        s.zc = s.zc * 0
+        np.random.seed(0)
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1,r2])
+        minor_R = np.min([r1,r2])
+        s.xc[0, ntor] = major_R
+        s.xc[1, ntor] = minor_R
+        s.zs[1, ntor] = minor_R
+        
+        print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
+        self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
+
+    def test_aspect_ratio_compare_with_cross_sectional_computation(self):
+        """
+        This test validates the VMEC aspect ratio computation in the Surface class by 
+        comparing with an approximation based on cross section computations.
+        """
+        s = get_exact_surface()
+        vpr = s.quadpoints_phi.size  +20
+        tr = s.quadpoints_theta.size +20
+        cs_area = np.zeros( (vpr,) )
+        
+        from scipy import fftpack
+        angle = np.linspace(-np.pi,np.pi, vpr, endpoint = False)
+        for idx in range(angle.size):
+            cs = s.cross_section(angle[idx], varphi_resolution = vpr, theta_resolution = tr )
+            R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
+            Z = cs[:,2]
+            Rp = fftpack.diff(R, period = 1.)
+            Zp = fftpack.diff(Z, period = 1.)
+            ar = np.mean( Z*Rp ) 
+            cs_area[idx] = ar
+
+
+        mean_cross_sectional_area = np.mean(cs_area)
+        R_minor = np.sqrt( mean_cross_sectional_area / np.pi )
+        R_major = np.abs(s.volume()) / (2. * np.pi**2 * R_minor**2)
+        AR_cs = R_major / R_minor
+        AR = s.aspect_ratio()
+
+        rel_err = np.abs(AR-AR_cs) / AR
+        print( AR, AR_cs )
+        print("AR rel error is:", rel_err)
+        assert rel_err < 1e-5
 
 class SurfaceRZFourierTests(unittest.TestCase):
+    def test_aspect_ratio(self):
+        """
+        Test that the aspect ratio of a torus with random minor and major radius 0.1 <= minor_R <= major_R
+        is properly computed to be major_R/minor_R.
+        """
+
+        s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
+        s.rc = s.rc * 0
+        s.rs = s.rs * 0
+        s.zc = s.zc * 0
+        s.zs = s.zs * 0
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1,r2])
+        minor_R = np.min([r1,r2])
+        s.rc[0, 2] = major_R
+        s.rc[1, 2] = minor_R
+        s.zs[1, 2] = minor_R
+        print("AR approx: ", s.aspect_ratio(), "Exact: " ,major_R/minor_R)
+        self.assertAlmostEqual(s.aspect_ratio() , major_R/minor_R)
+
     def test_init(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
         self.assertEqual(s.rc.shape, (4, 5))
@@ -121,11 +411,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.rc[10, 12], -6.047097E-05)
         self.assertAlmostEqual(s.zs[10, 12], 3.663233E-05)
 
-        self.assertAlmostEqual(s.get_rc(0,0), 1.408922E+00)
-        self.assertAlmostEqual(s.get_rc(0,1), 2.794370E-02)
-        self.assertAlmostEqual(s.get_zs(0,1), -1.909220E-02)
-        self.assertAlmostEqual(s.get_rc(10,6), -6.047097E-05)
-        self.assertAlmostEqual(s.get_zs(10,6), 3.663233E-05)
+        self.assertAlmostEqual(s.get_rc(0, 0), 1.408922E+00)
+        self.assertAlmostEqual(s.get_rc(0, 1), 2.794370E-02)
+        self.assertAlmostEqual(s.get_zs(0, 1), -1.909220E-02)
+        self.assertAlmostEqual(s.get_rc(10, 6), -6.047097E-05)
+        self.assertAlmostEqual(s.get_zs(10, 6), 3.663233E-05)
 
         true_area = 24.5871075268402
         true_volume = 2.96201898538042
@@ -192,7 +482,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
-
         
 class SurfaceGarabedianTests(unittest.TestCase):
     def test_init(self):
@@ -239,6 +528,11 @@ class SurfaceGarabedianTests(unittest.TestCase):
         s.set_Delta(5, 2, -50)
         self.assertAlmostEqual(s.Delta[7, 3], -50)
         
+
+
+       
+
+
     def test_convert_back(self):
         """
         If we start with a SurfaceRZFourier, convert to Garabedian, and
@@ -255,6 +549,12 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     sf2 = sg.to_RZFourier()
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
-        
+ 
+
+
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -28,12 +28,12 @@ class BiotSavart(MagneticField):
             num_coil_quadrature_points = gamma.shape[0]
             for i, point in enumerate(points):
                 diff = point-gamma
-                dist = np.linalg.norm(diff, axis = 1)
-                self._dA_by_dcoilcurrents[l][i, :] += np.sum( (1./dist)[:, None] * dgamma_by_dphi,axis=0)
+                dist = np.linalg.norm(diff, axis=1)
+                self._dA_by_dcoilcurrents[l][i, :] += np.sum((1./dist)[:, None] * dgamma_by_dphi, axis=0)
                 
                 if compute_derivatives >= 1:
                     for j in range(3):
-                        self._d2A_by_dXdcoilcurrents[l][i, j, :] = np.sum(-(diff[:, j]/dist**3)[:, None] * dgamma_by_dphi,axis=0)
+                        self._d2A_by_dXdcoilcurrents[l][i, j, :] = np.sum(-(diff[:, j]/dist**3)[:, None] * dgamma_by_dphi, axis=0)
                 
                 if compute_derivatives >= 2:
                     for j1 in range(3):
@@ -43,7 +43,7 @@ class BiotSavart(MagneticField):
                                 term2 = - (1./dist**3)[:, None] * dgamma_by_dphi
                             else:
                                 term2 = 0
-                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] = np.sum(term1 + term2 , axis=0)
+                            self._d3A_by_dXdXdcoilcurrents[l][i, j1, j2, :] = np.sum(term1 + term2, axis=0)
 
             self._dA_by_dcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
             if compute_derivatives >= 1:
@@ -62,7 +62,7 @@ class BiotSavart(MagneticField):
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        self._dB_by_dcoilcurrents    = [np.zeros((len(points), 3)) for coil in self.coils]
+        self._dB_by_dcoilcurrents = [np.zeros((len(points), 3)) for coil in self.coils]
 
         if compute_derivatives >= 1:
             self._d2B_by_dXdcoilcurrents = [np.zeros((len(points), 3, 3)) for coil in self.coils]
