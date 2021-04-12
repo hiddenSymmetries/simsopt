@@ -4,6 +4,14 @@ simsopt.solve package
 Submodules
 ----------
 
+simsopt.solve.least\_squares\_problem module
+--------------------------------------------
+
+.. automodule:: simsopt.solve.least_squares_problem
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.solve.mpi\_solve module
 -------------------------------
 
