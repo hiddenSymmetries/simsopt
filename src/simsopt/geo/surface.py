@@ -152,8 +152,8 @@ class Surface(Optimizable):
 
     def aspect_ratio(self):
         """
-        Note: cylindrical coordinates are (R, phi, Z)
-               Boozer coordinates are      (varphi, theta)
+        Note: cylindrical coordinates are                  (R, phi, Z)
+              angles that parametrize the surface are      (varphi, theta)
        
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
@@ -170,7 +170,7 @@ class Surface(Optimizable):
                        = \int_{\partial S_phi} nabla_{R,Z} \cdot [R,0] \cdot n dl 
                        where n = [n_R, n_Z] is the outward pointing normal
                        = \int_{\partial S_phi} R * n_R dl
-        Consider the surface written in cylindrical coordinates in terms of its Boozer angles
+        Consider the surface written in cylindrical coordinates in terms of its angles
         [R(varphi,theta), phi(varphi,theta), Z(varphi,theta)].  \partial S_phi is given by the
         points theta->[R(varphi(phi,theta),theta), Z(varphi(phi,theta),theta)] for fixed
         phi.  The cross sectional area of S_phi becomes
@@ -180,7 +180,7 @@ class Surface(Optimizable):
         1/(2*pi)\int^{2 pi}_{0}\int^{2pi}_{0} R(varphi(phi,theta),theta)
                                         d/dtheta[Z(varphi(phi,theta),theta)] dtheta dphi
         Instead of integrating over cylindrical phi, let's complete the change of variables and
-        integrate over Boozer varphi using the mapping:
+        integrate over varphi using the mapping:
         
         [phi,theta] <- [atan2(y(varphi,theta), x(varphi,theta)), theta]
         After the change of variables, the integral becomes:
