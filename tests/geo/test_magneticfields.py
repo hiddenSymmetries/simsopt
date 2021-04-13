@@ -111,7 +111,7 @@ class Testing(unittest.TestCase):
         radius = 1.12345
         center = [0.12345, 0.6789, 1.23456]
         pointVar = 1e-1
-        npoints = 20
+        npoints = 1
         ## verify the field at the center of a coil in the xy plane
         Bfield = CircularCoil(I=current, r0=radius)
         points = np.array([[1e-10, 0, 0.]])
@@ -134,6 +134,23 @@ class Testing(unittest.TestCase):
         Bcircular = BiotSavart(coils, [current])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
+        print()
+        print(Bfield.normal)
+        Bcircular.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
+        assert np.allclose(dB1_by_dX, transpGradB1)
+        # use normal = [0, 1, 0]
+        normal = [0, 1, 0]
+        coils = [CurveXYZFourier(300, 1)]
+        coils[0].set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
+        Bcircular = BiotSavart(coils, [current])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        print(Bfield.normal)
         Bcircular.set_points(points)
         dB1_by_dX = Bfield.dB_by_dX()
         transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
@@ -142,11 +159,28 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
         assert np.allclose(dB1_by_dX, transpGradB1)
         ## verify with a y^2+z^2=radius^2 circular coil
-        normal = [np.pi/2, -np.pi/2]
+        normal = [np.pi/2, np.pi/2]
         coils = [CurveXYZFourier(300, 1)]
         coils[0].set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
         Bcircular = BiotSavart(coils, [current])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        print()
+        print(Bfield.normal)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        # use normal=[1,0,0]
+        normal = [1, 0, 0]
+        coils = [CurveXYZFourier(300, 1)]
+        coils[0].set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
+        Bcircular = BiotSavart(coils, [current])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        print(Bfield.normal)
         Bfield.set_points(points)
         Bcircular.set_points(points)
         dB1_by_dX = Bfield.dB_by_dX()
@@ -165,6 +199,30 @@ class Testing(unittest.TestCase):
         coils2[0].set_dofs([radius, 0, 0])
         Bcircular2 = BiotSavart(coils, [current])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        print()
+        print(Bfield.normal)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.B(), Bcircular2.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        # use normal = [0, 0, 1]
+        center = [0, 0, 0]
+        normal = [0, 0 ,1]
+        coils = [CurveXYZFourier(300, 1)]
+        coils[0].set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
+        Bcircular = BiotSavart(coils, [current])
+        coils2 = [CurveRZFourier(300, 1, 1, True)]
+        coils2[0].set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart(coils, [current])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        print(Bfield.normal)
         Bfield.set_points(points)
         Bcircular.set_points(points)
         Bcircular2.set_points(points)
