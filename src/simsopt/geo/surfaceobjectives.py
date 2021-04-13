@@ -208,3 +208,81 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened #(1, 1) diotadiota
 
     return r, J, H
+
+class QfmResidual(object):
+    """
+    For a given surface with points x on it, this function computes the residual
+
+        \int d^2 x \, (B \cdot n)^2 / \int d^2 x \, ||B||^2
+
+    where B is the magnetic field from biotsavart, n is the unit normal on
+    a given surface, and the integration is performed over the surface.
+    Derivatives are computed wrt the surface dofs.
+    """
+    def __init__(self, surface, biotsavart):
+        self.surface = surface
+        self.biotsavart = biotsavart
+        self.surface.dependencies.append(self)
+        self.invalidate_cache()
+
+    def invalidate_cache(self):
+        x = self.surface.gamma()
+        xsemiflat = x.reshape((x.size//3, 3)).copy()
+        self.biotsavart.set_points(xsemiflat)
+
+    def J(self):
+        x = self.surface.gamma()
+        x = x.reshape((x.size//3, 3))
+        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
+        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
+        N = np.cross(xtheta,xphi)
+        norm_N = np.linalg.norm(N,axis=1)
+        n = N/norm_N[:,None]
+        B = self.biotsavart.B()
+        B_n = np.sum(B * n, axis=1)
+        norm_B = np.linalg.norm(B,axis=1)
+        return np.sum(B_n**2 * norm_N)/np.sum(norm_B**2 * norm_N)
+
+    def dJ_by_dsurfacecoefficients(self):
+        """
+        Calculate the derivatives with respect to the surface coefficients
+        """
+        x = self.surface.gamma()
+        x = x.reshape((x.size//3, 3))
+        dB_by_dX = self.biotsavart.dB_by_dX()
+        B = self.biotsavart.B()
+        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
+        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
+
+        dx_by_dc = self.surface.dgamma_by_dcoeff().reshape((x.size//3, 3,
+            len(self.surface.get_dofs())))
+        dxphi_by_dc = self.surface.dgammadash1_by_dcoeff().reshape((x.size//3,
+            3, len(self.surface.get_dofs())))
+        dxtheta_by_dc = self.surface.dgammadash2_by_dcoeff().reshape((x.size//3,
+            3, len(self.surface.get_dofs())))
+
+        d_B = np.einsum('ijl,ijm->iml',dx_by_dc,dB_by_dX)
+
+        N = np.cross(xtheta,xphi)
+        norm_N = np.linalg.norm(N,axis=1)
+        n = N/norm_N[:,None]
+
+        d_N = np.cross(dxtheta_by_dc, xphi[:,:,None], axis=1) \
+            + np.cross(xtheta[:,:,None], dxphi_by_dc, axis=1)
+        d_norm_N = np.einsum('ijk,ij->ik',d_N,n)
+        d_n = d_N/norm_N[:,None,None] \
+            - N[:,:,None] * d_norm_N[:,None,:]/norm_N[:,None,None]**2
+
+        B_n = np.sum(B * n, axis=1)
+        norm_B = np.linalg.norm(B,axis=1)
+
+        d_B_n = np.einsum('ijk,ij->ik',d_B,n) + np.einsum('ij,ijk->ik',B,d_n)
+        d_norm_B = np.einsum('ijk,ij->ik',d_B,B/norm_B[:,None])
+
+        num = np.sum(B_n**2 * norm_N)
+        denom = np.sum(norm_B**2 * norm_N)
+        d_num = np.sum(2 * d_B_n * B_n[:,None] * norm_N[:,None]
+            + B_n[:,None]**2 * d_norm_N,axis=0)
+        d_denom = np.sum(2 * d_norm_B * norm_B[:,None] * norm_N[:,None]
+            + norm_B[:,None]**2 * d_norm_N,axis=0)
+        return d_num/denom - d_denom*num/(denom*denom)

@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from simsopt.geo.biotsavart import BiotSavart
-from simsopt.geo.surfaceobjectives import ToroidalFlux
+from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual
 from .surface_test_helpers import CoilCollection, get_ncsx_data, get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
@@ -46,7 +46,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
         fpluseps = df(x + eps * direction2) @ direction1
         d2fest = (fpluseps-df0)/eps
         err = np.abs(d2fest - d2fval)
-
         print(err/err_old)
         assert err < 0.6 * err_old
         err_old = err
@@ -127,9 +126,37 @@ class ToroidalFluxTests(unittest.TestCase):
             return tf.J()
         def df(dofs):
             s.set_dofs(dofs)
-            return tf.dJ_by_dsurfacecoefficients() 
+            return tf.dJ_by_dsurfacecoefficients()
         def d2f(dofs):
             s.set_dofs(dofs)
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs)
+
+class QfmTests(unittest.TestCase):
+    def test_qfm_surface_derivative(self):
+        """
+        Taylor test for derivative of qfm metric wrt surface parameters
+        """
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_qfm1(surfacetype, stellsym)
+
+    def subtest_qfm1(self, surfacetype, stellsym):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        s = get_surface(surfacetype, stellsym)
+        coeffs = s.get_dofs()
+        qfm = QfmResidual(s, bs)
+
+        def f(dofs):
+            s.set_dofs(dofs)
+            return qfm.J()
+        def df(dofs):
+            s.set_dofs(dofs)
+            return qfm.dJ_by_dsurfacecoefficients()
+        taylor_test1(f, df, coeffs,
+            epsilons = np.power(2., -np.asarray(range(12, 22)))
+)
