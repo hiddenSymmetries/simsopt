@@ -119,22 +119,25 @@ class ScalarPotentialRZMagneticField(MagneticField):
 
 class CircularCoil(MagneticField):
     '''Magnetic field created by a single circular coil evaluated using analytical functions, including complete elliptic integrals of the first and second kind.
-    As inputs, it takes the radius of the coil (r0), its center, current (I) and its normal vector spherical angle components (normal=[theta,phi]).
+    As inputs, it takes the radius of the coil (r0), its center, current (I) and its normal vector [either spherical angle components (normal=[theta,phi]) or (x,y,z) components of a vector (normal=[x,y,z])]).
 
     Args:
         r0: radius of the coil
         center: point at the coil center
         I: current of the coil in Ampere's
-        normal: spherical angles theta and phi of the normal vector to the plane of the coil centered at the coil center
+        normal: if list with two values treats it as spherical angles theta and phi of the normal vector to the plane of the coil centered at the coil center, if list with three values treats it a vector
     '''
     def __init__(self, r0=0.1, center=[0, 0, 0], I=5e5/np.pi, normal=[0, 0]):
         self.r0 = r0
         self.Inorm = I*4e-7
         self.center = center
-        self.normal = normal
-        self.rotMatrix = np.array([[np.cos(normal[1]), np.sin(normal[0])*np.sin(normal[1]), np.cos(normal[0])*np.sin(normal[1])],
-                                   [0, np.cos(normal[0]), -np.sin(normal[0])],
-                                   [np.sin(normal[1]), np.sin(normal[0])*np.cos(normal[1]), np.cos(normal[0])*np.cos(normal[1])]])
+        if len(normal) == 2:
+            self.normal = [normal[0],-normal[1]]
+        else:
+            self.normal = [np.arctan2(np.sqrt(normal[0]**2+normal[1]**2),normal[2]),-np.arctan2(normal[0],normal[1])]
+        self.rotMatrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]), np.cos(self.normal[0])*np.sin(self.normal[1])],
+                                   [0, np.cos(self.normal[0]), -np.sin(self.normal[0])],
+                                   [np.sin(self.normal[1]), np.sin(self.normal[0])*np.cos(self.normal[1]), np.cos(self.normal[0])*np.cos(self.normal[1])]])
         self.rotMatrixInv = np.array(self.rotMatrix.T)
 
     def compute(self, points, compute_derivatives=0):
