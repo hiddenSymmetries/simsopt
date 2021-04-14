@@ -7,15 +7,21 @@ class SurfaceRZFourier : public Surface<Array> {
     /*
        SurfaceRZFourier is a surface that is represented in cylindrical
        coordinates using the following Fourier series: 
-       r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       r_{c,m,n} \cos(m \theta - n nfp \phi)
-       + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
+
+           r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+               r_{c,m,n} \cos(m \theta - n nfp \phi)
+               + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
+
        and the same for z(theta, phi).
+
        Here, (r, phi, z) are standard cylindrical coordinates, and theta
        is any poloidal angle.
 
        Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
        for the sin terms.
+       
+       In addition, in the stellsym=True case, we skip the sin terms for r, and
+       the cos terms for z.
        */
 
     public:
@@ -98,8 +104,11 @@ class SurfaceRZFourier : public Surface<Array> {
             }
             return res;
         }
+        
+        void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+            int numquadpoints_theta = quadpoints_theta.size();
 
-        void gamma_impl(Array& data) override {
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -123,6 +132,36 @@ class SurfaceRZFourier : public Surface<Array> {
                 }
             }
         }
+
+
+        void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints = quadpoints_phi.size();
+
+            for (int k1 = 0; k1 < numquadpoints; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double r = 0;
+                double z = 0;
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int i = 0; i < 2*ntor+1; ++i) {
+                        int n  = i - ntor;
+                        r += rc(m, i) * cos(m*theta-n*nfp*phi);
+                        if(!stellsym) {
+                            r += rs(m, i) * sin(m*theta-n*nfp*phi);
+                            z += zc(m, i) * cos(m*theta-n*nfp*phi);
+                        }
+                        z += zs(m, i) * sin(m*theta-n*nfp*phi);
+                    }
+                }
+                data(k1, 0) = r * cos(phi);
+                data(k1, 1) = r * sin(phi);
+                data(k1, 2) = z;
+            }
+        }
+
+
+
+
 
         void gammadash1_impl(Array& data) override {
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
