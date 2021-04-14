@@ -98,7 +98,6 @@ class ToroidalFlux(object):
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
 
-
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     """
     For a given surface with points x on it, this function computes the
@@ -286,3 +285,93 @@ class QfmResidual(object):
         d_denom = np.sum(2 * d_norm_B * norm_B[:,None] * norm_N[:,None]
             + norm_B[:,None]**2 * d_norm_N,axis=0)
         return d_num/denom - d_denom*num/(denom*denom)
+
+    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        """
+        Calculate the second derivative wrt the surface coefficients
+        """
+        x = self.surface.gamma()
+        x = x.reshape((x.size//3, 3))
+        dB_by_dX = self.biotsavart.dB_by_dX()
+        d2B_by_dXdX = self.biotsavart.d2B_by_dXdX()
+        B = self.biotsavart.B()
+        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
+        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
+
+        dx_by_dc = self.surface.dgamma_by_dcoeff().reshape((x.size//3, 3,
+            len(self.surface.get_dofs())))
+        dxphi_by_dc = self.surface.dgammadash1_by_dcoeff().reshape((x.size//3,
+            3, len(self.surface.get_dofs())))
+        dxtheta_by_dc = self.surface.dgammadash2_by_dcoeff().reshape((x.size//3,
+            3, len(self.surface.get_dofs())))
+
+        d_B = np.einsum('ijl,ijm->iml',dx_by_dc,dB_by_dX)
+        d2_B = np.einsum('ijl,ikm,ijkn->inlm', dx_by_dc, dx_by_dc, d2B_by_dXdX)
+
+        N = np.cross(xtheta,xphi)
+        norm_N = np.linalg.norm(N,axis=1)
+        n = N/norm_N[:,None]
+
+        d_N = np.cross(dxtheta_by_dc, xphi[:,:,None], axis=1) \
+            + np.cross(xtheta[:,:,None], dxphi_by_dc, axis=1)
+        d2_N = np.zeros_like(d2_B)
+        d2_N[:,0,:,:] = dxtheta_by_dc[:,1,:,None] * dxphi_by_dc[:,2,None,:] \
+                      - dxtheta_by_dc[:,2,:,None] * dxphi_by_dc[:,1,None,:] \
+                      + dxtheta_by_dc[:,1,None,:] * dxphi_by_dc[:,2,:,None] \
+                      - dxtheta_by_dc[:,2,None,:] * dxphi_by_dc[:,1,:,None]
+        d2_N[:,1,:,:] = dxtheta_by_dc[:,2,:,None] * dxphi_by_dc[:,0,None,:] \
+                      - dxtheta_by_dc[:,0,:,None] * dxphi_by_dc[:,2,None,:] \
+                      + dxtheta_by_dc[:,2,None,:] * dxphi_by_dc[:,0,:,None] \
+                      - dxtheta_by_dc[:,0,None,:] * dxphi_by_dc[:,2,:,None]
+        d2_N[:,2,:,:] = dxtheta_by_dc[:,0,:,None] * dxphi_by_dc[:,1,None,:] \
+                      - dxtheta_by_dc[:,1,:,None] * dxphi_by_dc[:,0,None,:] \
+                      + dxtheta_by_dc[:,0,None,:] * dxphi_by_dc[:,1,:,None] \
+                      - dxtheta_by_dc[:,1,None,:] * dxphi_by_dc[:,0,:,None]
+
+        d_norm_N = np.einsum('ijk,ij->ik',d_N,n)
+        d2_norm_N = (np.einsum('ijk,ijl->ikl',d_N,d_N)
+                   + np.einsum('ijkl,ij->ikl',d2_N,N)
+                   - d_norm_N[:,:,None]*d_norm_N[:,None,:])/norm_N[:,None,None]
+        d_n = d_N/norm_N[:,None,None] \
+                - N[:,:,None] * d_norm_N[:,None,:]/norm_N[:,None,None]**2
+        d2_n = d2_N/norm_N[:,None,None,None] \
+            - np.einsum('ijk,il->ijkl',d_N,d_norm_N)/norm_N[:,None,None,None]**2 \
+            - np.einsum('ijk,il->ijlk',d_N,d_norm_N)/norm_N[:,None,None,None]**2 \
+            + 2 * np.einsum('ij,il,ik->ijlk',N,d_norm_N,d_norm_N)/norm_N[:,None,None,None]**3 \
+            - np.einsum('ij,ikl->ijkl',N,d2_norm_N)/norm_N[:,None,None,None]**2
+
+        B_n = np.sum(B * n, axis=1)
+        norm_B = np.linalg.norm(B,axis=1)
+
+        d_B_n = np.einsum('ijk,ij->ik',d_B,n) + np.einsum('ij,ijk->ik',B,d_n)
+        d_norm_B = np.einsum('ijk,ij->ik',d_B,B/norm_B[:,None])
+
+        d2_B_n = np.einsum('ijkl,ij->ikl',d2_B,n) \
+               + np.einsum('ij,ijkl->ikl',B,d2_n) \
+               + np.einsum('ijk,ijl->ikl',d_B,d_n) \
+               + np.einsum('ijk,ijl->ilk',d_B,d_n)
+        d2_norm_B = (np.einsum('ijkl,ij->ikl',d2_B,B)
+                + np.einsum('ijk,ijl->ikl',d_B,d_B)
+                - np.einsum('ik,il->ikl',d_norm_B,d_norm_B))/norm_B[:,None,None]
+
+        num = np.sum(B_n**2 * norm_N)
+        denom = np.sum(norm_B**2 * norm_N)
+        d_num = np.sum(2 * d_B_n * B_n[:,None] * norm_N[:,None]
+            + B_n[:,None]**2 * d_norm_N,axis=0)
+        d2_num = np.sum(2*(d2_B_n * B_n[:,None,None] \
+            + d_B_n[:,:,None] * d_B_n[:,None,:]) * norm_N[:,None,None]
+            + 2 * d_B_n[:,None,:] * B_n[:,None,None] * d_norm_N[:,:,None]
+            + 2 * d_B_n[:,:,None] * B_n[:,None,None] * d_norm_N[:,None,:]
+            + B_n[:,None,None]**2 * d2_norm_N,axis=0)
+        d_denom = np.sum(2 * d_norm_B * norm_B[:,None] * norm_N[:,None]
+            + norm_B[:,None]**2 * d_norm_N,axis=0)
+        d2_denom = np.sum(2*(d2_norm_B * norm_B[:,None,None] \
+            + d_norm_B[:,:,None] * d_norm_B[:,None,:]) * norm_N[:,None,None]
+            + 2 * d_norm_B[:,None,:] * norm_B[:,None,None] * d_norm_N[:,:,None]
+            + 2 * d_norm_B[:,:,None] * norm_B[:,None,None] * d_norm_N[:,None,:]
+            + norm_B[:,None,None]**2 * d2_norm_N,axis=0)
+
+        return d2_num/denom - d_num[:,None]*d_denom[None,:]/denom**2 \
+            - d_num[None,:]*d_denom[:,None]/denom**2 \
+            - d2_denom*num/(denom*denom) \
+            + 2 * d_denom[:,None]*d_denom[None,:]*num/(denom**3)
