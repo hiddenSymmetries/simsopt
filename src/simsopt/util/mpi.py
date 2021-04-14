@@ -54,7 +54,7 @@ class MpiPartition:
     """
 
     def __init__(self,
-                 ngroups: int = Union[None, int],
+                 ngroups: Union[None, int] = None,
                  comm_world: mpi4py.MPI.Intracomm = MPI.COMM_WORLD):
         if MPI is None:
             raise RuntimeError("MpiPartition class requires the mpi4py package.")
