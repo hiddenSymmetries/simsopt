@@ -3,6 +3,7 @@
 *.so
 *.o
 *.mod
+*fort.9
 simsopt_20*.dat
 residuals_20*.dat
 _skbuild/
@@ -10,7 +11,8 @@ build/
 build-cmake/
 dist/
 pip-wheel-metadata/
-src/SIMSOPT.egg-info/
+src/simsopt.egg-info/
+simsopt.egg-info/
 .DS_Store
 .coverage
 .tox
@@ -43,3 +45,6 @@ examples/VMEC/
 
 # Sphinx related files
 docs/build/
+
+# IDE related
+.idea
