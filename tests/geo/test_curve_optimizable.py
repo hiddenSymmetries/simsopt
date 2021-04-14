@@ -5,7 +5,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
-from simsopt.geo.objectives import CurveLength
+from simsopt.geo.curveobjectives import CurveLength
 from simsopt.core.optimizable import optimizable
 from simsopt.core.least_squares_problem import LeastSquaresProblem
 from simsopt.solve.serial_solve import least_squares_serial_solve

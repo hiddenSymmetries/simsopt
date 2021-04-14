@@ -4,6 +4,26 @@ from .surface import Surface
 
 
 class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
+    r"""
+    SurfaceRZFourier is a surface that is represented in cylindrical
+       coordinates using the following Fourier series:
+
+           r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+               r_{c,m,n} \cos(m \theta - n nfp \phi)
+               + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
+
+       and the same for z(theta, phi).
+
+       Here, (r, phi, z) are standard cylindrical coordinates, and theta
+       is any poloidal angle.
+
+       Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
+       for the sin terms.
+
+       In addition, in the stellsym=True case, we skip the sin terms for r, and
+       the cos terms for z.
+    """
+
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63, quadpoints_theta=62):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
@@ -14,7 +34,6 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         self.zs[1, ntor] = 0.1
         Surface.__init__(self)
         self.make_names()
-
 
     def get_dofs(self):
         return np.asarray(sgpp.SurfaceRZFourier.get_dofs(self))
@@ -269,3 +288,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
     def dvolume(self):
         return self.dvolume_by_dcoeff()
 
+    def set_dofs(self, dofs):
+        sgpp.SurfaceRZFourier.set_dofs(self, dofs)
+        for d in self.dependencies:
+            d.invalidate_cache()
