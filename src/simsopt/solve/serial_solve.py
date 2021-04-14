@@ -3,28 +3,49 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides the least_squares_serial_solve
-function. Eventually I can also put a serial_solve function here for
-general optimization problems.
+This module provides functions for solving least-squares and general optimization
+problems, without parallelization in the optimization algorithm itself,
+and without parallelized finite-difference gradients. 
+These functions could still be used for cases in which there is parallelization within the objective
+function evaluations.
+These functions essentially
+are interfaces between a :obj:`simsopt.core.least_squares_problem.LeastSquaresProblem`
+object and `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+The functions here also create a log file with history of the objective function evaluations.
+
+If you want parallelized finite difference gradient evaluations, you should instead use
+:meth:`simsopt.solve.mpi_solve.least_squares_mpi_solve()`. If not, the methods here may be preferable
+due to their greater simplicity.
 """
 
+import logging
 from datetime import datetime
 from time import time
 import traceback
 import numpy as np
 from scipy.optimize import least_squares, minimize
-import logging
+import simsopt.core.least_squares_problem
 
 logger = logging.getLogger(__name__)
 
-def least_squares_serial_solve(prob, grad=None, **kwargs):
+#def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+                               grad: bool = None,
+                               **kwargs):
     """
-    Solve a nonlinear-least-squares minimization problem using
-    scipy.optimize, and without using any parallelization.
+    Solve a nonlinear-least-squares minimization problem.
 
-    prob should be a LeastSquaresProblem object.
-
-    kwargs allows you to pass any arguments to scipy.optimize.least_squares.
+    Args:
+        prob: An instance of LeastSquaresProblem, defining the objective function(s) and parameter space.
+        grad: Whether to use a gradient-based optimization algorithm, as opposed to a gradient-free algorithm.
+          If unspecified, a gradient-based algorithm will be used if ``prob`` has gradient information available,
+          otherwise a gradient-free algorithm will be used by default. If you set ``grad=True`` for a problem in
+          which gradient information is not available, finite-difference gradients will be used.
+        kwargs: Any arguments to pass to 
+          `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_. 
+          For instance,
+          you can supply ``max_nfev=100`` to set the maximum number of function evaluations (not counting
+          finite-difference gradient evaluations) to 100.
     """
 
     logfile = None
@@ -202,7 +223,7 @@ def serial_solve(prob, grad=None, **kwargs):
     else:
         logger.info("Using derivative-free method")
         print("Using derivative-free method")
-        result = minimize(objective, x0, options={'disp':True}, **kwargs)
+        result = minimize(objective, x0, options={'disp': True}, **kwargs)
 
     logfile_started = False
     logfile.close()
