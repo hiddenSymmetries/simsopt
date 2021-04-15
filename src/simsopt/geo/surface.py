@@ -44,13 +44,14 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi, varphi_resolution=None, thetas=None):
+    def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle phi and returns the cross
-        section of the surface in that plane. This is done using the method of bisection.
+        This function takes in a cylindrical angle `phi` and returns the cross
+        section of the surface in that plane evaluated at `thetas`. This is
+        done using the method of bisection.
 
-        This function assumes that the surface intersection with the plane is a single
-        curve.
+        This function assumes that the surface intersection with the plane is a
+        single curve.
         """
 
         # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
@@ -61,13 +62,10 @@ class Surface(Optimizable):
         if phi < -np.pi:
             phi = phi + 2. * np.pi
         
-        if varphi_resolution is None:
-            varphi_resolution = self.gamma().shape[0]
-
         # varphi are the search intervals on which we look for the cross section in 
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
-        varphi = np.linspace(0., 1., varphi_resolution * self.nfp, endpoint=False)
+        varphi = np.asarray([0., 0.5, 1.0])
 
         if thetas is None:
             theta = np.asarray(self.quadpoints_theta)
