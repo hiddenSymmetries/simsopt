@@ -237,11 +237,12 @@ PYBIND11_MODULE(simsgeopp, m) {
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
 
     auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, std::shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
-        .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, vector<bool>, int, int>())
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
         .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
         .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);

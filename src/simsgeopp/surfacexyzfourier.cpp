@@ -6,33 +6,34 @@ template<class Array>
 class SurfaceXYZFourier : public Surface<Array> {
     /*
        SurfaceXYZFourier is a surface that is represented in cartesian
-       coordinates using the following Fourier series: 
+       coordinates using the following Fourier series:
 
-       \hat x(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       x_{c,m,n} \cos(m \theta - n nfp \phi)
-       + x_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
+           \hat x(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+                 x_{c,m,n} \cos(m \theta - n nfp \phi)
+               + x_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
-       \hat y(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       y_{c,m,n} \cos(m \theta - n nfp \phi)
-       + y_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
+           \hat y(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+                 y_{c,m,n} \cos(m \theta - n nfp \phi)
+               + y_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
-       x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
-       y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
+           x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
+           y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
 
-       z(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       z_{c,m,n} \cos(m \theta - n nfp \phi)
-       + z_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
-
-       When enforcing stellarator symmetry, we set the 
-           x_{s,*,*}, y_{c,*,*} and z_{c,*,*} 
-       terms to zero.
+           z(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+               z_{c,m,n} \cos(m \theta - n nfp \phi)
+               + z_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
        Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
        for the sin terms.
 
+       When enforcing stellarator symmetry, we set the
+
+           x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
+
+       terms to zero.
        */
 
     public:
