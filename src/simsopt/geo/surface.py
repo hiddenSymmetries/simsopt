@@ -44,7 +44,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi, varphi_resolution=None, theta_resolution=None):
+    def cross_section(self, phi, varphi_resolution=None, thetas=None):
         """
         This function takes in a cylindrical angle phi and returns the cross
         section of the surface in that plane. This is done using the method of bisection.
@@ -53,7 +53,7 @@ class Surface(Optimizable):
         curve.
         """
 
-        # phi is assumed to be between [-pi,pi], so if it does not lie on that interval
+        # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
         # we shift it by multiples of 2pi until it does
         phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
         if phi > np.pi:
@@ -63,17 +63,20 @@ class Surface(Optimizable):
         
         if varphi_resolution is None:
             varphi_resolution = self.gamma().shape[0]
-        if theta_resolution is None:
-            theta_resolution = self.gamma().shape[1]
 
         # varphi are the search intervals on which we look for the cross section in 
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
         varphi = np.linspace(0., 1., varphi_resolution * self.nfp, endpoint=False)
-        if self.stellsym:
-            theta = np.linspace(0, 1./2., theta_resolution, endpoint=False)
+
+        if thetas is None:
+            theta = np.asarray(self.quadpoints_theta)
+        elif isinstance(thetas, np.ndarray):
+            theta = thetas
+        elif isinstance(thetas, int):
+            theta = np.linspace(0, 1, thetas, endpoint=False)
         else:
-            theta = np.linspace(0, 1., theta_resolution, endpoint=False)
+            raise NotImplementedError('Need to pass int or 1d np.array to thetas')
 
         varphigrid, thetagrid = np.meshgrid(varphi, theta)
         varphigrid = varphigrid.T
