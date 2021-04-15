@@ -252,6 +252,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         comparing with an approximation based on cross section computations.
         """
         s = get_exact_surface()
+        vpr = s.quadpoints_phi.size + 20
         tr = s.quadpoints_theta.size + 20
         cs_area = np.zeros((vpr,))
         
