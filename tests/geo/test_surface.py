@@ -34,8 +34,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle, theta_resolution=100)
-        sRZcs = sRZ.cross_section(angle, theta_resolution=100)
+        scs = s.cross_section(angle, thetas=100)
+        sRZcs = sRZ.cross_section(angle, thetas=100)
 
         max_pointwise_err = np.max(np.abs(scs - sRZcs))
         print(max_pointwise_err)
@@ -179,7 +179,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         angle[8] = -2. * np.pi
         cs = np.zeros((num_cs, 100, 3))
         for idx in range(angle.size):
-            cs[idx, :, :] = s.cross_section(angle[idx], theta_resolution=100)
+            cs[idx, :, :] = s.cross_section(angle[idx], thetas=100)
        
         cs_area = np.zeros((num_cs,))
         max_angle_error = -1
@@ -259,7 +259,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         from scipy import fftpack
         angle = np.linspace(-np.pi, np.pi, vpr, endpoint=False)
         for idx in range(angle.size):
-            cs = s.cross_section(angle[idx], varphi_resolution=vpr, theta_resolution=tr)
+            cs = s.cross_section(angle[idx], varphi_resolution=vpr, thetas=tr)
             R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
             Z = cs[:, 2]
             Rp = fftpack.diff(R, period=1.)

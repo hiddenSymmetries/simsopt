@@ -63,7 +63,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi, theta_resolution=surf.quadpoints_theta.size)
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
         
         surf.least_squares_fit(gamma)
         return surf
