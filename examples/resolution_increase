@@ -51,8 +51,8 @@ for step in range(3):
     max_mode = step + 1
     
     # VMEC's mpol & ntor will be 3, 4, 5:
-    vmec.mpol = 3 + step
-    vmec.ntor = vmec.mpol
+    vmec.indata.mpol = 3 + step
+    vmec.indata.ntor = vmec.indata.mpol
 
     # booz_xform's mpol & ntor will be 16, 24, 32:
     boozer.mpol = 16 + step * 8
@@ -60,7 +60,7 @@ for step in range(3):
     
     if mpi.proc0_world:
         print("Beginning optimization with max_mode =", max_mode, \
-              ", vmec mpol=ntor=", vmec.mpol, \
+              ", vmec mpol=ntor=", vmec.indata.mpol, \
               ", boozer mpol=ntor=", boozer.mpol, \
               ". Previous vmec iteration = ", vmec.iter)
 
