@@ -131,7 +131,7 @@ class ToroidalFluxTests(unittest.TestCase):
 
 
 class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
-    def test_NonQuasiSymmetricComponentPenalty(self):
+    def test_NonQuasiSymmetricComponentPenalty_by_surfacecoefficients(self):
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
@@ -139,4 +139,25 @@ class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
         
         non_qs = NonQuasiSymmetricComponentPenalty(s, bs, N = 0)
         coeffs = s.get_dofs()
-
+        def f(dofs):
+            s.set_dofs(dofs)
+            return non_qs.J()
+        def df(dofs):
+            s.set_dofs(dofs)
+            return non_qs.dJ_by_dsurfacecoefficients() 
+        taylor_test1(f, df, coeffs )
+    def test_NonQuasiSymmetricComponentPenalty_by_coilcoefficients(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        s = get_exact_surface()
+        
+        non_qs = NonQuasiSymmetricComponentPenalty(s, bs, N = 0)
+        coeffs = coils.get_dofs()
+        def f(dofs):
+            coils.set_dofs(dofs)
+            return non_qs.J()
+        def df(dofs):
+            coils.set_dofs(dofs)
+            return non_qs.dJ_by_dsurfacecoefficients() 
+        taylor_test1(f, df, coeffs )

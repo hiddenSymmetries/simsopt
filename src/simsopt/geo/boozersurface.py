@@ -490,3 +490,35 @@ class BoozerSurface():
             "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
         }
         return res
+
+    def exact_adjoint(self, rhs):
+        from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+        s = self.surface
+        if not isinstance(s, SurfaceXYZTensorFourier):
+            raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
+
+        m = s.get_stellsym_mask()
+        mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
+        if s.stellsym:
+            mask[0, 0, 0] = False
+        mask = mask.flatten()
+
+        label = self.label
+        if G is None:
+            G = 2. * np.pi * np.sum(np.abs(self.bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+        if s.stellsym:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+            ))
+        else:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
+            ))
+        adj = np.linalg.solve(J.T, rhs)
+        adj += np.linalg.solve(J, rhs-J@adj)
+        return adj
+

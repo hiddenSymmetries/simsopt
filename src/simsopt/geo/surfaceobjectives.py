@@ -221,8 +221,8 @@ class NonQuasiSymmetricComponentPenalty(object):
     where modB_QS    = ifft2(quasisymmetric harmonics)
     and   modB_nonQS = ifft2(nonquasisymmetric harmonics)
 
-    The quasisymmetric harmonics have indices (n,m) = (m * N, m) and the non quasisymmetric
-    harmonics have indices (n,m) != (m * N , m)
+    The quasisymmetric harmonics have indices (n,m) = (m*N,m) and the non quasisymmetric
+    harmonics have indices (n,m) != (m*N,m)
 
     This penalty term returns J = 0.5\int_{surface} modB_nonQS^2 dS and its derivatives with respect
     to the surface degrees of freedom.
@@ -273,6 +273,24 @@ class NonQuasiSymmetricComponentPenalty(object):
 
         J = 0.5 * np.mean( dS * non_qs_func**2 )
         return J
+    def dJ_by_dB(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        dmodB_dB = B / modB
+
+        dnon_qs_func_dB = np.fft.irfft2(np.fft.rfft2(dmodB_dB, axes=(0,1)) * self.nqs_filter[...,None], axes=(0,1), s=modB.shape)
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        dJ_by_dB = 0.5 * np.mean( dS * dnon_qs_func_dB**2, axis =(0,1) )
+        return dJ_by_dB
+    
+    def dJ_by_dcoilcoefficients(self):
+        return self.biotsavart.B_vjp(self.dJ_by_dB)
 
     def dJ_by_dsurfacecoefficients(self):
         nphi = self.surface.quadpoints_phi.size
@@ -300,7 +318,6 @@ class NonQuasiSymmetricComponentPenalty(object):
         dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
                          + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
         return dJ_dc
-
 
 
 
