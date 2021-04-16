@@ -18,19 +18,19 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({nsources, 3});
 
-    auto pointsx = vector_type(points.shape(0), 0);
-    auto pointsy = vector_type(points.shape(0), 0);
-    auto pointsz = vector_type(points.shape(0), 0);
-    for (int i = 0; i < points.shape(0); ++i) {
-        pointsx[i] = points(i, 0);
-        pointsy[i] = points(i, 1);
-        pointsz[i] = points(i, 2);
-    }
     auto B = xt::xarray<double>::from_shape({points.shape(0), 3});
     auto dB_by_dX = xt::xarray<double>::from_shape({points.shape(0), 3, 3});
     auto d2B_by_dXdX = xt::xarray<double>::from_shape({points.shape(0), 3, 3, 3});
     int n = int(1e8/(nsources*ntargets));
 
+    auto pointsx = vector_type(ntargets, 0);
+    auto pointsy = vector_type(ntargets, 0);
+    auto pointsz = vector_type(ntargets, 0);
+    for (int j = 0; j < ntargets; ++j) {
+        pointsx[j] = points(j, 0);
+        pointsy[j] = points(j, 1);
+        pointsz[j] = points(j, 2);
+    }
     uint64_t tick = rdtsc();  // tick before
     auto t1 = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < n; ++i) {
