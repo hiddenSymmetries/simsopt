@@ -7,7 +7,8 @@ considering a vacuum field. For this example we will use the SPEC code
 with a single radial domain. The geometry comes from a quasi-helically
 symmetric configuration developed at the University of Wisconsin. We
 will eliminate the islands by minimizing an objective function
-involving Greene's residue for several O-points and X-points.
+involving Greene's residue for several O-points and X-points, similar
+to the approach of Hanson and Cary (1984).
 """
 
 import numpy as np
