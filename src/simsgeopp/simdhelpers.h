@@ -1,11 +1,34 @@
 #pragma once
+#include <iostream>
 
 #include <vector>
 using std::vector;
 
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
-using vector_type = std::vector<double, xs::aligned_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
+
+#include "xsimd/xsimd.hpp"
+
+// xsimd provides the 'aligned_allocator' which makes sure that objects are
+// aligned properly.  we extend this operator to align a bit more memory than
+// required, so tha twe definitely always have a multiple of the simd vector
+// size. that way we can use simd operations for the entire vector, and don't
+// have to special case the last few entries. this is used in biot_savart_kernel
+template <class T, size_t Align>
+class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
+    public:
+        T* allocate(size_t n, const void* hint = 0) {
+            int nn = (n + Align) - (n % Align); // round to next highest multiple of Align
+            T* res = reinterpret_cast<T*>(xsimd::detail::xaligned_malloc(sizeof(T) * nn, Align));
+            if (res == nullptr)
+                throw std::bad_alloc();
+            memset(res, 0, sizeof(T) * nn);
+            return res;
+        }
+};
+
+
+using vector_type = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 
 #include <Eigen/Core>
