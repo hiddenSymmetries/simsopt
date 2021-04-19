@@ -3,14 +3,18 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides two main functions, fd_jac_mpi and
-least_squares_mpi_solve. Also included are some functions that help in
+This module provides two main functions, 
+:meth:`~simsopt.solve.mpi_solve.fd_jac_mpi()`
+and
+:meth:`~simsopt.solve.mpi_solve.least_squares_mpi_solve()`.
+Also included are some functions that help in
 the operation of these main functions.
 """
 
 import logging
 from datetime import datetime
 from time import time
+import traceback
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -20,6 +24,9 @@ try:
 except ImportError as err:
     MPI = None
 
+import simsopt.core.dofs
+import simsopt.util.mpi
+
 logger = logging.getLogger(__name__)
 
 # Constants for signaling to workers what task to do:
@@ -27,7 +34,7 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
-def mpi_leaders_task(mpi, dofs, data):
+def _mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
     MpiPartition.leaders_loop() receives a signal to do something.
@@ -35,7 +42,7 @@ def mpi_leaders_task(mpi, dofs, data):
     We have to take a "data" argument, but there is only 1 task we
     would do, so we don't use it.
     """
-    logger.debug('mpi_leaders_task')
+    logger.debug('_mpi_leaders_task')
 
     # x is a buffer for receiving the state vector:
     x = np.empty(dofs.nparams, dtype='d')
@@ -49,12 +56,12 @@ def mpi_leaders_task(mpi, dofs, data):
     fd_jac_mpi(dofs, mpi)
 
 
-def mpi_workers_task(mpi, dofs, data):
+def _mpi_workers_task(mpi, dofs, data):
     """
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
     """
-    logger.debug('mpi_workers_task')
+    logger.debug('_mpi_workers_task')
 
     # x is a buffer for receiving the state vector:
     x = np.empty(dofs.nparams, dtype='d')
@@ -73,18 +80,24 @@ def mpi_workers_task(mpi, dofs, data):
             dofs.f()
         except:
             logger.info("Exception caught by worker during dofs.f()")
+            traceback.print_exc()  # Print traceback
 
     elif data == CALCULATE_JAC:
         try:
             dofs.jac()
         except:
             logger.info("Exception caught by worker during dofs.jac()")
+            traceback.print_exc()  # Print traceback
 
     else:
         raise ValueError('Unexpected data in worker_loop')
 
 
-def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
+def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
+               mpi: simsopt.util.mpi.MpiPartition,
+               x: np.ndarray = None,
+               eps: float = 1e-7,
+               centered: bool = False) -> tuple:
     """
     Compute the finite-difference Jacobian of the functions in dofs
     with respect to all non-fixed degrees of freedom. Parallel
@@ -95,8 +108,6 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     first get_dofs() will be called for each object to set the
     global state vector to x.
 
-    The mpi argument should be an MpiPartition.
-
     There are 2 ways to call this function. In method 1, all procs
     (including workers) call this function (so mpi.is_apart is
     False). In this case, the worker loop will be started
@@ -105,18 +116,34 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     in least_squares_mpi_solve(). Then only the group leaders
     call this function.
 
-    This function returns a 3-tuple. The first entry is the
-    Jacobian. The second entry is a matrix, the columns of which give
-    all the values of x at which the functions were evaluated. The
-    third entry is a matrix, the colums of which give the
-    corresponding values of the functions.
+    Args:
+        dofs: The map from :math:`\mathbb{R}^n \\to \mathbb{R}^m` for which you
+          want to compute the Jacobian.
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
+          the information about how the pool of MPI processes is
+          divided into worker groups.
+        x: The 1D state vector at which you wish to evaluate the Jacobian.
+          If ``None``, the Jacobian will be evaluated at the present
+          state vector.
+        eps: Step size for finite differences.
+        centered: If ``True``, centered finite differences will be used.
+          If ``false``, one-sided finite differences will be used.
+
+    Returns: 
+        tuple containing
+
+        - **jac** (*numpy.ndarray*) -- The Jacobian matrix.
+        - **xmat** (*numpy.ndarray*) -- A matrix, the columns of which give
+          all the values of x at which the functions were evaluated.
+        - **fmat** (*numpy.ndarray*) -- A matrix, the columns of which give
+          the corresponding values of the functions.
     """
     if MPI is None:
         raise RuntimeError("fd_jac_mpi requires the mpi4py package.")
 
     apart_at_start = mpi.is_apart
     if not apart_at_start:
-        mpi.worker_loop(lambda mpi2, data: mpi_workers_task(mpi2, dofs, data))
+        mpi.worker_loop(lambda mpi2, data: _mpi_workers_task(mpi2, dofs, data))
     if not mpi.proc0_groups:
         return (None, None, None)
 
@@ -178,6 +205,7 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
                 f = dofs.f()
             except:
                 logger.info("Exception caught during function evaluation")
+                traceback.print_exc()  # Print traceback
                 f = np.full(prob.dofs.nvals, 1.0e12)
                 
             if evals is None and mpi.proc0_world:
@@ -213,18 +241,31 @@ def fd_jac_mpi(dofs, mpi, x=None, eps=1e-7, centered=False):
     return jac, xs, evals
 
 
-def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
+def least_squares_mpi_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+                            mpi: simsopt.util.mpi.MpiPartition,
+                            grad: bool = None,
+                            **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
     MPI. All MPI processes (including group leaders and workers)
     should call this function.
 
-    prob should be an instance of LeastSquaresProblem.
-
-    mpi should be an instance of MpiPartition.
-
-    kwargs allows you to pass any arguments to scipy.optimize.minimize.
+    Args:
+        prob: An instance of LeastSquaresProblem, defining the objective function(s) and parameter space.
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
+          the information about how the pool of MPI processes is
+          divided into worker groups.
+        grad: Whether to use a gradient-based optimization algorithm, as opposed to a gradient-free algorithm.
+          If unspecified, a gradient-based algorithm will be used if ``prob`` has gradient information available,
+          otherwise a gradient-free algorithm will be used by default. If you set ``grad=True`` for a problem in
+          which gradient information is not available, finite-difference gradients will be used.
+        kwargs: Any arguments to pass to 
+          `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_. 
+          For instance,
+          you can supply ``max_nfev=100`` to set the maximum number of function evaluations (not counting
+          finite-difference gradient evaluations) to 100. Or, you can supply ``method`` to choose the optimization algorithm.
     """
+    
     if MPI is None:
         raise RuntimeError("least_squares_mpi_solve requires the mpi4py package.")
     
@@ -258,6 +299,7 @@ def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
         except:
             f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
             logger.info("Exception caught during function evaluation.")
+            traceback.print_exc()  # Print traceback
 
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
@@ -364,8 +406,8 @@ def least_squares_mpi_solve(prob, mpi, grad=None, **kwargs):
     # End of _jac_proc0
     
     # Send group leaders and workers into their respective loops:
-    leaders_action = lambda mpi2, data: mpi_leaders_task(mpi, prob.dofs, data)
-    workers_action = lambda mpi2, data: mpi_workers_task(mpi, prob.dofs, data)
+    leaders_action = lambda mpi2, data: _mpi_leaders_task(mpi, prob.dofs, data)
+    workers_action = lambda mpi2, data: _mpi_workers_task(mpi, prob.dofs, data)
     mpi.apart(leaders_action, workers_action)
 
     if mpi.proc0_world:
