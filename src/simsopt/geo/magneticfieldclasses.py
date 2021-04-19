@@ -8,7 +8,6 @@ try:
     sympy_found = True
 except ImportError:
     sympy_found = False
-    pass
 
 class ToroidalField(MagneticField):
     '''Magnetic field purely in the toroidal direction, that is, in the phi direction with (R,phi,Z) the standard cylindrical coordinates.
@@ -149,8 +148,8 @@ class CircularCoil(MagneticField):
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
         beta = np.sqrt(self.r0**2 + np.square(r) + 2*self.r0*rho)
         k = np.sqrt(1-np.divide(np.square(alpha), np.square(beta)))
-        ellipek2=[ellipe(k[i]**2) for i, point in enumerate(points)]
-        ellipkk2=[ellipk(k[i]**2) for i, point in enumerate(points)]
+        ellipek2=ellipe(k**2)
+        ellipkk2=ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
         self._B = np.dot(self.rotMatrixInv, np.array([
             [self.Inorm*point[0]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipek2[i]-alpha[i]**2*ellipkk2[i]),
