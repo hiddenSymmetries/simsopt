@@ -10,10 +10,11 @@ build/
 build-cmake/
 dist/
 pip-wheel-metadata/
-src/SIMSOPT.egg-info/
+*simsopt.egg-info/
 .DS_Store
 .coverage
 .tox
+*fort.9
 	
 # f90wrap related
 src.*/
@@ -40,6 +41,10 @@ spec*.sp.h5
 
 # examples
 examples/VMEC/
+examples/*.log
 
 # Sphinx related files
 docs/build/
+
+# IDE
+.idea

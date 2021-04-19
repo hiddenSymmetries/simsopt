@@ -6,7 +6,7 @@ import logging
 import logging.config
 from pathlib import Path
 
-from monty.serialization import loadfn
+from ruamel.yaml import YAML
 try:
     from mpilogger import MPILogHandler
 except:
@@ -14,7 +14,8 @@ except:
 
 
 def initialize_logging(filename=None, level=None, mpi=False):
-    config_dict = loadfn(Path(__file__).parent / 'log_config.yaml')
+    yaml = YAML(typ='safe')
+    config_dict = yaml.load(Path(__file__).parent / 'log_config.yaml')
     if filename:
         config_dict['handlers']['file_handler'].update({'filename': filename})
         config_dict['handlers']['mpi_file_handler'].update({'logfile': filename})
