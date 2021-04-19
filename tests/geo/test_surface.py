@@ -205,11 +205,11 @@ class SurfaceXYZFourierTests(unittest.TestCase):
             Z = cs[i, :, 2]
             Rp = fftpack.diff(R, period=1.)
             Zp = fftpack.diff(Z, period=1.)
-            cs_area[i] = np.mean(Z*Rp) 
+            cs_area[i] = np.abs( np.mean(Z*Rp) )
         exact_area = np.pi * minor_R**2.
-       
+        
         # check that the cross sectional area is what we expect
-        assert np.max(np.abs(cs_area - cs_area)) < 1e-14
+        assert np.max(np.abs(cs_area - exact_area)) < 1e-14
         # check that the angle error is what we expect
         assert max_angle_error < 1e-12
 
