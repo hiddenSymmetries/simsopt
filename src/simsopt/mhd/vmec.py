@@ -8,6 +8,7 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
+from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
@@ -71,9 +72,64 @@ reset_jacdt_flag = 32
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
+
+    The input parameters to VMEC are all accessible as attributes of
+    the ``indata`` attribute. For example, if ``vmec`` is an instance
+    of ``Vmec``, then you can read or write the input resolution
+    parameters using ``vmec.indata.mpol``, ``vmec.indata.ntor``,
+    ``vmec.indata.ns_array``, etc. However, the boundary surface is
+    different: ``rbc``, ``rbs``, ``zbc``, and ``zbs`` from the
+    ``indata`` attribute are always ignored, and these arrays are
+    instead taken from the simsopt surface object associated to the
+    ``boundary`` attribute. If ``boundary`` is a surface based on some
+    other representation than VMEC's Fourier representation, the
+    surface will automatically be converted to VMEC's representation
+    (:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
+    each run of VMEC. You can replace ``boundary`` with a new surface
+    object, of any type that implements the conversion function
+    ``to_RZFourier()`.
+
+    VMEC is run either when the :meth:`run()` function is called, or when
+    any of the output functions like :meth:`aspect()` or :meth:`iota_axis()`
+    are called.
+
+    A caching mechanism is implemented, using the attribute
+    ``need_to_run_code``. Whenever VMEC is run, this attribute is set
+    to ``False``. Subsequent calls to :meth:`run()` or output
+    functions like :meth:`aspect()` will not actually run VMEC again,
+    until ``need_to_run_code`` is changed to ``True``. The attribute
+    ``need_to_run_code`` is automatically set to ``True`` whenever
+    :meth:`set_dofs()` is called. However, ``need_to_run_code`` is not
+    automatically set to ``True`` when entries of ``indata`` are
+    modified, or when ``boundary`` is modified.
+
+    Once VMEC has run at least once, all of the quantities in the
+    ``wout`` output file are available as attributes of the ``wout``
+    attribute.  For example, if ``vmec`` is an instance of ``Vmec``,
+    then the flux surface shapes can be obtained from
+    ``vmec.wout.rmnc`` and ``vmec.wout.zmns``.
+
+    Since the underlying fortran implementation of VMEC uses global
+    module variables, it is not possible to have more than one python
+    Vmec object with different parameters; changing the parameters of
+    one would change the parameters of the other.
+
+    An instance of this class owns just a few optimizable degrees of
+    freedom, particularly ``phiedge`` and ``curtor``. The optimizable
+    degrees of freedom associated with the boundary surface are owned
+    by that surface object.
+
+    Args:
+        filename: Name of a VMEC input file to use for loading the 
+          initial parameters. If ``None``, default parameters will be used.
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
+          the worker groups will be used for VMEC calculations. If ``None``,
+          each MPI process will run VMEC independently.
     """
 
-    def __init__(self, filename=None, mpi=None):
+    def __init__(self,
+                 filename: Union[str, None] = None,
+                 mpi: Union[MpiPartition, None] = None):
         """
         Constructor
         """
@@ -123,33 +179,21 @@ class Vmec(Optimizable):
                                "error code {}".format(filename, ierr))
 
         objstr = " for Vmec " + str(hex(id(self)))
-        # nfp and stellsym are initialized by the Equilibrium constructor:
-        # Equilibrium.__init__(self)
 
         # Create an attribute for each VMEC input parameter in VMEC's fortran
         # modules,
+        self.indata = vmec.vmec_input  # Shorthand
         vi = vmec.vmec_input  # Shorthand
-        self.nfp = vi.nfp
-        self.stellsym = not vi.lasym
-        # It probably makes sense for a vmec object to have mpol and
-        # ntor attributes independent of the boundary, since the
-        # boundary may be a kind of surface that does not use the same
-        # Fourier representation. But if the surface is a
-        # SurfaceRZFourier, how then should the mpol and ntor of this
-        # surface be coordinated with the mpol and ntor of the Vmec
-        # object?
-        self.mpol = vi.mpol
-        self.ntor = vi.ntor
-        self.delt = vi.delt
-        self.tcon0 = vi.tcon0
-        self.phiedge = vi.phiedge
-        self.curtor = vi.curtor
-        self.gamma = vi.gamma
-        self.boundary = optimizable(SurfaceRZFourier(nfp=self.nfp,
-                                                     stellsym=self.stellsym,
-                                                     mpol=self.mpol,
-                                                     ntor=self.ntor))
-        self.ncurr = vi.ncurr
+        # A vmec object has mpol and ntor attributes independent of
+        # the boundary. The boundary surface object is initialized
+        # with mpol and ntor values that match those of the vmec
+        # object, but the mpol/ntor values of either the vmec object
+        # or the boundary surface object can be changed independently
+        # by the user.
+        self.boundary = SurfaceRZFourier(nfp=vi.nfp,
+                                         stellsym=not vi.lasym,
+                                         mpol=vi.mpol,
+                                         ntor=vi.ntor)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:
@@ -165,20 +209,21 @@ class Vmec(Optimizable):
         self.names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
 
     def get_dofs(self):
-        return np.array(
-            [self.delt, self.tcon0, self.phiedge, self.curtor, self.gamma])
+        return np.array([self.indata.delt, self.indata.tcon0,
+                         self.indata.phiedge, self.indata.curtor,
+                         self.indata.gamma])
 
     def set_dofs(self, x):
         self.need_to_run_code = True
-        self.delt = x[0]
-        self.tcon0 = x[1]
-        self.phiedge = x[2]
-        self.curtor = x[3]
-        self.gamma = x[4]
+        self.indata.delt = x[0]
+        self.indata.tcon0 = x[1]
+        self.indata.phiedge = x[2]
+        self.indata.curtor = x[3]
+        self.indata.gamma = x[4]
 
     def run(self):
         """
-        Run VMEC, if needed.
+        Run VMEC, if ``need_to_run_code`` is ``True``.
         """
         if not self.need_to_run_code:
             logger.info("run() called but no need to re-run VMEC.")
@@ -186,28 +231,24 @@ class Vmec(Optimizable):
         logger.info("Preparing to run VMEC.")
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = vmec.vmec_input  # Shorthand
-        vi.nfp = self.nfp
-        vi.lasym = int(not self.stellsym)
-        vi.delt = self.delt
-        vi.phiedge = self.phiedge
-        vi.curtor = self.curtor
-        vi.gamma = self.gamma
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
         # VMEC does not allow mpol or ntor above 101:
-        mpol_capped = np.min((boundary_RZFourier.mpol, 101))
-        ntor_capped = np.min((boundary_RZFourier.ntor, 101))
-        vi.mpol = mpol_capped
-        vi.ntor = ntor_capped
+        if vi.mpol > 101:
+            raise RuntimeError("VMEC does not allow mpol > 101")
+        if vi.ntor > 101:
+            raise RuntimeError("VMEC does not allow ntor > 101")
         vi.rbc[:, :] = 0
         vi.zbs[:, :] = 0
+        mpol_capped = np.min([boundary_RZFourier.mpol, 101])
+        ntor_capped = np.min([boundary_RZFourier.ntor, 101])
         # Transfer boundary shape data from the surface object to VMEC:
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
                 vi.rbc[101 + n, m] = boundary_RZFourier.get_rc(m, n)
                 vi.zbs[101 + n, m] = boundary_RZFourier.get_zs(m, n)
 
-        # Set axis shape to something that is obvious wrong (R=0) to
+        # Set axis shape to something that is obviously wrong (R=0) to
         # trigger vmec's internal guess_axis.f to run. Otherwise the
         # initial axis shape for run N will be the final axis shape
         # from run N-1, which makes VMEC results depend slightly on
@@ -224,6 +265,12 @@ class Vmec(Optimizable):
         self.output_file = os.path.join(
             os.getcwd(),
             os.path.basename(input_file).replace('input.', 'wout_') + '.nc')
+        mercier_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(input_file).replace('input.', 'mercier.'))
+        jxbout_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(input_file).replace('input.', 'jxbout_') + '.nc')
 
         # I should write an input file here.
         logger.info("Calling VMEC reinit().")
@@ -251,9 +298,30 @@ class Vmec(Optimizable):
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
         logger.info("Done loading VMEC output.")
+
+        # Delete some files produced by VMEC that we never care
+        # about. For some reason the os.remove statements give a 'file
+        # not found' error in the CI, hence the try-except blocks.
+        try:
+            os.remove(mercier_file)
+        except:
+            pass
+        try:
+            os.remove(jxbout_file)
+        except:
+            pass
+        try:
+            os.remove("fort.9")
+        except:
+            pass
+            
         self.need_to_run_code = False
 
     def load_wout(self):
+        """
+        Read in the most recent ``wout`` file created, and store all the
+        data in a ``wout`` attribute of this Vmec object.
+        """
         ierr = 0
         logger.info("Attempting to read file " + self.output_file)
         # vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
@@ -278,31 +346,46 @@ class Vmec(Optimizable):
         #assert len(wout.xn_nyq) == wout.mnmax_nyq
 
         f = netcdf.netcdf_file(self.output_file, mmap=False)
-        self.wout.ier_flag = f.variables['ier_flag'][()]
+        for key, val in f.variables.items():
+            # 2D arrays need to be transposed.
+            val2 = val[()] # Convert to numpy array
+            val3 = val2.T if len(val2.shape) == 2 else val2
+            self.wout.__setattr__(key, val3)
+            
+        #self.wout.ier_flag = f.variables['ier_flag'][()]
         if self.wout.ier_flag != 0:
             logger.info("VMEC did not succeed!")
             raise RuntimeError("VMEC did not succeed")
-        self.wout.nfp = f.variables['nfp'][()]
+
+        # Shorthand for a long variable name:
         self.wout.lasym = f.variables['lasym__logical__'][()]
-        self.wout.ns = f.variables['ns'][()]
-        self.wout.mnmax = f.variables['mnmax'][()]
-        self.wout.mnmax_nyq = f.variables['mnmax_nyq'][()]
-        self.wout.xm = f.variables['xm'][()]
-        self.wout.xn = f.variables['xn'][()]
-        self.wout.xm_nyq = f.variables['xm_nyq'][()]
-        self.wout.xn_nyq = f.variables['xn_nyq'][()]
-        self.wout.mpol = f.variables['mpol'][()]
-        self.wout.ntor = f.variables['ntor'][()]
-        self.wout.bmnc = f.variables['bmnc'][()].transpose()
-        self.wout.rmnc = f.variables['rmnc'][()].transpose()
-        self.wout.zmns = f.variables['zmns'][()].transpose()
-        self.wout.lmns = f.variables['lmns'][()].transpose()
-        self.wout.bsubumnc = f.variables['bsubumnc'][()].transpose()
-        self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
-        self.wout.iotas = f.variables['iotas'][()]
-        self.wout.iotaf = f.variables['iotaf'][()]
-        self.wout.aspect = f.variables['aspect'][()]
-        self.wout.volume = f.variables['volume_p'][()]
+        self.wout.volume = self.wout.volume_p
+
+        #self.wout.ier_flag = f.variables['ier_flag'][()]
+        #if self.wout.ier_flag != 0:
+        #    logger.info("VMEC did not succeed!")
+        #    raise RuntimeError("VMEC did not succeed")
+        #self.wout.nfp = f.variables['nfp'][()]
+        #self.wout.lasym = f.variables['lasym__logical__'][()]
+        #self.wout.ns = f.variables['ns'][()]
+        #self.wout.mnmax = f.variables['mnmax'][()]
+        #self.wout.mnmax_nyq = f.variables['mnmax_nyq'][()]
+        #self.wout.xm = f.variables['xm'][()]
+        #self.wout.xn = f.variables['xn'][()]
+        #self.wout.xm_nyq = f.variables['xm_nyq'][()]
+        #self.wout.xn_nyq = f.variables['xn_nyq'][()]
+        #self.wout.mpol = f.variables['mpol'][()]
+        #self.wout.ntor = f.variables['ntor'][()]
+        #self.wout.bmnc = f.variables['bmnc'][()].transpose()
+        #self.wout.rmnc = f.variables['rmnc'][()].transpose()
+        #self.wout.zmns = f.variables['zmns'][()].transpose()
+        #self.wout.lmns = f.variables['lmns'][()].transpose()
+        #self.wout.bsubumnc = f.variables['bsubumnc'][()].transpose()
+        #self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
+        #self.wout.iotas = f.variables['iotas'][()]
+        #self.wout.iotaf = f.variables['iotaf'][()]
+        #self.wout.aspect = f.variables['aspect'][()]
+        #self.wout.volume = f.variables['volume_p'][()]
         f.close()
 
         return ierr
@@ -365,6 +448,7 @@ class Vmec(Optimizable):
         """
         Print the object in an informative way.
         """
-        return "Vmec instance " + str(hex(id(self))) + " (nfp=" + \
-               str(self.nfp) + " mpol=" + \
-               str(self.mpol) + " ntor=" + str(self.ntor) + ")"
+        return "Vmec instance " + str(hex(id(self))) \
+            + " (nfp=" + str(self.indata.nfp) \
+            + " mpol=" + str(self.indata.mpol) \
+            + " ntor=" + str(self.indata.ntor) + ")"
