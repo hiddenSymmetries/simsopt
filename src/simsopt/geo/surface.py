@@ -152,42 +152,68 @@ class Surface(Optimizable):
         return cross_section
 
     def aspect_ratio(self):
-        """
-        Note: cylindrical coordinates are                  (R, phi, Z)
-              angles that parametrize the surface are      (varphi, theta)
-       
+        r"""
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`
+        angles that parametrize the surface are :math:`(\varphi, \theta)`
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
-        AR = R_major / R_minor
-        where R_major = (volume enclosed by surface) / (2 pi^2 * R_minor^2)
-              R_minor = sqrt[ (mean cross sectional area) / pi ]
+        
+        .. math::
+            AR = R_{\text{major}} / R_{\text{minor}}
+        
+        where 
+
+        .. math::
+            R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
+            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
+        
+        and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
+        average cross sectional area.
         The main difficult part of this calculation is the (mean cross sectional
         area).  This is given by the integral
-        (mean cross sectional area) = 1/(2*pi)\int^{2 pi}_{0} \int_{S_phi} dS dphi
-        where S_phi is the cross section of the surface at the cylindrical angle phi.
-        Note that \int_{S_\phi} dS can be rewritten as a line integral using the divergence
-        theorem
-        \int_{S_phi}dS = \int_{S_phi} dR dZ 
-                       = \int_{\partial S_phi} nabla_{R,Z} \cdot [R,0] \cdot n dl 
-                       where n = [n_R, n_Z] is the outward pointing normal
-                       = \int_{\partial S_phi} R * n_R dl
-        Consider the surface written in cylindrical coordinates in terms of its angles
-        [R(varphi,theta), phi(varphi,theta), Z(varphi,theta)].  \partial S_phi is given by the
-        points theta->[R(varphi(phi,theta),theta), Z(varphi(phi,theta),theta)] for fixed
-        phi.  The cross sectional area of S_phi becomes
-                       = \int^{2pi}_{0} R(varphi(phi,theta),theta)
-                                        d/dtheta[Z(varphi(phi,theta),theta)] dtheta
-        Now, substituting this into the formula for the mean cross sectional area, we have
-        1/(2*pi)\int^{2 pi}_{0}\int^{2pi}_{0} R(varphi(phi,theta),theta)
-                                        d/dtheta[Z(varphi(phi,theta),theta)] dtheta dphi
-        Instead of integrating over cylindrical phi, let's complete the change of variables and
-        integrate over varphi using the mapping:
         
-        [phi,theta] <- [atan2(y(varphi,theta), x(varphi,theta)), theta]
+        .. math::
+            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0} \int_{S_{\phi}} ~dS ~d\phi
+        
+        where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
+        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral using the divergence
+        theorem
+
+        .. math::
+            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
+            &= \int_{\partial S_\phi} \nabla_{R,Z} \cdot [R,0] \cdot \mathbf n ~dl \\ 
+            &= \int_{\partial S_\phi} R n_R ~dl
+
+        where :math:`\mathbf n = [n_R, n_Z]` is the outward pointing normal
+
+        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
+        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
+        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi, 
+        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
+
+        .. math::
+            \int^{2\pi}_{0} R(\varphi(\phi,\theta),\theta)
+            \frac{d}{d\theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
+
+        Now, substituting this into the formula for the mean cross sectional area, we have
+
+        .. math::
+            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2 \pi}_{0} R(\varphi(\phi,\theta),\theta)
+                \frac{d}{d\theta}[Z(\varphi(\phi,\theta),\theta)] ~d\phi ~d\theta 
+        
+        Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
+        integrate over :math:`\varphi` using the mapping:
+        
+        .. math::
+            [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
+
         After the change of variables, the integral becomes:
-        1/(2*pi)\int^{2 pi}_{0}\int^{2pi}_{0} R(varphi,theta) [dZ_dvarphi dvarphi_dtheta 
-                                                               + dZ_dtheta ] detJ dtheta dvarphi
-        where detJ is the determinant of the mapping's Jacobian.
+        
+        .. math::
+            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2\pi}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
+            \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial d \theta} \right] \text{det} J ~d\theta d\varphi
+
+        where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
         
         """
 
