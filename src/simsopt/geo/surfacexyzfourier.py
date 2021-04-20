@@ -6,7 +6,7 @@ from .surfacerzfourier import SurfaceRZFourier
 
 class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
     r"""
-    SurfaceXYZFourier is a surface that is represented in cartesian
+    SurfaceXYZFourier is a surface that is represented in Cartesian
     coordinates using the following Fourier series:
 
     .. math::
