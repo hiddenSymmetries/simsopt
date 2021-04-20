@@ -7,6 +7,8 @@ This module provides the LeastSquaresProblem class, as well as the
 associated class LeastSquaresTerm.
 """
 
+__all__ = ['LeastSquaresTerm', 'LeastSquaresProblem']
+
 import logging
 import warnings
 

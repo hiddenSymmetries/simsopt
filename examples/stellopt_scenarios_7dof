@@ -8,8 +8,8 @@ See that website for a detailed description of the problem.
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt.solve.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.mpi_solve import least_squares_mpi_solve
+from simsopt import LeastSquaresProblem
+from simsopt import least_squares_mpi_solve
 
 log()
 

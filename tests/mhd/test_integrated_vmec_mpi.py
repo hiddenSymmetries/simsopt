@@ -5,8 +5,8 @@ import numpy as np
 from mpi4py import MPI
 
 from simsopt.mhd.vmec import Vmec, vmec_found
-from simsopt.solve.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.mpi_solve import least_squares_mpi_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
 from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)

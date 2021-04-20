@@ -2,8 +2,8 @@ import unittest
 from pathlib import Path
 import numpy as np
 
-from simsopt.core.dofs import Dofs
-from simsopt.core.optimizable import optimizable
+from simsopt._core.dofs import Dofs
+from simsopt._core.optimizable import optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
