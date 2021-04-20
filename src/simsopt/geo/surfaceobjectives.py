@@ -27,6 +27,9 @@ class Area(object):
 
 
 class Volume(object):
+    """
+    Wrapper class for volume computation
+    """
     def __init__(self, surface):
         self.surface = surface
 
