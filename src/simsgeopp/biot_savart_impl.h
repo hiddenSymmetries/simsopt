@@ -72,7 +72,7 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
             MYIF(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
                 auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff*(3.*norm_diff_inv);
-                auto norm_diff = 1./norm_diff_inv;
+                auto norm_diff = norm_diff_2*norm_diff_inv;
                 auto dgamma_by_dphi_j_simd_norm_diff = dgamma_by_dphi_j_simd * norm_diff;
 #pragma unroll
                 for(int k=0; k<3; k++) {
