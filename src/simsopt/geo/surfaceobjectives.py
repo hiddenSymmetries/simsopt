@@ -126,16 +126,17 @@ class ToroidalFlux(object):
 
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
-    """
+    r"""
     For a given surface with points x on it, this function computes the
     residual
-
-        G*B_BS(x) - ||B_BS(x)||^2 * (x_phi + iota * x_theta)
+    
+    .. math::
+        G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
     iota, and G.
 
-    G is known for exact boozer surfaces, so if G=None is passed, then that
+    :math:`G` is known for exact boozer surfaces, so if :math:`G` = None is passed, then that
     value is used instead.
     """
 
