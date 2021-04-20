@@ -20,7 +20,7 @@ try:
 except ImportError as err:
     vmec_found = False
 
-from .._core.optimizable import Optimizable, optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import Struct
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..util.mpi import MpiPartition

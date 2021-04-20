@@ -1,1 +1,1 @@
-from .optimizable import Optimizable, optimizable
+from .optimizable import Optimizable, make_optimizable
