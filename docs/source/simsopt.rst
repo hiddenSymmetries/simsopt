@@ -7,9 +7,9 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   simsopt.core
    simsopt.geo
    simsopt.mhd
+   simsopt.objectives
    simsopt.solve
    simsopt.util
 
