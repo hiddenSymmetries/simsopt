@@ -52,10 +52,18 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.objectives module
------------------------------
+simsopt.geo.curveobjectives module
+----------------------------------
 
-.. automodule:: simsopt.geo.objectives
+.. automodule:: simsopt.geo.curveobjectives
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.surfaceobjectives module
+------------------------------------
+
+.. automodule:: simsopt.geo.surfaceobjectives
    :members:
    :undoc-members:
    :show-inheritance:
