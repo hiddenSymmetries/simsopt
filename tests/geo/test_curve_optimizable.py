@@ -6,9 +6,9 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt.core.optimizable import optimizable
-from simsopt.solve.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt._core.optimizable import optimizable
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 
 parameters['jit'] = False
 

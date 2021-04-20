@@ -1,12 +1,13 @@
 import unittest
 import logging
 
-from simsopt.core.functions import Identity, Rosenbrock
-from simsopt.core.optimizable import Target
-from simsopt.solve.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt.objectives.functions import Identity, Rosenbrock
+from simsopt._core.optimizable import Target
+from simsopt.objectives.least_squares import LeastSquaresProblem, \
+        LeastSquaresTerm
+from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.mpi import MpiPartition
-from simsopt.solve.mpi_solve import least_squares_mpi_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)

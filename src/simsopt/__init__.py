@@ -3,6 +3,12 @@
 # Import only the important classes that should be at top-level.
 # Follow the same logic in the sub-packages.
 # ===================END ATTENTION=============================================
+
+# Two ways of achieving the above-mentioned objective
+# Use "from xyz import XYZ" style
+# Define __all__ dunder at module and subpackage level. Then you could do 
+# "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is 
+# imported
   
 try:
     from importlib import metadata
@@ -12,4 +18,9 @@ except ImportError:
 
 __version__ = metadata.version('simsopt')
 
-#__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm', 'Surface', 'Target']
+from ._core import optimizable
+from .objectives import LeastSquaresTerm, LeastSquaresProblem
+from .solve import least_squares_serial_solve, least_squares_mpi_solve, fd_jac_mpi
+from .util import initialize_logging
+
+#__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
