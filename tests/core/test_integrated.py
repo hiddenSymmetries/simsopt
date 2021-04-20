@@ -6,7 +6,6 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.util.mpi import MpiPartition
-from simsopt import optimizable
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
 from simsopt import least_squares_mpi_solve

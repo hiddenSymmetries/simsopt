@@ -3,7 +3,6 @@
 import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt import optimizable
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
 

@@ -6,7 +6,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt._core.optimizable import optimizable
+from simsopt._core.optimizable import make_optimizable
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 
@@ -36,7 +36,7 @@ class Testing(unittest.TestCase):
 
         # Presently in simsgeo, the length objective is a separate object
         # rather than a function of Curve itself.
-        obj = optimizable(CurveLength(curve))
+        obj = make_optimizable(CurveLength(curve))
 
         # For now, we need to add this attribute to CurveLength. Eventually
         # this would hopefully be done in simsgeo, but for now I'll put it here.
