@@ -15,9 +15,9 @@ import warnings
 import numpy as np
 from scipy.optimize import least_squares
 
-from ..core.dofs import Dofs
-from ..core.util import isnumber
-from ..core.optimizable import function_from_user, Target
+from .._core.dofs import Dofs
+from .._core.util import isnumber
+from .._core.optimizable import function_from_user, Target
 
 logger = logging.getLogger(__name__)
 
