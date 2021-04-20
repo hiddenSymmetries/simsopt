@@ -1,8 +1,8 @@
 from jax import grad, vjp
 import jax.numpy as jnp
-import numpy as np
 from .jit import jit
-from simsopt.core.optimizable import Optimizable
+
+from .._core.optimizable import Optimizable
 
 @jit
 def curve_length_pure(l):
