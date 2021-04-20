@@ -1,6 +1,7 @@
-from .curve import Curve
 import numpy as np
+
 import simsgeopp as sgpp
+from .curve import Curve
 
 
 class CurveRZFourier(sgpp.CurveRZFourier, Curve):
