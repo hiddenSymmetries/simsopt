@@ -254,12 +254,12 @@ class NonQuasiSymmetricComponentPenalty(object):
         self.nqs_filter = non_qs_filter
         self.qs_filter = qs_filter
 
-        def get_op_col(in_vec):
-            modB = in_vec.reshape( (surface.gamma().shape[0], surface.gamma().shape[1]) )
-            return np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s=modB.shape).flatten()
-        
         nphi = surface.gamma().shape[0]
         ntheta = surface.gamma().shape[1]
+        def get_op_col(in_vec):
+            modB = in_vec.reshape( (nphi,ntheta) )
+            return np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s=modB.shape).flatten()
+        
         self.op_mat = np.zeros( (nphi*ntheta,nphi*ntheta) )
         for i in range(nphi*ntheta):
             ei = np.zeros( (nphi*ntheta,) )
@@ -295,12 +295,13 @@ class NonQuasiSymmetricComponentPenalty(object):
         
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
         dmodB_dB = (B / modB[...,None]).reshape( (-1,3) )
-
+        
         nor = self.surface.normal()
         dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2).flatten()
         
+        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape).flatten()
         dnon_qs_func_dB = self.op_mat[...,None] * dmodB_dB[None,...]
-        dJ_by_dB = np.mean( dS[:,None,None] * dnon_qs_func_dB, axis = 0 )
+        dJ_by_dB = np.mean( dS[:,None,None] * non_qs_func[:,None,None] * dnon_qs_func_dB, axis = 0 )
 
         return dJ_by_dB
     
