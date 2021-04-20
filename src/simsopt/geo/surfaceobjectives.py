@@ -253,6 +253,19 @@ class NonQuasiSymmetricComponentPenalty(object):
         
         self.nqs_filter = non_qs_filter
         self.qs_filter = qs_filter
+
+        def get_op_col(in_vec):
+            modB = in_vec.reshape( (surface.gamma().shape[0], surface.gamma().shape[1]) )
+            return np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s=modB.shape).flatten()
+        
+        nphi = surface.gamma().shape[0]
+        ntheta = surface.gamma().shape[1]
+        self.op_mat = np.zeros( (nphi*ntheta,nphi*ntheta) )
+        for i in range(nphi*ntheta):
+            ei = np.zeros( (nphi*ntheta,) )
+            ei[i] = 1.
+            self.op_mat[:,i] = get_op_col(ei)
+        
     
     def invalidate_cache(self):
         x = self.surface.gamma().reshape((-1,3))
@@ -279,18 +292,22 @@ class NonQuasiSymmetricComponentPenalty(object):
 
         B = self.biotsavart.B()
         B = B.reshape( (nphi,ntheta,3) )
+        
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        dmodB_dB = B / modB
+        dmodB_dB = (B / modB[...,None]).reshape( (-1,3) )
 
-        dnon_qs_func_dB = np.fft.irfft2(np.fft.rfft2(dmodB_dB, axes=(0,1)) * self.nqs_filter[...,None], axes=(0,1), s=modB.shape)
         nor = self.surface.normal()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2).flatten()
+        
+        dnon_qs_func_dB = self.op_mat[...,None] * dmodB_dB[None,...]
+        dJ_by_dB = np.mean( dS[:,None,None] * dnon_qs_func_dB, axis = 0 )
 
-        dJ_by_dB = 0.5 * np.mean( dS * dnon_qs_func_dB**2, axis =(0,1) )
         return dJ_by_dB
     
     def dJ_by_dcoilcoefficients(self):
-        return self.biotsavart.B_vjp(self.dJ_by_dB)
+        dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
+        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+        return dJ_by_dcoils
 
     def dJ_by_dsurfacecoefficients(self):
         nphi = self.surface.quadpoints_phi.size

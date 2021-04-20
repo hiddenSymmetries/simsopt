@@ -30,7 +30,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         fpluseps = f(x + eps * direction)
         dfest = (fpluseps-f0)/eps
         err = np.linalg.norm(dfest - dfx)
-        print(err/err_old)
+        print(err/err_old, dfx, dfest)
         assert err < 0.55 * err_old
         err_old = err
     print("################################################################################")
@@ -59,54 +59,54 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
         err_old = err
     print("################################################################################")
 
-class ToroidalFluxTests(unittest.TestCase):
-    def test_toroidal_flux_is_constant(self):
-        # this test ensures that the toroidal flux does not change, regardless
-        # of the cross section (varphi = constant) across which it is computed
-        s = get_exact_surface()
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-        
-        gamma = s.gamma()
-        num_phi = gamma.shape[0]
-        
-        tf_list = np.zeros( (num_phi,) )
-        for idx in range(num_phi):
-            tf = ToroidalFlux(s, bs_tf,idx = idx)
-            tf_list[idx] = tf.J()
-        mean_tf = np.mean(tf_list)
-
-        max_err = np.max( np.abs(mean_tf - tf_list) ) / mean_tf
-        assert max_err < 1e-2
-
-    def test_toroidal_flux_first_derivative(self):
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux1(surfacetype,stellsym)
-    def test_toroidal_flux_second_derivative(self):
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux2(surfacetype,stellsym)
-
-    def subtest_toroidal_flux1(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-        s = get_surface(surfacetype, stellsym)
-        
-        tf = ToroidalFlux(s, bs_tf)
-        coeffs = s.get_dofs()
-        
-        def f(dofs):
-            s.set_dofs(dofs)
-            return tf.J()
-        def df(dofs):
-            s.set_dofs(dofs)
-            return tf.dJ_by_dsurfacecoefficients() 
-        taylor_test1(f, df, coeffs)
+#class ToroidalFluxTests(unittest.TestCase):
+#    def test_toroidal_flux_is_constant(self):
+#        # this test ensures that the toroidal flux does not change, regardless
+#        # of the cross section (varphi = constant) across which it is computed
+#        s = get_exact_surface()
+#        coils, currents, ma = get_ncsx_data()
+#        stellarator = CoilCollection(coils, currents, 3, True)
+#        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+#        
+#        gamma = s.gamma()
+#        num_phi = gamma.shape[0]
+#        
+#        tf_list = np.zeros( (num_phi,) )
+#        for idx in range(num_phi):
+#            tf = ToroidalFlux(s, bs_tf,idx = idx)
+#            tf_list[idx] = tf.J()
+#        mean_tf = np.mean(tf_list)
+#
+#        max_err = np.max( np.abs(mean_tf - tf_list) ) / mean_tf
+#        assert max_err < 1e-2
+#
+#    def test_toroidal_flux_first_derivative(self):
+#        for surfacetype in surfacetypes_list:
+#            for stellsym in stellsym_list:
+#                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
+#                    self.subtest_toroidal_flux1(surfacetype,stellsym)
+#    def test_toroidal_flux_second_derivative(self):
+#        for surfacetype in surfacetypes_list:
+#            for stellsym in stellsym_list:
+#                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
+#                    self.subtest_toroidal_flux2(surfacetype,stellsym)
+#
+#    def subtest_toroidal_flux1(self, surfacetype, stellsym):
+#        coils, currents, ma = get_ncsx_data()
+#        stellarator = CoilCollection(coils, currents, 3, True)
+#        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+#        s = get_surface(surfacetype, stellsym)
+#        
+#        tf = ToroidalFlux(s, bs_tf)
+#        coeffs = s.get_dofs()
+#        
+#        def f(dofs):
+#            s.set_dofs(dofs)
+#            return tf.J()
+#        def df(dofs):
+#            s.set_dofs(dofs)
+#            return tf.dJ_by_dsurfacecoefficients() 
+#        taylor_test1(f, df, coeffs)
  
     def subtest_toroidal_flux2(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()
@@ -131,33 +131,37 @@ class ToroidalFluxTests(unittest.TestCase):
 
 
 class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
-    def test_NonQuasiSymmetricComponentPenalty_by_surfacecoefficients(self):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        s = get_exact_surface()
-        
-        non_qs = NonQuasiSymmetricComponentPenalty(s, bs, N = 0)
-        coeffs = s.get_dofs()
-        def f(dofs):
-            s.set_dofs(dofs)
-            return non_qs.J()
-        def df(dofs):
-            s.set_dofs(dofs)
-            return non_qs.dJ_by_dsurfacecoefficients() 
-        taylor_test1(f, df, coeffs )
+#    def test_NonQuasiSymmetricComponentPenalty_by_surfacecoefficients(self):
+#        coils, currents, ma = get_ncsx_data()
+#        stellarator = CoilCollection(coils, currents, 3, True)
+#        bs = BiotSavart(stellarator.coils, stellarator.currents)
+#        s = get_exact_surface()
+#        
+#        non_qs = NonQuasiSymmetricComponentPenalty(s, bs, N = 0)
+#        coeffs = s.get_dofs()
+#        def f(dofs):
+#            s.set_dofs(dofs)
+#            return non_qs.J()
+#        def df(dofs):
+#            s.set_dofs(dofs)
+#            return non_qs.dJ_by_dsurfacecoefficients() 
+#        taylor_test1(f, df, coeffs )
     def test_NonQuasiSymmetricComponentPenalty_by_coilcoefficients(self):
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         s = get_exact_surface()
-        
+
         non_qs = NonQuasiSymmetricComponentPenalty(s, bs, N = 0)
-        coeffs = coils.get_dofs()
+        coeffs = stellarator.get_dofs()
         def f(dofs):
-            coils.set_dofs(dofs)
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
             return non_qs.J()
         def df(dofs):
-            coils.set_dofs(dofs)
-            return non_qs.dJ_by_dsurfacecoefficients() 
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
+            dJ_by_dcoils = non_qs.dJ_by_dcoilcoefficients()
+            dJ_by_dcoils = stellarator.reduce_coefficient_derivatives(dJ_by_dcoils)
+            return dJ_by_dcoils
         taylor_test1(f, df, coeffs )
