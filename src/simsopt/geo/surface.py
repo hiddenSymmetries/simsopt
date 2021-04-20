@@ -46,7 +46,7 @@ class Surface(Optimizable):
 
     def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle `phi` and returns the cross
+        This function takes in a cylindrical angle :math:`\phi` and returns the cross
         section of the surface in that plane evaluated at `thetas`. This is
         done using the method of bisection.
 
@@ -154,7 +154,7 @@ class Surface(Optimizable):
     def aspect_ratio(self):
         r"""
         Note: cylindrical coordinates are :math:`(R, \phi, Z)`
-        angles that parametrize the surface are :math:`(\varphi, \theta)`
+        and the angles that parametrize the surface are :math:`(\varphi, \theta)`
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
         
@@ -169,8 +169,8 @@ class Surface(Optimizable):
         
         and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
         average cross sectional area.
-        The main difficult part of this calculation is the (mean cross sectional
-        area).  This is given by the integral
+        The main difficult part of this calculation is the mean cross sectional
+        area.  This is given by the integral
         
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0} \int_{S_{\phi}} ~dS ~d\phi
@@ -184,7 +184,7 @@ class Surface(Optimizable):
             &= \int_{\partial S_\phi} \nabla_{R,Z} \cdot [R,0] \cdot \mathbf n ~dl \\ 
             &= \int_{\partial S_\phi} R n_R ~dl
 
-        where :math:`\mathbf n = [n_R, n_Z]` is the outward pointing normal
+        where :math:`\mathbf n = [n_R, n_Z] = [dZ/d\theta, -dR/d\theta]` is the outward pointing normal
 
         Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
         \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
@@ -193,13 +193,13 @@ class Surface(Optimizable):
 
         .. math::
             \int^{2\pi}_{0} R(\varphi(\phi,\theta),\theta)
-            \frac{d}{d\theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
+            \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
 
         Now, substituting this into the formula for the mean cross sectional area, we have
 
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2 \pi}_{0} R(\varphi(\phi,\theta),\theta)
-                \frac{d}{d\theta}[Z(\varphi(\phi,\theta),\theta)] ~d\phi ~d\theta 
+                \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\phi ~d\theta 
         
         Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
         integrate over :math:`\varphi` using the mapping:
@@ -211,7 +211,7 @@ class Surface(Optimizable):
         
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2\pi}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
-            \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial d \theta} \right] \text{det} J ~d\theta d\varphi
+            \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
         

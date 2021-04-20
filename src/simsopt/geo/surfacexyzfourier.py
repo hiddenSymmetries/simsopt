@@ -6,35 +6,34 @@ from .surfacerzfourier import SurfaceRZFourier
 
 class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
     r"""
-       SurfaceXYZFourier is a surface that is represented in cartesian
-       coordinates using the following Fourier series:
+    SurfaceXYZFourier is a surface that is represented in cartesian
+    coordinates using the following Fourier series:
 
-           \hat x(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-                 x_{c,m,n} \cos(m \theta - n nfp \phi)
-               + x_{s,m,n} \sin(m \theta - n nfp \phi)
-           ]
-
-           \hat y(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-                 y_{c,m,n} \cos(m \theta - n nfp \phi)
-               + y_{s,m,n} \sin(m \theta - n nfp \phi)
-           ]
-
-           x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
-           y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
-
-           z(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-               z_{c,m,n} \cos(m \theta - n nfp \phi)
-               + z_{s,m,n} \sin(m \theta - n nfp \phi)
-           ]
-
-       Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
-       for the sin terms.
-
-       When enforcing stellarator symmetry, we set the
-
-           x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
-
-       terms to zero.
+    .. math::
+        \hat x(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_{\text{tor}}}^{n_{tor}} [
+              x_{c,m,n} \cos(m \theta - n_\text{ nfp } \phi)
+            + x_{s,m,n} \sin(m \theta - n_\text{ nfp } \phi)]\\
+        \hat y(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
+              y_{c,m,n} \cos(m \theta - n_\text{nfp} \phi)
+            + y_{s,m,n} \sin(m \theta - n_\text{nfp} \phi)]\\
+        z(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
+              z_{c,m,n} \cos(m \theta - n_\text{ nfp} \phi)
+            + z_{s,m,n} \sin(m \theta - n_\text{ nfp} \phi)]
+     
+    where
+     
+    .. math::
+        x &= \hat x \cos(\phi) - \hat y \sin(\phi)\\
+        y &= \hat x \sin(\phi) + \hat y \cos(\phi)
+    
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
+    for the sin terms.
+    
+    When enforcing stellarator symmetry, we set the
+    
+    x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
+    
+    terms to zero.
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=32, quadpoints_theta=32):
