@@ -287,8 +287,9 @@ class Surface {
             int ndofs = num_dofs();
             for (int i = 0; i < numquadpoints_phi; ++i) {
                 for (int j = 0; j < numquadpoints_theta; ++j) {
+                    double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
                     for (int m = 0; m < ndofs; ++m) {
-                        data(m) += (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+                        data(m) += (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / norm;
                     }
                 }
             }

@@ -243,7 +243,7 @@ class BoozerSurface():
         res['iota'] = iota
         return res
 
-    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', linear_solver='svd'):
         """
         This function does the same as the above, but instead of LBFGS it uses a nonlinear least squares algorithm.
         Options for method are the same as for scipy.optimize.least_squares.
@@ -259,20 +259,21 @@ class BoozerSurface():
             lam = 1.
             r, J = self.boozer_penalty_constraints(
                 x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+            print('cond(dval)', np.linalg.cond(J), J.shape, np.linalg.matrix_rank(J))
             b = J.T@r
-            JTJ = J.T@J
+            JTJ = J.T@J if linear_solver == 'lu' else None
             while i < maxiter and norm > tol:
-                dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
+                dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b) if linear_solver == 'lu' else np.linalg.lstsq(J, r)[0]
                 x -= dx
                 r, J = self.boozer_penalty_constraints(
                     x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
-                JTJ = J.T@J
+                JTJ = J.T@J if linear_solver == 'lu' else None
                 norm = np.linalg.norm(b)
                 lam *= 1/3
                 i += 1
             resdict = {
-                "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol
+                "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol, 'iter': i
             }
             if G is None:
                 s.set_dofs(x[:-1])
@@ -292,7 +293,7 @@ class BoozerSurface():
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         resdict = {
             "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,
-            "G": None,
+            "G": None, 'iter': res.nfev
         }
         if G is None:
             s.set_dofs(res.x[:-1])
