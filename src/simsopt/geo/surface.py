@@ -12,13 +12,13 @@ class Surface(Optimizable):
         self.fixed = np.full(len(self.get_dofs()), False)
                              
     
-    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True, colormap='viridis'):
         gamma = self.gamma()
         
         from mayavi import mlab
-        mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
+        mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars, colormap=colormap)
         if wireframe:
-            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
+            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0))
         
 
         if plot_derivative:

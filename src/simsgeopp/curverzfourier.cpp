@@ -59,6 +59,14 @@ class CurveRZFourier : public Curve<Array> {
             return nfp;
         }
 
+        inline int get_order() {
+            return order;
+        }
+
+        inline bool get_stellsym() {
+            return stellsym;
+        }
+
         inline int num_dofs() override {
             if(stellsym)
                 return 2*order+1;

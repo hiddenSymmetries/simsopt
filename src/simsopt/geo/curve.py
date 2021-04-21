@@ -52,8 +52,7 @@ class Curve(Optimizable):
                 return np.concatenate((data, [data[0]]))
             else:
                 return data
-        ax.plot(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(
-            gamma[:, 2]), color=color, linestyle=linestyle)
+        ax.plot(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(gamma[:, 2]), color=color, linestyle=linestyle)
         if plot_derivative:
             ax.quiver(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(gamma[:, 2]), 0.1 * rep(gammadash[:, 0]),
                       0.1 * rep(gammadash[:, 1]), 0.1 * rep(gammadash[:, 2]), arrow_length_ratio=0.1, color="r")
@@ -61,10 +60,17 @@ class Curve(Optimizable):
             plt.show()
         return ax
 
-    def plot_mayavi(self, show=True):
+    def plot_mayavi(self, show=True, closed_loop=True, color=None):
         from mayavi import mlab
         g = self.gamma()
-        mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
+
+        def rep(data):
+            if closed_loop:
+                return np.concatenate((data, [data[0]]))
+            else:
+                return data
+
+        mlab.plot3d(rep(g[:, 0]), rep(g[:, 1]), rep(g[:, 2]), color=color)
         if show:
             mlab.show()
 

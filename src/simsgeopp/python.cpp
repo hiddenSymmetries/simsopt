@@ -266,6 +266,8 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("rs", &PyCurveRZFourier::rs)
         .def_readwrite("zc", &PyCurveRZFourier::zc)
         .def_readwrite("zs", &PyCurveRZFourier::zs)
+        .def_property_readonly("stellsym", &PyCurveRZFourier::get_stellsym)
+        .def_property_readonly("order", &PyCurveRZFourier::get_order)
         .def_property_readonly("nfp", &PyCurveRZFourier::get_nfp);
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 
