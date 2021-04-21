@@ -1,9 +1,12 @@
 import unittest
 import logging
 import numpy as np
-from simsopt.core.functions import Identity, Rosenbrock, Failer
+from scipy.optimize import minimize
+from simsopt.core.functions import Identity, Rosenbrock, Failer, \
+    RosenbrockWithFailures
 from simsopt.core.optimizable import Target
-from simsopt.core.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
+from simsopt.core.least_squares_problem import LeastSquaresProblem, \
+    LeastSquaresTerm
 
 #logging.basicConfig(level=logging.DEBUG)
 
@@ -244,7 +247,24 @@ class LeastSquaresProblemTests(unittest.TestCase):
         f = prob1.f()
         print(f)
         np.testing.assert_allclose(f, [-1, 0, 1, 1, 1])
-        
+
+    def test_outside_optimizer(self):
+        """
+        Verify that a least-squares problem can be passed to an outside
+        optimization package to be solved, even when failures occur
+        during evaluations.
+        """
+        ros = RosenbrockWithFailures(fail_interval=20)
+        fail_val = 1.0e2
+        prob = LeastSquaresProblem([(ros, 0, 1)], fail=fail_val)
+        # Just call the bare scipy.optimize.minimize function. This is
+        # not really an "outside" package, but it is similar to how we
+        # might want to call outside optimization libraries that are
+        # completely separate from simsopt.
+        result = minimize(prob.objective, prob.x)
+        # Need a large tolerance, since the failures confuse the
+        # optimizer
+        np.testing.assert_allclose(result.x, [1, 1], atol=1e-2)
         
 if __name__ == "__main__":
     unittest.main()
