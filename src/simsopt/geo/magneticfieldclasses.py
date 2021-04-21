@@ -61,9 +61,9 @@ class ToroidalField(MagneticField):
         assert compute_derivatives <= 2
 
         self._A = self.B0*self.R0*np.array([
-            [point[2]*point[0]/(point[0]**2+point[1]**2),
-             point[2]*point[1]/(point[0]**2+point[1]**2),
-            0] for point in points])
+            points[:,2]*points[:,0]/(points[:,0]**2+points[:,1]**2),
+            points[:,2]*points[:,1]/(points[:,0]**2+points[:,1]**2),
+            0*points[:,2]]).T
 
         if compute_derivatives >= 1:
             self._dA_by_dX = self.B0*self.R0*np.array([(point[2]/(point[0]**2+point[1]**2)**2)*np.array(
@@ -106,7 +106,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        self._B = [self.Blambdify(r[i], z[i], phi[i]) for i in range(len(r))]
+        self._B = np.array(self.Blambdify(r, z, phi)).T
 
         if compute_derivatives >= 1:
             self._dB_by_dX = [self.dBlambdify_by_dX(r[i], z[i], phi[i]) for i in range(len(r))]
@@ -151,11 +151,10 @@ class CircularCoil(MagneticField):
         ellipek2=ellipe(k**2)
         ellipkk2=ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
-        self._B = np.dot(self.rotMatrixInv, np.array([
-            [self.Inorm*point[0]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipek2[i]-alpha[i]**2*ellipkk2[i]),
-             self.Inorm*point[1]*point[2]/(2*alpha[i]**2*beta[i]*rho[i]**2)*((self.r0**2+r[i]**2)*ellipek2[i]-alpha[i]**2*ellipkk2[i]),
-             self.Inorm/(2*alpha[i]**2*beta[i])*((self.r0**2-r[i]**2)*ellipek2[i]+alpha[i]**2*ellipkk2[i])]
-            for i, point in enumerate(points)]).T).T
+        self._B = np.dot(self.rotMatrixInv, np.array(
+            [self.Inorm*points[:,0]*points[:,2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm*points[:,1]*points[:,2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
         if compute_derivatives >= 1:
 
