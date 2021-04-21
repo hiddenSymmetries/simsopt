@@ -1,6 +1,7 @@
 import unittest
 import logging
-from simsopt.core.functions import Identity, Rosenbrock
+import numpy as np
+from simsopt.core.functions import Identity, Rosenbrock, Failer
 from simsopt.core.optimizable import Target
 from simsopt.core.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
 
@@ -120,6 +121,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         term1 = LeastSquaresTerm.from_sigma(iden1.J, 3, sigma=2)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective(), 2.25)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.dofs.f()), 1)
         self.assertAlmostEqual(prob.dofs.f()[0], 0)
         self.assertEqual(len(prob.f()), 1)
@@ -128,6 +130,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 2.25)
         iden1.set_dofs([10])
         self.assertAlmostEqual(prob.objective(), 12.25)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 12.25)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 12.25)
         self.assertAlmostEqual(prob.objective([0]), 2.25)
@@ -141,12 +144,14 @@ class LeastSquaresProblemTests(unittest.TestCase):
         term2 = LeastSquaresTerm.from_sigma(iden2.J, -4, sigma=5)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective(), 12.89)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.f()), 2)
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 12.89)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 12.89)
         iden1.set_dofs([5])
         iden2.set_dofs([-7])
         self.assertAlmostEqual(prob.objective(), 1.36)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.f()), 2)
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 1.36)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 1.36)
@@ -164,6 +169,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         term1 = (iden1.J, 3, 0.25)
         prob = LeastSquaresProblem([term1])
         self.assertAlmostEqual(prob.objective(), 2.25)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.dofs.f()), 1)
         self.assertAlmostEqual(prob.dofs.f()[0], 0)
         self.assertEqual(len(prob.f()), 1)
@@ -172,6 +178,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 2.25)
         iden1.set_dofs([10])
         self.assertAlmostEqual(prob.objective(), 12.25)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 12.25)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 12.25)
         self.assertAlmostEqual(prob.objective([0]), 2.25)
@@ -185,12 +192,14 @@ class LeastSquaresProblemTests(unittest.TestCase):
         term2 = (iden2.J, -4, 0.04)
         prob = LeastSquaresProblem([term1, term2])
         self.assertAlmostEqual(prob.objective(), 12.89)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.f()), 2)
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 12.89)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 12.89)
         iden1.set_dofs([5])
         iden2.set_dofs([-7])
         self.assertAlmostEqual(prob.objective(), 1.36)
+        self.assertAlmostEqual(prob.objective(), sum(t.f_out() for t in prob.terms))
         self.assertEqual(len(prob.f()), 2)
         self.assertAlmostEqual(prob.objective_from_shifted_f(prob.f()), 1.36)
         self.assertAlmostEqual(prob.objective_from_unshifted_f(prob.dofs.f()), 1.36)
@@ -213,5 +222,29 @@ class LeastSquaresProblemTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             prob = LeastSquaresProblem([7, 1])
 
+    def test_failures(self):
+        """
+        Verify that the expected residuals are returned in cases where the
+        objective function evaluations fail.
+        """
+        o1 = Failer()
+        r1 = Rosenbrock()
+        fail_val = 1.0e6
+        prob1 = LeastSquaresProblem([(r1.terms, 0, 1), (o1, 0, 1)],
+                                    fail=fail_val)
+        # First evaluation should not fail.
+        f = prob1.f()
+        print(f)
+        np.testing.assert_allclose(f, [-1, 0, 1, 1, 1])
+        # Second evaluation should fail.
+        f = prob1.f()
+        print(f)
+        np.testing.assert_allclose(f, np.full(5, fail_val))
+        # Third evaluation should not fail.
+        f = prob1.f()
+        print(f)
+        np.testing.assert_allclose(f, [-1, 0, 1, 1, 1])
+        
+        
 if __name__ == "__main__":
     unittest.main()

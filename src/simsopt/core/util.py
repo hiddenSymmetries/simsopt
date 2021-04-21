@@ -48,3 +48,6 @@ def unique(inlist):
             outlist.append(j)
             seen.add(j)
     return outlist
+
+class ObjectiveFailure(Exception):
+    pass
