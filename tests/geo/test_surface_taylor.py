@@ -69,6 +69,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
         s = SurfaceXYZTensorFourier(
             nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
+            clamped_dims=[False, not stellsym, True],
             quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(s.get_dofs()*0.)
         s.x[0, 0] = 1.0

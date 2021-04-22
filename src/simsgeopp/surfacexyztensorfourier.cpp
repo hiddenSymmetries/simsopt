@@ -27,9 +27,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
 
         {1, cos(1*\theta), ..., cos(ntor*theta), sin(1*theta), ..., sin(ntor*theta)}
 
-       When enforcing stellarator symmetry, we limit the sum for \hat x to
-       cos*sin and sin*cos products, and the sums for \hat y and \hat z to
-       cos*cos and sin*sin products. See the `skip` function for details.
+       When enforcing stellarator symmetry, ...
        */
 
     public:
@@ -51,17 +49,18 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         int mpol;
         int ntor;
         bool stellsym;
+        std::vector<bool> clamped_dims;
 
-        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
-            : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, std::vector<bool> _clamped_dims, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+            : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym), clamped_dims(_clamped_dims) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 build_cache();
             }
 
-        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
-            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, std::vector<bool> _clamped_dims, int _numquadpoints_phi, int _numquadpoints_theta)
+            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym), clamped_dims(_clamped_dims) {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
@@ -124,6 +123,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gamma_impl(Array& data) override {
+            data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -132,12 +132,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double yhat = 0;
                     double z = 0;
                     for (int m = 0; m <= 2*mpol; ++m) {
-                        double fun1 = cache_basis_fun_theta(k2, m);
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double fun = fun1 * cache_basis_fun_phi(k1, n);
-                            xhat += get_coeff(0, m, n) * fun;
-                            yhat += get_coeff(1, m, n) * fun;
-                            z += get_coeff(2, m, n) * fun;
+                            xhat += get_coeff(0, m, n) * basis_fun(0, n, k1, m, k2);
+                            yhat += get_coeff(1, m, n) * basis_fun(1, n, k1, m, k2);
+                            z += get_coeff(2, m, n) * basis_fun(2, n, k1, m, k2);
+                            //xhat += get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                            //yhat += get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                            //z += get_coeff(2, m, n) * basis_fun(2, n, phi, m, theta);
                         }
                     }
                     data(k1, k2, 0) = xhat * cos(phi) - yhat * sin(phi);
@@ -148,6 +149,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash1_impl(Array& data) override {
+            data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 double sinphi = sin(phi);
@@ -160,52 +162,56 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double yhatdash = 0;
                     double zdash = 0;
                     for (int m = 0; m <= 2*mpol; ++m) {
-                        double fun1 = cache_basis_fun_theta(k2, m);
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double fun = fun1 * cache_basis_fun_phi(k1, n);
-                            double fundash = fun1 * cache_basis_fun_phi_dash(k1, n);
-                            double coeff0 = get_coeff(0, m, n);
-                            double coeff1 = get_coeff(1, m, n);
-                            xhat += coeff0 * fun;
-                            yhat += coeff1 * fun;
-                            xhatdash += coeff0 * fundash;
-                            yhatdash += coeff1 * fundash;
-                            zdash += get_coeff(2, m, n) * fundash;
+                            xhat += get_coeff(0, m, n) * basis_fun(0, n, k1, m, k2);
+                            yhat += get_coeff(1, m, n) * basis_fun(1, n, k1, m, k2);
+                            xhatdash += get_coeff(0, m, n) * basis_fun_dphi(0, n, k1, m, k2);
+                            yhatdash += get_coeff(1, m, n) * basis_fun_dphi(1, n, k1, m, k2);
+                            zdash += get_coeff(2, m, n) * basis_fun_dphi(2, n, k1, m, k2);
+                            //xhat += get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                            //yhat += get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                            //xhatdash += get_coeff(0, m, n) * basis_fun_dphi(0, n, phi, m, theta);
+                            //yhatdash += get_coeff(1, m, n) * basis_fun_dphi(1, n, phi, m, theta);
+                            //zdash += get_coeff(2, m, n) * basis_fun_dphi(2, n, phi, m, theta);
                         }
                     }
                     double xdash = xhatdash * cosphi - yhatdash * sinphi - xhat * sinphi - yhat * cosphi;
                     double ydash = xhatdash * sinphi + yhatdash * cosphi + xhat * cosphi - yhat * sinphi;
-                    data(k1, k2, 0) = 2*M_PI*xdash;
-                    data(k1, k2, 1) = 2*M_PI*ydash;
-                    data(k1, k2, 2) = 2*M_PI*zdash;
+                    data(k1, k2, 0) += 2*M_PI*xdash;
+                    data(k1, k2, 1) += 2*M_PI*ydash;
+                    data(k1, k2, 2) += 2*M_PI*zdash;
                 }
             }
         }
 
         void gammadash2_impl(Array& data) override {
+            data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 double sinphi = sin(phi);
                 double cosphi = cos(phi);
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
+                    double xhat = 0;
+                    double yhat = 0;
                     double xhatdash = 0;
                     double yhatdash = 0;
                     double zdash = 0;
                     for (int m = 0; m <= 2*mpol; ++m) {
-                        double fun1 = cache_basis_fun_theta_dash(k2, m);
                         for (int n = 0; n <= 2*ntor; ++n) {
-                            double fundash = fun1 * cache_basis_fun_phi(k1, n);
-                            xhatdash += get_coeff(0, m, n) * fundash;
-                            yhatdash += get_coeff(1, m, n) * fundash;
-                            zdash += get_coeff(2, m, n) * fundash;
+                            xhatdash += get_coeff(0, m, n) * basis_fun_dtheta(0, n, k1, m, k2);
+                            yhatdash += get_coeff(1, m, n) * basis_fun_dtheta(1, n, k1, m, k2);
+                            zdash += get_coeff(2, m, n) * basis_fun_dtheta(2, n, k1, m, k2);
+                            //xhatdash += get_coeff(0, m, n) * basis_fun_dtheta(0, n, phi, m, theta);
+                            //yhatdash += get_coeff(1, m, n) * basis_fun_dtheta(1, n, phi, m, theta);
+                            //zdash += get_coeff(2, m, n) * basis_fun_dtheta(2, n, phi, m, theta);
                         }
                     }
                     double xdash = xhatdash * cosphi - yhatdash * sinphi;
                     double ydash = xhatdash * sinphi + yhatdash * cosphi;
-                    data(k1, k2, 0) = 2*M_PI*xdash;
-                    data(k1, k2, 1) = 2*M_PI*ydash;
-                    data(k1, k2, 2) = 2*M_PI*zdash;
+                    data(k1, k2, 0) += 2*M_PI*xdash;
+                    data(k1, k2, 1) += 2*M_PI*ydash;
+                    data(k1, k2, 2) += 2*M_PI*zdash;
                 }
             }
         }
@@ -220,7 +226,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun(n, phi, m, theta);
+                                double wivj = basis_fun(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0;
@@ -257,8 +263,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun(n, phi, m, theta);
-                                double wivjdash = basis_fun_dphi(n, phi, m, theta);
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjdash = basis_fun_dphi(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0.;
@@ -299,8 +305,8 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         for (int m = 0; m <= 2*mpol; ++m) {
                             for (int n = 0; n <= 2*ntor; ++n) {
                                 if(skip(d, m, n)) continue;
-                                double wivj = basis_fun(n, phi, m, theta);
-                                double wivjdash = basis_fun_dtheta(n, phi, m, theta);
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjdash = basis_fun_dtheta(d, n, phi, m, theta);
                                 if(d==0) {
                                     double dxhat = wivj;
                                     double dyhat = 0.;
@@ -352,30 +358,86 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     cache_basis_fun_theta_dash(k2, m) = basis_fun_theta_dash(m, theta);
                 }
             }
+            cache_enforcer = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dtheta = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+                    double theta  = 2*M_PI*quadpoints_theta[k2];
+                    cache_enforcer(k1, k2) = pow(sin(nfp*phi/2), 2) + pow(sin(theta/2), 2);
+                    cache_enforcer_dphi(k1, k2) = nfp*cos(nfp*phi/2)*sin(nfp*phi/2);
+                    cache_enforcer_dtheta(k1, k2) = cos(theta/2)*sin(theta/2);
+                }
+            }
+
         }
 
-        inline double basis_fun(int n, int phiidx, int m, int thetaidx){
-            return cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+        inline bool apply_bc_enforcer(int dim, int n, int m) {
+            return (clamped_dims[dim] && n<=ntor && m<=mpol);
         }
 
-        inline double basis_fun_dphi(int n, int phiidx, int m, int thetaidx){
-            return cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+        inline double bc_enforcer_fun(int dim, int n, double phi, int m, double theta){
+            if(apply_bc_enforcer(dim, n, m))
+                return pow(sin(nfp*phi/2), 2) + pow(sin(theta/2), 2);
+            else
+                return 1;
         }
 
-        inline double basis_fun_dtheta(int n, int phiidx, int m, int thetaidx){
-            return cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+        inline double bc_enforcer_dphi_fun(int dim, int n, double phi, int m, double theta){
+            if(apply_bc_enforcer(dim, n, m))
+                return nfp*cos(nfp*phi/2)*sin(nfp*phi/2);
+            else
+                return 0;
         }
 
-        inline double basis_fun(int n, double phi, int m, double theta){
-            return basis_fun_phi(n, phi) * basis_fun_theta(m, theta);
+        inline double bc_enforcer_dtheta_fun(int dim, int n, double phi, int m, double theta){
+            if(apply_bc_enforcer(dim, n, m))
+                return cos(theta/2)*sin(theta/2);
+            else
+                return 0;
         }
 
-        inline double basis_fun_dphi(int n, double phi, int m, double theta){
-            return basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta);
+        inline double basis_fun(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m))
+                fun *= cache_enforcer(phiidx, thetaidx);
+            return fun;
         }
 
-        inline double basis_fun_dtheta(int n, double phi, int m, double theta){
-            return basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta);
+        inline double basis_fun_dphi(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                fun_dphi = fun_dphi*cache_enforcer(phiidx, thetaidx) + fun*cache_enforcer_dphi(phiidx, thetaidx);
+            }
+            return fun_dphi;
+        }
+
+        inline double basis_fun_dtheta(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                fun_dtheta = fun_dtheta*cache_enforcer(phiidx, thetaidx) + fun*cache_enforcer_dtheta(phiidx, thetaidx);
+            }
+            return fun_dtheta;
+        }
+
+        inline double basis_fun(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer = bc_enforcer_fun(dim, n, phi, m, theta);
+            return basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer;
+        }
+
+        inline double basis_fun_dphi(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
+            return basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer + basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dphi;
+        }
+
+        inline double basis_fun_dtheta(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            return basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer + basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
         }
 
         inline double basis_fun_phi(int n, double phi){
