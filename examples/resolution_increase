@@ -14,9 +14,6 @@ widened again to include m and |n| values up through 3, and again the
 resolution for VMEC and booz_xform is increased.
 """
 
-
-import numpy as np
-
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt import LeastSquaresProblem
