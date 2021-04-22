@@ -70,8 +70,9 @@ for step in range(3):
                      nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.set_fixed("rc(0,0)") # Major radius
 
-    # For the test to run quickly, we use an unrealistically small
-    # max_nfev:
+    # For the test to run quickly, we stop after the first function
+    # evaluation, by passing max_nfev=1 to scipy.optimize. For a
+    # "real" optimization, remove the max_nfev parameter below.
     least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=1)
 
     if mpi.proc0_world:
