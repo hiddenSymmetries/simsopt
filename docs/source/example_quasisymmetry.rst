@@ -171,8 +171,6 @@ As usual, we begin with the necessary imports::
 
   #!/usr/bin/env python
 
-  import numpy as np
-
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd import Vmec, Boozer, Quasisymmetry
   from simsopt import LeastSquaresProblem
