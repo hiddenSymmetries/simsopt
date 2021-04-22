@@ -1,8 +1,10 @@
 import unittest
 import numpy as np
-from simsopt.core.dofs import get_owners, Dofs
-from simsopt.core.functions import Identity, Adder, TestObject2, Rosenbrock, Affine, Failer
-from simsopt.core.optimizable import Target
+
+from simsopt._core.dofs import get_owners, Dofs
+from simsopt._core.optimizable import Target
+from simsopt.objectives.functions import Identity, Adder, TestObject2, \
+    Rosenbrock, Affine, Failer
 
         
 class GetOwnersTests(unittest.TestCase):
