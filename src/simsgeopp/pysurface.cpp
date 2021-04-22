@@ -6,6 +6,8 @@ typedef xt::pyarray<double> PyArray;
 
 typedef Surface<PyArray> PySurface;
 
+// this allows the Python code to define children of surfaces if desired
+
 template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public SurfaceBase {
     public:
         using SurfaceBase::SurfaceBase;
@@ -22,7 +24,10 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual void gamma_impl(PyArray& data) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_impl, data);
         }
-        virtual void gammadash1_impl(PyArray& data) override {
+        virtual void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_lin, data, quadpoints_phi, quadpoints_theta);
+        }
+         virtual void gammadash1_impl(PyArray& data) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash1_impl, data);
         }
         virtual void gammadash2_impl(PyArray& data) override {

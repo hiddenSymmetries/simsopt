@@ -4,6 +4,37 @@ from simsopt.geo.surfaceobjectives import boozer_surface_residual
 
 
 class BoozerSurface():
+    """
+    BoozerSurface and its associated methods can be used to compute the Boozer
+    angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
+    or SurfaceXYZTensorFourier), a magnetic field evaluator, surface label evaluator,
+    and a target surface label.
+
+    The Boozer angles are computed by solving a constrained least squares problem.
+    The least squares objective is given by 0.5*|| f ||^2_2, where f is the residual
+    computed by boozer_surface_residual (see surfaceobjectives.py).  This objective
+    is zero when (phi,theta) that parametrize the surface correspond to Boozer angles.
+
+    The surface label can be area, volume, or toroidal flux. The surface is constrained
+    by the user-provided targetlabel.
+
+    This constrained least squares problem can be solved by scalarizing and adding
+    the constraint as an additional penalty term to the objective.  This is done in
+        
+        minimize_boozer_penalty_constraints_LBFGS
+        minimize_boozer_penalty_constraints_newton
+        minimize_boozer_penalty_constraints_ls
+
+    where LBFGS, Newton, or scipy.optimize.least_squares optimizers are used, respectively.
+    
+    Alternatively, the exactly constrained least squares optimization problem can be solved.
+    This is done in
+    
+        minimize_boozer_exact_constraints_newton
+
+    where Newton is used to solve the first order optimality condition.
+    """
+
 
     def __init__(self, biotsavart, surface, label, targetlabel):
         self.bs = biotsavart
@@ -164,7 +195,6 @@ class BoozerSurface():
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
         """
         This function tries to find the surface that approximately solves
-
         min 0.5 * || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
                                  + 0.5 * constraint_weight * (z(varphi=0, theta=0) - 0)^2
 
@@ -309,7 +339,6 @@ class BoozerSurface():
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
         """
         This function solves the constrained optimization problem
-
             min 0.5 * || f(x) ||^2_2
 
             subject to

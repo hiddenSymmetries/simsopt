@@ -162,6 +162,10 @@ class SurfaceTaylorTests(unittest.TestCase):
         taylor_test(f, df, coeffs)
 
     def test_surface_normal_coefficient_derivative(self):
+        """
+        Taylor test to verify the first derivative of the surface normal
+        with respect to the surface dofs
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -180,6 +184,10 @@ class SurfaceTaylorTests(unittest.TestCase):
         taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(11, 20))), order=4)
 
     def test_surface_area_coefficient_derivative(self):
+        """
+        Taylor test to verify the first derivative of the surface area with respect
+        to the surface dofs
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -187,6 +195,10 @@ class SurfaceTaylorTests(unittest.TestCase):
                     self.subtest_surface_area_coefficient_derivative(s)
 
     def test_surface_area_coefficient_second_derivative(self):
+        """
+        Taylor test to verify the second derivative of the surface area with respect
+        to the surface dofs
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -208,6 +220,10 @@ class SurfaceTaylorTests(unittest.TestCase):
         taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_volume_coefficient_second_derivative(self):
+        """
+        Taylor test to verify the second derivative of the volume with respect
+        to the surface dofs
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -240,6 +256,10 @@ class SurfaceTaylorTests(unittest.TestCase):
         taylor_test(f, df, coeffs)
 
     def test_surface_volume_coefficient_derivative(self):
+        """
+        Taylor test to verify the first derivative of the volume with respect
+        to the surface dofs
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -261,6 +281,9 @@ class SurfaceTaylorTests(unittest.TestCase):
             err_old = err
 
     def test_surface_phi_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the phi direction
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -281,6 +304,9 @@ class SurfaceTaylorTests(unittest.TestCase):
             err_old = err
 
     def test_surface_theta_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -292,6 +318,9 @@ class SurfaceTaylorTests(unittest.TestCase):
         assert np.mean((s.gamma() - newsurf.gamma())**2) < 1e-5
 
     def test_surface_conversion(self):
+        """
+        Test to verify that the toRZFourier surface conversion
+        """
         for surfacetype in ["SurfaceXYZFourier"]:
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):

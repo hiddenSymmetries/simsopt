@@ -150,6 +150,7 @@ class SurfaceXYZFourier : public Surface<Array> {
             else
                 return zs(m, i);
         }
+
         void gamma_impl(Array& data) override {
             data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -172,6 +173,29 @@ class SurfaceXYZFourier : public Surface<Array> {
                 }
             }
         }
+
+        void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints = quadpoints_phi.size();
+            data *= 0.;
+            for (int k1 = 0; k1 < numquadpoints; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int i = 0; i < 2*ntor+1; ++i) {
+                        int n  = i - ntor;
+                        double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
+                        double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
+                        double x = xhat * cos(phi) - yhat * sin(phi);
+                        double y = xhat * sin(phi) + yhat * cos(phi);
+                        double z = get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
+                        data(k1, 0) += x;
+                        data(k1, 1) += y;
+                        data(k1, 2) += z;
+                    }
+                }
+            }
+        }
+
 
         void gammadash1_impl(Array& data) override {
             data *= 0.;

@@ -91,6 +91,11 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
             PySurfaceRZFourierBase::gamma_impl(data);
         }
 
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceRZFourierBase::fit_to_curve(curve, radius);
         }
@@ -114,6 +119,10 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
 
         void gamma_impl(PyArray& data) override {
             PySurfaceXYZFourierBase::gamma_impl(data);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
         }
 
         void fit_to_curve(PyCurve& curve, double radius) {
@@ -141,6 +150,11 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
             PySurfaceXYZTensorFourierBase::gamma_impl(data);
         }
 
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
         }
@@ -148,6 +162,8 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
 
 template <typename T, typename S> void register_common_surface_methods(S &s) {
     s.def("gamma", &T::gamma)
+     .def("gamma_impl", &T::gamma_impl)
+     .def("gamma_lin", &T::gamma_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
      .def("gammadash1", &T::gammadash1)
      .def("dgammadash1_by_dcoeff", &T::dgammadash1_by_dcoeff)
@@ -233,6 +249,9 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("ys", &PySurfaceXYZFourier::ys)
         .def_readwrite("zc", &PySurfaceXYZFourier::zc)
         .def_readwrite("zs", &PySurfaceXYZFourier::zs)
+        .def_readwrite("mpol",&PySurfaceXYZFourier::mpol)
+        .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
+        .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
 
@@ -245,6 +264,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
