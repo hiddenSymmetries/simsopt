@@ -14,6 +14,13 @@ stellsym_list = [True, False]
 
 class BoozerSurfaceTests(unittest.TestCase):
     def test_residual(self):
+        """
+        This test loads a SurfaceXYZFourier that interpolates the xyz coordinates
+        of a surface in the NCSX configuration that was computed on a previous
+        branch of pyplasmaopt.  Here, we verify that the  Boozer residual at these 
+        interpolation points is small.
+        """
+
         s = get_exact_surface()
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -39,6 +46,10 @@ class BoozerSurfaceTests(unittest.TestCase):
         assert np.max(np.abs(r0[-2:])) < 1e-6
 
     def test_boozer_penalty_constraints_gradient(self):
+        """
+        Taylor test to verify the gradient of the scalarized constrained optimization problem's
+        objective.
+        """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
@@ -46,6 +57,10 @@ class BoozerSurfaceTests(unittest.TestCase):
                         self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G)
 
     def test_boozer_penalty_constraints_hessian(self):
+        """
+        Taylor test to verify the Hessian of the scalarized constrained optimization problem's
+        objective.
+        """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
@@ -131,6 +146,10 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_old = err
 
     def test_boozer_constrained_jacobian(self):
+        """
+        Taylor test to verify the Jacobian of the first order optimality conditions of the exactly
+        constrained optimization problem.
+        """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
@@ -178,6 +197,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         print("################################################################################")
 
     def test_boozer_surface_optimisation_convergence(self):
+        """
+        Test to verify the various optimization algorithms that compute
+        the Boozer angles on a surface.
+        """
+
         configs = [
             ("SurfaceXYZTensorFourier", True,  True,  'residual_exact'),
             ("SurfaceXYZTensorFourier", True,  True,  'newton_exact'),

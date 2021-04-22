@@ -89,4 +89,5 @@ def get_exact_surface():
     s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                           quadpoints_phi=phis, quadpoints_theta=thetas)
     s.least_squares_fit(xyz)
+    
     return s

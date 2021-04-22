@@ -104,7 +104,7 @@ class SurfaceRZFourier : public Surface<Array> {
             }
             return res;
         }
-
+        
         void gamma_impl(Array& data) override {
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -129,6 +129,36 @@ class SurfaceRZFourier : public Surface<Array> {
                 }
             }
         }
+
+
+        void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints = quadpoints_phi.size();
+
+            for (int k1 = 0; k1 < numquadpoints; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double r = 0;
+                double z = 0;
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int i = 0; i < 2*ntor+1; ++i) {
+                        int n  = i - ntor;
+                        r += rc(m, i) * cos(m*theta-n*nfp*phi);
+                        if(!stellsym) {
+                            r += rs(m, i) * sin(m*theta-n*nfp*phi);
+                            z += zc(m, i) * cos(m*theta-n*nfp*phi);
+                        }
+                        z += zs(m, i) * sin(m*theta-n*nfp*phi);
+                    }
+                }
+                data(k1, 0) = r * cos(phi);
+                data(k1, 1) = r * sin(phi);
+                data(k1, 2) = z;
+            }
+        }
+
+
+
+
 
         void gammadash1_impl(Array& data) override {
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
