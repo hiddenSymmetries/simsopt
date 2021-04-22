@@ -24,8 +24,9 @@ try:
 except ImportError as err:
     MPI = None
 
-import simsopt.core.dofs
-import simsopt.util.mpi
+from .._core.dofs import Dofs
+from ..util.mpi import MpiPartition
+from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,8 @@ def _mpi_workers_task(mpi, dofs, data):
         raise ValueError('Unexpected data in worker_loop')
 
 
-def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
-               mpi: simsopt.util.mpi.MpiPartition,
+def fd_jac_mpi(dofs: Dofs,
+               mpi: MpiPartition,
                x: np.ndarray = None,
                eps: float = 1e-7,
                centered: bool = False) -> tuple:
@@ -241,8 +242,8 @@ def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
     return jac, xs, evals
 
 
-def least_squares_mpi_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
-                            mpi: simsopt.util.mpi.MpiPartition,
+def least_squares_mpi_solve(prob: LeastSquaresProblem,
+                            mpi: MpiPartition,
                             grad: bool = None,
                             **kwargs):
     """

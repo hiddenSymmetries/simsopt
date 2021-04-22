@@ -2,8 +2,8 @@ import unittest
 from pathlib import Path
 import numpy as np
 
-from simsopt.core.dofs import Dofs
-from simsopt.core.optimizable import optimizable
+from simsopt._core.dofs import Dofs
+from simsopt._core.optimizable import make_optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -489,7 +489,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
         Check that the default surface is what we expect, and that the
         'names' array is correctly aligned.
         """
-        s = optimizable(SurfaceGarabedian(nmin=-1, nmax=2, mmin=-2, mmax=5))
+        s = make_optimizable(SurfaceGarabedian(nmin=-1, nmax=2, mmin=-2, mmax=5))
         self.assertAlmostEqual(s.Delta[2, 1], 0.1)
         self.assertAlmostEqual(s.Delta[3, 1], 1.0)
         self.assertAlmostEqual(s.get('Delta(0,0)'), 0.1)

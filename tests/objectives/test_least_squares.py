@@ -1,10 +1,10 @@
 import unittest
-import logging
-from simsopt.core.functions import Identity, Rosenbrock
-from simsopt.core.optimizable import Target
-from simsopt.core.least_squares_problem import LeastSquaresProblem, LeastSquaresTerm
 
-#logging.basicConfig(level=logging.DEBUG)
+from simsopt.objectives.functions import Identity, Rosenbrock
+from simsopt.objectives.least_squares import LeastSquaresProblem, \
+        LeastSquaresTerm
+from simsopt._core.optimizable import Target
+
 
 class LeastSquaresTermTests(unittest.TestCase):
 
@@ -108,7 +108,8 @@ class LeastSquaresTermTests(unittest.TestCase):
         # Weight cannot be negative
         with self.assertRaises(ValueError):
             lst = LeastSquaresTerm(iden.J, 3, weight=-1.0)
-        
+
+
 class LeastSquaresProblemTests(unittest.TestCase):
 
     def test_supply_LeastSquaresTerm(self):

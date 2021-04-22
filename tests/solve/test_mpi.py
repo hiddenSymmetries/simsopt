@@ -2,10 +2,10 @@ import logging
 import unittest
 import numpy as np
 from mpi4py import MPI
-from simsopt.core.dofs import Dofs
-from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt._core.dofs import Dofs
 from simsopt.util.mpi import MpiPartition
-from simsopt.solve.mpi_solve import fd_jac_mpi, least_squares_mpi_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import fd_jac_mpi, least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)

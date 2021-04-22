@@ -2,6 +2,8 @@
 # Copyright (c) HiddenSymmetries Development Team.
 # Distributed under the terms of the LGPL License
 
+__all__ = ['initialize_logging']
+
 import logging
 import logging.config
 from pathlib import Path

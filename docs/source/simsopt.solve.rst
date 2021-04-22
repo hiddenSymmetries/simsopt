@@ -4,18 +4,18 @@ simsopt.solve package
 Submodules
 ----------
 
-simsopt.solve.mpi\_solve module
--------------------------------
+simsopt.solve.mpi module
+------------------------
 
-.. automodule:: simsopt.solve.mpi_solve
+.. automodule:: simsopt.solve.mpi
    :members:
    :undoc-members:
    :show-inheritance:
 
-simsopt.solve.serial\_solve module
-----------------------------------
+simsopt.solve.serial module
+---------------------------
 
-.. automodule:: simsopt.solve.serial_solve
+.. automodule:: simsopt.solve.serial
    :members:
    :undoc-members:
    :show-inheritance:
