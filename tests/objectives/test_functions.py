@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
-from simsopt.core.functions import Identity, Adder, Rosenbrock, TestObject1, TestObject2
-from simsopt.core.optimizable import Target
-from simsopt.core.dofs import Dofs
+from simsopt.objectives.functions import Identity, Adder, Rosenbrock, TestObject1, TestObject2
+from simsopt._core.optimizable import Target
+from simsopt._core.dofs import Dofs
 
 class IdentityTests(unittest.TestCase):
     def test_basic(self):

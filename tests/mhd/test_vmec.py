@@ -1,5 +1,4 @@
 import unittest
-import numpy as np
 import os
 
 from simsopt.mhd.vmec import vmec_found

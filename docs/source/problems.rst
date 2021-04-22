@@ -26,7 +26,7 @@ to represent a term ``weight * ((obj.func() - goal) ** 2)`` in the
 least-squares objective function. If you prefer, you can specify
 ``sigma = 1 / sqrt(weight)`` rather than ``weight`` and use the
 ``LeastSquaresTerm`` object, as in ``term1 =
-simsopt.LeastSquaresTerm(obj.func, goal, sigma=0.3)``.
+simsopt.solve.LeastSquaresTerm(obj.func, goal, sigma=0.3)``.
 
 In this example, ``func()`` could return a scalar, or it could return
 a 1D numpy array. In the latter case, ``sum(weight * ((obj.func() -

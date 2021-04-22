@@ -20,10 +20,10 @@ try:
 except ImportError as err:
     vmec_found = False
 
-from simsopt.core.optimizable import Optimizable, optimizable
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.core.util import Struct
-from simsopt.util.mpi import MpiPartition
+from .._core.optimizable import Optimizable
+from .._core.util import Struct
+from ..geo.surfacerzfourier import SurfaceRZFourier
+from ..util.mpi import MpiPartition
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ representing a function. These functions are mostly used for testing.
 """
 
 import numpy as np
-from .optimizable import Optimizable
+from .._core.optimizable import Optimizable
 
 class Identity(Optimizable):
     """

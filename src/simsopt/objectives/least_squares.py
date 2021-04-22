@@ -7,14 +7,17 @@ This module provides the LeastSquaresProblem class, as well as the
 associated class LeastSquaresTerm.
 """
 
-import numpy as np
+__all__ = ['LeastSquaresTerm', 'LeastSquaresProblem']
+
 import logging
 import warnings
 
+import numpy as np
 from scipy.optimize import least_squares
-from .dofs import Dofs
-from .util import isnumber
-from .optimizable import function_from_user, Target
+
+from .._core.dofs import Dofs
+from .._core.util import isnumber
+from .._core.optimizable import function_from_user, Target
 
 logger = logging.getLogger(__name__)
 

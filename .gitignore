@@ -3,6 +3,7 @@
 *.so
 *.o
 *.mod
+*fort.9
 simsopt_20*.dat
 residuals_20*.dat
 _skbuild/
@@ -46,5 +47,5 @@ examples/*.log
 # Sphinx related files
 docs/build/
 
-# IDE
+# IDE related
 .idea
