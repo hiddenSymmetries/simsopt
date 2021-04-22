@@ -50,4 +50,11 @@ def unique(inlist):
     return outlist
 
 class ObjectiveFailure(Exception):
+    """
+    This class is a custom exception used to indicate failure when
+    evaluating the objective function. For example, if Vmec or Spec
+    fail to converge, this exception will be thrown. The simsopt
+    solvers will catch this specific exception (not others) and set
+    the objective function to a large number.
+    """
     pass

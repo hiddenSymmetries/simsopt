@@ -23,9 +23,9 @@ try:
 except ImportError as e:
     pyoculus_found = False
 
-from simsopt.core.util import ObjectiveFailure
-from simsopt.core.optimizable import Optimizable
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from .._core.optimizable import Optimizable
+from .._core.util import ObjectiveFailure
+from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 

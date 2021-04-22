@@ -22,14 +22,16 @@ import logging
 from datetime import datetime
 from time import time
 import traceback
+
 import numpy as np
 from scipy.optimize import least_squares, minimize
-import simsopt.core.least_squares_problem
+
+from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
 #def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
-def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                **kwargs):
     """

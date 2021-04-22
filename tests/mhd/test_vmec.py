@@ -1,8 +1,8 @@
 import unittest
-import numpy as np
 import os
+import numpy as np
 
-from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.mhd.vmec import vmec_found
 if vmec_found:
     from simsopt.mhd.vmec import Vmec
