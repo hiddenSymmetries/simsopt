@@ -176,8 +176,7 @@ class Surface(Optimizable):
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
         
         where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
-        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral using the divergence
-        theorem
+        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral 
 
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 

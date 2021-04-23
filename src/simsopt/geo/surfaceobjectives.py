@@ -61,9 +61,7 @@ class ToroidalFlux(object):
        &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
        &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
     
-    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`,
-    :math:`\mathbf{n}` is a normal on that surface, and
-    :math:`\mathbf{t}` is a tangent of the boundary curve.
+    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`.
     """
 
     def __init__(self, surface, biotsavart, idx=0):
