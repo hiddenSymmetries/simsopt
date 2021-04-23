@@ -34,16 +34,26 @@ def least_squares_solve(prob, grad=None, **kwargs):
     
     def objective(x):
         nonlocal logfile_started, logfile, residuals_file, nevals
-        success = True
-        #try:
-        residuals = prob.residuals(x)
-        #except:
-        #    logger.info("Exception caught during function evaluation")
-        #    residuals = np.full(len(prob.dofs), 1.0e12)
-        #    success = False
+        #success = True
+        try:
+            residuals = prob.residuals(x)
+        except:
+            logger.info("Exception caught during function evaluation")
+            residuals = np.full(prob.get_parent_return_fns_no(), 1.0e12)
+            #success = False
 
         objective_val = prob.objective()
-        
+
+        # Check that 2 ways of computing the objective give same
+        # answer within roundoff:
+        #if success:
+        #    objective2 = prob.objective()
+        #    logger.info("objective_from_f={} objective={} diff={}".format(
+        #        objective_val, objective2, objective_val - objective2))
+        #    abs_diff = np.abs(objective_val - objective2)
+        #    rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
+        #    assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
+
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
@@ -54,9 +64,9 @@ def least_squares_solve(prob, grad=None, **kwargs):
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             filename = "simsopt_" + datestr + ".dat"
             logfile = open(filename, 'w')
-            ndofs = len(prob.dofs)
+            ndofs = prob.dof_size
             logfile.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")#.format(len(prob.dofs)))
+                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
             logfile.write("function_evaluation,seconds")
             for j in range(ndofs):
                 logfile.write(f",x({j})")
@@ -65,7 +75,7 @@ def least_squares_solve(prob, grad=None, **kwargs):
             filename = "residuals_" + datestr + ".dat"
             residuals_file = open(filename, 'w')
             residuals_file.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")#.format(prob.dofs.nparams))
+                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
             residuals_file.write("function_evaluation,seconds")
             for j in range(ndofs):
                 residuals_file.write(f",x({j})")
@@ -75,19 +85,19 @@ def least_squares_solve(prob, grad=None, **kwargs):
             residuals_file.write("\n")
 
         elapsed_t = time() - start_time
-        logfile.write(f"{nevals:6d},{elapsed_t:12.4e}")#.format(nevals, time() - start_time))
+        logfile.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
-            logfile.write(f",{xj:24.16e}")#.format(xj))
-        logfile.write(f",{objective_val:24.16e}")#.format(objective_val))
+            logfile.write(f",{xj:24.16e}")
+        logfile.write(f",{objective_val:24.16e}")
         logfile.write("\n")
         logfile.flush()
 
-        residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")#.format(nevals, time() - start_time))
+        residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
-            residuals_file.write(f",{xj:24.16e}")#.format(xj))
-        residuals_file.write(f",{objective_val:24.16e}")#.format(objective_val))
+            residuals_file.write(f",{xj:24.16e}")
+        residuals_file.write(f",{objective_val:24.16e}")
         for fj in residuals:
-            residuals_file.write(f",{fj:24.16e}")#.format(fj))
+            residuals_file.write(f",{fj:24.16e}")
         residuals_file.write("\n")
         residuals_file.flush()
 
@@ -155,17 +165,18 @@ def serial_solve(prob, grad=None, **kwargs):
             logfile_started = True
             filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".dat"
             logfile = open(filename, 'w')
-            logfile.write("Problem type:\ngeneral\nnparams:\n{}\n".format(prob.dofs.nparams))
+            logfile.write(f"Problem type:\ngeneral\nnparams:\n{prob.dof_size}\n")
             logfile.write("function_evaluation,seconds")
-            for j in range(prob.dofs.nparams):
-                logfile.write(",x({})".format(j))
+            for j in range(prob.dof_size):
+                logfile.write(f",x({j})")
             logfile.write(",objective_function")
             logfile.write("\n")
-            
-        logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+
+        del_t = time() - start_time
+        logfile.write(f"{nevals:6d},{del_t:12.4e}")
         for xj in x:
-            logfile.write(",{:24.16e}".format(xj))
-        logfile.write(",{:24.16e}".format(result))
+            logfile.write(f",{xj:24.16e}")
+        logfile.write(f",{result:24.16e}")
         logfile.write("\n")
         logfile.flush()
 

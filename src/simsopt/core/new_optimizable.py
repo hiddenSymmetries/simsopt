@@ -546,6 +546,16 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             return_fn_list.append(parent.get_return_fns(self))
         return return_fn_list
 
+    @property
+    def parent_return_fns_no(self) -> int:
+        """
+        Returns the number of the funcs returned by the parents to this object
+        """
+        return_fn_no = 0
+        for parent in self.parents:
+            return_fn_no += len(parent.get_return_fns(self))
+        return return_fn_no
+
     def _add_child(self, child: Optimizable) -> None:
         """
         Adds another Optimizable object as child. All the

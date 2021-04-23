@@ -152,7 +152,7 @@ class LeastSquaresProblem(Optimizable):
 
         return s
 
-    return_fn_map = {'residuals': residuals}
+    return_fn_map = {'residuals': residuals, 'objective': objective}
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
 
