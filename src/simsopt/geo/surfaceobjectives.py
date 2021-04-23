@@ -63,7 +63,7 @@ class ToroidalFlux(object):
     
     where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`,
     :math:`\mathbf{n}` is a normal on that surface, and
-    :math:`\mathbf{t}` is a tangent.
+    :math:`\mathbf{t}` is a tangent of the boundary curve.
     """
 
     def __init__(self, surface, biotsavart, idx=0):
