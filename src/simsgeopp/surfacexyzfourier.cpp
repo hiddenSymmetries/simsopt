@@ -6,33 +6,34 @@ template<class Array>
 class SurfaceXYZFourier : public Surface<Array> {
     /*
        SurfaceXYZFourier is a surface that is represented in cartesian
-       coordinates using the following Fourier series: 
+       coordinates using the following Fourier series:
 
-       \hat x(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       x_{c,m,n} \cos(m \theta - n nfp \phi)
-       + x_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
+           \hat x(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+                 x_{c,m,n} \cos(m \theta - n nfp \phi)
+               + x_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
-       \hat y(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       y_{c,m,n} \cos(m \theta - n nfp \phi)
-       + y_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
+           \hat y(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+                 y_{c,m,n} \cos(m \theta - n nfp \phi)
+               + y_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
-       x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
-       y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
+           x = \hat x * \cos(\phi) - \hat y * \sin(\phi)
+           y = \hat x * \sin(\phi) + \hat y * \cos(\phi)
 
-       z(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-       z_{c,m,n} \cos(m \theta - n nfp \phi)
-       + z_{s,m,n} \sin(m \theta - n nfp \phi) 
-       ]
-
-       When enforcing stellarator symmetry, we set the 
-           x_{s,*,*}, y_{c,*,*} and z_{c,*,*} 
-       terms to zero.
+           z(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
+               z_{c,m,n} \cos(m \theta - n nfp \phi)
+               + z_{s,m,n} \sin(m \theta - n nfp \phi)
+           ]
 
        Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
        for the sin terms.
 
+       When enforcing stellarator symmetry, we set the
+
+           x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
+
+       terms to zero.
        */
 
     public:
@@ -149,7 +150,12 @@ class SurfaceXYZFourier : public Surface<Array> {
             else
                 return zs(m, i);
         }
-        void gamma_impl(Array& data) override {
+
+        void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+            int numquadpoints_theta = quadpoints_theta.size();
+            
+
             data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -171,6 +177,29 @@ class SurfaceXYZFourier : public Surface<Array> {
                 }
             }
         }
+
+        void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints = quadpoints_phi.size();
+            data *= 0.;
+            for (int k1 = 0; k1 < numquadpoints; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int i = 0; i < 2*ntor+1; ++i) {
+                        int n  = i - ntor;
+                        double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
+                        double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
+                        double x = xhat * cos(phi) - yhat * sin(phi);
+                        double y = xhat * sin(phi) + yhat * cos(phi);
+                        double z = get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
+                        data(k1, 0) += x;
+                        data(k1, 1) += y;
+                        data(k1, 2) += z;
+                    }
+                }
+            }
+        }
+
 
         void gammadash1_impl(Array& data) override {
             data *= 0.;
