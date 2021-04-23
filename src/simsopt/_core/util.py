@@ -7,20 +7,10 @@ This module contains small utility functions and classes.
 """
 
 import itertools
-from typing import Union, Sequence
-from numbers import Integral, Real, Number
 from dataclasses import dataclass
 from abc import ABCMeta
 
 import numpy as np
-from nptyping import NDArray, Float, Int, Bool
-
-Array = Union[Sequence, NDArray]
-RealArray = Union[Sequence[Real], NDArray[Float]]
-IntArray = Union[Sequence[Integral], NDArray[Int]]
-StrArray = Union[Sequence[str], NDArray[str]]
-BoolArray = Union[Sequence[bool], NDArray[Bool]]
-Key = Union[Integral, str]
 
 
 def isbool(val):
