@@ -8,8 +8,9 @@ def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     A = dofs[:order]
     B = dofs[order:]
     phi = quadpoints*2*pi*l0
-    AcosArray = sum([A[count]*jnp.cos(count*n0*phi/l0) for count in range(order)])
-    BsinArray = sum([B[count]*jnp.sin(count*n0*phi/l0) for count in range(order)])
+    m, phiV = jnp.meshgrid(jnp.arange(order),phi)
+    AcosArray = jnp.sum(A*jnp.cos(m*phiV*n0/l0),axis=1)
+    BsinArray = jnp.sum(B*jnp.sin(m*phiV*n0/l0),axis=1)
     eta = n0*phi/l0+AcosArray+BsinArray
     gamma = jnp.zeros((len(quadpoints), 3))
     gamma = index_add(gamma, index[:, 0], (R0+r0*jnp.cos(eta))*jnp.cos(phi))
