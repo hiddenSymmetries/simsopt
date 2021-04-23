@@ -256,7 +256,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         ros = RosenbrockWithFailures(fail_interval=20)
         fail_val = 1.0e2
-        prob = LeastSquaresProblem([(ros, 0, 1)], fail=fail_val)
+        prob = LeastSquaresProblem([(ros.terms, 0, 1)], fail=fail_val)
         # Just call the bare scipy.optimize.minimize function. This is
         # not really an "outside" package, but it is similar to how we
         # might want to call outside optimization libraries that are

@@ -181,7 +181,7 @@ class Rosenbrock(Optimizable):
         self._x = xin[0]
         self._y = xin[1]
 
-class RosenbrockWithFailures(Optimizable):
+class RosenbrockWithFailures(Rosenbrock):
     """
     This class is similar to the Rosenbrock class, except that it
     fails (raising ObjectiveFailure) at regular intervals.  This is
@@ -189,28 +189,18 @@ class RosenbrockWithFailures(Optimizable):
     failures in the expected way.
     """
 
-    def __init__(self, b=100.0, x=0.0, y=0.0, fail_interval=8):
-        self._sqrtb = np.sqrt(b)
-        self.names = ['x', 'y']
-        self._x = x
-        self._y = y
-        self.fixed = np.full(2, False)
+    def __init__(self, *args, fail_interval=8, **kwargs):
         self.nevals = 0
         self.fail_interval = fail_interval
+        super().__init__(*args, **kwargs)
 
-    def J(self):
+    def term1(self):
         self.nevals += 1
         if np.mod(self.nevals, self.fail_interval) == 0:
             raise ObjectiveFailure("Planned failure")
+    
+        return super().term1()
         
-        return np.array([self._x - 1, (self._x * self._x - self._y) / self._sqrtb])
-        
-    def get_dofs(self):
-        return np.array([self._x, self._y])
-
-    def set_dofs(self, xin):
-        self._x = xin[0]
-        self._y = xin[1]
 
 class TestObject1(Optimizable):
     """
