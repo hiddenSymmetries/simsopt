@@ -1,5 +1,5 @@
 from .vmec import Vmec#, vmec_found
-from .spec import Spec# , Residue#, spec_found
+from .spec import Spec, Residue#, spec_found
 from .boozer import Boozer, Quasisymmetry#, boozer_found
 
 #try:

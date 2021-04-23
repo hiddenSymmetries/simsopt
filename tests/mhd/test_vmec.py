@@ -1,5 +1,4 @@
 import unittest
-import numpy as np
 import os
 
 from simsopt.mhd.vmec import vmec_found
@@ -15,16 +14,16 @@ class VmecTests(unittest.TestCase):
         and make sure we can read some of the attributes.
         """
         v = Vmec()
-        self.assertEqual(v.nfp, 5)
-        self.assertTrue(v.stellsym)
-        self.assertEqual(v.mpol, 5)
-        self.assertEqual(v.ntor, 4)
-        self.assertEqual(v.delt, 0.5)
-        self.assertEqual(v.tcon0, 2.0)
-        self.assertEqual(v.phiedge, 1.0)
-        self.assertEqual(v.curtor, 0.0)
-        self.assertEqual(v.gamma, 0.0)
-        self.assertEqual(v.ncurr, 1)
+        self.assertEqual(v.indata.nfp, 5)
+        self.assertFalse(v.indata.lasym)
+        self.assertEqual(v.indata.mpol, 5)
+        self.assertEqual(v.indata.ntor, 4)
+        self.assertEqual(v.indata.delt, 0.5)
+        self.assertEqual(v.indata.tcon0, 2.0)
+        self.assertEqual(v.indata.phiedge, 1.0)
+        self.assertEqual(v.indata.curtor, 0.0)
+        self.assertEqual(v.indata.gamma, 0.0)
+        self.assertEqual(v.indata.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 
@@ -36,9 +35,9 @@ class VmecTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
 
         v = Vmec(filename)
-        self.assertEqual(v.nfp, 3)
-        self.assertEqual(v.mpol, 4)
-        self.assertEqual(v.ntor, 3)
+        self.assertEqual(v.indata.nfp, 3)
+        self.assertEqual(v.indata.mpol, 4)
+        self.assertEqual(v.indata.ntor, 3)
         self.assertEqual(v.boundary.mpol, 4)
         self.assertEqual(v.boundary.ntor, 3)
 
@@ -51,7 +50,7 @@ class VmecTests(unittest.TestCase):
         # n = 1, m = 1:
         self.assertAlmostEqual(v.boundary.get_zs(1, 1), 1.6516E-01)
 
-        self.assertEqual(v.ncurr, 1)
+        self.assertEqual(v.indata.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 

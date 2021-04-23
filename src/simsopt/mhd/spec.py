@@ -23,8 +23,8 @@ try:
 except ImportError as e:
     pyoculus_found = False
 
-from simsopt.core.optimizable import Optimizable
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from .._core.optimizable import Optimizable
+from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 

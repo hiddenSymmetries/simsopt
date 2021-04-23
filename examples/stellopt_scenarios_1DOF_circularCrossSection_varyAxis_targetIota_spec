@@ -4,8 +4,8 @@ import logging
 import numpy as np
 
 from simsopt.mhd import Spec
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt import LeastSquaresProblem
+from simsopt import least_squares_serial_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
