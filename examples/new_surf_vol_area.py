@@ -20,6 +20,7 @@ surf = SurfaceRZFourier()
 # from the space of independent variables by setting their 'fixed'
 # property to True.
 surf.fix('rc(0,0)')
+surf.print_return_fn_names()
 
 # Approach 1
 
@@ -73,7 +74,7 @@ print(" -------------------------\n\n")
 # Approach 4
 surf4 = SurfaceRZFourier()
 surf4.fix('rc(0,0)')
-prob4 = LeastSquaresProblem.from_tuples([(surf4.area, desired_area,1),
+prob4 = LeastSquaresProblem.from_tuples([(surf4.area, desired_area, 1),
                                          (surf4.volume, desired_volume, 1)])
 print(prob4)
 least_squares_solve(prob4)
