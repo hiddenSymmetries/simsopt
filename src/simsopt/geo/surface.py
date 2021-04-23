@@ -181,7 +181,7 @@ class Surface(Optimizable):
 
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
-            &= \int_{\partial S_\phi} \nabla_{R,Z} \cdot [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
+            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
         where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
