@@ -153,8 +153,8 @@ class Surface(Optimizable):
 
     def aspect_ratio(self):
         r"""
-        Note: cylindrical coordinates are :math:`(R, \phi, Z)`
-        and the angles that parametrize the surface are :math:`(\varphi, \theta)`
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where :math:`\phi \in [-\pi,\pi)`
+        and the angles that parametrize the surface are :math:`(\varphi, \theta) \in [0,1)^2`
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
         
@@ -173,7 +173,7 @@ class Surface(Optimizable):
         area.  This is given by the integral
         
         .. math::
-            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0} \int_{S_{\phi}} ~dS ~d\phi
+            \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
         
         where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral using the divergence
@@ -181,10 +181,10 @@ class Surface(Optimizable):
 
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
-            &= \int_{\partial S_\phi} \nabla_{R,Z} \cdot [R,0] \cdot \mathbf n ~dl \\ 
-            &= \int_{\partial S_\phi} R n_R ~dl
+            &= \int_{\partial S_\phi} \nabla_{R,Z} \cdot [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
+            &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
-        where :math:`\mathbf n = [n_R, n_Z] = [dZ/d\theta, -dR/d\theta]` is the outward pointing normal
+        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
 
         Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
         \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
@@ -192,14 +192,14 @@ class Surface(Optimizable):
         Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
 
         .. math::
-            \int^{2\pi}_{0} R(\varphi(\phi,\theta),\theta)
+            \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
             \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
 
         Now, substituting this into the formula for the mean cross sectional area, we have
 
         .. math::
-            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2 \pi}_{0} R(\varphi(\phi,\theta),\theta)
-                \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\phi ~d\theta 
+            \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
+                \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
         
         Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
         integrate over :math:`\varphi` using the mapping:
@@ -210,7 +210,7 @@ class Surface(Optimizable):
         After the change of variables, the integral becomes:
         
         .. math::
-            \overline{A} = \frac{1}{2\pi}\int^{2 \pi}_{0}\int^{2\pi}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
+            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
@@ -224,8 +224,8 @@ class Surface(Optimizable):
 
         # compute the average cross sectional area
         J = np.zeros((xyz.shape[0], xyz.shape[1], 2, 2))
-        J[:, :, 0, 0] = (1. / (2. * np.pi))*(xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0])/x2y2
-        J[:, :, 0, 1] = (1. / (2. * np.pi))*(xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0])/x2y2
+        J[:, :, 0, 0] = (xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0])/x2y2
+        J[:, :, 0, 1] = (xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0])/x2y2
         J[:, :, 1, 0] = 0.
         J[:, :, 1, 1] = 1.
 
@@ -233,7 +233,7 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ)) 
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi) 
 
         R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
         R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
