@@ -21,7 +21,7 @@ except ImportError as err:
     vmec_found = False
 
 from .._core.optimizable import Optimizable
-from .._core.util import Struct
+from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..util.mpi import MpiPartition
 
@@ -235,9 +235,9 @@ class Vmec(Optimizable):
         boundary_RZFourier = self.boundary.to_RZFourier()
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
-            raise RuntimeError("VMEC does not allow mpol > 101")
+            raise ValueError("VMEC does not allow mpol > 101")
         if vi.ntor > 101:
-            raise RuntimeError("VMEC does not allow ntor > 101")
+            raise ValueError("VMEC does not allow ntor > 101")
         vi.rbc[:, :] = 0
         vi.zbs[:, :] = 0
         mpol_capped = np.min([boundary_RZFourier.mpol, 101])
@@ -292,9 +292,20 @@ class Vmec(Optimizable):
         logger.info("Calling VMEC cleanup().")
         vmec.cleanup(True)
 
-        if ierr != 11:  # 11 = successful_term_flag, defined in General/vmec_params.f
-            raise RuntimeError("VMEC did not converge. "
-                               "error code {}".format(ierr))
+        # See VMEC2000/Sources/General/vmec_params.f for ierr codes.
+        # 11 = successful_term_flag.
+        # Error codes that are expected to occur due to lack of
+        # convergence cause ObjectiveFailure, which the optimizer
+        # handles gracefully by treating the point as bad. But the
+        # user/developer should know if an error codes arises that
+        # should logically never occur, so these codes raise a
+        # different exception.
+        if ierr in [0, 5]:
+            raise RuntimeError(f"runvmec returned an error code that should " \
+                               "never occur: ierr={ierr}")
+        if ierr != 11:
+            raise ObjectiveFailure(f"VMEC did not converge. ierr={ierr}")
+        
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
         logger.info("Done loading VMEC output.")
@@ -355,7 +366,7 @@ class Vmec(Optimizable):
         #self.wout.ier_flag = f.variables['ier_flag'][()]
         if self.wout.ier_flag != 0:
             logger.info("VMEC did not succeed!")
-            raise RuntimeError("VMEC did not succeed")
+            raise ObjectiveFailure("VMEC did not succeed")
 
         # Shorthand for a long variable name:
         self.wout.lasym = f.variables['lasym__logical__'][()]
@@ -364,7 +375,7 @@ class Vmec(Optimizable):
         #self.wout.ier_flag = f.variables['ier_flag'][()]
         #if self.wout.ier_flag != 0:
         #    logger.info("VMEC did not succeed!")
-        #    raise RuntimeError("VMEC did not succeed")
+        #    raise ObjectiveFailure("VMEC did not succeed")
         #self.wout.nfp = f.variables['nfp'][()]
         #self.wout.lasym = f.variables['lasym__logical__'][()]
         #self.wout.ns = f.variables['ns'][()]

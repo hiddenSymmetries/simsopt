@@ -24,6 +24,7 @@ except ImportError as e:
     pyoculus_found = False
 
 from .._core.optimizable import Optimizable
+from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,9 @@ class Spec(Optimizable):
         logger.info("Running SPEC using filename " + filename)
         self.results = self.nml.run(spec_command=self.exe,
                                     filename=filename, force=True)
+        if self.results is None:
+            raise ObjectiveFailure("SPEC did not run successfully")
+        
         logger.info("SPEC run complete.")
         self.counter += 1
         self.need_to_run_code = False
@@ -280,14 +284,18 @@ class Residue(Optimizable):
         if self.need_to_run_code:
             self.spec.run()
             specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
-            fp = pyoculus.solvers.FixedPoint(
-                specb, {'theta': self.theta},
-                integrator_params={'rtol': self.rtol})
-            self.fixed_point = fp.compute(
-                self.s_guess, sbegin=self.s_min, send=self.s_max,
-                pp=self.pp, qq=self.qq)
+            # Set nrestart=0 because otherwise the random guesses in
+            # pyoculus can cause examples/tests to be
+            # non-reproducible.
+            fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta, 'nrestart':0},
+                                             integrator_params={'rtol':self.rtol})
+            self.fixed_point = fp.compute(self.s_guess, sbegin=self.s_min,
+                                          send=self.s_max, pp=self.pp, qq=self.qq)
             self.need_to_run_code = False
 
+        if self.fixed_point is None:
+            raise ObjectiveFailure("Residue calculation failed")
+        
         return self.fixed_point.GreenesResidue
     
     def get_dofs(self):
