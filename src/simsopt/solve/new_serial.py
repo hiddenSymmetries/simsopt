@@ -16,7 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def least_squares_solve(prob, grad=None, **kwargs):
+def least_squares_serial_solve(prob, grad=None, **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
     scipy.optimize, and without using any parallelization.

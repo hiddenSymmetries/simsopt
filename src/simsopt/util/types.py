@@ -7,7 +7,7 @@ This module contains small utility functions and classes.
 """
 
 from typing import Union, Sequence
-from numbers import Integral, Real, Number
+from numbers import Integral, Real
 
 from nptyping import NDArray, Float, Int, Bool
 

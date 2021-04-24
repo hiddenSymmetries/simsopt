@@ -7,6 +7,7 @@ This module contains small utility functions and classes.
 """
 
 import itertools
+from numbers import Integral, Number
 from dataclasses import dataclass
 from abc import ABCMeta
 
