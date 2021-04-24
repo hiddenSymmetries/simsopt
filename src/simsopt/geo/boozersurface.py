@@ -243,7 +243,7 @@ class BoozerSurface():
         res['iota'] = iota
         return res
 
-    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', linear_solver='svd'):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', linear_solver='svd', lam=1.0):
         """
         This function does the same as the above, but instead of LBFGS it uses a nonlinear least squares algorithm.
         Options for method are the same as for scipy.optimize.least_squares.
@@ -253,15 +253,15 @@ class BoozerSurface():
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
-        norm = 1e10
         if method == 'manual':
             i = 0
-            lam = 1.
             r, J = self.boozer_penalty_constraints(
                 x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
-            print('cond(dval)', np.linalg.cond(J), J.shape, np.linalg.matrix_rank(J))
+            # print('cond(dval)', np.linalg.cond(J), J.shape, np.linalg.matrix_rank(J))
+            print('J.shape =', J.shape)
             b = J.T@r
             JTJ = J.T@J if linear_solver == 'lu' else None
+            norm = np.linalg.norm(r)
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b) if linear_solver == 'lu' else np.linalg.lstsq(J, r)[0]
                 x -= dx
@@ -269,7 +269,7 @@ class BoozerSurface():
                     x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
                 JTJ = J.T@J if linear_solver == 'lu' else None
-                norm = np.linalg.norm(b)
+                norm = min(np.linalg.norm(b), np.linalg.norm(r))
                 lam *= 1/3
                 i += 1
             resdict = {
