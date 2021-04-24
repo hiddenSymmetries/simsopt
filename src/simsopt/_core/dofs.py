@@ -11,10 +11,11 @@ This module should not depend on anything involving communication
 """
 
 import logging
+from typing import Union
 import numpy as np
 
 from .optimizable import function_from_user
-from .util import unique
+from .util import unique, ObjectiveFailure
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,17 @@ class Dofs:
     This class holds data related to the vector of degrees of freedom
     that have been combined from multiple optimizable objects, keeping
     only the non-fixed dofs.
+
+    Args:
+        fail: Should be None, a large positive float, or NaN. If not
+          None, any ObjectiveFailure excpetions raised will be caught
+          and the corresponding residual values will be replaced by this
+          value.
     """
 
-    def __init__(self, funcs):
+    def __init__(self,
+                 funcs,
+                 fail: Union[None, float] = None):
         """
         Given a list of optimizable functions, 
 
@@ -66,6 +75,8 @@ class Dofs:
 
         names: A list of strings to identify each of the dofs.
         """
+
+        self.fail = fail
 
         # Convert all user-supplied function-like things to actual functions:
         funcs = [function_from_user(f) for f in funcs]
@@ -222,8 +233,19 @@ class Dofs:
         # simplicity. Maybe there is some speed advantage to only
         # doing it the first time (if self.nvals is None.)
         val_list = []
+        failed = False
         for j, func in enumerate(self.funcs):
-            f = func()
+            try:
+                f = func()
+            except ObjectiveFailure:
+                logger.info("Function evaluation failed")
+                failed = True
+                if self.fail is None:
+                    raise
+                # As soon as any functions fail, don't bother
+                # evaluating the rest:
+                break
+            
             if isinstance(f, (np.ndarray, list, tuple)):
                 self.nvals_per_func[j] = len(f)
                 val_list.append(np.array(f))
@@ -231,9 +253,19 @@ class Dofs:
                 self.nvals_per_func[j] = 1
                 val_list.append(np.array([f]))
 
-        logger.debug('Detected nvals_per_func={}'.format(self.nvals_per_func))
-        self.nvals = np.sum(self.nvals_per_func)
-        return np.concatenate(val_list)
+        if failed:
+            if self.nvals is None:
+                # This case occurs if there is a failure on the first
+                # function evaluation, so we do not yet know how many
+                # residuals to return.
+                raise RuntimeError("Objective failed on first function evaluation")
+            
+            return np.full(self.nvals, self.fail)
+        
+        else:
+            logger.debug('Detected nvals_per_func={}'.format(self.nvals_per_func))
+            self.nvals = np.sum(self.nvals_per_func)
+            return np.concatenate(val_list)
 
     def jac(self, x=None):
         """
