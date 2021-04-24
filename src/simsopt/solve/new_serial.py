@@ -26,14 +26,16 @@ def least_squares_solve(prob, grad=None, **kwargs):
     kwargs allows you to pass any arguments to scipy.optimize.least_squares.
     """
 
-    logfile = None
-    logfile_started = False
-    residuals_file = None
+    datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    objective_file = open(f"simsopt_{datestr}.dat", 'w')
+    residuals_file = open(f"residuals_{datestr}.dat", 'w')
+
     nevals = 0
     start_time = time()
-    
+    datalogging_started = False
+
     def objective(x):
-        nonlocal logfile_started, logfile, residuals_file, nevals
+        nonlocal datalogging_started, objective_file, residuals_file, nevals
         #success = True
         try:
             residuals = prob.residuals(x)
@@ -58,22 +60,17 @@ def least_squares_solve(prob, grad=None, **kwargs):
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
         # done.
-        if not logfile_started:
+        if not datalogging_started:
             # Initialize log file
-            logfile_started = True
-            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            filename = "simsopt_" + datestr + ".dat"
-            logfile = open(filename, 'w')
+            datalogging_started = True
             ndofs = prob.dof_size
-            logfile.write(
+            objective_file.write(
                 f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
-            logfile.write("function_evaluation,seconds")
+            objective_file.write("function_evaluation,seconds")
             for j in range(ndofs):
-                logfile.write(f",x({j})")
-            logfile.write(",objective_function\n\n")
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n\n")
 
-            filename = "residuals_" + datestr + ".dat"
-            residuals_file = open(filename, 'w')
             residuals_file.write(
                 f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
             residuals_file.write("function_evaluation,seconds")
@@ -85,12 +82,12 @@ def least_squares_solve(prob, grad=None, **kwargs):
             residuals_file.write("\n")
 
         elapsed_t = time() - start_time
-        logfile.write(f"{nevals:6d},{elapsed_t:12.4e}")
+        objective_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
-            logfile.write(f",{xj:24.16e}")
-        logfile.write(f",{objective_val:24.16e}")
-        logfile.write("\n")
-        logfile.flush()
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}")
+        objective_file.write("\n")
+        objective_file.flush()
 
         residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
@@ -114,22 +111,16 @@ def least_squares_solve(prob, grad=None, **kwargs):
     x0 = np.copy(prob.x)
     if grad:
         logger.info("Using derivatives")
-        print("Using derivatives")
         result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
-        print("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
 
-    logfile_started = False
-    logfile.close()
+    datalogging_started = False
+    objective_file.close()
     residuals_file.close()
     logger.info("Completed solve.")
     
-    #print("optimum x:",result.x)
-    #print("optimum residuals:",result.fun)
-    #print("optimum cost function:",result.cost)
-    # Set Parameters to their values for the optimum
     prob.x = result.x
 
 
@@ -144,72 +135,66 @@ def serial_solve(prob, grad=None, **kwargs):
     kwargs allows you to pass any arguments to scipy.optimize.minimize.
     """
 
-    logfile = None
-    logfile_started = False
-    nevals = 0
-    start_time = time()
+    filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") \
+               + ".dat"
+    with open(filename, 'w') as objective_file:
+        datalogging_started = False
+        nevals = 0
+        start_time = time()
+
+        def objective(x):
+            nonlocal datalogging_started, objective_file, nevals
+            try:
+                result = prob.objective(x)
+            except:
+                result = 1e+12
+
+            # Since the number of terms is not known until the first
+            # evaluation of the objective function, we cannot write the
+            # header of the output file until this first evaluation is
+            # done.
+            if not datalogging_started:
+                # Initialize log file
+                datalogging_started = True
+                objective_file.write(
+                    f"Problem type:\ngeneral\nnparams:\n{prob.dof_size}\n")
+                objective_file.write("function_evaluation,seconds")
+                for j in range(prob.dof_size):
+                    objective_file.write(f",x({j})")
+                objective_file.write(",objective_function")
+                objective_file.write("\n")
+
+            del_t = time() - start_time
+            objective_file.write(f"{nevals:6d},{del_t:12.4e}")
+            for xj in x:
+                objective_file.write(f",{xj:24.16e}")
+            objective_file.write(f",{result:24.16e}")
+            objective_file.write("\n")
+            objective_file.flush()
+
+            nevals += 1
+            return result
+
+
+        # Need to fix up this next line for non-least-squares problems:
+        #if grad is None:
+        #    grad = prob.dofs.grad_avail
+
+        #if not 'verbose' in kwargs:
+
+        logger.info("Beginning solve.")
+        x0 = np.copy(prob.x)
+        if grad:
+            raise RuntimeError("Need to convert least-squares Jacobian to "
+                               "gradient of the scalar objective function")
+            logger.info("Using derivatives")
+            result = least_squares(objective, x0, verbose=2, jac=prob.jac,
+                                   **kwargs)
+        else:
+            logger.info("Using derivative-free method")
+            result = minimize(objective, x0, options={'disp':True}, **kwargs)
+
+        datalogging_started = False
+        logger.info("Completed solve.")
     
-    def objective(x):
-        nonlocal logfile_started, logfile, nevals
-        try:
-            result = prob.objective(x)
-        except:
-            result = 1e+12
-        
-        # Since the number of terms is not known until the first
-        # evaluation of the objective function, we cannot write the
-        # header of the output file until this first evaluation is
-        # done.
-        if not logfile_started:
-            # Initialize log file
-            logfile_started = True
-            filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".dat"
-            logfile = open(filename, 'w')
-            logfile.write(f"Problem type:\ngeneral\nnparams:\n{prob.dof_size}\n")
-            logfile.write("function_evaluation,seconds")
-            for j in range(prob.dof_size):
-                logfile.write(f",x({j})")
-            logfile.write(",objective_function")
-            logfile.write("\n")
-
-        del_t = time() - start_time
-        logfile.write(f"{nevals:6d},{del_t:12.4e}")
-        for xj in x:
-            logfile.write(f",{xj:24.16e}")
-        logfile.write(f",{result:24.16e}")
-        logfile.write("\n")
-        logfile.flush()
-
-        nevals += 1
-        return result
-
-    logger.info("Beginning solve.")
-    # Not sure if the next line has an analog for non-least-squares problems:
-    # prob._init() # In case 'fixed', 'mins', etc have changed since the problem was created.
-
-    # Need to fix up this next line for non-least-squares problems:
-    #if grad is None:
-    #    grad = prob.dofs.grad_avail
-        
-    #if not 'verbose' in kwargs:
-        
-    x0 = np.copy(prob.x)
-    if grad:
-        raise RuntimeError("Need to convert least-squares Jacobian to gradient of the scalar objective function")
-        logger.info("Using derivatives")
-        print("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
-    else:
-        logger.info("Using derivative-free method")
-        print("Using derivative-free method")
-        result = minimize(objective, x0, options={'disp':True}, **kwargs)
-
-    logfile_started = False
-    logfile.close()
-    logger.info("Completed solve.")
-    
-    #print("optimum x:",result.x)
-    #print("optimum residuals:",result.fun)
-    #print("optimum cost function:",result.cost)
-    # Set Parameters to their values for the optimum
     prob.x = result.x
