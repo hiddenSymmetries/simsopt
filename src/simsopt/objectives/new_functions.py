@@ -145,12 +145,6 @@ class TestObject1(Optimizable):
             opts = [Adder(3), Adder(2)]
         super().__init__(x0=[val], names=['val'], funcs_in=opts)
 
-    #def set_dofs(self, x):
-    #    self.val = x[0]
-
-    #def get_dofs(self):
-    #    return np.array([self.val])
-    
     def f(self):
         """
         Same as J() but a property instead of a function.
@@ -181,21 +175,7 @@ class TestObject2(Optimizable):
         names = ['val1', 'val2']
         funcs = [TestObject1(0.0), Adder(2)]
         super().__init__(x0=x, names=names, funcs_in=funcs)
-        #self.val1 = val1
-        #self.val2 = val2
-        #self.dof_names = ['val1', 'val2']
-        #self.dof_fixed = np.array([False, False])
-        #self.t = TestObject1(0.0)
-        #self.adder = Adder(2)
-        #self.depends_on = ['t', 'adder']
 
-    #def set_dofs(self, x):
-    #    self.val1 = x[0]
-    #    self.val2 = x[1]
-
-    #def get_dofs(self):
-    #    return np.array([self.val1, self.val2])
-    
     def f(self):
         x = self.local_full_x
         v1 = x[0]
@@ -218,7 +198,6 @@ class TestObject2(Optimizable):
                                cosat * self.parents[1].dJ()))
 
 
-    
 class Affine(Optimizable):
     """
     This class represents a random affine (i.e. linear plus constant)
@@ -240,4 +219,3 @@ class Affine(Optimizable):
 
     def dJ(self):
         return self.A
-    
