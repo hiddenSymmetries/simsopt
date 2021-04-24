@@ -149,7 +149,6 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash1_impl(Array& data) override {
-            data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 double sinphi = sin(phi);
@@ -177,15 +176,14 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     }
                     double xdash = xhatdash * cosphi - yhatdash * sinphi - xhat * sinphi - yhat * cosphi;
                     double ydash = xhatdash * sinphi + yhatdash * cosphi + xhat * cosphi - yhat * sinphi;
-                    data(k1, k2, 0) += 2*M_PI*xdash;
-                    data(k1, k2, 1) += 2*M_PI*ydash;
-                    data(k1, k2, 2) += 2*M_PI*zdash;
+                    data(k1, k2, 0) = 2*M_PI*xdash;
+                    data(k1, k2, 1) = 2*M_PI*ydash;
+                    data(k1, k2, 2) = 2*M_PI*zdash;
                 }
             }
         }
 
         void gammadash2_impl(Array& data) override {
-            data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 double sinphi = sin(phi);
@@ -209,9 +207,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     }
                     double xdash = xhatdash * cosphi - yhatdash * sinphi;
                     double ydash = xhatdash * sinphi + yhatdash * cosphi;
-                    data(k1, k2, 0) += 2*M_PI*xdash;
-                    data(k1, k2, 1) += 2*M_PI*ydash;
-                    data(k1, k2, 2) += 2*M_PI*zdash;
+                    data(k1, k2, 0) = 2*M_PI*xdash;
+                    data(k1, k2, 1) = 2*M_PI*ydash;
+                    data(k1, k2, 2) = 2*M_PI*zdash;
                 }
             }
         }
