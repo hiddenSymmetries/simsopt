@@ -61,4 +61,10 @@ least_squares_serial_solve(prob)
 
 final_r1 = residue1.J()                                                                    
 final_r2 = residue2.J()                                                                    
+expected_solution = np.array([1.1076171888771095e-03,  4.5277618989828059e-04])
+print(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
+print("Expected state vector:", expected_solution)
+print("Difference from expected solution:", prob.x - expected_solution)
 print(f"Final residues: {final_r1}, {final_r2}")
+
+np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)
