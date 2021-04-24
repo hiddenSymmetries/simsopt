@@ -30,34 +30,38 @@ from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
-#def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
-def least_squares_serial_solve(prob: LeastSquaresProblem,
-                               grad: bool = None,
-                               **kwargs):
+
+def least_squares_solve(prob: LeastSquaresProblem,
+                        grad: bool = None,
+                        **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem.
 
     Args:
-        prob: An instance of LeastSquaresProblem, defining the objective function(s) and parameter space.
-        grad: Whether to use a gradient-based optimization algorithm, as opposed to a gradient-free algorithm.
-          If unspecified, a gradient-based algorithm will be used if ``prob`` has gradient information available,
-          otherwise a gradient-free algorithm will be used by default. If you set ``grad=True`` for a problem in
-          which gradient information is not available, finite-difference gradients will be used.
+        prob: An instance of LeastSquaresProblem, defining the objective
+                function(s) and parameter space.
+        grad: Whether to use a gradient-based optimization algorithm, as
+                opposed to a gradient-free algorithm. If unspecified, a
+                gradient-based algorithm will be used if ``prob`` has
+                gradient information available, otherwise a gradient-free
+                algorithm will be used by default. If you set ``grad=True``
+                for a problem in which gradient information is not available,
+                finite-difference gradients will be used.
         kwargs: Any arguments to pass to 
-          `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_. 
-          For instance,
-          you can supply ``max_nfev=100`` to set the maximum number of function evaluations (not counting
-          finite-difference gradient evaluations) to 100.
+                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+                For instance, you can supply ``max_nfev=100`` to set the
+                maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100.
     """
 
-    logfile = None
-    logfile_started = False
+    objective_file = None
+    datalogging_started = False
     residuals_file = None
     nevals = 0
     start_time = time()
     
     def objective(x):
-        nonlocal logfile_started, logfile, residuals_file, nevals
+        nonlocal datalogging_started, objective_file, residuals_file, nevals
         success = True
         try:
             f_unshifted = prob.dofs.f(x)
@@ -84,18 +88,18 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
         # done.
-        if not logfile_started:
+        if not datalogging_started:
             # Initialize log file
-            logfile_started = True
+            datalogging_started = True
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             filename = "simsopt_" + datestr + ".dat"
-            logfile = open(filename, 'w')
-            logfile.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
-            logfile.write("function_evaluation,seconds")
+            objective_file = open(filename, 'w')
+            objective_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            objective_file.write("function_evaluation,seconds")
             for j in range(prob.dofs.nparams):
-                logfile.write(",x({})".format(j))
-            logfile.write(",objective_function")
-            logfile.write("\n")
+                objective_file.write(",x({})".format(j))
+            objective_file.write(",objective_function")
+            objective_file.write("\n")
             
             filename = "residuals_" + datestr + ".dat"
             residuals_file = open(filename, 'w')
@@ -108,12 +112,12 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                 residuals_file.write(",F({})".format(j))
             residuals_file.write("\n")
             
-        logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
-            logfile.write(",{:24.16e}".format(xj))
-        logfile.write(",{:24.16e}".format(objective_val))
-        logfile.write("\n")
-        logfile.flush()
+            objective_file.write(",{:24.16e}".format(xj))
+        objective_file.write(",{:24.16e}".format(objective_val))
+        objective_file.write("\n")
+        objective_file.flush()
 
         residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
@@ -137,15 +141,13 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     x0 = np.copy(prob.x)
     if grad:
         logger.info("Using derivatives")
-        print("Using derivatives")
         result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
-        print("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
 
-    logfile_started = False
-    logfile.close()
+    datalogging_started = False
+    objective_file.close()
     residuals_file.close()
     logger.info("Completed solve.")
     
@@ -167,13 +169,13 @@ def serial_solve(prob, grad=None, **kwargs):
     kwargs allows you to pass any arguments to scipy.optimize.minimize.
     """
 
-    logfile = None
-    logfile_started = False
+    objective_file = None
+    datalogging_started = False
     nevals = 0
     start_time = time()
     
     def objective(x):
-        nonlocal logfile_started, logfile, nevals
+        nonlocal datalogging_started, objective_file, nevals
         try:
             result = prob.objective(x)
         except:
@@ -184,24 +186,24 @@ def serial_solve(prob, grad=None, **kwargs):
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
         # done.
-        if not logfile_started:
+        if not datalogging_started:
             # Initialize log file
-            logfile_started = True
+            datalogging_started = True
             filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".dat"
-            logfile = open(filename, 'w')
-            logfile.write("Problem type:\ngeneral\nnparams:\n{}\n".format(prob.dofs.nparams))
-            logfile.write("function_evaluation,seconds")
+            objective_file = open(filename, 'w')
+            objective_file.write("Problem type:\ngeneral\nnparams:\n{}\n".format(prob.dofs.nparams))
+            objective_file.write("function_evaluation,seconds")
             for j in range(prob.dofs.nparams):
-                logfile.write(",x({})".format(j))
-            logfile.write(",objective_function")
-            logfile.write("\n")
+                objective_file.write(",x({})".format(j))
+            objective_file.write(",objective_function")
+            objective_file.write("\n")
             
-        logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
-            logfile.write(",{:24.16e}".format(xj))
-        logfile.write(",{:24.16e}".format(result))
-        logfile.write("\n")
-        logfile.flush()
+            objective_file.write(",{:24.16e}".format(xj))
+        objective_file.write(",{:24.16e}".format(result))
+        objective_file.write("\n")
+        objective_file.flush()
 
         nevals += 1
         return result
@@ -227,12 +229,8 @@ def serial_solve(prob, grad=None, **kwargs):
         print("Using derivative-free method")
         result = minimize(objective, x0, options={'disp': True}, **kwargs)
 
-    logfile_started = False
-    logfile.close()
+    datalogging_started = False
+    objective_file.close()
     logger.info("Completed solve.")
     
-    #print("optimum x:",result.x)
-    #print("optimum residuals:",result.fun)
-    #print("optimum cost function:",result.cost)
-    # Set Parameters to their values for the optimum
     prob.x = result.x

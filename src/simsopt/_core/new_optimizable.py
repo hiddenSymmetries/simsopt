@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from deprecated import deprecated
 
-from .util import RealArray, StrArray, BoolArray, Key
+from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta
 
 

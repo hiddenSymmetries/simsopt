@@ -43,7 +43,7 @@ def _mpi_leaders_task(mpi, dofs, data):
     We have to take a "data" argument, but there is only 1 task we
     would do, so we don't use it.
     """
-    logger.debug('_mpi_leaders_task')
+    logger.debug('mpi leaders task')
 
     # x is a buffer for receiving the state vector:
     x = np.empty(dofs.nparams, dtype='d')
@@ -52,7 +52,7 @@ def _mpi_leaders_task(mpi, dofs, data):
     # separate bcast and Bcast functions!!  comm.Bcast(x,
     # root=0)
     x = mpi.comm_leaders.bcast(x, root=0)
-    logger.debug('mpi_leaders_loop x={}'.format(x))
+    logger.debug(f'mpi leaders loop x={x}')
     dofs.set(x)
     fd_jac_mpi(dofs, mpi)
 
@@ -62,7 +62,7 @@ def _mpi_workers_task(mpi, dofs, data):
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
     """
-    logger.debug('_mpi_workers_task')
+    logger.debug('mpi workers task')
 
     # x is a buffer for receiving the state vector:
     x = np.empty(dofs.nparams, dtype='d')
@@ -71,7 +71,7 @@ def _mpi_workers_task(mpi, dofs, data):
     # separate bcast and Bcast functions!!  comm.Bcast(x,
     # root=0)
     x = mpi.comm_groups.bcast(x, root=0)
-    logger.debug('worker_loop worker x={}'.format(x))
+    logger.debug('worker loop worker x={}'.format(x))
     dofs.set(x)
 
     # We don't store or do anything with f() or jac(), because

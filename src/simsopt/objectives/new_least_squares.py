@@ -8,21 +8,22 @@ This module provides the LeastSquaresProblem class.
 
 from __future__ import annotations
 
-import numpy as np
 import logging
 import warnings
-
 from collections.abc import Sequence as ABC_Sequence
 from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
-from mpi4py import MPI
-from .new_optimizable import DOFs, Optimizable
-from .util import RealArray, IntArray, BoolArray
+
+import numpy as np
+
+from .._core.new_optimizable import DOFs, Optimizable
+from .._core.util import RealArray, IntArray, BoolArray
 
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 StrSeq = Union[Sequence, Sequence[Sequence[str]]]
+
 
 class LeastSquaresProblem(Optimizable):
     """
@@ -101,26 +102,44 @@ class LeastSquaresProblem(Optimizable):
         #weights = list(weights)
         return cls(goals, weights, funcs_in=funcs_in)
 
+    def _unweighted_residuals(self, x=None, *args, **kwargs):
+        """
+        Return the unweighted residuals
+        """
+        if x is not None:
+            self.x = x
+
+        outputs = []
+        for i, opt in enumerate(self.parents):
+            out = opt(child=self, *args, **kwargs)
+            output = np.array([out]) if np.isscalar(out) else np.array(out)
+            outputs += [output]
+
+        return np.concatenate(outputs) - self.goals
+
     def residuals(self, x=None, *args, **kwargs):
         """
         Return the residuals
         """
-        if x is not None:
-            self.x = x
-        outputs = []
-        for i, opt in enumerate(self.parents):
-            out = opt(child=self)
-            output = np.array([out]) if np.isscalar(out) else np.array(out)
+        unweighted_residuals = self._unweighted_residuals(x, *args, **kwargs)
+        return unweighted_residuals * np.sqrt(self.weights)
+
+        # if x is not None:
+        #    self.x = x
+        #outputs = []
+        #for i, opt in enumerate(self.parents):
+        #    out = opt(child=self, *args, **kwargs)
+        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
             #if self.opt_return_fns is None:
             #    fn_value = output
             #elif self.func_masks[i] is None:
             #    fn_value = output
             #else:
             #    fn_value = output[self.func_masks[i]]
-            outputs += [output]
-        outputs = np.concatenate(outputs)
-        residuals = (outputs - self.goals) * np.sqrt(self.weights)
-        return residuals
+        #    outputs += [output]
+        #outputs = np.concatenate(outputs)
+        #residuals = (outputs - self.goals) * np.sqrt(self.weights)
+        #return residuals
 
         #print('terms at line 104', terms)
         #print('goals', self.goals )
@@ -136,18 +155,20 @@ class LeastSquaresProblem(Optimizable):
         """
         Return the least squares sum
         """
-        if x is not None:
-            self.x = x
+        #if x is not None:
+        #    self.x = x
 
-        outputs = []
-        for i, opt in enumerate(self.parents):
-            out = opt(child=self)
-            output = np.array([out]) if np.isscalar(out) else np.array(out)
-            outputs += [output]
-        outputs = np.concatenate(outputs)
-        diff_values = outputs - self.goals
+        #outputs = []
+        #for i, opt in enumerate(self.parents):
+        #    out = opt(child=self, *args, **kwargs)
+        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
+        #    outputs += [output]
+        #outputs = np.concatenate(outputs)
+        #diff_values = outputs - self.goals
+        unweighted_residuals = self._unweighted_residuals(x, *args, **kwargs)
+
         s = 0
-        for i, val in enumerate(diff_values):
+        for i, val in enumerate(unweighted_residuals):
             s += np.dot(val, val) * self.weights[i]
 
         return s
