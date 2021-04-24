@@ -236,7 +236,7 @@ def fd_jac_mpi(prob: Optimizable,
     return jac, xs, evals
 
 
-def least_squares_mpi_solve(prob: LeastSqauresProblem,
+def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             mpi: MpiPartition,
                             grad: bool = None,
                             **kwargs):
