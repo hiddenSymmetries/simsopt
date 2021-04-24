@@ -58,8 +58,8 @@ More details about setting degrees of freedom and defining
 objective functions can be found on the :doc:`problems` page.
 
 For the solution step, two functions are provided presently,
-:meth:`simsopt.solve.serial_solve.least_squares_serial_solve` and
-:meth:`simsopt.solve.mpi_solve.least_squares_mpi_solve`.  The first
+:meth:`simsopt.solve.serial.least_squares_serial_solve` and
+:meth:`simsopt.solve.mpi.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
 
@@ -122,7 +122,7 @@ The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the 
 
   # ... code to define an optimization problem "prob" ...
   
-  from simsopt.solve.mpi_solve import least_squares_mpi_solve
+  from simsopt.solve.mpi import least_squares_mpi_solve
   
   least_squares_mpi_solve(prob, mpi, grad=True)
 
