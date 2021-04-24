@@ -15,6 +15,8 @@ using std::logic_error;
 #include "curve.h"
 #include <Eigen/Dense>
 
+template<class Array>
+Array surface_vjp_contraction(const Array& mat, const Array& v);
 
 template<class Array>
 class Surface {
@@ -123,9 +125,19 @@ class Surface {
         virtual void dgammadash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
         virtual void dgammadash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2_by_dcoeff_impl was not implemented"); };
 
+        virtual Array dgammadash1_by_dcoeff_vjp(Array& v) {
+            return surface_vjp_contraction<Array>(dgammadash1_by_dcoeff(), v);
+        };
+
+        virtual Array dgammadash2_by_dcoeff_vjp(Array& v) {
+            return surface_vjp_contraction<Array>(dgammadash2_by_dcoeff(), v);
+        };
+
+
         void normal_impl(Array& data);
         void dnormal_by_dcoeff_impl(Array& data);
         void d2normal_by_dcoeffdcoeff_impl(Array& data);
+        Array dnormal_by_dcoeff_vjp(Array& v);
 
         double area();
         void darea_by_dcoeff_impl(Array& data);
