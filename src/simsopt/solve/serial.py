@@ -31,7 +31,7 @@ from ..objectives.least_squares import LeastSquaresProblem
 logger = logging.getLogger(__name__)
 
 
-def least_squares_solve(prob: LeastSquaresProblem,
+def least_squares_serial_solve(prob: LeastSquaresProblem,
                         grad: bool = None,
                         **kwargs):
     """

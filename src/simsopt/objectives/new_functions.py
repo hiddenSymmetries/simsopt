@@ -9,8 +9,9 @@ representing a function. These functions are mostly used for testing.
 
 import numpy as np
 import logging
-from .new_optimizable import Optimizable
-from .util import Real, RealArray
+from numbers import Real
+from .._core.new_optimizable import Optimizable
+from ..util.types import RealArray
 
 
 class Identity(Optimizable):
