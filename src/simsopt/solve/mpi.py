@@ -202,12 +202,7 @@ def fd_jac_mpi(dofs: Dofs,
             mpi.comm_groups.bcast(x, root=0)
             dofs.set(x)
             
-            try:
-                f = dofs.f()
-            except:
-                logger.info("Exception caught during function evaluation")
-                traceback.print_exc()  # Print traceback
-                f = np.full(prob.dofs.nvals, 1.0e12)
+            f = dofs.f()
                 
             if evals is None and mpi.proc0_world:
                 dofs.nvals = mpi.comm_leaders.bcast(dofs.nvals)
@@ -295,13 +290,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         mpi.comm_groups.bcast(x, root=0)
         logger.debug("Past bcast in _f_proc0")
 
-        try:
-            f_unshifted = prob.dofs.f(x)
-        except:
-            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
-            logger.info("Exception caught during function evaluation.")
-            traceback.print_exc()  # Print traceback
-
+        f_unshifted = prob.dofs.f(x)
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
 
