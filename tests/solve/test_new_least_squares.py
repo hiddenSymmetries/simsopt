@@ -3,8 +3,7 @@ import logging
 
 from simsopt._core.optimizable import Target
 from simsopt.objectives.new_functions import Identity, Rosenbrock
-from simsopt.objectives.new_least_squares import LeastSquaresProblem, \
-        LeastSquaresTerm
+from simsopt.objectives.new_least_squares import LeastSquaresProblem
 from simsopt.solve.new_serial import least_squares_serial_solve
 from simsopt.util.mpi import MpiPartition
 from simsopt.solve.new_mpi import least_squares_mpi_solve
@@ -108,7 +107,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
             iden1.fixed = [True]
             iden3.fixed = [True]
             # Try a mix of explicit LeastSquaresTerms and tuples
-            term1 = LeastSquaresTerm(Target(iden1, 'x'), 1, 1)
+            term1 = (iden1, 'x', 1, 1)
             term2 = (iden2, 'x', 2, 1 / 4.)
             term3 = (iden3, 'x', 3, 1 / 9.)
             prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
