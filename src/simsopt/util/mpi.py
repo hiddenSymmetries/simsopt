@@ -8,6 +8,7 @@ This module contains the :class:`~simsopt.util.mpi.MpiPartition` class.
 This module should be completely self-contained, depending only on
 mpi4py and numpy, not on any other simsopt components.
 """
+__all__ = ['log', 'MpiPartition']
 
 import logging
 from typing import Union

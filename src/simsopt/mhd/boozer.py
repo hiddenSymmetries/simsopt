@@ -18,8 +18,8 @@ try:
 except ImportError as err:
     booz_xform_found = False
 
-from simsopt.core.optimizable import Optimizable
-from simsopt.mhd import Vmec
+from .._core.optimizable import Optimizable
+from .vmec import Vmec
 
 logger = logging.getLogger(__name__)
 

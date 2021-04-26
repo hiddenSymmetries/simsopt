@@ -8,7 +8,9 @@ representing a function. These functions are mostly used for testing.
 """
 
 import numpy as np
-from .optimizable import Optimizable
+
+from .._core.optimizable import Optimizable
+from .._core.util import ObjectiveFailure
 
 class Identity(Optimizable):
     """
@@ -179,6 +181,27 @@ class Rosenbrock(Optimizable):
         self._x = xin[0]
         self._y = xin[1]
 
+class RosenbrockWithFailures(Rosenbrock):
+    """
+    This class is similar to the Rosenbrock class, except that it
+    fails (raising ObjectiveFailure) at regular intervals.  This is
+    useful for testing that the simsopt infrastructure handles
+    failures in the expected way.
+    """
+
+    def __init__(self, *args, fail_interval=8, **kwargs):
+        self.nevals = 0
+        self.fail_interval = fail_interval
+        super().__init__(*args, **kwargs)
+
+    def term1(self):
+        self.nevals += 1
+        if np.mod(self.nevals, self.fail_interval) == 0:
+            raise ObjectiveFailure("Planned failure")
+    
+        return super().term1()
+        
+
 class TestObject1(Optimizable):
     """
     This is an optimizable object used for testing. It depends on two
@@ -305,4 +328,39 @@ class Affine(Optimizable):
 
     def dJ(self):
         return self.A
+
     
+class Failer(Optimizable):
+    """
+    This class is used for testing failures of the objective
+    function. This function always returns a vector with entries all
+    1.0, except that ObjectiveFailure will be raised on a specified
+    evaluation.
+
+    Args:
+        nparams: Number of input values.
+        nvals: Number of entries in the return vector.
+        fail_index: Which function evaluation to fail on.
+    """
+    def __init__(self,
+                 nparams: int = 2,
+                 nvals: int = 3,
+                 fail_index: int = 2):
+        self.nparams = nparams
+        self.nvals = nvals
+        self.fail_index = fail_index
+        self.nevals = 0
+        self.x = np.zeros(self.nparams)
+
+    def J(self):
+        self.nevals += 1
+        if self.nevals == self.fail_index:
+            raise ObjectiveFailure("nevals == fail_index")
+        else:
+            return np.full(self.nvals, 1.0)
+
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, x):
+        self.x = x
