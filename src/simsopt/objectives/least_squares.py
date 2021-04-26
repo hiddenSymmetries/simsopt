@@ -7,14 +7,18 @@ This module provides the LeastSquaresProblem class, as well as the
 associated class LeastSquaresTerm.
 """
 
-import numpy as np
+__all__ = ['LeastSquaresTerm', 'LeastSquaresProblem']
+
 import logging
 import warnings
+from typing import Union
 
+import numpy as np
 from scipy.optimize import least_squares
-from .dofs import Dofs
-from .util import isnumber
-from .optimizable import function_from_user, Target
+
+from .._core.dofs import Dofs
+from .._core.util import isnumber
+from .._core.optimizable import function_from_user, Target
 
 logger = logging.getLogger(__name__)
 
@@ -65,23 +69,24 @@ class LeastSquaresProblem:
     """
     This class represents a nonlinear-least-squares optimization
     problem. The class stores a list of LeastSquaresTerm objects.
+
+    Args:
+        terms: Must be convertable to a list by the list()
+          subroutine. Each entry of the resulting list must either have
+          type LeastSquaresTerm or else be a list or tuple of the form
+          (function, goal, weight) or (object, attribute_str, goal,
+          weight).
+        fail: Should be None, a large positive float, or NaN. If not
+          None, any ObjectiveFailure excpetions raised will be caught
+          and the corresponding residual values will be replaced by this
+          value.
     """
 
-    def __init__(self, terms):
-        """
-        The argument "terms" must be convertable to a list by the list()
-        subroutine. Each entry of the resulting list must either have
-        type LeastSquaresTerm or else be a list or tuple of the form
-        (function, goal, weight) or (object, attribute_str, goal,
-        weight).
-        """
-
-        #try:
-        #   terms = list(terms)
-        #except:
-        #    raise ValueError("terms must be convertable to a list by the "
-        #                     "list(terms) command.")
-
+    def __init__(self,
+                 terms,
+                 fail: Union[None, float] = 1.0e12):
+        
+        self.fail = fail
         # For each item provided in the list, either convert to a
         # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
         # use it directly.
@@ -110,7 +115,7 @@ class LeastSquaresProblem:
         etc. This is done both when the object is created, so 'objective' 
         works immediately, and also at the start of solve()
         """
-        self.dofs = Dofs([t.f_in for t in self.terms])
+        self.dofs = Dofs([t.f_in for t in self.terms], fail=self.fail)
 
     @property
     def x(self):
@@ -142,7 +147,7 @@ class LeastSquaresProblem:
         logger.info("objective() called with x=" + str(x))
         self.x = x
 
-        return sum(t.f_out() for t in self.terms)
+        return self.objective_from_shifted_f(self.f())
 
     
     def f_from_unshifted(self, f_unshifted):
