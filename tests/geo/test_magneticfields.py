@@ -43,7 +43,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Afield1, newA1)
         # Verify that curl of magnetic vector potential is the toroidal magnetic field
         dA1_by_dX = Bfield.dA_by_dX()
-        newB1 = np.array([[dA1bydX[1, 2]-dA1bydX[2, 1], dA1bydX[2, 0]-dA1bydX[0, 2], dA1bydX[0, 1]-dA1bydX[1, 0]] for dA1bydX in dA1_by_dX])
+        newB1 = np.array([[dA1bydX[2, 1]-dA1bydX[1, 2], dA1bydX[0, 2]-dA1bydX[2, 0], dA1bydX[1, 0]-dA1bydX[0, 1]] for dA1bydX in dA1_by_dX])
         assert np.allclose(B1, newB1)
         # Verify symmetry of the Hessians
         GradGradB1 = Bfield.d2B_by_dXdX()
