@@ -33,7 +33,7 @@ endif()
 
 IF(DEFINED ENV{CI})
     message(STATUS "CI environment detected. Set compilation flags accordingly (target ivybridge which supports avx).")
-    set(CMAKE_CXX_FLAGS "-O3 -march=x86-64-v3 -mfma -ffp-contract=fast")
+    set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge -mfma -ffp-contract=fast")
 else()
     message(STATUS "Local build detected. Set compilation flags accordingly (march=native).")
     set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
