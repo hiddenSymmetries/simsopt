@@ -1,10 +1,12 @@
-from .curve import Curve
-import simsgeopp as sgpp
+from math import pi
+
 import numpy as np
 from jax.ops import index, index_add
 import jax.numpy as jnp
-from math import pi
+
 from .curve import JaxCurve
+from .curve import Curve
+import simsgeopp as sgpp
 
 
 class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):

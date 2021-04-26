@@ -1,9 +1,12 @@
 import unittest
 import numpy as np
-from simsopt.core.dofs import get_owners, Dofs
-from simsopt.core.functions import Identity, Adder, TestObject2, Rosenbrock, Affine
-from simsopt.core.optimizable import Target
 
+from simsopt._core.dofs import get_owners, Dofs
+from simsopt._core.optimizable import Target
+from simsopt.objectives.functions import Identity, Adder, TestObject2, \
+    Rosenbrock, Affine, Failer
+
+        
 class GetOwnersTests(unittest.TestCase):
     def test_no_dependents(self):
         """
@@ -308,7 +311,42 @@ class DofsTests(unittest.TestCase):
                 np.testing.assert_allclose(fd_jac, fd_jac_centered, rtol=rtol, atol=atol)
                 self.assertEqual(dofs.nvals, nvals)
                 self.assertEqual(list(dofs.nvals_per_func), nvals_per_func)
-                
 
+    def test_failures(self):
+        """
+        Verify that if ObjectiveFailure is raised during function
+        evaluations, a vector is returned filled with the expected
+        number.
+        """
+        nvals = 3
+        fail_val = 1.0e8
+        o1 = Failer(nvals=nvals)
+        d1 = Dofs([o1], fail=fail_val)
+        # First eval should not fail:
+        f = d1.f()
+        np.testing.assert_allclose(f, np.full(nvals, 1.0))
+        # There should be a failure on the 2nd evaluation:
+        f = d1.f()
+        np.testing.assert_allclose(f, np.full(nvals, fail_val))
+        # Third eval should not fail:
+        f = d1.f()
+        np.testing.assert_allclose(f, np.full(nvals, 1.0))
+
+        # Try an example with >1 object in the dofs, and with NaN
+        # instead of a finite value for the failure value.
+        fail_val = np.NAN
+        o2 = Failer(nvals=3)
+        r2 = Rosenbrock()
+        d2 = Dofs([o2, r2.terms], fail=fail_val)
+        # First eval should not fail:
+        f = d2.f()
+        np.testing.assert_allclose(f, [1., 1., 1., -1., 0.])
+        # There should be a failure on the 2nd evaluation:
+        f = d2.f()
+        np.testing.assert_allclose(f, np.full(5, fail_val))
+        # Third eval should not fail:
+        f = d2.f()
+        np.testing.assert_allclose(f, [1., 1., 1., -1., 0.])
+        
 if __name__ == "__main__":
     unittest.main()

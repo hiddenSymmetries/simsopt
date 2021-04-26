@@ -4,8 +4,8 @@ import os
 import logging
 import shutil
 from simsopt.mhd.spec import Spec, nested_lists_to_array
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
