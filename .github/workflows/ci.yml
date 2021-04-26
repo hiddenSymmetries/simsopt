@@ -170,8 +170,14 @@ jobs:
       run: |
         pip install mpi4py
 
+    - name: Install gcc 11
+      run: sudo apt-get install gcc-11 g++-11
+
     - name: Install simsopt package
       run: pip install -v .
+      env:
+        CC: gcc-11
+        CXX: g++-11
 
     - name: Run mpi unit tests
       if: "contains(matrix.test-type, 'unit')"
