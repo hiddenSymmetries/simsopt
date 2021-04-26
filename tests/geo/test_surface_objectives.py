@@ -130,8 +130,8 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 #        taylor_test2(f, df, d2f, coeffs) 
 
 
-class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
-#    def test_NonQuasiSymmetricComponentPenalty_by_surfacecoefficients(self):
+class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
+#    def test_NonQuasiAxiSymmetricComponentPenalty_by_surfacecoefficients(self):
 #        coils, currents, ma = get_ncsx_data()
 #        stellarator = CoilCollection(coils, currents, 3, True)
 #        bs = BiotSavart(stellarator.coils, stellarator.currents)
@@ -146,9 +146,9 @@ class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
 #            s.set_dofs(dofs)
 #            return non_qs.dJ_by_dsurfacecoefficients() 
 #        taylor_test1(f, df, coeffs )
-    def test_NonQuasiAxiSymmetricComponentPenalty_by_coilcoefficients(self):
+    def test_NonQuasiSymmetricComponentPenalty_by_coilcoefficients(self):
         coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
+        stellarator = CoilCollection(coils, currents, 3, False)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         s = get_exact_surface()
 

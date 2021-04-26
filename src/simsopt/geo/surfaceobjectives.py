@@ -210,133 +210,133 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     return r, J, H
 
-class NonQuasiSymmetricComponentPenalty(object):
-    """
-    This class computes a measure of quasisymmetry on a given surface.  It does so by taking a 
-    Fourier transform of the field magnitude.  Then, it separates the quasisymmetric harmonics 
-    from the non-quasisymmetric ones.  From these harmonics, we can define a 
-    quasisymmetric and non-quasisymmetric component of the field strength:
-
-    modB(varphi,theta) = modB_QS + modB_nonQS
-    where modB_QS    = ifft2(quasisymmetric harmonics)
-    and   modB_nonQS = ifft2(nonquasisymmetric harmonics)
-
-    The quasisymmetric harmonics have indices (n,m) = (m*N,m) and the non quasisymmetric
-    harmonics have indices (n,m) != (m*N,m)
-
-    This penalty term returns J = 0.5\int_{surface} modB_nonQS^2 dS and its derivatives with respect
-    to the surface degrees of freedom.
-    """
-    def __init__(self,surface, biotsavart, N = 0):
-        self.surface = surface
-        self.biotsavart = biotsavart
-        self.N = N # what the variety of quasisymmetry we're optimizing for
-        self.surface.dependencies.append(self)
-        self.invalidate_cache()
-        
-        original_dim = surface.gamma().shape 
-        if original_dim[1] % 2 == 0:
-            rfft_dim2 = original_dim[1] // 2 + 1
-        else:
-            rfft_dim2 = (original_dim[1] + 1) // 2
-        rfft_dim = (original_dim[0], rfft_dim2)
-
-        # the quasisymmetric harmonics have index (N*m, m)
-        qs_idx1 = self.N*np.arange( min(rfft_dim) )
-        qs_idx2 =        np.arange( min(rfft_dim) )
-        
-        qs_filter = np.zeros( rfft_dim )
-        qs_filter[qs_idx1,qs_idx2] = 1.
-
-        non_qs_filter = np.ones( rfft_dim )
-        non_qs_filter[qs_idx1,qs_idx2] = 0.
-        
-        self.nqs_filter = non_qs_filter
-        self.qs_filter = qs_filter
-
-        nphi = surface.gamma().shape[0]
-        ntheta = surface.gamma().shape[1]
-        def get_op_col(in_vec):
-            modB = in_vec.reshape( (nphi,ntheta) )
-            return np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s=modB.shape).flatten()
-        
-        self.op_mat = np.zeros( (nphi*ntheta,nphi*ntheta) )
-        for i in range(nphi*ntheta):
-            ei = np.zeros( (nphi*ntheta,) )
-            ei[i] = 1.
-            self.op_mat[:,i] = get_op_col(ei)
-        
-    
-    def invalidate_cache(self):
-        x = self.surface.gamma().reshape((-1,3))
-        self.biotsavart.set_points(x)
-
-
-    def J(self):
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
-
-        B = self.biotsavart.B()
-        B = B.reshape( (nphi,ntheta,3) )
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        
-        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
-        nor = self.surface.normal()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-
-        J = 0.5 * np.mean( dS * non_qs_func**2 )
-        return J
-    def dJ_by_dB(self):
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
-
-        B = self.biotsavart.B()
-        B = B.reshape( (nphi,ntheta,3) )
-        
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        dmodB_dB = (B / modB[...,None]).reshape( (-1,3) )
-        
-        nor = self.surface.normal()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2).flatten()
-        
-        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape).flatten()
-        dnon_qs_func_dB = self.op_mat[...,None] * dmodB_dB[None,...]
-        dJ_by_dB = np.mean( dS[:,None,None] * non_qs_func[:,None,None] * dnon_qs_func_dB, axis = 0 )
-
-        return dJ_by_dB
-    
-    def dJ_by_dcoilcoefficients(self):
-        dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
-        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
-        return dJ_by_dcoils
-
-    def dJ_by_dsurfacecoefficients(self):
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
-
-        B = self.biotsavart.B().reshape( (nphi,ntheta,3) )
-        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-        dx_dc = self.surface.dgamma_by_dcoeff()
-        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
-
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
-        
-        non_qs_func     = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
-        dnon_qs_func_dc = np.fft.irfft2(
-                          np.fft.rfft2(dmodB_dc, axes=(0,1)) * self.nqs_filter[:,:,None], \
-                          axes=(0,1), s = modB.shape)
-        
-        nor = self.surface.normal()
-        dnor_dc = self.surface.dnormal_by_dcoeff()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
-
-        dJ_dc = np.mean(  dmodB_dc, axis = (0,1) )
-        dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
-                         + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
-        return dJ_dc
-
+#class NonQuasiSymmetricComponentPenalty(object):
+#    """
+#    This class computes a measure of quasisymmetry on a given surface.  It does so by taking a 
+#    Fourier transform of the field magnitude.  Then, it separates the quasisymmetric harmonics 
+#    from the non-quasisymmetric ones.  From these harmonics, we can define a 
+#    quasisymmetric and non-quasisymmetric component of the field strength:
+#
+#    modB(varphi,theta) = modB_QS + modB_nonQS
+#    where modB_QS    = ifft2(quasisymmetric harmonics)
+#    and   modB_nonQS = ifft2(nonquasisymmetric harmonics)
+#
+#    The quasisymmetric harmonics have indices (n,m) = (m*N,m) and the non quasisymmetric
+#    harmonics have indices (n,m) != (m*N,m)
+#
+#    This penalty term returns J = 0.5\int_{surface} modB_nonQS^2 dS and its derivatives with respect
+#    to the surface degrees of freedom.
+#    """
+#    def __init__(self,surface, biotsavart, N = 0):
+#        self.surface = surface
+#        self.biotsavart = biotsavart
+#        self.N = N # what the variety of quasisymmetry we're optimizing for
+#        self.surface.dependencies.append(self)
+#        self.invalidate_cache()
+#        
+#        original_dim = surface.gamma().shape 
+#        if original_dim[1] % 2 == 0:
+#            rfft_dim2 = original_dim[1] // 2 + 1
+#        else:
+#            rfft_dim2 = (original_dim[1] + 1) // 2
+#        rfft_dim = (original_dim[0], rfft_dim2)
+#
+#        # the quasisymmetric harmonics have index (N*m, m)
+#        qs_idx1 = self.N*np.arange( min(rfft_dim) )
+#        qs_idx2 =        np.arange( min(rfft_dim) )
+#        
+#        qs_filter = np.zeros( rfft_dim )
+#        qs_filter[qs_idx1,qs_idx2] = 1.
+#
+#        non_qs_filter = np.ones( rfft_dim )
+#        non_qs_filter[qs_idx1,qs_idx2] = 0.
+#        
+#        self.nqs_filter = non_qs_filter
+#        self.qs_filter = qs_filter
+#
+#        nphi = surface.gamma().shape[0]
+#        ntheta = surface.gamma().shape[1]
+#        def get_op_col(in_vec):
+#            modB = in_vec.reshape( (nphi,ntheta) )
+#            return np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s=modB.shape).flatten()
+#        
+#        self.op_mat = np.zeros( (nphi*ntheta,nphi*ntheta) )
+#        for i in range(nphi*ntheta):
+#            ei = np.zeros( (nphi*ntheta,) )
+#            ei[i] = 1.
+#            self.op_mat[:,i] = get_op_col(ei)
+#        
+#    
+#    def invalidate_cache(self):
+#        x = self.surface.gamma().reshape((-1,3))
+#        self.biotsavart.set_points(x)
+#
+#
+#    def J(self):
+#        nphi = self.surface.quadpoints_phi.size
+#        ntheta = self.surface.quadpoints_theta.size
+#
+#        B = self.biotsavart.B()
+#        B = B.reshape( (nphi,ntheta,3) )
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        
+#        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
+#        nor = self.surface.normal()
+#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+#
+#        J = 0.5 * np.mean( dS * non_qs_func**2 )
+#        return J
+#    def dJ_by_dB(self):
+#        nphi = self.surface.quadpoints_phi.size
+#        ntheta = self.surface.quadpoints_theta.size
+#
+#        B = self.biotsavart.B()
+#        B = B.reshape( (nphi,ntheta,3) )
+#        
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        dmodB_dB = (B / modB[...,None]).reshape( (-1,3) )
+#        
+#        nor = self.surface.normal()
+#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2).flatten()
+#        
+#        non_qs_func = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape).flatten()
+#        dnon_qs_func_dB = self.op_mat[...,None] * dmodB_dB[None,...]
+#        dJ_by_dB = np.mean( dS[:,None,None] * non_qs_func[:,None,None] * dnon_qs_func_dB, axis = 0 )
+#
+#        return dJ_by_dB
+#    
+#    def dJ_by_dcoilcoefficients(self):
+#        dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
+#        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+#        return dJ_by_dcoils
+#
+#    def dJ_by_dsurfacecoefficients(self):
+#        nphi = self.surface.quadpoints_phi.size
+#        ntheta = self.surface.quadpoints_theta.size
+#
+#        B = self.biotsavart.B().reshape( (nphi,ntheta,3) )
+#        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+#        dx_dc = self.surface.dgamma_by_dcoeff()
+#        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+#
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+#        
+#        non_qs_func     = np.fft.irfft2(np.fft.rfft2(modB) * self.nqs_filter, s = modB.shape)
+#        dnon_qs_func_dc = np.fft.irfft2(
+#                          np.fft.rfft2(dmodB_dc, axes=(0,1)) * self.nqs_filter[:,:,None], \
+#                          axes=(0,1), s = modB.shape)
+#        
+#        nor = self.surface.normal()
+#        dnor_dc = self.surface.dnormal_by_dcoeff()
+#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+#        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+#
+#        dJ_dc = np.mean(  dmodB_dc, axis = (0,1) )
+#        dJ_dc = np.mean( 0.5 * dS_dc * non_qs_func[:,:,None]**2 
+#                         + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
+#        return dJ_dc
+#
 class NonQuasiAxisymmetricComponentPenalty(object):
     """
     
@@ -384,53 +384,47 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         
         dmodB_dB = B / modB[...,None]
         dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
-        
-        dB_nonQS_dB = np.zeros( (nphi,ntheta,nphi,ntheta, 3) )
-        phi_grid,theta_grid,eq_grid = np.meshgrid(np.arange(nphi), np.arange(ntheta), np.arange(3) )
-        phi_idx = phi_grid.flatten()
-        theta_idx = theta_grid.flatten()
-        eq_idx = eq_grid.flatten()
-        dB_nonQS_dB[phi_idx, theta_idx, phi_idx, theta_idx, eq_idx] = dmodB_dB[phi_idx, theta_idx, eq_idx]
-        dB_nonQS_dB -= dB_QS_dB[None,...]
-        
-        dJ_by_dB =np.mean( B_nonQS[...,None,None,None] * dB_nonQS_dB * dS[...,None,None,None], axis = (0,1) )
+        dJ_by_dB = B_nonQS[...,None] * dmodB_dB * dS[:,:,None] / (nphi * ntheta)
         return dJ_by_dB
-#     def dJ_by_dB(self):
-#        nphi = self.surface.quadpoints_phi.size
-#        ntheta = self.surface.quadpoints_theta.size
-#
-#        B = self.biotsavart.B()
-#        B = B.reshape( (nphi,ntheta,3) )
-#        
-#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-#        nor = self.surface.normal()
-#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-#
-#        denom = np.mean( dS, axis = 0)
-#        B_QS = np.mean(modB * dS, axis = 0) / denom
-#        B_nonQS = modB - B_QS[None,:]
-#        
-#        dmodB_dB = B / modB[...,None]
-#        dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
-#        
-#        idx = np.arange( nphi )
-#        dB_nonQS_dB = np.zeros( (nphi, ntheta, nphi, 3) )
-#        dB_nonQS_dB[idx,:,idx,:] = dmodB_dB[idx,:,:]
-#        idx = np.arange( ntheta )
-#        dB_nonQS_dB[:,idx,:,:] -= dB_QS_dB[:,idx,None,:]
-#        
-##        dB_nonQS_dB = dmodB_dB - dB_QS_dB
-#        dJ_by_dB = np.sum(dS.T[None,:,:,None] * B_nonQS[...,None,None]* dB_nonQS_dB / (nphi * ntheta), axis = 2).reshape( (-1,3) ) 
-#        return dJ_by_dB
-        
+       
    
     def dJ_by_dcoilcoefficients(self):
         dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
         return dJ_by_dcoils
 
-    def dJ_by_dsurfacecoefficients(self):
-        return None
+#    def dJ_by_dsurfacecoefficients(self):
+#        nphi = self.surface.quadpoints_phi.size
+#        ntheta = self.surface.quadpoints_theta.size
+#
+#        B = self.biotsavart.B()
+#        B = B.reshape( (nphi,ntheta,3) )
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        
+#        nor = self.surface.normal()
+#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+#        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+#
+#        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
+#        B_nonQS = modB - B_QS[None,:]
+#        
+#        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+#        dx_dc = self.surface.dgamma_by_dcoeff()
+#        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+#        
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+#        
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+#        
+#        import ipdb;ipdb.set_trace()
+#        denom = np.mean( dS, axis = 0)
+#        ddenom_dc = dS_dc/nphi
+#        dB_QS_dc = dmodB_dc * dS[:,:,None]/denom + modB * (dS_dc * denom - ddenom_dc*dS_dc)/denom**2
+#        dB_nonQS_dc = dmodB_dc - dB_QS_dc
+#        dJ_by_dc = np.mean( dB_nonQS_dc * B_nonQS[...,None] * dS + 0.5 * dS_dc * B_nonQS[...,None]**2 , axis = (0,1) )
+#        return dJ_by_dc
 
 
 
