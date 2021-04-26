@@ -98,7 +98,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.dBlambdify_by_dX = sp.lambdify((R, Z, Phi), 
                             [[sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi), sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi), sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
                              [sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi), sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi), sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-                             [self.Phiparsed.diff(R).diff(Z), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)]])
+                             [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
         
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
@@ -109,7 +109,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self._B = np.array(self.Blambdify(r, z, phi)).T
 
         if compute_derivatives >= 1:
-            self._dB_by_dX = [self.dBlambdify_by_dX(r[i], z[i], phi[i]) for i in range(len(r))]
+            self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2,0,1))
 
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = None
@@ -142,7 +142,7 @@ class CircularCoil(MagneticField):
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rotMatrix, np.array([np.subtract(point, self.center) for point in points]).T).T)
+        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -193,17 +193,15 @@ class CircularCoil(MagneticField):
             dBzdz = (self.Inorm*points[:,2]*(ellipkk2*alpha**2*(self.r0**2 - r**2) + 
                     ellipek2*(-7*self.r0**4 + r**4 + 6*self.r0**2*(-points[:,2]**2 + rho**2))))/(2*alpha**4*beta**3)
 
-            dB_by_dXm = np.array([[
-                [dBxdx[i], dBydx[i], dBzdx[i]],
-                [dBxdy[i], dBydy[i], dBzdy[i]],
-                [dBxdz[i], dBydz[i], dBzdz[i]]
-                ] for i in range(len(points))])
+            dB_by_dXm = np.array([
+                [dBxdx, dBydx, dBzdx],
+                [dBxdy, dBydy, dBzdy],
+                [dBxdz, dBydz, dBzdz]])
 
-            self._dB_by_dX = np.array([[
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm[i]))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm[i]))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm[i])), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm[i]))]
-                ] for i in range(len(points))])
+            self._dB_by_dX = np.array([
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm))],
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm))],
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)), np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
 
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = None
@@ -212,7 +210,7 @@ class CircularCoil(MagneticField):
     def compute_A(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rotMatrix, np.array([np.subtract(point, self.center) for point in points]).T).T)
+        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center) ).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -244,15 +242,15 @@ class Dommaschk(MagneticField):
         coeffs: coefficient for Vml for each of the ith index of the harmonics m andn 
     '''
     def __init__(self, mn=[[0, 0]], coeffs=[[0, 0]]):
-        self.m = [int(mmnn[0]) for mmnn in mn]
-        self.n = [int(mmnn[1]) for mmnn in mn]
+        self.m = np.array(mn,dtype=np.int16)[:,0]
+        self.n = np.array(mn,dtype=np.int16)[:,1]
         self.coeffs = coeffs
         self.Btor = ToroidalField(1, 1)
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
         self.Btor.set_points(points)
-        self._B = np.add.reduce([sgpp.DommaschkB(self.m[i], self.n[i], self.coeffs[i], points) for i in range(len(self.m))])+self.Btor.B()
+        self._B = np.add.reduce(sgpp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
 
         if compute_derivatives >= 1:
-            self._dB_by_dX = np.add.reduce([sgpp.DommaschkdB(self.m[i], self.n[i], self.coeffs[i], points) for i in range(len(self.m))])+self.Btor.dB_by_dX()
+            self._dB_by_dX = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
