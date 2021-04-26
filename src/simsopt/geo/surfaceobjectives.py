@@ -393,38 +393,38 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
         return dJ_by_dcoils
 
-#    def dJ_by_dsurfacecoefficients(self):
-#        nphi = self.surface.quadpoints_phi.size
-#        ntheta = self.surface.quadpoints_theta.size
-#
-#        B = self.biotsavart.B()
-#        B = B.reshape( (nphi,ntheta,3) )
-#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-#        
-#        nor = self.surface.normal()
-#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-#        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
-#
-#        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
-#        B_nonQS = modB - B_QS[None,:]
-#        
-#        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-#        dx_dc = self.surface.dgamma_by_dcoeff()
-#        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
-#        
-#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-#        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
-#        
-#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-#        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
-#        
-#        import ipdb;ipdb.set_trace()
-#        denom = np.mean( dS, axis = 0)
-#        ddenom_dc = dS_dc/nphi
-#        dB_QS_dc = dmodB_dc * dS[:,:,None]/denom + modB * (dS_dc * denom - ddenom_dc*dS_dc)/denom**2
-#        dB_nonQS_dc = dmodB_dc - dB_QS_dc
-#        dJ_by_dc = np.mean( dB_nonQS_dc * B_nonQS[...,None] * dS + 0.5 * dS_dc * B_nonQS[...,None]**2 , axis = (0,1) )
-#        return dJ_by_dc
+    def dJ_by_dsurfacecoefficients(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        
+        nor = self.surface.normal()
+        dnor_dc = self.surface.dnormal_by_dcoeff()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+
+        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
+        B_nonQS = modB - B_QS[None,:]
+        
+        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dx_dc = self.surface.dgamma_by_dcoeff()
+        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+        
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+        
+        num = np.mean(modB * dS, axis = 0)
+        denom = np.mean(dS, axis = 0)
+        dnum_dc = np.mean(dmodB_dc * dS[...,None] + modB[...,None] * dS_dc, axis = 0) 
+        ddenom_dc = np.mean(dS_dc, axis = 0)
+        B_QS_dc = (dnum_dc * denom[:,None] - ddenom_dc * num[:,None])/denom[:,None]**2
+        B_nonQS_dc = dmodB_dc - B_QS_dc[None,:]
+        
+        dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) )
+        return dJ_by_dc
 
 
 
