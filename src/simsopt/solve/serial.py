@@ -22,14 +22,16 @@ import logging
 from datetime import datetime
 from time import time
 import traceback
+
 import numpy as np
 from scipy.optimize import least_squares, minimize
-import simsopt.core.least_squares_problem
+
+from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
 #def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
-def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                **kwargs):
     """
@@ -56,27 +58,19 @@ def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSqu
     
     def objective(x):
         nonlocal logfile_started, logfile, residuals_file, nevals
-        success = True
-        try:
-            f_unshifted = prob.dofs.f(x)
-        except:
-            logger.info("Exception caught during function evaluation")
-            traceback.print_exc()  # Print traceback
-            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
-            success = False
-
+        
+        f_unshifted = prob.dofs.f(x)
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
         
         # Check that 2 ways of computing the objective give same
         # answer within roundoff:
-        if success:
-            objective2 = prob.objective()
-            logger.info("objective_from_f={} objective={} diff={}".format(
-                objective_val, objective2, objective_val - objective2))
-            abs_diff = np.abs(objective_val - objective2)
-            rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
-            assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
+        objective2 = prob.objective()
+        logger.info("objective_from_f={} objective={} diff={}".format(
+            objective_val, objective2, objective_val - objective2))
+        abs_diff = np.abs(objective_val - objective2)
+        rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
+        assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
@@ -172,11 +166,8 @@ def serial_solve(prob, grad=None, **kwargs):
     
     def objective(x):
         nonlocal logfile_started, logfile, nevals
-        try:
-            result = prob.objective(x)
-        except:
-            traceback.print_exc()  # Print traceback
-            result = 1e+12
+        
+        result = prob.objective(x)
         
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the

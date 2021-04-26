@@ -24,8 +24,9 @@ try:
 except ImportError as err:
     MPI = None
 
-import simsopt.core.dofs
-import simsopt.util.mpi
+from .._core.dofs import Dofs
+from ..util.mpi import MpiPartition
+from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,8 @@ def _mpi_workers_task(mpi, dofs, data):
         raise ValueError('Unexpected data in worker_loop')
 
 
-def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
-               mpi: simsopt.util.mpi.MpiPartition,
+def fd_jac_mpi(dofs: Dofs,
+               mpi: MpiPartition,
                x: np.ndarray = None,
                eps: float = 1e-7,
                centered: bool = False) -> tuple:
@@ -201,12 +202,7 @@ def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
             mpi.comm_groups.bcast(x, root=0)
             dofs.set(x)
             
-            try:
-                f = dofs.f()
-            except:
-                logger.info("Exception caught during function evaluation")
-                traceback.print_exc()  # Print traceback
-                f = np.full(prob.dofs.nvals, 1.0e12)
+            f = dofs.f()
                 
             if evals is None and mpi.proc0_world:
                 dofs.nvals = mpi.comm_leaders.bcast(dofs.nvals)
@@ -241,8 +237,8 @@ def fd_jac_mpi(dofs: simsopt.core.dofs.Dofs,
     return jac, xs, evals
 
 
-def least_squares_mpi_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
-                            mpi: simsopt.util.mpi.MpiPartition,
+def least_squares_mpi_solve(prob: LeastSquaresProblem,
+                            mpi: MpiPartition,
                             grad: bool = None,
                             **kwargs):
     """
@@ -294,13 +290,7 @@ def least_squares_mpi_solve(prob: simsopt.core.least_squares_problem.LeastSquare
         mpi.comm_groups.bcast(x, root=0)
         logger.debug("Past bcast in _f_proc0")
 
-        try:
-            f_unshifted = prob.dofs.f(x)
-        except:
-            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
-            logger.info("Exception caught during function evaluation.")
-            traceback.print_exc()  # Print traceback
-
+        f_unshifted = prob.dofs.f(x)
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
 
