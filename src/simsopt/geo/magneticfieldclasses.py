@@ -49,12 +49,10 @@ class ToroidalField(MagneticField):
             self._dB_by_dX = dToroidal_by_dX
 
         if compute_derivatives >= 2:
-            self._d2B_by_dXdX = 2*self.B0*self.R0*np.array([(1/(point[0]**2+point[1]**2)**3)*np.array([
-                    [[3*point[0]**2+point[1]**3, point[0]**3-3*point[0]*point[1]**2, 0], [point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3, 0], [0, 0, 0]],
-                    [[point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3, 0], [3*point[0]**2*point[1]-point[1]**3, -point[0]**3+3*point[0]*point[1]**2, 0], [0, 0, 0]],
-                    [[0, 0, 0], [0, 0, 0], [0, 0, 0]]])
-            for point in points])
-
+            self._d2B_by_dXdX = 2*self.B0*self.R0*np.multiply(1/(points[:,0]**2+points[:,1]**2)**3,np.array([
+                    [[3*points[:,0]**2+points[:,1]**3, points[:,0]**3-3*points[:,0]*points[:,1]**2, np.zeros((len(points)))], [points[:,0]**3-3*points[:,0]*points[:,1]**2, 3*points[:,0]**2*points[:,1]-points[:,1]**3, np.zeros((len(points)))], np.zeros((3,len(points)))],
+                    [[points[:,0]**3-3*points[:,0]*points[:,1]**2, 3*points[:,0]**2*points[:,1]-points[:,1]**3, np.zeros((len(points)))], [3*points[:,0]**2*points[:,1]-points[:,1]**3, -points[:,0]**3+3*points[:,0]*points[:,1]**2, np.zeros((len(points)))], np.zeros((3,len(points)))],
+                    np.zeros((3,3,len(points)))])).T
         return self
 
     def compute_A(self, points, compute_derivatives=0):
@@ -66,18 +64,16 @@ class ToroidalField(MagneticField):
             0*points[:,2]]).T
 
         if compute_derivatives >= 1:
-            self._dA_by_dX = self.B0*self.R0*np.array([(point[2]/(point[0]**2+point[1]**2)**2)*np.array(
-                [[-point[0]**2+point[1]**2, -2*point[0]*point[1], 0],
-                [-2*point[0]*point[1], point[0]**2-point[1]**2, 0],
-                [point[0]*(point[0]**2+point[1]**2)/point[2], point[1]*(point[0]**2+point[1]**2)/point[2], 0]])
-                for point in points])
+            self._dA_by_dX = self.B0*self.R0*np.array((points[:,2]/(points[:,0]**2+points[:,1]**2)**2)*np.array(
+                [[-points[:,0]**2+points[:,1]**2, -2*points[:,0]*points[:,1], np.zeros((len(points)))],
+                [-2*points[:,0]*points[:,1], points[:,0]**2-points[:,1]**2, np.zeros((len(points)))],
+                [points[:,0]*(points[:,0]**2+points[:,1]**2)/points[:,2], points[:,1]*(points[:,0]**2+points[:,1]**2)/points[:,2], np.zeros((len(points)))]])).T
 
         if compute_derivatives >= 2:
-            self._d2A_by_dXdX = 2*self.B0*self.R0*np.array([(point[2]/(point[0]**2+point[1]**2)**3)*np.array([
-                    [[point[0]**3-3*point[0]*point[1]**2, 3*point[0]**2*point[1]-point[1]**3, (-point[0]**4+point[1]**4)/(2*point[2])], [3*point[0]**2*point[1]-point[1]**3, -point[0]**3+3*point[0]*point[1]**2, -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2]], [(-point[0]**4+point[1]**4)/(2*point[2]), -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2], 0]],
-                    [[3*point[0]**2*point[1]-point[1]**3, -point[0]**3+3*point[0]*point[1]**2, -point[0]*point[1]*(point[0]**2+point[1]**2)/point[2]], [-point[0]**3+3*point[0]*point[1]**2, -3*point[0]**2*point[1]+point[1]**3, (point[0]**4-point[1]**4)/(2*point[2])], [-point[0]*point[1]*(point[0]**2+point[1]**2)/point[2], (point[0]**4-point[1]**4)/(2*point[2]), 0]],
-                    [[0, 0, 0], [0, 0, 0], [0, 0, 0]]])
-            for point in points])
+            self._d2A_by_dXdX = 2*self.B0*self.R0*np.array((points[:,2]/(points[:,0]**2+points[:,1]**2)**3)*np.array([
+                    [[points[:,0]**3-3*points[:,0]*points[:,1]**2, 3*points[:,0]**2*points[:,1]-points[:,1]**3, (-points[:,0]**4+points[:,1]**4)/(2*points[:,2])], [3*points[:,0]**2*points[:,1]-points[:,1]**3, -points[:,0]**3+3*points[:,0]*points[:,1]**2, -points[:,0]*points[:,1]*(points[:,0]**2+points[:,1]**2)/points[:,2]], [(-points[:,0]**4+points[:,1]**4)/(2*points[:,2]), -points[:,0]*points[:,1]*(points[:,0]**2+points[:,1]**2)/points[:,2], np.zeros((len(points)))]],
+                    [[3*points[:,0]**2*points[:,1]-points[:,1]**3, -points[:,0]**3+3*points[:,0]*points[:,1]**2, -points[:,0]*points[:,1]*(points[:,0]**2+points[:,1]**2)/points[:,2]], [-points[:,0]**3+3*points[:,0]*points[:,1]**2, -3*points[:,0]**2*points[:,1]+points[:,1]**3, (points[:,0]**4-points[:,1]**4)/(2*points[:,2])], [-points[:,0]*points[:,1]*(points[:,0]**2+points[:,1]**2)/points[:,2], (points[:,0]**4-points[:,1]**4)/(2*points[:,2]), np.zeros((len(points)))]],
+                    np.zeros((3,3,len(points)))])).transpose((3,0,1,2))
 
 class ScalarPotentialRZMagneticField(MagneticField):
     '''Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the magnetic field scalar potential.
