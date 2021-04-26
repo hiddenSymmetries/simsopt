@@ -337,6 +337,103 @@ class NonQuasiSymmetricComponentPenalty(object):
                          + non_qs_func[:,:,None] * dnon_qs_func_dc * dS[:,:,None] , axis = (0,1) )
         return dJ_dc
 
+class NonQuasiAxisymmetricComponentPenalty(object):
+    """
+    
+    """
+    def __init__(self,surface, biotsavart):
+        self.surface = surface
+        self.biotsavart = biotsavart
+        self.surface.dependencies.append(self)
+        self.invalidate_cache()
+    
+    def invalidate_cache(self):
+        x = self.surface.gamma().reshape((-1,3))
+        self.biotsavart.set_points(x)
+
+    def J(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
+        B_nonQS = modB - B_QS[None,:]
+        J = 0.5 * np.mean( dS * B_nonQS**2 )
+        return J
+
+    def dJ_by_dB(self):
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        denom = np.mean( dS, axis = 0)
+        B_QS = np.mean(modB * dS, axis = 0) / denom
+        B_nonQS = modB - B_QS[None,:]
+        
+        dmodB_dB = B / modB[...,None]
+        dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
+        
+        dB_nonQS_dB = np.zeros( (nphi,ntheta,nphi,ntheta, 3) )
+        phi_grid,theta_grid,eq_grid = np.meshgrid(np.arange(nphi), np.arange(ntheta), np.arange(3) )
+        phi_idx = phi_grid.flatten()
+        theta_idx = theta_grid.flatten()
+        eq_idx = eq_grid.flatten()
+        dB_nonQS_dB[phi_idx, theta_idx, phi_idx, theta_idx, eq_idx] = dmodB_dB[phi_idx, theta_idx, eq_idx]
+        dB_nonQS_dB -= dB_QS_dB[None,...]
+        
+        dJ_by_dB =np.mean( B_nonQS[...,None,None,None] * dB_nonQS_dB * dS[...,None,None,None], axis = (0,1) )
+        return dJ_by_dB
+#     def dJ_by_dB(self):
+#        nphi = self.surface.quadpoints_phi.size
+#        ntheta = self.surface.quadpoints_theta.size
+#
+#        B = self.biotsavart.B()
+#        B = B.reshape( (nphi,ntheta,3) )
+#        
+#        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+#        nor = self.surface.normal()
+#        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+#
+#        denom = np.mean( dS, axis = 0)
+#        B_QS = np.mean(modB * dS, axis = 0) / denom
+#        B_nonQS = modB - B_QS[None,:]
+#        
+#        dmodB_dB = B / modB[...,None]
+#        dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
+#        
+#        idx = np.arange( nphi )
+#        dB_nonQS_dB = np.zeros( (nphi, ntheta, nphi, 3) )
+#        dB_nonQS_dB[idx,:,idx,:] = dmodB_dB[idx,:,:]
+#        idx = np.arange( ntheta )
+#        dB_nonQS_dB[:,idx,:,:] -= dB_QS_dB[:,idx,None,:]
+#        
+##        dB_nonQS_dB = dmodB_dB - dB_QS_dB
+#        dJ_by_dB = np.sum(dS.T[None,:,:,None] * B_nonQS[...,None,None]* dB_nonQS_dB / (nphi * ntheta), axis = 2).reshape( (-1,3) ) 
+#        return dJ_by_dB
+        
+   
+    def dJ_by_dcoilcoefficients(self):
+        dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
+        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+        return dJ_by_dcoils
+
+    def dJ_by_dsurfacecoefficients(self):
+        return None
+
+
+
 
 
 
