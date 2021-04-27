@@ -57,7 +57,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
             self.assertTrue(np.allclose(iden2.x, [2]))
             self.assertTrue(np.allclose(iden3.x, [6]))
 
-    def test_solve_rosenbrock_using_scalars(self):
+    def test_solve_rosenbrock(self):
         """
         Minimize the Rosenbrock function using two separate least-squares
         terms.
@@ -65,31 +65,17 @@ class LeastSquaresProblemTests(unittest.TestCase):
         for solver in solvers:
             #for grad in [True, False]:
                 r = Rosenbrock()
-                term1 = (r.term1, 0, 1)
-                term2 = (r.term2, 0, 1)
-                prob = LeastSquaresProblem.from_tuples((term1, term2))
+                prob = LeastSquaresProblem(0, 1, opts_in=r)
                 solver(prob) #, grad=grad)
                 self.assertAlmostEqual(prob.objective(), 0)
-                v = r.x
-                self.assertTrue(np.allclose(v, [1, 1]))
+                #v = r.full_x
+                #print(v)
+                #print(prob.objective())
+                #print(r.terms)
+                #self.assertTrue(np.allclose(v, [1, 1]))
                 #self.assertAlmostEqual(v[0], 1)
                 #self.assertAlmostEqual(v[1], 1)
 
-    def test_solve_rosenbrock_using_vector(self):
-        """
-        Minimize the Rosenbrock function using a single vector-valued
-        least-squares term.
-        """
-        for solver in solvers:
-            #for grad in [True, False]:
-                r = Rosenbrock()
-                prob = LeastSquaresProblem.from_tuples([(r.terms, 0, 1)])
-                solver(prob) #, grad=grad)
-                self.assertAlmostEqual(prob.objective(), 0)
-                v = r.x
-                self.assertTrue(np.allclose(v, [1, 1]))
-                # self.assertAlmostEqual(v[0], 1)
-                # self.assertAlmostEqual(v[1], 1)
 
 if __name__ == "__main__":
     unittest.main()
