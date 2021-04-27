@@ -1,67 +1,45 @@
 import numpy as np
+import scipy
 
 
 class Area(object):
-    """
-    Wrapper class for surface area computation
-    """
+
     def __init__(self, surface):
         self.surface = surface
+
     def J(self):
-        """
-        Compute the area of a surface
-        """
         return self.surface.area()
-  
+
     def dJ_by_dsurfacecoefficients(self):
-        """
-        Calculate the derivatives with respect to the surface coefficients
-        """
         return self.surface.darea_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
-        """
-        Calculate the second derivatives with respect to the surface coefficients
-        """
         return self.surface.d2area_by_dcoeffdcoeff()
 
 
 class Volume(object):
-    """
-    Wrapper class for volume computation
-    """
     def __init__(self, surface):
         self.surface = surface
 
     def J(self):
-        """
-        Compute the volume enclosed by the surface
-        """
         return self.surface.volume()
 
     def dJ_by_dsurfacecoefficients(self):
-        """
-        Calculate the derivatives with respect to the surface coefficients
-        """
         return self.surface.dvolume_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
-        """
-        Calculate the second derivatives with respect to the surface coefficients
-        """
         return self.surface.d2volume_by_dcoeffdcoeff()
 
 
 class ToroidalFlux(object):
+
     r"""
-    Given a surface and Biot Savart kernel, this objective calculates
-    
-    .. math::
-       J &= \int_{S_{\varphi}} \mathbf{B} \cdot \mathbf{n} ~ds, \\
-       &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
-       &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
-    
-    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`.
+    This objective calculates
+        J = \int_{varphi = constant} B \cdot n ds
+          = \int_{varphi = constant} curlA \cdot n ds
+          from Stokes' theorem
+          = \int_{curve on surface where varphi = constant} A \cdot n dl
+    given a surface and Biot Savart kernel.
     """
 
     def __init__(self, surface, biotsavart, idx=0):
@@ -76,10 +54,6 @@ class ToroidalFlux(object):
         self.biotsavart.set_points(x)
 
     def J(self):
-        r"""
-        Compute the toroidal flux on the surface where 
-        :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`
-        """
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         A = self.biotsavart.A()
@@ -127,17 +101,16 @@ class ToroidalFlux(object):
 
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
-    r"""
+    """
     For a given surface with points x on it, this function computes the
     residual
-    
-    .. math::
-        G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
+
+        G*B_BS(x) - ||B_BS(x)||^2 * (x_phi + iota * x_theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
     iota, and G.
 
-    :math:`G` is known for exact boozer surfaces, so if :math:`G` = None is passed, then that
+    G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
     """
 
@@ -236,3 +209,124 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened #(1, 1) diotadiota
 
     return r, J, H
+
+
+class NonQuasiAxisymmetricComponentPenalty(object):
+    r"""
+    This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
+    non-quasiaxisymmetric components.
+    
+    .. math::
+        J &= \frac{1}{2}\int_{\Gamma_{s}} (B-B_{\text{QS}})^2~dS
+          &= \frac{1}{2}\int_0^1 \int_0^1 (B - B_{\text{QS}})^2 \|\mathbf n\| ~d\varphi~\d\theta
+    
+    where
+    
+    .. math::
+        B &= \| \mathbf B(\varphi,\theta) \|_2
+        B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
+    
+    """
+    def __init__(self,surface, biotsavart):
+        self.surface = surface
+        self.biotsavart = biotsavart
+        self.surface.dependencies.append(self)
+        self.invalidate_cache()
+    
+    def invalidate_cache(self):
+        x = self.surface.gamma().reshape((-1,3))
+        self.biotsavart.set_points(x)
+
+    def J(self):
+        """
+        Return the objective value
+        """
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
+        B_nonQS = modB - B_QS[None,:]
+        J = 0.5 * np.mean( dS * B_nonQS**2 )
+        return J
+
+    def dJ_by_dB(self):
+        """
+        Return the derivative of the objective with respect to the magnetic field
+        """
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        nor = self.surface.normal()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+
+        denom = np.mean( dS, axis = 0)
+        B_QS = np.mean(modB * dS, axis = 0) / denom
+        B_nonQS = modB - B_QS[None,:]
+        
+        dmodB_dB = B / modB[...,None]
+        dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
+        dJ_by_dB = B_nonQS[...,None] * dmodB_dB * dS[:,:,None] / (nphi * ntheta)
+        return dJ_by_dB
+       
+   
+    def dJ_by_dcoilcoefficients(self):
+        """
+        Return the derivative of the objective with respect to the coil coefficients
+        """
+        dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
+        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+        return dJ_by_dcoils
+
+    def dJ_by_dsurfacecoefficients(self):
+        """
+        Return the derivative of the objective with respect to the surface coefficients
+        """
+        nphi = self.surface.quadpoints_phi.size
+        ntheta = self.surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape( (nphi,ntheta,3) )
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        
+        nor = self.surface.normal()
+        dnor_dc = self.surface.dnormal_by_dcoeff()
+        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+
+        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
+        B_nonQS = modB - B_QS[None,:]
+        
+        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dx_dc = self.surface.dgamma_by_dcoeff()
+        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+        
+        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+        
+        num = np.mean(modB * dS, axis = 0)
+        denom = np.mean(dS, axis = 0)
+        dnum_dc = np.mean(dmodB_dc * dS[...,None] + modB[...,None] * dS_dc, axis = 0) 
+        ddenom_dc = np.mean(dS_dc, axis = 0)
+        B_QS_dc = (dnum_dc * denom[:,None] - ddenom_dc * num[:,None])/denom[:,None]**2
+        B_nonQS_dc = dmodB_dc - B_QS_dc[None,:]
+        
+        dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) )
+        return dJ_by_dc
+
+
+
+
+
+
+

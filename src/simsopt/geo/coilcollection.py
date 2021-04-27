@@ -1,4 +1,5 @@
 from math import pi
+import numpy as np
 from simsopt.geo.curve import RotatedCurve
 
 
@@ -32,3 +33,25 @@ class CoilCollection():
         for i in range(1, len(self._base_coils)):
             dof_ranges.append((dof_ranges[-1][1], dof_ranges[-1][1] + len(self._base_coils[i].get_dofs())))
         self.dof_ranges = dof_ranges
+
+    def set_dofs(self, dofs):
+        assert len(dofs) == self.dof_ranges[-1][1]
+        for i in range(len(self._base_coils)):
+            self._base_coils[i].set_dofs(dofs[self.dof_ranges[i][0]:self.dof_ranges[i][1]])
+
+    def get_dofs(self):
+        return np.concatenate([coil.get_dofs() for coil in self._base_coils])
+
+    def reduce_coefficient_derivatives(self, derivatives, axis=0):
+        """
+        Add derivatives for all those coils that were obtained by rotation and
+        reflection of the initial coils.
+        """
+        assert len(derivatives) == len(self.coils) or len(derivatives) == len(self._base_coils)
+        res = len(self._base_coils) * [None]
+        for i in range(len(derivatives)):
+            if res[self.map[i]] is None:
+                res[self.map[i]]  = derivatives[i]
+            else:
+                res[self.map[i]] += derivatives[i]
+        return np.concatenate(res, axis=axis)
