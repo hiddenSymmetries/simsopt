@@ -102,7 +102,7 @@ class LeastSquaresProblem(Optimizable):
         #weights = list(weights)
         return cls(goals, weights, funcs_in=funcs_in)
 
-    def _unweighted_residuals(self, x=None, *args, **kwargs):
+    def unweighted_residuals(self, x=None, *args, **kwargs):
         """
         Return the unweighted residuals
         """
@@ -121,7 +121,7 @@ class LeastSquaresProblem(Optimizable):
         """
         Return the residuals
         """
-        unweighted_residuals = self._unweighted_residuals(x, *args, **kwargs)
+        unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
         return unweighted_residuals * np.sqrt(self.weights)
 
         # if x is not None:
@@ -165,7 +165,7 @@ class LeastSquaresProblem(Optimizable):
         #    outputs += [output]
         #outputs = np.concatenate(outputs)
         #diff_values = outputs - self.goals
-        unweighted_residuals = self._unweighted_residuals(x, *args, **kwargs)
+        unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
 
         s = 0
         for i, val in enumerate(unweighted_residuals):
