@@ -3,6 +3,7 @@ import unittest
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 
@@ -48,6 +49,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = JaxCurveXYZFourier(x, order)
     elif curvetype == "CurveRZFourier":
         curve = CurveRZFourier(x, order, 2, True)
+    elif curvetype == "CurveHelical":
+        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     else:
         assert False
     dofs = np.zeros((curve.num_dofs(), ))
@@ -59,6 +62,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
+    elif curvetype in ["CurveHelical"]:
+        dofs[0] = np.pi/2
     else:
         assert False
     curve.set_dofs(dofs)
@@ -71,7 +76,16 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
+
+    def test_curve_helical_xyzfourier(self):
+        x = np.asarray([0.6])
+        curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
+        curve1.set_dofs([np.pi/2, 0, 0, 0])
+        curve2 = CurveXYZFourier(x, 7)
+        curve2.set_dofs([0,0,0,0,1,-0.15,0,0,0,0,0,0,0,-0.15,0,0,0,0,1,0,0,-0.15,0,0,0,0,0,0,0,0.15,0,0,0,0,0,0,0,0,0,0,-0.3,0,0,0,0])
+        assert np.allclose(curve1.gamma(),curve2.gamma())
+        assert np.allclose(curve1.gammadash(),curve2.gammadash())
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1
