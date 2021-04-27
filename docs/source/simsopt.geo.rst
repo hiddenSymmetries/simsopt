@@ -12,6 +12,22 @@ simsopt.geo.biotsavart module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.boozersurface module
+--------------------------------
+
+.. automodule:: simsopt.geo.boozersurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.coilcollection module
+---------------------------------
+
+.. automodule:: simsopt.geo.coilcollection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.config module
 -------------------------
 
@@ -24,6 +40,14 @@ simsopt.geo.curve module
 ------------------------
 
 .. automodule:: simsopt.geo.curve
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.curveobjectives module
+----------------------------------
+
+.. automodule:: simsopt.geo.curveobjectives
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,14 +84,6 @@ simsopt.geo.curveobjectives module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.surfaceobjectives module
-------------------------------------
-
-.. automodule:: simsopt.geo.surfaceobjectives
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 simsopt.geo.surface module
 --------------------------
 
@@ -84,6 +100,14 @@ simsopt.geo.surfacegarabedian module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.surfaceobjectives module
+------------------------------------
+
+.. automodule:: simsopt.geo.surfaceobjectives
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.surfacerzfourier module
 -----------------------------------
 
@@ -96,6 +120,14 @@ simsopt.geo.surfacexyzfourier module
 ------------------------------------
 
 .. automodule:: simsopt.geo.surfacexyzfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.surfacexyztensorfourier module
+------------------------------------------
+
+.. automodule:: simsopt.geo.surfacexyztensorfourier
    :members:
    :undoc-members:
    :show-inheritance:

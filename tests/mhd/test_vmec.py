@@ -1,7 +1,8 @@
 import unittest
-import numpy as np
 import os
+import numpy as np
 
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.mhd.vmec import vmec_found
 if vmec_found:
     from simsopt.mhd.vmec import Vmec
@@ -15,16 +16,16 @@ class VmecTests(unittest.TestCase):
         and make sure we can read some of the attributes.
         """
         v = Vmec()
-        self.assertEqual(v.nfp, 5)
-        self.assertTrue(v.stellsym)
-        self.assertEqual(v.mpol, 5)
-        self.assertEqual(v.ntor, 4)
-        self.assertEqual(v.delt, 0.5)
-        self.assertEqual(v.tcon0, 2.0)
-        self.assertEqual(v.phiedge, 1.0)
-        self.assertEqual(v.curtor, 0.0)
-        self.assertEqual(v.gamma, 0.0)
-        self.assertEqual(v.ncurr, 1)
+        self.assertEqual(v.indata.nfp, 5)
+        self.assertFalse(v.indata.lasym)
+        self.assertEqual(v.indata.mpol, 5)
+        self.assertEqual(v.indata.ntor, 4)
+        self.assertEqual(v.indata.delt, 0.5)
+        self.assertEqual(v.indata.tcon0, 2.0)
+        self.assertEqual(v.indata.phiedge, 1.0)
+        self.assertEqual(v.indata.curtor, 0.0)
+        self.assertEqual(v.indata.gamma, 0.0)
+        self.assertEqual(v.indata.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 
@@ -36,9 +37,9 @@ class VmecTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
 
         v = Vmec(filename)
-        self.assertEqual(v.nfp, 3)
-        self.assertEqual(v.mpol, 4)
-        self.assertEqual(v.ntor, 3)
+        self.assertEqual(v.indata.nfp, 3)
+        self.assertEqual(v.indata.mpol, 4)
+        self.assertEqual(v.indata.ntor, 3)
         self.assertEqual(v.boundary.mpol, 4)
         self.assertEqual(v.boundary.ntor, 3)
 
@@ -51,10 +52,62 @@ class VmecTests(unittest.TestCase):
         # n = 1, m = 1:
         self.assertAlmostEqual(v.boundary.get_zs(1, 1), 1.6516E-01)
 
-        self.assertEqual(v.ncurr, 1)
+        self.assertEqual(v.indata.ncurr, 1)
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 
+    def test_vmec_failure(self):
+        """
+        Verify that failures of VMEC are correctly caught and represented
+        by large values of the objective function.
+        """
+        filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+        vmec = Vmec(filename)
+        # Use the objective function from
+        # stellopt_scenarios_2DOF_targetIotaAndVolume:
+        prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
+                                    (vmec.volume, 0.15, 1)])
+        r00 = vmec.boundary.get_rc(0, 0)
+        # The first evaluation should succeed.
+        f = prob.f()
+        print(f[0], f[1])
+        correct_f = [-0.004577338528148067, 2.8313872701632925]
+        # Don't worry too much about accuracy here.
+        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+        
+        # Now set a crazy boundary shape to make VMEC fail. This
+        # boundary causes VMEC to hit the max number of iterations
+        # without meeting ftol.
+        vmec.boundary.set_rc(0, 0, 0.2)
+        vmec.need_to_run_code = True
+        f = prob.f()
+        print(f)
+        np.testing.assert_allclose(f, np.full(2, 1.0e12))
+
+        # Restore a reasonable boundary shape. VMEC should work again.
+        vmec.boundary.set_rc(0, 0, r00)
+        vmec.need_to_run_code = True
+        f = prob.f()
+        print(f)
+        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+        
+        # Now set a self-intersecting boundary shape. This causes VMEC
+        # to fail with "ARNORM OR AZNORM EQUAL ZERO IN BCOVAR" before
+        # it even starts iterating.
+        orig_mode = vmec.boundary.get_rc(1, 3)
+        vmec.boundary.set_rc(1, 3, 0.5)
+        vmec.need_to_run_code = True
+        f = prob.f()
+        print(f)
+        np.testing.assert_allclose(f, np.full(2, 1.0e12))
+        
+        # Restore a reasonable boundary shape. VMEC should work again.
+        vmec.boundary.set_rc(1, 3, orig_mode)
+        vmec.need_to_run_code = True
+        f = prob.f()
+        print(f)
+        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+        
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"

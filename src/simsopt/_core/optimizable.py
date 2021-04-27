@@ -113,7 +113,7 @@ class Target(Optimizable):
     def set_dofs(self, v):
         pass
 
-def optimizable(obj):
+def make_optimizable(obj):
     """
     Given any object, add attributes like fixed, mins, and maxs. fixed
     = False by default. Also, add the other methods of Optimizable to
