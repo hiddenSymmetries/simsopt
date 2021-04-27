@@ -88,8 +88,8 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
             return PySurfaceRZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PySurfaceRZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        void gamma_impl(PyArray& data) override {
+            PySurfaceRZFourierBase::gamma_impl(data);
         }
 
         void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
@@ -118,8 +118,8 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
             return PySurfaceXYZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        void gamma_impl(PyArray& data) override {
+            PySurfaceXYZFourierBase::gamma_impl(data);
         }
 
         void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
@@ -147,8 +147,8 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
             return PySurfaceXYZTensorFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PySurfaceXYZTensorFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        void gamma_impl(PyArray& data) override {
+            PySurfaceXYZTensorFourierBase::gamma_impl(data);
         }
 
         void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
@@ -262,6 +262,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
         .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)

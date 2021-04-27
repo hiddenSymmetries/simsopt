@@ -151,11 +151,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                 return zs(m, i);
         }
 
-        void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
-            int numquadpoints_phi = quadpoints_phi.size();
-            int numquadpoints_theta = quadpoints_theta.size();
-            
-
+        void gamma_impl(Array& data) override {
             data *= 0.;
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];

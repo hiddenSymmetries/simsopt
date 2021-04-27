@@ -256,8 +256,10 @@ class BoozerSurface():
             norm = np.linalg.norm(dval)
             i = i+1
 
+        r = self.boozer_penalty_constraints(
+            x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
         res = {
-            "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
+            "residual": r, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
         }
         if G is None:
             s.set_dofs(x[:-1])
@@ -288,7 +290,7 @@ class BoozerSurface():
             r, J = self.boozer_penalty_constraints(
                 x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
             b = J.T@r
-            JTJ = J.T@J 
+            JTJ = J.T@J
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
@@ -319,7 +321,8 @@ class BoozerSurface():
             x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)[1]
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         resdict = {
-            "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0, "G": None,
+            "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,
+            "G": None,
         }
         if G is None:
             s.set_dofs(res.x[:-1])
@@ -338,7 +341,7 @@ class BoozerSurface():
         This function solves the constrained optimization problem
             min 0.5 * || f(x) ||^2_2
 
-            subject to 
+            subject to
 
             label - targetlabel = 0
             z(varphi=0,theta=0) - 0 = 0
@@ -390,4 +393,129 @@ class BoozerSurface():
             iota = xl[-3]
         res['s'] = s
         res['iota'] = iota
+        return res
+
+    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
+        """
+        This function solves the Boozer Surface residual equation exactly.  For
+        this to work, we need the right balance of quadrature points, degrees
+        of freedom and constraints.  For this reason, this only works for
+        surfaces of type SurfaceXYZTensorFourier right now.
+
+        Given ntor, mpol, nfp and stellsym, the surface is expected to be
+        created in the following way:
+
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+            s = SurfaceXYZTensorFourier(
+                mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
+                quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        Or the following two are also possible in the stellsym case
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
+        or
+            phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+
+        and then
+
+            s = SurfaceXYZTensorFourier(
+                mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
+                quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        For the stellsym case, there is some redundancy between dofs.  This is
+        taken care of inside this function.
+
+        Not stellsym:
+            The surface has (2*ntor+1)*(2*mpol+1) many quadrature points and
+            3*(2*ntor+1)*(2*mpol+1) many dofs.
+            Equations:
+                - Boozer residual in x, y, and z at all quadrature points
+                - z(0, 0) = 0
+                - label constraint (e.g. volume or flux)
+            Unknowns:
+                - Surface dofs
+                - iota
+                - G
+            So we end up having 3*(2*ntor+1)*(2*mpol+1) + 2 equations and the
+            same number of unknowns.
+
+        Stellsym:
+            In this case we have
+
+                D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
+                  = 6*ntor*mpol + 3*ntor + 3*mpol + 1
+
+            many dofs in the surface. After calling surface.get_stellsym_mask() we have kicked out
+
+                2*ntor*mpol + ntor + mpol
+
+            quadrature points, i.e. we have
+
+                2*ntor*mpol + ntor + mpol + 1
+
+            quadrature points remaining. In addition we know that the x coordinate of the
+            residual at phi=0=theta is also always satisfied. In total this
+            leaves us with
+
+                3*(2*ntor*mpol + ntor + mpol) + 2 equations for the boozer residual.
+                1 equation for the label
+
+            which is the same as the number of surface dofs + 2 extra unknowns
+            given by iota and G.
+        """
+
+        from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+        s = self.surface
+        if not isinstance(s, SurfaceXYZTensorFourier):
+            raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
+
+        # In the case of stellarator symmetry, some of the information is
+        # redundant, since the coordinates at (-phi, -theta) are the same (up
+        # to sign changes) to those at (phi, theta). In addition, for stellsym
+        # surfaces and stellsym magnetic fields, the residual in the x
+        # component is always satisfied at phi=theta=0, so we ignore that one
+        # too. The mask object below is True for those parts of the residual
+        # that we need to keep, and False for those that we ignore.
+        m = s.get_stellsym_mask()
+        mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
+        if s.stellsym:
+            mask[0, 0, 0] = False
+        mask = mask.flatten()
+
+        label = self.label
+        if G is None:
+            G = 2. * np.pi * np.sum(np.abs(self.bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        x = np.concatenate((s.get_dofs(), [iota, G]))
+        i = 0
+        r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+        norm = np.linalg.norm(r)
+        while i < maxiter and norm > tol:
+            if s.stellsym:
+                J = np.vstack((
+                    J[mask, :],
+                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                ))
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
+            else:
+                J = np.vstack((
+                    J[mask, :],
+                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
+                ))
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
+            dx = np.linalg.solve(J, b)
+            dx += np.linalg.solve(J, b-J@dx)
+            x -= dx
+            s.set_dofs(x[:-2])
+            iota = x[-2]
+            G = x[-1]
+            i += 1
+            r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+            norm = np.linalg.norm(r)
+
+        res = {
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
+        }
         return res

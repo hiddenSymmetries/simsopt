@@ -208,7 +208,7 @@ class Surface {
         virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
         virtual vector<double> get_dofs() = 0;
 
-        virtual void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void gamma_impl(Array& data) = 0;
         virtual void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gammadash1_impl(Array& data)  { throw logic_error("gammadash1_impl was not implemented"); };
         virtual void gammadash2_impl(Array& data)  { throw logic_error("gammadash2_impl was not implemented"); };
@@ -382,7 +382,7 @@ class Surface {
 
 
         Array& gamma() {
-            return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
+            return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A);});
         }
         Array& gammadash1() {
             return check_the_cache("gammadash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1_impl(A);});
