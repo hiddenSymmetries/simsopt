@@ -20,10 +20,10 @@ try:
 except ImportError as err:
     MPI = None
 
-from .._core.optimizable import Optimizable
+from .._core.new_optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from ..util.types import RealArray
-from ..objectives.least_squares import  LeastSquaresProblem
+from ..objectives.new_least_squares import  LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
@@ -303,9 +303,12 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
         try:
             #f_unshifted = prob.dofs.f(x)
+            unweighted_residuals = prob.unweighted_residuals(x)
             residuals = prob.residuals(x)
         except:
             #f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
+            unweighted_residuals = np.full(prob.get_parent_return_fns_no(),
+                                           1.0e12)
             residuals = np.full(prob.get_parent_return_fns_no(), 1.0e12)
             logger.info("Exception caught during function evaluation.")
 
@@ -344,13 +347,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         for xj in x:
             residuals_file.write(f",{xj:24.16e}")
         residuals_file.write(f",{objective_val:24.16e}")
-        for fj in f_unshifted:
+        for fj in unweighted_residuals:
             residuals_file.write(f",{fj:24.16e}")
         residuals_file.write("\n")
         residuals_file.flush()
 
         nevals += 1
-        return f_shifted
+        return residuals
 
     def _jac_proc0(x):
         """
@@ -358,6 +361,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         to LeastSquaresProblem.jac, except this version is called only by
         proc 0 while workers are in the worker loop.
         """
+        return None
+        # TODO: reimplement this after jac evaluation is implemented
         if prob.grad_avail:
             # proc0_world calling mobilize_workers will mobilize only group 0.
             mpi.mobilize_workers(CALCULATE_JAC)
@@ -412,8 +417,9 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         #print("x0:",x0)
         # Call scipy.optimize:
         if grad:
-            logger.info("Using derivatives")
-            result = least_squares(_f_proc0, x0, verbose=2, jac=_jac_proc0, **kwargs)
+            logger.info("Using derivative free method despite derivatives given")
+            #result = least_squares(_f_proc0, x0, verbose=2, jac=_jac_proc0, **kwargs)
+            result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
         else:
             logger.info("Using derivative-free method")
             result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
