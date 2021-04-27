@@ -212,7 +212,19 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
 
 class NonQuasiAxisymmetricComponentPenalty(object):
-    """
+    r"""
+    This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
+    non-quasiaxisymmetric components.
+    
+    .. math::
+        J &= \frac{1}{2}\int_{\Gamma_{s}} (B-B_{\text{QS}})^2~dS
+          &= \frac{1}{2}\int_0^1 \int_0^1 (B - B_{\text{QS}})^2 \|\mathbf n\| ~d\varphi~\d\theta
+    
+    where
+    
+    .. math::
+        B &= \| \mathbf B(\varphi,\theta) \|_2
+        B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
     
     """
     def __init__(self,surface, biotsavart):
@@ -226,6 +238,9 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         self.biotsavart.set_points(x)
 
     def J(self):
+        """
+        Return the objective value
+        """
         nphi = self.surface.quadpoints_phi.size
         ntheta = self.surface.quadpoints_theta.size
 
@@ -242,6 +257,9 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         return J
 
     def dJ_by_dB(self):
+        """
+        Return the derivative of the objective with respect to the magnetic field
+        """
         nphi = self.surface.quadpoints_phi.size
         ntheta = self.surface.quadpoints_theta.size
 
@@ -263,11 +281,17 @@ class NonQuasiAxisymmetricComponentPenalty(object):
        
    
     def dJ_by_dcoilcoefficients(self):
+        """
+        Return the derivative of the objective with respect to the coil coefficients
+        """
         dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
         return dJ_by_dcoils
 
     def dJ_by_dsurfacecoefficients(self):
+        """
+        Return the derivative of the objective with respect to the surface coefficients
+        """
         nphi = self.surface.quadpoints_phi.size
         ntheta = self.surface.quadpoints_theta.size
 
