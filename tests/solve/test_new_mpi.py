@@ -2,7 +2,7 @@ import logging
 import unittest
 import numpy as np
 from mpi4py import MPI
-from simsopt._core.optimizable import Optimizable
+from simsopt._core.new_optimizable import Optimizable
 from simsopt.util.mpi import MpiPartition
 from simsopt.objectives.new_least_squares import LeastSquaresProblem
 from simsopt.solve.new_mpi import fd_jac_mpi, least_squares_mpi_solve
@@ -50,10 +50,10 @@ class TestFunction3(Optimizable):
     MPI communication added in order to test optimization with MPI.
     """
     def __init__(self, comm):
-        self.comm = comm
         x = [0., 0.]
-        self.dummy = 42
         super().__init__(x0=x)
+        self.comm = comm
+        self.dummy = 42
 
     def f0(self):
         # Do some random MPI stuff just for the sake of testing.
