@@ -1,9 +1,9 @@
+import numpy as np
+import logging
 
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
-import numpy as np
-import logging
 logger = logging.getLogger(__name__)
 
 

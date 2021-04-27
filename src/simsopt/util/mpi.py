@@ -3,13 +3,15 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module contains the MpiPartition class.
+This module contains the :class:`~simsopt.util.mpi.MpiPartition` class.
 
 This module should be completely self-contained, depending only on
 mpi4py and numpy, not on any other simsopt components.
 """
+__all__ = ['log', 'MpiPartition']
 
 import logging
+from typing import Union
 import numpy as np
 
 try:
@@ -19,10 +21,14 @@ except ImportError as err:
 
 STOP = 0
 
-def log(level=logging.INFO):
+def log(level: int = logging.INFO):
     """
     Turn on logging. If MPI is available, the processor number will be
     added to all logging entries.
+
+    Args:
+        level: Typically ``logging.INFO`` for regular output, or 
+          ``logging.DEBUG`` for more extensive output.
     """
     format = "%(levelname)s:%(name)s:%(lineno)d %(message)s"
     if MPI is not None:
@@ -36,10 +42,37 @@ logger = logging.getLogger(__name__)
 class MpiPartition:
     """
     This module contains functions related to dividing up the set of
-    MPI processors into groups, each of which can work together.
+    MPI processes into groups, each of which can work together. For
+    more information, see :ref:`mpi`.
+
+    Args:
+        ngroups: The number of worker groups desired. If ``None``, a worker
+          group will be created for each MPI process. If a value is supplied
+          that is larger than the number of processes, the number will be
+          lowered to the number of processes.
+        comm_world: The MPI communicator containing all processes to split into
+          worker groups.
+
+    Attributes:
+        ngroups (int): The number of worker groups.
+        group (int): Index giving the worker group that this MPI process belongs to.
+        comm_world (mpi4py.MPI.Intracomm): The MPI communicator that includes all processes together.
+        comm_groups (mpi4py.MPI.Intracomm): The MPI communicator representing the worker groups.
+        comm_leaders (mpi4py.MPI.Intracomm): The MPI communicator that includes only leaders of worker groups.
+        rank_world (int): The MPI rank in the ``comm_world`` communicator.
+        rank_groups (int): The MPI rank in the ``comm_groups`` communicator.
+        rank_leaders (int): The MPI rank in the ``comm_leaders`` communicator, or -1 for processes that are not group leaders.
+        nprocs_world (int): The number of MPI processes in the ``comm_world`` communicator.
+        nprocs_groups (int): The number of MPI processes in this process's worker group.
+        nprocs_leaders (int): The number of group leaders, if this process is a group leader, otherwise -1.
+        proc0_world (bool): Whether this MPI process has rank 0 in ``comm_world``.
+        proc0_groups (bool): Whether this MPI process has rank 0 in ``comm_groups``, i.e. whether this process is a group leader.
+    .
     """
 
-    def __init__(self, ngroups=None, comm_world=MPI.COMM_WORLD):
+    def __init__(self,
+                 ngroups: Union[None, int] = None,
+                 comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
         if MPI is None:
             raise RuntimeError("MpiPartition class requires the mpi4py package.")
                 
@@ -87,7 +120,7 @@ class MpiPartition:
             self.nprocs_leaders = -1
 
     def write(self):
-        """ Dump info about the MPI configuration """
+        """ Print info about the MPI configuration """
         columns = ["rank_world", "nprocs_world", "group", "ngroups",
                    "rank_groups", "nprocs_groups", "rank_leaders",
                    "nprocs_leaders"]
@@ -110,6 +143,11 @@ class MpiPartition:
             self.comm_world.send(data, 0, tag)
 
     def mobilize_leaders(self, action_const):
+        """
+        This function is called by ``proc0_world`` to tell the other
+        group leaders that it is time to begin some action,
+        e.g. starting to calculat a finite difference Jacobian.
+        """
         logger.debug('mobilize_leaders, action_const={}'.format(action_const))
         if not self.proc0_world:
             raise RuntimeError(

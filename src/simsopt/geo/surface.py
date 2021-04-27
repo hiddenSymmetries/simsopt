@@ -1,5 +1,8 @@
 import numpy as np
-from simsopt.core.optimizable import Optimizable
+
+from .._core.optimizable import Optimizable
+
+
 class Surface(Optimizable):
     """
     Surface is a base class for various representations of toroidal
