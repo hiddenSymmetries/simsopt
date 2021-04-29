@@ -4,6 +4,7 @@ from simsopt.objectives.functions import Identity, Adder, Rosenbrock, TestObject
 from simsopt._core.optimizable import Target
 from simsopt._core.dofs import Dofs
 
+
 class IdentityTests(unittest.TestCase):
     def test_basic(self):
         iden = Identity()
@@ -40,6 +41,7 @@ class IdentityTests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, iden.df)
             np.testing.assert_allclose(fd_grad, iden.dJ())
 
+
 class AdderTests(unittest.TestCase):
     def test_gradient(self):
         for n in range(1, 10):
@@ -58,7 +60,8 @@ class AdderTests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, a.df)
             np.testing.assert_allclose(fd_grad, a.dJ())
             #print('diff in adder gradient: ', fd_grad - a.df)
-        
+
+
 class RosenbrockTests(unittest.TestCase):
     def test_1(self):
         """
@@ -66,7 +69,7 @@ class RosenbrockTests(unittest.TestCase):
         """
         r = Rosenbrock()
         self.assertAlmostEqual(r.term1(), -1.0, places=13)
-        self.assertAlmostEqual(r.term2(),  0.0, places=13)
+        self.assertAlmostEqual(r.term2(), 0.0, places=13)
 
         # Change the parameters:
         x_new = [3, 2]
@@ -77,14 +80,14 @@ class RosenbrockTests(unittest.TestCase):
 
     def test_gradient(self):
         for n in range(1, 10):
-            r = Rosenbrock(b=np.random.rand() * 2) # Note b must be > 0.
+            r = Rosenbrock(b=np.random.rand() * 2)  # Note b must be > 0.
             r.set_dofs(np.random.rand(2) * 4 - 2)
 
             rtol = 1e-6
             atol = 1e-6
-            
+
             # Test gradient of term1
-            
+
             # Supply a function to finite_difference():
             fd_grad = Dofs([r.term1]).fd_jac().flatten()
             np.testing.assert_allclose(fd_grad, r.dterm1prop, rtol=rtol, atol=atol)
@@ -95,7 +98,7 @@ class RosenbrockTests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, r.dterm1(), rtol=rtol, atol=atol)
 
             # Test gradient of term2
-            
+
             # Supply a function to finite_difference():
             fd_grad = Dofs([r.term2]).fd_jac().flatten()
             np.testing.assert_allclose(fd_grad, r.dterm2prop, rtol=rtol, atol=atol)
@@ -105,7 +108,8 @@ class RosenbrockTests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, r.dterm2prop, rtol=rtol, atol=atol)
             np.testing.assert_allclose(fd_grad, r.dterm2(), rtol=rtol, atol=atol)
             #print('Diff in term2:', fd_grad - r.dterm2())
-            
+
+
 class TestObject1Tests(unittest.TestCase):
     def test_gradient(self):
         for n in range(1, 20):
@@ -124,7 +128,7 @@ class TestObject1Tests(unittest.TestCase):
             dofs = Dofs([o.J])
             #mask = np.logical_not(dofs.fixed)
             mask = np.logical_not(np.array(dofs.func_fixed[0]))
-            
+
             # Supply a function to finite_difference():
             fd_grad = Dofs([o.J]).fd_jac().flatten()
             np.testing.assert_allclose(fd_grad, o.df[mask], rtol=rtol, atol=atol)
@@ -139,7 +143,8 @@ class TestObject1Tests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
 
             print('Diff in TestObject1:', fd_grad - o.df[mask])
-            
+
+
 class TestObject2Tests(unittest.TestCase):
     def test_gradient(self):
         for n in range(1, 20):
@@ -159,7 +164,7 @@ class TestObject2Tests(unittest.TestCase):
 
             rtol = 1e-4
             atol = 1e-4
-            
+
             dofs = Dofs([o.J])
             mask = np.logical_not(np.array(dofs.func_fixed[0]))
 
@@ -177,6 +182,7 @@ class TestObject2Tests(unittest.TestCase):
             np.testing.assert_allclose(fd_grad, o.dJ()[mask], rtol=rtol, atol=atol)
 
             print('Diff in TestObject2:', fd_grad - o.df[mask])
-            
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,6 +49,7 @@ def unique(inlist):
             seen.add(j)
     return outlist
 
+
 class ObjectiveFailure(Exception):
     """
     This class is a custom exception used to indicate failure when

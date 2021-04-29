@@ -8,15 +8,19 @@ import jax.numpy as jnp
 import simsgeopp as sgpp
 from .._core.optimizable import Optimizable
 
+
 @jit
 def incremental_arclength_pure(d1gamma):
     return jnp.linalg.norm(d1gamma, axis=1)
 
+
 incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_arclength_pure(d1g), d1gamma)[1](v)[0])
+
 
 @jit
 def kappa_pure(d1gamma, d2gamma):
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
+
 
 kappavjp0 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d1g: kappa_pure(d1g, d2gamma), d1gamma)[1](v)[0])
 kappavjp1 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d2g: kappa_pure(d1gamma, d2g), d2gamma)[1](v)[0])
@@ -27,6 +31,7 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 @jit
 def torsion_pure(d1gamma, d2gamma, d3gamma):
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
+
 
 torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_pure(d1g, d2gamma, d3gamma), d1gamma)[1](v)[0])
 torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
@@ -127,8 +132,8 @@ class Curve(Optimizable):
         t[:, :] = (1./l[:, None]) * gammadash
 
         tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-            - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
-        )
+                                      - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
+                                      )
         kappa = self.kappa
         n[:, :] = (1./norm(tdash))[:, None] * tdash
         b[:, :] = np.cross(t, n, axis=1)
@@ -147,16 +152,16 @@ class Curve(Optimizable):
         return dkappa_by_dphi
 
     def dfrenet_frame_by_dcoeff(self):
-        dgamma_by_dphi            = self.gammadash()
-        d2gamma_by_dphidphi       = self.gammadashdash()
-        d2gamma_by_dphidcoeff     = self.dgammadash_by_dcoeff()
+        dgamma_by_dphi = self.gammadash()
+        d2gamma_by_dphidphi = self.gammadashdash()
+        d2gamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         d3gamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
 
         l = self.incremental_arclength()
         dl_by_dcoeff = self.dincremental_arclength_by_dcoeff()
 
-        norm   = lambda a: np.linalg.norm(a, axis=1)
-        inner  = lambda a, b: np.sum(a*b, axis=1)
+        norm = lambda a: np.linalg.norm(a, axis=1)
+        inner = lambda a, b: np.sum(a*b, axis=1)
         inner2 = lambda a, b: np.sum(a*b, axis=2)
 
         N = len(self.quadpoints)
@@ -178,7 +183,7 @@ class Curve(Optimizable):
                 - (inner(dgamma_by_dphi[:, :, None], d3gamma_by_dphidphidcoeff)[:, None, :]/l[:, None, None]) * dgamma_by_dphi[:, :, None]
                 + (inner(dgamma_by_dphi, d2gamma_by_dphidphi)[:, None, None] * dl_by_dcoeff[:, None, :]/l[:, None, None]**2) * dgamma_by_dphi[:, :, None]
                 - (inner(dgamma_by_dphi, d2gamma_by_dphidphi)/l)[:, None, None] * d2gamma_by_dphidcoeff
-            )
+        )
         dn_by_dcoeff[:, :, :] = (1./norm(tdash))[:, None, None] * dtdash_by_dcoeff \
             - (inner(tdash[:, :, None], dtdash_by_dcoeff)[:, None, :]/inner(tdash, tdash)[:, None, None]**1.5) * tdash[:, :, None]
 
@@ -195,25 +200,25 @@ class Curve(Optimizable):
         inner = lambda a, b: np.sum(a*b, axis=1)
         cross = lambda a, b: np.cross(a, b, axis=1)
         d1_dot_d2 = inner(dgamma, d2gamma)
-        d1_x_d2   = cross(dgamma, d2gamma)
-        d1_x_d3   = cross(dgamma, d3gamma)
+        d1_x_d2 = cross(dgamma, d2gamma)
+        d1_x_d3 = cross(dgamma, d3gamma)
         normdgamma = norm(dgamma)
         norm_d1_x_d2 = norm(d1_x_d2)
-        dgamma_dcoeff_  = self.dgammadash_by_dcoeff()
+        dgamma_dcoeff_ = self.dgammadash_by_dcoeff()
         d2gamma_dcoeff_ = self.dgammadashdash_by_dcoeff()
         d3gamma_dcoeff_ = self.dgammadashdashdash_by_dcoeff()
         for i in range(self.num_dofs()):
-            dgamma_dcoeff  = dgamma_dcoeff_[:, :, i]
+            dgamma_dcoeff = dgamma_dcoeff_[:, :, i]
             d2gamma_dcoeff = d2gamma_dcoeff_[:, :, i]
             d3gamma_dcoeff = d3gamma_dcoeff_[:, :, i]
 
-            d1coeff_x_d2   = cross(dgamma_dcoeff, d2gamma)
+            d1coeff_x_d2 = cross(dgamma_dcoeff, d2gamma)
             d1coeff_dot_d2 = inner(dgamma_dcoeff, d2gamma)
-            d1coeff_x_d3   = cross(dgamma_dcoeff, d3gamma)
-            d1_x_d2coeff   = cross(dgamma, d2gamma_dcoeff)
+            d1coeff_x_d3 = cross(dgamma_dcoeff, d3gamma)
+            d1_x_d2coeff = cross(dgamma, d2gamma_dcoeff)
             d1_dot_d2coeff = inner(dgamma, d2gamma_dcoeff)
             d1_dot_d1coeff = inner(dgamma, dgamma_dcoeff)
-            d1_x_d3coeff   = cross(dgamma, d3gamma_dcoeff)
+            d1_x_d3coeff = cross(dgamma, d3gamma_dcoeff)
 
             dkappadash_by_dcoeff[:, i] = (
                 +inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d3)
@@ -224,14 +229,13 @@ class Curve(Optimizable):
                         inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm_d1_x_d2**3 * normdgamma**3)
                         + 3 * inner(dgamma, dgamma_dcoeff)/(norm_d1_x_d2 * normdgamma**5)
                     )
-                ) \
+            ) \
                 - 3 * (
                     + (d1coeff_dot_d2 + d1_dot_d2coeff) * norm_d1_x_d2/normdgamma**5
                     + d1_dot_d2 * inner(d1coeff_x_d2 + d1_x_d2coeff, d1_x_d2)/(norm_d1_x_d2 * normdgamma**5)
                     - 5 * d1_dot_d2 * norm_d1_x_d2 * d1_dot_d1coeff/normdgamma**7
-                )
+            )
         return dkappadash_by_dcoeff
-
 
 
 class JaxCurve(sgpp.Curve, Curve):
