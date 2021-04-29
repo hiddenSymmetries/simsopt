@@ -7,7 +7,7 @@
 # This appears to be a known harmless annoyance:
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
 
-name: CI
+name: linting
 
 on: [push, pull_request]
 
