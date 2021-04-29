@@ -1,0 +1,86 @@
+
+# This file is based on examples in
+# https://docs.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
+
+# Note that all the "sudo" commands here appear to cause a warning message
+# "sudo: setrlimit(RLIMIT_CORE): operation not permitted"
+# This appears to be a known harmless annoyance:
+# https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  CI:
+    runs-on: ubuntu-18.04
+
+    env:
+      OMPI_ALLOW_RUN_AS_ROOT: 1
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.8]
+        test-type: [linting]
+
+    steps:
+    # First print out lots of information. We do this in separate 
+    # "name" blocks because otherwise the output gets mixed together
+    # in the github actions log.
+    
+    - name: Print user and group id
+      run: |
+        set -ex
+        id
+
+    - name: PWD
+      run: |
+        set -ex
+        pwd
+
+    - name: ls -l
+      run: |
+        set -ex
+        ls -l
+
+    - uses: actions/checkout@v2
+      # If we want submodules downloaded, uncomment the next 2 lines:
+      #with:
+      #  submodules: true
+
+    # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
+    - name: ls -l again
+      run: |
+        set -ex
+        ls -l
+        pwd
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: which python3 after python setup
+      run: which python3
+
+    - name: which pip after python setup
+      run: pip --version
+
+    - name: env after adding python
+      run: env
+
+    - name: Install python dependencies
+      run: |
+        pip install flake8
+        # qsc is used for an integrated test.
+
+    - name: Run linting tests
+      if: "contains(matrix.test-type, 'linting')"
+      run: |
+        export EXCLUDE="E226,E265,E266,E4,E5,E7,W,F"
+        flake8  --ignore $EXCLUDE src/
+        flake8  --ignore $EXCLUDE tests/
+        flake8  --ignore $EXCLUDE examples/
