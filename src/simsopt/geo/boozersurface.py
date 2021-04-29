@@ -20,21 +20,20 @@ class BoozerSurface():
 
     This constrained least squares problem can be solved by scalarizing and adding
     the constraint as an additional penalty term to the objective.  This is done in
-        
+
         minimize_boozer_penalty_constraints_LBFGS
         minimize_boozer_penalty_constraints_newton
         minimize_boozer_penalty_constraints_ls
 
     where LBFGS, Newton, or scipy.optimize.least_squares optimizers are used, respectively.
-    
+
     Alternatively, the exactly constrained least squares optimization problem can be solved.
     This is done in
-    
+
         minimize_boozer_exact_constraints_newton
 
     where Newton is used to solve the first order optimality condition.
     """
-
 
     def __init__(self, biotsavart, surface, label, targetlabel):
         self.bs = biotsavart
@@ -228,7 +227,6 @@ class BoozerSurface():
         resdict['iota'] = iota
 
         return resdict
-
 
     def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
         """

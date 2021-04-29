@@ -38,6 +38,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         assert counter > 3
     # print("################################################################################")
 
+
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01
@@ -74,6 +75,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = RotatedCurve(curve, 0.5, flip=False)
     return curve
 
+
 class Testing(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
@@ -83,9 +85,9 @@ class Testing(unittest.TestCase):
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
         curve1.set_dofs([np.pi/2, 0, 0, 0])
         curve2 = CurveXYZFourier(x, 7)
-        curve2.set_dofs([0,0,0,0,1,-0.15,0,0,0,0,0,0,0,-0.15,0,0,0,0,1,0,0,-0.15,0,0,0,0,0,0,0,0.15,0,0,0,0,0,0,0,0,0,0,-0.3,0,0,0,0])
-        assert np.allclose(curve1.gamma(),curve2.gamma())
-        assert np.allclose(curve1.gammadash(),curve2.gammadash())
+        curve2.set_dofs([0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0, 0, 0, 0, 1, 0, 0, -0.15, 0, 0, 0, 0, 0, 0, 0, 0.15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0, 0])
+        assert np.allclose(curve1.gamma(), curve2.gamma())
+        assert np.allclose(curve1.gammadash(), curve2.gammadash())
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
         h = 0.1
@@ -160,9 +162,11 @@ class Testing(unittest.TestCase):
         cfc = get_curve(curvetype, rotated)
         coeffs = cfc.get_dofs()
         cfc.invalidate_cache()
+
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.gamma().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dgamma_by_dcoeff().copy()
@@ -171,6 +175,7 @@ class Testing(unittest.TestCase):
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.gammadash().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dgammadash_by_dcoeff().copy()
@@ -179,6 +184,7 @@ class Testing(unittest.TestCase):
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.gammadashdash().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dgammadashdash_by_dcoeff().copy()
@@ -187,6 +193,7 @@ class Testing(unittest.TestCase):
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.gammadashdashdash().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dgammadashdashdash_by_dcoeff().copy()
@@ -203,9 +210,11 @@ class Testing(unittest.TestCase):
         # are needed to compute the derivative of the curvature.
         cfc = get_curve(curvetype, rotated)
         coeffs = cfc.get_dofs()
+
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.kappa().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dkappa_by_dcoeff().copy()
@@ -244,9 +253,11 @@ class Testing(unittest.TestCase):
         # are needed to compute the derivative of the curvature.
         ma = get_curve(curvetype, rotated)
         coeffs = ma.get_dofs()
+
         def f(dofs):
             ma.set_dofs(dofs)
             return ma.incremental_arclength().copy()
+
         def df(dofs):
             ma.set_dofs(dofs)
             return ma.dincremental_arclength_by_dcoeff().copy()
@@ -261,9 +272,11 @@ class Testing(unittest.TestCase):
     def subtest_curve_kappa_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
         coeffs = cfc.get_dofs()
+
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.kappa().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dkappa_by_dcoeff().copy()
@@ -278,9 +291,11 @@ class Testing(unittest.TestCase):
     def subtest_curve_torsion_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
         coeffs = cfc.get_dofs()
+
         def f(dofs):
             cfc.set_dofs(dofs)
             return cfc.torsion().copy()
+
         def df(dofs):
             cfc.set_dofs(dofs)
             return cfc.dtorsion_by_dcoeff().copy()
@@ -311,9 +326,11 @@ class Testing(unittest.TestCase):
     def subtest_curve_frenet_frame_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
         coeffs = ma.get_dofs()
+
         def f(dofs):
             ma.set_dofs(dofs)
             return ma.frenet_frame()[0].copy()
+
         def df(dofs):
             ma.set_dofs(dofs)
             return ma.dfrenet_frame_by_dcoeff()[0].copy()
@@ -322,6 +339,7 @@ class Testing(unittest.TestCase):
         def f(dofs):
             ma.set_dofs(dofs)
             return ma.frenet_frame()[1].copy()
+
         def df(dofs):
             ma.set_dofs(dofs)
             return ma.dfrenet_frame_by_dcoeff()[1].copy()
@@ -330,6 +348,7 @@ class Testing(unittest.TestCase):
         def f(dofs):
             ma.set_dofs(dofs)
             return ma.frenet_frame()[2].copy()
+
         def df(dofs):
             ma.set_dofs(dofs)
             return ma.dfrenet_frame_by_dcoeff()[2].copy()
@@ -344,9 +363,11 @@ class Testing(unittest.TestCase):
     def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
         coeffs = ma.get_dofs()
+
         def f(dofs):
             ma.set_dofs(dofs)
             return ma.kappadash().copy()
+
         def df(dofs):
             ma.set_dofs(dofs)
             return ma.dkappadash_by_dcoeff().copy()
@@ -357,6 +378,7 @@ class Testing(unittest.TestCase):
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated)
+
 
 if __name__ == "__main__":
     unittest.main()
