@@ -5,6 +5,9 @@ from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area
+from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from simsopt.geo.surfaceobjectives import boozer_surface_dresidual_dcoils_vjp
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
 
@@ -44,6 +47,89 @@ class BoozerSurfaceTests(unittest.TestCase):
         ignores_idxs[[1, 2, 693, 694, 695, 1386, 1387, 1388, -2, -1]] = 1
         assert np.max(np.abs(r0[ignores_idxs < 0.5])) < 1e-8
         assert np.max(np.abs(r0[-2:])) < 1e-6
+
+
+    def test_dresidual_dcoils_vjp(self):
+        """
+        This test verifies that the dresidual_dcoils_vjp calculation is correct.
+        """
+
+        def get_exact_residual(surface, label, target_label, biotsavart,iota=0.,G=None):
+            if not isinstance(s, SurfaceXYZTensorFourier):
+                raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
+        
+            m = surface.get_stellsym_mask()
+            mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
+            if surface.stellsym:
+                mask[0, 0, 0] = False
+            mask = mask.flatten()
+        
+            boozer = boozer_surface_residual(surface, iota, G, bs, derivatives=0)
+            r = boozer[0]
+            return r[mask]
+        
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+
+
+
+
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+    
+        label = Area(s)
+        target_label = 0.025
+
+        coeffs = stellarator.get_dofs()
+        def f(dofs):
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
+            return get_exact_residual(s, label, target_label, bs,iota,G0)
+        f0 = f(coeffs)
+
+
+
+
+
+        m = s.get_stellsym_mask()
+        mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
+        if s.stellsym:
+            mask[0, 0, 0] = False
+        mask = mask.flatten()
+        lm1 = np.random.uniform(size=mask.size)-0.5
+        lm1[np.logical_not(mask)] = 0.
+
+        lm1_dg_dcoils = boozer_surface_dresidual_dcoils_vjp(lm1, s, iota, G0, bs)
+        lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils)
+        
+        lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
+        fd_exact = np.dot(lm1_dg_dcoils , lm2)
+        
+        err_old = 1e9
+        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        print("################################################################################")
+        for eps in epsilons:
+            f1 = f(coeffs + eps * lm2)
+            Jfd = (f1-f0)/eps
+            err = np.linalg.norm(np.dot(Jfd, lm1[mask])-fd_exact)/np.linalg.norm(fd_exact)
+            print(err/err_old)
+            assert err < err_old * 0.55
+            err_old = err
+        print("################################################################################")
+
+
+
 
     def test_boozer_penalty_constraints_gradient(self):
         """
