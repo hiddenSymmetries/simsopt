@@ -1,4 +1,4 @@
-from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil, Dommaschk
+from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, Reiman
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -284,6 +284,24 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
         assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
         assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+    
+    def test_Reiman(self):
+        iota0    = 0.15
+        iota1    = 0.38
+        k        = [6]
+        epsilonk = [0.01]
+        # point locations
+        pointVar = 1e-1
+        npoints  = 1
+        points   = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points  += pointVar * (np.random.rand(*points.shape)-0.5)
+        # Bfield from class
+        Bfield   = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
+        Bfield.set_points(points)
+        B1   = Bfield.B()
+        dB1  = Bfield.dB_by_dX()
+        print(B1)
+        print(dB1)
 
 if __name__ == "__main__":
     unittest.main()
