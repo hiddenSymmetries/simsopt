@@ -25,6 +25,7 @@ typedef CurveRZFourier<PyArray> PyCurveRZFourier;
 #include "biot_savart_vjp_py.h"
 
 #include "dommaschk.cpp"
+#include "reiman.cpp"
 
 namespace py = pybind11;
 
@@ -296,6 +297,9 @@ PYBIND11_MODULE(simsgeopp, m) {
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("ReimanB" , &ReimanB);
+    m.def("ReimandB", &ReimandB);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
