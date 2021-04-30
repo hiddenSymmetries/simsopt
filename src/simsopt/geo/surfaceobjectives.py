@@ -108,7 +108,7 @@ class ToroidalFlux(object):
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
 
-def boozer_surface_dresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
+def boozer_surface_dexactresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dresidual_dcoils:
@@ -274,15 +274,22 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
     
     """
-    def __init__(self,surface, biotsavart):
-        self.surface = surface
-        self.biotsavart = biotsavart
+    def __init__(self,boozer_surface):
+        self.boozer_surface = boozer_surface
+        self.surface = boozer_surface.surface
+        self.biotsavart = boozer_surface.bs
         self.surface.dependencies.append(self)
         self.invalidate_cache()
     
     def invalidate_cache(self):
         x = self.surface.gamma().reshape((-1,3))
         self.biotsavart.set_points(x)
+    
+    def JdJ(self):
+        self.res = self.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota, G=G)
+        J = self.J()
+        dJ = self.dJ()
+        return J,dJ
 
     def J(self):
         """
@@ -302,6 +309,19 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_nonQS = modB - B_QS[None,:]
         J = 0.5 * np.mean( dS * B_nonQS**2 )
         return J
+
+    def dJ(self):
+        import ipdb;ipdb.set_trace()
+        bs = self.biotsavart
+        jac = self.boozer_surface.res['jacobian']
+        dJ_ds = self.dJ_by_dsurfacecoefficients() 
+        adj = np.linalg.solve(jac.T, dJ_ds)
+        adj += np.linalg.solve(jac.T, dJ_ds-jac.T@adj)
+        
+        adj_times_dg_dc = boozer_surface_dexactresidual_dcoils_vjp(adj, boozer_surface.surface, iota, G, biotsavart)
+        dJ = self.dJ_dcoilcoefficients - adj_times_dg_dc
+        
+        return dJ
 
     def dJ_by_dB(self):
         """
@@ -370,10 +390,9 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         
         dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) )
         return dJ_by_dc
+    
+    def dJ_diota(self):
 
-
-
-
-
+    def dJ_dG(self):
 
 
