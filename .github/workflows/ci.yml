@@ -118,7 +118,7 @@ jobs:
     - name: Build SPEC.
       run: |
         cd SPEC
-        cat Makefile | sed 's/CC=intel/CC=gfortran_ubuntu/' > Makefile1
+        cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
         cp Makefile1 Makefile
         head -n30 Makefile
         make -j
