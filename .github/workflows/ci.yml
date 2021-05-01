@@ -129,8 +129,9 @@ jobs:
       run: |
         cd SPEC
         cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
-        cp Makefile1 Makefile
-        head -n30 Makefile
+        cat Makefile1 | sed 's/$(FC) $(FLAGS) $(CFLAGS) $(RFLAGS) $(LINKS) $(addsuffix _r.o,$(ALLFILES)) -o xspec/$(FC) $(FLAGS) $(CFLAGS) $(RFLAGS) -o xspec $(addsuffix _r.o,$(ALLFILES)) $(LINKS)/' > Makefile
+        #cp Makefile1 Makefile
+        head -n66 Makefile
         make -j
 
     - name: Add xspec to PATH.
