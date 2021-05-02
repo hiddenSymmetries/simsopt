@@ -5,8 +5,9 @@ Getting started
 Requirements
 ^^^^^^^^^^^^
 
-``simsopt`` is a python package and requires python 3.6+.  ``simsopt``
-requires some mandatory python packages, listed in
+``simsopt`` is a python package focused on stellarator optimization and requires
+python 3.6+.  ``simsopt``
+also requires some mandatory python packages, listed in
 ``requirements.txt``.  These packages are all installed automatically
 when you install using ``pip``, as discussed below.  If you prefer to
 install via ``python setup.py install`` or ``python setup.py
@@ -19,6 +20,7 @@ Mandatory Packages
 - jax
 - jaxlib
 - scipy
+- ruamel.yaml
 
 Optional Packages
 -----------------
