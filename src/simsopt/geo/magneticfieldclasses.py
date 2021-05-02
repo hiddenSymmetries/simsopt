@@ -206,7 +206,7 @@ class CircularCoil(MagneticField):
                             - self.r0**2*(
                                 3*gamma*points[:, 2]**4 - 2*(2*points[:, 0]**2 + points[:, 1]**2)*points[:, 2]**2 * rho**2
                                 + (5*points[:, 0]**2 + points[:, 1]**2)*rho**4
-                            ))
+                ))
             ))/(2*alpha**4*beta**3*rho**4)
 
             dBydx = (self.Inorm*points[:, 0]*points[:, 1]*points[:, 2]*(
