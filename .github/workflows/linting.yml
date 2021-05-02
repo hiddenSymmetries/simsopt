@@ -26,37 +26,10 @@ jobs:
         test-type: [linting]
 
     steps:
-    # First print out lots of information. We do this in separate 
-    # "name" blocks because otherwise the output gets mixed together
-    # in the github actions log.
-    
-    - name: Print user and group id
-      run: |
-        set -ex
-        id
-
-    - name: PWD
-      run: |
-        set -ex
-        pwd
-
-    - name: ls -l
-      run: |
-        set -ex
-        ls -l
-
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
       #with:
       #  submodules: true
-
-    # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
-    # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
-    - name: ls -l again
-      run: |
-        set -ex
-        ls -l
-        pwd
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -75,7 +48,6 @@ jobs:
     - name: Install python dependencies
       run: |
         pip install flake8
-        # qsc is used for an integrated test.
 
     - name: Run linting tests
       if: "contains(matrix.test-type, 'linting')"
