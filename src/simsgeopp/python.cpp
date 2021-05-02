@@ -21,7 +21,10 @@ typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.cpp"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
-#include "biot_savart.h"
+#include "biot_savart_py.h"
+#include "biot_savart_vjp_py.h"
+
+#include "dommaschk.cpp"
 
 namespace py = pybind11;
 
@@ -291,6 +294,8 @@ PYBIND11_MODULE(simsgeopp, m) {
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
 
+    m.def("DommaschkB" , &DommaschkB);
+    m.def("DommaschkdB", &DommaschkdB);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
