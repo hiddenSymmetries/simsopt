@@ -108,6 +108,7 @@ class ToroidalFluxTests(unittest.TestCase):
         def f(dofs):
             s.set_dofs(dofs)
             return tf.J()
+
         def df(dofs):
             s.set_dofs(dofs)
             return tf.dJ_by_dsurfacecoefficients()
@@ -125,9 +126,11 @@ class ToroidalFluxTests(unittest.TestCase):
         def f(dofs):
             s.set_dofs(dofs)
             return tf.J()
+
         def df(dofs):
             s.set_dofs(dofs)
             return tf.dJ_by_dsurfacecoefficients() 
+
         def d2f(dofs):
             s.set_dofs(dofs)
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()

@@ -10,12 +10,14 @@ from . import TEST_DIR
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
+
 class MockBoozXform():
     """
     This class exists only for testing the Quasisymmetry class.  It
     returns similar data to the real Booz_xform class, but without doing a
     real calculation.
     """
+
     def __init__(self, mpol, ntor, nfp):
         mnmax = (ntor * 2 + 1) * mpol + ntor + 1
         xm = np.zeros(mnmax)
@@ -23,8 +25,8 @@ class MockBoozXform():
         xn[:ntor + 1] = np.arange(ntor + 1)
         for m in range(1, mpol + 1):
             index = ntor + 1 + (ntor * 2 + 1) * (m - 1)
-            xm[index : index + (ntor * 2 + 1)] = m
-            xn[index : index + (ntor * 2 + 1)] = np.arange(-ntor, ntor + 1)
+            xm[index: index + (ntor * 2 + 1)] = m
+            xn[index: index + (ntor * 2 + 1)] = np.arange(-ntor, ntor + 1)
         self.xm_b = xm
         self.xn_b = xn * nfp
         self.mnmax_b = mnmax
@@ -37,22 +39,25 @@ class MockBoozXform():
         print(self.bmnc_b)
         print('booz_xform_found:', booz_xform_found)
 
+
 class MockBoozer():
     """
     This class exists only for testing the Quasisymmetry class.  It
     returns similar data to the real Boozer class, but without doing a
     real calculation.
     """
+
     def __init__(self, mpol, ntor, nfp):
         self.bx = MockBoozXform(mpol, ntor, nfp)
         self.s_to_index = {0: 0, 1: 1}
         self.mpi = None
-        
+
     def register(self, s):
         pass
 
     def run(self):
         pass
+
 
 class QuasisymmetryTests(unittest.TestCase):
     def test_quasisymmetry_residuals(self):
@@ -64,7 +69,7 @@ class QuasisymmetryTests(unittest.TestCase):
         # xn:    [  0  4  8 -8 -4  0  4  8 -8  -4   0   4   8  -8  -4   0   4   8]
         # bmnc: [[ 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180]
         # bmnc:  [100 21 31 41 51 61 71 81 91 101 111 121 131 141 151 161 171 181]]
-        
+
         # QA
         s = 0; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
@@ -87,7 +92,6 @@ class QuasisymmetryTests(unittest.TestCase):
         q = Quasisymmetry(b, s, 1, -1, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
 
-        
     @unittest.skipIf(not booz_xform_found, "booz_xform python package not found")
     def test_boozer_register(self):
         b1 = Boozer(None)
@@ -108,16 +112,16 @@ class QuasisymmetryTests(unittest.TestCase):
         qs15 = Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
 
-        
     #@unittest.skip("This test won't work when run with other tests involving"
     #               "vmec until a low-level issue with VMEC is fixed to allow"
     #               "multiple readins.")
+
     @unittest.skipIf((not booz_xform_found) or (not vmec_found),
                      "vmec or booz_xform python package not found")
     def test_boozer_circular_tokamak(self):
         v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
         b = Boozer(v, mpol=48, ntor=0)
-        
+
         # Register a QA target at s = 0.5:
         qs1 = Quasisymmetry(b, 0.5, 1, 0)
         self.assertEqual(b._calls, 0)
@@ -179,9 +183,9 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, 15],
                                    atol=atol, rtol=rtol)
 
-        
     #@unittest.skipIf((not booz_xform_found) or (not vmec_found),
     #                 "booz_xform python package not found")
+
     @unittest.skip("This test won't work when run with other tests involving"
                    "vmec until a low-level issue with VMEC is fixed to allow"
                    "multiple readins.")
@@ -193,7 +197,7 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
         bmnc = b.bx.bmnc_b
-        
+
         # Compare to a reference boozmn*.nc file created by standalone
         # booz_xform:
         f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
@@ -206,7 +210,7 @@ class QuasisymmetryTests(unittest.TestCase):
                                    atol=atol, rtol=rtol)
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
-        
+
 
 if __name__ == "__main__":
     unittest.main()

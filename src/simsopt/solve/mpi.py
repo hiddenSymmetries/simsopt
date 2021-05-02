@@ -35,6 +35,7 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
+
 def _mpi_leaders_task(mpi, dofs, data):
     """
     This function is called by group leaders when
@@ -166,7 +167,7 @@ def fd_jac_mpi(dofs: Dofs,
         nevals_jac = 2 * dofs.nparams
         xs = np.zeros((dofs.nparams, nevals_jac))
         for j in range(dofs.nparams):
-            xs[:, 2 * j] = x0[:] # I don't think I need np.copy(), but not 100% sure.
+            xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
             xs[j, 2 * j] = x0[j] + eps
             xs[:, 2 * j + 1] = x0[:]
             xs[j, 2 * j + 1] = x0[j] - eps
@@ -201,13 +202,13 @@ def fd_jac_mpi(dofs: Dofs,
             x = xs[:, j]
             mpi.comm_groups.bcast(x, root=0)
             dofs.set(x)
-            
+
             f = dofs.f()
-                
+
             if evals is None and mpi.proc0_world:
                 dofs.nvals = mpi.comm_leaders.bcast(dofs.nvals)
                 evals = np.zeros((dofs.nvals, nevals_jac))
-                
+
             evals[:, j] = f
             #evals[:, j] = np.array([f() for f in dofs.funcs])
 
@@ -261,16 +262,16 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
           you can supply ``max_nfev=100`` to set the maximum number of function evaluations (not counting
           finite-difference gradient evaluations) to 100. Or, you can supply ``method`` to choose the optimization algorithm.
     """
-    
+
     if MPI is None:
         raise RuntimeError("least_squares_mpi_solve requires the mpi4py package.")
-    
+
     logger.info("Beginning solve.")
     prob._init()
     if grad is None:
         grad = prob.dofs.grad_avail
 
-    x = np.copy(prob.x) # For use in Bcast later.
+    x = np.copy(prob.x)  # For use in Bcast later.
 
     logfile = None
     logfile_started = False
@@ -394,7 +395,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             return prob.scale_dofs_jac(jac)
 
     # End of _jac_proc0
-    
+
     # Send group leaders and workers into their respective loops:
     leaders_action = lambda mpi2, data: _mpi_leaders_task(mpi, prob.dofs, data)
     workers_action = lambda mpi2, data: _mpi_workers_task(mpi, prob.dofs, data)
@@ -419,13 +420,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
         logfile.close()
         residuals_file.close()
-        
+
     # Stop loops for workers and group leaders:
     mpi.together()
 
     logfile_started = False
     logger.info("Completed solve.")
-    
+
     # Finally, make sure all procs get the optimal state vector.
     mpi.comm_world.Bcast(x)
     logger.debug('After Bcast, x={}'.format(x))

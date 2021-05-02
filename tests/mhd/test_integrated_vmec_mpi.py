@@ -12,6 +12,8 @@ from simsopt.util.mpi import MpiPartition
 #logging.basicConfig(level=logging.DEBUG)
 
 #@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
+
+
 @unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
 class IntegratedTests(unittest.TestCase):
     def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
@@ -84,6 +86,6 @@ class IntegratedTests(unittest.TestCase):
                 assert np.abs(surf.volume() - 0.15) < 1.0e-6
                 assert prob.objective() < 1.0e-15
 
-                
+
 if __name__ == "__main__":
     unittest.main()
