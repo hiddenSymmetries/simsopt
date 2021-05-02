@@ -275,16 +275,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
     x = np.copy(prob.x) # For use in Bcast later.
 
-
-    datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    objective_file = open(f"objective_{datestr}.dat", 'w')
-    objective_file.write("Problem type:\nleast_squares")
-    objective_file.write("function_evaluation,seconds")
-
-    residuals_file = open(f"residuals_{datestr}.dat", 'w')
-    residuals_file.write("Problem type:\nleast_squares")
-    residuals_file.write("function_evaluation,seconds")
-
+    objective_file = None
+    residuals_file = None
     datalog_started = False
     nevals = 0
     start_time = time()
@@ -325,6 +317,15 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         if not datalog_started:
             # Initialize log file
             datalog_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            objective_file = open(f"objective_{datestr}.dat", 'w')
+            objective_file.write("Problem type:\nleast_squares")
+            objective_file.write("function_evaluation,seconds")
+
+            residuals_file = open(f"residuals_{datestr}.dat", 'w')
+            residuals_file.write("Problem type:\nleast_squares")
+            residuals_file.write("function_evaluation,seconds")
+
             for j in range(prob.dof_size):
                 objective_file.write(f",x({j})")
             objective_file.write(",objective_function\n")

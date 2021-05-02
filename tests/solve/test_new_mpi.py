@@ -51,9 +51,10 @@ class TestFunction3(Optimizable):
     """
     def __init__(self, comm):
         x = [0., 0.]
-        super().__init__(x0=x)
         self.comm = comm
         self.dummy = 42
+        print("inside test function 3 init")
+        super().__init__(x0=x)
 
     def f0(self):
         # Do some random MPI stuff just for the sake of testing.
@@ -100,7 +101,7 @@ class MpiPartitionTests(unittest.TestCase):
         """
         rank_world = MPI.COMM_WORLD.Get_rank()
         nprocs = MPI.COMM_WORLD.Get_size()
-        
+
         for shift in range(-1, 3):
             if shift == -1:
                 ngroups = None
@@ -239,14 +240,16 @@ class MpiPartitionTests(unittest.TestCase):
         """
         Test a full least-squares optimization.
         """
-        for ngroups in range(1, 4):
+        rank_world = MPI.COMM_WORLD.Get_rank()
+        nprocs = MPI.COMM_WORLD.Get_size()
+        ngroups = nprocs + 3
+        #for ngroups in range(3, 4):
             #for grad in [True, False]:
-                mpi = MpiPartition(ngroups=ngroups)
-                o = TestFunction3(mpi.comm_groups)
-                term1 = (o.f0, 0, 1)
-                term2 = (o.f1, 0, 1)
-                prob = LeastSquaresProblem.from_tuples([term1, term2])
-                least_squares_mpi_solve(prob, mpi) #, grad=grad)
-                self.assertAlmostEqual(prob.full_x[0], 1)
-                self.assertAlmostEqual(prob.full_x[1], 1)
-                
+        mpi = MpiPartition(ngroups=ngroups)
+        o = TestFunction3(mpi.comm_groups)
+        term1 = (o.f0, 0, 1)
+        term2 = (o.f1, 0, 1)
+        prob = LeastSquaresProblem.from_tuples([term1, term2])
+        least_squares_mpi_solve(prob, mpi) #, grad=grad)
+        self.assertAlmostEqual(prob.full_x[0], 1)
+        self.assertAlmostEqual(prob.full_x[1], 1)
