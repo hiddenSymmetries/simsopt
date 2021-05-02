@@ -12,7 +12,6 @@ parameters['jit'] = False
 
 def taylor_test(f, df, x, epsilons=None, direction=None):
     np.random.seed(1)
-    f0 = f(x)
     if direction is None:
         direction = np.random.rand(*(x.shape))-0.5
     dfx = df(x)@direction
@@ -85,13 +84,15 @@ class Testing(unittest.TestCase):
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
         curve1.set_dofs([np.pi/2, 0, 0, 0])
         curve2 = CurveXYZFourier(x, 7)
-        curve2.set_dofs([0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0, 0, 0, 0, 1, 0, 0, -0.15, 0, 0, 0, 0, 0, 0, 0, 0.15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0, 0])
+        curve2.set_dofs(
+            [0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0,
+             0, 0, 0, 1, 0, 0, -0.15, 0, 0, 0, 0, 0, 0, 0, 0.15,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0, 0])
         assert np.allclose(curve1.gamma(), curve2.gamma())
         assert np.allclose(curve1.gammadash(), curve2.gammadash())
 
     def subtest_curve_first_derivative(self, curvetype, rotated):
-        h = 0.1
-        epss = [0.5**i for i in range(10, 15)] 
+        epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
         f0 = curve.gamma()[0]
@@ -111,8 +112,7 @@ class Testing(unittest.TestCase):
                     self.subtest_curve_first_derivative(curvetype, rotated)
 
     def subtest_curve_second_derivative(self, curvetype, rotated):
-        h = 0.1
-        epss = [0.5**i for i in range(10, 15)] 
+        epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
         f0 = curve.gammadash()[0]
@@ -132,7 +132,6 @@ class Testing(unittest.TestCase):
                     self.subtest_curve_second_derivative(curvetype, rotated)
 
     def subtest_curve_third_derivative(self, curvetype, rotated):
-        h = 0.1
         epss = [0.5**i for i in range(10, 15)] 
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
@@ -227,7 +226,6 @@ class Testing(unittest.TestCase):
                     self.subtest_coil_kappa_derivative(curvetype, rotated)
 
     def subtest_curve_kappa_first_derivative(self, curvetype, rotated):
-        h = 0.1
         epss = [0.5**i for i in range(12, 17)] 
         x = np.asarray([0.1234] + [0.1234 + eps for eps in epss])
         ma = get_curve(curvetype, rotated, x)
