@@ -5,6 +5,7 @@
 *.mod
 *fort.9
 simsopt_20*.dat
+objective*.dat
 residuals_20*.dat
 _skbuild/
 build/
