@@ -300,6 +300,11 @@ class Testing(unittest.TestCase):
         Bfield = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
         Bfield.set_points(points)
         B1 = np.array(Bfield.B())
+        # Check that div(B)=0
+        Bfield.set_points(points)
+        dB1 = Bfield.dB_by_dX()
+        assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
+        # assert np.allclose(dB1[:,0,0]+dB1[:,1,1]+dB1[:,2,2],
         # Bfield analytical
         x = points[:, 0]
         y = points[:, 1]
