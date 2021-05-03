@@ -73,9 +73,10 @@ class Testing(unittest.TestCase):
         assert abs(obj.J() - 2 * np.pi * x0[0]) < 1e-8
 
     def test_curve_first_derivative(self):
-            for rotated in [True, False]:
-                with self.subTest(rotated=rotated):
-                    self.subtest_curve_length_optimisation(rotated=rotated)
+        for rotated in [True, False]:
+            with self.subTest(rotated=rotated):
+                self.subtest_curve_length_optimisation(rotated=rotated)
+
 
 if __name__ == "__main__":
     unittest.main()

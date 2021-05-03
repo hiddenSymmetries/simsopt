@@ -21,6 +21,7 @@ except ImportError as err:
 
 STOP = 0
 
+
 def log(level: int = logging.INFO):
     """
     Turn on logging. If MPI is available, the processor number will be
@@ -36,9 +37,10 @@ def log(level: int = logging.INFO):
 
     logging.basicConfig(level=level, format=format)
 
+
 logger = logging.getLogger(__name__)
 
-    
+
 class MpiPartition:
     """
     This module contains functions related to dividing up the set of
@@ -75,7 +77,7 @@ class MpiPartition:
                  comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
         if MPI is None:
             raise RuntimeError("MpiPartition class requires the mpi4py package.")
-                
+
         self.is_apart = False
         self.comm_world = comm_world
         self.rank_world = comm_world.Get_rank()

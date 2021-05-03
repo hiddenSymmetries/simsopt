@@ -156,5 +156,6 @@ class Testing(unittest.TestCase):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_minimum_distance_taylor_test(curve)
 
+
 if __name__ == "__main__":
     unittest.main()

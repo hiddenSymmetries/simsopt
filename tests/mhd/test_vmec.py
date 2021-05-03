@@ -8,6 +8,7 @@ if vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
+
 @unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
     def test_init_defaults(self):
@@ -74,7 +75,7 @@ class VmecTests(unittest.TestCase):
         correct_f = [-0.004577338528148067, 2.8313872701632925]
         # Don't worry too much about accuracy here.
         np.testing.assert_allclose(f, correct_f, rtol=0.1)
-        
+
         # Now set a crazy boundary shape to make VMEC fail. This
         # boundary causes VMEC to hit the max number of iterations
         # without meeting ftol.
@@ -90,7 +91,7 @@ class VmecTests(unittest.TestCase):
         f = prob.f()
         print(f)
         np.testing.assert_allclose(f, correct_f, rtol=0.1)
-        
+
         # Now set a self-intersecting boundary shape. This causes VMEC
         # to fail with "ARNORM OR AZNORM EQUAL ZERO IN BCOVAR" before
         # it even starts iterating.
@@ -100,14 +101,14 @@ class VmecTests(unittest.TestCase):
         f = prob.f()
         print(f)
         np.testing.assert_allclose(f, np.full(2, 1.0e12))
-        
+
         # Restore a reasonable boundary shape. VMEC should work again.
         vmec.boundary.set_rc(1, 3, orig_mode)
         vmec.need_to_run_code = True
         f = prob.f()
         print(f)
         np.testing.assert_allclose(f, correct_f, rtol=0.1)
-        
+
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -125,6 +126,8 @@ class VmecTests(unittest.TestCase):
         can be found here:
         https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
         """
+
+
 """
         # Start with a default surface, which is axisymmetric with major
         # radius 1 and minor radius 0.1.

@@ -31,6 +31,8 @@ from ..objectives.least_squares import LeastSquaresProblem
 logger = logging.getLogger(__name__)
 
 #def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+
+
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                **kwargs):
@@ -55,14 +57,14 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     residuals_file = None
     nevals = 0
     start_time = time()
-    
+
     def objective(x):
         nonlocal logfile_started, logfile, residuals_file, nevals
-        
+
         f_unshifted = prob.dofs.f(x)
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
-        
+
         # Check that 2 ways of computing the objective give same
         # answer within roundoff:
         objective2 = prob.objective()
@@ -71,7 +73,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         abs_diff = np.abs(objective_val - objective2)
         rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
         assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
-        
+
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
@@ -88,7 +90,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                 logfile.write(",x({})".format(j))
             logfile.write(",objective_function")
             logfile.write("\n")
-            
+
             filename = "residuals_" + datestr + ".dat"
             residuals_file = open(filename, 'w')
             residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
@@ -99,7 +101,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             for j in range(prob.dofs.nvals):
                 residuals_file.write(",F({})".format(j))
             residuals_file.write("\n")
-            
+
         logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
             logfile.write(",{:24.16e}".format(xj))
@@ -120,12 +122,12 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         return f_shifted
 
     logger.info("Beginning solve.")
-    prob._init() # In case 'fixed', 'mins', etc have changed since the problem was created.
+    prob._init()  # In case 'fixed', 'mins', etc have changed since the problem was created.
     if grad is None:
         grad = prob.dofs.grad_avail
-        
+
     #if not 'verbose' in kwargs:
-        
+
     x0 = np.copy(prob.x)
     if grad:
         logger.info("Using derivatives")
@@ -140,7 +142,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     logfile.close()
     residuals_file.close()
     logger.info("Completed solve.")
-    
+
     #print("optimum x:",result.x)
     #print("optimum residuals:",result.fun)
     #print("optimum cost function:",result.cost)
@@ -163,12 +165,12 @@ def serial_solve(prob, grad=None, **kwargs):
     logfile_started = False
     nevals = 0
     start_time = time()
-    
+
     def objective(x):
         nonlocal logfile_started, logfile, nevals
-        
+
         result = prob.objective(x)
-        
+
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
         # header of the output file until this first evaluation is
@@ -184,7 +186,7 @@ def serial_solve(prob, grad=None, **kwargs):
                 logfile.write(",x({})".format(j))
             logfile.write(",objective_function")
             logfile.write("\n")
-            
+
         logfile.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
             logfile.write(",{:24.16e}".format(xj))
@@ -202,9 +204,9 @@ def serial_solve(prob, grad=None, **kwargs):
     # Need to fix up this next line for non-least-squares problems:
     #if grad is None:
     #    grad = prob.dofs.grad_avail
-        
+
     #if not 'verbose' in kwargs:
-        
+
     x0 = np.copy(prob.x)
     if grad:
         raise RuntimeError("Need to convert least-squares Jacobian to gradient of the scalar objective function")
@@ -219,7 +221,7 @@ def serial_solve(prob, grad=None, **kwargs):
     logfile_started = False
     logfile.close()
     logger.info("Completed solve.")
-    
+
     #print("optimum x:",result.x)
     #print("optimum residuals:",result.fun)
     #print("optimum cost function:",result.cost)
