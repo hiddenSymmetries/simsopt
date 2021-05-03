@@ -57,14 +57,13 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
                                 stellsym=self.stellsym, 
                                 mpol=mpol, 
                                 ntor=ntor, 
-                                quadpoints_phi  = self.quadpoints_phi, 
-                                quadpoints_theta= self.quadpoints_theta)
-        
+                                quadpoints_phi=self.quadpoints_phi, 
+                                quadpoints_theta=self.quadpoints_theta)
 
-        gamma = np.zeros( (surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3) )
+        gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx,:,:] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi, theta_resolution=surf.quadpoints_theta.size)
-        
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi, theta_resolution=surf.quadpoints_theta.size)
+
         surf.least_squares_fit(gamma)
         return surf
 
