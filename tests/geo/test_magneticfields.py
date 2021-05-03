@@ -301,7 +301,6 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         B1 = np.array(Bfield.B())
         # Check that div(B)=0
-        Bfield.set_points(points)
         dB1 = Bfield.dB_by_dX()
         assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
         # assert np.allclose(dB1[:,0,0]+dB1[:,1,1]+dB1[:,2,2],
@@ -330,6 +329,34 @@ class Testing(unittest.TestCase):
                         [2.57225263e-06, -1.69487835e-03, -1.98320069e-01],
                         [-2.68700789e-04, 1.70889034e-01, 6.77592533e-06]])
         assert np.allclose(dB1, dB2)
+
+    def subtest_reiman_dBdX_taylortest(self, idx):
+        iota0 = 0.15
+        iota1 = 0.38
+        k = [6]
+        epsilonk = [0.01]
+        bs = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+        bs.set_points(points)
+        B0 = bs.B()[idx]
+        dB = bs.dB_by_dX()[idx]
+        for direction in [np.asarray((1., 0, 0)), np.asarray((0, 1., 0)), np.asarray((0, 0, 1.))]:
+            deriv = dB.T.dot(direction)
+            err = 1e6
+            for i in range(5, 10):
+                eps = 0.5**i
+                bs.set_points(points + eps * direction)
+                Beps = bs.B()[idx]
+                deriv_est = (Beps-B0)/(eps)
+                new_err = np.linalg.norm(deriv-deriv_est)
+                assert new_err < 0.55 * err
+                err = new_err
+
+    def test_reiman_dBdX_taylortest(self):
+        for idx in [0, 16]:
+            with self.subTest(idx=idx):
+                self.subtest_reiman_dBdX_taylortest(idx)
 
 
 if __name__ == "__main__":
