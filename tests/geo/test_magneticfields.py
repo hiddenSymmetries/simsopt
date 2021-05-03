@@ -293,17 +293,38 @@ class Testing(unittest.TestCase):
         epsilonk = [0.01]
         # point locations
         pointVar = 1e-1
-        npoints  = 1
+        npoints  = 20
         points   = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points  += pointVar * (np.random.rand(*points.shape)-0.5)
         # Bfield from class
         Bfield   = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
         Bfield.set_points(points)
-        B1   = Bfield.B()
-        dB1  = Bfield.dB_by_dX()
-        print(B1)
-        print(dB1)
-
+        B1   = np.array(Bfield.B())
+        # Bfield analytical
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+        Bx= (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+            0.06*x*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*
+            np.sin(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
+        By= (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+            0.06*y*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*
+            np.sin(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
+        Bz=(-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
+            0.06*z*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.sin(np.arctan2(y,x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/np.sqrt(x**2 + y**2)
+        B2=np.array(np.vstack((Bx, By, Bz)).T)
+        assert np.allclose(B1,B2)
+        # Derivative
+        points = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        Bfield.set_points(points)
+        dB1 = np.array(Bfield.dB_by_dX()[0])
+        dB2 = np.array([[ 1.68810242e-03, -1.11110794e+00,  3.11091859e-04],
+                        [ 2.57225263e-06, -1.69487835e-03, -1.98320069e-01],
+                        [-2.68700789e-04,  1.70889034e-01,  6.77592533e-06]])
+        assert np.allclose(dB1,dB2)
 
 if __name__ == "__main__":
     unittest.main()
