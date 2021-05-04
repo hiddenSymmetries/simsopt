@@ -20,6 +20,14 @@ simsopt.util.mpi module
    :undoc-members:
    :show-inheritance:
 
+simsopt.util.types module
+-------------------------
+
+.. automodule:: simsopt.util.types
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 
