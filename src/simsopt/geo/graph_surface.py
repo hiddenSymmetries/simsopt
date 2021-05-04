@@ -19,7 +19,7 @@ from mpi4py import MPI
 #import xarray as xr
 
 from .._core.util import isbool
-from .._core.new_optimizable import Optimizable
+from .._core.graph_optimizable import Optimizable
 
 logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 

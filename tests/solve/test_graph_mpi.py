@@ -1,14 +1,17 @@
 import logging
 import unittest
+
 import numpy as np
 from mpi4py import MPI
-from simsopt._core.new_optimizable import Optimizable
+
+from simsopt._core.graph_optimizable import Optimizable
 from simsopt.util.mpi import MpiPartition
-from simsopt.objectives.new_least_squares import LeastSquaresProblem
-from simsopt.solve.new_mpi import fd_jac_mpi, least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import fd_jac_mpi, least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 
 class TestFunction1(Optimizable):
     def __init__(self):

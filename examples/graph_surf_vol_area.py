@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from simsopt.geo.new_surface import SurfaceRZFourier
-from simsopt.core.new_least_squares import LeastSquaresProblem
-from simsopt.solve.new_serial_solve import least_squares_solve
+from simsopt.geo.graph_surface import SurfaceRZFourier
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
@@ -27,7 +27,7 @@ surf.print_return_fn_names()
 prob1 = LeastSquaresProblem(opts_in=surf,
                            goals=[desired_area, desired_volume],
                            weights=[1, 1])
-least_squares_solve(prob1)
+least_squares_serial_solve(prob1)
 
 print("At the optimum using approach 1,")
 print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))
@@ -46,7 +46,7 @@ prob2 = LeastSquaresProblem(opts_in=surf2,
                             opt_return_fns=['area', 'volume'],
                             goals=[desired_area, desired_volume],
                             weights=[1, 1])
-least_squares_solve(prob2)
+least_squares_serial_solve(prob2)
 print("At the optimum using approach 2,")
 print(" rc(m=1,n=0) = ", surf2.get_rc(1, 0))
 print(" zs(m=1,n=0) = ", surf2.get_zs(1, 0))
@@ -62,7 +62,7 @@ surf3.fix('rc(0,0)')
 prob3 = LeastSquaresProblem(funcs_in=[surf3.area, surf3.volume],
                             goals=[desired_area, desired_volume],
                             weights=[1, 1])
-least_squares_solve(prob3)
+least_squares_serial_solve(prob3)
 print("At the optimum using approach 3,")
 print(" rc(m=1,n=0) = ", surf3.get_rc(1, 0))
 print(" zs(m=1,n=0) = ", surf3.get_zs(1, 0))
@@ -77,7 +77,7 @@ surf4.fix('rc(0,0)')
 prob4 = LeastSquaresProblem.from_tuples([(surf4.area, desired_area, 1),
                                          (surf4.volume, desired_volume, 1)])
 print(prob4)
-least_squares_solve(prob4)
+least_squares_serial_solve(prob4)
 print("At the optimum using approach 3,")
 print(" rc(m=1,n=0) = ", surf4.get_rc(1, 0))
 print(" zs(m=1,n=0) = ", surf4.get_zs(1, 0))

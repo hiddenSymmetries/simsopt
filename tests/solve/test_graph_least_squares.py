@@ -2,12 +2,11 @@ import unittest
 
 import numpy as np
 
-from simsopt._core.optimizable import Target
-from simsopt.objectives.new_functions import Identity, Rosenbrock
-from simsopt.objectives.new_least_squares import LeastSquaresProblem
-from simsopt.solve.new_serial import least_squares_serial_solve
+from simsopt.objectives.graph_functions import Identity, Rosenbrock
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 from simsopt.util.mpi import MpiPartition
-from simsopt.solve.new_mpi import least_squares_mpi_solve
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):

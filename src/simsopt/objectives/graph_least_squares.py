@@ -16,7 +16,7 @@ from numbers import Real
 
 import numpy as np
 
-from .._core.new_optimizable import DOFs, Optimizable
+from .._core.graph_optimizable import DOFs, Optimizable
 from ..util.types import RealArray, IntArray, BoolArray
 
 
