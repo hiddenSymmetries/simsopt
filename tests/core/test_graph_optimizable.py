@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
-from simsopt._core.new_optimizable import Optimizable
-from simsopt.objectives.new_functions import Identity, Rosenbrock, TestObject2
+from simsopt._core.graph_optimizable import Optimizable
+from simsopt.objectives.graph_functions import Identity, Rosenbrock, TestObject2
 
 
 class Adder(Optimizable):

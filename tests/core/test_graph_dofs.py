@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 from collections import Counter
 
-from simsopt._core.new_optimizable import DOF, DOFs
-from simsopt.objectives.new_functions import Identity, Adder, \
+from simsopt._core.graph_optimizable import DOF, DOFs
+from simsopt.objectives.graph_functions import Identity, Adder, \
                         TestObject2, Rosenbrock, Affine
 
 

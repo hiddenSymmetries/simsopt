@@ -7,10 +7,12 @@ This module provides a few minimal optimizable objects, each
 representing a function. These functions are mostly used for testing.
 """
 
-import numpy as np
 import logging
 from numbers import Real
-from .._core.new_optimizable import Optimizable
+
+import numpy as np
+
+from .._core.graph_optimizable import Optimizable
 from ..util.types import RealArray
 
 
