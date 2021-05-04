@@ -11,6 +11,7 @@ simsopt.util.logging module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.util.mpi module
 -----------------------
@@ -19,6 +20,7 @@ simsopt.util.mpi module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.util.types module
 -------------------------
@@ -27,6 +29,7 @@ simsopt.util.types module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 Module contents
 ---------------
@@ -35,3 +38,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
