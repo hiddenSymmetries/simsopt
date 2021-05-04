@@ -312,3 +312,59 @@ class Dommaschk(MagneticField):
 
         if compute_derivatives >= 1:
             self._dB_by_dX = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+
+class InterpolatedField(MagneticField):
+    """
+    Takes a magnetic field and interpolates it on a regular grid
+
+        [rmin, rmax] x [phimin, phimax] x [zmin, zmax]
+
+    using polynomials of order 1, 2, 3, or 4. The point of this class is that
+    evaluation is much faster than evaluating e.g. a Biot Savart field every
+    time. This is useful for things like Poincare plots or particle tracing.
+    """
+
+    def __init__(self, basefield, order=4, rmin=0.9, rmax=1.1, rsteps=8, phimin=0, phimax=2*np.pi, phisteps=8*32, zmin=-0.1, zmax=0.1, zsteps=8):
+        self.basefield = basefield
+        self.order = order
+        self.rmin = rmin
+        self.rmax = rmax
+        self.rsteps = rsteps
+        self.phimin = phimin
+        self.phimax = phimax
+        self.phisteps = phisteps
+        self.zmin = zmin
+        self.zmax = zmax
+        self.zsteps = zsteps
+
+        import simsgeopp as sgpp
+        if order == 1:
+            self.Bh = sgpp.RegularGridInterpolant3D1((rmin, rmax, rsteps), (phimin, phimax, phisteps), (zmin, zmax, zsteps), 3)
+        elif order == 4:
+            self.Bh = sgpp.RegularGridInterpolant3D4((rmin, rmax, rsteps), (phimin, phimax, phisteps), (zmin, zmax, zsteps), 3)
+        else:
+            raise NotImplementedError('Only order 1 and 4 supported.')
+
+        def bsfunbatch(r, phi, z):
+            r = np.asarray(r)
+            phi = np.asarray(phi)
+            z = np.asarray(z)
+            x = r * np.cos(phi)
+            y = r * np.sin(phi)
+            return self.basefield.set_points(np.vstack((x, y, z)).T).B().flatten()
+
+        self.Bh.interpolate_batch(bsfunbatch)
+
+    def compute(self, points, compute_derivatives=0):
+        if compute_derivatives > 0:
+            raise NotImplementedError('Only B supported.')
+
+        r = np.linalg.norm(points[:, :2], axis=1)
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        z = points[:, 2]
+        print(np.min(r), np.max(r))
+        print(np.min(phi), np.max(phi))
+        print(np.min(z), np.max(z))
+        self._B = np.zeros_like(points)
+        for i in range(points.shape[0]):
+            self._B[i, :] = self.Bh.evaluate(r[i], phi[i], z[i])

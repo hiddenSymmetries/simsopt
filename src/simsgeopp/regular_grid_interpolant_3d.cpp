@@ -60,6 +60,7 @@ void RegularGridInterpolant3D<degree>::interpolate(std::function<Vec(double, dou
             }
         }
     }
+    build_local_vals();
 }
 
 template<int degree>
@@ -89,14 +90,37 @@ void RegularGridInterpolant3D<degree>::interpolate_batch(std::function<Vec(Vec, 
             }
         }
     }
+    build_local_vals();
+}
+
+template<int degree>
+void RegularGridInterpolant3D<degree>::build_local_vals(){
+    all_local_vals = std::vector<AlignedVec>(
+            nx*ny*nz,
+            AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
+            );
+    for (int xidx = 0; xidx < nx; ++xidx) {
+        for (int yidx = 0; yidx < ny; ++yidx) {
+            for (int zidx = 0; zidx < nz; ++zidx) {
+                int meshidx = idx_cell(xidx, yidx, zidx);
+                for (int i = 0; i < degree+1; ++i) {
+                    for (int j = 0; j < degree+1; ++j) {
+                        int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
+                        int offset_local = padded_value_size*idx_dof_local(i, j, 0);
+                        memcpy(all_local_vals[meshidx].data()+offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
+                    }
+                }
+            }
+        }
+    }
 }
 
 
 template<int degree>
 Vec RegularGridInterpolant3D<degree>::evaluate(double x, double y, double z){
-    int xidx = int(x*nx); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
-    int yidx = int(y*ny);
-    int zidx = int(z*nz);
+    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
+    int yidx = int(ny*(y-ymin)/(ymax-ymin));
+    int zidx = int(nz*(z-zmin)/(zmax-zmin));
     if(xidx < 0 || xidx >= nx)
         throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, 0, nx-1));
     if(yidx < 0 || yidx >= ny)
@@ -104,22 +128,23 @@ Vec RegularGridInterpolant3D<degree>::evaluate(double x, double y, double z){
     if(zidx < 0 || zidx >= nz)
         throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, 0, nz-1));
 
-    for (int i = 0; i < degree+1; ++i) {
-        for (int j = 0; j < degree+1; ++j) {
-            //for (int k = 0; k < degree+1; ++k) {
-            //    int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+k);
-            //    int offset_local = padded_value_size*idx_dof_local(i, j, k);
-            //    memcpy(vals_local.data()+offset_local, vals.data()+offset, padded_value_size*sizeof(double));
-            //}
-            int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
-            int offset_local = padded_value_size*idx_dof_local(i, j, 0);
-            memcpy(vals_local.data()+offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
-        }
-    }
+    //vals_local = all_local_vals[idx_cell(xidx, yidx, zidx)];
+    //for (int i = 0; i < degree+1; ++i) {
+    //    for (int j = 0; j < degree+1; ++j) {
+    //        //for (int k = 0; k < degree+1; ++k) {
+    //        //    int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+k);
+    //        //    int offset_local = padded_value_size*idx_dof_local(i, j, k);
+    //        //    memcpy(vals_local.data()+offset_local, vals.data()+offset, padded_value_size*sizeof(double));
+    //        //}
+    //        int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
+    //        int offset_local = padded_value_size*idx_dof_local(i, j, 0);
+    //        memcpy(vals_local.data()+offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
+    //    }
+    //}
 
-    double xlocal = nx*(x-xsmesh[xidx]);
-    double ylocal = ny*(y-ysmesh[yidx]);
-    double zlocal = nz*(z-zsmesh[zidx]);
+    double xlocal = (x-xsmesh[xidx])/hx;
+    double ylocal = (y-ysmesh[yidx])/hy;
+    double zlocal = (z-zsmesh[zidx])/hz;
     if(xlocal < 0. || xlocal > 1.)
         throw std::runtime_error(fmt::format("xlocal={} not within [0, 1]", xlocal));
     if(ylocal < 0. || ylocal > 1.)
@@ -127,31 +152,40 @@ Vec RegularGridInterpolant3D<degree>::evaluate(double x, double y, double z){
     if(zlocal < 0. || zlocal > 1.)
         throw std::runtime_error(fmt::format("zlocal={} not within [0, 1]", zlocal));
     //std::cout << "local coordinates=(" << xlocal << ", " << ylocal << ", " << zlocal << ")" << std::endl;
-    return evaluate_local(xlocal, ylocal, zlocal);
+    return evaluate_local(xlocal, ylocal, zlocal, idx_cell(xidx, yidx, zidx));
 }
 
 template<int degree>
-Vec RegularGridInterpolant3D<degree>::evaluate_local(double x, double y, double z)
+Vec RegularGridInterpolant3D<degree>::evaluate_local(double x, double y, double z, int cell_idx)
 {
     Vec res(value_size, 0.);
-    for (int l = 0; l < value_size; ++l) {
-        double sumi = 0.;
+    double* vals_local = all_local_vals[cell_idx].data();
+    for(int l=0; l<padded_value_size; l += simdcount) {
+        simd_t sumi(0.);
+        int offset_local = l;
         for (int i = 0; i < degree+1; ++i) {
-            double sumj = 0.;
+            simd_t sumj(0.); 
             for (int j = 0; j < degree+1; ++j) {
-                double sumk = 0.;
+                simd_t sumk(0.);
                 for (int k = 0; k < degree+1; ++k) {
                     double pkz = basis_fun<degree>(k, z);
-                    int offset_local = padded_value_size*idx_dof_local(i, j, k);
-                    sumk += vals_local[offset_local+l] * pkz;
+                    //int offset_local = padded_value_size*idx_dof_local(i, j, k);
+                    //sumk += xsimd::load_aligned(&(vals_local[offset_local]))*pkz;
+                    sumk = xsimd::fma(xsimd::load_aligned(&(vals_local[offset_local])), simd_t(pkz), sumk);
+                    offset_local += padded_value_size;
                 }
                 double pjy = basis_fun<degree>(j, y);
-                sumj += pjy * sumk;
+                //sumj += pjy * sumk;
+                sumj = xsimd::fma(sumk, simd_t(pjy), sumj);
             }
             double pix = basis_fun<degree>(i, x);
-            sumi += pix * sumj;
+            //sumi += pix * sumj;
+            sumi = xsimd::fma(sumj, simd_t(pix), sumi);
         }
-        res[l] = sumi;
+        for (int ll = 0; ll < std::min(simdcount, value_size-l); ++ll) {
+            res[l+ll] = sumi[ll];
+        }
+        //xsimd::store_unaligned(&(res[l]), sumi);
     }
     return res;
 }
@@ -163,9 +197,9 @@ std::pair<double, double> RegularGridInterpolant3D<degree>::estimate_error(std::
     double err = 0;
     double errsq = 0;
     for (int i = 0; i < samples; ++i) {
-        double x = distribution(generator);
-        double y = distribution(generator);
-        double z = distribution(generator);
+        double x = xmin + distribution(generator)*(xmax-xmin);
+        double y = ymin + distribution(generator)*(ymax-ymin);
+        double z = zmin + distribution(generator)*(zmax-zmin);
         Vec fx = f(x, y, z);
         Vec fhx = this->evaluate(x, y, z);
         double diff = 0.;
@@ -189,4 +223,17 @@ template class RegularGridInterpolant3D<3>;
 template class RegularGridInterpolant3D<4>;
 
 
+Vec linspace(double min, double max, int n, bool endpoint) {
+    Vec res(n, 0.);
+    if(endpoint) {
+        double h = (max-min)/(n-1);
+        for (int i = 0; i < n; ++i)
+            res[i] = min + i*h;
+    } else {
+        double h = (max-min)/n;
+        for (int i = 0; i < n; ++i)
+            res[i] = min + i*h;
+    }
+    return res;
+}
 
