@@ -58,7 +58,6 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
                                 ntor=ntor, 
                                 quadpoints_phi=self.quadpoints_phi, 
                                 quadpoints_theta=self.quadpoints_theta)
-        
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):

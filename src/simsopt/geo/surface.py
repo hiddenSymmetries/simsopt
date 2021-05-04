@@ -127,6 +127,7 @@ class Surface(Optimizable):
             minc = (phi > right_bound).astype(int)
             phi = phi + 2.*np.pi * (pinc - minc)
             return phi
+        
         def bisection(phia, a, phic, c):
             err = 1.
             while err > 1e-13:
