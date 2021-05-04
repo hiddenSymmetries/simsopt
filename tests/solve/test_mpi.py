@@ -116,7 +116,7 @@ class MpiPartitionTests(unittest.TestCase):
                 ngroups = None
             else:
                 ngroups = nprocs + shift
-                
+
             m = MpiPartition(ngroups=ngroups)
             self.assertEqual(m.ngroups, nprocs)
 
@@ -128,7 +128,7 @@ class MpiPartitionTests(unittest.TestCase):
             self.assertEqual(m.nprocs_groups, 1)
             self.assertEqual(m.nprocs_leaders, nprocs)
 
-            self.assertEqual(m.proc0_world, rank_world==0)
+            self.assertEqual(m.proc0_world, rank_world == 0)
             self.assertTrue(m.proc0_groups)
 
     def test_ngroups_scan(self):

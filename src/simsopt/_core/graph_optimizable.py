@@ -134,7 +134,7 @@ class DOF:
             raise TypeError("Updating state is forbidded for fixed DOF")
         if x > self.max or x < self.min:
             raise ValueError(
-                "Input state is out of bounds for the DOF {}".format(self.name))
+                f"Input state is out of bounds for the DOF {self.name}")
         self._x = x
 
 
@@ -152,8 +152,9 @@ class DOFs(pd.DataFrame):
     "_lb",            "lower_bounds", 2
     "_ub",            "upper_bounds", 3
     """
+
     def __init__(self,
-                 x: RealArray = None, # To enable empty DOFs object
+                 x: RealArray = None,  # To enable empty DOFs object
                  names: StrArray = None,
                  free: BoolArray = None,
                  lower_bounds: RealArray = None,
@@ -421,9 +422,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         # instances of same class
         self._id = ImmutableId(next(self.__class__._ids))
         self.name = self.__class__.__name__ + str(self._id.id)
-        self._children = [] # This gets populated when the object is passed
+        self._children = []  # This gets populated when the object is passed
         # as argument to another Optimizable object
-        self.return_fns = defaultdict(list) # Store return fn's required by each child
+        self.return_fns = defaultdict(list)  # Store return fn's required by each child
 
         # Assign self as child to parents
         self.parents = opts_in if opts_in is not None else []
@@ -454,7 +455,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._update_full_dof_size_indices()
 
         self.new_x = True   # Set this True for dof setter and set it to False
-                            # after evaluation of function if True
+        # after evaluation of function if True
 
     def __str__(self):
         return self.name

@@ -19,20 +19,20 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         z(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
               z_{c,m,n} \cos(m \theta - n_\text{ nfp} \phi)
             + z_{s,m,n} \sin(m \theta - n_\text{ nfp} \phi)]
-     
+
     where
-     
+
     .. math::
         x &= \hat x \cos(\phi) - \hat y \sin(\phi)\\
         y &= \hat x \sin(\phi) + \hat y \cos(\phi)
-    
+
     Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
     for the sin terms.
-    
+
     When enforcing stellarator symmetry, we set the
-    
+
     x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
-    
+
     terms to zero.
     """
 
@@ -62,7 +62,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
             gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
-        
+
         surf.least_squares_fit(gamma)
         return surf
 

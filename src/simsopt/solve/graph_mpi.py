@@ -23,7 +23,7 @@ except ImportError as err:
 from .._core.graph_optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from ..util.types import RealArray
-from ..objectives.graph_least_squares import  LeastSquaresProblem
+from ..objectives.graph_least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
+
 
 def _mpi_leaders_task(mpi, prob, data):
     """
@@ -161,7 +162,7 @@ def fd_jac_mpi(prob: Optimizable,
         nevals_jac = 2 * prob.dof_size
         xs = np.zeros((prob.dof_size, nevals_jac))
         for j in range(prob.dof_size):
-            xs[:, 2 * j] = x0[:] # I don't think I need np.copy(), but not 100% sure.
+            xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
             xs[j, 2 * j] = x0[j] + eps
             xs[:, 2 * j + 1] = x0[:]
             xs[j, 2 * j + 1] = x0[j] - eps
@@ -196,17 +197,17 @@ def fd_jac_mpi(prob: Optimizable,
             x = xs[:, j]
             mpi.comm_groups.bcast(x, root=0)
             prob.x = x
-            
+
             try:
                 f = prob.objective()
             except:
                 logger.info("Exception caught during function evaluation")
                 f = np.full(prob.dofs.nvals, 1.0e12)
-                
+
             if evals is None and mpi.proc0_world:
                 nvals = mpi.comm_leaders.bcast(prob.dof_size)
                 evals = np.zeros((nvals, nevals_jac))
-                
+
             evals[:, j] = f
             #evals[:, j] = np.array([f() for f in dofs.funcs])
 
@@ -268,13 +269,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     if MPI is None:
         raise RuntimeError(
             "least_squares_mpi_solve requires the mpi4py package.")
-    
+
     logger.info("Beginning solve.")
     #prob._init()
     #if grad is None:
     #    grad = prob.grad_avail
 
-    x = np.copy(prob.x) # For use in Bcast later.
+    x = np.copy(prob.x)  # For use in Bcast later.
 
     objective_file = None
     residuals_file = None
@@ -433,13 +434,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
         objective_file.close()
         residuals_file.close()
-        
+
     # Stop loops for workers and group leaders:
     mpi.together()
 
     datalog_started = False
     logger.info("Completed solve.")
-    
+
     # Finally, make sure all procs get the optimal state vector.
     mpi.comm_world.Bcast(x)
     logger.debug(f'After Bcast, x={x}')

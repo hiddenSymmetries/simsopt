@@ -11,7 +11,7 @@ from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
-    
+
 
 solvers = [least_squares_serial_solve, mpi_solve_1group]
 
@@ -35,7 +35,6 @@ class LeastSquaresProblemTests(unittest.TestCase):
             self.assertTrue(np.allclose(iden1.x, [1]))
             self.assertTrue(np.allclose(iden2.x, [2]))
             self.assertTrue(np.allclose(iden3.x, [3]))
-
 
     def test_solve_quadratic_fixed(self):
         """
@@ -63,17 +62,17 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         for solver in solvers:
             #for grad in [True, False]:
-                r = Rosenbrock()
-                prob = LeastSquaresProblem(0, 1, opts_in=r)
-                solver(prob) #, grad=grad)
-                self.assertAlmostEqual(prob.objective(), 0)
-                #v = r.full_x
-                #print(v)
-                #print(prob.objective())
-                #print(r.terms)
-                #self.assertTrue(np.allclose(v, [1, 1]))
-                #self.assertAlmostEqual(v[0], 1)
-                #self.assertAlmostEqual(v[1], 1)
+            r = Rosenbrock()
+            prob = LeastSquaresProblem(0, 1, opts_in=r)
+            solver(prob)  # , grad=grad)
+            self.assertAlmostEqual(prob.objective(), 0)
+            #v = r.full_x
+            #print(v)
+            #print(prob.objective())
+            #print(r.terms)
+            #self.assertTrue(np.allclose(v, [1, 1]))
+            #self.assertAlmostEqual(v[0], 1)
+            #self.assertAlmostEqual(v[1], 1)
 
 
 if __name__ == "__main__":

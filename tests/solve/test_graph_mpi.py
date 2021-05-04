@@ -18,7 +18,7 @@ class TestFunction1(Optimizable):
         x = np.array([1.2, 0.9, -0.4])
         fixed = np.full(3, False)
         super().__init__(x0=x, fixed=fixed)
-        
+
     def J(self):
         return np.exp(self.full_x[0] ** 2 - np.exp(self.full_x[1]) \
                       + np.sin(self.full_x[2]))
@@ -31,7 +31,7 @@ class TestFunction2(Optimizable):
         x = np.array([1.2, 0.9])
         fixed = np.full(2, False)
         super().__init__(x0=x, fixed=fixed)
-        
+
     def f0(self):
         return np.exp(0 + self.full_x[0] ** 2 - np.exp(self.full_x[1]))
 
@@ -52,6 +52,7 @@ class TestFunction3(Optimizable):
     This is the Rosenbrock function again, but with some unnecessary
     MPI communication added in order to test optimization with MPI.
     """
+
     def __init__(self, comm):
         x = [0., 0.]
         self.comm = comm
@@ -82,19 +83,19 @@ class MpiPartitionTests(unittest.TestCase):
         rank_world = MPI.COMM_WORLD.Get_rank()
         nprocs = MPI.COMM_WORLD.Get_size()
         m = MpiPartition(ngroups=1)
-        
+
         self.assertEqual(m.ngroups, 1)
-        
+
         self.assertEqual(m.rank_world, rank_world)
         self.assertEqual(m.rank_groups, rank_world)
-        self.assertEqual(m.rank_leaders, 0 if rank_world==0 else -1)
+        self.assertEqual(m.rank_leaders, 0 if rank_world == 0 else -1)
 
         self.assertEqual(m.nprocs_world, nprocs)
         self.assertEqual(m.nprocs_groups, nprocs)
-        self.assertEqual(m.nprocs_leaders, 1 if rank_world==0 else -1)
+        self.assertEqual(m.nprocs_leaders, 1 if rank_world == 0 else -1)
 
-        self.assertEqual(m.proc0_world, rank_world==0)
-        self.assertEqual(m.proc0_groups, rank_world==0)
+        self.assertEqual(m.proc0_world, rank_world == 0)
+        self.assertEqual(m.proc0_groups, rank_world == 0)
         m.write()
 
     def test_ngroups_max(self):
@@ -110,7 +111,7 @@ class MpiPartitionTests(unittest.TestCase):
                 ngroups = None
             else:
                 ngroups = nprocs + shift
-                
+
             m = MpiPartition(ngroups=ngroups)
 
             self.assertEqual(m.ngroups, nprocs)
@@ -123,7 +124,7 @@ class MpiPartitionTests(unittest.TestCase):
             self.assertEqual(m.nprocs_groups, 1)
             self.assertEqual(m.nprocs_leaders, nprocs)
 
-            self.assertEqual(m.proc0_world, rank_world==0)
+            self.assertEqual(m.proc0_world, rank_world == 0)
             self.assertTrue(m.proc0_groups)
 
     def test_ngroups_scan(self):
@@ -143,12 +144,12 @@ class MpiPartitionTests(unittest.TestCase):
             self.assertEqual(m.rank_world, rank_world)
             self.assertGreaterEqual(m.rank_groups, 0)
             self.assertLess(m.rank_groups, nprocs)
-            
+
             self.assertEqual(m.nprocs_world, nprocs)
             self.assertGreaterEqual(m.nprocs_groups, 1)
             self.assertLessEqual(m.nprocs_groups, nprocs)
 
-            self.assertEqual(m.proc0_world, rank_world==0)
+            self.assertEqual(m.proc0_world, rank_world == 0)
 
             if m.proc0_groups:
                 self.assertGreaterEqual(m.rank_leaders, 0)
@@ -238,7 +239,7 @@ class MpiPartitionTests(unittest.TestCase):
             o.x = np.array([1.2, 0.9])
             # jac = d.fd_jac(centered=True, eps=1e-7)
             # np.testing.assert_allclose(jac, jac_reference, rtol=1e-13, atol=1e-13)
-            
+
     def test_parallel_optimization(self):
         """
         Test a full least-squares optimization.
@@ -253,6 +254,6 @@ class MpiPartitionTests(unittest.TestCase):
             term1 = (o.f0, 0, 1)
             term2 = (o.f1, 0, 1)
             prob = LeastSquaresProblem.from_tuples([term1, term2])
-            least_squares_mpi_solve(prob, mpi) #, grad=grad)
+            least_squares_mpi_solve(prob, mpi)  # , grad=grad)
             self.assertAlmostEqual(prob.full_x[0], 1)
             self.assertAlmostEqual(prob.full_x[1], 1)

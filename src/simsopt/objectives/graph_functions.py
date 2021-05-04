@@ -44,6 +44,7 @@ class Adder(Optimizable):
     n degrees of freedom, and has a function that just returns the sum
     of these dofs. This class is used for testing.
     """
+
     def __init__(self, n=3, x0=None, dof_names=None):
         self.n = n
         x = x0 if x0 is not None else np.zeros(n)
@@ -54,7 +55,7 @@ class Adder(Optimizable):
 
     def dJ(self):
         return np.ones(self.n)
-        
+
     @property
     def df(self):
         """
@@ -69,6 +70,7 @@ class Rosenbrock(Optimizable):
     """
     This class defines a minimal object that can be optimized.
     """
+
     def __init__(self, b=100.0, x=0.0, y=0.0):
         self._sqrtb = np.sqrt(b)
         super().__init__([x, y], names=['x', 'y'])
@@ -103,7 +105,7 @@ class Rosenbrock(Optimizable):
         Returns the gradient of term2
         """
         return np.array([2 * self.local_full_x[0], -1.0]) / self._sqrtb
-    
+
     def f(self, x=None):
         """
         Returns the total function, squaring and summing the two terms.
@@ -136,6 +138,7 @@ class TestObject1(Optimizable):
     This is an optimizable object used for testing. It depends on two
     sub-objects, both of type Adder.
     """
+
     def __init__(self, val, opts=None):
         #self.val = val
         #self.dof_names = ['val']
@@ -153,6 +156,8 @@ class TestObject1(Optimizable):
         """
         return (self._dofs.full_x[0] + 2 * self.parents[0]()) / \
                (10.0 + self.parents[1]())
+
+    return_fn_map = {'f': f}
 
     def dJ(self):
         """
@@ -172,6 +177,7 @@ class TestObject2(Optimizable):
     This is an optimizable object used for testing. It depends on two
     sub-objects, both of type Adder.
     """
+
     def __init__(self, val1, val2):
         x = [val1, val2]
         names = ['val1', 'val2']
@@ -185,6 +191,8 @@ class TestObject2(Optimizable):
         t = self.parents[0]()
         a = self.parents[1]()
         return v1 + a * np.cos(v2 + t)
+
+    return_fn_map = {'f': f}
 
     def dJ(self):
         x = self.local_full_x
@@ -205,6 +213,7 @@ class Affine(Optimizable):
     This class represents a random affine (i.e. linear plus constant)
     transformation from R^n to R^m.
     """
+
     def __init__(self, nparams, nvals):
         """
         nparams = number of independent variables.
@@ -218,6 +227,8 @@ class Affine(Optimizable):
 
     def f(self):
         return np.matmul(self.A, self.full_x) + self.B
+
+    return_fn_map = {'f': f}
 
     def dJ(self):
         return self.A

@@ -66,7 +66,6 @@ class LeastSquaresProblem(Optimizable):
                 if opt_return_fns is not None:
                     opt_return_fns = [opt_return_fns]
 
-
         super().__init__(opts_in=opts_in, opt_return_fns=opt_return_fns,
                          funcs_in=funcs_in)
 
@@ -130,12 +129,12 @@ class LeastSquaresProblem(Optimizable):
         #for i, opt in enumerate(self.parents):
         #    out = opt(child=self, *args, **kwargs)
         #    output = np.array([out]) if np.isscalar(out) else np.array(out)
-            #if self.opt_return_fns is None:
-            #    fn_value = output
-            #elif self.func_masks[i] is None:
-            #    fn_value = output
-            #else:
-            #    fn_value = output[self.func_masks[i]]
+        #    if self.opt_return_fns is None:
+        #       fn_value = output
+        #    elif self.func_masks[i] is None:
+        #       fn_value = output
+        #    else:
+        #       fn_value = output[self.func_masks[i]]
         #    outputs += [output]
         #outputs = np.concatenate(outputs)
         #residuals = (outputs - self.goals) * np.sqrt(self.weights)
@@ -182,7 +181,7 @@ class LeastSquaresProblem(Optimizable):
             np.concatenate([self.weights, other.weights]),
             self.parents + other.parents,
             self.get_parent_return_fns_list() + other.get_parent_return_fns_list(),
-            )
+        )
 
     #def residuals(self, x: Union[RealArray, IntArray] = None):
     #    if x is not None:

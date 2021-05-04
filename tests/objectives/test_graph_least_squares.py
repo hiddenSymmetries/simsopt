@@ -7,13 +7,14 @@ from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 
 #logging.basicConfig(level=logging.DEBUG)
 
+
 class LeastSquaresProblemTests(unittest.TestCase):
     def test_single_value_opt_in(self):
         iden = Identity()
         lst = LeastSquaresProblem.from_sigma(3, 0.1, iden)
 
         iden.x = [17]
-        correct_value = ((17 - 3) / 0.1) #** 2
+        correct_value = ((17 - 3) / 0.1)  # ** 2
         self.assertAlmostEqual(np.abs(lst.residuals()[0]),
                                correct_value,
                                places=11)

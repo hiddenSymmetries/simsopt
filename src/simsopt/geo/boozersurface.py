@@ -44,7 +44,7 @@ class BoozerSurface():
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         r"""
         Define the residual
-        
+
         .. math::
             r(x) = [f_1(x),...,f_n(x), \sqrt{w_c}  (l-l_0), \sqrt{w_c}  (z(\varphi=0, \theta=0) - 0)]
 
@@ -55,7 +55,7 @@ class BoozerSurface():
         For ``scalarized=False``, this function returns :math:`r(x)` and optionally the Jacobian of :math:`r(x)`.
 
         for ``scalarized=True``, this function returns
-        
+
         .. math::
             g(x) = \frac{1}{2}r(x)^Tr(x),
 
@@ -197,7 +197,7 @@ class BoozerSurface():
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
         r"""
         This function tries to find the surface that approximately solves
-        
+
         .. math::
             \text{min} \frac{1}{2} \| f(x) \|^2_2 + \frac{1}{2} w_c (l - l_0)^2
                                  + \frac{1}{2} c_w (z(\varphi=0, \theta=0) - 0)^2
@@ -339,7 +339,7 @@ class BoozerSurface():
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
         r"""
         This function solves the constrained optimization problem
-            
+
         .. math::
             \text{min} \frac{1}{2} \| f(x) \|^2_2
 
