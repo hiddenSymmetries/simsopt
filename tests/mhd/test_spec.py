@@ -18,7 +18,7 @@ if exe is None:
     print('Trying to find xspec')
     # Locations of xspec on Matt's laptop and the Github actions CI:
     try_exes = ['/Users/mattland/SPEC/xspec',
-               '/home/runner/work/simsopt/simsopt/SPEC/xspec']
+                '/home/runner/work/simsopt/simsopt/SPEC/xspec']
     for try_exe in try_exes:
         if os.path.isfile(try_exe):
             exe = try_exe
@@ -50,28 +50,27 @@ class SpecTests(unittest.TestCase):
         list_of_lists = [[42], [1, 2, 3]]
         arr1 = nested_lists_to_array(list_of_lists)
         arr2 = np.array([[42, 0, 0],
-                         [ 1, 2, 3]])
+                         [1, 2, 3]])
         np.testing.assert_allclose(arr1, arr2)
 
         list_of_lists = [[None, 42], [1, 2, 3]]
         arr1 = nested_lists_to_array(list_of_lists)
         arr2 = np.array([[0, 42, 0],
-                         [1,  2, 3]])
+                         [1, 2, 3]])
         np.testing.assert_allclose(arr1, arr2)
 
         list_of_lists = [[42, 43, 44], [1, 2, 3]]
         arr1 = nested_lists_to_array(list_of_lists)
         arr2 = np.array([[42, 43, 44],
-                         [ 1,  2,  3]])
+                         [1, 2, 3]])
         np.testing.assert_allclose(arr1, arr2)
 
         list_of_lists = [[42, 43, 44, 45], [1, 2, 3]]
         arr1 = nested_lists_to_array(list_of_lists)
         arr2 = np.array([[42, 43, 44, 45],
-                         [ 1,  2,  3,  0]])
+                         [1, 2, 3, 0]])
         np.testing.assert_allclose(arr1, arr2)
 
-        
     def test_init_from_file(self):
         """
         Try creating a Spec instance from a specified input file.
@@ -85,7 +84,7 @@ class SpecTests(unittest.TestCase):
         self.assertTrue(s.need_to_run_code)
 
         places = 5
-        
+
         # n = 0, m = 0:
         self.assertAlmostEqual(s.boundary.get_rc(0, 0), 1.0, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 0), 0.0, places=places)
@@ -97,7 +96,6 @@ class SpecTests(unittest.TestCase):
         # n = 1, m = 0:
         self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
-
 
     @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
     def test_run(self):
@@ -112,13 +110,13 @@ class SpecTests(unittest.TestCase):
                 print('new_mpol: {}, new_ntor: {}'.format(new_mpol, new_ntor))
                 s.update_resolution(new_mpol, new_ntor)
                 s.run()
-        
+
                 self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
-        
+
                 self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
-    
+
     @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
     def test_integrated_stellopt_scenarios_1dof(self):
         """
@@ -150,7 +148,7 @@ class SpecTests(unittest.TestCase):
 
             surf.set_rc(1, 0, 0.1)
             surf.set_zs(1, 0, 0.1)
-            
+
             surf.set_rc(1, 1, 0)
             surf.set_zs(1, 1, 0)
 
@@ -164,7 +162,7 @@ class SpecTests(unittest.TestCase):
             # Turn off Poincare plots and use low resolution, for speed:
             equil.nml['diagnosticslist']['nPtrj'] = 0
             equil.nml['physicslist']['lrad'] = [2]
-            
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
             desired_volume = 0.15
@@ -183,12 +181,12 @@ class SpecTests(unittest.TestCase):
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob, grad=grad)
-            
+
             self.assertAlmostEqual(surf.get_rc(0, 0), 0.7599088773175, places=5)
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
-    
+
     @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
@@ -230,10 +228,10 @@ class SpecTests(unittest.TestCase):
             # Use low resolution, for speed:
             equil.nml['physicslist']['lrad'] = [4]
             equil.nml['diagnosticslist']['nppts'] = 100
-            
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
-            desired_iota = 0.41 # Sign was + for VMEC
+            desired_iota = 0.41  # Sign was + for VMEC
             prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
 
             # Check that the problem was set up correctly:
@@ -245,11 +243,11 @@ class SpecTests(unittest.TestCase):
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob)
-            
+
             self.assertAlmostEqual(surf.get_Delta(1, -1), 0.08575, places=4)
             self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
-    
+
     @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
     def test_integrated_stellopt_scenarios_2dof(self):
         """

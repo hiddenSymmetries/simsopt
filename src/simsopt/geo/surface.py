@@ -13,8 +13,7 @@ class Surface(Optimizable):
         Optimizable.__init__(self)
         self.dependencies = []
         self.fixed = np.full(len(self.get_dofs()), False)
-                             
-    
+
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
         gamma = self.gamma()
 
@@ -22,7 +21,6 @@ class Surface(Optimizable):
         mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
         if wireframe:
             mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
-        
 
         if plot_derivative:
             dg1 = 0.05 * self.gammadash1()
@@ -34,7 +32,6 @@ class Surface(Optimizable):
             mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
         if show:
             mlab.show()
-
 
     def __repr__(self):
         return "Surface " + str(hex(id(self)))
@@ -64,7 +61,7 @@ class Surface(Optimizable):
             phi = phi - 2. * np.pi
         if phi < -np.pi:
             phi = phi + 2. * np.pi
-        
+
         # varphi are the search intervals on which we look for the cross section in 
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
@@ -89,18 +86,18 @@ class Surface(Optimizable):
 
         # compute the cylindrical phi coordinate of each sampled point on the surface
         cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])
-        
+
         # reorder varphi, theta with respect to increasing cylindrical phi
         idx = np.argsort(cyl_phi, axis=0)
         cyl_phi = np.take_along_axis(cyl_phi, idx, axis=0)
         varphigrid = np.take_along_axis(varphigrid, idx, axis=0)
-        
+
         # In case the target cylindrical angle "phi" lies above the first row or below the last row,
         # we must concatenate the lower row above the top row and the top row below the lower row.
         # This is allowable since the data in the matrices are periodic
         cyl_phi = np.concatenate((cyl_phi[-1, :][None, :]-2.*np.pi, cyl_phi, cyl_phi[0, :][None, :]+2.*np.pi), axis=0)
         varphigrid = np.concatenate((varphigrid[-1, :][None, :]-1., varphigrid, varphigrid[0, :][None, :]+1.), axis=0)
-        
+
         # ensure that varphi does not have massive jumps.
         diff = varphigrid[1:]-varphigrid[:-1]
         pinc = np.abs(diff+1) < np.abs(diff)
@@ -108,20 +105,18 @@ class Surface(Optimizable):
         inc = pinc.astype(int) - minc.astype(int)
         prefix_sum = np.cumsum(inc, axis=0)
         varphigrid[1:] = varphigrid[1:] + prefix_sum
-        
+
         # find the subintervals in varphi on which the desired cross section lies.
         # if idx_right == 0, then the subinterval must be idx_left = 0 and idx_right = 1
         idx_right = np.argmax(phi <= cyl_phi, axis=0)
         idx_right = np.where(idx_right == 0, 1, idx_right)
         idx_left = idx_right-1 
-        
-
 
         varphi_left = varphigrid[idx_left, np.arange(idx_left.size)]
         varphi_right = varphigrid[idx_right, np.arange(idx_right.size)]
         cyl_phi_left = cyl_phi[idx_left, np.arange(idx_left.size)]
         cyl_phi_right = cyl_phi[idx_right, np.arange(idx_right.size)]
-       
+
         # this function converts varphi to cylindrical phi, ensuring that the returned angle
         # lies between left_bound and right_bound.
         def varphi2phi(varphi_in, left_bound, right_bound):
@@ -137,7 +132,7 @@ class Surface(Optimizable):
             while err > 1e-13:
                 b = (a + c)/2.
                 phib = varphi2phi(b, phia, phic)
-                
+
                 flag = (phib - phi) * (phic - phi) > 0
                 # if flag is true,  then root lies on interval [a,b)
                 # if flag is false, then root lies on interval [b,c]
@@ -216,7 +211,7 @@ class Surface(Optimizable):
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
-        
+
         """
 
         xyz = self.gamma()
