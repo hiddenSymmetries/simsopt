@@ -3,27 +3,15 @@ import numpy as np
 import os
 import logging
 import shutil
-from simsopt.mhd.spec import Spec, nested_lists_to_array
+from simsopt.mhd.spec import spec_found
+if spec_found:
+    from simsopt.mhd.spec import Spec
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
-
-# See if a spec executable can be found. If not, we will skip certain
-# tests below.
-exe = shutil.which('xspec')
-if exe is None:
-    print('Trying to find xspec')
-    # Locations of xspec on Matt's laptop and the Github actions CI:
-    try_exes = ['/Users/mattland/SPEC/xspec',
-               '/home/runner/work/simsopt/simsopt/SPEC/xspec']
-    for try_exe in try_exes:
-        if os.path.isfile(try_exe):
-            exe = try_exe
-spec_found = (exe is not None)
-logger.info("spec standalone executable: {}".format(exe))
 
 
 class SpecTests(unittest.TestCase):
@@ -33,45 +21,10 @@ class SpecTests(unittest.TestCase):
         and make sure we can read some of the attributes.
         """
         spec = Spec()
-        self.assertEqual(spec.nml['physicslist']['nfp'], 5)
-        self.assertEqual(spec.nml['physicslist']['nvol'], 1)
+        self.assertEqual(spec.inputlist.nfp, 5)
+        self.assertEqual(spec.inputlist.nvol, 1)
         self.assertTrue(spec.need_to_run_code)
 
-    def test_nested_lists_to_array(self):
-        """
-        Test the utility function used to convert the rbc and zbs data
-        from f90nml to a 2D numpy array.
-        """
-        list_of_lists = [[42]]
-        arr1 = nested_lists_to_array(list_of_lists)
-        arr2 = np.array([[42]])
-        np.testing.assert_allclose(arr1, arr2)
-
-        list_of_lists = [[42], [1, 2, 3]]
-        arr1 = nested_lists_to_array(list_of_lists)
-        arr2 = np.array([[42, 0, 0],
-                         [ 1, 2, 3]])
-        np.testing.assert_allclose(arr1, arr2)
-
-        list_of_lists = [[None, 42], [1, 2, 3]]
-        arr1 = nested_lists_to_array(list_of_lists)
-        arr2 = np.array([[0, 42, 0],
-                         [1,  2, 3]])
-        np.testing.assert_allclose(arr1, arr2)
-
-        list_of_lists = [[42, 43, 44], [1, 2, 3]]
-        arr1 = nested_lists_to_array(list_of_lists)
-        arr2 = np.array([[42, 43, 44],
-                         [ 1,  2,  3]])
-        np.testing.assert_allclose(arr1, arr2)
-
-        list_of_lists = [[42, 43, 44, 45], [1, 2, 3]]
-        arr1 = nested_lists_to_array(list_of_lists)
-        arr2 = np.array([[42, 43, 44, 45],
-                         [ 1,  2,  3,  0]])
-        np.testing.assert_allclose(arr1, arr2)
-
-        
     def test_init_from_file(self):
         """
         Try creating a Spec instance from a specified input file.
@@ -80,8 +33,8 @@ class SpecTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, '1DOF_Garabedian.sp')
 
         s = Spec(filename)
-        self.assertEqual(s.nml['physicslist']['nfp'], 5)
-        self.assertEqual(s.nml['physicslist']['nvol'], 1)
+        self.assertEqual(s.inputlist.nfp, 5)
+        self.assertEqual(s.inputlist.nvol, 1)
         self.assertTrue(s.need_to_run_code)
 
         places = 5
@@ -99,7 +52,7 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
 
-    @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
+    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_run(self):
         """
         Try running SPEC and reading in the output.
@@ -108,9 +61,10 @@ class SpecTests(unittest.TestCase):
 
         for new_mpol in [2, 3]:
             for new_ntor in [2, 3]:
-                s = Spec(filename, exe=exe)
+                s = Spec(filename)
                 print('new_mpol: {}, new_ntor: {}'.format(new_mpol, new_ntor))
-                s.update_resolution(new_mpol, new_ntor)
+                s.inputlist.mpol = new_mpol
+                s.inputlist.ntor = new_ntor
                 s.run()
         
                 self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
@@ -119,7 +73,7 @@ class SpecTests(unittest.TestCase):
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
     
-    @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
+    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -139,7 +93,7 @@ class SpecTests(unittest.TestCase):
         """
         for grad in [True, False]:
             # Start with a default surface.
-            equil = Spec(exe=exe)
+            equil = Spec()
             surf = equil.boundary
 
             # Set the initial boundary shape. Here is one way to do it:
@@ -162,8 +116,8 @@ class SpecTests(unittest.TestCase):
             surf.set_fixed('rc(0,0)', False)
 
             # Turn off Poincare plots and use low resolution, for speed:
-            equil.nml['diagnosticslist']['nPtrj'] = 0
-            equil.nml['physicslist']['lrad'] = [2]
+            equil.inputlist.nptrj = 0
+            equil.inputlist.lrad = [2]
             
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
@@ -189,7 +143,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
     
-    @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
+    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
         This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -211,8 +165,9 @@ class SpecTests(unittest.TestCase):
 
         for mpol_ntor in [2, 4]:
             # Start with a default surface.
-            equil = Spec(filename, exe=exe)
-            equil.update_resolution(mpol_ntor, mpol_ntor)
+            equil = Spec(filename)
+            equil.inputlist.mpol = mpol_ntor
+            equil.inputlist.ntor = mpol_ntor
 
             # We will optimize in the space of Garabedian coefficients
             # rather than RBC/ZBS coefficients. To do this, we convert the
@@ -250,7 +205,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
     
-    @unittest.skipIf(not spec_found, "SPEC standalone executable not found")
+    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_2dof(self):
         """
         This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -272,7 +227,7 @@ class SpecTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, '2DOF_targetIotaAndVolume.sp')
 
         # Initialize SPEC from an input file
-        equil = Spec(filename, exe=exe)
+        equil = Spec(filename)
         surf = equil.boundary
 
         # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
