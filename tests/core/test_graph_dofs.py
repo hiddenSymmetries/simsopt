@@ -4,13 +4,14 @@ from collections import Counter
 
 from simsopt._core.graph_optimizable import DOF, DOFs
 from simsopt.objectives.graph_functions import Identity, Adder, \
-                        TestObject2, Rosenbrock, Affine
+    TestObject2, Rosenbrock, Affine
 
 
 class DOFTest(unittest.TestCase):
     """
     Unit tests for simsopt.core.DOF class
     """
+
     def setUp(self):
         self.dof1 = DOF(2.0, 'x', True, np.NINF, np.inf)
         self.dof2 = DOF(3.0, 'y', False, np.NINF, np.inf)
@@ -92,7 +93,7 @@ class DOFsTests(unittest.TestCase):
         self.assertFalse(self.adder_dofs.all_free())
         self.assertEqual(self.adder_dofs.reduced_len, 2)
         with self.assertRaises(ValueError):
-            self.adder_dofs.x = np.array([4,5,6])
+            self.adder_dofs.x = np.array([4, 5, 6])
 
         self.adder_dofs.fix("x")
         self.assertEqual(self.adder_dofs.reduced_len, 2)
@@ -135,54 +136,54 @@ class DOFsTests(unittest.TestCase):
         self.assertEqual(self.rosenbrock_dofs.reduced_len, 2)
 
     def test_any_free(self):
-        fixed_dofs = DOFs(x=np.array([1,2,3]),
+        fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                           names=np.array(['x', 'y', 'z']),
                           free=np.array([False, False, False]))
         self.assertFalse(fixed_dofs.any_free())
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
-                          names=np.array(['x', 'y', 'z']),
-                          free=np.array([True, True, False]))
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
+                              names=np.array(['x', 'y', 'z']),
+                              free=np.array([True, True, False]))
         self.assertTrue(one_fixed_dofs.any_free())
 
     def test_any_fixed(self):
-        free_dofs = DOFs(x=np.array([1,2,3]),
-                          names=np.array(['x', 'y', 'z']),
-                          free=np.array([True, True, True]))
+        free_dofs = DOFs(x=np.array([1, 2, 3]),
+                         names=np.array(['x', 'y', 'z']),
+                         free=np.array([True, True, True]))
         self.assertFalse(free_dofs.any_fixed())
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                               names=np.array(['x', 'y', 'z']),
                               free=np.array([True, True, False]))
         self.assertTrue(one_fixed_dofs.any_fixed())
 
     def test_all_free(self):
-        free_dofs = DOFs(x=np.array([1,2,3]),
-                          names=np.array(['x', 'y', 'z']),
-                          free=np.array([True, True, True]))
+        free_dofs = DOFs(x=np.array([1, 2, 3]),
+                         names=np.array(['x', 'y', 'z']),
+                         free=np.array([True, True, True]))
         self.assertTrue(free_dofs.all_free())
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                               names=np.array(['x', 'y', 'z']),
                               free=np.array([True, True, False]))
         self.assertFalse(one_fixed_dofs.all_free())
 
     def test_all_fixed(self):
-        fixed_dofs = DOFs(x=np.array([1,2,3]),
+        fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                           names=np.array(['x', 'y', 'z']),
                           free=np.array([False, False, False]))
         self.assertTrue(fixed_dofs.all_fixed())
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                               names=np.array(['x', 'y', 'z']),
                               free=np.array([True, True, False]))
         self.assertFalse(one_fixed_dofs.all_fixed())
 
     def test_x(self):
         # Test the getter
-        fixed_dofs = DOFs(x=np.array([1,2,3]),
+        fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                           names=np.array(['x', 'y', 'z']),
                           free=np.array([False, False, False]))
-        free_dofs = DOFs(x=np.array([1,2,3]),
+        free_dofs = DOFs(x=np.array([1, 2, 3]),
                          names=np.array(['x', 'y', 'z']),
                          free=np.array([True, True, True]))
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                               names=np.array(['x', 'y', 'z']),
                               free=np.array([True, True, False]))
         self.assertTrue(np.allclose(fixed_dofs.x, np.array([])))
@@ -203,13 +204,13 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(one_fixed_dofs.full_x, np.array([4, 5, 3])))
 
     def test_full_x(self):
-        fixed_dofs = DOFs(x=np.array([1,2,3]),
+        fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                           names=np.array(['x', 'y', 'z']),
                           free=np.array([False, False, False]))
-        free_dofs = DOFs(x=np.array([1,2,3]),
+        free_dofs = DOFs(x=np.array([1, 2, 3]),
                          names=np.array(['x', 'y', 'z']),
                          free=np.array([True, True, True]))
-        one_fixed_dofs = DOFs(x=np.array([1,2,3]),
+        one_fixed_dofs = DOFs(x=np.array([1, 2, 3]),
                               names=np.array(['x', 'y', 'z']),
                               free=np.array([True, True, False]))
         output = np.array([1, 2, 3])
@@ -218,7 +219,7 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(one_fixed_dofs.full_x, output))
 
     def test_lower_bounds(self):
-        dofs = DOFs(x=np.array([1,2,3]),
+        dofs = DOFs(x=np.array([1, 2, 3]),
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]))
         self.assertTrue(np.allclose(dofs.lower_bounds,
@@ -246,7 +247,7 @@ class DOFsTests(unittest.TestCase):
             dofs.lower_bounds = np.array([-1000.0, -1001.0])
 
     def test_upper_bounds(self):
-        dofs = DOFs(x=np.array([1,2,3]),
+        dofs = DOFs(x=np.array([1, 2, 3]),
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]))
         self.assertTrue(np.allclose(dofs.upper_bounds,
@@ -274,7 +275,7 @@ class DOFsTests(unittest.TestCase):
             dofs.upper_bounds = np.array([1000.0, 1001.0])
 
     def test_bounds(self):
-        dofs = DOFs(x=np.array([1,2,3]),
+        dofs = DOFs(x=np.array([1, 2, 3]),
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]),
                     lower_bounds=np.array([-100.0, -101.0, -102.0]),
@@ -286,7 +287,7 @@ class DOFsTests(unittest.TestCase):
                                         np.array([100.0, 101.0])))
 
     def test_update_upper_bound(self):
-        dofs = DOFs(x=np.array([1,2,3]),
+        dofs = DOFs(x=np.array([1, 2, 3]),
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]),
                     lower_bounds=np.array([-100.0, -101.0, -102.0]),
@@ -298,7 +299,7 @@ class DOFsTests(unittest.TestCase):
         # Test with integer keys
 
     def test_update_lower_bound(self):
-        dofs = DOFs(x=np.array([1,2,3]),
+        dofs = DOFs(x=np.array([1, 2, 3]),
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]),
                     lower_bounds=np.array([-100.0, -101.0, -102.0]),
@@ -310,7 +311,7 @@ class DOFsTests(unittest.TestCase):
 
     def test_update_bounds(self):
         pass
-               
+
 
 if __name__ == "__main__":
     unittest.main()

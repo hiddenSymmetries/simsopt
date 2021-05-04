@@ -11,7 +11,7 @@ import numpy as np
 import logging
 import abc
 from jax.config import config
-config.update("jax_enable_x64", True) # Use double precision:
+config.update("jax_enable_x64", True)  # Use double precision:
 
 import jax.numpy as jnp
 from jax import jacrev
@@ -99,6 +99,7 @@ def area_volume_pure(rc, rs, zc, zs, stellsym, nfp, mpol, ntor, ntheta, nphi):
     volume = 0.5 * nfp * dtheta * dphi * jnp.sum(r * r * dzdtheta)
     return jnp.array([area, volume])
 
+
 def dataset_area_volume(surface_rz_fourier,
                         stellsym,
                         nfp,
@@ -131,7 +132,7 @@ def dataset_area_volume(surface_rz_fourier,
     sinphi = jnp.sin(phi)
     cosphi = jnp.cos(phi)
 
-    ds = surface_rz_fourier # For simple access
+    ds = surface_rz_fourier  # For simple access
     rc = ds["rc"]
     zs = ds["zs"]
     rs = ds.get("rs", None)
@@ -468,7 +469,6 @@ class SurfaceRZFourier(Surface, Optimizable):
             logger.info('area_volume called, but no need to recalculate')
             return
 
-
         rc = self.local_full_x[0:self.size].reshape(self.shape)
         zs = self.local_full_x[self.size:2*self.size].reshape(self.shape)
 
@@ -695,7 +695,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         No conversion necessary.
         """
         return self
-        
+
     def to_Garabedian(self):
         """
         Return a SurfaceGarabedian object with the identical shape.
@@ -718,7 +718,7 @@ class SurfaceRZFourier(Surface, Optimizable):
                 if 1 - m >= 0:
                     Delta += 0.5 * (self.get_rc(1 - m, -n) + self.get_zs(1 - m, -n))
                 s.set_Delta(m, n, Delta)
-                
+
         return s
 
 
@@ -732,6 +732,7 @@ class SurfaceGarabedian(Surface, Optimizable):
     non-stellarator-symmetric surfaces require that the Delta_{m,n}
     coefficients be imaginary.
     """
+
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
         if nmin is None:
             nmin = -nmax
@@ -823,7 +824,7 @@ class SurfaceGarabedian(Surface, Optimizable):
     #    if len(v) != n:
     #        raise ValueError('Input vector should have ' + str(n) + \
     #                         ' elements but instead has ' + str(len(v)))
-        
+
     #    # Check whether any elements actually change:
     #    if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
     #        logger.info('set_dofs called, but no dofs actually changed')

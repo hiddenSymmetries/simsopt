@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def least_squares_serial_solve(prob, grad=None, **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -120,7 +121,7 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
     objective_file.close()
     residuals_file.close()
     logger.info("Completed solve.")
-    
+
     prob.x = result.x
 
 
@@ -175,7 +176,6 @@ def serial_solve(prob, grad=None, **kwargs):
             nevals += 1
             return result
 
-
         # Need to fix up this next line for non-least-squares problems:
         #if grad is None:
         #    grad = prob.dofs.grad_avail
@@ -192,9 +192,9 @@ def serial_solve(prob, grad=None, **kwargs):
                                    **kwargs)
         else:
             logger.info("Using derivative-free method")
-            result = minimize(objective, x0, options={'disp':True}, **kwargs)
+            result = minimize(objective, x0, options={'disp': True}, **kwargs)
 
         datalogging_started = False
         logger.info("Completed solve.")
-    
+
     prob.x = result.x

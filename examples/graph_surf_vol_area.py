@@ -25,8 +25,8 @@ surf.print_return_fn_names()
 # Approach 1
 
 prob1 = LeastSquaresProblem(opts_in=surf,
-                           goals=[desired_area, desired_volume],
-                           weights=[1, 1])
+                            goals=[desired_area, desired_volume],
+                            weights=[1, 1])
 least_squares_serial_solve(prob1)
 
 print("At the optimum using approach 1,")

@@ -3,7 +3,8 @@ from pathlib import Path
 import numpy as np
 from simsopt.geo.graph_surface import Surface, SurfaceRZFourier, SurfaceGarabedian
 
-TEST_DIR = Path(__file__).parent / ".." / "test_files" # ) #.resolve()
+TEST_DIR = Path(__file__).parent / ".." / "test_files"  # ) #.resolve()
+
 
 class SurfaceTests(unittest.TestCase):
     def test_init(self):
@@ -33,6 +34,7 @@ class SurfaceTests(unittest.TestCase):
         #s.stellsym = True
         #self.assertEqual(s.nfp, 5)
         #self.assertTrue(s.stellsym)
+
 
 class SurfaceRZFourierTests(unittest.TestCase):
     def test_init(self):
@@ -108,7 +110,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(dofs.shape, (21,))
         for j in range(21):
             self.assertAlmostEqual(dofs[j], j + 2)
-        
+
     def test_set_dofs(self):
         """
         Test that we can set the shape from a 1D vector
@@ -149,7 +151,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.get_zs(3, -1), 19)
         self.assertAlmostEqual(s.get_zs(3, 0), 20)
         self.assertAlmostEqual(s.get_zs(3, 1), 21)
-        
+
     def test_from_focus(self):
         """
         Try reading in a focus-format file.
@@ -180,7 +182,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
-    
+
 class SurfaceGarabedianTests(unittest.TestCase):
     def test_init(self):
         """
@@ -214,7 +216,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
         s.set('Delta(5,2)', -5)
         self.assertAlmostEqual(s.Delta[7, 3], -5)
         self.assertAlmostEqual(s.get_Delta(5, 2), -5)
-        
+
         s.set_Delta(-2, -1, 421)
         self.assertAlmostEqual(s.Delta[0, 0], 421)
 
@@ -226,7 +228,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
 
         s.set_Delta(5, 2, -50)
         self.assertAlmostEqual(s.Delta[7, 3], -50)
-        
+
     def test_convert_back(self):
         """
         If we start with a SurfaceRZFourier, convert to Garabedian, and
@@ -243,6 +245,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     sf2 = sg.to_RZFourier()
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
-        
+
+
 if __name__ == "__main__":
     unittest.main()

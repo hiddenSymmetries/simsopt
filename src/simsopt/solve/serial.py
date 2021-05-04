@@ -31,6 +31,8 @@ from ..objectives.least_squares import LeastSquaresProblem
 logger = logging.getLogger(__name__)
 
 #def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
+
+
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                **kwargs):
@@ -62,7 +64,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     def objective(x):
         nonlocal datalogging_started, objective_file, residuals_file, nevals
-        
+
         f_unshifted = prob.dofs.f(x)
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)
@@ -92,7 +94,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                 objective_file.write(",x({})".format(j))
             objective_file.write(",objective_function")
             objective_file.write("\n")
-            
+
             filename = "residuals_" + datestr + ".dat"
             residuals_file = open(filename, 'w')
             residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
@@ -103,7 +105,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             for j in range(prob.dofs.nvals):
                 residuals_file.write(",F({})".format(j))
             residuals_file.write("\n")
-            
+
         objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
             objective_file.write(",{:24.16e}".format(xj))
@@ -168,7 +170,7 @@ def serial_solve(prob, grad=None, **kwargs):
 
     def objective(x):
         nonlocal datalogging_started, objective_file, nevals
-        
+
         result = prob.objective(x)
 
         # Since the number of terms is not known until the first
@@ -186,7 +188,7 @@ def serial_solve(prob, grad=None, **kwargs):
                 objective_file.write(",x({})".format(j))
             objective_file.write(",objective_function")
             objective_file.write("\n")
-            
+
         objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
         for xj in x:
             objective_file.write(",{:24.16e}".format(xj))

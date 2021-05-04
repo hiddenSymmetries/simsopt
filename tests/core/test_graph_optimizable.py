@@ -9,6 +9,7 @@ class Adder(Optimizable):
     n degrees of freedom, and has a function that just returns the sum
     of these dofs. This class is used for testing.
     """
+
     def __init__(self, n=3, x0=None, dof_names=None, dof_fixed=None):
         self.n = n
         x = x0 if x0 is not None else np.zeros(n)
@@ -28,7 +29,7 @@ class OptClassWithParents(Optimizable):
 
     def f(self):
         return (self.local_full_x[0] + 2 * self.parents[0](child=self)) \
-                / (10.0 + self.parents[1](child=self))
+            / (10.0 + self.parents[1](child=self))
 
     return_fn_map = {'f': f}
 
@@ -38,6 +39,7 @@ class N_No(Optimizable):
     n degrees of freedom, and has couple of functions that return the sum
     and product of these dofs. This class is used for testing.
     """
+
     def __init__(self, n=3, x0=None, dof_names=None, dof_fixed=None):
         self.n = n
         x = x0 if x0 is not None else np.zeros(n)
@@ -54,7 +56,7 @@ class N_No(Optimizable):
 
 class OptClassWithParentsReturnFns(Optimizable):
     def __init__(self, val):
-        self.opt1 = N_No(3, x0=[2, 3, 4]) # Computes to [9, 24]
+        self.opt1 = N_No(3, x0=[2, 3, 4])  # Computes to [9, 24]
         self.opt2 = N_No(2, x0=[1, 2])    # Computes to [3, 2]
         super().__init__(x0=[val], names=['val'],
                          opts_in=[self.opt1, self.opt2],
@@ -63,13 +65,13 @@ class OptClassWithParentsReturnFns(Optimizable):
     # Pay attention to the arguments passed in f1 and f2
     def f1(self):
         return (self.local_full_x[0] + 2 * self.opt1(child=self)) \
-               / (10.0 + np.sum(self.opt2(child=self)))
+            / (10.0 + np.sum(self.opt2(child=self)))
 
     # If child=self is not passed, full return array is returned, because
     # parent class is not aware of the calling child class
     def f2(self):
         return (self.local_full_x[0] + 2 * self.opt1()[0]) \
-               / (10.0 + np.sum(self.opt2()))
+            / (10.0 + np.sum(self.opt2()))
 
     return_fn_map = {'f1': f1, 'f2': f2}
 
@@ -139,7 +141,7 @@ class OptClassWithDirectParentFnCalls(Optimizable):
     # The value returned by f3 should be identical to f1
     def f(self):
         return (self.local_full_x[0] + 2 * self.opt1.sum()) \
-               / (10.0 + self.opt2.sum() + self.opt2.product())
+            / (10.0 + self.opt2.sum() + self.opt2.product())
 
     return_fn_map = {'f': f}
 
@@ -208,13 +210,13 @@ class OptClassWithDirectRegisterParentFn(Optimizable):
     # Pay attention to the arguments passed in f1 and f2
     def f1(self):
         return (self.local_full_x[0] + 2 * self.opt1(child=self)) \
-               / (10.0 + np.sum(self.opt2(child=self)))
+            / (10.0 + np.sum(self.opt2(child=self)))
 
     # If child=self is not passed, full return array is returned, because
     # parent class is not aware of the calling child class
     def f2(self):
         return (self.local_full_x[0] + 2 * self.opt1()[0]) \
-               / (10.0 + np.sum(self.opt2()))
+            / (10.0 + np.sum(self.opt2()))
 
     return_fn_map = {'f1': f1, 'f2': f2}
 
@@ -321,7 +323,7 @@ class OptimizableTests(unittest.TestCase):
         opt2 = Adder(2, x0=[1, 2])
         opt_with_parents = OptClassWithParents(10, opts_in=[opt1])
 
-        with self.assertRaises(IndexError): # Missing second parent
+        with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
 
         opt_with_parents.add_parent(1, opt2)
@@ -332,7 +334,7 @@ class OptimizableTests(unittest.TestCase):
         opt2 = Adder(2, x0=[1, 2])
         opt_with_parents = OptClassWithParents(10, opts_in=[opt1])
 
-        with self.assertRaises(IndexError): # Missing second parent
+        with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
 
         opt_with_parents.append_parent(opt2)
@@ -347,7 +349,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(opt_with_parents(), 28.0/13.0)
         opt_with_parents.pop_parent()
         self.assertEqual(len(opt_with_parents.parents), 1)
-        with self.assertRaises(IndexError): # Missing second parent
+        with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
 
     def test_remove_parent(self):
@@ -359,7 +361,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(opt_with_parents(), 28.0/13.0)
         opt_with_parents.remove_parent(opt1)
         self.assertEqual(len(opt_with_parents.parents), 1)
-        with self.assertRaises(IndexError): # Missing second parent
+        with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
 
     def test_dof_size(self):
@@ -557,7 +559,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
-            iden.state = np.array([11,], dtype=float)
+            iden.state = np.array([11, ], dtype=float)
         self.assertAlmostEqual(iden.full_state[0], 10)
 
         # Check with Optimizable objects containing parents
@@ -602,7 +604,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
-            iden.local_state = np.array([11,], dtype=float)
+            iden.local_state = np.array([11, ], dtype=float)
         self.assertAlmostEqual(iden.full_dofs[0], 10)
 
         # Check with Optimizable objects containing parents
@@ -634,7 +636,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
-            iden.x = np.array([11,], dtype=float)
+            iden.x = np.array([11, ], dtype=float)
         self.assertAlmostEqual(iden.full_state[0], 10)
 
         # Check with Optimizable objects containing parents
@@ -679,7 +681,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
-            iden.local_x = np.array([11,], dtype=float)
+            iden.local_x = np.array([11, ], dtype=float)
         self.assertAlmostEqual(iden.full_dofs[0], 10)
 
         # Check with Optimizable objects containing parents
@@ -1032,6 +1034,6 @@ class OptimizableTests(unittest.TestCase):
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
 
-       
+
 if __name__ == "__main__":
     unittest.main()
