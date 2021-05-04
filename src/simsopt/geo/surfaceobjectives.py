@@ -7,6 +7,7 @@ class Area(object):
     """
     def __init__(self, surface):
         self.surface = surface
+    
     def J(self):
         """
         Compute the area of a surface
