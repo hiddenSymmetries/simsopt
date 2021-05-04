@@ -44,6 +44,14 @@ simsopt.geo.curve module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curvehelical module
+-------------------------------
+
+.. automodule:: simsopt.geo.curvehelical
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.curveobjectives module
 ----------------------------------
 
@@ -68,10 +76,34 @@ simsopt.geo.curvexyzfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.graph\_surface module
+---------------------------------
+
+.. automodule:: simsopt.geo.graph_surface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.jit module
 ----------------------
 
 .. automodule:: simsopt.geo.jit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.magneticfield module
+--------------------------------
+
+.. automodule:: simsopt.geo.magneticfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.magneticfieldclasses module
+---------------------------------------
+
+.. automodule:: simsopt.geo.magneticfieldclasses
    :members:
    :undoc-members:
    :show-inheritance:
