@@ -17,6 +17,7 @@ class SurfaceGarabedian(Surface):
     non-stellarator-symmetric surfaces require that the Delta_{m,n}
     coefficients be imaginary.
     """
+
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
         if nmin is None:
             nmin = -nmax
@@ -95,7 +96,7 @@ class SurfaceGarabedian(Surface):
         if len(v) != n:
             raise ValueError('Input vector should have ' + str(n) + \
                              ' elements but instead has ' + str(len(v)))
-        
+
         # Check whether any elements actually change:
         if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
             logger.info('set_dofs called, but no dofs actually changed')
@@ -120,7 +121,7 @@ class SurfaceGarabedian(Surface):
         for m in range(mmin, mmax + 1):
             for n in range(nmin, nmax + 1):
                 self.set_fixed('Delta({},{})'.format(m, n), fixed)
-        
+
     def to_RZFourier(self):
         """
         Return a SurfaceRZFourier object with the identical shape.

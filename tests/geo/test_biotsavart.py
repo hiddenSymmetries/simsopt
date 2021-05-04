@@ -15,6 +15,7 @@ def get_coil(num_quadrature_points=200):
     coil.set_dofs(np.concatenate(coeffs))
     return coil
 
+
 class Testing(unittest.TestCase):
 
     def test_biotsavart_both_interfaces_give_same_result(self):
@@ -178,16 +179,16 @@ class Testing(unittest.TestCase):
                 err = 1e6
                 for i in range(5, 10):
                     eps = 0.5**i
-                    
+
                     ed2 = np.zeros((1, 3))
                     ed2[0, d2] = 1.
-                    
+
                     bs.set_points(points + eps * ed2)
                     dB_dXp = bs.dB_by_dX()[idx, d1]
-                    
+
                     bs.set_points(points - eps * ed2)
                     dB_dXm = bs.dB_by_dX()[idx, d1]
-                    
+
                     second_deriv_est = (dB_dXp - dB_dXm)/(2. * eps)
 
                     new_err = np.linalg.norm(second_deriv-second_deriv_est)
@@ -220,7 +221,6 @@ class Testing(unittest.TestCase):
         bs.set_points(points)
         A0 = bs.A()[idx]
         dA = bs.dA_by_dX()[idx]
-        
 
         for direction in [np.asarray((1., 0, 0)), np.asarray((0, 1., 0)), np.asarray((0, 0, 1.))]:
             deriv = dA.T.dot(direction)
@@ -251,16 +251,16 @@ class Testing(unittest.TestCase):
                 err = 1e6
                 for i in range(5, 10):
                     eps = 0.5**i
-                    
+
                     ed2 = np.zeros((1, 3))
                     ed2[0, d2] = 1.
-                    
+
                     bs.set_points(points + eps * ed2)
                     dA_dXp = bs.dA_by_dX()[idx, d1]
-                    
+
                     bs.set_points(points - eps * ed2)
                     dA_dXm = bs.dA_by_dX()[idx, d1]
-                    
+
                     second_deriv_est = (dA_dXp - dA_dXm)/(2. * eps)
 
                     new_err = np.linalg.norm(second_deriv-second_deriv_est)
@@ -272,9 +272,6 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_biotsavart_d2A_by_dXdX_taylortest(idx)
-
-
-
 
 
 if __name__ == "__main__":

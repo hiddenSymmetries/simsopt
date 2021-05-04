@@ -9,7 +9,7 @@
 # Define __all__ dunder at module and subpackage level. Then you could do 
 # "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is 
 # imported
-  
+
 try:
     from importlib import metadata
 except ImportError:
