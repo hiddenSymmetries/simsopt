@@ -24,6 +24,9 @@ typedef CurveRZFourier<PyArray> PyCurveRZFourier;
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 
+#include "dommaschk.cpp"
+#include "reiman.cpp"
+
 namespace py = pybind11;
 
 template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {
@@ -292,6 +295,11 @@ PYBIND11_MODULE(simsgeopp, m) {
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
 
+    m.def("DommaschkB" , &DommaschkB);
+    m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("ReimanB" , &ReimanB);
+    m.def("ReimandB", &ReimandB);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
