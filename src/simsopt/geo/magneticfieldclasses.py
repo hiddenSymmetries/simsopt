@@ -312,3 +312,31 @@ class Dommaschk(MagneticField):
 
         if compute_derivatives >= 1:
             self._dB_by_dX = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+
+
+class Reiman(MagneticField):
+    '''Magnetic field model in section 5 of Reiman and Greenside, Computer Physics Communications 43 (1986) 157—167. 
+    This field allows for an analytical expression of the magnetic island width that can be used for island optimization.
+    However, the field is not completely physical as it does not have nested flux surfaces.
+
+    Args:
+        iota0: unperturbed rotational transform
+        iota1: unperturbed global magnetic shear
+        k: integer array specifying the Fourier modes used
+        epsilonk: coefficient of the Fourier modes
+        m0: toroidal symmetry parameter (normally m0=1)
+    '''
+
+    def __init__(self, iota0=0.15, iota1=0.38, k=[6], epsilonk=[0.01], m0=1):
+        self.iota0 = iota0
+        self.iota1 = iota1
+        self.k = k
+        self.epsilonk = epsilonk
+        self.m0 = m0
+
+    def compute(self, points, compute_derivatives=0):
+        assert compute_derivatives <= 2
+        self._B = sgpp.ReimanB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+
+        if compute_derivatives >= 1:
+            self._dB_by_dX = sgpp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
