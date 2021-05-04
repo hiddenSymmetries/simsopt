@@ -167,12 +167,12 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    - name: Install mpi4py
-      run: |
-        pip install mpi4py
+    #- name: Install mpi4py
+    #  run: |
+    #    pip install mpi4py
 
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[MPI]
 
     - name: Run mpi unit tests
       if: "contains(matrix.test-type, 'unit')"
