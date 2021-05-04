@@ -97,6 +97,8 @@ jobs:
         repository: PrincetonUniversity/SPEC
         path: SPEC
         token: ${{ secrets.SPEC_CHECKOUT }}
+        ref: python_hdf5
+        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
