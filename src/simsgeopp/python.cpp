@@ -1,5 +1,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "pybind11/functional.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
@@ -25,6 +26,8 @@ typedef CurveRZFourier<PyArray> PyCurveRZFourier;
 #include "biot_savart_vjp_py.h"
 
 #include "dommaschk.cpp"
+
+#include "regular_grid_interpolant_3d.h"
 
 namespace py = pybind11;
 
@@ -296,6 +299,20 @@ PYBIND11_MODULE(simsgeopp, m) {
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+
+    py::class_<RegularGridInterpolant3D<1>>(m, "RegularGridInterpolant3D1")
+        .def(py::init<int, int, int, int>())
+        .def("interpolate", &RegularGridInterpolant3D<1>::interpolate)
+        .def("interpolate_batch", &RegularGridInterpolant3D<1>::interpolate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<1>::evaluate)
+        .def("estimate_error", &RegularGridInterpolant3D<1>::estimate_error);
+    py::class_<RegularGridInterpolant3D<4>>(m, "RegularGridInterpolant3D4")
+        .def(py::init<int, int, int, int>())
+        .def("interpolate", &RegularGridInterpolant3D<4>::interpolate)
+        .def("interpolate_batch", &RegularGridInterpolant3D<4>::interpolate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<4>::evaluate)
+        .def("estimate_error", &RegularGridInterpolant3D<4>::estimate_error);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

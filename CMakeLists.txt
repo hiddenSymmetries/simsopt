@@ -40,24 +40,27 @@ else()
 endif()
 
 add_subdirectory(thirdparty/pybind11)
+add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
 
 
 pybind11_add_module(${PROJECT_NAME}
-    src/simsgeopp/python.cpp src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp
+    src/simsgeopp/python.cpp src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp src/simsgeopp/regular_grid_interpolant_3d.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
-add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp)
+add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsgeopp/")
+target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
 if(OpenMP_CXX_FOUND)
