@@ -29,6 +29,7 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
+
 def nested_lists_to_array(ll):
     """
     Convert a ragged list of lists to a 2D numpy array.  Any entries
@@ -59,6 +60,7 @@ class Spec(Optimizable):
     object to before Spec is run. Therefore, you may sometimes need to
     manually change the mpol and ntor values for the Spec object.
     """
+
     def __init__(self, filename=None, exe='xspec'):
         """
         Constructor
@@ -70,13 +72,13 @@ class Spec(Optimizable):
         if not spec_found:
             raise RuntimeError(
                 "Using Spec requires py_spec package to be installed.")
-            
+
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'defaults.sp')
             logger.info("Initializing a SPEC object from defaults in " \
-                            + filename)
+                        + filename)
         else:
             logger.info("Initializing a SPEC object from file: " + filename)
 
@@ -86,14 +88,14 @@ class Spec(Optimizable):
         # Transfer the boundary shape from the namelist to a Surface object:
         nfp = self.nml['physicslist']['nfp']
         stellsym = bool(self.nml['physicslist']['istellsym'])
-        
+
         # mpol = self.nml['physicslist']['mpol']
         # ntor = self.nml['physicslist']['ntor']
         # for m in range(mpol + 1):
         #     for n in range(-ntor, ntor + 1):
         #         self.boundary.set_rc(m, n) = self.nml['physicslist']['rbc'][m][n + ntor]
         #         self.boundary.set_zs(m, n) = self.nml['physicslist']['zbs'][m][n + ntor]
-        
+
         # We can assume rbc and zbs are specified in the namelist.
         # f90nml returns rbc and zbs as a list of lists where the
         # inner lists do not necessarily all have the same
@@ -119,14 +121,14 @@ class Spec(Optimizable):
             ntor_boundary, mpol_boundary))
         self.boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym,
                                          mpol=mpol_boundary, ntor=ntor_boundary)
-        
+
         # Transfer boundary shape data from the namelist to the surface object:
         for jm in range(rc.shape[0]):
             m = jm + self.nml['physicslist'].start_index['rbc'][1]
             for jn in range(rc.shape[1]):
                 n = jn + self.nml['physicslist'].start_index['rbc'][0]
                 self.boundary.set_rc(m, n, rc[jm, jn])
-                
+
         for jm in range(zs.shape[0]):
             m = jm + self.nml['physicslist'].start_index['zbs'][1]
             for jn in range(zs.shape[1]):
@@ -142,7 +144,7 @@ class Spec(Optimizable):
         del self.nml['physicslist']['rbc']
         del self.nml['physicslist']['zbs']
         self.nml._rectify_namelist()
-        
+
         self.depends_on = ["boundary"]
         self.need_to_run_code = True
         self.counter = 0
@@ -151,7 +153,7 @@ class Spec(Optimizable):
         # dofs owned by the boundary surface object, are fixed.
         self.fixed = np.full(len(self.get_dofs()), True)
         self.names = ['phiedge', 'curtor']
-        
+
     def get_dofs(self):
         return np.array([self.nml['physicslist']['phiedge'],
                          self.nml['physicslist']['curtor']])
@@ -166,7 +168,7 @@ class Spec(Optimizable):
         logger.info('Calling update_resolution(mpol={}, ntor={})'.format(
             mpol, ntor))
         self.nml.update_resolution(mpol, ntor)
-        
+
     def run(self):
         """
         Run SPEC, if needed.
@@ -201,7 +203,7 @@ class Spec(Optimizable):
         self.nml['physicslist']['zbs'] = zs.tolist()
         self.nml['physicslist'].start_index['rbc'] = [-ntor, 0]
         self.nml['physicslist'].start_index['zbs'] = [-ntor, 0]
-        
+
         ## For now, set the coordinate axis equal to the m=0 modes of the boundary:
         #self.nml['physicslist']['rac'] = rc[0, ntor:].tolist()
         #self.nml['physicslist']['zas'] = zs[0, ntor:].tolist()
@@ -218,7 +220,7 @@ class Spec(Optimizable):
                                     filename=filename, force=True)
         if self.results is None:
             raise ObjectiveFailure("SPEC did not run successfully")
-        
+
         logger.info("SPEC run complete.")
         self.counter += 1
         self.need_to_run_code = False
@@ -229,7 +231,7 @@ class Spec(Optimizable):
         """
         self.run()
         return self.results.output.volume * self.results.input.physics.Nfp
-        
+
     def iota(self):
         """
         Return the rotational transform in the middle of the volume.
@@ -256,11 +258,11 @@ class Residue(Optimizable):
         """
         if not spec_found:
             raise RuntimeError(
-              "Residue requires py_spec package to be installed.")
+                "Residue requires py_spec package to be installed.")
         if not pyoculus_found:
             raise RuntimeError(
-              "Residue requires pyoculus package to be installed.")
-        
+                "Residue requires pyoculus package to be installed.")
+
         self.spec = spec
         self.pp = pp
         self.qq = qq
@@ -287,17 +289,19 @@ class Residue(Optimizable):
             # Set nrestart=0 because otherwise the random guesses in
             # pyoculus can cause examples/tests to be
             # non-reproducible.
-            fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta, 'nrestart':0},
-                                             integrator_params={'rtol':self.rtol})
-            self.fixed_point = fp.compute(self.s_guess, sbegin=self.s_min,
-                                          send=self.s_max, pp=self.pp, qq=self.qq)
+            fp = pyoculus.solvers.FixedPoint(specb, {'theta': self.theta, 'nrestart': 0},
+                                             integrator_params={'rtol': self.rtol})
+            self.fixed_point = fp.compute(self.s_guess,
+                                          sbegin=self.s_min,
+                                          send=self.s_max,
+                                          pp=self.pp, qq=self.qq)
             self.need_to_run_code = False
 
         if self.fixed_point is None:
             raise ObjectiveFailure("Residue calculation failed")
-        
+
         return self.fixed_point.GreenesResidue
-    
+
     def get_dofs(self):
         return np.array([])
 

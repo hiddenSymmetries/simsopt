@@ -89,7 +89,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
     if direction2 is None:
         direction2 = np.random.rand(*(x.shape))-0.5
 
-
     f0 = f(x)
     df0 = df(x) @ direction1
     d2fval = direction2.T @ d2f(x) @ direction1
@@ -115,9 +114,11 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_surface_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return s.gamma()[1, 1, :].copy()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dgamma_by_dcoeff()[1, 1, :, :].copy()
@@ -126,6 +127,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         def f(dofs):
             s.set_dofs(dofs)
             return s.gammadash1()[1, 1, :].copy()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dgammadash1_by_dcoeff()[1, 1, :, :].copy()
@@ -134,6 +136,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         def f(dofs):
             s.set_dofs(dofs)
             return s.gammadash2()[1, 1, :].copy()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dgammadash2_by_dcoeff()[1, 1, :, :].copy()
@@ -149,9 +152,11 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_surface_normal_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return s.normal()[1, 1, :].copy()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dnormal_by_dcoeff()[1, 1, :, :].copy()
@@ -171,9 +176,11 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_surface_area_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return np.asarray(s.area())
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.darea_by_dcoeff()[None, :].copy()
@@ -204,12 +211,15 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_surface_area_coefficient_second_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return s.area()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.darea_by_dcoeff()
+
         def d2f(dofs):
             s.set_dofs(dofs)
             return s.d2area_by_dcoeffdcoeff()
@@ -229,12 +239,15 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_volume_coefficient_second_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return s.volume()
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dvolume_by_dcoeff()
+
         def d2f(dofs):
             s.set_dofs(dofs)
             return s.d2volume_by_dcoeffdcoeff()
@@ -243,9 +256,11 @@ class SurfaceTaylorTests(unittest.TestCase):
     def subtest_surface_volume_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
         s.invalidate_cache()
+
         def f(dofs):
             s.set_dofs(dofs)
             return np.asarray(s.volume())
+
         def df(dofs):
             s.set_dofs(dofs)
             return s.dvolume_by_dcoeff()[None, :].copy()

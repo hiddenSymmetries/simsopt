@@ -33,10 +33,10 @@ class LeastSquaresTerm:
     f_out = weight * (f_in - goal) ** 2.
     """
 
-    def __init__(self, f_in, goal, weight): #=None, sigma=None):
+    def __init__(self, f_in, goal, weight):  # =None, sigma=None):
         self.f_in = function_from_user(f_in)
         self.goal = goal
-        if not isnumber(weight): # Bharat's comment: Do we need this check?
+        if not isnumber(weight):  # Bharat's comment: Do we need this check?
             raise TypeError('Weight must be a float or int')
         if weight < 0:
             raise ValueError('Weight cannot be negative')
@@ -52,7 +52,7 @@ class LeastSquaresTerm:
         """
         if sigma == 0:
             raise ValueError('sigma cannot be 0')
-        if not isnumber(sigma): # Bharat's comment: Do we need this check?
+        if not isnumber(sigma):  # Bharat's comment: Do we need this check?
             raise TypeError('sigma must be a float or int')
         return cls(f_in, goal, 1.0 / float(sigma * sigma))
 
@@ -85,7 +85,7 @@ class LeastSquaresProblem:
     def __init__(self,
                  terms,
                  fail: Union[None, float] = 1.0e12):
-        
+
         self.fail = fail
         # For each item provided in the list, either convert to a
         # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
@@ -97,8 +97,8 @@ class LeastSquaresProblem:
         for term in terms:
             if isinstance(term, LeastSquaresTerm):
                 self.terms.append(term)
-            else: # Expect the term to be an Iterable, but don't check
-                if len(term) == 4: # 4 item list is a special case
+            else:  # Expect the term to be an Iterable, but don't check
+                if len(term) == 4:  # 4 item list is a special case
                     lst = LeastSquaresTerm(Target(*term[:2]), *term[2:])
                 else:
                     lst = LeastSquaresTerm(*term)
@@ -149,14 +149,13 @@ class LeastSquaresProblem:
 
         return self.objective_from_shifted_f(self.f())
 
-    
     def f_from_unshifted(self, f_unshifted):
         """
         This function takes a vector of function values, as returned by
         dofs, and shifts and scales them. This function does not
         actually evaluate the dofs.
         """
-        
+
         residuals = np.zeros(len(f_unshifted))
         start_index = 0
         for j in range(self.dofs.nfuncs):
@@ -166,10 +165,9 @@ class LeastSquaresProblem:
                 (f_unshifted[start_index:end_index] - term.goal) * \
                 np.sqrt(term.weight)
             start_index = end_index
-            
+
         return residuals
 
-    
     def f(self, x=None):
         """
         This method returns the vector of residuals for a given state
@@ -192,7 +190,6 @@ class LeastSquaresProblem:
         f_unshifted = self.dofs.f()
         return self.f_from_unshifted(f_unshifted)
 
-    
     def objective_from_shifted_f(self, f):
         """
         Given a vector of functions that has already been evaluated,
@@ -206,7 +203,6 @@ class LeastSquaresProblem:
         assert len(f) == self.dofs.nvals
         return np.dot(f, f)
 
-    
     def objective_from_unshifted_f(self, f_unshifted):
         """
         Given a vector of functions that has already been evaluated,
@@ -221,7 +217,6 @@ class LeastSquaresProblem:
         f_shifted = self.f_from_unshifted(f_unshifted)
         return self.objective_from_shifted_f(f_shifted)
 
-    
     def scale_dofs_jac(self, jmat):
         """
         Given a Jacobian matrix j for the Dofs() associated to this
@@ -242,9 +237,9 @@ class LeastSquaresProblem:
             jmat[start_index:end_index, :] = jmat[start_index:end_index, :] \
                 * np.sqrt(self.terms[j].weight)
             start_index = end_index
-            
+
         return np.array(jmat)
-    
+
     def jac(self, x=None, **kwargs):
         """
         This method gives the Jacobian of the residuals with respect to

@@ -138,7 +138,7 @@ class Vmec(Optimizable):
                 "Running VMEC from simsopt requires VMEC python extension. "
                 "Install the VMEC python extension from "
                 "https://https://github.com/hiddenSymmetries/VMEC2000")
-        
+
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
@@ -278,7 +278,7 @@ class Vmec(Optimizable):
 
         logger.info("Calling runvmec().")
         self.ictrl[0] = restart_flag + reset_jacdt_flag \
-                        + timestep_flag + output_flag
+            + timestep_flag + output_flag
         self.ictrl[1] = 0  # ierr
         self.ictrl[2] = 0  # numsteps
         self.ictrl[3] = 0  # ns_index
@@ -305,7 +305,7 @@ class Vmec(Optimizable):
                                "never occur: ierr={ierr}")
         if ierr != 11:
             raise ObjectiveFailure(f"VMEC did not converge. ierr={ierr}")
-        
+
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
         logger.info("Done loading VMEC output.")
@@ -325,7 +325,7 @@ class Vmec(Optimizable):
             os.remove("fort.9")
         except:
             pass
-            
+
         self.need_to_run_code = False
 
     def load_wout(self):
@@ -359,10 +359,10 @@ class Vmec(Optimizable):
         f = netcdf.netcdf_file(self.output_file, mmap=False)
         for key, val in f.variables.items():
             # 2D arrays need to be transposed.
-            val2 = val[()] # Convert to numpy array
+            val2 = val[()]  # Convert to numpy array
             val3 = val2.T if len(val2.shape) == 2 else val2
             self.wout.__setattr__(key, val3)
-            
+
         #self.wout.ier_flag = f.variables['ier_flag'][()]
         if self.wout.ier_flag != 0:
             logger.info("VMEC did not succeed!")
