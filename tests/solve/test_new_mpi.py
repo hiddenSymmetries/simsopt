@@ -53,7 +53,7 @@ class TestFunction3(Optimizable):
         x = [0., 0.]
         self.comm = comm
         self.dummy = 42
-        print("inside test function 3 init")
+        logger.debug("inside test function 3 init")
         super().__init__(x0=x)
 
     def f0(self):
@@ -108,20 +108,20 @@ class MpiPartitionTests(unittest.TestCase):
             else:
                 ngroups = nprocs + shift
                 
-        m = MpiPartition(ngroups=ngroups)
-        
-        self.assertEqual(m.ngroups, nprocs)
-        
-        self.assertEqual(m.rank_world, rank_world)
-        self.assertEqual(m.rank_groups, 0)
-        self.assertEqual(m.rank_leaders, rank_world)
+            m = MpiPartition(ngroups=ngroups)
 
-        self.assertEqual(m.nprocs_world, nprocs)
-        self.assertEqual(m.nprocs_groups, 1)
-        self.assertEqual(m.nprocs_leaders, nprocs)
+            self.assertEqual(m.ngroups, nprocs)
 
-        self.assertEqual(m.proc0_world, rank_world==0)
-        self.assertTrue(m.proc0_groups)
+            self.assertEqual(m.rank_world, rank_world)
+            self.assertEqual(m.rank_groups, 0)
+            self.assertEqual(m.rank_leaders, rank_world)
+
+            self.assertEqual(m.nprocs_world, nprocs)
+            self.assertEqual(m.nprocs_groups, 1)
+            self.assertEqual(m.nprocs_leaders, nprocs)
+
+            self.assertEqual(m.proc0_world, rank_world==0)
+            self.assertTrue(m.proc0_groups)
 
     def test_ngroups_scan(self):
         """
@@ -241,15 +241,15 @@ class MpiPartitionTests(unittest.TestCase):
         Test a full least-squares optimization.
         """
         rank_world = MPI.COMM_WORLD.Get_rank()
+        logger.info(f"rank world is {rank_world}")
         nprocs = MPI.COMM_WORLD.Get_size()
-        ngroups = nprocs + 3
-        #for ngroups in range(3, 4):
+        for ngroups in range(1, 4):
             #for grad in [True, False]:
-        mpi = MpiPartition(ngroups=ngroups)
-        o = TestFunction3(mpi.comm_groups)
-        term1 = (o.f0, 0, 1)
-        term2 = (o.f1, 0, 1)
-        prob = LeastSquaresProblem.from_tuples([term1, term2])
-        least_squares_mpi_solve(prob, mpi) #, grad=grad)
-        self.assertAlmostEqual(prob.full_x[0], 1)
-        self.assertAlmostEqual(prob.full_x[1], 1)
+            mpi = MpiPartition(ngroups=ngroups)
+            o = TestFunction3(mpi.comm_groups)
+            term1 = (o.f0, 0, 1)
+            term2 = (o.f1, 0, 1)
+            prob = LeastSquaresProblem.from_tuples([term1, term2])
+            least_squares_mpi_solve(prob, mpi) #, grad=grad)
+            self.assertAlmostEqual(prob.full_x[0], 1)
+            self.assertAlmostEqual(prob.full_x[1], 1)

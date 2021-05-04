@@ -266,7 +266,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 can supply ``method`` to choose the optimization algorithm.
     """
     if MPI is None:
-        raise RuntimeError("least_squares_mpi_solve requires the mpi4py package.")
+        raise RuntimeError(
+            "least_squares_mpi_solve requires the mpi4py package.")
     
     logger.info("Beginning solve.")
     #prob._init()
@@ -296,7 +297,9 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         try:
             #f_unshifted = prob.dofs.f(x)
             unweighted_residuals = prob.unweighted_residuals(x)
-            residuals = prob.residuals(x)
+            logger.debug(f"unweighted residuals:\n {unweighted_residuals}")
+            residuals = prob.residuals()
+            logger.debug(f"residuals:\n {residuals}")
         except:
             #f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
             unweighted_residuals = np.full(prob.get_parent_return_fns_no(),
