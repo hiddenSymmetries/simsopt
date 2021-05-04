@@ -303,12 +303,14 @@ PYBIND11_MODULE(simsgeopp, m) {
 
     py::class_<RegularGridInterpolant3D<1>>(m, "RegularGridInterpolant3D1")
         .def(py::init<int, int, int, int>())
+        .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
         .def("interpolate", &RegularGridInterpolant3D<1>::interpolate)
         .def("interpolate_batch", &RegularGridInterpolant3D<1>::interpolate_batch)
         .def("evaluate", &RegularGridInterpolant3D<1>::evaluate)
         .def("estimate_error", &RegularGridInterpolant3D<1>::estimate_error);
     py::class_<RegularGridInterpolant3D<4>>(m, "RegularGridInterpolant3D4")
         .def(py::init<int, int, int, int>())
+        .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
         .def("interpolate", &RegularGridInterpolant3D<4>::interpolate)
         .def("interpolate_batch", &RegularGridInterpolant3D<4>::interpolate_batch)
         .def("evaluate", &RegularGridInterpolant3D<4>::evaluate)
