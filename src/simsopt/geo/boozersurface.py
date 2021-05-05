@@ -492,7 +492,7 @@ class BoozerSurface():
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-        norm = np.linalg.norm(r)
+        norm = np.linalg.norm(np.concatenate((r,[label.J()-self.targetlabel])))
         while i < maxiter and norm > tol:
             if s.stellsym:
                 J = np.vstack((
@@ -533,6 +533,6 @@ class BoozerSurface():
 
 
         res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
+                "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "mask" : mask
         }
         return res
