@@ -3,7 +3,8 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module contains small utility functions and classes.
+This module contains small utility functions and classes needed by *_core*
+subpackage.
 """
 
 import itertools
@@ -79,36 +80,44 @@ class InstanceCounterMeta(type):
 
 class RegisterMeta(type):
     """
-    RegisterMeta class is used to register functions with easy to identify
-    names. At present, it is used mainly to register the functions of
-    Optimizable subclasses that return a value.
+    RegisterMeta class can be used to register functions with easy to identify
+    names.
 
-    The functionality is explained with Spec class implemented in
-    simsopt.mhd.spec module. Spec class, which is a subclass of Optimizable,
-    implements two functions volume and iota, which are used by child
-    Optimizables nodes.
+    Note:
+        The class is not used anymore, but kept to explore the idea 3 explained
+        below
+
+
+    The functionality of RegisterMeta is explained with the Spec class
+    defined in simsopt.mhd.spec module. Spec class, which is a subclass
+    of Optimizable, implements two functions volume and iota, which are
+    used by child Optimizables nodes.
 
     One could register the two functions of Spec class in a couple of ways.
-    1) `Spec.return_fn_map = {'volume': Spec.volume, 'iota': Spec.iota}`
 
-    2) ```
-        Spec.volume = Spec.register_return_fn("volume")(Spec.volume)
-        Spec.iota = Spec.register_return_fn("iota")(Spec.iota)
-        ```
+    1. .. code-block:: python
 
-    3) TO BE IMPLEMENTED:
-        ```
-        class Spec
-            ...
+            Spec.return_fn_map = {'volume': Spec.volume, 'iota': Spec.iota}
 
-            @register_return_fn("volume")
-            def volume(self, ...):
+    2. .. code-block:: python
+
+            Spec.volume = Spec.register_return_fn("volume")(Spec.volume)
+            Spec.iota = Spec.register_return_fn("iota")(Spec.iota)
+
+    3. TO BE IMPLEMENTED
+
+       .. code-block:: python
+
+            class Spec
                 ...
 
-            @register_return_fn("iota")
-            def iota(self, ...):
-                ...
-        ```
+                @register_return_fn("volume")
+                def volume(self, ...):
+                    ...
+
+                @register_return_fn("iota")
+                def iota(self, ...):
+                    ...
     """
     def __init__(cls, name, bases, attrs):
         super().__init__(name, bases, attrs)
@@ -133,7 +142,7 @@ class OptimizableMeta(InstanceCounterMeta, ABCMeta):
 
 class ObjectiveFailure(Exception):
     """
-    This class is a custom exception used to indicate failure when
+    Defines a custom exception used to indicate failure when
     evaluating the objective function. For example, if Vmec or Spec
     fail to converge, this exception will be thrown. The simsopt
     solvers will catch this specific exception (not others) and set
