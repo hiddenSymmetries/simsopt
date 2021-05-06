@@ -9,6 +9,7 @@ representing a function. These functions are mostly used for testing.
 
 import logging
 from numbers import Real
+from typing import Sequence
 
 import numpy as np
 
@@ -17,6 +18,20 @@ from ..util.types import RealArray
 
 
 class Identity(Optimizable):
+    """
+    Represents a term in an objective function which is just
+    the identity. It has one degree of freedom. Conforms to the experimental
+    graph based Optimizable framework.
+
+    The output of the method `f` is equal to this degree of freedom.
+    The call hook internally calls method f. It does not have any parent
+    Optimizable nodes
+
+    Args:
+        x: Value of the DOF
+        dof_name: Identifier for the DOF
+        dof_fixed: To specify if the dof is fixed
+    """
     def __init__(self,
                  x: Real = 0.0,
                  dof_name: str = None,
@@ -26,6 +41,9 @@ class Identity(Optimizable):
                          [dof_fixed])
 
     def f(self):
+        """
+        Returns the value of the DOF
+        """
         return self.full_x[0]
 
     def dJ(self, x: RealArray = None):
@@ -40,9 +58,17 @@ class Identity(Optimizable):
 
 
 class Adder(Optimizable):
-    """This class defines a minimal object that can be optimized. It has
-    n degrees of freedom, and has a function that just returns the sum
-    of these dofs. This class is used for testing.
+    """
+    Defines a minimal graphe based Optimizable object that can be optimized.
+    It has n degrees of freedom.
+
+    The method `sum` returns the sum of these dofs. The call hook internally
+    calls the `sum` method.
+
+    Args:
+        n: Number of degrees of freedom (DOFs)
+        x0: Initial values of the DOFs. If not given, equal to zeroes
+        dof_names: Identifiers for the DOFs
     """
 
     def __init__(self, n=3, x0=None, dof_names=None):
@@ -51,6 +77,9 @@ class Adder(Optimizable):
         super().__init__(x, names=dof_names)
 
     def sum(self):
+        """
+        Sums the DOFs
+        """
         return np.sum(self._dofs.full_x)
 
     def dJ(self):
@@ -68,9 +97,20 @@ class Adder(Optimizable):
 
 class Rosenbrock(Optimizable):
     """
-    This class defines a minimal object that can be optimized.
-    """
+    Implements Rosenbrock function using the graph based optimization
+    framework. The Rosenbrock function is defined as
 
+    .. math::
+        f(x,y) = (a-x)^2 + b(y-x^2)^2
+
+    The parameter *a* is fixed to 1. And the *b* parameter can be given as
+    input.
+
+    Args:
+        b: The *b* parameter of Rosenbrock function
+        x: *x* coordinate
+        y: *y* coordinate
+    """
     def __init__(self, b=100.0, x=0.0, y=0.0):
         self._sqrtb = np.sqrt(b)
         super().__init__([x, y], names=['x', 'y'])
@@ -135,24 +175,25 @@ class Rosenbrock(Optimizable):
 
 class TestObject1(Optimizable):
     """
-    This is an optimizable object used for testing. It depends on two
-    sub-objects, both of type Adder.
+    Implements a graph based optimizable with a single degree of freedom and has
+    parent optimizable nodes. Mainly used for testing.
+
+    The output method is named `f`. Call hook internally calls method `f`.
+
+    Args:
+        val: Degree of freedom
+        opts: Parent optimizable objects. If not given, two Adder objects are
+              added as parents
     """
 
-    def __init__(self, val, opts=None):
-        #self.val = val
-        #self.dof_names = ['val']
-        #self.dof_fixed = np.array([False])
-        #self.adder1 = Adder(3)
-        #self.adder2 = Adder(2)
-        #self.depends_on = ['adder1', 'adder2']
+    def __init__(self, val: Real, opts: Sequence[Optimizable] = None):
         if opts is None:
             opts = [Adder(3), Adder(2)]
         super().__init__(x0=[val], names=['val'], funcs_in=opts)
 
     def f(self):
         """
-        Same as J() but a property instead of a function.
+        Implements an objective function
         """
         return (self._dofs.full_x[0] + 2 * self.parents[0]()) / \
                (10.0 + self.parents[1]())
@@ -174,8 +215,14 @@ class TestObject1(Optimizable):
 
 class TestObject2(Optimizable):
     """
-    This is an optimizable object used for testing. It depends on two
-    sub-objects, both of type Adder.
+    Implements a graph based optimizable with two single degree of freedom
+    and has two parent optimizable nodes. Mainly used for testing.
+
+    The output method is named `f`. Call hook internally calls method `f`.
+
+    Args:
+        val1: First degree of freedom
+        val2: Second degree of freedom
     """
 
     def __init__(self, val1, val2):
@@ -210,15 +257,16 @@ class TestObject2(Optimizable):
 
 class Affine(Optimizable):
     """
-    This class represents a random affine (i.e. linear plus constant)
-    transformation from R^n to R^m.
+    Implements a random affine (i.e. linear plus constant)
+    transformation from R^n to R^m. The n inputs to the transformation are
+    initially set to zeroes.
+
+    Args:
+        nparams: number of independent variables.
+        nvals: number of dependent variables.
     """
 
     def __init__(self, nparams, nvals):
-        """
-        nparams = number of independent variables.
-        nvals = number of dependent variables.
-        """
         self.nparams = nparams
         self.nvals = nvals
         self.A = (np.random.rand(nvals, nparams) - 0.5) * 4
