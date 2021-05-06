@@ -3,8 +3,8 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides classes and functions that are useful for
-setting up optimizable objects and objective functions.
+Provides graph based Optimizable class, whose instances can be used to
+build an optimization problem in a graph like manner.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .util import ImmutableId, OptimizableMeta
 
 class DOF:
     """
-    A generalized class to represent an individual degrees of freedom
+    A generalized class to represent an individual degree of freedom
     associated with optimizable functions.
     """
 
@@ -36,13 +36,15 @@ class DOF:
                  name: str,
                  free: bool = True,
                  lower_bound: Real = np.NINF,
-                 upper_bound: Real = np.Inf):
+                 upper_bound: Real = np.Inf) -> None:
         """
 
-        :param name: Name of DOF for easy reference
-        :param fixed: Flag to denote if the ODF is constrained?
-        :param lower_bound: Minimum allowed value of DOF
-        :param upper_bound: Maximum allowed value of DOF
+        Args:
+            x: The value of the DOF
+            name: Name of the DOF for easy reference
+            fixed: Flag to denote if the DOF is fixed (constrained)
+            lower_bound: Minimum allowed value of DOF
+            upper_bound: Maximum allowed value of DOF
         """
         self._x = x
         self.name = name
@@ -61,7 +63,7 @@ class DOF:
         return "DOF: {}, value = {}, fixed = {}, bounds = ({}, {})".format(
             self.name, self._x, not self._free, self._lb, self._ub)
 
-    def __eq__(self, other):
+    def __eq__(self, other: DOF) -> bool:
         return all([self.name == other.name,
                    np.isclose(self._x, other._x),
                    self._free == other._free,
@@ -88,13 +90,13 @@ class DOF:
 
     def fix(self) -> None:
         """
-        Denotes that the DOF needs to be fixed during optimization
+        Makes the DOF fixed during optimization
         """
         self._free = False
 
-    def unfix(self):
+    def unfix(self) -> None:
         """
-        Denotes that the DOF can be varied during optimization
+        Makes the DOF variable during optimization
         """
         self._free = True
 
@@ -103,12 +105,19 @@ class DOF:
         """
         Minimum value of DOF allowed
 
-        :return: Lower bound of DOF if not fixed else None
+        Returns:
+            Lower bound of DOF if not fixed else None
         """
         return self._lb if self._free else None
 
     @min.setter
-    def min(self, lower_bound):
+    def min(self, lower_bound: Real) -> None:
+        """
+        Minimum value of DOF allowed
+
+        Args:
+            lower_bound: Specifies the lower bound of the DOF
+        """
         self._lb = lower_bound
 
     @property
@@ -116,7 +125,8 @@ class DOF:
         """
         Maximum value of DOF allowed
 
-        :return: Upper bound of DOF if not fixed else None
+        Returns:
+            Upper bound of DOF if not fixed else None
         """
         return self._ub if self._free else None
 
@@ -125,11 +135,22 @@ class DOF:
         self._ub = upper_bound
 
     @property
-    def x(self):
+    def x(self) -> Real:
+        """
+
+        Returns:
+            Value of the DOF 
+        """
         return self._x
 
     @x.setter
     def x(self, x):
+        """
+        Value of the DOF
+
+        Args:
+            x: Updated value of the DOF. Fails to work if the DOF is fixed.
+        """
         if self.is_fixed():
             raise TypeError("Updating state is forbidded for fixed DOF")
         if x > self.max or x < self.min:
@@ -140,17 +161,28 @@ class DOF:
 
 class DOFs(pd.DataFrame):
     """
-    Defines the (D)egrees (O)f (F)reedom(s) for optimization
+    Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
 
-    This class holds data related to the vector of degrees of freedom
-    that have been combined from multiple optimizable objects.
+    This class holds data related to the degrees of freedom
+    associated with an Optimizable object. The class subclasses
+    pandas.DataFrame. To access the data stored in the DOFs class as a
+    pandas dataframe, use the labels under internal column shown in the
+    table below.
 
-    DataFrame Column index table:
-    "Internal column, External name, Index
-    "_x",             "x",            0
-    "free",           "free",         1
-    "_lb",            "lower_bounds", 2
-    "_ub",            "upper_bounds", 3
+    DOFs Dataframe column index table
+
+    =====   =============  ===============
+    Index   External name  Internal column
+    =====   =============  ===============
+    0       x              _x
+    1       free           free
+    2       lower_bounds   _lb
+    3       upper_bounds   _ub
+    =====   =============  ===============
+
+    The class implements the external name column properties in the above
+    table as properties. Additional methods to update bounds, fix/unfix DOFs,
+    etc. are also defined.
     """
 
     def __init__(self,
@@ -158,13 +190,13 @@ class DOFs(pd.DataFrame):
                  names: StrArray = None,
                  free: BoolArray = None,
                  lower_bounds: RealArray = None,
-                 upper_bounds: RealArray = None):
+                 upper_bounds: RealArray = None) -> None:
         """
         Args:
-            owners: Objects owning the dofs
+            x: Numeric values of the DOFs
             names: Names of the dofs
-            x: Values of the dofs
-            fixed: Array of boolean values denoting if the DOFs is fixed
+            free: Array of boolean values denoting if the DOFs is are free.
+                  False values implies the corresponding DOFs are fixed
             lower_bounds: Lower bounds for the DOFs. Meaningful only if
                 DOF is not fixed. Default is np.NINF
             upper_bounds: Upper bounds for the DOFs. Meaningful only if
@@ -195,23 +227,38 @@ class DOFs(pd.DataFrame):
                          index=names)
 
     def fix(self, key: Key) -> None:
+        """
+        Fixes the specified DOF
+
+        Args:
+            key: Key to identify the DOF
+        """
         if isinstance(key, str):
             self.loc[key, 'free'] = False
         else:
             self.iloc[key, 1] = False
 
     def unfix(self, key: Key) -> None:
+        """
+        Unfixes the specified DOF
+
+        Args:
+            key: Key to identify the DOF
+        """
         if isinstance(key, str):
             self.loc[key, 'free'] = True
         else:
             self.iloc[key, 1] = True
 
     def fix_all(self) -> None:
+        """
+        Fixes all the DOFs
+        """
         self.free = self.free.apply(lambda x: False)
 
     def unfix_all(self) -> None:
         """
-        Make vall DOFs variable
+        Makes all DOFs variable
         Caution: Make sure the bounds are well defined
         """
         self.free = self.free.apply(lambda x: True)
@@ -221,7 +268,7 @@ class DOFs(pd.DataFrame):
         Checks for any free DOFs
 
         Returns:
-            True if any free DOF is found
+            True if any free DOF is found, else False
         """
         return self.free.any()
 
@@ -230,22 +277,22 @@ class DOFs(pd.DataFrame):
         Checks for any free DOFs
 
         Returns:
-            True if any fixed DOF is found
+            True if any fixed DOF is found, else False
         """
         return not self.free.all()
 
     def all_free(self) -> bool:
         """
-        Checks for any free DOFs
+        Checks if all DOFs are allowed to be varied
 
         Returns:
-            True if all DOFs are free to vary
+            True if all DOFs are free to changed
         """
         return self.free.all()
 
     def all_fixed(self) -> bool:
         """
-        Checks for any free DOFs
+        Checks if all the DOFs are fixed
 
         Returns:
             True if all DOFs are fixed
@@ -254,16 +301,22 @@ class DOFs(pd.DataFrame):
 
     @property
     def x(self) -> RealArray:
+        """
+
+        Returns:
+            The values of the free DOFs.
+        """
         return self.loc[self.free, "_x"].to_numpy()
 
     @x.setter
     def x(self, x: RealArray) -> None:
         """
+        Update the values of the free DOFs with the supplied values
 
         Args:
-            x: Array of values to set x
-            Note: This method blindly broadcasts a single value.
-            So don't supply a single value unless you really desire
+            x: Array of new DOF values
+               (word of caution: This setter blindly broadcasts a single value.
+               So don't supply a single value unless you really desire.)
         """
         if len(self.free[self.free]) != len(x):
             raise ValueError  # To prevent fully fixed DOFs from not raising Error
@@ -275,58 +328,102 @@ class DOFs(pd.DataFrame):
         Return all x even the fixed ones
 
         Returns:
-            Pruned DOFs object without any fixed DOFs
+            The values of full DOFs without any restrictions
         """
         return self._x.to_numpy()
 
     @property
     def reduced_len(self) -> Integral:
         """
-        The standard len function returns the full length of DOFs.
-        To get the number of free DOFs use DOFs._reduced_len method
-        Returns:
+        The number of free DOFs.
 
+        The standard len function returns the full length of DOFs.
+
+        Returns:
+            The number of free DOFs
         """
         return len(self.free[self.free])
 
     @property
     def lower_bounds(self) -> RealArray:
         """
+        Lower bounds of the DOFs
 
         Returns:
-
+            Lower bounds of the DOFs
         """
         return self.loc[self.free, "_lb"].to_numpy()
 
     @lower_bounds.setter
-    def lower_bounds(self, lower_bounds: RealArray):
+    def lower_bounds(self, lower_bounds: RealArray) -> None:
+        """
+
+        Args:
+            lower_bounds: Lower bounds of the DOFs
+        """
         self.loc[self.free, "_lb"] = lower_bounds
 
     @property
     def upper_bounds(self) -> RealArray:
+        """
+
+        Returns:
+            Upper bounds of the DOFs
+        """
         return self.loc[self.free, "_ub"].to_numpy()
 
     @upper_bounds.setter
-    def upper_bounds(self, upper_bounds: RealArray):
+    def upper_bounds(self, upper_bounds: RealArray) -> None:
+        """
+
+        Args:
+            upper_bounds: Upper bounds of the DOFs
+        """
         self.loc[self.free, "_ub"] = upper_bounds
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
+        """
+
+        Returns:
+            (Lower bounds list, Upper bounds list)
+        """
         return (self.lower_bounds, self.upper_bounds)
 
-    def update_lower_bound(self, key: Key, val: Real):
+    def update_lower_bound(self, key: Key, val: Real) -> None:
+        """
+        Updates the lower bound of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: Numeric lower bound of the DOF
+        """
         if isinstance(key, str):
             self.loc[key, "_lb"] = val
         else:
             self.iloc[key, 2] = val
 
-    def update_upper_bound(self, key: Key, val: Real):
+    def update_upper_bound(self, key: Key, val: Real) -> None:
+        """
+        Updates the upper bound of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: Numeric upper bound of the DOF
+        """
         if isinstance(key, str):
             self.loc[key, "_ub"] = val
         else:
             self.iloc[key, 3] = val
 
-    def update_bounds(self, key: Key, val: Tuple[Real, Real]):
+    def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
+        """
+        Updates the bounds of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: (lower, upper) bounds of the DOF
+        """
         if isinstance(key, str):
             self.loc[key, "_lb"] = val[0]
             self.loc[key, "_ub"] = val[1]
@@ -336,42 +433,74 @@ class DOFs(pd.DataFrame):
 
     @property
     def names(self):
+        """
+
+        Returns:
+            string identifiers of the DOFs
+        """
         return self.index.values
 
 
 class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     """
-    Callable ABC that provides useful features for optimizable objects.
+    Experimental callable ABC that provides lego-like optimizable objects
+    that can be used to partition the optimization problem into a graph.
 
-    The class defines methods that are used by simsopt to know 
-    degrees of freedoms (DOFs) associated with the optimizable
-    objects. All derived objects have to register methods that return
-    objective function type values. This is done by the following statement:
-    `return_fn_map = {'name1': method1, 'name2': method, ...}`.
-    The calling objects could then call
-    the Optimizable object directly using the __call__ hook or could
-    call the individual methods.
-    If the Optimizable object is called using __call__ hook, make sure to
-    supply the argument `child=self`
+    The class provides many features that simplify defining the optimization
+    problem.
 
-    Optimizable and its subclasses define the optimization problem. The
-    optimization problem can be thought of a DAG, which each instance of
-    Optimizable being a vertex in the DAG. Each Optimizable object can
-    take other Optimizable objects as inputs and through this container
-    logic, the edges of the DAG are defined.
+    1. Optimizable and its subclasses define the optimization problem. The
+       optimization problem can be thought of a directed acycling graph (DAG),
+       which each instance of Optimizable being a vertex (node) in the DAG.
+       Each Optimizable object can take other Optimizable objects as inputs and
+       through this container logic, the edges of the DAG are defined.
 
-    Alternatively, the input Optimizable objects can be thought as parents
-    to the current Optimizable object. In this approach, the last grand-child
-    defines the optimization problem by embodying all the elements of the
-    parents and grand-parents. Each DOF defined in a parent gets passed down
-    to the children. And each call to child instance gets in turn propagated
-    to the parent.
+       Alternatively, the input Optimizable objects can be thought as parents
+       to the current Optimizable object. In this approach, the last grand-child
+       defines the optimization problem by embodying all the elements of the
+       parents and grand-parents.
 
-    Currently, this back and forth propagation of DOFs and function calls
-    happens at run time.
+       Each call to child instance gets in turn propagated to the parent. In this
+       way, the last child acts as the final optimization problem to be solved.
+       For an example of the final optimization node, refer to
+       simsopt.objectives.least_squares.LeastSquaresProblem
 
-    Note: __init__ takes instances of subclasses of Optimizable as
-          input and modifies them to define the children for input objects
+    2. The class automatically partitions degrees of freedoms (DOFs) of
+       the optimization problem to the associated Optimizable nodes. Each DOF
+       defined in a parent gets passed down to the children as a needed DOF for
+       the child. So a DOF needed by parent node can be given as an input to
+       the methods in the child node. Any of the DOFs could be fixed in which
+       case, it should be removed as an argument to the call-back
+       function from the final Optimizable node.
+
+    3. The class implements callable hook that provides minimal caching.
+       All derived classes have to register methods that return objective function
+       type values. This is done by implementing the following class attribute
+       in the class definition:
+       .. code-block:: python
+
+           return_fn_map = {'name1': method1, 'name2': method, ...}
+
+       The Optimizable class maintains the list of return functions needed by each
+       of the calling Optimizable objects either during child initialization or
+       later using the provided methods. The calling optimizable object could then
+       call the Optimizable object directly using the `__call__` hook or could
+       call the individual methods.
+
+       This back and forth propagation of DOFs partitioning and function
+       calls happens dynamically.
+
+    4. The class is hashable and the names of the instances are unique. So
+       instances of Optimizable class can be used as keys.
+
+    Note:
+        1. If the Optimizable object is called using the `__call__` hook, make
+           sure to supply the argument `child=self`
+
+        2. __init__ takes instances of subclasses of Optimizable as
+           input and modifies them to add the current object as a child for
+           input objects. The return fns of the parent object needed by the child
+           could be specified by using `opt_return_fns` argument
     """
     return_fn_map: Dict[str, Callable] = NotImplemented
 
@@ -522,10 +651,26 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     #    """
 
-    def print_return_fn_names(self):
+    def print_return_fn_names(self) -> List[str]:
+        """
+        Prints the names of the functions that could be used as objective
+        functions.
+
+        Returns:
+            List of function names that could be used as objective functions
+        """
         return list(self.__class__.return_fn_map.keys())
 
-    def add_return_fn(self, child: Optimizable, fn: Union[str, Callable]):
+    def add_return_fn(self, child: Optimizable, fn: Union[str, Callable]) -> None:
+        """
+        Add return function to the list of the return functions called by
+        the child Optimizable object
+
+        Args:
+            child: an Optimizable object that is direct dependent of the current
+                Optimizable instance
+            fn: method of the Optimizable object needed by the child
+        """
         self._add_child(child)
 
         if isinstance(fn, str):
@@ -533,14 +678,37 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.return_fns[child].append(fn)
 
     def get_return_fns(self, child: Optimizable) -> List[Callable]:
+        """
+        Gets return functions from this Optimizable object used by the child
+        Optimizable object
+
+        Args:
+            child: Dependent Optimizable object
+
+        Returns:
+            List of methods that return a value when the current Optimizable
+            object is called from the child
+        """
         return self.return_fns.get(child, list(self.return_fn_map.values()))
 
     def get_return_fn_list(self) -> List[List[Callable]]:
+        """
+        Gets return functions from this Optimizable object used by all the child
+        Optimizable objects
+
+        Returns:
+            List of methods that return a value when the current Optimizable
+            object is called from the children.
+        """
+        # TODO: There could be a bug here
         return list(self.return_fns.values())
 
     def get_parent_return_fns_list(self) -> List[List[Callable]]:
         """
-        Returns a list of the funcs returned by the parents as list of lists
+        Get a list of the funcs returned by the parents as list of lists
+
+        Returns:
+            The funcs returned by all the parents of the Optimizable object
         """
         return_fn_list = []
         for parent in self.parents:
@@ -550,7 +718,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def parent_return_fns_no(self) -> int:
         """
-        Returns the number of the funcs returned by the parents to this object
+        Compute the total number of the return funcs of all the parents
+        of the Optimizable object
+
+        Returns:
+            The total number of the return funcs  of the Optimizable object's
+            parents.
         """
         return_fn_no = 0
         for parent in self.parents:
@@ -563,11 +736,20 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         required processing of the dependencies is done in the child node.
         This method is used mainly to maintain 2-way link between parent
         and child.
+
+        Args:
+            child: Direct dependent (child) of the Optimizable object
         """
         if child not in self._children:
             self._children.append(child)
 
     def _remove_child(self, other: Optimizable) -> None:
+        """
+        Remove the specific Optimizable object from the children list.
+
+        Args:
+            child: Direct dependent (child) of the Optimizable object
+        """
         self._children.remove(other)
         if other in self.return_fns:
             del self.return_fns[other]
@@ -575,6 +757,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     def add_parent(self, index: int, other: Optimizable) -> None:
         """
         Adds another Optimizable object as parent at specified index.
+
+        Args:
+            int: Index of the parent's list
+            other: Another Optimizable object to be added as parent
         """
         if other not in self.parents:
             self.parents.insert(index, other)
@@ -588,7 +774,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def append_parent(self, other: Optimizable) -> None:
         """
-        Adds another Optimizable object as parent at specified index.
+        Appends another Optimizable object to parents list
+
+        Args:
+            other: New parent Optimizable object
         """
         if other not in self.parents:
             self.parents.append(other)
@@ -603,6 +792,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     def pop_parent(self, index: int = -1) -> Optimizable:
         """
         Removes the parent Optimizable object at specified index.
+
+        Args:
+            index: Index of the list of the parents
+
+        Returns:
+            The removed parent Optimizable object
         """
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
@@ -614,6 +809,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return discarded_parent
 
     def remove_parent(self, other: Optimizable):
+        """
+        Removes the specified Optimizable object from the list of parents.
+
+        Args:
+            other: The Optimizable object to be removed from the list of parents
+        """
         self.parents.remove(other)
         other._remove_child(self)
         self.ancestors = self._get_ancestors()
@@ -624,42 +825,53 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def full_dof_size(self) -> Integral:
         """
-        Length of free DOFs associated with the Optimizable including those
-        of parents
+        Total number of all (free and fixed) DOFs associated with the
+        Optimizable object as well as parent Optimizable objects.
         """
         return self._full_dof_size
 
     @property
     def dof_size(self) -> Integral:
         """
-        Length of DOFs associated with the Optimizable including those
-        of parents
-        Returns:
-
+        Total number of free DOFs associated with the Optimizable object
+        as well as parent Optimizable objects.
         """
         return self._free_dof_size
 
     @property
     def local_full_dof_size(self) -> Integral:
+        """
+        Number of all (free and fixed) DOFs associated with the Optimizable
+        object.
+
+        Returns:
+            Total number of free and fixed DOFs associated with the Optimizable
+            object.
+        """
         return len(self._dofs)
 
     @property
     def local_dof_size(self) -> Integral:
+        """
+        Number of free DOFs associated with the Optimizable object.
+
+        Returns:
+            Number of free DOFs associated with the Optimizable object.
+        """
         return self._dofs.reduced_len
 
     def _update_free_dof_size_indices(self) -> None:
         """
-        Call the function to update the DOFs lengths for this instance and
-        those of the children.
+        Updates the DOFs lengths for the Optimizable object as well as
+        those of the descendent (dependent) Optimizable objects.
 
-        Call whenever DOFs are fixed or unfixed or when parents added/deleted.
-        Recursively calls the function in children
-
-        TODO: This is slow because it walks through the graph repeatedly
-        TODO: Develop a faster scheme.
-        TODO: Alternatively ask the user to call this manually from the end
-        TODO: node after fixing/unfixing any DOF
+        Call this function whenever DOFs are fixed or unfixed or when parents
+        are added/deleted. Recursively calls the same function in children
         """
+        # TODO: This is slow because it walks through the graph repeatedly
+        # TODO: Develop a faster scheme.
+        # TODO: Alternatively ask the user to call this manually from the end
+        # TODO: node after fixing/unfixing any DOF
         dof_indices = [0]
         free_dof_size = 0
         for opt in (self.ancestors + [self]):
@@ -676,17 +888,17 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def _update_full_dof_size_indices(self) -> None:
         """
-        Call the function to update the full DOFs lengths for this instance and
+        Updates the full DOFs lengths for this instance and
         those of the children.
 
-        Call whenever parents are added or removed. Recursively calls the
-        function in children
-
-        TODO: This is slow because it walks through the graph repeatedly
-        TODO: Develop a faster scheme.
-        TODO: Alternatively ask the user to call this manually from the end
-        TODO: node after fixing/unfixing any DOF
+        Call this function whenever parents are added or removed. Recursively
+        calls the same function in children.
         """
+
+        # TODO: This is slow because it walks through the graph repeatedly
+        # TODO: Develop a faster scheme.
+        # TODO: Alternatively ask the user to call this manually from the end
+        # TODO: node after fixing/unfixing any DOF
         full_dof_size = 0
         for opt in (self.ancestors + [self]):
             full_dof_size += opt.local_full_dof_size
@@ -698,6 +910,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def dofs(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return np.concatenate([opt._dofs.x for
                                opt in (self.ancestors + [self])])
 
@@ -711,11 +927,19 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def full_dofs(self) -> RealArray:
+        """
+        Numeric values of all the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return np.concatenate([opt._dofs.full_x for
                                opt in (self.ancestors + [self])])
 
     @property
     def local_dofs(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with this
+        Optimizable object
+        """
         return self._dofs.x
 
     @local_dofs.setter
@@ -727,10 +951,17 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def local_full_dofs(self) -> RealArray:
+        """
+        Numeric values of all DOFs associated with this Optimizable object
+        """
         return self._dofs.full_x
 
     @property
     def state(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return self.dofs
 
     @state.setter
@@ -739,10 +970,18 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def full_state(self) -> RealArray:
+        """
+        Numeric values of all the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return self.full_dofs
 
     @property
     def local_state(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with this
+        Optimizable object
+        """
         return self.local_dofs
 
     @local_state.setter
@@ -751,10 +990,17 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def local_full_state(self):
+        """
+        Numeric values of all DOFs associated with this Optimizable object
+        """
         return self.local_full_dofs
 
     @property
     def x(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return self.dofs
 
     @x.setter
@@ -763,10 +1009,18 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def full_x(self) -> RealArray:
+        """
+        Numeric values of all the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return self.full_dofs
 
     @property
     def local_x(self) -> RealArray:
+        """
+        Numeric values of the free DOFs associated with this
+        Optimizable object
+        """
         return self.local_dofs
 
     @local_x.setter
@@ -775,6 +1029,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def local_full_x(self):
+        """
+        Numeric values of all DOFs associated with this Optimizable object
+        """
         return self.local_full_dofs
 
     def _set_new_x(self):
@@ -784,28 +1041,52 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
+        """
+        Lower and upper bounds of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         return (self.lower_bounds, self.upper_bounds)
 
     @property
     def local_bounds(self) -> Tuple[RealArray, RealArray]:
+        """
+        Lower and upper bounds of the free DOFs associated with
+        this Optimizable object
+        """
         return self._dofs.bounds
 
     @property
     def lower_bounds(self) -> RealArray:
+        """
+        Lower bounds of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.lower_bounds for opt in opts])
 
     @property
     def local_lower_bounds(self) -> RealArray:
+        """
+        Lower bounds of the free DOFs associated with this Optimizable
+        object
+        """
         return self._dofs.lower_bounds
 
     @property
     def upper_bounds(self) -> RealArray:
+        """
+        Upper bounds of the free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.upper_bounds for opt in opts])
 
     @property
     def local_upper_bounds(self) -> RealArray:
+        """
+        Upper bounds of the free DOFs associated with this Optimizable
+        object
+        """
         return self._dofs.upper_bounds
 
     @local_upper_bounds.setter
@@ -814,19 +1095,28 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
         opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.names for opt in opts])
 
     @property
     def local_dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with this Optimizable
+        object
+        """
         return self._dofs.names
 
     def get(self, key: Key) -> Real:
         """
-        Return a the value of degree of freedom specified by its name
-        or by index.
-
+        Get the value of specified DOF
         Even fixed dofs can be obtained individually.
+
+        Args:
+            key: DOF identifier
         """
         if isinstance(key, str):
             return self._dofs.loc[key, '_x']
@@ -835,9 +1125,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def set(self, key: Key, new_val: Real) -> None:
         """
-        Set a degree of freedom specified by its name or by index.
-
+        Update the value held the specified DOF.
         Even fixed dofs can be set this way
+
+        Args:
+            key: DOF identifier
+            new_val: New value of the DOF
         """
         if isinstance(key, str):
             self._dofs.loc[key, '_x'] = new_val
@@ -846,22 +1139,36 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @property
     def dofs_free_status(self) -> BoolArray:
+        """
+        Boolean array denoting whether the DOFs associated with the
+        current and ancestors Optimizable objects are free or not
+        """
         opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free.to_numpy() for opt in opts])
 
     @property
     def local_dofs_free_status(self) -> BoolArray:
+        """
+        Boolean array denoting whether the DOFs associated with the
+        current Optimizable object are free or not
+        """
         return self._dofs.free.to_numpy()
 
     def is_fixed(self, key: Key) -> bool:
         """
-        Tells if the dof specified with its name or by index is fixed
+        Checks if the specified dof is fixed
+
+        Args:
+            key: DOF identifier
         """
         return not self.is_free(key)
 
     def is_free(self, key: Key) -> bool:
         """
-        Tells if the dof specified with its name or by index is fixed
+        Checks if the specified dof is free
+
+        Args:
+            key: DOF identifier
         """
         if isinstance(key, str):
             return self._dofs.loc[key, 'free']
@@ -870,8 +1177,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def fix(self, key: Key) -> None:
         """
-        Set the fixed attribute for a given degree of freedom,
-        specified by dof_str.
+        Set the fixed attribute for the given degree of freedom.
+
+        Args:
+            key: DOF identifier
         """
         # TODO: Question: Should we use ifix similar to pandas' loc and iloc?
         # TODO: If key (str) is not found, it is silently ignored. Instead
@@ -882,7 +1191,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def unfix(self, key: Key) -> None:
         """
-        Set the fixed attribute for a given degree of freedom, specified by dof_str.
+        Unset the fixed attribute for the given degree of freedom
+
+        Args:
+            key: DOF identifier
         """
         # TODO: If key (str) is not found, it is silently ignored. Instead
         # TODO: raise a warning
@@ -891,7 +1203,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def fix_all(self) -> None:
         """
-        Set the 'fixed' attribute for all degrees of freedom.
+        Set the 'fixed' attribute for all degrees of freedom associated with
+        the current Optimizable object.
         """
         #self.dof_fixed = np.full(len(self.get_dofs()), True)
         self._dofs.fix_all()
@@ -899,13 +1212,21 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def unfix_all(self) -> None:
         """
-        Set the 'fixed' attribute for all degrees of freedom.
+        Unset the 'fixed' attribute for all degrees of freedom associated
+        with the current Optimizable object.
         """
         #self.dof_fixed = np.full(len(self.get_dofs()), False)
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
 
     def _get_ancestors(self) -> list[Optimizable]:
+        """
+        Get all the ancestors of the current Optimizable object
+
+        Returns:
+            List of Optimizable objects that are parents of current
+            Optimizable objects
+        """
         ancestors = []
         for parent in self.parents:
             ancestors += parent.ancestors
