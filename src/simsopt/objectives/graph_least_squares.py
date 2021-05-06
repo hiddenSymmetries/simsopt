@@ -3,7 +3,8 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides the LeastSquaresProblem class.
+Provides the LeastSquaresProblem class implemented using the new graph based
+optimization framework.
 """
 
 from __future__ import annotations
@@ -27,28 +28,35 @@ StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
 class LeastSquaresProblem(Optimizable):
     """
-    This class represents a nonlinear-least-squares
-    problem. A LeastSquaresProblem instance has 3 basic attributes: a
-    set of functions (called f_in), target values for each of the functions
-    (called goal), and weights (sigma).  The function returns f_out for each
-    of the term defined as:
+    Represents a nonlinear-least-squares problem implemented using the new
+    graph based optimization framework. A LeastSquaresProblem instance has
+    3 basic attributes: a set of functions (`f_in`), target values for each
+    of the functions (`goal`), and weights.  The residual
+    (`f_out`) for each of the `f_in` is defined as:
 
-    f_out = weight * (f_in - goal) ** 2.
+    .. math::
+
+        f_{out} = weight * (f_{in} - goal) ^ 2
+
+    Args:
+        goals: Targets for residuals in optimization
+        weights: Weight associated with each of the residual
+        funcs_in: Input functions (Generally one of the output functions of
+                  the Optimizable instances
+        opts_in: (Alternative initialization) Instead of specifying funcs_in,
+                one could specify the Optimizable objects
+        opt_return_fns:  (Alternative initialization) If using *opts_in*,
+                specify the return functions associated with each Optimizable
+                object
     """
 
     def __init__(self,
                  goals: Union[Real, RealArray],
                  weights: Union[Real, RealArray],
+                 funcs_in: Sequence[Callable] = None,
                  opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
-                 opt_return_fns: StrSeq = None,
-                 funcs_in: Sequence[Callable] = None):
-        """
+                 opt_return_fns: StrSeq = None):
 
-        Args:
-            funcs_in:
-            goals:
-            weights:
-        """
         if isinstance(goals, Real):
             goals = [goals]
         if isinstance(weights, Real):
@@ -73,13 +81,27 @@ class LeastSquaresProblem(Optimizable):
     def from_sigma(cls,
                    goals: Union[Real, RealArray],
                    sigma: Union[Real, RealArray],
+                   funcs_in: Sequence[Callable] = None,
                    opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
-                   opt_return_fns: StrSeq = None,
-                   funcs_in: Sequence[Callable] = None) -> LeastSquaresProblem:
-        """
-        Define the LeastSquaresProblem with sigma = 1 / sqrt(weight), so
+                   opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
+        r"""
+        Define the LeastSquaresProblem with
 
-        f_out = ((f_in - goal) / sigma) ** 2.
+        .. math::
+            \sigma = 1/\sqrt{weight}, \text{so} \\
+            f_{out} = \left(\frac{f_{in} - goal}{\sigma}\right) ^ 2.
+
+        Args:
+            goals: Targets for residuals in optimization
+            sigma: Inverse of the sqrt of the weight associated with each
+                of the residual
+            funcs_in: Input functions (Generally one of the output functions of
+                the Optimizable instances
+            opts_in: (Alternative initialization) Instead of specifying
+                funcs_in, one could specify the Optimizable objects
+            opt_return_fns: (Alternative initialization) If using *opts_in*,
+                specify the return functions associated with each Optimizable
+                object
         """
         if np.any(np.array(sigma) == 0):
             raise ValueError('sigma cannot be 0')
@@ -95,6 +117,15 @@ class LeastSquaresProblem(Optimizable):
     def from_tuples(cls,
                     tuples: Sequence[Tuple[Callable, Real, Real]]
                     ) -> LeastSquaresProblem:
+
+        """
+        Initializes graph based LeastSquaresProblem from a sequence of tuples
+        containing *f_in*, *goal*, and *weight*.
+
+        Args:
+            tuples: A sequence of tuples containing (f_in, goal, weight) in
+                each tuple (the specified order matters).
+        """
         funcs_in, goals, weights = zip(*tuples)
         #funcs_in = list(funcs_in)
         #goals = list(goals)
@@ -103,7 +134,12 @@ class LeastSquaresProblem(Optimizable):
 
     def unweighted_residuals(self, x=None, *args, **kwargs):
         """
-        Return the unweighted residuals
+        Return the unweighted residuals (f_in - goal)
+
+        Args:
+            x: Degrees of freedom or state
+            args: Any additional arguments
+            kwargs: Keyword arguments
         """
         if x is not None:
             self.x = x
@@ -118,7 +154,12 @@ class LeastSquaresProblem(Optimizable):
 
     def residuals(self, x=None, *args, **kwargs):
         """
-        Return the residuals
+        Return the weighted residuals
+
+        Args:
+            x: Degrees of freedom or state
+            args: Any additional arguments
+            kwargs: Keyword arguments
         """
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
         return unweighted_residuals * np.sqrt(self.weights)
@@ -153,6 +194,11 @@ class LeastSquaresProblem(Optimizable):
     def objective(self, x=None, *args, **kwargs):
         """
         Return the least squares sum
+
+        Args:
+            x: Degrees of freedom or state
+            args: Any additional arguments
+            kwargs: Keyword arguments
         """
         #if x is not None:
         #    self.x = x
@@ -175,6 +221,7 @@ class LeastSquaresProblem(Optimizable):
     return_fn_map = {'residuals': residuals, 'objective': objective}
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
+        # TODO: This could be buggy with respect to x-order after addition
 
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
