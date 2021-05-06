@@ -226,8 +226,9 @@ class LeastSquaresProblem(Optimizable):
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
             np.concatenate([self.weights, other.weights]),
-            self.parents + other.parents,
-            self.get_parent_return_fns_list() + other.get_parent_return_fns_list(),
+            opts_in=(self.parents + other.parents),
+            opt_return_fns=(self.get_parent_return_fns_list() +
+                            other.get_parent_return_fns_list()),
         )
 
     #def residuals(self, x: Union[RealArray, IntArray] = None):
