@@ -81,7 +81,8 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
+        #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
@@ -110,10 +111,10 @@ jobs:
         ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    - name: Install py_spec
-      run: |
-        pip install -e SPEC/Utilities/pythontools
-        python -c "import py_spec; print('success')"
+    #- name: Install py_spec
+    #  run: |
+    #    pip install -e SPEC/Utilities/pythontools
+    #    python -c "import py_spec; print('success')"
 
     - name: Build SPEC.
       run: |
@@ -167,12 +168,12 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    - name: Install mpi4py
-      run: |
-        pip install mpi4py
+    #- name: Install mpi4py
+    #  run: |
+    #    pip install mpi4py
 
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[MPI,SPEC]
 
     - name: Run mpi unit tests
       if: "contains(matrix.test-type, 'unit')"

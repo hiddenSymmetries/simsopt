@@ -5,15 +5,16 @@ class Area(object):
     """
     Wrapper class for surface area computation
     """
+
     def __init__(self, surface):
         self.surface = surface
-    
+
     def J(self):
         """
         Compute the area of a surface
         """
         return self.surface.area()
-  
+
     def dJ_by_dsurfacecoefficients(self):
         """
         Calculate the derivatives with respect to the surface coefficients
@@ -31,6 +32,7 @@ class Volume(object):
     """
     Wrapper class for volume computation
     """
+
     def __init__(self, surface):
         self.surface = surface
 
@@ -56,12 +58,12 @@ class Volume(object):
 class ToroidalFlux(object):
     r"""
     Given a surface and Biot Savart kernel, this objective calculates
-    
+
     .. math::
        J &= \int_{S_{\varphi}} \mathbf{B} \cdot \mathbf{n} ~ds, \\
        &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
        &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
-    
+
     where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`.
     """
 
@@ -131,7 +133,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     r"""
     For a given surface with points x on it, this function computes the
     residual
-    
+
     .. math::
         G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 

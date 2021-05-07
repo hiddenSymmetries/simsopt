@@ -127,7 +127,7 @@ class Surface(Optimizable):
             minc = (phi > right_bound).astype(int)
             phi = phi + 2.*np.pi * (pinc - minc)
             return phi
-        
+
         def bisection(phia, a, phic, c):
             err = 1.
             while err > 1e-13:
@@ -156,24 +156,24 @@ class Surface(Optimizable):
         and the angles that parametrize the surface are :math:`(\varphi, \theta) \in [0,1)^2`
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
-        
+
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
-        
+
         where 
 
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
             R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
-        
+
         and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
         average cross sectional area.
         The main difficult part of this calculation is the mean cross sectional
         area.  This is given by the integral
-        
+
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
-        
+
         where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral 
 
@@ -198,15 +198,15 @@ class Surface(Optimizable):
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
                 \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
-        
+
         Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
         integrate over :math:`\varphi` using the mapping:
-        
+
         .. math::
             [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
 
         After the change of variables, the integral becomes:
-        
+
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
