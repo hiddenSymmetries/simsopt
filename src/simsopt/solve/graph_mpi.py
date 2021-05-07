@@ -33,13 +33,22 @@ CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
 
-def _mpi_leaders_task(mpi, prob, data):
+def _mpi_leaders_task(mpi: MpiPartition,
+                      prob: Optimizable,
+                      data: int):
     """
     This function is called by group leaders when
     MpiPartition.leaders_loop() receives a signal to do something.
 
     We have to take a "data" argument, but there is only 1 task we
     would do, so we don't use it.
+
+    Args:
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
+          the information about how the pool of MPI processes is
+          divided into worker groups.
+        prob: Optimizable object
+        data: Dummy argument for this function
     """
     logger.debug('mpi leaders task')
 
@@ -55,10 +64,19 @@ def _mpi_leaders_task(mpi, prob, data):
     fd_jac_mpi(prob, mpi)
 
 
-def _mpi_workers_task(mpi, prob, data):
+def _mpi_workers_task(mpi: MpiPartition,
+                      prob: Optimizable,
+                      data: str):
     """
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
+
+    Args:
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
+          the information about how the pool of MPI processes is
+          divided into worker groups.
+        prob: Optimizable object
+        data: Integer with a value from 1 to 3
     """
     logger.debug('mpi workers task')
 
@@ -113,7 +131,7 @@ def fd_jac_mpi(prob: Optimizable,
     call this function.
 
     Args:
-        dofs: The map from :math:`\mathbb{R}^n \\to \mathbb{R}^m` for which you
+        prob: The map from :math:`\mathbb{R}^n \\to \mathbb{R}^m` for which you
           want to compute the Jacobian.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
           the information about how the pool of MPI processes is
@@ -247,11 +265,10 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     should call this function.
 
     Args:
-        prob: An instance of LeastSquaresProblem, defining the objective
-              function(s) and parameter space.
-        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
-             the information about how the pool of MPI processes is
-             divided into worker groups.
+        prob: Optimizable object defining the objective function(s) and
+              parameter space.
+        mpi: A MpiPartition object, storing the information about how
+             the pool of MPI processes is divided into worker groups.
         grad: Whether to use a gradient-based optimization algorithm, as
               opposed to a gradient-free algorithm. If unspecified, a
               gradient-based algorithm will be used if ``prob`` has gradient
