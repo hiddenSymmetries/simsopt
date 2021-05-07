@@ -1,9 +1,10 @@
 from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, Reiman
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.biotsavart import BiotSavart
+from simsopt.geo.poincare import compute_poincare, plot_poincare
 
 import numpy as np
 import unittest
@@ -356,6 +357,63 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
+
+    def test_Bcylindrical(self):
+        # point locations
+        pointVar = 1e-1
+        npoints = 20
+        points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += pointVar * (np.random.rand(*points.shape)-0.5)
+        # Compare with toroidal magnetic field that has an analytical formula
+        R0test = 1.3
+        B0test = 0.8
+        Bfield = ToroidalField(R0test, B0test)
+        Bfield.set_points(points)
+        BR_Bphi_BZ = Bfield.BR_Bphi_BZ()
+        R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        BR_Bphi_BZ_analytical = np.vstack((np.zeros(npoints), B0test*R0test/R, np.zeros(npoints))).T
+        assert np.allclose(BR_Bphi_BZ, BR_Bphi_BZ_analytical)
+        dB_by_dRphiZ = Bfield.dB_by_drphiz()
+        dB_by_dRphiZ_analytical = np.transpose(np.array([np.vstack((0*R, 0*R, 0*R)), np.vstack((-B0test*R0test/R**2, 0*R, 0*R)), np.vstack((0*R, 0*R, 0*R))]), [2, 0, 1])
+        assert np.allclose(dB_by_dRphiZ, dB_by_dRphiZ_analytical)
+        # Compare with field along the axis of a circular coil
+        coils = [CurveXYZFourier(300, 1)]
+        coils[0].set_dofs([0.2, 0.01, 0.05, 0.3, 0.05, 0.021, 0.1, 0.02, 0.03])
+        current = 1.2e7
+        Bfield = BiotSavart(coils, [current])
+        Bfield.set_points(points)
+        B = Bfield.B()
+        BR_Bphi_BZ = Bfield.BR_Bphi_BZ()
+        dB = Bfield.dB_by_dX()
+        dB_by_dRphiZ = Bfield.dB_by_drphiz()
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        x = points[:, 0]
+        y = points[:, 1]
+        drBr = np.cos(phi)*(np.cos(phi)*dB[:, 0, 0]+np.sin(phi)*dB[:, 0, 1])+np.sin(phi)*(np.cos(phi)*dB[:, 1, 0]+np.sin(phi)*dB[:, 1, 1])
+        dphiBr = -np.sin(phi)*B[:, 0]+np.cos(phi)*B[:, 1]+x*(-np.sin(phi)*dB[:, 0, 0]+np.cos(phi)*dB[:, 0, 1])+y*(-np.sin(phi)*dB[:, 1, 0]+np.cos(phi)*dB[:, 1, 1])
+        dzBr = np.cos(phi)*dB[:, 0, 2]+np.sin(phi)*dB[:, 1, 2]
+        drBphi = np.cos(phi)*(np.cos(phi)*dB[:, 1, 0]+np.sin(phi)*dB[:, 1, 1])-np.sin(phi)*(np.cos(phi)*dB[:, 0, 0]+np.sin(phi)*dB[:, 0, 1])
+        dphiBphi = -np.sin(phi)*B[:, 1]-np.cos(phi)*B[:, 0]+x*(-np.sin(phi)*dB[:, 1, 0]+np.cos(phi)*dB[:, 1, 1])-y*(-np.sin(phi)*dB[:, 0, 0]+np.cos(phi)*dB[:, 0, 1])
+        dzBphi = np.cos(phi)*dB[:, 1, 2]-np.sin(phi)*dB[:, 0, 2]
+        drBz = np.cos(phi)*dB[:, 2, 0]+np.sin(phi)*dB[:, 2, 1]
+        dphiBz = -y*dB[:, 2, 0]+x*dB[:, 2, 1]
+        dzBz = dB[:, 2, 2]
+        testField_rphiz = np.array([[np.cos(phi[i])*B[i, 0]+np.sin(phi[i])*B[i, 1], np.cos(phi[i])*B[i, 1]-np.sin(phi[i])*B[i, 0], B[i, 2]] for i in range(npoints)])
+        testFieldDerivatives_rphiz = np.array([[[drBr[i], dphiBr[i], dzBr[i]], [drBphi[i], dphiBphi[i], dzBphi[i]], [drBz[i], dphiBz[i], dzBz[i]]] for i in range(npoints)])
+        assert np.allclose(testField_rphiz, BR_Bphi_BZ)
+        assert np.allclose(testFieldDerivatives_rphiz, dB_by_dRphiZ)
+
+    def test_poincare(self):
+        # Test a toroidal magnetic field with no rotational transform
+        R0test = 1.3
+        B0test = 0.8
+        Bfield = ToroidalField(R0test, B0test)
+        R0 = np.array([1.1, 1.2, 1.3, 1.4, 1.5])
+        Z0 = 0.01*R0
+        npoints = 100
+        data = Bfield.compute_poincare(R0, Z0, npoints=npoints)
+        assert np.allclose(data[:, 0], np.array([R0[i]*np.ones((npoints*4)) for i in range(len(R0))]))
+        assert np.allclose(data[:, 1], np.array([Z0[i]*np.ones((npoints*4)) for i in range(len(Z0))]))
 
 
 if __name__ == "__main__":
