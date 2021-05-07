@@ -68,7 +68,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
             quadpoints_phi=phis, quadpoints_theta=thetas
         )
     else:
-        raise "surface type not implemented"
+        raise Exception("surface type not implemented")
     return s
 
 

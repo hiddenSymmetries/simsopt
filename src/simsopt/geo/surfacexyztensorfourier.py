@@ -20,6 +20,9 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
 
     def to_RZFourier(self):
         surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym, self.quadpoints_phi, self.quadpoints_theta)
+        gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
+        for idx in range(gamma.shape[0]):
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
         surf.least_squares_fit(self.gamma())
         return surf
 

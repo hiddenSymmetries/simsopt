@@ -44,16 +44,17 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi, varphi_resolution=None, theta_resolution=None):
+    def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle phi and returns the cross
-        section of the surface in that plane. This is done using the method of bisection.
+        This function takes in a cylindrical angle :math:`\phi` and returns the cross
+        section of the surface in that plane evaluated at `thetas`. This is
+        done using the method of bisection.
 
-        This function assumes that the surface intersection with the plane is a single
-        curve.
+        This function assumes that the surface intersection with the plane is a
+        single curve.
         """
 
-        # phi is assumed to be between [-pi,pi], so if it does not lie on that interval
+        # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
         # we shift it by multiples of 2pi until it does
         phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
         if phi > np.pi:
@@ -61,19 +62,19 @@ class Surface(Optimizable):
         if phi < -np.pi:
             phi = phi + 2. * np.pi
 
-        if varphi_resolution is None:
-            varphi_resolution = self.gamma().shape[0]
-        if theta_resolution is None:
-            theta_resolution = self.gamma().shape[1]
-
         # varphi are the search intervals on which we look for the cross section in 
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
-        varphi = np.linspace(0., 1., varphi_resolution * self.nfp, endpoint=False)
-        if self.stellsym:
-            theta = np.linspace(0, 1./2., theta_resolution, endpoint=False)
+        varphi = np.asarray([0., 0.5, 1.0])
+
+        if thetas is None:
+            theta = np.asarray(self.quadpoints_theta)
+        elif isinstance(thetas, np.ndarray):
+            theta = thetas
+        elif isinstance(thetas, int):
+            theta = np.linspace(0, 1, thetas, endpoint=False)
         else:
-            theta = np.linspace(0, 1., theta_resolution, endpoint=False)
+            raise NotImplementedError('Need to pass int or 1d np.array to thetas')
 
         varphigrid, thetagrid = np.meshgrid(varphi, theta)
         varphigrid = varphigrid.T
@@ -126,7 +127,7 @@ class Surface(Optimizable):
             minc = (phi > right_bound).astype(int)
             phi = phi + 2.*np.pi * (pinc - minc)
             return phi
-
+        
         def bisection(phia, a, phic, c):
             err = 1.
             while err > 1e-13:
@@ -150,42 +151,67 @@ class Surface(Optimizable):
         return cross_section
 
     def aspect_ratio(self):
-        """
-        Note: cylindrical coordinates are (R, phi, Z)
-               Boozer coordinates are      (varphi, theta)
-
+        r"""
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where :math:`\phi \in [-\pi,\pi)`
+        and the angles that parametrize the surface are :math:`(\varphi, \theta) \in [0,1)^2`
         For a given surface, this function computes its aspect ratio using the VMEC
         definition:
-        AR = R_major / R_minor
-        where R_major = (volume enclosed by surface) / (2 pi^2 * R_minor^2)
-              R_minor = sqrt[ (mean cross sectional area) / pi ]
-        The main difficult part of this calculation is the (mean cross sectional
-        area).  This is given by the integral
-        (mean cross sectional area) = 1/(2*pi)\int^{2 pi}_{0} \int_{S_phi} dS dphi
-        where S_phi is the cross section of the surface at the cylindrical angle phi.
-        Note that \int_{S_\phi} dS can be rewritten as a line integral using the divergence
-        theorem
-        \int_{S_phi}dS = \int_{S_phi} dR dZ 
-                       = \int_{\partial S_phi} nabla_{R,Z} \cdot [R,0] \cdot n dl 
-                       where n = [n_R, n_Z] is the outward pointing normal
-                       = \int_{\partial S_phi} R * n_R dl
-        Consider the surface written in cylindrical coordinates in terms of its Boozer angles
-        [R(varphi,theta), phi(varphi,theta), Z(varphi,theta)].  \partial S_phi is given by the
-        points theta->[R(varphi(phi,theta),theta), Z(varphi(phi,theta),theta)] for fixed
-        phi.  The cross sectional area of S_phi becomes
-                       = \int^{2pi}_{0} R(varphi(phi,theta),theta)
-                                        d/dtheta[Z(varphi(phi,theta),theta)] dtheta
-        Now, substituting this into the formula for the mean cross sectional area, we have
-        1/(2*pi)\int^{2 pi}_{0}\int^{2pi}_{0} R(varphi(phi,theta),theta)
-                                        d/dtheta[Z(varphi(phi,theta),theta)] dtheta dphi
-        Instead of integrating over cylindrical phi, let's complete the change of variables and
-        integrate over Boozer varphi using the mapping:
+        
+        .. math::
+            AR = R_{\text{major}} / R_{\text{minor}}
+        
+        where 
 
-        [phi,theta] <- [atan2(y(varphi,theta), x(varphi,theta)), theta]
+        .. math::
+            R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
+            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
+        
+        and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
+        average cross sectional area.
+        The main difficult part of this calculation is the mean cross sectional
+        area.  This is given by the integral
+        
+        .. math::
+            \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
+        
+        where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
+        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral 
+
+        .. math::
+            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
+            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
+            &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
+
+        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
+
+        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
+        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
+        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi, 
+        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
+
+        .. math::
+            \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
+            \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
+
+        Now, substituting this into the formula for the mean cross sectional area, we have
+
+        .. math::
+            \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
+                \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
+        
+        Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
+        integrate over :math:`\varphi` using the mapping:
+        
+        .. math::
+            [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
+
         After the change of variables, the integral becomes:
-        1/(2*pi)\int^{2 pi}_{0}\int^{2pi}_{0} R(varphi,theta) [dZ_dvarphi dvarphi_dtheta 
-                                                               + dZ_dtheta ] detJ dtheta dvarphi
-        where detJ is the determinant of the mapping's Jacobian.
+        
+        .. math::
+            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
+            \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
+
+        where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
 
         """
 
@@ -196,8 +222,8 @@ class Surface(Optimizable):
 
         # compute the average cross sectional area
         J = np.zeros((xyz.shape[0], xyz.shape[1], 2, 2))
-        J[:, :, 0, 0] = (1. / (2. * np.pi))*(xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0])/x2y2
-        J[:, :, 0, 1] = (1. / (2. * np.pi))*(xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0])/x2y2
+        J[:, :, 0, 0] = (xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0])/x2y2
+        J[:, :, 0, 1] = (xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0])/x2y2
         J[:, :, 1, 0] = 0.
         J[:, :, 1, 1] = 1.
 
@@ -205,7 +231,7 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ)) 
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi) 
 
         R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
         R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
