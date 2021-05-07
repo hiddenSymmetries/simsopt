@@ -63,6 +63,7 @@ optimization.  Others include `STELLOPT
    problems
    testing
    source
+   cite
 
 .. toctree::
    :maxdepth: 3
