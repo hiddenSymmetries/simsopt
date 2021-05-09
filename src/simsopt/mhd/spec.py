@@ -163,7 +163,9 @@ class Spec(Optimizable):
             logger.debug("Done with read_inputlists_from_file")
             spec.allglobal.check_inputs()
 
+        logger.debug('About to call broadcast_inputs')
         spec.allglobal.broadcast_inputs()
+        logger.debug('About to call preset')
         spec.preset()
         logger.debug("Done with init")
         
@@ -186,10 +188,10 @@ class Spec(Optimizable):
         boundary_RZFourier = self.boundary.to_RZFourier()
 
         # Transfer boundary data to fortran:
-        si.rbc = 0.0
-        si.zbs = 0.0
-        si.rbs = 0.0
-        si.zbc = 0.0
+        si.rbc[:,:] = 0.0
+        si.zbs[:,:] = 0.0
+        si.rbs[:,:] = 0.0
+        si.zbc[:,:] = 0.0
         mpol_capped = np.min([boundary_RZFourier.mpol, si.mmpol])
         ntor_capped = np.min([boundary_RZFourier.ntor, si.mntor])
         stellsym = bool(si.istellsym)
@@ -201,33 +203,57 @@ class Spec(Optimizable):
                 if not stellsym:
                     si.rbs[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rs(m, n)
                     si.zbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_zc(m, n)
-        
+                    
         # Set the coordinate axis using the lrzaxis=2 feature:
         si.lrzaxis = 2
         # lrzaxis=2 only seems to work if the axis is not already set
-        si.ras = 0.0
-        si.rac = 0.0
-        si.zas = 0.0
-        si.zac = 0.0
-
+        si.ras[:] = 0.0
+        si.rac[:] = 0.0
+        si.zas[:] = 0.0
+        si.zac[:] = 0.0
+        
+        # Another possible way to initialize the coordinate axis: use
+        # the m=0 modes of the boundary.
+        # m = 0
+        # for n in range(2):
+        #     si.rac[n] = si.rbc[n + si.mntor, m + si.mmpol]
+        #     si.zas[n] = si.zbs[n + si.mntor, m + si.mmpol]
+        
         filename = 'spec{:05}'.format(self.counter)
         logger.info("Running SPEC using filename " + filename)
         self.allglobal.ext = filename
         try:
             # Here is where we actually run SPEC:
-            #spec.preset()
+            if self.mpi.proc0_groups:
+                logger.debug('About to call check_inputs')
+                spec.allglobal.check_inputs()
+            logger.debug('About to call broadcast_inputs')
+            spec.allglobal.broadcast_inputs()
+            logger.debug('About to call preset')
+            spec.preset()
+            logger.debug(f'About to call init_outfile')
             spec.sphdf5.init_outfile()
+            logger.debug('About to call mirror_input_to_outfile')
             spec.sphdf5.mirror_input_to_outfile()
             if self.mpi.proc0_groups:
+                logger.debug('About to call wrtend')
                 spec.allglobal.wrtend()
+            logger.debug('About to call init_convergence_output')
             spec.sphdf5.init_convergence_output()
+            logger.debug(f'About to call spec')
             spec.spec()
+            logger.debug('About to call diagnostics')
             spec.final_diagnostics()
+            logger.debug('About to call write_grid')
             spec.sphdf5.write_grid()
             if self.mpi.proc0_groups:
+                logger.debug('About to call wrtend')
                 spec.allglobal.wrtend()
+            logger.debug('About to call hdfint')
             spec.sphdf5.hdfint()
+            logger.debug('About to call finish_outfile')
             spec.sphdf5.finish_outfile()
+            logger.debug('About to call ending')
             spec.ending()
             
         except:
