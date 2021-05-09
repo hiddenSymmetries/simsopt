@@ -4,17 +4,20 @@ import logging
 from simsopt.objectives.functions import Identity, Rosenbrock
 from simsopt._core.optimizable import Target
 from simsopt.objectives.least_squares import LeastSquaresProblem, \
-        LeastSquaresTerm
+    LeastSquaresTerm
 from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi import least_squares_mpi_solve
 
+
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
-    
+
+
 solvers = [least_squares_serial_solve, mpi_solve_1group]
 
 #logging.basicConfig(level=logging.DEBUG)
+
 
 class LeastSquaresProblemTests(unittest.TestCase):
 
@@ -178,6 +181,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 v = r.get_dofs()
                 self.assertAlmostEqual(v[0], 1)
                 self.assertAlmostEqual(v[1], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -39,6 +39,7 @@ from ..util.mpi import MpiPartition
 logger = logging.getLogger(__name__)
 
 
+
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -104,7 +105,7 @@ class Spec(Optimizable):
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'defaults.sp')
             logger.info("Initializing a SPEC object from defaults in " \
-                            + filename)
+                        + filename)
         else:
             logger.info("Initializing a SPEC object from file: " + filename)
 
@@ -137,7 +138,7 @@ class Spec(Optimizable):
         # dofs owned by the boundary surface object, are fixed.
         self.fixed = np.full(len(self.get_dofs()), True)
         self.names = ['phiedge', 'curtor']
-        
+
     def get_dofs(self):
         return np.array([self.inputlist.phiedge,
                          self.inputlist.curtor])
@@ -280,7 +281,7 @@ class Spec(Optimizable):
         """
         self.run()
         return self.results.output.volume * self.results.input.physics.Nfp
-        
+
     def iota(self):
         """
         Return the rotational transform in the middle of the volume.
@@ -293,23 +294,26 @@ class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
     """
-    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0, s_max=1.0, rtol=1e-9):
+
+    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0,
+                 s_max=1.0, rtol=1e-9):
         """
         spec: a Spec object
         pp, qq: Numerator and denominator for the resonant iota = pp / qq
         vol: Index of the Spec volume to consider
         theta: Spec's theta coordinate at the periodic field line
-        s_guess: Guess for the value of Spec's s coordinate at the periodic field line
+        s_guess: Guess for the value of Spec's s coordinate at the periodic
+                field line
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
         """
         if not spec_found:
             raise RuntimeError(
-              "Residue requires py_spec package to be installed.")
+                "Residue requires py_spec package to be installed.")
         if not pyoculus_found:
             raise RuntimeError(
-              "Residue requires pyoculus package to be installed.")
-        
+                "Residue requires pyoculus package to be installed.")
+
         self.spec = spec
         self.pp = pp
         self.qq = qq
@@ -336,8 +340,8 @@ class Residue(Optimizable):
             # Set nrestart=0 because otherwise the random guesses in
             # pyoculus can cause examples/tests to be
             # non-reproducible.
-            fp = pyoculus.solvers.FixedPoint(specb, {'theta':self.theta, 'nrestart':0},
-                                             integrator_params={'rtol':self.rtol})
+            fp = pyoculus.solvers.FixedPoint(specb, {'theta': self.theta, 'nrestart': 0},
+                                             integrator_params={'rtol': self.rtol})
             self.fixed_point = fp.compute(self.s_guess,
                                           sbegin=self.s_min,
                                           send=self.s_max,
@@ -346,9 +350,9 @@ class Residue(Optimizable):
 
         if self.fixed_point is None:
             raise ObjectiveFailure("Residue calculation failed")
-        
+
         return self.fixed_point.GreenesResidue
-    
+
     def get_dofs(self):
         return np.array([])
 

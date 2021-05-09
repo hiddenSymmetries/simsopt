@@ -158,7 +158,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
             raise ValueError('n must be <= ntor')
         if n < -self.ntor:
             raise ValueError('n must be >= -ntor')
-    
+
     def get_rc(self, m, n):
         """
         Return a particular rc Parameter.
@@ -279,7 +279,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
                 if 1 - m >= 0:
                     Delta += 0.5 * (self.get_rc(1 - m, -n) + self.get_zs(1 - m, -n))
                 s.set_Delta(m, n, Delta)
-                
+
         return s
 
     def darea(self):

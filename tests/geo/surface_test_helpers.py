@@ -60,7 +60,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     if surfacetype == "SurfaceXYZFourier":
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surfacetype == "SurfaceRZFourier":
-         s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surfacetype == "SurfaceXYZTensorFourier":
         s = SurfaceXYZTensorFourier(
             mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
@@ -68,8 +68,9 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
             quadpoints_phi=phis, quadpoints_theta=thetas
         )
     else:
-        raise "surface type not implemented"
+        raise Exception("surface type not implemented")
     return s
+
 
 def get_exact_surface():
     filename_X = TEST_DIR / 'NCSX_test_data'/'X.dat'
@@ -91,5 +92,5 @@ def get_exact_surface():
     thetas = np.linspace(0, 1, ntheta, endpoint=False)
     s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
     s.least_squares_fit(xyz)
-    
+
     return s

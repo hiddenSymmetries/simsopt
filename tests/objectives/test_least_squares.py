@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from simsopt.objectives.functions import Identity, Rosenbrock, \
     Failer, RosenbrockWithFailures
 from simsopt.objectives.least_squares import LeastSquaresProblem, \
-        LeastSquaresTerm
+    LeastSquaresTerm
 from simsopt._core.optimizable import Target
 
 
@@ -25,7 +25,7 @@ class LeastSquaresTermTests(unittest.TestCase):
         self.assertEqual(lst.f_in, iden.J)
         self.assertEqual(lst.goal, 3)
         self.assertAlmostEqual(lst.weight, 100.0, places=13)
-        
+
         iden.set_dofs([17])
         self.assertEqual(lst.f_in(), 17)
         correct_value = ((17 - 3) / 0.1) ** 2
@@ -265,6 +265,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         # Need a large tolerance, since the failures confuse the
         # optimizer
         np.testing.assert_allclose(result.x, [1, 1], atol=1e-2)
-        
+
+
 if __name__ == "__main__":
     unittest.main()
