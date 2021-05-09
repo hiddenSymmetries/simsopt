@@ -38,7 +38,7 @@ class SpecTests(unittest.TestCase):
         self.assertTrue(s.need_to_run_code)
 
         places = 5
-        
+
         # n = 0, m = 0:
         self.assertAlmostEqual(s.boundary.get_rc(0, 0), 1.0, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 0), 0.0, places=places)
@@ -66,9 +66,9 @@ class SpecTests(unittest.TestCase):
                 s.inputlist.mpol = new_mpol
                 s.inputlist.ntor = new_ntor
                 s.run()
-        
+
                 self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
-        
+
                 self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
@@ -104,7 +104,7 @@ class SpecTests(unittest.TestCase):
 
             surf.set_rc(1, 0, 0.1)
             surf.set_zs(1, 0, 0.1)
-            
+
             surf.set_rc(1, 1, 0)
             surf.set_zs(1, 1, 0)
 
@@ -137,7 +137,7 @@ class SpecTests(unittest.TestCase):
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob, grad=grad)
-            
+
             self.assertAlmostEqual(surf.get_rc(0, 0), 0.7599088773175, places=5)
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
@@ -188,7 +188,7 @@ class SpecTests(unittest.TestCase):
             
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
-            desired_iota = 0.41 # Sign was + for VMEC
+            desired_iota = 0.41  # Sign was + for VMEC
             prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
 
             # Check that the problem was set up correctly:
@@ -200,7 +200,7 @@ class SpecTests(unittest.TestCase):
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob)
-            
+
             self.assertAlmostEqual(surf.get_Delta(1, -1), 0.08575, places=4)
             self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
