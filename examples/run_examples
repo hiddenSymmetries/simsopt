@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script runs all the examples. This script is used by the Github
+# This script runs most of the examples. This script is used by the Github
 # Actions continuous integration. Examples that can use MPI are run
 # for various numbers of processes.
 
@@ -26,6 +26,8 @@ mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxi
 mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
 
 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
+mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
 
 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
@@ -46,6 +48,8 @@ mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 mpiexec $MPI_OPTIONS -n 2 ./resolution_increase
 
 ./eliminate_magnetic_islands
+mpiexec $MPI_OPTIONS -n 2 ./eliminate_magnetic_islands
+mpiexec $MPI_OPTIONS -n 3 ./eliminate_magnetic_islands
 
 ./boozer
 
