@@ -12,12 +12,16 @@ to the approach of Hanson and Cary (1984).
 """
 
 import numpy as np
+from simsopt.util.mpi import MpiPartition
 from simsopt.mhd.spec import Spec, Residue
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
+
+mpi = MpiPartition()
+mpi.write()
 
 # Initialze a Spec object from a standard SPEC input file:
-s = Spec('QH-residues.sp')
+s = Spec('QH-residues.sp', mpi=mpi)
 
 # Expand number of Fourier modes to include larger poloidal mode numbers:
 s.boundary.change_resolution(6, s.boundary.ntor)
@@ -57,14 +61,15 @@ prob = LeastSquaresProblem([(residue1, 0, 1),
                             (residue4, 0, 1)])
 
 # Solve the optimization problem:
-least_squares_serial_solve(prob)
+least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
 final_r1 = residue1.J()                                                                    
 final_r2 = residue2.J()                                                                    
 expected_solution = np.array([1.1076171888771095e-03,  4.5277618989828059e-04])
-print(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
-print("Expected state vector:", expected_solution)
-print("Difference from expected solution:", prob.x - expected_solution)
-print(f"Final residues: {final_r1}, {final_r2}")
+if mpi.proc0_world:
+    print(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
+    print("Expected state vector:", expected_solution)
+    print("Difference from expected solution:", prob.x - expected_solution)
+    print(f"Final residues: {final_r1}, {final_r2}")
 
 np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)

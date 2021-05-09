@@ -107,9 +107,12 @@ class Spec(Optimizable):
             logger.info("Initializing a SPEC object from defaults in " \
                         + filename)
         else:
+            if not filename.endswith('.sp'):
+                filename = filename + '.sp'
             logger.info("Initializing a SPEC object from file: " + filename)
 
         self.init(filename)
+        self.extension = filename[:-3]
 
         # Create a surface object for the boundary:
         si = spec.inputlist  # Shorthand
@@ -159,7 +162,8 @@ class Spec(Optimizable):
         if self.mpi.proc0_groups:
             spec.inputlist.initialize_inputs()
             logger.debug("Done with initialize_inputs")
-            spec.allglobal.ext = filename[:-3]  # Remove the ".sp"
+            self.extension = filename[:-3]  # Remove the ".sp"
+            spec.allglobal.ext = self.extension
             spec.allglobal.read_inputlists_from_file()
             logger.debug("Done with read_inputlists_from_file")
             spec.allglobal.check_inputs()
@@ -220,7 +224,7 @@ class Spec(Optimizable):
         #     si.rac[n] = si.rbc[n + si.mntor, m + si.mmpol]
         #     si.zas[n] = si.zbs[n + si.mntor, m + si.mmpol]
 
-        filename = 'spec{:05}'.format(self.counter)
+        filename = self.extension + '_{:03}_{:06}'.format(self.mpi.group, self.counter)
         logger.info("Running SPEC using filename " + filename)
         self.allglobal.ext = filename
         try:
@@ -263,6 +267,8 @@ class Spec(Optimizable):
             raise ObjectiveFailure("SPEC did not run successfully.")
 
         logger.info("SPEC run complete.")
+        # Barrier so workers do not try to read the .h5 file before it is finished:
+        self.mpi.comm_groups.Barrier()
 
         try:
             self.results = py_spec.SPECout(filename + '.sp.h5')
@@ -329,11 +335,20 @@ class Residue(Optimizable):
         self.depends_on = ['spec']
         self.need_to_run_code = True
         self.fixed_point = None
+        # We may at some point want to allow Residue to use a
+        # different MpiPartition than the Spec object it is attached
+        # to, but for now we'll use the same MpiPartition for
+        # simplicity.
+        self.mpi = spec.mpi
 
     def J(self):
         """
         Run Spec if needed, find the periodic field line, and return the residue
         """
+        if not self.mpi.proc0_groups:
+            logger.info("This proc is skipping Residue.J() since it is not a group leader.")
+            return
+
         if self.need_to_run_code:
             self.spec.run()
             specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
