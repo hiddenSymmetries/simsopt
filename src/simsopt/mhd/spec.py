@@ -39,7 +39,6 @@ from ..util.mpi import MpiPartition
 logger = logging.getLogger(__name__)
 
 
-
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -60,15 +59,16 @@ class Spec(Optimizable):
           each MPI process will run SPEC independently.
         verbose: Whether to print SPEC output to stdout.
     """
+
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  verbose: bool = True):
-        
+
         if not spec_found:
             raise RuntimeError(
                 "Using Spec requires spec python wrapper to be installed.")
-        
+
         if not py_spec_found:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
@@ -112,14 +112,14 @@ class Spec(Optimizable):
         self.init(filename)
 
         # Create a surface object for the boundary:
-        si = spec.inputlist # Shorthand
+        si = spec.inputlist  # Shorthand
         stellsym = bool(si.istellsym)
         print("In __init__, si.istellsym=", si.istellsym, " stellsym=", stellsym)
         self.boundary = SurfaceRZFourier(nfp=si.nfp,
                                          stellsym=stellsym,
                                          mpol=si.mpol,
                                          ntor=si.ntor)
-        
+
         # Transfer the boundary shape from fortran to the boundary
         # surface object:
         for m in range(si.mpol + 1):
@@ -129,7 +129,7 @@ class Spec(Optimizable):
                 if not stellsym:
                     self.boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
                     self.boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
-                
+
         self.depends_on = ["boundary"]
         self.need_to_run_code = True
         self.counter = 0
@@ -159,7 +159,7 @@ class Spec(Optimizable):
         if self.mpi.proc0_groups:
             spec.inputlist.initialize_inputs()
             logger.debug("Done with initialize_inputs")
-            spec.allglobal.ext = filename[:-3] # Remove the ".sp"
+            spec.allglobal.ext = filename[:-3]  # Remove the ".sp"
             spec.allglobal.read_inputlists_from_file()
             logger.debug("Done with read_inputlists_from_file")
             spec.allglobal.check_inputs()
@@ -169,7 +169,7 @@ class Spec(Optimizable):
         logger.debug('About to call preset')
         spec.preset()
         logger.debug("Done with init")
-        
+
     def run(self):
         """
         Run SPEC, if needed.
@@ -179,20 +179,20 @@ class Spec(Optimizable):
             return
         logger.info("Preparing to run SPEC.")
 
-        si = self.inputlist # Shorthand
-        
+        si = self.inputlist  # Shorthand
+
         # nfp must be consistent between the surface and SPEC. The surface's value trumps.
         si.nfp = self.boundary.nfp
         si.istellsym = int(self.boundary.stellsym)
-        
+
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
 
         # Transfer boundary data to fortran:
-        si.rbc[:,:] = 0.0
-        si.zbs[:,:] = 0.0
-        si.rbs[:,:] = 0.0
-        si.zbc[:,:] = 0.0
+        si.rbc[:, :] = 0.0
+        si.zbs[:, :] = 0.0
+        si.rbs[:, :] = 0.0
+        si.zbc[:, :] = 0.0
         mpol_capped = np.min([boundary_RZFourier.mpol, si.mmpol])
         ntor_capped = np.min([boundary_RZFourier.ntor, si.mntor])
         stellsym = bool(si.istellsym)
@@ -204,7 +204,7 @@ class Spec(Optimizable):
                 if not stellsym:
                     si.rbs[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rs(m, n)
                     si.zbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_zc(m, n)
-                    
+
         # Set the coordinate axis using the lrzaxis=2 feature:
         si.lrzaxis = 2
         # lrzaxis=2 only seems to work if the axis is not already set
@@ -212,14 +212,14 @@ class Spec(Optimizable):
         si.rac[:] = 0.0
         si.zas[:] = 0.0
         si.zac[:] = 0.0
-        
+
         # Another possible way to initialize the coordinate axis: use
         # the m=0 modes of the boundary.
         # m = 0
         # for n in range(2):
         #     si.rac[n] = si.rbc[n + si.mntor, m + si.mmpol]
         #     si.zas[n] = si.zbs[n + si.mntor, m + si.mmpol]
-        
+
         filename = 'spec{:05}'.format(self.counter)
         logger.info("Running SPEC using filename " + filename)
         self.allglobal.ext = filename
@@ -256,21 +256,21 @@ class Spec(Optimizable):
             spec.sphdf5.finish_outfile()
             logger.debug('About to call ending')
             spec.ending()
-            
+
         except:
             if self.verbose:
                 traceback.print_exc()
             raise ObjectiveFailure("SPEC did not run successfully.")
 
         logger.info("SPEC run complete.")
-        
+
         try:
             self.results = py_spec.SPECout(filename + '.sp.h5')
         except:
             if self.verbose:
                 traceback.print_exc()
             raise ObjectiveFailure("Unable to read results following SPEC execution")
-        
+
         logger.info("Successfully loaded SPEC results.")
         self.counter += 1
         self.need_to_run_code = False

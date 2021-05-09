@@ -51,7 +51,6 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
-
     @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_run(self):
         """
@@ -72,7 +71,7 @@ class SpecTests(unittest.TestCase):
                 self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
-    
+
     @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof(self):
         """
@@ -118,7 +117,7 @@ class SpecTests(unittest.TestCase):
             # Turn off Poincare plots and use low resolution, for speed:
             equil.inputlist.nptrj[0] = 0
             equil.inputlist.lrad[0] = 2
-            
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
             desired_volume = 0.15
@@ -142,7 +141,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
-    
+
     @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
@@ -185,7 +184,7 @@ class SpecTests(unittest.TestCase):
             # Use low resolution, for speed:
             equil.inputlist.lrad[0] = 4
             equil.inputlist.nppts = 100
-            
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
             desired_iota = 0.41  # Sign was + for VMEC
@@ -204,7 +203,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(surf.get_Delta(1, -1), 0.08575, places=4)
             self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
-    
+
     @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_2dof(self):
         """
