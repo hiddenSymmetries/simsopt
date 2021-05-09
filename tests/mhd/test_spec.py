@@ -116,8 +116,8 @@ class SpecTests(unittest.TestCase):
             surf.set_fixed('rc(0,0)', False)
 
             # Turn off Poincare plots and use low resolution, for speed:
-            equil.inputlist.nptrj = 0
-            equil.inputlist.lrad = [2]
+            equil.inputlist.nptrj[0] = 0
+            equil.inputlist.lrad[0] = 2
             
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
@@ -183,8 +183,8 @@ class SpecTests(unittest.TestCase):
             surf.set_fixed('Delta(1,-1)', False)
 
             # Use low resolution, for speed:
-            equil.nml['physicslist']['lrad'] = [4]
-            equil.nml['diagnosticslist']['nppts'] = 100
+            equil.inputlist.lrad[0] = 4
+            equil.inputlist.nppts = 100
             
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
