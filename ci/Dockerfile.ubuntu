@@ -1,0 +1,26 @@
+FROM ubuntu:20.04
+
+COPY github_key .
+
+RUN apt update && DEBIAN_FRONTEND=noninteractive  apt install -y build-essential python3 python3-pip gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libscalapack-openmpi-dev  libhdf5-openmpi-dev git m4 libfftw3-dev
+# RUN git clone --depth 1 https://gitlab.com/mattland/VMEC2000.git
+RUN python3 -m pip install wheel numpy "pybind11[global]" scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus py_spec mpi4py
+RUN python3 -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+RUN python3 -m pip install -v git+https://github.com/mbkumar/python-mpi-logger
+#ENV CC=gfortran_ubuntu
+RUN eval $(ssh-agent) && \
+    ssh-add github_key && \
+    ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts && \
+    git clone --depth 1 git@github.com:PrincetonUniversity/SPEC.git && \
+    cd SPEC &&  \
+    cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1 && \
+    cp Makefile1 Makefile && \
+    make  
+ENV PATH=$PATH:$PWD/SPEC
+RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git && \
+    cd VMEC2000 && \
+    cp python/machines/ubuntu.json cmake_config_file.json && \
+    python3 -m pip install -v .
+RUN python3 -m pip install -v "git+https://github.com/hiddenSymmetries/simsopt"
+
+CMD ["python3"]
