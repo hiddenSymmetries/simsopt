@@ -1,16 +1,20 @@
 #pragma once
 #include "xtensor/xarray.hpp"
-#include "cachedarray.h"
+#include <stdexcept>
 #include <fmt/core.h>
-#include "biot_savart_impl.h"
 
+#include "cachedarray.h"
+#include "biot_savart_impl.h"
+#include "curve.h"
+
+using std::logic_error;
 using std::vector;
 using std::shared_ptr;
 
 template<class Array>
 class MagneticField {
     private:
-        map<string, CachedArray<Array>> cache;
+        std::map<string, CachedArray<Array>> cache;
 
     public:
         Array points;
