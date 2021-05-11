@@ -5,7 +5,7 @@ import logging
 import shutil
 from simsopt.mhd.spec import spec_found
 if spec_found:
-    from simsopt.mhd.spec import Spec
+    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
@@ -268,6 +268,32 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(surf.volume(), 0.178091, places=3)
         self.assertAlmostEqual(equil.iota(), -0.4114567, places=3)
         self.assertAlmostEqual(prob.objective(), 7.912501330E-04, places=3)
+
+    @unittest.skipIf((not spec_found) or (not pyoculus_found),
+                     "SPEC python module or pyoculus not found")
+    def test_residue(self):
+        """
+        Check that we can compute residues from a Spec equilibrium.
+        """
+
+        filename = os.path.join(TEST_DIR, 'QH-residues.sp')
+
+        # Initialize SPEC from an input file
+        spec = Spec(filename)
+        # The main resonant surface is iota = p / q:
+        p = -8
+        q = 7
+        # Guess for radial location of the island chain:
+        s_guess = 0.9
+
+        residue1 = Residue(spec, p, q, s_guess=s_guess)
+        residue2 = Residue(spec, p, q, s_guess=s_guess, theta=np.pi)
+
+        res1 = residue1.J()
+        res2 = residue2.J()
+        print(f'Residues: {res1}, {res2}')
+        self.assertAlmostEqual(res1, 0.02331532869145614, places=4)
+        self.assertAlmostEqual(res2, -0.022876376815881616, places=4)
 
 
 if __name__ == "__main__":
