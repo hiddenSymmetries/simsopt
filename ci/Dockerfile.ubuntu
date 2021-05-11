@@ -47,5 +47,6 @@ COPY --from=intermediate /src/SPEC/xspec /usr/bin
 COPY entrypoint.sh /venv/bin
 
 #env PATH=$PATH:/venv/bin
+ENV OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENTRYPOINT ["bash", "/venv/bin/entrypoint.sh"]
 CMD ["bash"]
