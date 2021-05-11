@@ -1,6 +1,6 @@
 #pragma once
 #include "xtensor/xarray.hpp"
-#include "cachedarray.hpp"
+#include "cachedarray.h"
 #include <fmt/core.h>
 #include "biot_savart_impl.h"
 

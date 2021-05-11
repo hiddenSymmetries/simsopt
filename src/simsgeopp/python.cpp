@@ -7,18 +7,18 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 
-#include "surface.cpp"
-#include "pysurface.cpp"
-#include "surfacerzfourier.cpp"
+#include "surface.h"
+#include "pysurface.h"
+#include "surfacerzfourier.h"
 typedef SurfaceRZFourier<PyArray> PySurfaceRZFourier;
-#include "surfacexyzfourier.cpp"
+#include "surfacexyzfourier.h"
 typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
-#include "surfacexyztensorfourier.cpp"
+#include "surfacexyztensorfourier.h"
 typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
 
 #include "curve.h"
-#include "pycurve.cpp"
+#include "pycurve.h"
 
 #include "curvexyzfourier.h"
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
@@ -29,7 +29,7 @@ typedef CurveRZFourier<PyArray> PyCurveRZFourier;
 
 #include "magneticfield.h"
 
-#include "dommaschk.cpp"
+#include "dommaschk.h"
 
 #include "regular_grid_interpolant_3d.h"
 

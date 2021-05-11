@@ -1,6 +1,6 @@
 #pragma once
 
-#include "surface.cpp"
+#include "surface.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 

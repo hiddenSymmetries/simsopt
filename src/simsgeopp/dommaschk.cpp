@@ -1,7 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include "dommaschk.h"
 #include <math.h>
-#include <time.h>
 
 double alpha(int m,int l) {
 	double y;
@@ -468,6 +466,7 @@ double dZBphi(int m, int n, double R, double Z, double phi, double coeff1, doubl
 
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
+
 Array DommaschkB(Array& mArray, Array& nArray, Array& coeffs, Array& points){
     int num_points = points.shape(0);
     int num_coeffs = coeffs.shape(0);

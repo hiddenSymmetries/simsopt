@@ -11,7 +11,7 @@ using std::map;
 using std::logic_error;
 
 #include "xtensor/xarray.hpp"
-#include "cachedarray.hpp"
+#include "cachedarray.h"
 
 #include <Eigen/Dense>
 
