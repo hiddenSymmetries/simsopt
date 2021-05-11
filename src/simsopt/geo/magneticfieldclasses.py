@@ -336,6 +336,7 @@ class InterpolatedField(MagneticField):
         self.zmin = zmin
         self.zmax = zmax
         self.zsteps = zsteps
+        self._last_B = None
 
         import simsgeopp as sgpp
         if order == 1:
@@ -358,13 +359,16 @@ class InterpolatedField(MagneticField):
     def compute(self, points, compute_derivatives=0):
         if compute_derivatives > 0:
             raise NotImplementedError('Only B supported.')
+        if self._last_B is not None and self._last_B.shape == points.shape:
+            self._B = self._last_B
+        else:
+            self._B = np.zeros_like(points)
+        self.Bh.evaluate_batch_with_transform(points, self._B)
+        self._last_B = self._B
 
-        r = np.linalg.norm(points[:, :2], axis=1)
-        phi = np.arctan2(points[:, 1], points[:, 0])
-        z = points[:, 2]
-        print(np.min(r), np.max(r))
-        print(np.min(phi), np.max(phi))
-        print(np.min(z), np.max(z))
-        self._B = np.zeros_like(points)
-        for i in range(points.shape[0]):
-            self._B[i, :] = self.Bh.evaluate(r[i], phi[i], z[i])
+    def estimate_error(self, n=1000):
+        def bsfun(r, phi, z):
+            x = r * np.cos(phi)
+            y = r * np.sin(phi)
+            return self.basefield.set_points(np.asarray([[x, y, z]])).B()[0, :]
+        return self.Bh.estimate_error(bsfun, n)

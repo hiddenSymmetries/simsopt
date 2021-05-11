@@ -1,4 +1,9 @@
 #include "regular_grid_interpolant_3d.h"
+#include "xtensor/xlayout.hpp"
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+#define _EPS_ 1e-10
 
 template<>
 double basis_fun<1>(int idx, double x){
@@ -46,8 +51,8 @@ double basis_fun<4>(int idx, double x){
         return x*(x-0.25)*(x-0.5)*(x-0.75)/(0.09375);
 }
 
-template<int degree>
-void RegularGridInterpolant3D<degree>::interpolate(std::function<Vec(double, double, double)> &f) {
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::interpolate(std::function<Vec(double, double, double)> &f) {
     Vec t;
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
@@ -63,8 +68,8 @@ void RegularGridInterpolant3D<degree>::interpolate(std::function<Vec(double, dou
     build_local_vals();
 }
 
-template<int degree>
-void RegularGridInterpolant3D<degree>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
     Vec xcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
     Vec ycoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
     Vec zcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
@@ -93,8 +98,8 @@ void RegularGridInterpolant3D<degree>::interpolate_batch(std::function<Vec(Vec, 
     build_local_vals();
 }
 
-template<int degree>
-void RegularGridInterpolant3D<degree>::build_local_vals(){
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::build_local_vals(){
     all_local_vals = std::vector<AlignedVec>(
             nx*ny*nz,
             AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
@@ -116,17 +121,53 @@ void RegularGridInterpolant3D<degree>::build_local_vals(){
 }
 
 
-template<int degree>
-Vec RegularGridInterpolant3D<degree>::evaluate(double x, double y, double z){
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::evaluate_batch_with_transform(Array& xyz, Array& fxyz){
+    if(fxyz.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("fxyz needs to be in row-major storage order");
+    int npoints = xyz.shape(0);
+    for (int i = 0; i < npoints; ++i) {
+        double r = std::sqrt(xyz(i, 0)*xyz(i, 0) + xyz(i, 1)*xyz(i, 1));
+        double phi = std::atan2(xyz(i, 1), xyz(i, 0)) + M_PI;
+        evaluate_inplace(r, phi, xyz(i, 2), &(fxyz(i, 0)));
+    }
+}
+
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::evaluate_batch(Array& xyz, Array& fxyz){
+    if(fxyz.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("fxyz needs to be in row-major storage order");
+    int npoints = xyz.shape(0);
+    for (int i = 0; i < npoints; ++i) {
+        evaluate_inplace(xyz(i, 0), xyz(i, 1), xyz(i, 2), &(fxyz(i, 0)));
+    }
+}
+
+template<class Array, int degree>
+Vec RegularGridInterpolant3D<Array, degree>::evaluate(double x, double y, double z){
+    Vec fxyz(value_size, 0.);
+    evaluate_inplace(x, y, z, fxyz.data());
+    return fxyz;
+
+}
+
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::evaluate_inplace(double x, double y, double z, double* res){
+    if(x < xmin || x >= xmax)
+        throw std::runtime_error(fmt::format("x={} not within [{}, {}]", x, xmin, xmax));
+    if(y < ymin || y >= ymax)
+        throw std::runtime_error(fmt::format("y={} not within [{}, {}]", y, ymin, ymax));
+    if(z < zmin || z >= zmax)
+        throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
     int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
     if(xidx < 0 || xidx >= nx)
-        throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, 0, nx-1));
+        throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
     if(yidx < 0 || yidx >= ny)
-        throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, 0, ny-1));
+        throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
     if(zidx < 0 || zidx >= nz)
-        throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, 0, nz-1));
+        throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
 
     //vals_local = all_local_vals[idx_cell(xidx, yidx, zidx)];
     //for (int i = 0; i < degree+1; ++i) {
@@ -145,20 +186,20 @@ Vec RegularGridInterpolant3D<degree>::evaluate(double x, double y, double z){
     double xlocal = (x-xsmesh[xidx])/hx;
     double ylocal = (y-ysmesh[yidx])/hy;
     double zlocal = (z-zsmesh[zidx])/hz;
-    if(xlocal < 0. || xlocal > 1.)
+    if(xlocal < 0.-_EPS_ || xlocal > 1.+_EPS_)
         throw std::runtime_error(fmt::format("xlocal={} not within [0, 1]", xlocal));
-    if(ylocal < 0. || ylocal > 1.)
+    if(ylocal < 0.-_EPS_ || ylocal > 1.+_EPS_)
         throw std::runtime_error(fmt::format("ylocal={} not within [0, 1]", ylocal));
-    if(zlocal < 0. || zlocal > 1.)
+    if(zlocal < 0.-_EPS_ || zlocal > 1.+_EPS_)
         throw std::runtime_error(fmt::format("zlocal={} not within [0, 1]", zlocal));
     //std::cout << "local coordinates=(" << xlocal << ", " << ylocal << ", " << zlocal << ")" << std::endl;
-    return evaluate_local(xlocal, ylocal, zlocal, idx_cell(xidx, yidx, zidx));
+    return evaluate_local(xlocal, ylocal, zlocal, idx_cell(xidx, yidx, zidx), res);
 }
 
-template<int degree>
-Vec RegularGridInterpolant3D<degree>::evaluate_local(double x, double y, double z, int cell_idx)
+template<class Array, int degree>
+void RegularGridInterpolant3D<Array, degree>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
 {
-    Vec res(value_size, 0.);
+    //Vec res(value_size, 0.);
     double* vals_local = all_local_vals[cell_idx].data();
     for(int l=0; l<padded_value_size; l += simdcount) {
         simd_t sumi(0.);
@@ -187,11 +228,10 @@ Vec RegularGridInterpolant3D<degree>::evaluate_local(double x, double y, double 
         }
         //xsimd::store_unaligned(&(res[l]), sumi);
     }
-    return res;
 }
 
-template<int degree>
-std::pair<double, double> RegularGridInterpolant3D<degree>::estimate_error(std::function<Vec(double, double, double)> &f, int samples) {
+template<class Array, int degree>
+std::pair<double, double> RegularGridInterpolant3D<Array, degree>::estimate_error(std::function<Vec(double, double, double)> &f, int samples) {
     std::default_random_engine generator;
     std::uniform_real_distribution<double> distribution(0.0, +1.0);
     double err = 0;
@@ -217,11 +257,6 @@ std::pair<double, double> RegularGridInterpolant3D<degree>::estimate_error(std::
 }
 
 
-template class RegularGridInterpolant3D<1>;
-template class RegularGridInterpolant3D<2>;
-template class RegularGridInterpolant3D<3>;
-template class RegularGridInterpolant3D<4>;
-
 
 Vec linspace(double min, double max, int n, bool endpoint) {
     Vec res(n, 0.);
@@ -236,4 +271,3 @@ Vec linspace(double min, double max, int n, bool endpoint) {
     }
     return res;
 }
-

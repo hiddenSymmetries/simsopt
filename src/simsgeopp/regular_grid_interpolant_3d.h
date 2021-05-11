@@ -20,7 +20,7 @@ double basis_fun(int idx, double x);
 
 Vec linspace(double min, double max, int n, bool endpoint);
 
-template<int degree>
+template<class Array, int degree>
 class RegularGridInterpolant3D {
     private:
         int nx, ny, nz;
@@ -97,7 +97,10 @@ class RegularGridInterpolant3D {
             return i*(degree+1)*(degree+1) + j*(degree+1) + k;
         } 
 
+        void evaluate_batch_with_transform(Array& xyz, Array& fxyz);
+        void evaluate_batch(Array& xyz, Array& fxyz);
         Vec evaluate(double x, double y, double z);
-        Vec evaluate_local(double x, double y, double z, int cell_idx);
+        void evaluate_inplace(double x, double y, double z, double* res);
+        void evaluate_local(double x, double y, double z, int cell_idx, double* res);
         std::pair<double, double> estimate_error(std::function<Vec(double, double, double)> &f, int samples);
 };
