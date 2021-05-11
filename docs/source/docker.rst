@@ -12,7 +12,7 @@ before proceeding further.
 Install From Docker Hub
 ^^^^^^^^^^^^^^^
 The easiest way to get simsopt docker image which comes with simsopt and all of its dependencies such as
-SPEC and VMEC pre-installed is use to Docker Hub. After 
+SPEC and VMEC pre-installed is to use Docker Hub. After 
 `installing docker <https://docs.docker.com/get-started/>`_, you can run
 the simsopt container directly from the simsopt docker image uploaded to
 Docker Hub.
