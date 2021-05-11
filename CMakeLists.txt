@@ -5,6 +5,8 @@ project(simsgeopp)
 #find_package(PythonInterp 3 REQUIRED)
 #find_package(PythonLibs 3 REQUIRED)
 #find_package(NumPy REQUIRED)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
@@ -45,7 +47,7 @@ set(XTENSOR_USE_OPENMP 0)
 
 
 pybind11_add_module(${PROJECT_NAME}
-    src/simsgeopp/python.cpp src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp src/simsgeopp/regular_grid_interpolant_3d_py.cpp
+    src/simsgeopp/python.cpp src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp src/simsgeopp/regular_grid_interpolant_3d_py.cpp src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

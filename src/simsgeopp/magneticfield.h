@@ -58,6 +58,7 @@ class MagneticField {
 
         virtual void B_impl(Array& B) { throw logic_error("B_impl was not implemented"); }
         virtual void dB_by_dX_impl(Array& dB_by_dX) { throw logic_error("dB_by_dX_impl was not implemented"); }
+        virtual void d2B_by_dXdX_impl(Array& d2B_by_dXdX) { throw logic_error("d2B_by_dXdX_impl was not implemented"); }
 
         Array& B() {
             return check_the_cache_and_fill("B", {static_cast<int>(points.shape(0)), 3}, [this](Array& B) { return B_impl(B);});
