@@ -1,6 +1,6 @@
 #pragma once
 
-#include "curve.cpp"
+#include "curve.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 

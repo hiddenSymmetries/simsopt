@@ -17,12 +17,12 @@ typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
 typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
 
-#include "curve.cpp"
+#include "curve.h"
 #include "pycurve.cpp"
 
-#include "curvexyzfourier.cpp"
+#include "curvexyzfourier.h"
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
-#include "curverzfourier.cpp"
+#include "curverzfourier.h"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
