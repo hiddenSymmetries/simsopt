@@ -1,6 +1,8 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
+#include "py_shared_ptr.h"
+PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
@@ -25,11 +27,16 @@ typedef CurveRZFourier<PyArray> PyCurveRZFourier;
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 
+#include "magneticfield.h"
+
 #include "dommaschk.cpp"
 
 #include "regular_grid_interpolant_3d.h"
 
 namespace py = pybind11;
+
+using std::vector;
+using std::shared_ptr;
 
 template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {
     public:
@@ -228,11 +235,11 @@ template <typename T, typename S> void register_common_curve_methods(S &c) {
 
 PYBIND11_MODULE(simsgeopp, m) {
     xt::import_numpy();
-    auto pysurface = py::class_<PySurface, std::shared_ptr<PySurface>, PySurfaceTrampoline<PySurface>>(m, "Surface")
+    auto pysurface = py::class_<PySurface, shared_ptr<PySurface>, PySurfaceTrampoline<PySurface>>(m, "Surface")
         .def(py::init<vector<double>,vector<double>>());
     register_common_surface_methods<PySurface>(pysurface);
 
-    auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, std::shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
+    auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
@@ -246,7 +253,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def("allocate", &PySurfaceRZFourier::allocate);
     register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
 
-    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, std::shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
+    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("xc", &PySurfaceXYZFourier::xc)
@@ -261,7 +268,7 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
     register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
 
-    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, std::shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
+    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
         .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
         .def(py::init<int, int, int, bool, vector<bool>, int, int>())
         .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
@@ -274,16 +281,16 @@ PYBIND11_MODULE(simsgeopp, m) {
     register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
 
-    auto pycurve = py::class_<PyCurve, std::shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
+    auto pycurve = py::class_<PyCurve, py_shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
         .def(py::init<vector<double>>());
     register_common_curve_methods<PyCurve>(pycurve);
 
-    auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, std::shared_ptr<PyCurveXYZFourier>, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
+    auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, py_shared_ptr<PyCurveXYZFourier>, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
         .def(py::init<vector<double>, int>())
         .def_readonly("dofs", &PyCurveXYZFourier::dofs);
     register_common_curve_methods<PyCurveXYZFourier>(pycurvexyzfourier);
 
-    auto pycurverzfourier = py::class_<PyCurveRZFourier, std::shared_ptr<PyCurveRZFourier>, PyCurveRZFourierTrampoline<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
+    auto pycurverzfourier = py::class_<PyCurveRZFourier, py_shared_ptr<PyCurveRZFourier>, PyCurveRZFourierTrampoline<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
         //.def(py::init<int, int>())
         .def(py::init<vector<double>, int, int, bool>())
         .def_readwrite("rc", &PyCurveRZFourier::rc)
@@ -301,20 +308,44 @@ PYBIND11_MODULE(simsgeopp, m) {
     m.def("DommaschkdB", &DommaschkdB);
 
 
-    py::class_<RegularGridInterpolant3D<1>>(m, "RegularGridInterpolant3D1")
+    py::class_<RegularGridInterpolant3D<PyArray, 1>>(m, "RegularGridInterpolant3D1")
         .def(py::init<int, int, int, int>())
         .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
-        .def("interpolate", &RegularGridInterpolant3D<1>::interpolate)
-        .def("interpolate_batch", &RegularGridInterpolant3D<1>::interpolate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<1>::evaluate)
-        .def("estimate_error", &RegularGridInterpolant3D<1>::estimate_error);
-    py::class_<RegularGridInterpolant3D<4>>(m, "RegularGridInterpolant3D4")
+        .def("interpolate", &RegularGridInterpolant3D<PyArray, 1>::interpolate)
+        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray, 1>::interpolate_batch)
+        .def("evaluate_batch_with_transform", &RegularGridInterpolant3D<PyArray, 1>::evaluate_batch_with_transform)
+        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray, 1>::evaluate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<PyArray, 1>::evaluate)
+        .def("estimate_error", &RegularGridInterpolant3D<PyArray, 1>::estimate_error);
+    py::class_<RegularGridInterpolant3D<PyArray, 4>>(m, "RegularGridInterpolant3D4")
         .def(py::init<int, int, int, int>())
         .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
-        .def("interpolate", &RegularGridInterpolant3D<4>::interpolate)
-        .def("interpolate_batch", &RegularGridInterpolant3D<4>::interpolate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<4>::evaluate)
-        .def("estimate_error", &RegularGridInterpolant3D<4>::estimate_error);
+        .def("interpolate", &RegularGridInterpolant3D<PyArray, 4>::interpolate)
+        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray, 4>::interpolate_batch)
+        .def("evaluate_batch_with_transform", &RegularGridInterpolant3D<PyArray, 4>::evaluate_batch_with_transform)
+        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray, 4>::evaluate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<PyArray, 4>::evaluate)
+        .def("estimate_error", &RegularGridInterpolant3D<PyArray, 4>::estimate_error);
+
+    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
+        .def(py::init<double>())
+        .def("set_dofs", &Current<PyArray>::set_dofs)
+        .def("get_dofs", &Current<PyArray>::get_dofs)
+        .def("set_value", &Current<PyArray>::set_value)
+        .def("get_value", &Current<PyArray>::get_value);
+        
+
+    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil");
+
+    py::class_<MagneticField<PyArray>>(m, "MagneticField");
+        //.def("B", py::overload_cast<>(&MagneticField<PyArray>::B));
+
+    py::class_<BiotSavart<PyArray>, MagneticField<PyArray>>(m, "BiotSavart")
+        .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
+        //.def("B_impl", &BiotSavart<PyArray>::B_impl)
+        .def("B", py::overload_cast<>(&BiotSavart<PyArray>::B))
+        .def("invalidate_cache", &BiotSavart<PyArray>::invalidate_cache);
+        //.def("B", py::overload_cast<const Array&>(&BiotSavart<PyArray>::B));
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
