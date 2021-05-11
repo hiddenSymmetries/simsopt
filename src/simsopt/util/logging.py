@@ -15,7 +15,18 @@ except:
     MPILogHander = None
 
 
-def initialize_logging(filename=None, level=None, mpi=False):
+def initialize_logging(filename: str = None,
+                       level: str = None,
+                       mpi: bool = False) -> None:
+    """
+    Initializes logging in a simple way for both serial and MPI jobs.
+    The MPI logging uses MPILogger package.
+
+    Args:
+        filename: Name of file to store the logging info
+        level: Logging level. Could be 'INFO', 'DEBUG', 'WARNING', etc.
+        mpi: If True MPI logging is used provided mpi4py is installed.
+    """
     yaml = YAML(typ='safe')
     config_dict = yaml.load(Path(__file__).parent / 'log_config.yaml')
     if filename:
@@ -25,9 +36,9 @@ def initialize_logging(filename=None, level=None, mpi=False):
         config_dict['handlers']['file_handler'].update({'level': level})
         config_dict['handlers']['mpi_file_handler'].update({'level': level})
     if mpi and MPILogHandler:
-        config_dict['root']['handlers'].pop(2) # Remove file hander
+        config_dict['root']['handlers'].pop(2)  # Remove file hander
     else:
-        config_dict['root']['handlers'].pop(3) # Remove mpi hander
+        config_dict['root']['handlers'].pop(3)  # Remove mpi hander
         del config_dict['handlers']['mpi_file_handler']
 
     logging.config.dictConfig(config_dict)
