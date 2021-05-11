@@ -3,9 +3,10 @@
 import logging
 import numpy as np
 
+from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Spec
 from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -27,14 +28,16 @@ https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_target
 
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
-logging.basicConfig(level=logging.INFO)
+log(logging.INFO)
+
+mpi = MpiPartition()
 
 # Initialize VMEC from an input file:
-vmec = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume')
+vmec = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume', mpi=mpi)
 surf = vmec.boundary
 
 # Initialize SPEC from an input file:
-spec = Spec('2DOF_targetIotaAndVolume.sp')
+spec = Spec('2DOF_targetIotaAndVolume.sp', mpi=mpi)
 
 # Set the SPEC boundary to be the same object as the VMEC boundary!
 spec.boundary = surf
@@ -59,22 +62,32 @@ term2 = (vmec.iota_axis, desired_iota, iota_weight)
 prob = LeastSquaresProblem([term1, term2])
 
 # Solve the minimization problem:
-least_squares_serial_solve(prob)
+least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
-print("At the optimum,")
-print(" objective function = ", prob.objective())
-print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
-print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
-print(" volume, according to VMEC    = ", vmec.volume())
-print(" volume, according to SPEC    = ", spec.volume())
-print(" volume, according to Surface = ", surf.volume())
-print(" iota on axis, from VMEC       = ", vmec.iota_axis())
-print(" iota at mid-radius, from SPEC = ", spec.iota())
+# Evaluate quantities on all processes, in case communication is
+# required:
+final_objective = prob.objective()
+vmec_volume = vmec.volume()
+spec_volume = spec.volume()
+surf_volume = surf.volume()
+vmec_iota = vmec.iota_axis()
+spec_iota = spec.iota()
 
-assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
-assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
-assert np.abs(spec.volume() - 0.178091) < 1.0e-3
-assert np.abs(vmec.volume() - 0.178091) < 1.0e-3
-assert np.abs(surf.volume()  - 0.178091) < 1.0e-3
-assert np.abs(vmec.iota_axis() - 0.4114567) < 1.0e-4
-assert prob.objective() < 1.0e-2
+if mpi.proc0_world:
+    print("At the optimum,")
+    print(" objective function = ", final_objective)
+    print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
+    print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
+    print(" volume, according to VMEC    = ", vmec_volume)
+    print(" volume, according to SPEC    = ", spec_volume)
+    print(" volume, according to Surface = ", surf_volume)
+    print(" iota on axis, from VMEC       = ", vmec_iota)
+    print(" iota at mid-radius, from SPEC = ", spec_iota)
+
+    assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
+    assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
+    assert np.abs(spec_volume - 0.178091) < 1.0e-3
+    assert np.abs(vmec_volume - 0.178091) < 1.0e-3
+    assert np.abs(surf_volume  - 0.178091) < 1.0e-3
+    assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
+    assert final_objective < 1.0e-2
