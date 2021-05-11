@@ -20,18 +20,26 @@ Mandatory Packages
 - jax
 - jaxlib
 - scipy
+- pandas
+- nptyping
 - ruamel.yaml
+- importlib_metadata if python version is less than 3.8
 
 Optional Packages
 -----------------
-- mpi4py (for MPI)
-- py_spec
-- pyoculus
-- h5py
-- f90nml (Last four packages for interfacing with SPEC code)
-- https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
-- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_,
-  for optimizing for quasisymmetry
+- For MPI support:
+    * mpi4py
+    * MPILogger
+- For SPEC support:
+    * py_spec
+    * pyoculus
+    * h5py
+    * f90nml
+- For VMEC support
+    * https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
+    * f90nml
+- For quasisymmetry optimization
+    * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_,
 
 For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
@@ -42,8 +50,8 @@ Installation
 
 From PyPi
 ---------
-Currently, ``simsopt`` is avaialable at test.pypi.org.
-You can install the latest version of simsopt using 
+Currently, older versions of ``simsopt`` are avaialable at test.pypi.org.
+You can install the latest among them using
 
 .. code-block::
 
@@ -51,7 +59,7 @@ You can install the latest version of simsopt using
     
 From Source
 -----------
-First, install ``git`` if not already installed. Then clone the repository using
+This is the preferred method. First, install ``git`` if not already installed. Then clone the repository using
 
 .. code-block::
 

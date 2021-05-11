@@ -245,7 +245,7 @@ class Dofs:
                 # As soon as any functions fail, don't bother
                 # evaluating the rest:
                 break
-            
+
             if isinstance(f, (np.ndarray, list, tuple)):
                 self.nvals_per_func[j] = len(f)
                 val_list.append(np.array(f))
@@ -259,9 +259,9 @@ class Dofs:
                 # function evaluation, so we do not yet know how many
                 # residuals to return.
                 raise RuntimeError("Objective failed on first function evaluation")
-            
+
             return np.full(self.nvals, self.fail)
-        
+
         else:
             logger.debug('Detected nvals_per_func={}'.format(self.nvals_per_func))
             self.nvals = np.sum(self.nvals_per_func)

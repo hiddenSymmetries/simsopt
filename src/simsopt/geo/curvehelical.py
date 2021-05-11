@@ -4,19 +4,21 @@ from math import pi
 import numpy as np
 from .curve import JaxCurve
 
+
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     A = dofs[:order]
     B = dofs[order:]
     phi = quadpoints*2*pi*l0
-    m, phiV = jnp.meshgrid(jnp.arange(order),phi)
-    AcosArray = jnp.sum(A*jnp.cos(m*phiV*n0/l0),axis=1)
-    BsinArray = jnp.sum(B*jnp.sin(m*phiV*n0/l0),axis=1)
+    m, phiV = jnp.meshgrid(jnp.arange(order), phi)
+    AcosArray = jnp.sum(A*jnp.cos(m*phiV*n0/l0), axis=1)
+    BsinArray = jnp.sum(B*jnp.sin(m*phiV*n0/l0), axis=1)
     eta = n0*phi/l0+AcosArray+BsinArray
     gamma = jnp.zeros((len(quadpoints), 3))
     gamma = index_add(gamma, index[:, 0], (R0+r0*jnp.cos(eta))*jnp.cos(phi))
     gamma = index_add(gamma, index[:, 1], (R0+r0*jnp.cos(eta))*jnp.sin(phi))
     gamma = index_add(gamma, index[:, 2], -r0*jnp.sin(eta))
     return gamma
+
 
 class CurveHelical(JaxCurve):
     '''Curve representation of a helical coil.
@@ -31,6 +33,7 @@ class CurveHelical(JaxCurve):
         R0:  major radius
         r0:  minor radius
     '''
+
     def __init__(self, quadpoints, order, n0, l0, R0, r0):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
