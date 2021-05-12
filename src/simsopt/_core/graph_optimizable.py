@@ -25,140 +25,6 @@ from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta
 
 
-class DOF:
-    """
-    A generalized class to represent an individual degree of freedom
-    associated with optimizable functions.
-    """
-
-    def __init__(self,
-                 x: Real,
-                 name: str,
-                 free: bool = True,
-                 lower_bound: Real = np.NINF,
-                 upper_bound: Real = np.Inf) -> None:
-        """
-
-        Args:
-            x: The value of the DOF
-            name: Name of the DOF for easy reference
-            fixed: Flag to denote if the DOF is fixed (constrained)
-            lower_bound: Minimum allowed value of DOF
-            upper_bound: Maximum allowed value of DOF
-        """
-        self._x = x
-        self.name = name
-        self._free = free
-        self._lb = lower_bound
-        self._ub = upper_bound
-
-    #def __hash__(self):
-    #    return hash(":".join(map(str, [self.owner, self.name])))
-
-    #@property
-    #def extended_name(self) -> str:
-    #    return ":".join(map(str, [self.owner, self.name]))
-
-    def __repr__(self) -> str:
-        return "DOF: {}, value = {}, fixed = {}, bounds = ({}, {})".format(
-            self.name, self._x, not self._free, self._lb, self._ub)
-
-    def __eq__(self, other: DOF) -> bool:
-        return all([self.name == other.name,
-                   np.isclose(self._x, other._x),
-                   self._free == other._free,
-                   np.isclose(self._lb, other._lb),
-                   np.isclose(self._ub, other._ub)])
-
-    def is_fixed(self) -> bool:
-        """
-        Checks ifs the DOF is fixed
-
-        Returns:
-            True if DOF is fixed else False
-        """
-        return not self._free
-
-    def is_free(self) -> bool:
-        """
-        Checks ifs the DOF is fixed
-
-        Returns:
-            True if DOF is fixed else False
-        """
-        return self._free
-
-    def fix(self) -> None:
-        """
-        Makes the DOF fixed during optimization
-        """
-        self._free = False
-
-    def unfix(self) -> None:
-        """
-        Makes the DOF variable during optimization
-        """
-        self._free = True
-
-    @property
-    def min(self) -> Real:
-        """
-        Minimum value of DOF allowed
-
-        Returns:
-            Lower bound of DOF if not fixed else None
-        """
-        return self._lb if self._free else None
-
-    @min.setter
-    def min(self, lower_bound: Real) -> None:
-        """
-        Minimum value of DOF allowed
-
-        Args:
-            lower_bound: Specifies the lower bound of the DOF
-        """
-        self._lb = lower_bound
-
-    @property
-    def max(self) -> Real:
-        """
-        Maximum value of DOF allowed
-
-        Returns:
-            Upper bound of DOF if not fixed else None
-        """
-        return self._ub if self._free else None
-
-    @max.setter
-    def max(self, upper_bound: Real) -> None:
-        self._ub = upper_bound
-
-    @property
-    def x(self) -> Real:
-        """
-
-        Returns:
-            Value of the DOF 
-        """
-        return self._x
-
-    @x.setter
-    def x(self, x):
-        """
-        Value of the DOF
-
-        Args:
-            x: Updated value of the DOF. Fails to work if the DOF is fixed.
-        """
-        if self.is_fixed():
-            raise TypeError("Updating state is forbidded for fixed DOF")
-        if x > self.max or x < self.min:
-            raise ValueError(
-                f"Input state is out of bounds for the DOF {self.name}")
-        self._x = x
-
-
 class DOFs(pd.DataFrame):
     """
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
@@ -909,7 +775,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             child._update_full_dof_size_indices()
 
     @property
-    def dofs(self) -> RealArray:
+    def x(self) -> RealArray:
         """
         Numeric values of the free DOFs associated with the current
         Optimizable object and those of its ancestors
@@ -917,16 +783,16 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.x for
                                opt in (self.ancestors + [self])])
 
-    @dofs.setter
-    def dofs(self, x: RealArray) -> None:
+    @x.setter
+    def x(self, x: RealArray) -> None:
         if list(self.dof_indices.values())[-1][-1] != len(x):
             raise ValueError
         for opt, indices in self.dof_indices.items():
-            opt.local_dofs = x[indices[0]:indices[1]]
+            opt.local_x = x[indices[0]:indices[1]]
         self._set_new_x()
 
     @property
-    def full_dofs(self) -> RealArray:
+    def full_x(self) -> RealArray:
         """
         Numeric values of all the DOFs associated with the current
         Optimizable object and those of its ancestors
@@ -935,104 +801,26 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                                opt in (self.ancestors + [self])])
 
     @property
-    def local_dofs(self) -> RealArray:
+    def local_x(self) -> RealArray:
         """
         Numeric values of the free DOFs associated with this
         Optimizable object
         """
         return self._dofs.x
 
-    @local_dofs.setter
-    def local_dofs(self, x: RealArray) -> None:
+    @local_x.setter
+    def local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.loc[self._dofs.free, '_x'] = x
         self.new_x = True
 
     @property
-    def local_full_dofs(self) -> RealArray:
-        """
-        Numeric values of all DOFs associated with this Optimizable object
-        """
-        return self._dofs.full_x
-
-    @property
-    def state(self) -> RealArray:
-        """
-        Numeric values of the free DOFs associated with the current
-        Optimizable object and those of its ancestors
-        """
-        return self.dofs
-
-    @state.setter
-    def state(self, x: RealArray) -> None:
-        self.dofs = x
-
-    @property
-    def full_state(self) -> RealArray:
-        """
-        Numeric values of all the DOFs associated with the current
-        Optimizable object and those of its ancestors
-        """
-        return self.full_dofs
-
-    @property
-    def local_state(self) -> RealArray:
-        """
-        Numeric values of the free DOFs associated with this
-        Optimizable object
-        """
-        return self.local_dofs
-
-    @local_state.setter
-    def local_state(self, x: RealArray) -> None:
-        self.local_dofs = x
-
-    @property
-    def local_full_state(self):
-        """
-        Numeric values of all DOFs associated with this Optimizable object
-        """
-        return self.local_full_dofs
-
-    @property
-    def x(self) -> RealArray:
-        """
-        Numeric values of the free DOFs associated with the current
-        Optimizable object and those of its ancestors
-        """
-        return self.dofs
-
-    @x.setter
-    def x(self, x: RealArray) -> None:
-        self.dofs = x
-
-    @property
-    def full_x(self) -> RealArray:
-        """
-        Numeric values of all the DOFs associated with the current
-        Optimizable object and those of its ancestors
-        """
-        return self.full_dofs
-
-    @property
-    def local_x(self) -> RealArray:
-        """
-        Numeric values of the free DOFs associated with this
-        Optimizable object
-        """
-        return self.local_dofs
-
-    @local_x.setter
-    def local_x(self, x: RealArray) -> None:
-        self.local_dofs = x
-
-    @property
     def local_full_x(self):
         """
         Numeric values of all DOFs associated with this Optimizable object
         """
-        return self.local_full_dofs
+        return self._dofs.full_x
 
     def _set_new_x(self):
         self.new_x = True

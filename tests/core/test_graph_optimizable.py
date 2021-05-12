@@ -466,160 +466,6 @@ class OptimizableTests(unittest.TestCase):
                                                  Adder(3)])
         self.assertEqual(test_obj1.local_full_dof_size, 1)
 
-    def test_dofs(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_dofs = adder.dofs
-        iden_dofs = iden.dofs
-        self.assertAlmostEqual(adder_dofs[0], 1)
-        self.assertAlmostEqual(adder_dofs[1], 2)
-        self.assertAlmostEqual(adder_dofs[2], 3)
-        self.assertEqual(len(iden_dofs), 0)
-
-        adder.dofs = [4, 5, 6]
-        self.assertAlmostEqual(adder._dofs.loc['x', '_x'], 4)
-        self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
-        self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
-        with self.assertRaises(ValueError):
-            iden.dofs = np.array([11], dtype=float)
-        self.assertAlmostEqual(iden.full_dofs[0], 10)
-
-        # Check with Optimizable objects containing parents
-        adder2 = Adder(3)
-        iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
-        with self.assertRaises(ValueError):
-            test_obj1.x = np.array([20])
-
-        test_obj1.x = np.array([20, 4, 5, 6, 25])
-        self.assertAlmostEqual(test_obj1._dofs.loc['val', '_x'], 25)
-        self.assertAlmostEqual(iden2._dofs.loc['x0', '_x'], 20)
-        self.assertAlmostEqual(adder2._dofs.loc['x0', '_x'], 4)
-        self.assertAlmostEqual(adder2._dofs.loc['x1', '_x'], 5)
-        self.assertAlmostEqual(adder2._dofs.loc['x2', '_x'], 6)
-
-        adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
-        with self.assertRaises(ValueError):
-            test_obj2.dofs = np.array([20, 4, 5, 6, 25])
-
-        test_obj2.dofs = np.array([4, 5, 6, 25])
-        self.assertAlmostEqual(iden._dofs.loc['x0', '_x'], 10)
-        self.assertAlmostEqual(adder3._dofs.loc['x0', '_x'], 4)
-        self.assertAlmostEqual(adder3._dofs.loc['x1', '_x'], 5)
-        self.assertAlmostEqual(adder3._dofs.loc['x2', '_x'], 6)
-        self.assertAlmostEqual(test_obj2._dofs.loc['val', '_x'], 25)
-
-    def test_local_dofs(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_dofs = adder.local_dofs
-        iden_dofs = iden.local_dofs
-        self.assertAlmostEqual(adder_dofs[0], 1)
-        self.assertAlmostEqual(adder_dofs[1], 2)
-        self.assertAlmostEqual(adder_dofs[2], 3)
-        self.assertTrue(len(iden_dofs) == 0)
-
-        adder.local_dofs = [4, 5, 6]
-        self.assertAlmostEqual(adder._dofs.loc['x', '_x'], 4)
-        self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
-        self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
-        with self.assertRaises(ValueError):
-            iden.local_dofs = np.array([11], dtype=float)
-        self.assertAlmostEqual(iden.full_dofs[0], 10)
-
-        # Check with Optimizable objects containing parents
-        adder2 = Adder(3)
-        iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
-        test_obj1.local_dofs = np.array([25])
-        self.assertAlmostEqual(test_obj1._dofs.loc['val', '_x'], 25)
-
-        adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
-
-        test_obj2.local_dofs = np.array([25])
-        self.assertAlmostEqual(test_obj2._dofs.loc['val', '_x'], 25)
-
-    def test_state(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_dofs = adder.state
-        iden_dofs = iden.state
-        self.assertAlmostEqual(adder_dofs[0], 1)
-        self.assertAlmostEqual(adder_dofs[1], 2)
-        self.assertAlmostEqual(adder_dofs[2], 3)
-        self.assertEqual(len(iden_dofs), 0)
-
-        adder.state = [4, 5, 6]
-        self.assertAlmostEqual(adder._dofs.loc['x', '_x'], 4)
-        self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
-        self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
-        with self.assertRaises(ValueError):
-            iden.state = np.array([11, ], dtype=float)
-        self.assertAlmostEqual(iden.full_state[0], 10)
-
-        # Check with Optimizable objects containing parents
-        adder2 = Adder(3)
-        iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
-        with self.assertRaises(ValueError):
-            test_obj1.state = np.array([20])
-
-        test_obj1.state = np.array([20, 4, 5, 6, 25])
-        self.assertAlmostEqual(test_obj1._dofs.loc['val', '_x'], 25)
-        self.assertAlmostEqual(iden2._dofs.loc['x0', '_x'], 20)
-        self.assertAlmostEqual(adder2._dofs.loc['x0', '_x'], 4)
-        self.assertAlmostEqual(adder2._dofs.loc['x1', '_x'], 5)
-        self.assertAlmostEqual(adder2._dofs.loc['x2', '_x'], 6)
-
-        adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
-        with self.assertRaises(ValueError):
-            test_obj2.state = np.array([20, 4, 5, 6, 25])
-
-        test_obj2.state = np.array([4, 5, 6, 25])
-        self.assertAlmostEqual(iden._dofs.loc['x0', '_x'], 10)
-        self.assertAlmostEqual(adder3._dofs.loc['x0', '_x'], 4)
-        self.assertAlmostEqual(adder3._dofs.loc['x1', '_x'], 5)
-        self.assertAlmostEqual(adder3._dofs.loc['x2', '_x'], 6)
-        self.assertAlmostEqual(test_obj2._dofs.loc['val', '_x'], 25)
-
-    def test_local_state(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_dofs = adder.local_state
-        iden_dofs = iden.local_state
-        self.assertAlmostEqual(adder_dofs[0], 1)
-        self.assertAlmostEqual(adder_dofs[1], 2)
-        self.assertAlmostEqual(adder_dofs[2], 3)
-        self.assertTrue(len(iden_dofs) == 0)
-
-        adder.local_state = [4, 5, 6]
-        self.assertAlmostEqual(adder._dofs.loc['x', '_x'], 4)
-        self.assertAlmostEqual(adder._dofs.loc['y', '_x'], 5)
-        self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
-        with self.assertRaises(ValueError):
-            iden.local_state = np.array([11, ], dtype=float)
-        self.assertAlmostEqual(iden.full_dofs[0], 10)
-
-        # Check with Optimizable objects containing parents
-        adder2 = Adder(3)
-        iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
-        test_obj1.local_state = np.array([25])
-        self.assertAlmostEqual(test_obj1._dofs.loc['val', '_x'], 25)
-
-        adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
-
-        test_obj2.local_state = np.array([25])
-        self.assertAlmostEqual(test_obj2._dofs.loc['val', '_x'], 25)
-
     def test_x(self):
         # Check with leaf type Optimizable objects
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
@@ -637,7 +483,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
             iden.x = np.array([11, ], dtype=float)
-        self.assertAlmostEqual(iden.full_state[0], 10)
+        self.assertAlmostEqual(iden.full_x[0], 10)
 
         # Check with Optimizable objects containing parents
         adder2 = Adder(3)
@@ -669,12 +515,12 @@ class OptimizableTests(unittest.TestCase):
         # Check with leaf type Optimizable objects
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
         iden = Identity(x=10, dof_fixed=True)
-        adder_dofs = adder.local_x
-        iden_dofs = iden.local_x
-        self.assertAlmostEqual(adder_dofs[0], 1)
-        self.assertAlmostEqual(adder_dofs[1], 2)
-        self.assertAlmostEqual(adder_dofs[2], 3)
-        self.assertTrue(len(iden_dofs) == 0)
+        adder_x = adder.local_x
+        iden_x = iden.local_x
+        self.assertAlmostEqual(adder_x[0], 1)
+        self.assertAlmostEqual(adder_x[1], 2)
+        self.assertAlmostEqual(adder_x[2], 3)
+        self.assertTrue(len(iden_x) == 0)
 
         adder.local_x = [4, 5, 6]
         self.assertAlmostEqual(adder._dofs.loc['x', '_x'], 4)
@@ -682,7 +528,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder._dofs.loc['z', '_x'], 6)
         with self.assertRaises(ValueError):
             iden.local_x = np.array([11, ], dtype=float)
-        self.assertAlmostEqual(iden.full_dofs[0], 10)
+        self.assertAlmostEqual(iden.full_x[0], 10)
 
         # Check with Optimizable objects containing parents
         adder2 = Adder(3)
@@ -696,88 +542,6 @@ class OptimizableTests(unittest.TestCase):
 
         test_obj2.local_x = np.array([25])
         self.assertAlmostEqual(test_obj2._dofs.loc['val', '_x'], 25)
-
-    def test_full_dofs(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_full_dofs = adder.full_dofs
-        self.assertAlmostEqual(adder_full_dofs[0], 1)
-        self.assertAlmostEqual(adder_full_dofs[1], 2)
-        self.assertAlmostEqual(adder_full_dofs[2], 3)
-        self.assertEqual(len(iden.full_dofs), 1)
-        self.assertAlmostEqual(iden.full_dofs[0], 10)
-
-        # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
-        full_dofs = test_obj1.full_dofs
-        self.assertTrue(np.allclose(full_dofs, np.array([10, 1, 2, 3, 20])))
-
-        test_obj1.x = np.array([4, 5, 6, 25])
-        full_dofs = test_obj1.full_dofs
-        self.assertTrue(np.allclose(full_dofs, np.array([10, 4, 5, 6, 25])))
-
-    def test_local_full_dofs(self):
-        # Check with leaf type Optimizable objects
-        # Check with Optimizable objects containing parents
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_full_dofs = adder.local_full_dofs
-        self.assertAlmostEqual(adder_full_dofs[0], 1)
-        self.assertAlmostEqual(adder_full_dofs[1], 2)
-        self.assertAlmostEqual(adder_full_dofs[2], 3)
-        self.assertEqual(len(iden.full_dofs), 1)
-        self.assertAlmostEqual(iden.local_full_dofs[0], 10)
-
-        # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
-        local_full_dofs = test_obj1.local_full_dofs
-        self.assertTrue(np.allclose(local_full_dofs, np.array([20])))
-
-        test_obj1.x = np.array([4, 5, 6, 25])
-        local_full_dofs = test_obj1.local_full_dofs
-        self.assertTrue(np.allclose(local_full_dofs, np.array([25])))
-
-    def test_full_state(self):
-        # Check with leaf type Optimizable objects
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_full_state = adder.full_state
-        self.assertAlmostEqual(adder_full_state[0], 1)
-        self.assertAlmostEqual(adder_full_state[1], 2)
-        self.assertAlmostEqual(adder_full_state[2], 3)
-        self.assertEqual(len(iden.full_state), 1)
-        self.assertAlmostEqual(iden.full_state[0], 10)
-
-        # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
-        full_state = test_obj1.full_state
-        self.assertTrue(np.allclose(full_state, np.array([10, 1, 2, 3, 20])))
-
-        test_obj1.x = np.array([4, 5, 6, 25])
-        full_state = test_obj1.full_state
-        self.assertTrue(np.allclose(full_state, np.array([10, 4, 5, 6, 25])))
-
-    def test_local_full_state(self):
-        # Check with leaf type Optimizable objects
-        # Check with Optimizable objects containing parents
-        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'])
-        iden = Identity(x=10, dof_fixed=True)
-        adder_full_state = adder.local_full_state
-        self.assertAlmostEqual(adder_full_state[0], 1)
-        self.assertAlmostEqual(adder_full_state[1], 2)
-        self.assertAlmostEqual(adder_full_state[2], 3)
-        self.assertEqual(len(iden.full_state), 1)
-        self.assertAlmostEqual(iden.local_full_state[0], 10)
-
-        # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
-        local_full_state = test_obj1.local_full_state
-        self.assertTrue(np.allclose(local_full_state, np.array([20])))
-
-        test_obj1.state = np.array([4, 5, 6, 25])
-        local_full_state = test_obj1.local_full_state
-        self.assertTrue(np.allclose(local_full_state, np.array([25])))
 
     def test_full_x(self):
         # Check with leaf type Optimizable objects
