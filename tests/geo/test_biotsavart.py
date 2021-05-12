@@ -22,7 +22,7 @@ class Testing(unittest.TestCase):
         coils = [get_coil()]
         currents = [1e4]
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        B1 = BiotSavart(coils, currents).set_points(points).B(compute_derivatives=0)
+        B1 = BiotSavart(coils, currents).set_points(points).B()
         from simsgeopp import biot_savart_B
         B2 = biot_savart_B(points, [c.gamma() for c in coils], [c.gammadash() for c in coils], currents)
         assert np.linalg.norm(B1) > 1e-5
@@ -34,26 +34,26 @@ class Testing(unittest.TestCase):
         # points = np.asarray(17 * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04 ]])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         tic = time()
-        btrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).B(compute_derivatives=0)
+        btrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).B()
         # print(btrue)
-        bcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).B(compute_derivatives=0)
-        bfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).B(compute_derivatives=0)
+        bcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).B()
+        bfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).B()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 
         tic = time()
-        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
+        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).dB_by_dX()
         # print(dbtrue)
-        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
-        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
+        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).dB_by_dX()
+        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).dB_by_dX()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 
         tic = time()
-        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
+        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).d2B_by_dXdX()
         # print("dbtrue", dbtrue)
-        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
-        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
+        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).d2B_by_dXdX()
+        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).d2B_by_dXdX()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 

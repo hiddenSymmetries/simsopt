@@ -6,6 +6,8 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
+#include <xtensor/xnoalias.hpp>
+
 
 
 #include "biot_savart_py.h"
@@ -64,15 +66,28 @@ PYBIND11_MODULE(simsgeopp, m) {
         .def("get_value", &Current<PyArray>::get_value);
         
 
-    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil");
+    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil")
+        .def(py::init<shared_ptr<Curve<Array>>, shared_ptr<Current<Array>>>())
+        .def_readonly("curve", &Coil<PyArray>::curve)
+        .def_readonly("current", &Coil<PyArray>::current);
 
-    py::class_<MagneticField<PyArray>>(m, "MagneticField");
+    py::class_<MagneticField<PyArray>>(m, "MagneticField")
+        .def("set_points", &MagneticField<PyArray>::set_points);
         //.def("B", py::overload_cast<>(&MagneticField<PyArray>::B));
 
     py::class_<BiotSavart<PyArray>, MagneticField<PyArray>>(m, "BiotSavart")
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
+        .def("set_points", &BiotSavart<PyArray>::set_points)
         //.def("B_impl", &BiotSavart<PyArray>::B_impl)
         .def("B", py::overload_cast<>(&BiotSavart<PyArray>::B))
+        .def("dB_by_dX", py::overload_cast<>(&BiotSavart<PyArray>::dB_by_dX))
+        .def("d2B_by_dXdX", py::overload_cast<>(&BiotSavart<PyArray>::d2B_by_dXdX))
+        .def("B_ref", py::overload_cast<>(&BiotSavart<PyArray>::B_ref))
+        .def("dB_by_dX_ref", py::overload_cast<>(&BiotSavart<PyArray>::dB_by_dX_ref))
+        .def("d2B_by_dXdX_ref", py::overload_cast<>(&BiotSavart<PyArray>::d2B_by_dXdX_ref))
+        .def("cache_get_or_create", &BiotSavart<PyArray>::cache_get_or_create)
+        .def("cache_get_status", &BiotSavart<PyArray>::cache_get_status)
+        .def("compute", &BiotSavart<PyArray>::compute)
         .def("invalidate_cache", &BiotSavart<PyArray>::invalidate_cache);
         //.def("B", py::overload_cast<const Array&>(&BiotSavart<PyArray>::B));
 
