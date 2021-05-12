@@ -2,14 +2,20 @@
 #include "xtensor/xarray.hpp"
 #include <stdexcept>
 #include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
+
 
 #include "cachedarray.h"
 #include "biot_savart_impl.h"
 #include "curve.h"
+#include "current.h"
+#include "coil.h"
 
 using std::logic_error;
 using std::vector;
 using std::shared_ptr;
+using std::make_shared;
 
 template<class Array>
 class MagneticField {
@@ -23,39 +29,54 @@ class MagneticField {
             points = xt::zeros<double>({1, 3});
         }
 
-        Array& check_the_cache(string key, vector<int> dims){
+        bool cache_get_status(string key){
             auto loc = cache.find(key);
-            if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-            } else if((loc->second).data.shape(0) != dims[0]) { // key found but not the right number of points
-                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+            if(loc == cache.end()){ // Key not found
+                return false;
             }
-            (loc->second).status = true;
-            return (loc->second).data;
+            if(!(loc->second.status)){ // needs recomputing
+                return false;
+            }
+            return true;
         }
 
-        Array& check_the_cache_and_fill(string key, vector<int> dims, std::function<void(Array&)> impl){
+        Array& cache_get_or_create(string key, vector<int> dims){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
                 loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-            } else if((loc->second).data.shape(0) != dims[0]) { // key found but not the right number of points
+                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
                 loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
+            loc->second.status = true;
+            return loc->second.data;
+        }
 
-            if(!((loc->second).status)){ // needs recomputing
-                impl((loc->second).data);
-                (loc->second).status = true;
+        Array& cache_get_or_create_and_fill(string key, vector<int> dims, std::function<void(Array&)> impl){
+            auto loc = cache.find(key);
+            if(loc == cache.end()){ // Key not found --> allocate array
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
+                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
-            return (loc->second).data;
+            if(!(loc->second.status)){ // needs recomputing
+                impl(loc->second.data);
+                loc->second.status = true;
+            }
+            return loc->second.data;
         }
 
         void invalidate_cache() {
             for (auto it = cache.begin(); it != cache.end(); ++it) {
-                (it->second).status = false;
+                it->second.status = false;
             }
         }
 
         MagneticField& set_points(Array& p) {
+            this->invalidate_cache();
             points = p;
             return *this;
         }
@@ -64,42 +85,31 @@ class MagneticField {
         virtual void dB_by_dX_impl(Array& dB_by_dX) { throw logic_error("dB_by_dX_impl was not implemented"); }
         virtual void d2B_by_dXdX_impl(Array& d2B_by_dXdX) { throw logic_error("d2B_by_dXdX_impl was not implemented"); }
 
-        Array& B() {
-            return check_the_cache_and_fill("B", {static_cast<int>(points.shape(0)), 3}, [this](Array& B) { return B_impl(B);});
+        Array& B_ref() {
+            return cache_get_or_create_and_fill("B", {static_cast<int>(points.shape(0)), 3}, [this](Array& B) { return B_impl(B);});
         }
 
-        Array& dB_by_dX() {
-            return check_the_cache_and_fill("dB_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
+        Array& dB_by_dX_ref() {
+            return cache_get_or_create_and_fill("dB_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
         }
 
-        Array& d2B_by_dXdX() {
-            return check_the_cache_and_fill("d2B_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
+        Array& d2B_by_dXdX_ref() {
+            return cache_get_or_create_and_fill("d2B_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
+        }
+
+        Array B() {
+            return B_ref();
+        }
+
+        Array dB_by_dX() {
+            return dB_by_dX_ref();
+        }
+
+        Array d2B_by_dXdX() {
+            return d2B_by_dXdX_ref();
         }
 
 };
-
-template<class Array>
-class Current {
-    private:
-        double value;
-    public:
-        Current(double value) : value(value) {}
-        inline void set_dofs(Array& dofs) { value=dofs.data()[0]; };
-        inline Array get_dofs() { return Array({value}); };
-        inline double get_value() { return value; }
-        inline void set_value(double val) { value = val; }
-};
-
-
-template<class Array>
-class Coil {
-    public:
-        const shared_ptr<Curve<Array>> curve;
-        const shared_ptr<Current<Array>> current;
-        Coil(shared_ptr<Curve<Array>> curve, shared_ptr<Current<Array>> current) :
-            curve(curve), current(current) { }
-};
-
 
 typedef vector_type AlignedVector;
 
@@ -109,7 +119,6 @@ class BiotSavart : public MagneticField<Array> {
 
         vector<shared_ptr<Coil<Array>>> coils;
 
-        using MagneticField<Array>::check_the_cache;
         using MagneticField<Array>::points;
         AlignedVector pointsx = AlignedVector(xsimd::simd_type<double>::size, 0.);
         AlignedVector pointsy = AlignedVector(xsimd::simd_type<double>::size, 0.);
@@ -117,11 +126,11 @@ class BiotSavart : public MagneticField<Array> {
 
         void fill_points(const Array& points) {
             int npoints = points.shape(0);
-            if(pointsx.size() < npoints)
+            if(pointsx.size() != npoints)
                 pointsx = AlignedVector(npoints, 0.);
-            if(pointsy.size() < npoints)
+            if(pointsy.size() != npoints)
                 pointsy = AlignedVector(npoints, 0.);
-            if(pointsz.size() < npoints)
+            if(pointsz.size() != npoints)
                 pointsz = AlignedVector(npoints, 0.);
             for (int i = 0; i < npoints; ++i) {
                 pointsx[i] = points(i, 0);
@@ -131,46 +140,59 @@ class BiotSavart : public MagneticField<Array> {
         }
 
     public:
+        using MagneticField<Array>::cache_get_or_create;
+        using MagneticField<Array>::cache_get_status;
         BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : coils(coils) {
 
         }
 
         void compute(int derivatives) {
+            fmt::print("Calling compute({})\n", derivatives);
             this->fill_points(points);
             Array dummyjac = xt::zeros<double>({1, 1, 1});
             Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
-            Array& B = check_the_cache("B", {static_cast<int>(points.shape(0)), 3});
-            Array& dB = dummyjac;
-            Array& ddB = dummyhess;
-            if(derivatives > 0)
-                 dB = check_the_cache("dB", {static_cast<int>(points.shape(0)), 3, 3});
-            if(derivatives > 1)
-                 ddB = check_the_cache("ddB", {static_cast<int>(points.shape(0)), 3, 3, 3});
+            int npoints = static_cast<int>(points.shape(0));
+            Array& B = cache_get_or_create("B", {npoints, 3});
+            Array& dB = derivatives > 0 ? cache_get_or_create("dB_by_dX", {npoints, 3, 3}) : dummyjac;
+            Array& ddB = derivatives > 1 ? cache_get_or_create("d2B_by_dXdX", {npoints, 3, 3, 3}) : dummyhess;
 
+            B *= 0; // TODO Actually set to zero, multiplying with zero doesn't get rid of NANs
+            dB *= 0;
+            ddB *= 0;
+
+            fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
             for (int i = 0; i < this->coils.size(); ++i) {
-                Array& Bi = check_the_cache(fmt::format("B_{}", i), {static_cast<int>(points.shape(0)), 3});
+                Array& Bi = cache_get_or_create(fmt::format("B_{}", i), {npoints, 3});
+                Bi *= 0;
                 Array& gamma = this->coils[i]->curve->gamma();
                 Array& gammadash = this->coils[i]->curve->gammadash();
                 double current = this->coils[i]->current->get_value();
                 if(derivatives == 0){
                     biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dummyjac, dummyhess);
                 } else {
-                    Array& dBi = check_the_cache(fmt::format("dB_{}", i), {static_cast<int>(points.shape(0)), 3, 3});
+                    Array& dBi = cache_get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
+                    dBi *= 0;
                     if(derivatives == 1) {
                         biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, dummyhess);
                     } else {
-                        Array& ddBi = check_the_cache(fmt::format("ddB_{}", i), {static_cast<int>(points.shape(0)), 3, 3, 3});
+                        Array& ddBi = cache_get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
+                        ddBi *= 0;
                         if (derivatives == 2) {
                             biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi);
                         } else {
                             throw logic_error("Only two derivatives of Biot Savart implemented");
                         }
-                        ddB += current * ddBi;
+                        //fmt::print("ddBi(0, 0, 0, :) = ({}, {}, {})\n", ddBi(0, 0, 0, 0), ddBi(0, 0, 0, 1), ddBi(0, 0, 0, 2));
+                        xt::noalias(ddB) = ddB + current * ddBi;
                     }
-                    dB += current * dBi;
+                    xt::noalias(dB) = dB + current * dBi;
                 }
-                B += current * Bi;
+                fmt::print("i={}, Bi(0, :) = ({}, {}, {}) at {}\n", i, Bi(0, 0), Bi(0, 1), Bi(0, 2), fmt::ptr(B.data()));
+                fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
+                xt::noalias(B) = B + current * Bi;
+                fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
             }
+            fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
         }
 
 
@@ -206,7 +228,7 @@ class BiotSavart : public MagneticField<Array> {
 
         //    int npoints = points.shape(0);
         //    for(int i=0; i<num_coils; i++) {
-        //        Array& Bi = check_the_cache(fmt::format("B_{}", i), {static_cast<int>(points.shape(0)), 3});
+        //        Array& Bi = cache_get_or_create(fmt::format("B_{}", i), {static_cast<int>(points.shape(0)), 3});
         //        for (int j = 0; j < npoints; ++j) {
         //            res_current[i] += Bi(j, 0)*vec(j, 0) + Bi(j, 1)*vec(j, 1) + Bi(j, 2)*vec(j, 2);
         //        }

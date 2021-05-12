@@ -23,43 +23,43 @@ class MagneticField():
 
     def B(self, compute_derivatives=0):
         if self._B is None:
-            self.compute(self.points, compute_derivatives)
+            self.compute(compute_derivatives)
         return self._B
 
     def dB_by_dX(self, compute_derivatives=1):
         if self._dB_by_dX is None:
             assert compute_derivatives >= 1
-            self.compute(self.points, compute_derivatives)
+            self.compute(compute_derivatives)
         return self._dB_by_dX
 
     def d2B_by_dXdX(self, compute_derivatives=2):
         if self._d2B_by_dXdX is None:
             assert compute_derivatives >= 2
-            self.compute(self.points, compute_derivatives)
+            self.compute(compute_derivatives)
         return self._d2B_by_dXdX
 
     def A(self, compute_derivatives=0):
         if self._A is None:
             assert compute_derivatives >= 0
-            self.compute_A(self.points, compute_derivatives)
+            self.compute_A(compute_derivatives)
         return self._A
 
     def dA_by_dX(self, compute_derivatives=1):
         if self._dA_by_dX is None:
             assert compute_derivatives >= 1
-            self.compute_A(self.points, compute_derivatives)
+            self.compute_A(compute_derivatives)
         return self._dA_by_dX
 
     def d2A_by_dXdX(self, compute_derivatives=2):
         if self._d2A_by_dXdX is None:
             assert compute_derivatives >= 2
-            self.compute_A(self.points, compute_derivatives)
+            self.compute_A(compute_derivatives)
         return self._d2A_by_dXdX
 
-    def compute(self, points, compute_derivatives=0):
+    def compute(self, compute_derivatives=0):
         raise NotImplementedError('Computation of B field not implemented. Needs to be overwritten by childclass.')
 
-    def compute_A(self, points, compute_derivatives=0):
+    def compute_A(self, compute_derivatives=0):
         raise NotImplementedError('Computation of potential A not implemented. Needs to be overwritten by childclass.')
 
     def __add__(self, other):
