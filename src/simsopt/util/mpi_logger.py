@@ -51,6 +51,7 @@ def _destroy_log_comm():
             lc.Isend([None, MPI.INT], dest=0, tag=1)
         lc.Disconnect()
 
+
 # Internal variable for keeping track of the log communicators.
 _log_comm_list = []
 
@@ -85,14 +86,13 @@ class MPILogHandler(logging.Handler):
 
         self._logfile = logfile
 
-        self._comm  = MPI.COMM_WORLD if comm is None else comm
+        self._comm = MPI.COMM_WORLD if comm is None else comm
 
         # Spawn new process for logging
         self._log_comm = self._comm.Spawn(sys.executable, args=[__file__, self._logfile])
 
         # Add the communicator to the list of ones to keep track of.
         _log_comm_list.append(self._log_comm)
-
 
     def __del__(self):
         # Note this does not get called unless the Handler has been removed
@@ -103,7 +103,6 @@ class MPILogHandler(logging.Handler):
         if self._log_comm.rank == 0:
             self._log_comm.Isend([None, MPI.INT], dest=0, tag=1)
         self._log_comm.Disconnect()
-
 
     def emit(self, record):
         """Emit the log message.
@@ -132,12 +131,10 @@ class MPILogHandler(logging.Handler):
             s = MPI.Status()
             self._request.Wait(status=s)
 
-
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
             self.handleError(record)
-        
 
 
 if __name__ == '__main__':
@@ -183,7 +180,7 @@ if __name__ == '__main__':
                 # Check to see if there was an error.
                 if s.Get_error() != 0:
                     raise Exception("Logging error (code %i)." % s.Get_error())
-            
+
                 # Write the message to disk
                 msg_rank = s.Get_source()
                 msg = buffers[msg_rank].tobytes().decode().rstrip('\0')
@@ -193,13 +190,12 @@ if __name__ == '__main__':
                 # Replace the buffer and connection
                 buffers[ind] = (array.array('b', '\0'.encode()) * _message_maxlen)
                 requests[ind] = comm_parent.Irecv([buffers[ind], MPI.CHAR], source=msg_rank, tag=0)
-           
+
         if MPI.Request.Test(exit_request):
             # We should exit from this process.
             break
 
         time.sleep(_sleep_interval)
-
 
     comm_parent.Disconnect()
     fh.close()

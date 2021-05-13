@@ -117,7 +117,6 @@ class LeastSquaresProblem(Optimizable):
     def from_tuples(cls,
                     tuples: Sequence[Tuple[Callable, Real, Real]]
                     ) -> LeastSquaresProblem:
-
         """
         Initializes graph based LeastSquaresProblem from a sequence of tuples
         containing *f_in*, *goal*, and *weight*.

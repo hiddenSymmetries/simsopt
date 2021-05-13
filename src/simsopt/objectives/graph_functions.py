@@ -32,6 +32,7 @@ class Identity(Optimizable):
         dof_name: Identifier for the DOF
         dof_fixed: To specify if the dof is fixed
     """
+
     def __init__(self,
                  x: Real = 0.0,
                  dof_name: str = None,
@@ -111,6 +112,7 @@ class Rosenbrock(Optimizable):
         x: *x* coordinate
         y: *y* coordinate
     """
+
     def __init__(self, b=100.0, x=0.0, y=0.0):
         self._sqrtb = np.sqrt(b)
         super().__init__([x, y], names=['x', 'y'])
