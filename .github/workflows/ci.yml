@@ -122,7 +122,7 @@ jobs:
       run: |
         cd SPEC
         # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
         # f90wrap gets confused by "-Wl,-rpath" so remove it:
         cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
         #cp Makefile1 Makefile
