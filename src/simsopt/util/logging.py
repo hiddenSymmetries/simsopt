@@ -10,9 +10,11 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 try:
-    from mpilogger import MPILogHandler
+    from mpi4py import MPI
 except:
-    MPILogHander = None
+    MPI = None
+
+from .mpi_logger import MPILogHandler
 
 
 def initialize_logging(filename: str = None,
@@ -35,7 +37,7 @@ def initialize_logging(filename: str = None,
     if level:
         config_dict['handlers']['file_handler'].update({'level': level})
         config_dict['handlers']['mpi_file_handler'].update({'level': level})
-    if mpi and MPILogHandler:
+    if mpi and MPI is not None:
         config_dict['root']['handlers'].pop(2)  # Remove file hander
     else:
         config_dict['root']['handlers'].pop(3)  # Remove mpi hander
@@ -43,5 +45,5 @@ def initialize_logging(filename: str = None,
 
     logging.config.dictConfig(config_dict)
 
-    if mpi and not MPILogHandler:
-        logging.warning("mpilogger not installed. Not able to log MPI info")
+    if mpi and MPI is None:
+        logging.warning("mpi4py not installed. Not able to log MPI info")

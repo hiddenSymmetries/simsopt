@@ -265,7 +265,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         rc[1, ntor] = 0.1
         zs[1, ntor] = 0.1
 
-        dofs = np.concatenate([rc.flatten(), zs.flatten()])
+        dofs_x = np.concatenate([rc.flatten(), zs.flatten()])
         rc_fixed = [True] * self.ntor + [False] * (self.ntor + 1)
         zs_fixed = [True] * (self.ntor + 1) + [False] * self.ntor
         for m in range(self.mpol):
@@ -276,7 +276,7 @@ class SurfaceRZFourier(Surface, Optimizable):
         if not self.stellsym:
             rs = np.zeros(self.shape)
             zc = np.zeros(self.shape)
-            dofs = np.concatenate([dofs, rs.flatten(), zc.flatten()])
+            dofs_x = np.concatenate([dofs_x, rs.flatten(), zc.flatten()])
 
             zc_fixed = [True] * self.ntor + [False] * (self.ntor + 1)
             rs_fixed = [True] * (self.ntor + 1) + [False] * self.ntor
@@ -287,7 +287,7 @@ class SurfaceRZFourier(Surface, Optimizable):
                                         np.array(zc_fixed)])
             dof_names += self.make_names('rs') + self.make_names('zc')
 
-        Optimizable.__init__(self, x0=dofs, names=dof_names, fixed=dofs_fixed)
+        Optimizable.__init__(self, x0=dofs_x, names=dof_names, fixed=dofs_fixed)
 
         #self.recalculate = True
         self.recalculate_derivs = True
