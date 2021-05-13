@@ -120,7 +120,7 @@ jobs:
       run: |
         cd SPEC
         # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
         cp Makefile1 Makefile
         head -n66 Makefile
         make -j
