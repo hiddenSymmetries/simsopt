@@ -4,9 +4,9 @@ import scipy
 
 class Area(object):
 
-    def __init__(self, surface):
+    def __init__(self, surface, stellarator):
         self.surface = surface
-
+        self.stellarator = stellarator
     def J(self):
         return self.surface.area()
 
@@ -15,11 +15,15 @@ class Area(object):
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         return self.surface.d2area_by_dcoeffdcoeff()
-
+    
+    def dJ_by_dcoilcoefficients(self):
+        return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
 
 class Volume(object):
-    def __init__(self, surface):
+
+    def __init__(self, surface, stellarator):
         self.surface = surface
+        self.stellarator = stellarator
 
     def J(self):
         return self.surface.volume()
@@ -29,6 +33,9 @@ class Volume(object):
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         return self.surface.d2volume_by_dcoeffdcoeff()
+
+    def dJ_by_dcoilcoefficients(self):
+        return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
 
 
 class ToroidalFlux(object):
@@ -42,7 +49,8 @@ class ToroidalFlux(object):
     given a surface and Biot Savart kernel.
     """
 
-    def __init__(self, surface, biotsavart, idx=0):
+    def __init__(self, surface, biotsavart, stellarator, idx=0):
+        self.stellarator = stellarator
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
@@ -56,12 +64,22 @@ class ToroidalFlux(object):
     def J(self):
         x = self.surface.gamma()[self.idx]
         self.biotsavart.set_points(x)
-
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         A = self.biotsavart.A()
         tf = np.sum(A * xtheta)/ntheta
         return tf
+
+    def dJ_by_dA(self):
+        xtheta = self.surface.gammadash2()[self.idx]
+        nphi = self.surface.gamma().shape[0]
+        ntheta = self.surface.gamma().shape[1]
+        dJ_by_dA = np.zeros((nphi, ntheta, 3))
+        dJ_by_dA[self.idx, :] = xtheta/ntheta
+        return dJ_by_dA.reshape((-1, 3))
+
+    def dJ_by_dcoilcoefficients(self):
+        return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -107,6 +125,8 @@ class ToroidalFlux(object):
 
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
+
+
 
 def boozer_surface_dexactresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
     """
@@ -277,27 +297,30 @@ class NonQuasiAxisymmetricComponentPenalty(object):
     def __init__(self, boozer_surface, stellarator):
         self.stellarator = stellarator
         self.boozer_surface = boozer_surface
-        self.surface = boozer_surface.surface
+        self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
+                                         "iota": self.boozer_surface.res["iota"],
+                                         "G": self.boozer_surface.res["G"]}
         self.biotsavart = boozer_surface.bs
-        self.surface.dependencies.append(self)
+        self.boozer_surface.surface.dependencies.append(self)
         self.invalidate_cache()
     
     def invalidate_cache(self):
-        x = self.surface.gamma().reshape((-1,3))
+        x = self.boozer_surface.surface.gamma().reshape((-1,3))
         self.biotsavart.set_points(x)
     
     def J(self):
         """
         Return the objective value
         """
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
+        surface = self.boozer_surface.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
         B = B.reshape( (nphi,ntheta,3) )
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
         
-        nor = self.surface.normal()
+        nor = surface.normal()
         dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
 
         B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
@@ -312,7 +335,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         G = booz_surf.res['G']
         jac = booz_surf.res['jacobian']
         mask = booz_surf.res['mask']
-        
+
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0.,0.]))
         adj = np.linalg.solve(jac.T, dJ_ds)
@@ -322,27 +345,35 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         adj_no_label[mask] = adj[:-1]
 
         adj_times_dg_no_label_dc = boozer_surface_dexactresidual_dcoils_vjp(adj_no_label, booz_surf.surface, iota, G, bs)
-        #dlabel_dc = booz_surf.label.dJ_by_dcoilcoefficients()
-        #adj_times_dg_dc = [(adj[-1] * dl_dc + temp) for dl_dc,temp in zip(dlabel_dc,adj_times_dg_no_label_dc)]
-        adj_times_dg_dc = adj_times_dg_no_label_dc
+        dlabel_dc = booz_surf.label.dJ_by_dcoilcoefficients()
+        adj_times_dg_dc = [(adj[-1] * dl_dc + temp) for dl_dc,temp in zip(dlabel_dc,adj_times_dg_no_label_dc)]
 
         dJ = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcoefficients(), adj_times_dg_dc)]
         dJ = self.stellarator.reduce_coefficient_derivatives(dJ)
 
         return dJ
 
+    def callback(self,x, *args):
+        # update the reference boozer surface
+        self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
+                                         "iota": self.boozer_surface.res["iota"],
+                                         "G": self.boozer_surface.res["G"]}
+
+        print(self.J(), np.linalg.norm(self.dJ()))
+
     def dJ_by_dB(self):
         """
         Return the derivative of the objective with respect to the magnetic field
         """
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
+        surface = self.boozer_surface.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
         B = B.reshape( (nphi,ntheta,3) )
         
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        nor = self.surface.normal()
+        nor = surface.normal()
         dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
 
         denom = np.mean( dS, axis = 0)
@@ -350,7 +381,6 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_nonQS = modB - B_QS[None,:]
         
         dmodB_dB = B / modB[...,None]
-        dB_QS_dB = dmodB_dB * dS[:,:,None] / denom[None,:,None] / nphi
         dJ_by_dB = B_nonQS[...,None] * dmodB_dB * dS[:,:,None] / (nphi * ntheta)
         return dJ_by_dB
        
@@ -367,15 +397,16 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         """
         Return the derivative of the objective with respect to the surface coefficients
         """
-        nphi = self.surface.quadpoints_phi.size
-        ntheta = self.surface.quadpoints_theta.size
+        surface = self.boozer_surface.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
         B = B.reshape( (nphi,ntheta,3) )
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
         
-        nor = self.surface.normal()
-        dnor_dc = self.surface.dnormal_by_dcoeff()
+        nor = surface.normal()
+        dnor_dc = surface.dnormal_by_dcoeff()
         dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
         dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
 
@@ -383,7 +414,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_nonQS = modB - B_QS[None,:]
         
         dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-        dx_dc = self.surface.dgamma_by_dcoeff()
+        dx_dc = surface.dgamma_by_dcoeff()
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
         
         modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)

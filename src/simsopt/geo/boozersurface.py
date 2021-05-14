@@ -480,6 +480,11 @@ class BoozerSurface():
         # component is always satisfied at phi=theta=0, so we ignore that one
         # too. The mask object below is True for those parts of the residual
         # that we need to keep, and False for those that we ignore.
+        
+        backup = s.get_dofs()
+        iota0 = iota
+        G0 = G
+
         m = s.get_stellsym_mask()
         mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
         if s.stellsym:
@@ -515,7 +520,7 @@ class BoozerSurface():
             G = x[-1]
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-            norm = np.linalg.norm(r)
+            norm = np.linalg.norm(np.concatenate((r,[label.J()-self.targetlabel])))
 
         if s.stellsym:
             J = np.vstack((
@@ -535,4 +540,9 @@ class BoozerSurface():
         res = {
                 "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "mask" : mask
         }
+        
+        if not res['success']:
+            s.set_dofs(backup)
+            res['iota'] = iota0
+            res['G'] = G0
         return res

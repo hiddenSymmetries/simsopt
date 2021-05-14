@@ -241,6 +241,9 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
         iota = -0.4
         
         bs = BiotSavart(stellarator.coils, stellarator.currents)
+#        label = ToroidalFlux(s,bs)
+#        label_target = 0.025
+
         label = Area(s)
         label_target = 5
  
