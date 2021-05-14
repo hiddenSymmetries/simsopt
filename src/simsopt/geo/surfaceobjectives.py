@@ -165,7 +165,87 @@ def boozer_surface_dexactresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
     return dres_dcoils
     
 
-     
+def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
+    """
+    For a given surface with points x on it, this function computes the
+    differentiated residual
+
+       d/dB[ G*B_BS(x) - ||B_BS(x)||^2 * (x_phi + iota * x_theta) ]
+
+    as well as the derivatives of this residual with respect to surface dofs,
+    iota, and G.
+
+    G is known for exact boozer surfaces, so if G=None is passed, then that
+    value is used instead.
+    """
+
+    user_provided_G = G is not None
+    if not user_provided_G:
+        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+
+    x = surface.gamma()
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    nphi = x.shape[0]
+    ntheta = x.shape[1]
+    
+    xsemiflat = x.reshape((x.size//3, 3)).copy()
+
+    biotsavart.set_points(xsemiflat)
+
+    B = biotsavart.B(compute_derivatives=derivatives).reshape((nphi, ntheta, 3))
+
+    tang = xphi + iota * xtheta
+    residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
+    dresidual_dB = G - 2. * tang[:,:,:,None] * B[:,:,None,:]
+
+    residual_flattened = residual.reshape((nphi*ntheta*3, ))
+    dresidual_dB_flattened = dresidual_dB.reshape((nphi*ntheta*3,3))
+    r = residual_flattened
+    dr_dB = dresidual_dB_flattened
+    if derivatives == 0:
+        return r, dr_dB
+
+    dx_dc = surface.dgamma_by_dcoeff()
+    dxphi_dc = surface.dgammadash1_by_dcoeff()
+    dxtheta_dc = surface.dgammadash2_by_dcoeff()
+    nsurfdofs = dx_dc.shape[-1]
+
+    dB_by_dX = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+    dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
+    dtang_dc = dxphi_dc + iota * dxtheta_dc
+    dresidual_dc = G*dB_dc \
+        - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] \
+        - np.sum(B**2, axis=2)[..., None, None] * dtang_dc 
+    dresidual_diota = -np.sum(B**2, axis=2)[..., None] * xtheta
+
+    d2residual_dcdB = -2*dB_dc[:, :, None, :, :] * tang[:, :, :, None, None] - 2*B[:, :, None, :, None] * dtang_dc[:, :, :, None, :]
+    d2residual_diotadB = -2.*B[:, :, None, :] * xtheta[:, :, :, None]
+    d2residual_dcdgradB = -2.*B[:, :, None, None, :, None]*dx_dc[:, :, None, :, None, :]*tang[:, :, :, None, None, None]
+    idx = np.arange( 3 )
+    d2residual_dcdgradB[:, :, idx, :, idx, :] += dx_dc * G
+    d2residual_diotadgradB = np.zeros((nphi*ntheta*3, 3, 3)) 
+
+    dresidual_dc_flattened = dresidual_dc.reshape((nphi*ntheta*3, nsurfdofs))
+    dresidual_diota_flattened = dresidual_diota.reshape((nphi*ntheta*3, 1))
+    d2residual_dcdB_flattened = d2residual_dcdB.reshape((nphi*ntheta*3, 3, nsurfdofs))
+    d2residual_diotadB_flattened = d2residual_diotadB.reshape((nphi*ntheta*3, 3, 1))
+    d2residual_dcdgradB = d2residual_dcdgradB.reshape((nphi*ntheta*3, 3, 3, nsurfdofs))
+
+    if user_provided_G:
+        dresidual_dG = B
+        dresidual_dG_flattened = dresidual_dG.reshape((nphi*ntheta*3, 1))
+        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened, dresidual_dG_flattened), axis=1)
+        
+        d2residual_dGdB = np.ones((3*nphi*ntheta))
+        d2residual_dGdgradB = np.zeros((3*nphi*ntheta, 3, 3))
+    else:
+        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened), axis=1)
+    
+    if derivatives == 1:
+        return r, J
+
+    
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     """
