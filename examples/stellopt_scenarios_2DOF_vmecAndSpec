@@ -74,15 +74,15 @@ vmec_iota = vmec.iota_axis()
 spec_iota = spec.iota()
 
 if mpi.proc0_world:
-    print("At the optimum,")
-    print(" objective function = ", final_objective)
-    print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
-    print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
-    print(" volume, according to VMEC    = ", vmec_volume)
-    print(" volume, according to SPEC    = ", spec_volume)
-    print(" volume, according to Surface = ", surf_volume)
-    print(" iota on axis, from VMEC       = ", vmec_iota)
-    print(" iota at mid-radius, from SPEC = ", spec_iota)
+    logging.info("At the optimum,")
+    logging.info(f" objective function = {final_objective}")
+    logging.info(f" rc(m=1,n=1) = {surf.get_rc(1, 1)}")
+    logging.info(f" zs(m=1,n=1) = {surf.get_zs(1, 1)}")
+    logging.info(f" volume, according to VMEC    = {vmec_volume}")
+    logging.info(f" volume, according to SPEC    = {spec_volume}")
+    logging.info(f" volume, according to Surface = {surf_volume}")
+    logging.info(f" iota on axis, from VMEC       = {vmec_iota}")
+    logging.info(f" iota at mid-radius, from SPEC = {spec_iota}")
 
     assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
     assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3

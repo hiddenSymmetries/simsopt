@@ -2,63 +2,9 @@ import unittest
 import numpy as np
 from collections import Counter
 
-from simsopt._core.graph_optimizable import DOF, DOFs
+from simsopt._core.graph_optimizable import DOFs
 from simsopt.objectives.graph_functions import Identity, Adder, \
     TestObject2, Rosenbrock, Affine
-
-
-class DOFTest(unittest.TestCase):
-    """
-    Unit tests for simsopt.core.DOF class
-    """
-
-    def setUp(self):
-        self.dof1 = DOF(2.0, 'x', True, np.NINF, np.inf)
-        self.dof2 = DOF(3.0, 'y', False, np.NINF, np.inf)
-
-    def tearDown(self) -> None:
-        self.dof1 = None
-        self.dof2 = None
-
-    #def test_hash(self):
-    #    self.assertFalse(True)
-
-    #def test_extended_name(self):
-    #    self.assertFalse(True)
-
-    def test_is_fixed(self):
-        self.assertFalse(self.dof1.is_fixed())
-        self.assertTrue(self.dof2.is_fixed())
-
-    def test_is_free(self):
-        self.assertTrue(self.dof1.is_free())
-        self.assertFalse(self.dof2.is_free())
-
-    def test_fix(self):
-        self.dof1.fix()
-        self.assertTrue(self.dof1.is_fixed())
-
-    def test_unfix(self):
-        self.dof2.unfix()
-        self.assertTrue(self.dof2.is_free())
-
-    def test_min(self):
-        self.assertTrue(np.isclose(self.dof1.min, np.NINF))
-        self.dof1.min = -10.0
-        self.assertAlmostEqual(self.dof1.min, -10.0)
-
-    def test_max(self):
-        self.assertTrue(np.isclose(self.dof1.max, np.inf))
-        self.dof1.max = 1e2
-        self.assertAlmostEqual(self.dof1.max, 100.0)
-
-    #def test_owner(self):
-    #    self.assertTrue(False)
-
-    def test_x(self):
-        self.assertAlmostEqual(self.dof1.x, 2.0)
-        self.dof1.x = 10.0
-        self.assertAlmostEqual(self.dof1.x, 10.0)
 
 
 class DOFsTests(unittest.TestCase):
