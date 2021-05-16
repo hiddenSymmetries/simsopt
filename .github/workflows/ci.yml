@@ -98,6 +98,8 @@ jobs:
         repository: PrincetonUniversity/SPEC
         path: SPEC
         token: ${{ secrets.SPEC_CHECKOUT }}
+        #ref: python_hdf5
+        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
@@ -120,9 +122,11 @@ jobs:
       run: |
         cd SPEC
         # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
-        cp Makefile1 Makefile
-        head -n66 Makefile
+        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+        # f90wrap gets confused by "-Wl,-rpath" so remove it:
+        cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
+        #cp Makefile1 Makefile
+        head -n126 Makefile
         make -j
 
     - name: Add xspec to PATH.
@@ -132,7 +136,18 @@ jobs:
         echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
-      run: pip install git+https://github.com/jameskermode/f90wrap
+      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
+
+    - name: Build SPEC python wrapper.
+      run: |
+        cd SPEC/Utilities/python_wrapper
+        make all
+
+    - name: Add spec python wrapper to PYTHONPATH.
+      run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
+
+    - name: Try import spec
+      run: python -c "import spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
