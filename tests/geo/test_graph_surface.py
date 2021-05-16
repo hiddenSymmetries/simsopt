@@ -86,7 +86,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.rs.shape, (2, 7))
         self.assertEqual(s.zc.shape, (2, 7))
 
-    def test_get_dofs1(self):
+    def test_get_x(self):
         """
         Test that we can convert the degrees of freedom into a 1D vector
         """
@@ -96,20 +96,20 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.set_rc(0, 0, 1.3)
         s.set_rc(1, 0, 0.4)
         s.set_zs(1, 0, 0.2)
-        dofs = s.dofs
-        self.assertEqual(dofs.shape, (3,))
-        self.assertAlmostEqual(dofs[0], 1.3)
-        self.assertAlmostEqual(dofs[1], 0.4)
-        self.assertAlmostEqual(dofs[2], 0.2)
+        x = s.x
+        self.assertEqual(x.shape, (3,))
+        self.assertAlmostEqual(x[0], 1.3)
+        self.assertAlmostEqual(x[1], 0.4)
+        self.assertAlmostEqual(x[2], 0.2)
 
         # Now try a nonaxisymmetric shape:
         s = SurfaceRZFourier(mpol=3, ntor=1)
         s.rc = np.array([[100, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
         s.zs = np.array([[101, 102, 13], [14, 15, 16], [17, 18, 19], [20, 21, 22]])
-        dofs = s.dofs
-        self.assertEqual(dofs.shape, (21,))
+        x = s.x
+        self.assertEqual(x.shape, (21,))
         for j in range(21):
-            self.assertAlmostEqual(dofs[j], j + 2)
+            self.assertAlmostEqual(x[j], j + 2)
 
     def test_set_dofs(self):
         """
@@ -118,14 +118,14 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # First try an axisymmetric surface for simplicity:
         s = SurfaceRZFourier()
-        s.dofs = [2.9, -1.1, 0.7]
+        s.x = [2.9, -1.1, 0.7]
         self.assertAlmostEqual(s.get_rc(0, 0), 2.9)
         self.assertAlmostEqual(s.get_rc(1, 0), -1.1)
         self.assertAlmostEqual(s.get_zs(1, 0), 0.7)
 
         # Now try a nonaxisymmetric shape:
         s = SurfaceRZFourier(mpol=3, ntor=1)
-        s.dofs = np.array(list(range(21))) + 1
+        s.x = np.array(list(range(21))) + 1
         self.assertAlmostEqual(s.get_rc(0, -1), 0)
         self.assertAlmostEqual(s.get_rc(0, 0), 1)
         self.assertAlmostEqual(s.get_rc(0, 1), 2)

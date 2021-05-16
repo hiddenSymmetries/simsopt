@@ -37,7 +37,6 @@ Optional Packages
     * f90nml
 - For VMEC support
     * https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
-    * f90nml
 - For quasisymmetry optimization
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_,
 
