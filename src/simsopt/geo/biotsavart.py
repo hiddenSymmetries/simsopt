@@ -18,7 +18,6 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         points = self.points
         assert compute_derivatives <= 2
 
-
         npoints = len(points)
         ncoils = len(self.coils)
 

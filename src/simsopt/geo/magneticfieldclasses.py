@@ -54,7 +54,6 @@ class ToroidalField(MagneticField):
 
         dB[:] = np.array([dB_by_dX1, dB_by_dX2, dB_by_dX3]).T
 
-
     def d2B_by_dXdX_impl(self, ddB):
         points = self.points
         phi = np.arctan2(points[:, 1], points[:, 0])
@@ -324,6 +323,7 @@ class Dommaschk(MagneticField):
     def dB_by_dX_impl(self, dB):
         points = self.points
         dB[:] = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+
 
 class InterpolatedField(MagneticField):
     """
