@@ -22,82 +22,92 @@ class ToroidalField(MagneticField):
     """
 
     def __init__(self, R0, B0):
+        MagneticField.__init__(self)
         self.R0 = R0
         self.B0 = B0
 
-    def compute(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
-
+    def B_impl(self, B):
+        points = self.points
         phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
-        self._B = np.multiply(self.B0*self.R0, phiUnitVectorOverR)
+        B[:] = np.multiply(self.B0*self.R0, phiUnitVectorOverR)
+
+    def dB_by_dX_impl(self, dB):
+        points = self.points
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
 
         x = points[:, 0]
         y = points[:, 1]
 
-        if compute_derivatives >= 1:
+        dB_by_dX1 = np.vstack((
+            np.multiply(np.divide(self.B0*self.R0, R**4), 2*np.multiply(x, y)),
+            np.multiply(np.divide(self.B0*self.R0, R**4), y**2-x**2),
+            0*R))
+        dB_by_dX2 = np.vstack((
+            np.multiply(np.divide(self.B0*self.R0, R**4), y**2-x**2),
+            np.multiply(np.divide(self.B0*self.R0, R**4), -2*np.multiply(x, y)),
+            0*R))
+        dB_by_dX3 = np.vstack((0*R, 0*R, 0*R))
 
-            dB_by_dX1 = np.vstack((
-                np.multiply(np.divide(self.B0*self.R0, R**4), 2*np.multiply(x, y)),
-                np.multiply(np.divide(self.B0*self.R0, R**4), y**2-x**2),
-                0*R))
-            dB_by_dX2 = np.vstack((
-                np.multiply(np.divide(self.B0*self.R0, R**4), y**2-x**2),
-                np.multiply(np.divide(self.B0*self.R0, R**4), -2*np.multiply(x, y)),
-                0*R))
-            dB_by_dX3 = np.vstack((0*R, 0*R, 0*R))
+        dB[:] = np.array([dB_by_dX1, dB_by_dX2, dB_by_dX3]).T
 
-            dToroidal_by_dX = np.array([dB_by_dX1, dB_by_dX2, dB_by_dX3]).T
 
-            self._dB_by_dX = dToroidal_by_dX
+    def d2B_by_dXdX_impl(self, ddB):
+        points = self.points
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
 
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = 2*self.B0*self.R0*np.multiply(
-                1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
-                    [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
-                        points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
-                        np.zeros((len(points)))],
-                     np.zeros((3, len(points)))],
-                    [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
-                      np.zeros((len(points)))],
-                     [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
-                      np.zeros((len(points)))], np.zeros((3, len(points)))],
-                    np.zeros((3, 3, len(points)))])).T
-        return self
+        x = points[:, 0]
+        y = points[:, 1]
+        ddB[:] = 2*self.B0*self.R0*np.multiply(
+            1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
+                [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
+                    points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
+                    np.zeros((len(points)))],
+                 np.zeros((3, len(points)))],
+                [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
+                  np.zeros((len(points)))],
+                 [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
+                  np.zeros((len(points)))], np.zeros((3, len(points)))],
+                np.zeros((3, 3, len(points)))])).T
 
-    def compute_A(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
-
-        self._A = self.B0*self.R0*np.array([
+    def A_impl(self, A):
+        points = self.points
+        A[:] = self.B0*self.R0*np.array([
             points[:, 2]*points[:, 0]/(points[:, 0]**2+points[:, 1]**2),
             points[:, 2]*points[:, 1]/(points[:, 0]**2+points[:, 1]**2),
             0*points[:, 2]]).T
 
-        if compute_derivatives >= 1:
-            self._dA_by_dX = self.B0*self.R0*np.array((points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**2)*np.array(
-                [[-points[:, 0]**2+points[:, 1]**2, -2*points[:, 0]*points[:, 1], np.zeros((len(points)))],
-                 [-2*points[:, 0]*points[:, 1], points[:, 0]**2-points[:, 1]**2, np.zeros((len(points)))],
-                 [points[:, 0]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
-                  points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2], np.zeros((len(points)))]])).T
+    def dA_by_dX_impl(self, dA):
+        points = self.points
+        dA[:] = self.B0*self.R0*np.array((points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**2)*np.array(
+            [[-points[:, 0]**2+points[:, 1]**2, -2*points[:, 0]*points[:, 1], np.zeros((len(points)))],
+             [-2*points[:, 0]*points[:, 1], points[:, 0]**2-points[:, 1]**2, np.zeros((len(points)))],
+             [points[:, 0]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
+              points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2], np.zeros((len(points)))]])).T
 
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = 2*self.B0*self.R0*np.array(
-                (points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**3)*np.array([
-                    [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
-                      (-points[:, 0]**4+points[:, 1]**4)/(2*points[:, 2])],
-                     [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2, -points[:, 0]*points[:, 1]*(
-                         points[:, 0]**2+points[:, 1]**2)/points[:, 2]],
-                     [(-points[:, 0]**4+points[:, 1]**4)/(2*points[:, 2]),
-                      -points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
-                      np.zeros((len(points)))]],
-                    [[3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
-                      -points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2]],
-                     [-points[:, 0]**3+3*points[:, 0]*points[:, 1]**2, -3*points[:, 0]**2*points[:, 1]+points[:, 1]**3, (
-                         points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2])],
-                     [-points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
-                      (points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2]), np.zeros((len(points)))]],
-                    np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
+    def d2A_by_dXdX_impl(self, ddA):
+        points = self.points
+        ddA[:] = 2*self.B0*self.R0*np.array(
+            (points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**3)*np.array([
+                [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
+                  (-points[:, 0]**4+points[:, 1]**4)/(2*points[:, 2])],
+                 [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2, -points[:, 0]*points[:, 1]*(
+                     points[:, 0]**2+points[:, 1]**2)/points[:, 2]],
+                 [(-points[:, 0]**4+points[:, 1]**4)/(2*points[:, 2]),
+                  -points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
+                  np.zeros((len(points)))]],
+                [[3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
+                  -points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2]],
+                 [-points[:, 0]**3+3*points[:, 0]*points[:, 1]**2, -3*points[:, 0]**2*points[:, 1]+points[:, 1]**3, (
+                     points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2])],
+                 [-points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
+                  (points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2]), np.zeros((len(points)))]],
+                np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
 
 class ScalarPotentialRZMagneticField(MagneticField):
@@ -114,6 +124,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
     """
 
     def __init__(self, PhiStr):
+        MagneticField.__init__(self)
         if not sympy_found:
             raise RuntimeError("Sympy is required for the ScalarPotentialRZMagneticField class")
         self.PhiStr = PhiStr
@@ -130,20 +141,20 @@ class ScalarPotentialRZMagneticField(MagneticField):
               sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
              [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
 
-    def compute(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
-
+    def B_impl(self, B):
+        points = self.points
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        self._B = np.array(self.Blambdify(r, z, phi)).T
+        B[:] = np.array(self.Blambdify(r, z, phi)).T
 
-        if compute_derivatives >= 1:
-            self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
-
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
+    def dB_by_dX_impl(self, dB):
+        points = self.points
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        dB[:] = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
 
 
 class CircularCoil(MagneticField):
@@ -164,6 +175,7 @@ class CircularCoil(MagneticField):
     '''
 
     def __init__(self, r0=0.1, center=[0, 0, 0], I=5e5/np.pi, normal=[0, 0]):
+        MagneticField.__init__(self)
         self.r0 = r0
         self.Inorm = I*4e-7
         self.center = center
@@ -178,9 +190,8 @@ class CircularCoil(MagneticField):
                                     np.cos(self.normal[0])*np.cos(self.normal[1])]])
         self.rotMatrixInv = np.array(self.rotMatrix.T)
 
-    def compute(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
-
+    def B_impl(self, B):
+        points = self.points
         points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
@@ -190,79 +201,83 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
-        self._B = np.dot(self.rotMatrixInv, np.array(
+        B[:] = np.dot(self.rotMatrixInv, np.array(
             [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
-        if compute_derivatives >= 1:
+    def dB_by_dX_impl(self, dB):
+        points = self.points
+        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
+        rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
+        alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
+        beta = np.sqrt(self.r0**2 + np.square(r) + 2*self.r0*rho)
+        k = np.sqrt(1-np.divide(np.square(alpha), np.square(beta)))
+        ellipek2 = ellipe(k**2)
+        ellipkk2 = ellipk(k**2)
+        gamma = np.square(points[:, 0]) - np.square(points[:, 1])
+        dBxdx = (self.Inorm*points[:, 2]*(
+            ellipkk2*alpha**2*((2*points[:, 0]**4 + gamma*(
+                points[:, 1]**2 + points[:, 2]**2))*r**2 + self.r0**2*(
+                    gamma*(self.r0**2 + 2*points[:, 2]**2) - (3*points[:, 0]**2 - 2*points[:, 1]**2)*rho**2))
+            + ellipek2*(-((2*points[:, 0]**4 + gamma*(points[:, 1]**2 + points[:, 2]**2))*r**4)
+                        + self.r0**4*(-(gamma*(self.r0**2 + 3*points[:, 2]**2)) + (8*points[:, 0]**2 - points[:, 1]**2)*rho**2)
+                        - self.r0**2*(
+                            3*gamma*points[:, 2]**4 - 2*(2*points[:, 0]**2 + points[:, 1]**2)*points[:, 2]**2 * rho**2
+                            + (5*points[:, 0]**2 + points[:, 1]**2)*rho**4
+            ))
+        ))/(2*alpha**4*beta**3*rho**4)
 
-            dBxdx = (self.Inorm*points[:, 2]*(
-                ellipkk2*alpha**2*((2*points[:, 0]**4 + gamma*(
-                    points[:, 1]**2 + points[:, 2]**2))*r**2 + self.r0**2*(
-                        gamma*(self.r0**2 + 2*points[:, 2]**2) - (3*points[:, 0]**2 - 2*points[:, 1]**2)*rho**2))
-                + ellipek2*(-((2*points[:, 0]**4 + gamma*(points[:, 1]**2 + points[:, 2]**2))*r**4)
-                            + self.r0**4*(-(gamma*(self.r0**2 + 3*points[:, 2]**2)) + (8*points[:, 0]**2 - points[:, 1]**2)*rho**2)
-                            - self.r0**2*(
-                                3*gamma*points[:, 2]**4 - 2*(2*points[:, 0]**2 + points[:, 1]**2)*points[:, 2]**2 * rho**2
-                                + (5*points[:, 0]**2 + points[:, 1]**2)*rho**4
-                ))
-            ))/(2*alpha**4*beta**3*rho**4)
+        dBydx = (self.Inorm*points[:, 0]*points[:, 1]*points[:, 2]*(
+            ellipkk2*alpha**2*(
+                2*self.r0**4 + r**2*(2*r**2 + rho**2) - self.r0**2*(-4*points[:, 2]**2 + 5*rho**2))
+            + ellipek2*(-2*self.r0**6 - r**4*(2*r**2 + rho**2) + 3*self.r0**4*(-2*points[:, 2]**2 + 3*rho**2) - 2*self.r0**2*(3*points[:, 2]**4 - points[:, 2]**2*rho**2 + 2*rho**4))
+        ))/(2*alpha**4*beta**3*rho**4)
 
-            dBydx = (self.Inorm*points[:, 0]*points[:, 1]*points[:, 2]*(
-                ellipkk2*alpha**2*(
-                    2*self.r0**4 + r**2*(2*r**2 + rho**2) - self.r0**2*(-4*points[:, 2]**2 + 5*rho**2))
-                + ellipek2*(-2*self.r0**6 - r**4*(2*r**2 + rho**2) + 3*self.r0**4*(-2*points[:, 2]**2 + 3*rho**2) - 2*self.r0**2*(3*points[:, 2]**4 - points[:, 2]**2*rho**2 + 2*rho**4))
-            ))/(2*alpha**4*beta**3*rho**4)
+        dBzdx = (self.Inorm*points[:, 0]*(
+            - (ellipkk2*alpha**2*((-self.r0**2 + rho**2)**2 + points[:, 2]**2*(self.r0**2 + rho**2)))
+            + ellipek2*(
+                points[:, 2]**4*(self.r0**2 + rho**2) + (-self.r0**2 + rho**2)**2*(self.r0**2 + rho**2)
+                + 2*points[:, 2]**2*(self.r0**4 - 6*self.r0**2*rho**2 + rho**4))
+        ))/(2*alpha**4*beta**3*rho**2)
+        dBxdy = dBydx
 
-            dBzdx = (self.Inorm*points[:, 0]*(
-                - (ellipkk2*alpha**2*((-self.r0**2 + rho**2)**2 + points[:, 2]**2*(self.r0**2 + rho**2)))
-                + ellipek2*(
-                    points[:, 2]**4*(self.r0**2 + rho**2) + (-self.r0**2 + rho**2)**2*(self.r0**2 + rho**2)
-                    + 2*points[:, 2]**2*(self.r0**4 - 6*self.r0**2*rho**2 + rho**4))
-            ))/(2*alpha**4*beta**3*rho**2)
-            dBxdy = dBydx
+        dBydy = (self.Inorm*points[:, 2]*(
+            ellipkk2*alpha**2*((2*points[:, 1]**4 - gamma*(points[:, 0]**2 + points[:, 2]**2))*r**2 +
+                               self.r0**2*(-(gamma*(self.r0**2 + 2*points[:, 2]**2)) - (-2*points[:, 0]**2 + 3*points[:, 1]**2)*rho**2)) +
+            ellipek2*(-((2*points[:, 1]**4 - gamma*(points[:, 0]**2 + points[:, 2]**2))*r**4) +
+                      self.r0**4*(gamma*(self.r0**2 + 3*points[:, 2]**2) + (-points[:, 0]**2 + 8*points[:, 1]**2)*rho**2) -
+                      self.r0**2*(-3*gamma*points[:, 2]**4 - 2*(points[:, 0]**2 + 2*points[:, 1]**2)*points[:, 2]**2*rho**2 +
+                                  (points[:, 0]**2 + 5*points[:, 1]**2)*rho**4))))/(2*alpha**4*beta**3*rho**4)
 
-            dBydy = (self.Inorm*points[:, 2]*(
-                ellipkk2*alpha**2*((2*points[:, 1]**4 - gamma*(points[:, 0]**2 + points[:, 2]**2))*r**2 +
-                                   self.r0**2*(-(gamma*(self.r0**2 + 2*points[:, 2]**2)) - (-2*points[:, 0]**2 + 3*points[:, 1]**2)*rho**2)) +
-                ellipek2*(-((2*points[:, 1]**4 - gamma*(points[:, 0]**2 + points[:, 2]**2))*r**4) +
-                          self.r0**4*(gamma*(self.r0**2 + 3*points[:, 2]**2) + (-points[:, 0]**2 + 8*points[:, 1]**2)*rho**2) -
-                          self.r0**2*(-3*gamma*points[:, 2]**4 - 2*(points[:, 0]**2 + 2*points[:, 1]**2)*points[:, 2]**2*rho**2 +
-                                      (points[:, 0]**2 + 5*points[:, 1]**2)*rho**4))))/(2*alpha**4*beta**3*rho**4)
+        dBzdy = dBzdx*points[:, 1]/points[:, 0]
 
-            dBzdy = dBzdx*points[:, 1]/points[:, 0]
+        dBxdz = dBzdx
 
-            dBxdz = dBzdx
+        dBydz = dBzdy
 
-            dBydz = dBzdy
+        dBzdz = (self.Inorm*points[:, 2]*(ellipkk2*alpha**2*(self.r0**2 - r**2) +
+                                          ellipek2*(-7*self.r0**4 + r**4 + 6*self.r0**2*(-points[:, 2]**2 + rho**2))))/(2*alpha**4*beta**3)
 
-            dBzdz = (self.Inorm*points[:, 2]*(ellipkk2*alpha**2*(self.r0**2 - r**2) +
-                                              ellipek2*(-7*self.r0**4 + r**4 + 6*self.r0**2*(-points[:, 2]**2 + rho**2))))/(2*alpha**4*beta**3)
+        dB_by_dXm = np.array([
+            [dBxdx, dBydx, dBzdx],
+            [dBxdy, dBydy, dBzdy],
+            [dBxdz, dBydz, dBzdz]])
 
-            dB_by_dXm = np.array([
-                [dBxdx, dBydx, dBzdx],
-                [dBxdy, dBydy, dBzdy],
-                [dBxdz, dBydz, dBzdz]])
+        dB[:] = np.array([
+            [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm))],
+            [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm))],
+            [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
+             np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
 
-            self._dB_by_dX = np.array([
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
-
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
-
-    def compute_A(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
-
+    def A_impl(self, A):
+        points = self.points
         points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
@@ -272,18 +287,10 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        self._A = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
+        A[:] = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
             (2*self.r0*+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
             np.array([-points[:, 1], points[:, 0], 0])).T)
-
-        if compute_derivatives >= 1:
-            self._dA_by_dX = None
-            raise RuntimeError("First derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
-
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = None
-            raise RuntimeError("Second derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
 
 
 class Dommaschk(MagneticField):
@@ -300,18 +307,23 @@ class Dommaschk(MagneticField):
     """
 
     def __init__(self, mn=[[0, 0]], coeffs=[[0, 0]]):
+        MagneticField.__init__(self)
         self.m = np.array(mn, dtype=np.int16)[:, 0]
         self.n = np.array(mn, dtype=np.int16)[:, 1]
         self.coeffs = coeffs
         self.Btor = ToroidalField(1, 1)
 
-    def compute(self, points, compute_derivatives=0):
-        assert compute_derivatives <= 2
+    def set_points(self, points):
         self.Btor.set_points(points)
-        self._B = np.add.reduce(sgpp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
+        return MagneticField.set_points(self, points)
 
-        if compute_derivatives >= 1:
-            self._dB_by_dX = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+    def B_impl(self, B):
+        points = self.points
+        B[:] = np.add.reduce(sgpp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
+
+    def dB_by_dX_impl(self, dB):
+        points = self.points
+        dB[:] = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
 class InterpolatedField(MagneticField):
     """
