@@ -1,66 +1,18 @@
 import numpy as np
+import simsgeopp as sgpp
 
 
-class MagneticField():
+class MagneticField(sgpp.MagneticField):
 
     '''
     Generic class that represents any magnetic field for which each magnetic
     field class inherits.
     '''
+    def __init__(self):
+        sgpp.MagneticField.__init__(self)
 
     def clear_cached_properties(self):
-        self._B = None
-        self._dB_by_dX = None
-        self._d2B_by_dXdX = None
-        self._A = None
-        self._dA_by_dX = None
-        self._d2A_by_dXdX = None
-
-    def set_points(self, points):
-        self.points = np.array(points)
-        self.clear_cached_properties()
-        return self
-
-    def B(self, compute_derivatives=0):
-        if self._B is None:
-            self.compute(compute_derivatives)
-        return self._B
-
-    def dB_by_dX(self, compute_derivatives=1):
-        if self._dB_by_dX is None:
-            assert compute_derivatives >= 1
-            self.compute(compute_derivatives)
-        return self._dB_by_dX
-
-    def d2B_by_dXdX(self, compute_derivatives=2):
-        if self._d2B_by_dXdX is None:
-            assert compute_derivatives >= 2
-            self.compute(compute_derivatives)
-        return self._d2B_by_dXdX
-
-    def A(self, compute_derivatives=0):
-        if self._A is None:
-            assert compute_derivatives >= 0
-            self.compute_A(compute_derivatives)
-        return self._A
-
-    def dA_by_dX(self, compute_derivatives=1):
-        if self._dA_by_dX is None:
-            assert compute_derivatives >= 1
-            self.compute_A(compute_derivatives)
-        return self._dA_by_dX
-
-    def d2A_by_dXdX(self, compute_derivatives=2):
-        if self._d2A_by_dXdX is None:
-            assert compute_derivatives >= 2
-            self.compute_A(compute_derivatives)
-        return self._d2A_by_dXdX
-
-    def compute(self, compute_derivatives=0):
-        raise NotImplementedError('Computation of B field not implemented. Needs to be overwritten by childclass.')
-
-    def compute_A(self, compute_derivatives=0):
-        raise NotImplementedError('Computation of potential A not implemented. Needs to be overwritten by childclass.')
+        sgpp.MagneticField.invalidate_cache(self)
 
     def __add__(self, other):
         return MagneticFieldSum([self, other])
@@ -79,30 +31,31 @@ class MagneticFieldMultiply(MagneticField):
     '''
 
     def __init__(self, scalar, Bfield):
+        MagneticField.__init__(self)
         self.scalar = scalar
         self.Bfield = Bfield
 
     def set_points(self, points):
-        self.points = np.array(points)
-        self.clear_cached_properties()
         self.Bfield.set_points(points)
-        return self
+        return MagneticField.set_points(self, points)
 
-    def compute(self, points, compute_derivatives=0):
-        self.Bfield.compute(points, compute_derivatives)
-        self._B = self.scalar*self.Bfield._B
-        if compute_derivatives >= 1:
-            self._dB_by_dX = self.scalar*self.Bfield._dB_by_dX
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = self.scalar*self.Bfield._d2B_by_dXdX
+    def B_impl(self, B):
+        B[:] = self.scalar*self.Bfield.B()
 
-    def compute_A(self, points, compute_derivatives=0):
-        self.Bfield.compute_A(points, compute_derivatives)
-        self._A = self.scalar*self.Bfield._A
-        if compute_derivatives >= 1:
-            self._dA_by_dX = self.scalar*self.Bfield._dA_by_dX
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = self.scalar*self.Bfield._d2A_by_dXdX
+    def dB_by_dX_impl(self, dB):
+        dB[:] = self.scalar*self.Bfield.dB_by_dX()
+
+    def d2B_by_dXdX_impl(self, ddB):
+        ddB[:] = self.scalar*self.Bfield.d2B_by_dXdX()
+
+    def A_impl(self, A):
+        A[:] = self.scalar*self.Bfield.A()
+
+    def dA_by_dX_impl(self, dA):
+        dA[:] = self.scalar*self.Bfield.dA_by_dX()
+
+    def d2A_by_dXdX_impl(self, ddA):
+        ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
 
 class MagneticFieldSum(MagneticField):
@@ -114,26 +67,28 @@ class MagneticFieldSum(MagneticField):
     '''
 
     def __init__(self, Bfields):
+        MagneticField.__init__(self)
         self.Bfields = Bfields
 
     def set_points(self, points):
-        self.points = np.array(points)
-        self.clear_cached_properties()
-        [Bfield.set_points(points) for Bfield in self.Bfields]
-        return self
+        for bf in self.Bfields:
+            bf.set_points(points)
+        return MagneticField.set_points(self, points)
 
-    def compute(self, points, compute_derivatives=0):
-        [Bfield.compute(points, compute_derivatives) for Bfield in self.Bfields]
-        self._B = np.sum([Bfield._B for Bfield in self.Bfields], 0)
-        if compute_derivatives >= 1:
-            self._dB_by_dX = np.sum([Bfield._dB_by_dX for Bfield in self.Bfields], 0)
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = np.sum([Bfield._d2B_by_dXdX for Bfield in self.Bfields], 0)
+    def B_impl(self, B):
+        B[:] = np.sum([bf.B() for bf in self.Bfields], axis=0)
 
-    def compute_A(self, points, compute_derivatives=0):
-        [Bfield.compute_A(points, compute_derivatives) for Bfield in self.Bfields]
-        self._A = np.sum([Bfield._A for Bfield in self.Bfields], 0)
-        if compute_derivatives >= 1:
-            self._dA_by_dX = np.sum([Bfield._dA_by_dX for Bfield in self.Bfields], 0)
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = np.sum([Bfield._d2A_by_dXdX for Bfield in self.Bfields], 0)
+    def dB_by_dX_impl(self, dB):
+        dB[:] = np.sum([bf.dB_by_dX() for bf in self.Bfields], axis=0)
+
+    def d2B_by_dXdX_impl(self, ddB):
+        ddB[:] = np.sum([bf.d2B_by_dXdX() for bf in self.Bfields], axis=0)
+
+    def A_impl(self, A):
+        A[:] = np.sum([bf.A() for bf in self.Bfields], axis=0)
+
+    def dA_by_dX_impl(self, dA):
+        dA[:] = np.sum([bf.dA_by_dX() for bf in self.Bfields], axis=0)
+
+    def d2A_by_dXdX_impl(self, ddA):
+        ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)

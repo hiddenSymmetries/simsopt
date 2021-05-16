@@ -17,9 +17,9 @@ typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
 #include "surfacexyztensorfourier.h"
 typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
-template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFourierTrampoline : public PySurfaceRZFourierBase {
+template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFourierTrampoline : public PySurfaceTrampoline<PySurfaceRZFourierBase> {
     public:
-        using PySurfaceRZFourierBase::PySurfaceRZFourierBase;
+        using PySurfaceTrampoline<PySurfaceRZFourierBase>::PySurfaceTrampoline;
         using PySurfaceRZFourierBase::mpol;
         using PySurfaceRZFourierBase::ntor;
         using PySurfaceRZFourierBase::nfp;
@@ -51,9 +51,9 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
         }
 };
 
-template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXYZFourierTrampoline : public PySurfaceXYZFourierBase {
+template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXYZFourierTrampoline : public PySurfaceTrampoline<PySurfaceXYZFourierBase> {
     public:
-        using PySurfaceXYZFourierBase::PySurfaceXYZFourierBase;
+        using PySurfaceTrampoline<PySurfaceXYZFourierBase>::PySurfaceTrampoline;
 
         int num_dofs() override {
             return PySurfaceXYZFourierBase::num_dofs();
@@ -80,9 +80,9 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
         }
 };
 
-template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceXYZTensorFourierBase {
+template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceTrampoline<PySurfaceXYZTensorFourierBase> {
     public:
-        using PySurfaceXYZTensorFourierBase::PySurfaceXYZTensorFourierBase;
+        using PySurfaceTrampoline<PySurfaceXYZTensorFourierBase>::PySurfaceTrampoline;
 
         int num_dofs() override {
             return PySurfaceXYZTensorFourierBase::num_dofs();

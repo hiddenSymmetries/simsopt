@@ -1,5 +1,6 @@
 #pragma once
-#include "xtensor/xarray.hpp"
+#include <xtensor/xarray.hpp>
+#include <xtensor/xnoalias.hpp>
 #include <stdexcept>
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -19,6 +20,22 @@ using std::make_shared;
 
 template<class Array>
 class MagneticField {
+    /*
+     * This is the abstract base class for a magnetic field B and it's potential A.
+     * The usage is as follows:
+     * Bfield = InstanceOfMagneticField(...)
+     * points = some array of shape (n, 3) where to evaluate the B field
+     * Bfield.set_points(points)
+     * B = Bfield.B() // to get the magnetic field at `points`, a (n, 3) array
+     * A = Bfield.A() // to get the potential field at `points`, a (n, 3) array
+     * gradB = Bfield.dB_by_dX() // to get the gradient of the magnetic field at `points`, a (n, 3, 3) array
+     * Some performance notes:
+     *  - this class has an internal cache that is cleared everytime set_points() is called
+     *  - all functions have a `_ref` version, e.g. `Bfield.B_ref()` which
+     *    returns a reference to the array in the cache. this should be used when
+     *    performance is key and when the user guarantees that the array is only
+     *    read and not modified.
+     */
     private:
         std::map<string, CachedArray<Array>> cache;
 
@@ -44,10 +61,10 @@ class MagneticField {
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
                 loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
                 loc->second = CachedArray<Array>(xt::zeros<double>(dims));
-                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
             loc->second.status = true;
             return loc->second.data;
@@ -57,10 +74,10 @@ class MagneticField {
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
                 loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
                 loc->second = CachedArray<Array>(xt::zeros<double>(dims));
-                fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
             if(!(loc->second.status)){ // needs recomputing
                 impl(loc->second.data);
@@ -84,48 +101,57 @@ class MagneticField {
         virtual void B_impl(Array& B) { throw logic_error("B_impl was not implemented"); }
         virtual void dB_by_dX_impl(Array& dB_by_dX) { throw logic_error("dB_by_dX_impl was not implemented"); }
         virtual void d2B_by_dXdX_impl(Array& d2B_by_dXdX) { throw logic_error("d2B_by_dXdX_impl was not implemented"); }
+        virtual void A_impl(Array& A) { throw logic_error("A_impl was not implemented"); }
+        virtual void dA_by_dX_impl(Array& dA_by_dX) { throw logic_error("dA_by_dX_impl was not implemented"); }
+        virtual void d2A_by_dXdX_impl(Array& d2A_by_dXdX) { throw logic_error("d2A_by_dXdX_impl was not implemented"); }
 
         Array& B_ref() {
             return cache_get_or_create_and_fill("B", {static_cast<int>(points.shape(0)), 3}, [this](Array& B) { return B_impl(B);});
         }
-
         Array& dB_by_dX_ref() {
             return cache_get_or_create_and_fill("dB_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
         }
-
         Array& d2B_by_dXdX_ref() {
             return cache_get_or_create_and_fill("d2B_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
         }
+        Array B() { return B_ref(); }
+        Array dB_by_dX() { return dB_by_dX_ref(); }
+        Array d2B_by_dXdX() { return d2B_by_dXdX_ref(); }
 
-        Array B() {
-            return B_ref();
+        Array& A_ref() {
+            return cache_get_or_create_and_fill("A", {static_cast<int>(points.shape(0)), 3}, [this](Array& A) { return A_impl(A);});
         }
-
-        Array dB_by_dX() {
-            return dB_by_dX_ref();
+        Array& dA_by_dX_ref() {
+            return cache_get_or_create_and_fill("dA_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
         }
-
-        Array d2B_by_dXdX() {
-            return d2B_by_dXdX_ref();
+        Array& d2A_by_dXdX_ref() {
+            return cache_get_or_create_and_fill("d2A_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
         }
-
+        Array A() { return A_ref(); }
+        Array dA_by_dX() { return dA_by_dX_ref(); }
+        Array d2A_by_dXdX() { return d2A_by_dXdX_ref(); }
 };
 
 typedef vector_type AlignedVector;
 
 template<class Array>
 class BiotSavart : public MagneticField<Array> {
+    /*
+     * This class describes a Magnetic field induced by a list of coils. It
+     * computes the Biot Savart law to evaluate the field.
+     */
     private:
 
         vector<shared_ptr<Coil<Array>>> coils;
-
-        using MagneticField<Array>::points;
+        // this vectors are aligned in memory for fast simd usage.
         AlignedVector pointsx = AlignedVector(xsimd::simd_type<double>::size, 0.);
         AlignedVector pointsy = AlignedVector(xsimd::simd_type<double>::size, 0.);
         AlignedVector pointsz = AlignedVector(xsimd::simd_type<double>::size, 0.);
 
         void fill_points(const Array& points) {
             int npoints = points.shape(0);
+            // allocating these aligned vectors is not super cheap, so reuse
+            // whenever possible.
             if(pointsx.size() != npoints)
                 pointsx = AlignedVector(npoints, 0.);
             if(pointsy.size() != npoints)
@@ -140,6 +166,7 @@ class BiotSavart : public MagneticField<Array> {
         }
 
     public:
+        using MagneticField<Array>::points;
         using MagneticField<Array>::cache_get_or_create;
         using MagneticField<Array>::cache_get_status;
         BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : coils(coils) {
@@ -152,6 +179,7 @@ class BiotSavart : public MagneticField<Array> {
             Array dummyjac = xt::zeros<double>({1, 1, 1});
             Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
             int npoints = static_cast<int>(points.shape(0));
+            int ncoils = this->coils.size();
             Array& B = cache_get_or_create("B", {npoints, 3});
             Array& dB = derivatives > 0 ? cache_get_or_create("dB_by_dX", {npoints, 3, 3}) : dummyjac;
             Array& ddB = derivatives > 1 ? cache_get_or_create("d2B_by_dXdX", {npoints, 3, 3, 3}) : dummyhess;
@@ -160,8 +188,16 @@ class BiotSavart : public MagneticField<Array> {
             dB *= 0;
             ddB *= 0;
 
-            fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
-            for (int i = 0; i < this->coils.size(); ++i) {
+            // annoyingly computing gamma and gammadash in JaxHelicalCurve
+            // doesn't seem safe to do in parallel, so we do these calls here
+            // once to make sure the cache is filled.
+            for (int i = 0; i < ncoils; ++i) {
+                this->coils[i]->curve->gamma();
+                this->coils[i]->curve->gammadash();
+            }
+            //fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
+#pragma omp parallel for
+            for (int i = 0; i < ncoils; ++i) {
                 Array& Bi = cache_get_or_create(fmt::format("B_{}", i), {npoints, 3});
                 Bi *= 0;
                 Array& gamma = this->coils[i]->curve->gamma();
@@ -182,17 +218,26 @@ class BiotSavart : public MagneticField<Array> {
                         } else {
                             throw logic_error("Only two derivatives of Biot Savart implemented");
                         }
-                        //fmt::print("ddBi(0, 0, 0, :) = ({}, {}, {})\n", ddBi(0, 0, 0, 0), ddBi(0, 0, 0, 1), ddBi(0, 0, 0, 2));
-                        xt::noalias(ddB) = ddB + current * ddBi;
+                        ////fmt::print("ddBi(0, 0, 0, :) = ({}, {}, {})\n", ddBi(0, 0, 0, 0), ddBi(0, 0, 0, 1), ddBi(0, 0, 0, 2));
+#pragma omp critical
+                        {
+                            xt::noalias(ddB) = ddB + current * ddBi;
+                        }
                     }
-                    xt::noalias(dB) = dB + current * dBi;
+#pragma omp critical
+                    {
+                        xt::noalias(dB) = dB + current * dBi;
+                    }
                 }
-                fmt::print("i={}, Bi(0, :) = ({}, {}, {}) at {}\n", i, Bi(0, 0), Bi(0, 1), Bi(0, 2), fmt::ptr(B.data()));
-                fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
-                xt::noalias(B) = B + current * Bi;
-                fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
+                //fmt::print("i={}, Bi(0, :) = ({}, {}, {}) at {}\n", i, Bi(0, 0), Bi(0, 1), Bi(0, 2), fmt::ptr(B.data()));
+                //fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
+#pragma omp critical
+                {
+                    xt::noalias(B) = B + current * Bi;
+                }
+                //fmt::print("i={},  B(0, :) = ({}, {}, {}) at {}\n", i, B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
             }
-            fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
+            //fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
         }
 
 

@@ -48,6 +48,7 @@ set(XTENSOR_USE_OPENMP 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/python.cpp src/simsgeopp/python_surfaces.cpp src/simsgeopp/python_curves.cpp
+    src/simsgeopp/python_magneticfield.cpp
     src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp
     src/simsgeopp/regular_grid_interpolant_3d_py.cpp
     src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
