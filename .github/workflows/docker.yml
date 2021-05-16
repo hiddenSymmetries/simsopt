@@ -1,4 +1,4 @@
-name: Docker Container Builder
+name: docker container
 
 on: 
   push:
@@ -43,7 +43,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' }}
         with:
           context: ci
-          file: Dockerfile.ubuntu
+          file: ci/Dockerfile.ubuntu
           push: true
           tags: medbha/simsopt:latest
 
@@ -52,7 +52,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/docker' }}
         with:
           context: ci
-          file: Dockerfile.ubuntu
+          file: ci/Dockerfile.ubuntu
           push: true
           tags: medbha/simsopt:test
 
@@ -61,6 +61,6 @@ jobs:
         if: startsWith(github.event.ref, 'refs/tags/v')
         with:
           context: ci
-          file: Dockerfile.ubuntu
+          file: ci/Dockerfile.ubuntu
           push: true
           tags: "medbha/simsopt:${{steps.vars.outputs.tag}}"
