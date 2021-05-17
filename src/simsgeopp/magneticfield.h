@@ -174,7 +174,7 @@ class BiotSavart : public MagneticField<Array> {
         }
 
         void compute(int derivatives) {
-            fmt::print("Calling compute({})\n", derivatives);
+            //fmt::print("Calling compute({})\n", derivatives);
             this->fill_points(points);
             Array dummyjac = xt::zeros<double>({1, 1, 1});
             Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
@@ -188,13 +188,18 @@ class BiotSavart : public MagneticField<Array> {
             dB *= 0;
             ddB *= 0;
 
-            // annoyingly computing gamma and gammadash in JaxHelicalCurve
-            // doesn't seem safe to do in parallel, so we do these calls here
-            // once to make sure the cache is filled.
+            // Creating new xtensor arrays from an openmp thread doesn't appear
+            // to be safe. so we do that here in serial.
             for (int i = 0; i < ncoils; ++i) {
                 this->coils[i]->curve->gamma();
                 this->coils[i]->curve->gammadash();
+                cache_get_or_create(fmt::format("B_{}", i), {npoints, 3});
+                if(derivatives > 0)
+                    cache_get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
+                if(derivatives > 1)
+                    cache_get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
             }
+
             //fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
 #pragma omp parallel for
             for (int i = 0; i < ncoils; ++i) {
@@ -289,4 +294,66 @@ class BiotSavart : public MagneticField<Array> {
 };
 
 
+#include "regular_grid_interpolant_3d.h"
 
+template<class Array>
+class InterpolatedField : public MagneticField<Array> {
+    private:
+        shared_ptr<MagneticField<Array>> field;
+        shared_ptr<RegularGridInterpolant3D<Array, 4>> B_interp;
+        int nr, nphi, nz;
+        double rmin, phimin, zmin;
+        double rmax, phimax, zmax;
+        std::function<Vec(double, double, double)> f_B;
+        std::function<Vec(Vec, Vec, Vec)> fbatch_B;
+
+
+    public:
+        using MagneticField<Array>::points;
+        InterpolatedField(shared_ptr<MagneticField<Array>> field, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) :
+            field(field),
+            rmin(std::get<0>(r_range)), rmax(std::get<1>(r_range)), nr(std::get<2>(r_range)),
+            phimin(std::get<0>(phi_range)), phimax(std::get<1>(phi_range)), nphi(std::get<2>(phi_range)),
+            zmin(std::get<0>(z_range)), zmax(std::get<1>(z_range)), nz(std::get<2>(z_range))
+    {
+        B_interp = std::make_shared<RegularGridInterpolant3D<Array, 4>>(r_range, phi_range, z_range, 3);
+        f_B = [this](double r, double phi, double z) {
+            Array points = xt::zeros<double>({1, 3});
+            points(0, 0) = r * std::cos(phi);
+            points(0, 1) = r * std::sin(phi);
+            points(0, 2) = z;
+            this->field->set_points(points);
+            auto B = this->field->B();
+            return Vec{ B(0, 0), B(0, 1), B(0, 2) };
+        };
+        fbatch_B = [this](Vec r, Vec phi, Vec z) {
+            int npoints = r.size();
+            Array points = xt::zeros<double>({npoints, 3});
+            for(int i=0; i<npoints; i++) {
+                points(i, 0) = r[i] * std::cos(phi[i]);
+                points(i, 1) = r[i] * std::sin(phi[i]);
+                points(i, 2) = z[i];
+            }
+
+            this->field->set_points(points);
+            auto B = this->field->B();
+            auto res = Vec(3*npoints, 0.);
+            for(int i=0; i<npoints; i++) {
+                res[3*i + 0] = B(i, 0);
+                res[3*i + 1] = B(i, 1);
+                res[3*i + 2] = B(i, 2);
+            }
+            return res;
+        };
+        B_interp->interpolate_batch(fbatch_B);
+
+    }
+
+        void B_impl(Array& B) {
+            this->B_interp->evaluate_batch_with_transform(this->points, B);
+        }
+        std::pair<double, double> estimate_error(int samples) {
+            return this->B_interp->estimate_error(this->f_B, samples);
+        }
+
+};

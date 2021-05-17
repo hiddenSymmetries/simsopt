@@ -12,6 +12,7 @@ using std::vector;
 #include "regular_grid_interpolant_3d.h"
 typedef MagneticField<PyArray> PyMagneticField;
 typedef BiotSavart<PyArray> PyBiotSavart;
+typedef InterpolatedField<PyArray> PyInterpolatedField;
 
 
 template <typename T, typename S> void register_common_field_methods(S &c) {
@@ -36,25 +37,6 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 
 void init_magneticfields(py::module_ &m){
 
-    py::class_<RegularGridInterpolant3D<PyArray, 1>>(m, "RegularGridInterpolant3D1")
-        .def(py::init<int, int, int, int>())
-        .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
-        .def("interpolate", &RegularGridInterpolant3D<PyArray, 1>::interpolate)
-        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray, 1>::interpolate_batch)
-        .def("evaluate_batch_with_transform", &RegularGridInterpolant3D<PyArray, 1>::evaluate_batch_with_transform)
-        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray, 1>::evaluate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<PyArray, 1>::evaluate)
-        .def("estimate_error", &RegularGridInterpolant3D<PyArray, 1>::estimate_error);
-    py::class_<RegularGridInterpolant3D<PyArray, 4>>(m, "RegularGridInterpolant3D4")
-        .def(py::init<int, int, int, int>())
-        .def(py::init<RangeTriplet, RangeTriplet, RangeTriplet, int>())
-        .def("interpolate", &RegularGridInterpolant3D<PyArray, 4>::interpolate)
-        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray, 4>::interpolate_batch)
-        .def("evaluate_batch_with_transform", &RegularGridInterpolant3D<PyArray, 4>::evaluate_batch_with_transform)
-        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray, 4>::evaluate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<PyArray, 4>::evaluate)
-        .def("estimate_error", &RegularGridInterpolant3D<PyArray, 4>::estimate_error);
-
     py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
         .def(py::init<double>())
         .def("set_dofs", &Current<PyArray>::set_dofs)
@@ -68,13 +50,20 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("curve", &Coil<PyArray>::curve)
         .def_readonly("current", &Coil<PyArray>::current);
 
-    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>>(m, "MagneticField")
+    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, shared_ptr<PyMagneticField>>(m, "MagneticField")
         .def(py::init<>());
     register_common_field_methods<PyMagneticField>(mf);
         //.def("B", py::overload_cast<>(&PyMagneticField::B));
 
-    auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
+    auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, shared_ptr<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
         .def("compute", &PyBiotSavart::compute);
     register_common_field_methods<PyBiotSavart>(bs);
+
+    auto ifield = py::class_<PyInterpolatedField, PyMagneticFieldTrampoline<PyInterpolatedField>, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
+        .def(py::init<shared_ptr<PyMagneticField>, RangeTriplet, RangeTriplet, RangeTriplet>())
+        .def("estimate_error", &PyInterpolatedField::estimate_error);
+
+    register_common_field_methods<PyInterpolatedField>(ifield);
+ 
 }
