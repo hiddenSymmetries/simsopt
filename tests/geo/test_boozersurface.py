@@ -6,7 +6,7 @@ from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
-from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_vjp
+from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_vjp, boozer_surface_dlsqgrad_dcoils_vjp
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
@@ -17,20 +17,33 @@ stellsym_list = [True, False]
 
 
 class BoozerSurfaceTests(unittest.TestCase):
-    def test_dresidual_dcoils(self):
-        """
-        This test verifies with finite differences the derivative of the Boozer
-        residual with respect to the magnetic field.
-        """
-        s = get_exact_surface()
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        iota = -0.44856192
-        G = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-        
-        boozer = boozer_surface_residual_dB(s, iota, G, bs, derivatives=1)
-        import ipdb;ipdb.set_trace()
+#    def test_dresidual_dcoils(self):
+#        """
+#        This test verifies with finite differences the derivative of the Boozer
+#        residual with respect to the magnetic field.
+#        """
+#        s = get_exact_surface()
+#        coils, currents, ma = get_ncsx_data()
+#        stellarator = CoilCollection(coils, currents, 3, True)
+#        bs = BiotSavart(stellarator.coils, stellarator.currents)
+#        iota = -0.44856192
+#        G = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+#        
+#        boozer = boozer_surface_residual_dB(s, iota, G, bs, derivatives=0)
+#        r = boozer[0]
+#        dr_dB = boozer[1]
+#        
+#
+#        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+#        coeffs = stellarator.get_dofs()
+#        def f(dofs):
+#            stellarator.set_dofs(dofs)
+#            bs.clear_cached_properties()
+#            boozer = boozer_surface_residual(surface, iota, G, bs, derivatives=0)
+#            return boozer[0]
+#        f0 = f(coeffs)
+
+
 
 #    def test_residual(self):
 #        """
@@ -65,7 +78,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 #        assert np.max(np.abs(r0[-2:])) < 1e-6
 #
 #
-#    def test_dresidual_dcoils_vjp(self):
+#    def test_dexactresidual_dcoils_vjp(self):
 #        """
 #        This test verifies that the dresidual_dcoils_vjp calculation is correct.
 #        """
@@ -104,7 +117,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 #
 #        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 #    
-#        label = Area(s)
+#        label = Area(s, stellarator)
 #        target_label = 0.025
 #
 #        coeffs = stellarator.get_dofs()
@@ -123,10 +136,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 #        if s.stellsym:
 #            mask[0, 0, 0] = False
 #        mask = mask.flatten()
+#        np.random.seed(1)
 #        lm1 = np.random.uniform(size=mask.size)-0.5
 #        lm1[np.logical_not(mask)] = 0.
 #
-#        lm1_dg_dcoils = boozer_surface_dresidual_dcoils_vjp(lm1, s, iota, G0, bs)
+#        lm1_dg_dcoils = boozer_surface_dexactresidual_dcoils_vjp(lm1, s, iota, G0, bs)
 #        lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils)
 #        
 #        lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
@@ -144,6 +158,85 @@ class BoozerSurfaceTests(unittest.TestCase):
 #            err_old = err
 #        print("################################################################################")
 #
+
+
+
+    def test_dlsqgrad_dcoils_vjp(self):
+        """
+        This test verifies that the dlsqgrad_dcoils_vjp calculation is correct.
+        """
+
+        def get_lsqgrad(surface, label, target_label, biotsavart,iota=0.,G=None):
+            if not isinstance(s, SurfaceXYZTensorFourier):
+                raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
+        
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        G = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+    
+        label = Area(s, stellarator)
+        target_label = 0.025
+
+        coeffs = stellarator.get_dofs()
+        def f(dofs):
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
+            boozer = boozer_surface_residual(s, iota, G, bs, derivatives=1)
+            r = boozer[0]
+            J = boozer[1]
+            return J.T @ r
+        f0 = f(coeffs)
+        
+#        import ipdb; ipdb.set_trace()
+        ii = 433; jj = 0
+    
+        np.random.seed(1)
+        lm1 = np.random.uniform(size=f0.size)-0.5
+        lm1*=0
+        lm1[ii] = 1
+
+        lm1_dg_dcoils = boozer_surface_dlsqgrad_dcoils_vjp(lm1, s, iota, G, bs)
+        lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils[0])\
+                      + stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils[1])
+        
+        lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
+        lm2*=0
+        lm2[jj] = 1
+
+        fd_exact = np.dot(lm1_dg_dcoils , lm2)
+        
+        err_old = 1e9
+        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        print("################################################################################")
+        for eps in epsilons:
+            f1 = f(coeffs + eps * lm2)
+            Jfd = (f1-f0)/eps
+            err = np.linalg.norm(np.dot(Jfd, lm1)-fd_exact)/np.linalg.norm(fd_exact)
+            print(err/err_old, fd_exact, np.dot(Jfd, lm1), err)
+#            assert err < err_old * 0.55
+            err_old = err
+        print("################################################################################")
+
+
+
+
+
+
+
+
+
 #
 #   
 #
