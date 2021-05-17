@@ -53,7 +53,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/regular_grid_interpolant_3d_py.cpp
     src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
     src/simsgeopp/surface.cpp src/simsgeopp/surfacerzfourier.cpp src/simsgeopp/surfacexyzfourier.cpp
-    src/simsgeopp/dommaschk.cpp
+    src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

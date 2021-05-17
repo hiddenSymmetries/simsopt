@@ -12,7 +12,7 @@ typedef xt::pyarray<double> PyArray;
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
-#include "reiman.cpp"
+#include "reiman.h"
 
 namespace py = pybind11;
 
