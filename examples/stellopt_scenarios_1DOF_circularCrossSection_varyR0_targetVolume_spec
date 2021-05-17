@@ -23,6 +23,10 @@ optimization infrastructure with VMEC.
 Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
+
+This example uses the serial solver instead of the MPI solver, since
+the MPI case is covered by the example
+stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.
 """
 
 # Print detailed logging info. This could be commented out if desired.
@@ -30,9 +34,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Create a Spec object:
 equil = Spec()
-# If the xspec executable is not in PATH, the path to the executable
-# should be specified as in the following line:
-# equil = Spec(exe='/Users/mattland/SPEC/xspec')
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.

@@ -8,6 +8,7 @@ class MagneticField(sgpp.MagneticField):
     Generic class that represents any magnetic field for which each magnetic
     field class inherits.
     '''
+
     def __init__(self):
         sgpp.MagneticField.__init__(self)
 

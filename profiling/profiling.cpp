@@ -98,20 +98,64 @@ void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){
         << std::setw (19)<< clockcycles/interactions << std::endl;
 }
 
+#include <functional>
+#include "regular_grid_interpolant_3d.h"
+using std::sin;
+using std::cos;
+using std::exp;
+
+Vec batchify(std::function<Vec(double, double, double)>& f, Vec xs, Vec ys, Vec zs){
+    Vec fxyz = f(0., 0., 0.);
+    int value_size = fxyz.size();
+    int n = xs.size();
+    Vec res(value_size*n, 0.);
+    for (int i = 0; i < n; ++i) {
+        fxyz = f(xs[i], ys[i], zs[i]);
+        for (int l = 0; l < value_size; ++l) {
+            res[i*value_size + l] = fxyz[l];
+        }
+    }
+    return res;
+}
+
+template<int degree>
+void profile_interpolation(int nx, int ny, int nz){
+    std::function<Vec(double, double, double)> f = [](double x, double y, double z) { return Vec{x+2*y+3*z, x*x+y*y+z*z, sin(x)*cos(x)+sin(y*x)+exp(z)}; };
+    double x = 0.13;
+    double y = 0.221;
+    double z = 0.31;
+    auto fx = f(x, y, z);
+    std::function<Vec(Vec, Vec, Vec)> fb = [&f](Vec x, Vec y, Vec z) { return batchify(f, x, y, z); };
+
+    auto fh = RegularGridInterpolant3D<xt::xarray<double>, degree>(nx, ny, nz, 3);
+    fh.interpolate(f);
+    //fh.interpolate_batch(fb);
+    auto fhx = fh.evaluate(x, y, z);
+    fmt::print("fh({}, {}, {}) = [{}, {}, {}]\n", x, y, z, fhx[0], fhx[1], fhx[2]);
+    fmt::print(" f({}, {}, {}) = [{}, {}, {}]\n", x, y, z, fx[0], fx[1], fx[2]);
+    auto err = fh.estimate_error(f, 1000000);
+    fmt::print("[{}, {}]\n", err.first, err.second);
+}
 
 int main() {
-    for(int nd=0; nd<3; nd++) {
-        std::cout << "Number of derivatives: " << nd << std::endl;
-        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
-        for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart(nst, nst, nd);
-    }
+    //for(int nd=0; nd<3; nd++) {
+    //    std::cout << "Number of derivatives: " << nd << std::endl;
+    //    std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+    //    for(int nst=10; nst<=10000; nst*=10)
+    //        profile_biot_savart(nst, nst, nd);
+    //}
 
-    for(int nd=0; nd<2; nd++) {
-        std::cout << "Number of derivatives: " << nd << std::endl;
-        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
-        for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart_vjp(nst, nst, nd);
-    }
+    //for(int nd=0; nd<2; nd++) {
+    //    std::cout << "Number of derivatives: " << nd << std::endl;
+    //    std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+    //    for(int nst=10; nst<=10000; nst*=10)
+    //        profile_biot_savart_vjp(nst, nst, nd);
+    //}
+    //profile_interpolation<1>(64, 64, 64);
+    //profile_interpolation<2>(64, 64, 64);
+    //profile_interpolation<3>(32, 32, 32);
+    //profile_interpolation<4>(16, 16, 16);
+    int n = 16;
+    profile_interpolation<4>(n, n, n);
     return 0;
 }

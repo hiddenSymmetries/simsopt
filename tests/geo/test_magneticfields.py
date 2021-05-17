@@ -1,4 +1,6 @@
-from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil, Dommaschk
+from simsopt.geo.magneticfieldclasses import ToroidalField, \
+    ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
+    Reiman, sympy_found
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -83,6 +85,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
 
+    @unittest.skipIf(not sympy_found, "Sympy not found")
     def test_scalarpotential_Bfield(self):
         # Set up magnetic field scalar potential
         PhiStr = "0.1*phi+0.2*R*Z+0.3*Z*phi+0.4*R**2+0.5*Z**2"
@@ -285,6 +288,77 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
         assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
         assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+
+    def test_Reiman(self):
+        iota0 = 0.15
+        iota1 = 0.38
+        k = [6]
+        epsilonk = [0.01]
+        # point locations
+        pointVar = 1e-1
+        npoints = 20
+        points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += pointVar * (np.random.rand(*points.shape)-0.5)
+        # Bfield from class
+        Bfield = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
+        Bfield.set_points(points)
+        B1 = np.array(Bfield.B())
+        # Check that div(B)=0
+        dB1 = Bfield.dB_by_dX()
+        assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
+        # Bfield analytical
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+        Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+              0.06*x*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
+              np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
+        By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+              0.06*y*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
+              np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
+        Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
+              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
+              0.06*z*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/np.sqrt(x**2 + y**2)
+        B2 = np.array(np.vstack((Bx, By, Bz)).T)
+        assert np.allclose(B1, B2)
+        # Derivative
+        points = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        Bfield.set_points(points)
+        dB1 = np.array(Bfield.dB_by_dX()[0])
+        dB2 = np.array([[1.68810242e-03, -1.11110794e+00, 3.11091859e-04],
+                        [2.57225263e-06, -1.69487835e-03, -1.98320069e-01],
+                        [-2.68700789e-04, 1.70889034e-01, 6.77592533e-06]])
+        assert np.allclose(dB1, dB2)
+
+    def subtest_reiman_dBdX_taylortest(self, idx):
+        iota0 = 0.15
+        iota1 = 0.38
+        k = [6]
+        epsilonk = [0.01]
+        bs = Reiman(iota0=iota0, iota1=iota1, k=k, epsilonk=epsilonk)
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+        bs.set_points(points)
+        B0 = bs.B()[idx]
+        dB = bs.dB_by_dX()[idx]
+        for direction in [np.asarray((1., 0, 0)), np.asarray((0, 1., 0)), np.asarray((0, 0, 1.))]:
+            deriv = dB.T.dot(direction)
+            err = 1e6
+            for i in range(5, 10):
+                eps = 0.5**i
+                bs.set_points(points + eps * direction)
+                Beps = bs.B()[idx]
+                deriv_est = (Beps-B0)/(eps)
+                new_err = np.linalg.norm(deriv-deriv_est)
+                assert new_err < 0.55 * err
+                err = new_err
+
+    def test_reiman_dBdX_taylortest(self):
+        for idx in [0, 16]:
+            with self.subTest(idx=idx):
+                self.subtest_reiman_dBdX_taylortest(idx)
 
 
 if __name__ == "__main__":
