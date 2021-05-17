@@ -128,8 +128,11 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_batch_with_transform(Arra
     int npoints = xyz.shape(0);
     for (int i = 0; i < npoints; ++i) {
         double r = std::sqrt(xyz(i, 0)*xyz(i, 0) + xyz(i, 1)*xyz(i, 1));
-        double phi = std::atan2(xyz(i, 1), xyz(i, 0)) + M_PI;
+        double phi = std::atan2(xyz(i, 1), xyz(i, 0));
+        if(phi < 0)
+            phi += 2*M_PI;
         evaluate_inplace(r, phi, xyz(i, 2), &(fxyz(i, 0)));
+        //fmt::print("xyz = ({}, {}, {}), rphiz = ({}, {}, {}), f=({}, {}, {})\n", xyz(i, 0), xyz(i, 1), xyz(i, 2), r, phi, xyz(i, 2), fxyz(i, 0), fxyz(i, 1), fxyz(i, 2));
     }
 }
 
