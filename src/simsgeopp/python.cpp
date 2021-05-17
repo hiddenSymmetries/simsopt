@@ -11,13 +11,8 @@ typedef xt::pyarray<double> PyArray;
 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
-<<<<<<< HEAD
 #include "dommaschk.h"
-=======
-
-#include "dommaschk.cpp"
 #include "reiman.cpp"
->>>>>>> master
 
 namespace py = pybind11;
 
