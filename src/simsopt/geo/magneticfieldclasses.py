@@ -37,7 +37,6 @@ class ToroidalField(MagneticField):
         points = self.points
         phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
-        phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
 
         x = points[:, 0]
         y = points[:, 1]
@@ -56,9 +55,6 @@ class ToroidalField(MagneticField):
 
     def d2B_by_dXdX_impl(self, ddB):
         points = self.points
-        phi = np.arctan2(points[:, 1], points[:, 0])
-        R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
-        phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
 
         x = points[:, 0]
         y = points[:, 1]
@@ -323,6 +319,37 @@ class Dommaschk(MagneticField):
     def dB_by_dX_impl(self, dB):
         points = self.points
         dB[:] = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+
+
+class Reiman(MagneticField):
+    '''
+    Magnetic field model in section 5 of Reiman and Greenside, Computer Physics Communications 43 (1986) 157—167.
+    This field allows for an analytical expression of the magnetic island width
+    that can be used for island optimization.  However, the field is not
+    completely physical as it does not have nested flux surfaces.
+
+    Args:
+        iota0: unperturbed rotational transform
+        iota1: unperturbed global magnetic shear
+        k: integer array specifying the Fourier modes used
+        epsilonk: coefficient of the Fourier modes
+        m0: toroidal symmetry parameter (normally m0=1)
+    '''
+
+    def __init__(self, iota0=0.15, iota1=0.38, k=[6], epsilonk=[0.01], m0=1):
+        self.iota0 = iota0
+        self.iota1 = iota1
+        self.k = k
+        self.epsilonk = epsilonk
+        self.m0 = m0
+
+    def B_impl(self, B):
+        points = self.points
+        B[:] = sgpp.ReimanB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+
+    def dB_by_dX_impl(self, dB):
+        points = self.points
+        dB[:] = sgpp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
 
 class InterpolatedField(MagneticField):

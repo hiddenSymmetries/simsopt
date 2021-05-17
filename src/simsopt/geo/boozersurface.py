@@ -42,24 +42,24 @@ class BoozerSurface():
         self.targetlabel = targetlabel
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
-        """
+        r"""
         Define the residual
 
-        r(x) = [
-            f_1(x),...,f_n(x),
-            sqrt(constraint_weight) * (label-targetlabel),
-            sqrt(constraint_weight) * (z(varphi=0, theta=0) - 0),
-        ]
+        .. math::
+            r(x) = [f_1(x),...,f_n(x), \sqrt{w_c}  (l-l_0), \sqrt{w_c}  (z(\varphi=0, \theta=0) - 0)]
 
-        where {f_i}_i are the Boozer residuals at quadrature points 1,...,n.
+        where :math:`w_c` is the constraint weight, :math:`{f_i}_i` are the Boozer residuals 
+        at quadrature points 1,...,n, :math:`l` is the surface label, and :math:`l_0` is
+        the target surface label.
 
-        For scalarized=False, this function returns r(x) and optionally the Jacobian of r.
+        For ``scalarized=False``, this function returns :math:`r(x)` and optionally the Jacobian of :math:`r(x)`.
 
-        for scalarized=True, this function returns
+        for ``scalarized=True``, this function returns
 
-            g(x) = 0.5 * r(x)^T * r(x),
+        .. math::
+            g(x) = \frac{1}{2}r(x)^Tr(x),
 
-        i.e. the least squares residual and optionally the gradient and the Hessian of g.
+        i.e. the least squares residual and optionally the gradient and the Hessian of :math:`g(x)`.
         """
 
         assert derivatives in [0, 1, 2]
@@ -131,17 +131,20 @@ class BoozerSurface():
         return val, dval, d2val
 
     def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True):
-        """
+        r"""
         This function returns the optimality conditions corresponding to the minimisation problem
 
-            min 0.5 * || f(x) ||^2_2
+        .. math::
+            \text{min} \frac{1}{2} \| f(x) \|^2_2
 
-            subject to 
+        subject to 
 
-            label - targetlabel = 0
-            z(varphi=0,theta=0) - 0 = 0
+        .. math::
+            l - l_0 &= 0 \\
+            z(\varphi=0,\theta=0) - 0 &= 0
 
-        as well as optionally the first derivatives for these optimality conditions.
+        where :math:`l` is the surface label and :math:`l_0` is the target surface label.
+        We can also optionally return the first derivatives of these optimality conditions.
         """
         assert derivatives in [0, 1]
         if optimize_G:
@@ -192,12 +195,14 @@ class BoozerSurface():
         return res, dres
 
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
-        """
+        r"""
         This function tries to find the surface that approximately solves
-        min 0.5 * || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
-                                 + 0.5 * constraint_weight * (z(varphi=0, theta=0) - 0)^2
 
-        where || f(x)||^2_2 is the sum of squares of the Boozer residual at
+        .. math::
+            \text{min} \frac{1}{2} \| f(x) \|^2_2 + \frac{1}{2} w_c (l - l_0)^2
+                                 + \frac{1}{2} c_w (z(\varphi=0, \theta=0) - 0)^2
+
+        where :math:`|| f(x)||^2_2` is the sum of squares of the Boozer residual at
         the quadrature points.  This is done using LBFGS.
         """
 
@@ -332,14 +337,17 @@ class BoozerSurface():
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
-        """
+        r"""
         This function solves the constrained optimization problem
-            min 0.5 * || f(x) ||^2_2
 
-            subject to 
+        .. math::
+            \text{min} \frac{1}{2} \| f(x) \|^2_2
 
-            label - targetlabel = 0
-            z(varphi=0,theta=0) - 0 = 0
+        subject to 
+
+        .. math::
+            l - l_0 &= 0 \\
+            z(\varphi=0,\theta=0) - 0 &= 0
 
         using Lagrange multipliers and Newton's method.  The final constraint
         is not necessary for stellarator symmetric surfaces as it is automatically

@@ -2,43 +2,69 @@ import numpy as np
 
 
 class Area(object):
+    """
+    Wrapper class for surface area computation
+    """
 
     def __init__(self, surface):
         self.surface = surface
 
     def J(self):
+        """
+        Compute the area of a surface
+        """
         return self.surface.area()
 
     def dJ_by_dsurfacecoefficients(self):
+        """
+        Calculate the derivatives with respect to the surface coefficients
+        """
         return self.surface.darea_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        """
+        Calculate the second derivatives with respect to the surface coefficients
+        """
         return self.surface.d2area_by_dcoeffdcoeff()
 
 
 class Volume(object):
+    """
+    Wrapper class for volume computation
+    """
+
     def __init__(self, surface):
         self.surface = surface
 
     def J(self):
+        """
+        Compute the volume enclosed by the surface
+        """
         return self.surface.volume()
 
     def dJ_by_dsurfacecoefficients(self):
+        """
+        Calculate the derivatives with respect to the surface coefficients
+        """
         return self.surface.dvolume_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        """
+        Calculate the second derivatives with respect to the surface coefficients
+        """
         return self.surface.d2volume_by_dcoeffdcoeff()
 
 
 class ToroidalFlux(object):
-
     r"""
-    This objective calculates
-        J = \int_{varphi = constant} B \cdot n ds
-          = \int_{varphi = constant} curlA \cdot n ds
-          from Stokes' theorem
-          = \int_{curve on surface where varphi = constant} A \cdot n dl
-    given a surface and Biot Savart kernel.
+    Given a surface and Biot Savart kernel, this objective calculates
+
+    .. math::
+       J &= \int_{S_{\varphi}} \mathbf{B} \cdot \mathbf{n} ~ds, \\
+       &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
+       &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
+
+    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`.
     """
 
     def __init__(self, surface, biotsavart, idx=0):
@@ -53,6 +79,10 @@ class ToroidalFlux(object):
         self.biotsavart.set_points(x)
 
     def J(self):
+        r"""
+        Compute the toroidal flux on the surface where 
+        :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`
+        """
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         A = self.biotsavart.A()
@@ -100,16 +130,17 @@ class ToroidalFlux(object):
 
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
-    """
+    r"""
     For a given surface with points x on it, this function computes the
     residual
 
-        G*B_BS(x) - ||B_BS(x)||^2 * (x_phi + iota * x_theta)
+    .. math::
+        G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
     iota, and G.
 
-    G is known for exact boozer surfaces, so if G=None is passed, then that
+    :math:`G` is known for exact boozer surfaces, so if :math:`G` = None is passed, then that
     value is used instead.
     """
 

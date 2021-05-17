@@ -1,7 +1,7 @@
 Simsopt documentation
 =====================
 
-``simsopt`` is a system for optimizing `stellarators
+``simsopt`` is a framework for optimizing `stellarators
 <https://en.wikipedia.org/wiki/Stellarator>`_.  The high-level
 routines are in python, with calls to C++ or fortran where needed for
 performance. Several types of components are included:
@@ -63,6 +63,7 @@ optimization.  Others include `STELLOPT
    problems
    testing
    source
+   cite
 
 .. toctree::
    :maxdepth: 3
