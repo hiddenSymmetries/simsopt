@@ -185,7 +185,7 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, surface, iota, G, biotsavart):
     d2r_dsdB = boozer[3]
     d2r_dsdgradB = boozer[4]
     
-    v1 = np.sum(np.sum(lm[:, None]*dr_ds.T, axis=0).reshape((-1, 3, 1)) * dr_dB, axis = 1)
+    v1 = np.sum(np.sum(lm[:, None]*dr_ds.T, axis=0).reshape((-1, 3, 1)) * dr_dB, axis=1)
     v2 = np.sum(r.reshape((-1, 3, 1))*np.sum(lm[None,None,:]*d2r_dsdB, axis=-1).reshape((-1, 3, 3)), axis=1)
     v3 = np.sum(r.reshape((-1, 3, 1, 1))*np.sum(lm[None,None,None,:]*d2r_dsdgradB, axis=-1).reshape((-1, 3, 3, 3)), axis=1)
     vjp = biotsavart.B_and_dB_vjp(v1+v2, v3)
@@ -265,12 +265,16 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
         dresidual_dG_flattened = dresidual_dG.reshape((nphi*ntheta*3, 1))
         J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened, dresidual_dG_flattened), axis=1)
         
-        d2residual_dGdB = np.ones((3*nphi*ntheta, 3, 1))
+        d2residual_dGdB = np.ones((nphi*ntheta, 3, 3))
+        d2residual_dGdB[:,:,:] = np.eye(3)[None,:,:]
+        d2residual_dGdB = d2residual_dGdB.reshape((3*nphi*ntheta, 3, 1))
         d2residual_dGdgradB = np.zeros((3*nphi*ntheta, 3, 3, 1))
 
-        d2residual_dsurfacedB = np.concatenate((d2residual_dcdB_flattened, d2residual_diotadB_flattened, 
+        d2residual_dsurfacedB = np.concatenate((d2residual_dcdB_flattened, 
+                                                d2residual_diotadB_flattened, 
                                                 d2residual_dGdB), axis=-1)
-        d2residual_dsurfacedgradB = np.concatenate((d2residual_dcdgradB_flattened, d2residual_diotadgradB_flattened, 
+        d2residual_dsurfacedgradB = np.concatenate((d2residual_dcdgradB_flattened, 
+                                                    d2residual_diotadgradB_flattened, 
                                                     d2residual_dGdgradB), axis=-1)
     else:
         J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened), axis=1)

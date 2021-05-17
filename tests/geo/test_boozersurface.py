@@ -199,22 +199,13 @@ class BoozerSurfaceTests(unittest.TestCase):
             return J.T @ r
         f0 = f(coeffs)
         
-#        import ipdb; ipdb.set_trace()
-        ii = 433; jj = 0
-    
-        np.random.seed(1)
+        np.random.seed(2)
         lm1 = np.random.uniform(size=f0.size)-0.5
-        lm1*=0
-        lm1[ii] = 1
-
         lm1_dg_dcoils = boozer_surface_dlsqgrad_dcoils_vjp(lm1, s, iota, G, bs)
         lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils[0])\
                       + stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils[1])
         
         lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
-        lm2*=0
-        lm2[jj] = 1
-
         fd_exact = np.dot(lm1_dg_dcoils , lm2)
         
         err_old = 1e9
