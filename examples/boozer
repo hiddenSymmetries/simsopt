@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from simsopt.geo.biotsavart import BiotSavart
-from simsopt.geo.magneticfieldclasses import InterpolatedField
-# from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, ToroidalFlux, Area
 from simsopt.geo.coilcollection import CoilCollection
@@ -22,108 +21,11 @@ aim for a Boozer surface with three times larger flux.
 """
 
 
-coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
+coils, currents, ma = get_ncsx_data()
 stellarator = CoilCollection(coils, currents, 3, True)
 coils = stellarator.coils
 currents = stellarator.currents
 bs = BiotSavart(coils, currents)
-bs.set_points(ma.gamma()[:10, :])
-B = bs.B()
-print(B)
-# print(B.__array_interface__['data'])
-dB = bs.dB_by_dX()
-print(dB)
-B = bs.B()
-dB = bs.dB_by_dX()
-print(B)
-# print(B.__array_interface__['data'])
-
-import sys; sys.exit()
-import simsgeopp as sgpp
-
-currents = [sgpp.Current(c) for c in currents]
-coils = [sgpp.Coil(curve, current) for curve, current in zip(coils, currents)]
-bspp = sgpp.BiotSavart(coils)
-bspp.set_points(ma.gamma())
-print(bspp.B())
-print(bspp.dB_by_dX())
-# bspp.invalidate_cache()
-# d = coils[0].get_dofs()
-# coils[0].set_dofs(d*2)
-# print(bspp.B())
-import IPython; IPython.embed()
-import sys; sys.exit()
-
-
-print(ma.gamma().shape)
-
-n = 12
-bsh = InterpolatedField(bs, order=4, rmin=1.3, rmax=1.7, rsteps=n, phimin=0, phimax=2*np.pi, phisteps=n*32, zmin=-0.1, zmax=0.1, zsteps=n)
-print('Error =', bsh.estimate_error())
-Bh = bsh.set_points(ma.gamma()).B()
-B = bs.set_points(ma.gamma()).B()
-N = int(1e2)
-import time
-t1 = time.time()
-for i in range(N):
-    Bh = bsh.set_points(ma.gamma()).B()
-t2 = time.time()
-for i in range(N):
-    B = bs.set_points(ma.gamma()).B()
-t3 = time.time()
-print('Time for interpolation =', t2-t1)
-print('Time for Biot Savart   =', t3-t2)
-print('Speedup                =', (t3-t2)/(t2-t1))
-print(np.linalg.norm(Bh-B))
-import sys; sys.exit()
-
-rmin = 1.5
-rmax = 1.7
-phimin = 0.
-phimax = 2*np.pi
-zmin = -0.1
-zmax = +0.1
-def bsfun(r, phi, z):
-    x = r * np.cos(phi)
-    y = r * np.sin(phi)
-    return bs.set_points(np.asarray([[x, y, z]])).B()[0, :]
-def bsfunbatch(r, phi, z):
-    r = np.asarray(r)
-    phi = np.asarray(phi)
-    z = np.asarray(z)
-    # r = rmin + r * (rmax-rmin)
-    # phi = phimin + phi * (phimax-phimin)
-    # z = zmin + z * (zmax-zmin)
-    x = r * np.cos(phi)
-    y = r * np.sin(phi)
-    return bs.set_points(np.vstack((x, y, z)).T).B().flatten()
-
-
-n = 4
-bsh = sgpp.RegularGridInterpolant3D4((rmin, rmax, n), (phimin, phimax, n*64), (zmin, zmax, n), 3)
-bsh.interpolate_batch(bsfunbatch)
-print(bsh.estimate_error(bsfun, 1000))
-xyz = np.random.uniform(size=(N, 3))
-xyz[:, 0] = rmin + xyz[:, 0]*(rmax-rmin)
-xyz[:, 1] = phimin + xyz[:, 1]*(phimax-phimin)
-xyz[:, 2] = zmin + xyz[:, 2]*(zmax-zmin)
-import time
-t1 = time.time()
-for i in range(N):
-    bsfun(xyz[i, 0], xyz[i, 1], xyz[i, 2])
-t2 = time.time()
-for i in range(N):
-    bsh.evaluate(xyz[i, 0], xyz[i, 1], xyz[i, 2])
-t3 = time.time()
-print(t2-t1)
-print(t3-t2)
-
-# bsh.interpolate(bsfun)
-
-
-
-# import IPython; IPython.embed()
-import sys; sys.exit()
 bs_tf = BiotSavart(coils, currents)
 G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
