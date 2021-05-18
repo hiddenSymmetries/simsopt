@@ -199,7 +199,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             return J.T @ r
         f0 = f(coeffs)
         
-        np.random.seed(2)
+        np.random.seed(1)
         lm1 = np.random.uniform(size=f0.size)-0.5
         lm1_dg_dcoils = boozer_surface_dlsqgrad_dcoils_vjp(lm1, s, iota, G, bs)
         lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils[0])\
@@ -215,8 +215,8 @@ class BoozerSurfaceTests(unittest.TestCase):
             f1 = f(coeffs + eps * lm2)
             Jfd = (f1-f0)/eps
             err = np.linalg.norm(np.dot(Jfd, lm1)-fd_exact)/np.linalg.norm(fd_exact)
-            print(err/err_old, fd_exact, np.dot(Jfd, lm1), err)
-#            assert err < err_old * 0.55
+            print(err/err_old)
+            assert err < err_old * 0.55
             err_old = err
         print("################################################################################")
 
