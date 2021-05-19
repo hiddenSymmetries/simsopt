@@ -81,7 +81,8 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
+        #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
@@ -97,6 +98,8 @@ jobs:
         repository: PrincetonUniversity/SPEC
         path: SPEC
         token: ${{ secrets.SPEC_CHECKOUT }}
+        #ref: python_hdf5
+        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
@@ -110,18 +113,20 @@ jobs:
         ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    - name: Install py_spec
-      run: |
-        pip install -e SPEC/Utilities/pythontools
-        python -c "import py_spec; print('success')"
+    #- name: Install py_spec
+    #  run: |
+    #    pip install -e SPEC/Utilities/pythontools
+    #    python -c "import py_spec; print('success')"
 
     - name: Build SPEC.
       run: |
         cd SPEC
         # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
-        cp Makefile1 Makefile
-        head -n66 Makefile
+        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+        # f90wrap gets confused by "-Wl,-rpath" so remove it:
+        cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
+        #cp Makefile1 Makefile
+        head -n126 Makefile
         make -j
 
     - name: Add xspec to PATH.
@@ -131,7 +136,18 @@ jobs:
         echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
-      run: pip install git+https://github.com/jameskermode/f90wrap
+      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
+
+    - name: Build SPEC python wrapper.
+      run: |
+        cd SPEC/Utilities/python_wrapper
+        make all
+
+    - name: Add spec python wrapper to PYTHONPATH.
+      run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
+
+    - name: Try import spec
+      run: python -c "import spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -167,12 +183,12 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    - name: Install mpi4py
-      run: |
-        pip install mpi4py
+    #- name: Install mpi4py
+    #  run: |
+    #    pip install mpi4py
 
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[MPI,SPEC]
 
     - name: Run mpi unit tests
       if: "contains(matrix.test-type, 'unit')"

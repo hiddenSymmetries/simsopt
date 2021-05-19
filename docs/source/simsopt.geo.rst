@@ -11,6 +11,7 @@ simsopt.geo.biotsavart module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.boozersurface module
 --------------------------------
@@ -19,6 +20,7 @@ simsopt.geo.boozersurface module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.coilcollection module
 ---------------------------------
@@ -27,6 +29,7 @@ simsopt.geo.coilcollection module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.config module
 -------------------------
@@ -35,6 +38,7 @@ simsopt.geo.config module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.curve module
 ------------------------
@@ -43,6 +47,16 @@ simsopt.geo.curve module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
+
+simsopt.geo.curvehelical module
+-------------------------------
+
+.. automodule:: simsopt.geo.curvehelical
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
 
 simsopt.geo.curveobjectives module
 ----------------------------------
@@ -51,6 +65,7 @@ simsopt.geo.curveobjectives module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.curverzfourier module
 ---------------------------------
@@ -59,6 +74,7 @@ simsopt.geo.curverzfourier module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.curvexyzfourier module
 ----------------------------------
@@ -67,6 +83,16 @@ simsopt.geo.curvexyzfourier module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
+
+simsopt.geo.graph\_surface module
+---------------------------------
+
+.. automodule:: simsopt.geo.graph_surface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
 
 simsopt.geo.jit module
 ----------------------
@@ -75,6 +101,25 @@ simsopt.geo.jit module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
+
+simsopt.geo.magneticfield module
+--------------------------------
+
+.. automodule:: simsopt.geo.magneticfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.geo.magneticfieldclasses module
+---------------------------------------
+
+.. automodule:: simsopt.geo.magneticfieldclasses
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
 
 simsopt.geo.surface module
 --------------------------
@@ -83,6 +128,7 @@ simsopt.geo.surface module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.surfacegarabedian module
 ------------------------------------
@@ -91,6 +137,7 @@ simsopt.geo.surfacegarabedian module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.surfaceobjectives module
 ------------------------------------
@@ -99,6 +146,7 @@ simsopt.geo.surfaceobjectives module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.surfacerzfourier module
 -----------------------------------
@@ -107,6 +155,7 @@ simsopt.geo.surfacerzfourier module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.surfacexyzfourier module
 ------------------------------------
@@ -115,6 +164,7 @@ simsopt.geo.surfacexyzfourier module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.geo.surfacexyztensorfourier module
 ------------------------------------------
@@ -123,6 +173,7 @@ simsopt.geo.surfacexyztensorfourier module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 Module contents
 ---------------
@@ -131,3 +182,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

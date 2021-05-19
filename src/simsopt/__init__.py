@@ -20,7 +20,7 @@ __version__ = metadata.version('simsopt')
 
 from ._core import make_optimizable
 from .objectives import LeastSquaresTerm, LeastSquaresProblem
-from .solve import least_squares_serial_solve, least_squares_mpi_solve, fd_jac_mpi
+from .solve import least_squares_serial_solve
 from .util import initialize_logging
 
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
