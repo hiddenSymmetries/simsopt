@@ -133,7 +133,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 #        taylor_test2(f, df, d2f, coeffs) 
 #
 #
-#class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
+class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
 #    def test_NonQuasiAxiSymmetricComponentPenalty_by_surfacecoefficients(self):
 #        coils, currents, ma = get_ncsx_data()
 #        stellarator = CoilCollection(coils, currents, 3, True)
@@ -221,63 +221,62 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
 #        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator)
 #        assert np.abs(non_qs.J()) < 1e-14
 #
-#
-#    def test_objective_exact_constrained_gradient(self):
-#        coils, currents, ma = get_ncsx_data()
-#        stellarator = CoilCollection(coils, currents, 3, True)
-#        coils = stellarator.coils
-#        currents = stellarator.currents
-#        
-#       
-#        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
-#        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
-#        stellsym = True
-#        nfp = 3
-#        
-#        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
-#        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-#        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-#        s.fit_to_curve(ma, 0.10, flip_theta=True)
-#        iota = -0.4
-#        
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-##        label = ToroidalFlux(s,bs)
-##        label_target = 0.025
-#
-#        label = Area(s, stellarator)
-#        label_target = 5
-# 
-#        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-#        boozer_surface = BoozerSurface(bs, s, label, label_target)
-#        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
-#        boozer_surface.res = res
-#        iota0 = res['iota']
-#        print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-label_target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
-#        
-#        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator) 
-#        coeffs = stellarator.get_dofs()
-#        
-#        def f(dofs):
-#            stellarator.set_dofs(dofs)
-#            bs.clear_cached_properties()
-#            boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-#            if not boozer_surface.res['success']:
-#                raise Exception('Did not converge')
-#            J = problem.J()
-#            return J
-#
-#        def df(dofs):
-#            stellarator.set_dofs(dofs)
-#            bs.clear_cached_properties()
-#            boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-#            if not boozer_surface.res['success']:
-#                raise Exception('Did not converge')
-#            dJ = problem.dJ()
-#            return dJ
-#
-#        taylor_test1(f, df, coeffs)
 
-class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
+    def test_objective_exact_constrained_gradient(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        coils = stellarator.coils
+        currents = stellarator.currents
+        
+       
+        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+#        label = ToroidalFlux(s,bs)
+#        label_target = 0.025
+
+        label = Area(s, stellarator)
+        label_target = 5
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_surface = BoozerSurface(bs, s, label, label_target)
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        boozer_surface.res = res
+        iota0 = res['iota']
+        print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-label_target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+        
+        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator) 
+        coeffs = stellarator.get_dofs()
+        
+        def f(dofs):
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
+            boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+            if not boozer_surface.res['success']:
+                raise Exception('Did not converge')
+            J = problem.J()
+            return J
+
+        def df(dofs):
+            stellarator.set_dofs(dofs)
+            bs.clear_cached_properties()
+            boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+            if not boozer_surface.res['success']:
+                raise Exception('Did not converge')
+            dJ = problem.dJ()
+            return dJ
+
+        taylor_test1(f, df, coeffs)
+
     def test_objective_penalty_constrained_gradient(self):
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -305,7 +304,6 @@ class NonQuasiSymmetricComponentPenaltyTests(unittest.TestCase):
         res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=300, constraint_weight = weight, iota=iota,G=G0, method='manual')
         print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-label_target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
         
-        import ipdb;ipdb.set_trace() 
         problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator) 
         coeffs = stellarator.get_dofs()
         

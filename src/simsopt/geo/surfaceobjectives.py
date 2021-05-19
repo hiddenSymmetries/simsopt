@@ -128,7 +128,7 @@ class ToroidalFlux(object):
 
 
 
-def boozer_surface_dexactresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
+def boozer_surface_dexactresidual_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dresidual_dcoils:
@@ -138,34 +138,23 @@ def boozer_surface_dexactresidual_dcoils_vjp(lm, surface, iota, G, biotsavart):
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
     """
+    surface = booz_surf.surface
     user_provided_G = G is not None
     if not user_provided_G:
         G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
+    res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0)
+    dres_dB = dres_dB.reshape((-1, 3, 3))
 
-    x = surface.gamma()
-    xphi = surface.gammadash1()
-    xtheta = surface.gammadash2()
-    nphi = x.shape[0]
-    ntheta = x.shape[1]
+    lmask = np.zeros(booz_surf.res["mask"].shape)
+    lmask[booz_surf.res["mask"]] = lm[:-1]
+    lm = lmask.reshape( (-1,3) )
 
-
-    B = biotsavart.B(compute_derivatives=0).reshape((nphi, ntheta, 3))
-    tang = xphi + iota * xtheta
-    
-    B = B.reshape( (-1,3) )
-    tang = tang.reshape( (-1,3) )
-
-    GI = np.eye(3,3) * G
-    dres_dB = GI[None,...] - 2 * B[:,None,:] * tang[:,:,None]
-
-    lm = lm.reshape( (-1,3) )
     lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
-    #import ipdb;ipdb.set_trace()
     dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
     return dres_dcoils
     
-def boozer_surface_dlsqgrad_dcoils_vjp(lm, surface, iota, G, biotsavart):
+def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dlsqgrad_dcoils:
@@ -176,6 +165,7 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, surface, iota, G, biotsavart):
     value is used instead.
     """
 
+    surface = booz_surf.surface
     #import ipdb;ipdb.set_trace()
     # r, dr_dB, J, d2residual_dsurfacedB, d2residual_dsurfacedgradB
     boozer = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=1)
@@ -465,7 +455,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         adj = np.linalg.solve(jac.T, dJ_ds)
         adj += np.linalg.solve(jac.T, dJ_ds-jac.T@adj)
         
-        adj_times_dg_dc = dconstraint_dcoils_vjp(adj, booz_surf.surface, iota, G, bs)
+        adj_times_dg_dc = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
         dJ = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcoefficients(), adj_times_dg_dc)]
         dJ = self.stellarator.reduce_coefficient_derivatives(dJ)
 
