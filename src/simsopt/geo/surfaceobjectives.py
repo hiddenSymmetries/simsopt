@@ -189,6 +189,7 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, surface, iota, G, biotsavart):
     v2 = np.sum(r.reshape((-1, 3, 1))*np.sum(lm[None,None,:]*d2r_dsdB, axis=-1).reshape((-1, 3, 3)), axis=1)
     v3 = np.sum(r.reshape((-1, 3, 1, 1))*np.sum(lm[None,None,None,:]*d2r_dsdgradB, axis=-1).reshape((-1, 3, 3, 3)), axis=1)
     vjp = biotsavart.B_and_dB_vjp(v1+v2, v3)
+    vjp = [a + b for a,b in zip(vjp[0], vjp[1])]
     return vjp
 
 def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
@@ -416,9 +417,13 @@ class NonQuasiAxisymmetricComponentPenalty(object):
     def __init__(self, boozer_surface, stellarator):
         self.stellarator = stellarator
         self.boozer_surface = boozer_surface
-        self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
-                                         "iota": self.boozer_surface.res["iota"],
-                                         "G": self.boozer_surface.res["G"]}
+        if boozer_surface.res is not None:
+            self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
+                                             "iota": self.boozer_surface.res["iota"],
+                                              "G": self.boozer_surface.res["G"]}
+        else:
+            self.boozer_surface_reference = None
+
         self.biotsavart = boozer_surface.bs
         self.boozer_surface.surface.dependencies.append(self)
         self.invalidate_cache()
@@ -453,20 +458,14 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         iota = booz_surf.res['iota']
         G = booz_surf.res['G']
         jac = booz_surf.res['jacobian']
-        mask = booz_surf.res['mask']
+        dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
 
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0.,0.]))
         adj = np.linalg.solve(jac.T, dJ_ds)
         adj += np.linalg.solve(jac.T, dJ_ds-jac.T@adj)
-
-        adj_no_label = np.zeros( mask.shape )
-        adj_no_label[mask] = adj[:-1]
-
-        adj_times_dg_no_label_dc = boozer_surface_dexactresidual_dcoils_vjp(adj_no_label, booz_surf.surface, iota, G, bs)
-        dlabel_dc = booz_surf.label.dJ_by_dcoilcoefficients()
-        adj_times_dg_dc = [(adj[-1] * dl_dc + temp) for dl_dc,temp in zip(dlabel_dc,adj_times_dg_no_label_dc)]
-
+        
+        adj_times_dg_dc = dconstraint_dcoils_vjp(adj, booz_surf.surface, iota, G, bs)
         dJ = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcoefficients(), adj_times_dg_dc)]
         dJ = self.stellarator.reduce_coefficient_derivatives(dJ)
 
@@ -549,4 +548,3 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) )
         return dJ_by_dc
     
-

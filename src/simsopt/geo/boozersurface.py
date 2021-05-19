@@ -1,6 +1,8 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from simsopt.geo.surfaceobjectives import boozer_surface_dlsqgrad_dcoils_vjp
+from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_vjp
 
 
 class BoozerSurface():
@@ -41,6 +43,7 @@ class BoozerSurface():
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
+        self.res = None
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         """
@@ -283,6 +286,11 @@ class BoozerSurface():
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
+
+        backup = s.get_dofs()
+        iota0 = iota
+        G0 = G
+        
         norm = 1e10
         if method == 'manual':
             i = 0
@@ -302,7 +310,9 @@ class BoozerSurface():
                 lam *= 1/3
                 i += 1
             resdict = {
-                "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol
+                "residual": r, "gradient": b, "JTJ": JTJ, "success": norm <= tol,
+                "mask": np.ones(b.shape, dtype=bool),
+                "dconstraint_dcoils_vjp": boozer_surface_dlsqgrad_dcoils_vjp
             }
             if G is None:
                 s.set_dofs(x[:-1])
@@ -314,6 +324,17 @@ class BoozerSurface():
                 resdict['G'] = G
             resdict['s'] = s
             resdict['iota'] = iota
+
+            val, dval, d2val = self.boozer_penalty_constraints(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+            resdict["jacobian"] = d2val
+
+            self.res = resdict
+            if not resdict['success']:
+                s.set_dofs(backup)
+                resdict['iota'] = iota0
+                resdict['G'] = G0
+
             return resdict
         fun = lambda x: self.boozer_penalty_constraints(
             x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
@@ -321,8 +342,9 @@ class BoozerSurface():
             x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)[1]
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         resdict = {
-            "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,
-            "G": None,
+            "info": res, "residual": res.fun, "gradient": res.grad, "JTJ": res.jac, "success": res.status > 0,
+            "G": None, "mask":np.ones(res.grad.shape, dtype=bool)
+
         }
         if G is None:
             s.set_dofs(res.x[:-1])
@@ -334,6 +356,16 @@ class BoozerSurface():
             resdict['G'] = G
         resdict['s'] = s
         resdict['iota'] = iota
+        val, dval, d2val = self.boozer_penalty_constraints(
+            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+        resdict["jacobian"] = d2val
+        
+        self.res = resdict
+        if not resdict['success']:
+            s.set_dofs(backup)
+            resdict['iota'] = iota0
+            resdict['G'] = G0
+
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
@@ -538,9 +570,11 @@ class BoozerSurface():
 
 
         res = {
-                "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "mask" : mask
+                "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
+                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_vjp
         }
         
+        self.res = res
         if not res['success']:
             s.set_dofs(backup)
             res['iota'] = iota0
