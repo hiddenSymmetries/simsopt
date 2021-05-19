@@ -11,13 +11,20 @@ involving Greene's residue for several O-points and X-points, similar
 to the approach of Hanson and Cary (1984).
 """
 
+import logging
 import numpy as np
+from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd.spec import Spec, Residue
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
+
+log()
+
+mpi = MpiPartition()
+mpi.write()
 
 # Initialze a Spec object from a standard SPEC input file:
-s = Spec('QH-residues.sp')
+s = Spec('QH-residues.sp', mpi=mpi)
 
 # Expand number of Fourier modes to include larger poloidal mode numbers:
 s.boundary.change_resolution(6, s.boundary.ntor)
@@ -39,7 +46,7 @@ residue2 = Residue(s, p, q, s_guess=s_guess, theta=np.pi)
 
 initial_r1 = residue1.J()                                                                    
 initial_r2 = residue2.J()                                                                    
-print(f"Initial residues: {initial_r1}, {initial_r2}")
+logging.info(f"Initial residues: {initial_r1}, {initial_r2}")
 #exit(0)
 
 # There is another island chain we'd like to control at iota = -12/11:
@@ -57,14 +64,15 @@ prob = LeastSquaresProblem([(residue1, 0, 1),
                             (residue4, 0, 1)])
 
 # Solve the optimization problem:
-least_squares_serial_solve(prob)
+least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
 final_r1 = residue1.J()                                                                    
 final_r2 = residue2.J()                                                                    
 expected_solution = np.array([1.1076171888771095e-03,  4.5277618989828059e-04])
-print(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
-print("Expected state vector:", expected_solution)
-print("Difference from expected solution:", prob.x - expected_solution)
-print(f"Final residues: {final_r1}, {final_r2}")
+if mpi.proc0_world:
+    logging.info(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
+    logging.info(f"Expected state vector: {expected_solution}")
+    logging.info(f"Difference from expected solution: {prob.x - expected_solution}")
+    logging.info(f"Final residues: {final_r1}, {final_r2}")
 
 np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)

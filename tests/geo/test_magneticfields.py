@@ -1,4 +1,6 @@
-from simsopt.geo.magneticfieldclasses import ToroidalField, ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, Reiman
+from simsopt.geo.magneticfieldclasses import ToroidalField, \
+    ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
+    Reiman, sympy_found
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
@@ -84,6 +86,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
 
+    @unittest.skipIf(not sympy_found, "Sympy not found")
     def test_scalarpotential_Bfield(self):
         # Set up magnetic field scalar potential
         PhiStr = "0.1*phi+0.2*R*Z+0.3*Z*phi+0.4*R**2+0.5*Z**2"

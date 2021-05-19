@@ -8,7 +8,7 @@ from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.util.mpi import MpiPartition
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
-from simsopt import least_squares_mpi_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
