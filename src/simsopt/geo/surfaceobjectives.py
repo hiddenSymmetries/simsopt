@@ -369,21 +369,21 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         d2residual_by_diotadG_flattened = d2residual_by_diotadG.reshape((nphi*ntheta*3,))
         d2residual_by_dGdG_flattened = d2residual_by_dGdG.reshape((nphi*ntheta*3,))
         H = np.zeros((nphi*ntheta*3, nsurfdofs + 2, nsurfdofs + 2))
-        H[:, :nsurfdofs, :nsurfdofs]   = d2residual_by_dcdc_flattened       #(0, 0) dcdc
-        H[:, :nsurfdofs, nsurfdofs]    = d2residual_by_dcdiota_flattened    #(0, 1) dcdiota
-        H[:, :nsurfdofs, nsurfdofs+1]  = d2residual_by_dcdG_flattened       #(0, 2) dcdG
-        H[:, nsurfdofs, :nsurfdofs]    = d2residual_by_dcdiota_flattened    #(1, 0) diotadc
-        H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened #(1, 1) diotadiota
-        H[:, nsurfdofs, nsurfdofs+1]   = d2residual_by_diotadiota_flattened #(1, 2) diotadG
-        H[:, nsurfdofs+1, :nsurfdofs]  = d2residual_by_dcdG_flattened       #(2, 0) dGdc
-        H[:, nsurfdofs+1, nsurfdofs]   = d2residual_by_diotadG_flattened    #(2, 1) dGdiota
-        H[:, nsurfdofs+1, nsurfdofs+1] = d2residual_by_dGdG_flattened       #(2, 2) dGdG
+        H[:, :nsurfdofs, :nsurfdofs]   = d2residual_by_dcdc_flattened       # (0, 0) dcdc
+        H[:, :nsurfdofs, nsurfdofs]    = d2residual_by_dcdiota_flattened    # (0, 1) dcdiota
+        H[:, :nsurfdofs, nsurfdofs+1]  = d2residual_by_dcdG_flattened       # (0, 2) dcdG
+        H[:, nsurfdofs, :nsurfdofs]    = d2residual_by_dcdiota_flattened    # (1, 0) diotadc
+        H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened # (1, 1) diotadiota
+        H[:, nsurfdofs, nsurfdofs+1]   = d2residual_by_diotadiota_flattened # (1, 2) diotadG
+        H[:, nsurfdofs+1, :nsurfdofs]  = d2residual_by_dcdG_flattened       # (2, 0) dGdc
+        H[:, nsurfdofs+1, nsurfdofs]   = d2residual_by_diotadG_flattened    # (2, 1) dGdiota
+        H[:, nsurfdofs+1, nsurfdofs+1] = d2residual_by_dGdG_flattened       # (2, 2) dGdG
     else:
         H = np.zeros((nphi*ntheta*3, nsurfdofs + 1, nsurfdofs + 1))
-        H[:, :nsurfdofs, :nsurfdofs]   = d2residual_by_dcdc_flattened       #(0, 0) dcdc
-        H[:, :nsurfdofs, nsurfdofs]    = d2residual_by_dcdiota_flattened    #(0, 1) dcdiota
-        H[:, nsurfdofs, :nsurfdofs]    = d2residual_by_dcdiota_flattened    #(1, 0) diotadc
-        H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened #(1, 1) diotadiota
+        H[:, :nsurfdofs, :nsurfdofs]   = d2residual_by_dcdc_flattened       # (0, 0) dcdc
+        H[:, :nsurfdofs, nsurfdofs]    = d2residual_by_dcdiota_flattened    # (0, 1) dcdiota
+        H[:, nsurfdofs, :nsurfdofs]    = d2residual_by_dcdiota_flattened    # (1, 0) diotadc
+        H[:, nsurfdofs, nsurfdofs]     = d2residual_by_diotadiota_flattened # (1, 1) diotadiota
 
     return r, J, H
 
