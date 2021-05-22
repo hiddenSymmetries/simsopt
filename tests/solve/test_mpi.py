@@ -4,6 +4,7 @@ import numpy as np
 from mpi4py import MPI
 from simsopt._core.dofs import Dofs
 from simsopt.util.mpi import MpiPartition, log
+from simsopt.objectives.functions import Beale
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.mpi import fd_jac_mpi, least_squares_mpi_solve
 
@@ -81,6 +82,72 @@ class TestFunction3:
 
 
 class SolveMpiTests(unittest.TestCase):
+    def test_fd_jac_eval_points(self):
+        """
+        Check that fd_jac_mpi is evaluating the residual functions at the
+        expected locations.
+        """
+        for ngroups in range(1, 2):
+            mpi = MpiPartition(ngroups)
+            b = Beale()  # Any Optimizable object with 2 d.o.f.'s will do.
+
+            # First examine 1-sided differences
+            prob = LeastSquaresProblem([(b, 0, 1)], centered=False,
+                                       abs_step=1e-6, rel_step=1e-2)
+
+            b.set_dofs([0, 0.2])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[0.0, 1e-6, 0],
+                                   [0.2, 0.2, 0.202]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([0, 0])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[0.0, 1e-6, 0],
+                                   [0.0, 0.0, 1e-6]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([-3, -4])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[-3.0, -2.97, -3.0],
+                                   [-4.0, -4.0, -3.96]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([3e-7, 4e-7])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[3e-7, 1.3e-6, 3.0e-7],
+                                   [4e-7, 4.0e-7, 1.4e-6]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            # Now examine centered differences
+            prob = LeastSquaresProblem([(b, 0, 1)], centered=True,
+                                       abs_step=1e-6, rel_step=1e-2)
+
+            b.set_dofs([0, 0.2])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[1e-6, -1e-6, 0, 0],
+                                   [0.2, 0.2, 0.202, 0.198]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([0, 0])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[1e-6, -1e-6, 0, 0],
+                                   [0, 0, 1e-6, -1e-6]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([-3, -4])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[-2.97, -3.03, -3.00, -3.00],
+                                   [-4.00, -4.00, -3.96, -4.04]])
+            np.testing.assert_allclose(xs, xs_correct)
+
+            b.set_dofs([3e-7, 4e-7])
+            jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
+            xs_correct = np.array([[1.3e-6, -0.7e-6, 3.0e-7, 3.00e-7],
+                                   [4.0e-7, 4.00e-7, 1.4e-6, -0.6e-6]])
+            np.testing.assert_allclose(xs, xs_correct)
+            print(xs)
+
     def test_fd_jac(self):
         """
         Test the parallel finite-difference Jacobian calculation.
