@@ -76,17 +76,17 @@ class LeastSquaresProblem:
           type LeastSquaresTerm or else be a list or tuple of the form
           (function, goal, weight) or (object, attribute_str, goal,
           weight).
-        fail: Should be None, a large positive float, or NaN. If not
-          None, any ObjectiveFailure excpetions raised will be caught
-          and the corresponding residual values will be replaced by this
-          value.
+        kwargs: Any additional arguments will be passed to the ``Dofs``
+          constructor. This is useful for passing ``fail``, ``abs_step``,
+          ``rel_step``, and ``centered``. See :obj:`~simsopt._core.Dofs`
+          for details.
     """
 
     def __init__(self,
                  terms,
-                 fail: Union[None, float] = 1.0e12):
+                 **kwargs):
 
-        self.fail = fail
+        self.kwargs = kwargs
         # For each item provided in the list, either convert to a
         # LeastSquaresTerm or, if it is already a LeastSquaresTerm,
         # use it directly.
@@ -115,7 +115,7 @@ class LeastSquaresProblem:
         etc. This is done both when the object is created, so 'objective' 
         works immediately, and also at the start of solve()
         """
-        self.dofs = Dofs([t.f_in for t in self.terms], fail=self.fail)
+        self.dofs = Dofs([t.f_in for t in self.terms], **self.kwargs)
 
     @property
     def x(self):
