@@ -65,52 +65,62 @@ class VmecTests(unittest.TestCase):
         Verify that failures of VMEC are correctly caught and represented
         by large values of the objective function.
         """
-        filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-        vmec = Vmec(filename)
-        # Use the objective function from
-        # stellopt_scenarios_2DOF_targetIotaAndVolume:
-        prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
-                                    (vmec.volume, 0.15, 1)])
-        r00 = vmec.boundary.get_rc(0, 0)
-        # The first evaluation should succeed.
-        f = prob.f()
-        print(f[0], f[1])
-        correct_f = [-0.004577338528148067, 2.8313872701632925]
-        # Don't worry too much about accuracy here.
-        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+        for j in range(2):
+            filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+            vmec = Vmec(filename)
+            # Use the objective function from
+            # stellopt_scenarios_2DOF_targetIotaAndVolume:
+            if j == 0:
+                prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
+                                            (vmec.volume, 0.15, 1)])
+                fail_val = 1e12
+            else:
+                # Try a custom failure value
+                fail_val = 2.0e30
+                prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
+                                            (vmec.volume, 0.15, 1)],
+                                           fail=fail_val)
 
-        # Now set a crazy boundary shape to make VMEC fail. This
-        # boundary causes VMEC to hit the max number of iterations
-        # without meeting ftol.
-        vmec.boundary.set_rc(0, 0, 0.2)
-        vmec.need_to_run_code = True
-        f = prob.f()
-        print(f)
-        np.testing.assert_allclose(f, np.full(2, 1.0e12))
+            r00 = vmec.boundary.get_rc(0, 0)
+            # The first evaluation should succeed.
+            f = prob.f()
+            print(f[0], f[1])
+            correct_f = [-0.004577338528148067, 2.8313872701632925]
+            # Don't worry too much about accuracy here.
+            np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
-        # Restore a reasonable boundary shape. VMEC should work again.
-        vmec.boundary.set_rc(0, 0, r00)
-        vmec.need_to_run_code = True
-        f = prob.f()
-        print(f)
-        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+            # Now set a crazy boundary shape to make VMEC fail. This
+            # boundary causes VMEC to hit the max number of iterations
+            # without meeting ftol.
+            vmec.boundary.set_rc(0, 0, 0.2)
+            vmec.need_to_run_code = True
+            f = prob.f()
+            print(f)
+            np.testing.assert_allclose(f, np.full(2, fail_val))
 
-        # Now set a self-intersecting boundary shape. This causes VMEC
-        # to fail with "ARNORM OR AZNORM EQUAL ZERO IN BCOVAR" before
-        # it even starts iterating.
-        orig_mode = vmec.boundary.get_rc(1, 3)
-        vmec.boundary.set_rc(1, 3, 0.5)
-        vmec.need_to_run_code = True
-        f = prob.f()
-        print(f)
-        np.testing.assert_allclose(f, np.full(2, 1.0e12))
+            # Restore a reasonable boundary shape. VMEC should work again.
+            vmec.boundary.set_rc(0, 0, r00)
+            vmec.need_to_run_code = True
+            f = prob.f()
+            print(f)
+            np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
-        # Restore a reasonable boundary shape. VMEC should work again.
-        vmec.boundary.set_rc(1, 3, orig_mode)
-        vmec.need_to_run_code = True
-        f = prob.f()
-        print(f)
-        np.testing.assert_allclose(f, correct_f, rtol=0.1)
+            # Now set a self-intersecting boundary shape. This causes VMEC
+            # to fail with "ARNORM OR AZNORM EQUAL ZERO IN BCOVAR" before
+            # it even starts iterating.
+            orig_mode = vmec.boundary.get_rc(1, 3)
+            vmec.boundary.set_rc(1, 3, 0.5)
+            vmec.need_to_run_code = True
+            f = prob.f()
+            print(f)
+            np.testing.assert_allclose(f, np.full(2, fail_val))
+
+            # Restore a reasonable boundary shape. VMEC should work again.
+            vmec.boundary.set_rc(1, 3, orig_mode)
+            vmec.need_to_run_code = True
+            f = prob.f()
+            print(f)
+            np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
     def test_vacuum_well(self):
         """

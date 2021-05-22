@@ -14,6 +14,8 @@ from abc import ABCMeta
 
 import numpy as np
 
+from ..util.types import RealArray
+
 
 def isbool(val):
     """
@@ -149,3 +151,65 @@ class ObjectiveFailure(Exception):
     the objective function to a large number.
     """
     pass
+
+
+def finite_difference_steps(x: RealArray,
+                            abs_step: float = 1.0e-7,
+                            rel_step: float = 0.0
+                            ) -> RealArray:
+    """
+    Determine an array of step sizes for calculating finite-difference
+    derivatives, using absolute or relative step sizes, or a mixture
+    thereof.
+
+    For each element ``x_j`` of the state vector ``x``, the step size
+    ``s_j`` is determined from
+
+    ``s_j = max(abs(x_j) * rel_step, abs_step)``
+
+    So, if you want to use the same absolute step size for all
+    elements of ``x``, set ``rel_step = 0`` and set ``abs_step``
+    positive. Or, if you want to use the same relative step size for
+    all elements of ``x``, set ``abs_step = 0`` and ``rel_step``
+    positive. If both ``abs_step`` and ``rel_step`` are positive, then
+    ``abs_step`` effectively gives the lower bound on the step size.
+
+    It is dangerous to set ``abs_step`` to exactly 0, since then if
+    any elements of ``x`` are 0, the step size will be 0. In this
+    situation, ``ValueError`` will be raised. It is preferable for
+    ``abs_step`` to be a small positive value.
+
+    For one-sided finite differences, the values of ``x_j`` used will
+    be ``x_j + s_j``. For centered finite differences, the values of
+    ``x_j`` used will be ``x_j + s_j`` and ``x_j - s_j``.
+
+    This routine is used by :func:`simsopt._core.dofs.fd_jac()` and
+    :func:`simsopt.solve.mpi.fd_jac_mpi()`.
+
+    Args:
+        x: The state vector at which you wish to compute the gradient
+          or Jacobian. Must be a 1D array.
+        abs_step: The absolute step size.
+        rel_step: The relative step size.
+
+    Returns:
+        A 1D numpy array of the same size as ``x``, with each element
+        being the step size used for each corresponding element of
+        ``x``.
+    """
+    if abs_step < 0:
+        raise ValueError('abs_step must be >= 0')
+    if rel_step < 0:
+        raise ValueError('rel_step must be >= 0')
+
+    steps = np.max((np.abs(x) * rel_step,
+                    np.full(len(x), abs_step)),
+                   axis=0)
+
+    # If abs_step == 0 and any elements of x are 0, we could end up
+    # with a step of size 0:
+    if np.any(steps == 0.0):
+        raise ValueError('Finite difference step size cannot be 0. ' \
+                         'Increase abs_step.')
+
+    return steps
