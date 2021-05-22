@@ -99,25 +99,29 @@ class SolveMpiTests(unittest.TestCase):
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[0.0, 1e-6, 0],
                                    [0.2, 0.2, 0.202]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([0, 0])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[0.0, 1e-6, 0],
                                    [0.0, 0.0, 1e-6]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([-3, -4])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[-3.0, -2.97, -3.0],
                                    [-4.0, -4.0, -3.96]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([3e-7, 4e-7])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[3e-7, 1.3e-6, 3.0e-7],
                                    [4e-7, 4.0e-7, 1.4e-6]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             # Now examine centered differences
             prob = LeastSquaresProblem([(b, 0, 1)], centered=True,
@@ -127,26 +131,29 @@ class SolveMpiTests(unittest.TestCase):
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[1e-6, -1e-6, 0, 0],
                                    [0.2, 0.2, 0.202, 0.198]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([0, 0])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[1e-6, -1e-6, 0, 0],
                                    [0, 0, 1e-6, -1e-6]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([-3, -4])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[-2.97, -3.03, -3.00, -3.00],
                                    [-4.00, -4.00, -3.96, -4.04]])
-            np.testing.assert_allclose(xs, xs_correct)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
             b.set_dofs([3e-7, 4e-7])
             jac, xs, evals = fd_jac_mpi(prob.dofs, mpi)
             xs_correct = np.array([[1.3e-6, -0.7e-6, 3.0e-7, 3.00e-7],
                                    [4.0e-7, 4.00e-7, 1.4e-6, -0.6e-6]])
-            np.testing.assert_allclose(xs, xs_correct)
-            print(xs)
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(xs, xs_correct)
 
     def test_fd_jac(self):
         """
