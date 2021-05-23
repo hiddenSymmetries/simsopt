@@ -12,6 +12,10 @@ template <class MagneticFieldBase = PyMagneticField> class PyMagneticFieldTrampo
     public:
         using MagneticFieldBase::MagneticFieldBase;
 
+        virtual void set_points_cb() override {
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, set_points_cb);
+        }
+
         virtual void B_impl(PyArray& data) override { 
             PYBIND11_OVERLOAD(void, MagneticFieldBase, B_impl, data);
         }

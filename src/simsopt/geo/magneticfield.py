@@ -36,9 +36,8 @@ class MagneticFieldMultiply(MagneticField):
         self.scalar = scalar
         self.Bfield = Bfield
 
-    def set_points(self, points):
-        self.Bfield.set_points(points)
-        return MagneticField.set_points(self, points)
+    def set_points_cb(self):
+        self.Bfield.set_points_cart(self.get_points_cart_ref())
 
     def B_impl(self, B):
         B[:] = self.scalar*self.Bfield.B()
@@ -71,10 +70,9 @@ class MagneticFieldSum(MagneticField):
         MagneticField.__init__(self)
         self.Bfields = Bfields
 
-    def set_points(self, points):
+    def set_points_cb(self):
         for bf in self.Bfields:
-            bf.set_points(points)
-        return MagneticField.set_points(self, points)
+            bf.set_points_cart(self.get_points_cart_ref())
 
     def B_impl(self, B):
         B[:] = np.sum([bf.B() for bf in self.Bfields], axis=0)
