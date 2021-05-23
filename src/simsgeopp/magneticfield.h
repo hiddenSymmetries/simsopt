@@ -40,10 +40,9 @@ class MagneticField {
         std::map<string, CachedArray<Array>> cache;
 
     public:
-        Array points;
+        int npoints;
 
         MagneticField() {
-            points = xt::zeros<double>({1, 3});
         }
 
         bool cache_get_status(string key){
@@ -65,6 +64,8 @@ class MagneticField {
             } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
                 loc->second = CachedArray<Array>(xt::zeros<double>(dims));
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else {
+                //fmt::print("Existing array found for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
             loc->second.status = true;
             return loc->second.data;
@@ -92,10 +93,82 @@ class MagneticField {
             }
         }
 
-        MagneticField& set_points(Array& p) {
+        virtual void set_points_cb() {
+
+        }
+
+        virtual MagneticField& set_points_cyl(Array& p) {
             this->invalidate_cache();
+            npoints = p.shape(0);
+            Array& points = cache_get_or_create("points_cyl", {npoints, 3});
             points = p;
+            for (int i = 0; i < npoints; ++i) {
+                points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
+            }
+            this->set_points_cb();
             return *this;
+        }
+
+        virtual MagneticField& set_points_cart(Array& p) {
+            this->invalidate_cache();
+            npoints = p.shape(0);
+            Array& points = cache_get_or_create("points_cart", {npoints, 3});
+            points = p;
+            this->set_points_cb();
+            return *this;
+        }
+
+
+        virtual MagneticField& set_points(Array& p) {
+            return set_points_cart(p);
+        }
+
+        Array get_points_cyl() {
+            return get_points_cyl_ref();
+        }
+
+        Array& get_points_cyl_ref() {
+            return cache_get_or_create_and_fill("points_cyl", {npoints, 3}, [this](Array& B) { return get_points_cyl_impl(B);});
+        }
+
+        virtual void get_points_cyl_impl(Array& points_cyl) {
+            if(!cache_get_status("points_cart"))
+                throw logic_error("To compute points_cyl, points_cart needs to exist in the cache.");
+            Array& points_cart = get_points_cart_ref();
+            npoints = points_cyl.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                double x = points_cart(i, 0);
+                double y = points_cart(i, 1);
+                double z = points_cart(i, 2);
+                points_cyl(i, 0) = std::sqrt(x*x + y*y);
+                double phi = std::atan2(y, x);
+                if(phi < 0)
+                    phi += 2*M_PI;
+                points_cyl(i, 1) = phi;
+                points_cyl(i, 2) = z;
+            }
+        }
+
+        Array get_points_cart() {
+            return get_points_cart_ref();
+        }
+
+        Array& get_points_cart_ref() {
+            return cache_get_or_create_and_fill("points_cart", {npoints, 3}, [this](Array& B) { return get_points_cart_impl(B);});
+        }
+
+        virtual void get_points_cart_impl(Array& points_cart) {
+            if(!cache_get_status("points_cyl"))
+                throw logic_error("To compute points_cart, points_cyl needs to exist in the cache.");
+            Array& points_cyl = get_points_cyl_ref();
+            for (int i = 0; i < npoints; ++i) {
+                double r = points_cyl(i, 0);
+                double phi = points_cyl(i, 1);
+                double z = points_cyl(i, 2);
+                points_cart(i, 0) = r * std::cos(phi);
+                points_cart(i, 1) = r * std::sin(phi);
+                points_cart(i, 2) = z;
+            }
         }
 
         virtual void B_impl(Array& B) { throw logic_error("B_impl was not implemented"); }
@@ -106,30 +179,77 @@ class MagneticField {
         virtual void d2A_by_dXdX_impl(Array& d2A_by_dXdX) { throw logic_error("d2A_by_dXdX_impl was not implemented"); }
 
         Array& B_ref() {
-            return cache_get_or_create_and_fill("B", {static_cast<int>(points.shape(0)), 3}, [this](Array& B) { return B_impl(B);});
+            return cache_get_or_create_and_fill("B", {npoints, 3}, [this](Array& B) { return B_impl(B);});
         }
         Array& dB_by_dX_ref() {
-            return cache_get_or_create_and_fill("dB_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
+            return cache_get_or_create_and_fill("dB_by_dX", {npoints, 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
         }
         Array& d2B_by_dXdX_ref() {
-            return cache_get_or_create_and_fill("d2B_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
+            return cache_get_or_create_and_fill("d2B_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
         }
         Array B() { return B_ref(); }
         Array dB_by_dX() { return dB_by_dX_ref(); }
         Array d2B_by_dXdX() { return d2B_by_dXdX_ref(); }
 
         Array& A_ref() {
-            return cache_get_or_create_and_fill("A", {static_cast<int>(points.shape(0)), 3}, [this](Array& A) { return A_impl(A);});
+            return cache_get_or_create_and_fill("A", {npoints, 3}, [this](Array& A) { return A_impl(A);});
         }
         Array& dA_by_dX_ref() {
-            return cache_get_or_create_and_fill("dA_by_dX", {static_cast<int>(points.shape(0)), 3, 3}, [this](Array& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
+            return cache_get_or_create_and_fill("dA_by_dX", {npoints, 3, 3}, [this](Array& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
         }
         Array& d2A_by_dXdX_ref() {
-            return cache_get_or_create_and_fill("d2A_by_dXdX", {static_cast<int>(points.shape(0)), 3, 3, 3}, [this](Array& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
+            return cache_get_or_create_and_fill("d2A_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
         }
         Array A() { return A_ref(); }
         Array dA_by_dX() { return dA_by_dX_ref(); }
         Array d2A_by_dXdX() { return d2A_by_dXdX_ref(); }
+
+        void B_cyl_impl(Array& B_cyl) {
+            Array& B = this->B_ref();
+            Array& rphiz = this->get_points_cyl_ref();
+            int npoints = B.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                double phi = rphiz(i, 1);
+                B_cyl(i, 0) = std::cos(phi)*B(i, 0) + std::sin(phi)*B(i, 1);
+                B_cyl(i, 1) = std::cos(phi)*B(i, 1) - std::sin(phi)*B(i, 0);
+                B_cyl(i, 2) = B(i, 2);
+            }
+        }
+
+        Array B_cyl() {
+            return B_cyl_ref();
+        }
+
+        Array& B_cyl_ref() {
+            return cache_get_or_create_and_fill("B_cyl", {npoints, 3}, [this](Array& B) { return B_cyl_impl(B);});
+        }
+
+
+    //Bs = biotsavart.B(compute_derivatives=1)
+    //GradBs = biotsavart.dB_by_dX(compute_derivatives=1)
+    //AbsBs = np.linalg.norm(Bs, axis=1)
+    //GradAbsBs = (Bs[:, None, 0]*GradBs[:, :, 0] + Bs[:, None, 1]*GradBs[:, :, 1] + Bs[:, None, 2]*GradBs[:, :, 2])/AbsBs[:, None]
+    //
+        void GradAbsB_impl(Array& GradAbsB) {
+            Array& B = this->B_ref();
+            Array& GradB = this->dB_by_dX_ref();
+            int npoints = B.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                double AbsB = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
+                GradAbsB(i, 0) = (B(i, 0) * GradB(i, 0, 0) + B(i, 1) * GradB(i, 0, 1) + B(i, 2) * GradB(i, 0, 2))/AbsB;
+                GradAbsB(i, 1) = (B(i, 0) * GradB(i, 1, 0) + B(i, 1) * GradB(i, 1, 1) + B(i, 2) * GradB(i, 1, 2))/AbsB;
+                GradAbsB(i, 2) = (B(i, 0) * GradB(i, 2, 0) + B(i, 1) * GradB(i, 2, 1) + B(i, 2) * GradB(i, 2, 2))/AbsB;
+            }
+        }
+
+        Array GradAbsB() {
+            return GradAbsB_ref();
+        }
+
+        Array& GradAbsB_ref() {
+            return cache_get_or_create_and_fill("GradAbsB", {npoints, 3}, [this](Array& B) { return GradAbsB_impl(B);});
+        }
+
 };
 
 typedef vector_type AlignedVector;
@@ -149,7 +269,6 @@ class BiotSavart : public MagneticField<Array> {
         AlignedVector pointsz = AlignedVector(xsimd::simd_type<double>::size, 0.);
 
         void fill_points(const Array& points) {
-            int npoints = points.shape(0);
             // allocating these aligned vectors is not super cheap, so reuse
             // whenever possible.
             if(pointsx.size() != npoints)
@@ -166,19 +285,19 @@ class BiotSavart : public MagneticField<Array> {
         }
 
     public:
-        using MagneticField<Array>::points;
         using MagneticField<Array>::cache_get_or_create;
         using MagneticField<Array>::cache_get_status;
+        using MagneticField<Array>::npoints;
         BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : coils(coils) {
 
         }
 
         void compute(int derivatives) {
             //fmt::print("Calling compute({})\n", derivatives);
+            auto points = this->get_points_cart_ref();
             this->fill_points(points);
             Array dummyjac = xt::zeros<double>({1, 1, 1});
             Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
-            int npoints = static_cast<int>(points.shape(0));
             int ncoils = this->coils.size();
             Array& B = cache_get_or_create("B", {npoints, 3});
             Array& dB = derivatives > 0 ? cache_get_or_create("dB_by_dX", {npoints, 3, 3}) : dummyjac;
@@ -300,58 +419,63 @@ template<class Array>
 class InterpolatedField : public MagneticField<Array> {
     private:
         shared_ptr<MagneticField<Array>> field;
-        shared_ptr<RegularGridInterpolant3D<Array, 4>> B_interp;
         int nr, nphi, nz;
         double rmin, phimin, zmin;
         double rmax, phimax, zmax;
+
+        shared_ptr<RegularGridInterpolant3D<Array, 4>> B_interp;
         std::function<Vec(double, double, double)> f_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
 
 
     public:
-        using MagneticField<Array>::points;
+        using MagneticField<Array>::npoints;
         InterpolatedField(shared_ptr<MagneticField<Array>> field, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) :
             field(field),
             rmin(std::get<0>(r_range)), rmax(std::get<1>(r_range)), nr(std::get<2>(r_range)),
             phimin(std::get<0>(phi_range)), phimax(std::get<1>(phi_range)), nphi(std::get<2>(phi_range)),
-            zmin(std::get<0>(z_range)), zmax(std::get<1>(z_range)), nz(std::get<2>(z_range))
-    {
-        B_interp = std::make_shared<RegularGridInterpolant3D<Array, 4>>(r_range, phi_range, z_range, 3);
-        f_B = [this](double r, double phi, double z) {
-            Array points = xt::zeros<double>({1, 3});
-            points(0, 0) = r * std::cos(phi);
-            points(0, 1) = r * std::sin(phi);
-            points(0, 2) = z;
-            this->field->set_points(points);
-            auto B = this->field->B();
-            return Vec{ B(0, 0), B(0, 1), B(0, 2) };
-        };
-        fbatch_B = [this](Vec r, Vec phi, Vec z) {
-            int npoints = r.size();
-            Array points = xt::zeros<double>({npoints, 3});
-            for(int i=0; i<npoints; i++) {
-                points(i, 0) = r[i] * std::cos(phi[i]);
-                points(i, 1) = r[i] * std::sin(phi[i]);
-                points(i, 2) = z[i];
-            }
+            zmin(std::get<0>(z_range)), zmax(std::get<1>(z_range)), nz(std::get<2>(z_range)) 
+        {
+            B_interp = std::make_shared<RegularGridInterpolant3D<Array, 4>>(r_range, phi_range, z_range, 3);
+            f_B = [this](double r, double phi, double z) {
+                Array points = xt::zeros<double>({1, 3});
+                points(0, 0) = r * std::cos(phi);
+                points(0, 1) = r * std::sin(phi);
+                points(0, 2) = z;
+                this->field->set_points(points);
+                auto B = this->field->B();
+                return Vec{ B(0, 0), B(0, 1), B(0, 2) };
+            };
+            fbatch_B = [this](Vec r, Vec phi, Vec z) {
+                int npoints = r.size();
+                Array points = xt::zeros<double>({npoints, 3});
+                for(int i=0; i<npoints; i++) {
+                    points(i, 0) = r[i] * std::cos(phi[i]);
+                    points(i, 1) = r[i] * std::sin(phi[i]);
+                    points(i, 2) = z[i];
+                }
 
-            this->field->set_points(points);
-            auto B = this->field->B();
-            auto res = Vec(3*npoints, 0.);
-            for(int i=0; i<npoints; i++) {
-                res[3*i + 0] = B(i, 0);
-                res[3*i + 1] = B(i, 1);
-                res[3*i + 2] = B(i, 2);
-            }
-            return res;
-        };
-        B_interp->interpolate_batch(fbatch_B);
+                this->field->set_points(points);
+                auto B = this->field->B();
+                auto res = Vec(3*npoints, 0.);
+                for(int i=0; i<npoints; i++) {
+                    res[3*i + 0] = B(i, 0);
+                    res[3*i + 1] = B(i, 1);
+                    res[3*i + 2] = B(i, 2);
+                }
+                return res;
+            };
+            build_B();
+        }
 
-    }
+        void build_B(){
+            B_interp->interpolate_batch(fbatch_B);
+        }
 
         void B_impl(Array& B) {
-            this->B_interp->evaluate_batch_with_transform(this->points, B);
+            this->B_interp->evaluate_batch(this->get_points_cyl_ref(), B);
         }
+
         std::pair<double, double> estimate_error(int samples) {
             return this->B_interp->estimate_error(this->f_B, samples);
         }

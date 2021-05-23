@@ -27,14 +27,14 @@ class ToroidalField(MagneticField):
         self.B0 = B0
 
     def B_impl(self, B):
-        points = self.points
+        points = self.get_points_cart_ref()
         phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         phiUnitVectorOverR = np.vstack((np.divide(-np.sin(phi), R), np.divide(np.cos(phi), R), np.zeros(len(phi)))).T
         B[:] = np.multiply(self.B0*self.R0, phiUnitVectorOverR)
 
     def dB_by_dX_impl(self, dB):
-        points = self.points
+        points = self.get_points_cart_ref()
         phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
 
@@ -54,8 +54,7 @@ class ToroidalField(MagneticField):
         dB[:] = np.array([dB_by_dX1, dB_by_dX2, dB_by_dX3]).T
 
     def d2B_by_dXdX_impl(self, ddB):
-        points = self.points
-
+        points = self.get_points_cart_ref()
         x = points[:, 0]
         y = points[:, 1]
         ddB[:] = 2*self.B0*self.R0*np.multiply(
@@ -71,14 +70,14 @@ class ToroidalField(MagneticField):
                 np.zeros((3, 3, len(points)))])).T
 
     def A_impl(self, A):
-        points = self.points
+        points = self.get_points_cart_ref()
         A[:] = self.B0*self.R0*np.array([
             points[:, 2]*points[:, 0]/(points[:, 0]**2+points[:, 1]**2),
             points[:, 2]*points[:, 1]/(points[:, 0]**2+points[:, 1]**2),
             0*points[:, 2]]).T
 
     def dA_by_dX_impl(self, dA):
-        points = self.points
+        points = self.get_points_cart_ref()
         dA[:] = self.B0*self.R0*np.array((points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**2)*np.array(
             [[-points[:, 0]**2+points[:, 1]**2, -2*points[:, 0]*points[:, 1], np.zeros((len(points)))],
              [-2*points[:, 0]*points[:, 1], points[:, 0]**2-points[:, 1]**2, np.zeros((len(points)))],
@@ -86,7 +85,7 @@ class ToroidalField(MagneticField):
               points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2], np.zeros((len(points)))]])).T
 
     def d2A_by_dXdX_impl(self, ddA):
-        points = self.points
+        points = self.get_points_cart_ref()
         ddA[:] = 2*self.B0*self.R0*np.array(
             (points[:, 2]/(points[:, 0]**2+points[:, 1]**2)**3)*np.array([
                 [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
@@ -137,14 +136,14 @@ class ScalarPotentialRZMagneticField(MagneticField):
              [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
 
     def B_impl(self, B):
-        points = self.points
+        points = self.get_points_cart_ref()
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
         B[:] = np.array(self.Blambdify(r, z, phi)).T
 
     def dB_by_dX_impl(self, dB):
-        points = self.points
+        points = self.get_points_cart_ref()
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
@@ -186,7 +185,7 @@ class CircularCoil(MagneticField):
         self.rotMatrixInv = np.array(self.rotMatrix.T)
 
     def B_impl(self, B):
-        points = self.points
+        points = self.get_points_cart_ref()
         points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
@@ -202,7 +201,7 @@ class CircularCoil(MagneticField):
              self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
     def dB_by_dX_impl(self, dB):
-        points = self.points
+        points = self.get_points_cart_ref()
         points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
@@ -272,7 +271,7 @@ class CircularCoil(MagneticField):
              np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
 
     def A_impl(self, A):
-        points = self.points
+        points = self.get_points_cart_ref()
         points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
@@ -308,16 +307,16 @@ class Dommaschk(MagneticField):
         self.coeffs = coeffs
         self.Btor = ToroidalField(1, 1)
 
-    def set_points(self, points):
-        self.Btor.set_points(points)
-        return MagneticField.set_points(self, points)
+    def set_points_cb(self):
+        print(self.get_points_cart_ref())
+        self.Btor.set_points_cart(self.get_points_cart_ref())
 
     def B_impl(self, B):
-        points = self.points
+        points = self.get_points_cart_ref()
         B[:] = np.add.reduce(sgpp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
 
     def dB_by_dX_impl(self, dB):
-        points = self.points
+        points = self.get_points_cart_ref()
         dB[:] = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
 
@@ -337,6 +336,7 @@ class Reiman(MagneticField):
     '''
 
     def __init__(self, iota0=0.15, iota1=0.38, k=[6], epsilonk=[0.01], m0=1):
+        MagneticField.__init__(self)
         self.iota0 = iota0
         self.iota1 = iota1
         self.k = k
@@ -344,9 +344,13 @@ class Reiman(MagneticField):
         self.m0 = m0
 
     def B_impl(self, B):
-        points = self.points
+        points = self.get_points_cart_ref()
         B[:] = sgpp.ReimanB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
     def dB_by_dX_impl(self, dB):
-        points = self.points
+        points = self.get_points_cart_ref()
         dB[:] = sgpp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+
+
+class InterpolatedField(sgpp.InterpolatedField):
+    pass
