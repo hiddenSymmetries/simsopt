@@ -352,5 +352,13 @@ class Reiman(MagneticField):
         dB[:] = sgpp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
 
+class UniformInterpolationRule(sgpp.UniformInterpolationRule):
+    pass
+
+
+class ChebyshevInterpolationRule(sgpp.ChebyshevInterpolationRule):
+    pass
+
+
 class InterpolatedField(sgpp.InterpolatedField):
     pass

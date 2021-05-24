@@ -44,6 +44,12 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 
 void init_magneticfields(py::module_ &m){
 
+    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule");
+    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>>(m, "UniformInterpolationRule")
+        .def(py::init<int>());
+    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>>(m, "ChebyshevInterpolationRule")
+        .def(py::init<int>());
+
     py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
         .def(py::init<double>())
         .def("set_dofs", &Current<PyArray>::set_dofs)
@@ -68,7 +74,8 @@ void init_magneticfields(py::module_ &m){
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, PyMagneticFieldTrampoline<PyInterpolatedField>, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, RangeTriplet, RangeTriplet, RangeTriplet>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet>())
         .def("estimate_error", &PyInterpolatedField::estimate_error);
 
     register_common_field_methods<PyInterpolatedField>(ifield);
