@@ -15,12 +15,65 @@ using AlignedVec = std::vector<double, aligned_padded_allocator<XSIMD_DEFAULT_AL
 using Vec = std::vector<double>;
 using RangeTriplet = std::tuple<double, double, int>;
 
-template<int degree>
-double basis_fun(int idx, double x);
-
 Vec linspace(double min, double max, int n, bool endpoint);
 
-template<class Array, int degree>
+
+class InterpolationRule {
+    public:
+        Vec nodes;
+        Vec scalings;
+        const int degree;
+        InterpolationRule(int degree) : degree(degree), nodes(degree+1, 0.), scalings(degree+1, 1.0) {
+        }
+        double basis_fun(int idx, double x) const {
+            double res = scalings[idx];
+            for(int i = 0; i < degree+1; ++i) {
+                if(i == idx) continue;
+                res *= (x-nodes[i]);
+            }
+            return res;
+        }
+};
+
+class UniformInterpolationRule : public InterpolationRule {
+    public:
+        using InterpolationRule::nodes;
+        using InterpolationRule::degree;
+        UniformInterpolationRule(int degree) : InterpolationRule(degree) {
+            double degreeinv = double(1.)/degree;
+            for (int i = 0; i < degree+1; ++i) {
+                nodes[i] = i*degreeinv;
+            }
+            for(int idx = 0; idx < degree+1; ++idx) {
+                for(int i = 0; i < degree+1; ++i) {
+                    if(i == idx) continue;
+                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
+                }
+            }
+        }
+};
+
+class ChebyshevInterpolationRule : public InterpolationRule {
+    public:
+        using InterpolationRule::nodes;
+        using InterpolationRule::degree;
+        ChebyshevInterpolationRule(int degree) : InterpolationRule(degree) {
+            double degreeinv = double(1.)/degree;
+            for (int i = 0; i < degree+1; ++i) {
+                nodes[i] = (-0.5)*std::cos(i*M_PI*degreeinv) + 0.5;
+                fmt::print("{} ", nodes[i]);
+            }
+            fmt::print("\n");
+            for(int idx = 0; idx < degree+1; ++idx) {
+                for(int i = 0; i < degree+1; ++i) {
+                    if(i == idx) continue;
+                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
+                }
+            }
+        }
+};
+
+template<class Array>
 class RegularGridInterpolant3D {
     private:
         int nx, ny, nz;
@@ -40,24 +93,47 @@ class RegularGridInterpolant3D {
         std::vector<AlignedVec> all_local_vals;
         Vec sumi, sumj, sumk;
         static constexpr int simdcount = 4;
+        const InterpolationRule rule;
+        Vec pkxs, pkys, pkzs;
 
     public:
 
-        RegularGridInterpolant3D(RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size) :
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size) :
+            rule(rule), 
             xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)),
             ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)),
             zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)), value_size(value_size)
         {
+            int degree = rule.degree;
+            pkxs = Vec(degree+1, 0.);
+            pkys = Vec(degree+1, 0.);
+            pkzs = Vec(degree+1, 0.);
             hx = (xmax-xmin)/nx;
             hy = (ymax-ymin)/ny;
             hz = (zmax-zmin)/nz;
 
             xsmesh = linspace(xmin, xmax, nx+1, true);
-            xs = linspace(xmin, xmax, nx*degree+1, true);
             ysmesh = linspace(ymin, ymax, ny+1, true);
-            ys = linspace(ymin, ymax, ny*degree+1, true);
             zsmesh = linspace(zmin, zmax, nz+1, true);
-            zs = linspace(zmin, zmax, nz*degree+1, true);
+            xs = Vec(nx*degree+1, 0.);
+            ys = Vec(nx*degree+1, 0.);
+            zs = Vec(nx*degree+1, 0.);
+            int i, j;
+            for (i = 0; i < nx; ++i) {
+                for (j = 0; j < degree+1; ++j) {
+                    xs[i*degree+j] = xsmesh[i] + rule.nodes[j]*hx;
+                }
+            }
+            for (i = 0; i < ny; ++i) {
+                for (j = 0; j < degree+1; ++j) {
+                    ys[i*degree+j] = ysmesh[i] + rule.nodes[j]*hy;
+                }
+            }
+            for (i = 0; i < nz; ++i) {
+                for (j = 0; j < degree+1; ++j) {
+                    zs[i*degree+j] = zsmesh[i] + rule.nodes[j]*hz;
+                }
+            }
 
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
             int nsimdblocks = padded_value_size/simdcount;
@@ -72,8 +148,8 @@ class RegularGridInterpolant3D {
 
         }
 
-        RegularGridInterpolant3D(int nx, int ny, int nz, int value_size) : 
-            RegularGridInterpolant3D({0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size) {
+        RegularGridInterpolant3D(InterpolationRule rule, int nx, int ny, int nz, int value_size) : 
+            RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size) {
 
         }
 
@@ -82,10 +158,12 @@ class RegularGridInterpolant3D {
         void build_local_vals();
 
         inline int idx_dof(int i, int j, int k){
+            int degree = rule.degree;
             return i*(ny*degree+1)*(nz*degree+1) + j*(nz*degree+1) + k;
         }
 
         inline int idx_cell(int i, int j, int k){
+            int degree = rule.degree;
             return i*ny*nz + j*nz + k;
         }
 
@@ -94,6 +172,7 @@ class RegularGridInterpolant3D {
         }
 
         inline int idx_dof_local(int i, int j, int k){
+            int degree = rule.degree;
             return i*(degree+1)*(degree+1) + j*(degree+1) + k;
         } 
 

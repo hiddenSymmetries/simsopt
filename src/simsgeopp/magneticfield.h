@@ -423,20 +423,22 @@ class InterpolatedField : public MagneticField<Array> {
         double rmin, phimin, zmin;
         double rmax, phimax, zmax;
 
-        shared_ptr<RegularGridInterpolant3D<Array, 4>> B_interp;
+        InterpolationRule rule;
+        shared_ptr<RegularGridInterpolant3D<Array>> B_interp;
         std::function<Vec(double, double, double)> f_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
 
 
     public:
         using MagneticField<Array>::npoints;
-        InterpolatedField(shared_ptr<MagneticField<Array>> field, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) :
-            field(field),
+
+        InterpolatedField(shared_ptr<MagneticField<Array>> field, InterpolationRule rule, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) :
+            field(field), rule(rule),
             rmin(std::get<0>(r_range)), rmax(std::get<1>(r_range)), nr(std::get<2>(r_range)),
             phimin(std::get<0>(phi_range)), phimax(std::get<1>(phi_range)), nphi(std::get<2>(phi_range)),
             zmin(std::get<0>(z_range)), zmax(std::get<1>(z_range)), nz(std::get<2>(z_range)) 
         {
-            B_interp = std::make_shared<RegularGridInterpolant3D<Array, 4>>(r_range, phi_range, z_range, 3);
+            B_interp = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
             f_B = [this](double r, double phi, double z) {
                 Array points = xt::zeros<double>({1, 3});
                 points(0, 0) = r * std::cos(phi);
@@ -467,6 +469,8 @@ class InterpolatedField : public MagneticField<Array> {
             };
             build_B();
         }
+
+        InterpolatedField(shared_ptr<MagneticField<Array>> field, int degree, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) : InterpolatedField(field, ChebyshevInterpolationRule(degree), r_range, phi_range, z_range) {}
 
         void build_B(){
             B_interp->interpolate_batch(fbatch_B);

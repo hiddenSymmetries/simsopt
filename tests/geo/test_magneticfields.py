@@ -383,7 +383,7 @@ class Testing(unittest.TestCase):
             zmin = -0.1
             zmax = 0.1
             zsteps = n
-            bsh = InterpolatedField(btotal, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
+            bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
             err = np.mean(bsh.estimate_error(1000))
             print(err)
             assert err < 0.6**5 * old_err

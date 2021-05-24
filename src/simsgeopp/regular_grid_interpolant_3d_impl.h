@@ -5,54 +5,9 @@
 
 #define _EPS_ 1e-10
 
-template<>
-double basis_fun<1>(int idx, double x){
-    if(idx == 0)
-        return 1-x;
-    else
-        return x;
-}
-
-template<>
-double basis_fun<2>(int idx, double x){
-    if(idx == 0)
-        return 2*(x-1)*(x-0.5);
-    else if(idx == 1)
-        return x*(x-1)*(-4);
-    else
-        return x*(x-0.5)*2;
-}
-
-template<>
-double basis_fun<3>(int idx, double x){
-    constexpr double onethird = 1./3;
-    constexpr double twothirds = 2./3;
-    if(idx == 0)
-        return (x-onethird)*(x-twothirds)*(x-1)*(-9./2.);
-    else if (idx == 1)
-        return x*(x-twothirds)*(x-1)*(27./2.);
-    else if (idx == 2)
-        return x*(x-onethird)*(x-1)*(-27./2);
-    else
-        return x*(x-onethird)*(x-twothirds)*(9./2.);
-}
-
-template<>
-double basis_fun<4>(int idx, double x){
-    if(idx == 0)
-        return (x-0.25)*(x-0.5)*(x-0.75)*(x-1.)/0.09375;
-    else if (idx == 1)
-        return x*(x-0.5)*(x-0.75)*(x-1.)/(-0.0234375);
-    else if (idx == 2)
-        return x*(x-0.25)*(x-0.75)*(x-1.)/(0.015625);
-    else if (idx == 3)
-        return x*(x-0.25)*(x-0.5)*(x-1.)/(-0.0234375);
-    else
-        return x*(x-0.25)*(x-0.5)*(x-0.75)/(0.09375);
-}
-
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::interpolate(std::function<Vec(double, double, double)> &f) {
+template<class Array>
+void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, double, double)> &f) {
+    int degree = rule.degree;
     Vec t;
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
@@ -68,8 +23,9 @@ void RegularGridInterpolant3D<Array, degree>::interpolate(std::function<Vec(doub
     build_local_vals();
 }
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
+template<class Array>
+void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
+    int degree = rule.degree;
     Vec xcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
     Vec ycoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
     Vec zcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
@@ -98,8 +54,9 @@ void RegularGridInterpolant3D<Array, degree>::interpolate_batch(std::function<Ve
     build_local_vals();
 }
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::build_local_vals(){
+template<class Array>
+void RegularGridInterpolant3D<Array>::build_local_vals(){
+    int degree = rule.degree;
     all_local_vals = std::vector<AlignedVec>(
             nx*ny*nz,
             AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
@@ -121,8 +78,8 @@ void RegularGridInterpolant3D<Array, degree>::build_local_vals(){
 }
 
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::evaluate_batch_with_transform(Array& xyz, Array& fxyz){
+template<class Array>
+void RegularGridInterpolant3D<Array>::evaluate_batch_with_transform(Array& xyz, Array& fxyz){
     if(fxyz.layout() != xt::layout_type::row_major)
           throw std::runtime_error("fxyz needs to be in row-major storage order");
     int npoints = xyz.shape(0);
@@ -136,8 +93,8 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_batch_with_transform(Arra
     }
 }
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::evaluate_batch(Array& xyz, Array& fxyz){
+template<class Array>
+void RegularGridInterpolant3D<Array>::evaluate_batch(Array& xyz, Array& fxyz){
     if(fxyz.layout() != xt::layout_type::row_major)
           throw std::runtime_error("fxyz needs to be in row-major storage order");
     int npoints = xyz.shape(0);
@@ -146,16 +103,16 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_batch(Array& xyz, Array& 
     }
 }
 
-template<class Array, int degree>
-Vec RegularGridInterpolant3D<Array, degree>::evaluate(double x, double y, double z){
+template<class Array>
+Vec RegularGridInterpolant3D<Array>::evaluate(double x, double y, double z){
     Vec fxyz(value_size, 0.);
     evaluate_inplace(x, y, z, fxyz.data());
     return fxyz;
 
 }
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::evaluate_inplace(double x, double y, double z, double* res){
+template<class Array>
+void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, double z, double* res){
     if(x < xmin || x >= xmax)
         throw std::runtime_error(fmt::format("x={} not within [{}, {}]", x, xmin, xmax));
     if(y < ymin || y >= ymax)
@@ -199,11 +156,18 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_inplace(double x, double 
     return evaluate_local(xlocal, ylocal, zlocal, idx_cell(xidx, yidx, zidx), res);
 }
 
-template<class Array, int degree>
-void RegularGridInterpolant3D<Array, degree>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
+template<class Array>
+void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
 {
+    int degree = rule.degree;
     //Vec res(value_size, 0.);
     double* vals_local = all_local_vals[cell_idx].data();
+    for (int k = 0; k < degree+1; ++k) {
+        pkxs[k] = this->rule.basis_fun(k, x);
+        pkys[k] = this->rule.basis_fun(k, y);
+        pkzs[k] = this->rule.basis_fun(k, z);
+    }
+
     for(int l=0; l<padded_value_size; l += simdcount) {
         simd_t sumi(0.);
         int offset_local = l;
@@ -212,17 +176,17 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_local(double x, double y,
             for (int j = 0; j < degree+1; ++j) {
                 simd_t sumk(0.);
                 for (int k = 0; k < degree+1; ++k) {
-                    double pkz = basis_fun<degree>(k, z);
+                    double pkz = pkzs[k];
                     //int offset_local = padded_value_size*idx_dof_local(i, j, k);
                     //sumk += xsimd::load_aligned(&(vals_local[offset_local]))*pkz;
                     sumk = xsimd::fma(xsimd::load_aligned(&(vals_local[offset_local])), simd_t(pkz), sumk);
                     offset_local += padded_value_size;
                 }
-                double pjy = basis_fun<degree>(j, y);
+                double pjy = pkys[j];
                 //sumj += pjy * sumk;
                 sumj = xsimd::fma(sumk, simd_t(pjy), sumj);
             }
-            double pix = basis_fun<degree>(i, x);
+            double pix = pkxs[i];
             //sumi += pix * sumj;
             sumi = xsimd::fma(sumj, simd_t(pix), sumi);
         }
@@ -233,8 +197,8 @@ void RegularGridInterpolant3D<Array, degree>::evaluate_local(double x, double y,
     }
 }
 
-template<class Array, int degree>
-std::pair<double, double> RegularGridInterpolant3D<Array, degree>::estimate_error(std::function<Vec(double, double, double)> &f, int samples) {
+template<class Array>
+std::pair<double, double> RegularGridInterpolant3D<Array>::estimate_error(std::function<Vec(double, double, double)> &f, int samples) {
     std::default_random_engine generator;
     std::uniform_real_distribution<double> distribution(0.0, +1.0);
     double err = 0;
