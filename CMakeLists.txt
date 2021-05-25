@@ -6,6 +6,7 @@ project(simsgeopp)
 #find_package(PythonLibs 3 REQUIRED)
 #find_package(NumPy REQUIRED)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
 set(Python_FIND_STRATEGY LOCATION)
