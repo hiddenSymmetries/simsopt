@@ -1,4 +1,5 @@
 #include "regular_grid_interpolant_3d.h"
+#include <xtensor/xarray.hpp>
 #include "xtensor/xlayout.hpp"
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -57,10 +58,11 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
 template<class Array>
 void RegularGridInterpolant3D<Array>::build_local_vals(){
     int degree = rule.degree;
-    all_local_vals = std::vector<AlignedVec>(
-            nx*ny*nz,
-            AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
-            );
+    //all_local_vals = std::vector<AlignedVec>(
+    //        nx*ny*nz,
+    //        AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
+    //        );
+    all_local_vals = AlignedVec(nx*ny*nz*local_vals_size, 0.);
     for (int xidx = 0; xidx < nx; ++xidx) {
         for (int yidx = 0; yidx < ny; ++yidx) {
             for (int zidx = 0; zidx < nz; ++zidx) {
@@ -69,27 +71,11 @@ void RegularGridInterpolant3D<Array>::build_local_vals(){
                     for (int j = 0; j < degree+1; ++j) {
                         int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
                         int offset_local = padded_value_size*idx_dof_local(i, j, 0);
-                        memcpy(all_local_vals[meshidx].data()+offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
+                        memcpy(all_local_vals.data()+meshidx*local_vals_size + offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
                     }
                 }
             }
         }
-    }
-}
-
-
-template<class Array>
-void RegularGridInterpolant3D<Array>::evaluate_batch_with_transform(Array& xyz, Array& fxyz){
-    if(fxyz.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("fxyz needs to be in row-major storage order");
-    int npoints = xyz.shape(0);
-    for (int i = 0; i < npoints; ++i) {
-        double r = std::sqrt(xyz(i, 0)*xyz(i, 0) + xyz(i, 1)*xyz(i, 1));
-        double phi = std::atan2(xyz(i, 1), xyz(i, 0));
-        if(phi < 0)
-            phi += 2*M_PI;
-        evaluate_inplace(r, phi, xyz(i, 2), &(fxyz(i, 0)));
-        //fmt::print("xyz = ({}, {}, {}), rphiz = ({}, {}, {}), f=({}, {}, {})\n", xyz(i, 0), xyz(i, 1), xyz(i, 2), r, phi, xyz(i, 2), fxyz(i, 0), fxyz(i, 1), fxyz(i, 2));
     }
 }
 
@@ -99,7 +85,22 @@ void RegularGridInterpolant3D<Array>::evaluate_batch(Array& xyz, Array& fxyz){
           throw std::runtime_error("fxyz needs to be in row-major storage order");
     int npoints = xyz.shape(0);
     for (int i = 0; i < npoints; ++i) {
-        evaluate_inplace(xyz(i, 0), xyz(i, 1), xyz(i, 2), &(fxyz(i, 0)));
+        if(i < npoints-1){
+            int idx = locate_unsafe(xyz(i+1, 0), xyz(i+1, 1), xyz(i+1, 2));
+            double* ptr = all_local_vals.data()+idx*local_vals_size;
+            __builtin_prefetch(ptr+(0*8), 0, 0);
+            __builtin_prefetch(ptr+(1*8), 0, 0);
+            __builtin_prefetch(ptr+(2*8), 0, 0);
+            __builtin_prefetch(ptr+(3*8), 0, 0);
+            __builtin_prefetch(ptr+(4*8), 0, 0);
+            __builtin_prefetch(ptr+(5*8), 0, 0);
+            __builtin_prefetch(ptr+(6*8), 0, 0);
+            __builtin_prefetch(ptr+(7*8), 0, 0);
+            __builtin_prefetch(ptr+(8*8), 0, 0);
+            __builtin_prefetch(ptr+(9*8), 0, 0);
+            __builtin_prefetch(ptr+(10*8), 0, 0);
+        }
+        evaluate_inplace(xyz(i, 0), xyz(i, 1), xyz(i, 2), fxyz.data() + value_size*i);
     }
 }
 
@@ -109,6 +110,14 @@ Vec RegularGridInterpolant3D<Array>::evaluate(double x, double y, double z){
     evaluate_inplace(x, y, z, fxyz.data());
     return fxyz;
 
+}
+
+template<class Array>
+int RegularGridInterpolant3D<Array>::locate_unsafe(double x, double y, double z){
+    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
+    int yidx = int(ny*(y-ymin)/(ymax-ymin));
+    int zidx = int(nz*(z-zmin)/(zmax-zmin));
+    return idx_cell(xidx, yidx, zidx);
 }
 
 template<class Array>
@@ -129,19 +138,6 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
     if(zidx < 0 || zidx >= nz)
         throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
 
-    //vals_local = all_local_vals[idx_cell(xidx, yidx, zidx)];
-    //for (int i = 0; i < degree+1; ++i) {
-    //    for (int j = 0; j < degree+1; ++j) {
-    //        //for (int k = 0; k < degree+1; ++k) {
-    //        //    int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+k);
-    //        //    int offset_local = padded_value_size*idx_dof_local(i, j, k);
-    //        //    memcpy(vals_local.data()+offset_local, vals.data()+offset, padded_value_size*sizeof(double));
-    //        //}
-    //        int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
-    //        int offset_local = padded_value_size*idx_dof_local(i, j, 0);
-    //        memcpy(vals_local.data()+offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
-    //    }
-    //}
 
     double xlocal = (x-xsmesh[xidx])/hx;
     double ylocal = (y-ysmesh[yidx])/hy;
@@ -160,12 +156,24 @@ template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
 {
     int degree = rule.degree;
-    //Vec res(value_size, 0.);
-    double* vals_local = all_local_vals[cell_idx].data();
-    for (int k = 0; k < degree+1; ++k) {
-        pkxs[k] = this->rule.basis_fun(k, x);
-        pkys[k] = this->rule.basis_fun(k, y);
-        pkzs[k] = this->rule.basis_fun(k, z);
+    double* vals_local = all_local_vals.data()+cell_idx*local_vals_size;
+    if(xsimd::simd_type<double>::size >= 3){
+        simd_t xyz;
+        xyz[0] = x;
+        xyz[1] = y;
+        xyz[2] = z;
+        for (int k = 0; k < degree+1; ++k) {
+            simd_t temp = this->rule.basis_fun(k, xyz);
+            pkxs[k] = temp[0];
+            pkys[k] = temp[1];
+            pkzs[k] = temp[2];
+        }
+    } else {
+        for (int k = 0; k < degree+1; ++k) {
+            pkxs[k] = this->rule.basis_fun(k, x);
+            pkys[k] = this->rule.basis_fun(k, y);
+            pkzs[k] = this->rule.basis_fun(k, z);
+        }
     }
 
     for(int l=0; l<padded_value_size; l += simdcount) {
@@ -177,44 +185,48 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
                 simd_t sumk(0.);
                 for (int k = 0; k < degree+1; ++k) {
                     double pkz = pkzs[k];
-                    //int offset_local = padded_value_size*idx_dof_local(i, j, k);
-                    //sumk += xsimd::load_aligned(&(vals_local[offset_local]))*pkz;
                     sumk = xsimd::fma(xsimd::load_aligned(&(vals_local[offset_local])), simd_t(pkz), sumk);
                     offset_local += padded_value_size;
                 }
                 double pjy = pkys[j];
-                //sumj += pjy * sumk;
                 sumj = xsimd::fma(sumk, simd_t(pjy), sumj);
             }
             double pix = pkxs[i];
-            //sumi += pix * sumj;
             sumi = xsimd::fma(sumj, simd_t(pix), sumi);
         }
         for (int ll = 0; ll < std::min(simdcount, value_size-l); ++ll) {
             res[l+ll] = sumi[ll];
         }
-        //xsimd::store_unaligned(&(res[l]), sumi);
     }
 }
 
 template<class Array>
-std::pair<double, double> RegularGridInterpolant3D<Array>::estimate_error(std::function<Vec(double, double, double)> &f, int samples) {
+std::pair<double, double> RegularGridInterpolant3D<Array>::estimate_error(std::function<Vec(Vec, Vec, Vec)> &f, int samples) {
     std::default_random_engine generator;
     std::uniform_real_distribution<double> distribution(0.0, +1.0);
     double err = 0;
     double errsq = 0;
+    Vec xs(samples, 0.);
+    Vec ys(samples, 0.);
+    Vec zs(samples, 0.);
+    Array xyz = xt::zeros<double>({samples, 3});
+    Array fhxyz = xt::zeros<double>({samples, value_size});
     for (int i = 0; i < samples; ++i) {
-        double x = xmin + distribution(generator)*(xmax-xmin);
-        double y = ymin + distribution(generator)*(ymax-ymin);
-        double z = zmin + distribution(generator)*(zmax-zmin);
-        Vec fx = f(x, y, z);
-        Vec fhx = this->evaluate(x, y, z);
+        xs[i] = xmin + distribution(generator)*(xmax-xmin);
+        ys[i] = ymin + distribution(generator)*(ymax-ymin);
+        zs[i] = zmin + distribution(generator)*(zmax-zmin);
+        xyz(i, 0) = xs[i];
+        xyz(i, 1) = ys[i];
+        xyz(i, 2) = zs[i];
+    }
+    Vec fx = f(xs, ys, zs);
+    this->evaluate_batch(xyz, fhxyz);
+    for (int i = 0; i < samples; ++i) {
         double diff = 0.;
         for (int l = 0; l < value_size; ++l) {
-            diff += std::pow(fx[l]-fhx[l], 2);
+            diff += std::pow(fx[value_size*i+l]-fhxyz(i, l), 2);
         }
         diff = std::sqrt(diff);
-        //fmt::print("x={}, y={}, z={}, diff={}\n", x, y, z, diff);
         err += diff;
         errsq += diff*diff;
     }

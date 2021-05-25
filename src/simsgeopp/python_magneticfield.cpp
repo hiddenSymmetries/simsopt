@@ -80,7 +80,11 @@ void init_magneticfields(py::module_ &m){
     auto ifield = py::class_<PyInterpolatedField, PyMagneticFieldTrampoline<PyInterpolatedField>, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
         .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet>())
         .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet>())
-        .def("estimate_error", &PyInterpolatedField::estimate_error);
+        .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
+        .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
+        .def_readonly("r_range", &PyInterpolatedField::r_range)
+        .def_readonly("phi_range", &PyInterpolatedField::phi_range)
+        .def_readonly("z_range", &PyInterpolatedField::z_range);
 
     register_common_field_methods<PyInterpolatedField>(ifield);
  

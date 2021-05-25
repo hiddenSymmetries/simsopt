@@ -33,12 +33,22 @@ class InterpolationRule {
             }
             return res;
         }
+
+        simd_t basis_fun(int idx, simd_t x) const {
+            simd_t res(scalings[idx]);
+            for(int i = 0; i < degree+1; ++i) {
+                if(i == idx) continue;
+                res *= (x-simd_t(nodes[i]));
+            }
+            return res;
+        }
 };
 
 class UniformInterpolationRule : public InterpolationRule {
     public:
         using InterpolationRule::nodes;
         using InterpolationRule::degree;
+        using InterpolationRule::scalings;
         UniformInterpolationRule(int degree) : InterpolationRule(degree) {
             double degreeinv = double(1.)/degree;
             for (int i = 0; i < degree+1; ++i) {
@@ -53,17 +63,19 @@ class UniformInterpolationRule : public InterpolationRule {
         }
 };
 
+#include <fmt/ranges.h>
+
 class ChebyshevInterpolationRule : public InterpolationRule {
     public:
         using InterpolationRule::nodes;
         using InterpolationRule::degree;
+        using InterpolationRule::scalings;
         ChebyshevInterpolationRule(int degree) : InterpolationRule(degree) {
             double degreeinv = double(1.)/degree;
             for (int i = 0; i < degree+1; ++i) {
                 nodes[i] = (-0.5)*std::cos(i*M_PI*degreeinv) + 0.5;
-                fmt::print("{} ", nodes[i]);
             }
-            fmt::print("\n");
+            //fmt::print("Chebyshev nodes = {}\n", fmt::join(nodes, ", "));
             for(int idx = 0; idx < degree+1; ++idx) {
                 for(int i = 0; i < degree+1; ++i) {
                     if(i == idx) continue;
@@ -76,23 +88,22 @@ class ChebyshevInterpolationRule : public InterpolationRule {
 template<class Array>
 class RegularGridInterpolant3D {
     private:
-        int nx, ny, nz;
+        const int nx, ny, nz;
+        const double xmin, ymin, zmin;
+        const double xmax, ymax, zmax;
         double hx, hy, hz;
-        double xmin, ymin, zmin;
-        double xmax, ymax, zmax;
-        int value_size;
+        const int value_size;
         int padded_value_size;
         AlignedVec vals;
-        //Vec vals_local;
         Vec xs;
         Vec ys;
         Vec zs;
         Vec xsmesh;
         Vec ysmesh;
         Vec zsmesh;
-        std::vector<AlignedVec> all_local_vals;
-        Vec sumi, sumj, sumk;
-        static constexpr int simdcount = 4;
+        AlignedVec all_local_vals;
+        int local_vals_size;
+        static constexpr int simdcount = xsimd::simd_type<double>::size;
         const InterpolationRule rule;
         Vec pkxs, pkys, pkzs;
 
@@ -116,8 +127,8 @@ class RegularGridInterpolant3D {
             ysmesh = linspace(ymin, ymax, ny+1, true);
             zsmesh = linspace(zmin, zmax, nz+1, true);
             xs = Vec(nx*degree+1, 0.);
-            ys = Vec(nx*degree+1, 0.);
-            zs = Vec(nx*degree+1, 0.);
+            ys = Vec(ny*degree+1, 0.);
+            zs = Vec(nz*degree+1, 0.);
             int i, j;
             for (i = 0; i < nx; ++i) {
                 for (j = 0; j < degree+1; ++j) {
@@ -139,12 +150,10 @@ class RegularGridInterpolant3D {
             int nsimdblocks = padded_value_size/simdcount;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             vals = AlignedVec(nnodes*padded_value_size, 0.);
+            local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
             //vals_local = Vec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.);
-            fmt::print("Memory usage of interpolant={:E} bytes \n", double(vals.size()*sizeof(double)));
-            fmt::print("{} function evaluations required\n", nnodes);
-            sumi = Vec(value_size, 0.);
-            sumj = Vec(value_size, 0.);
-            sumk = Vec(value_size, 0.);
+            //fmt::print("Memory usage of interpolant={:E} bytes \n", double(vals.size()*sizeof(double)));
+            //fmt::print("{} function evaluations required\n", nnodes);
 
         }
 
@@ -174,12 +183,13 @@ class RegularGridInterpolant3D {
         inline int idx_dof_local(int i, int j, int k){
             int degree = rule.degree;
             return i*(degree+1)*(degree+1) + j*(degree+1) + k;
-        } 
+        }
 
+        int locate_unsafe(double x, double y, double z);
         void evaluate_batch_with_transform(Array& xyz, Array& fxyz);
         void evaluate_batch(Array& xyz, Array& fxyz);
         Vec evaluate(double x, double y, double z);
         void evaluate_inplace(double x, double y, double z, double* res);
         void evaluate_local(double x, double y, double z, int cell_idx, double* res);
-        std::pair<double, double> estimate_error(std::function<Vec(double, double, double)> &f, int samples);
+        std::pair<double, double> estimate_error(std::function<Vec(Vec, Vec, Vec)> &f, int samples);
 };
