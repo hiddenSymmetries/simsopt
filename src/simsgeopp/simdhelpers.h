@@ -7,20 +7,31 @@ using std::vector;
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
 
-#include "xsimd/xsimd.hpp"
-
 // xsimd provides the 'aligned_allocator' which makes sure that objects are
 // aligned properly.  we extend this operator to align a bit more memory than
 // required, so that we definitely always have a multiple of the simd vector
 // size. that way we can use simd operations for the entire vector, and don't
 // have to special case the last few entries. this is used in biot_savart_kernel
-template <size_t Align>
-class aligned_padded_allocator : public xs::aligned_allocator<double, Align> {
+template <class T, size_t Align>
+class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
     public:
-        double* allocate(size_t n, const void* hint = 0) {
-            int simdcount = Align/sizeof(double);
+        template <class U>
+        struct rebind
+        {
+            using other = aligned_padded_allocator<U, Align>;
+        };
+
+        inline aligned_padded_allocator() noexcept { }
+
+        inline aligned_padded_allocator(const aligned_padded_allocator&) noexcept { } 
+
+        template <class U>
+        inline aligned_padded_allocator(const aligned_padded_allocator<U, Align>&) noexcept { } 
+
+        T* allocate(size_t n, const void* hint = 0) {
+            int simdcount = Align/sizeof(T);
             int nn = (n + simdcount) - (n % simdcount); // round to next highest multiple of simdcount
-            double* res = reinterpret_cast<double*>(xsimd::detail::xaligned_malloc(sizeof(double) * nn, Align));
+            T* res = reinterpret_cast<T*>(xsimd::detail::xaligned_malloc(sizeof(T) * nn, Align));
             if (res == nullptr)
                 throw std::bad_alloc();
             return res;
@@ -28,7 +39,7 @@ class aligned_padded_allocator : public xs::aligned_allocator<double, Align> {
 };
 
 
-using vector_type = std::vector<double, aligned_padded_allocator<XSIMD_DEFAULT_ALIGNMENT>>;
+using vector_type = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 
 #include <Eigen/Core>

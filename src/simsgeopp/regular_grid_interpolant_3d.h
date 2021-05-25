@@ -11,7 +11,7 @@
 #include "simdhelpers.h"
 
 using simd_t = xs::simd_type<double>;
-using AlignedVec = std::vector<double, aligned_padded_allocator<XSIMD_DEFAULT_ALIGNMENT>>;
+using AlignedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using Vec = std::vector<double>;
 using RangeTriplet = std::tuple<double, double, int>;
 

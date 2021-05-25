@@ -1,0 +1,15 @@
+Performing C++ SOURCE FILE Test HAS_FLTO failed with the following output:
+Change Dir: /Users/fw18/venvs/interpolation/src/SIMSOPT/cmakebuild/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/local/bin/gmake cmTC_0a618/fast && /usr/local/bin/gmake  -f CMakeFiles/cmTC_0a618.dir/build.make CMakeFiles/cmTC_0a618.dir/build
+gmake[1]: Entering directory '/Users/fw18/venvs/interpolation/src/simsopt/cmakebuild/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_0a618.dir/src.cxx.o
+/usr/local/bin/g++-11   -O2 -march=native -mfma -ffp-contract=fast -DHAS_FLTO -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk -mmacosx-version-min=10.15   -flto -fno-fat-lto-objects -o CMakeFiles/cmTC_0a618.dir/src.cxx.o -c /Users/fw18/venvs/interpolation/src/SIMSOPT/cmakebuild/CMakeFiles/CMakeTmp/src.cxx
+cc1plus: error: '-fno-fat-lto-objects' are supported only with linker plugin
+gmake[1]: *** [CMakeFiles/cmTC_0a618.dir/build.make:85: CMakeFiles/cmTC_0a618.dir/src.cxx.o] Error 1
+gmake[1]: Leaving directory '/Users/fw18/venvs/interpolation/src/simsopt/cmakebuild/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:140: cmTC_0a618/fast] Error 2
+
+
+Source file was:
+int main() { return 0; }
