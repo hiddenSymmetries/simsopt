@@ -239,12 +239,7 @@ class MagneticField {
             return cache_get_or_create_and_fill("AbsB", {npoints}, [this](Array& AbsB) { return AbsB_impl(AbsB);});
         }
 
-    //Bs = biotsavart.B(compute_derivatives=1)
-    //GradBs = biotsavart.dB_by_dX(compute_derivatives=1)
-    //AbsBs = np.linalg.norm(Bs, axis=1)
-    //GradAbsBs = (Bs[:, None, 0]*GradBs[:, :, 0] + Bs[:, None, 1]*GradBs[:, :, 1] + Bs[:, None, 2]*GradBs[:, :, 2])/AbsBs[:, None]
-    //
-        void GradAbsB_impl(Array& GradAbsB) {
+        virtual void GradAbsB_impl(Array& GradAbsB) {
             Array& B = this->B_ref();
             Array& GradB = this->dB_by_dX_ref();
             int npoints = B.shape(0);
