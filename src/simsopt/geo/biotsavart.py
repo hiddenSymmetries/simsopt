@@ -15,7 +15,7 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         self.coil_currents = coil_currents
 
     def compute_A(self, compute_derivatives=0):
-        points = self.points
+        points = self.get_points_cart_ref()
         assert compute_derivatives <= 2
 
         npoints = len(points)
@@ -109,7 +109,7 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         n = len(self.coils)
         coils = self.coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
-        sgpp.biot_savart_vjp(self.points, gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
+        sgpp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
         return res_B
 
     def B_and_dB_vjp(self, v, vgrad):
@@ -122,5 +122,5 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         coils = self.coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         res_dB = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
-        sgpp.biot_savart_vjp(self.points, gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
+        sgpp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
         return (res_B, res_dB)
