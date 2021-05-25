@@ -54,8 +54,8 @@ class Dofs:
           value.
         abs_step: Absolute step size for finite differences.
         rel_step: Relative step size for finite differences.
-        centered: If ``True``, centered finite differences will be used.
-          If ``false``, one-sided finite differences will be used.
+        differences: Method to use if and when finite differences are
+          evaluated. Should be ``forward`` or ``centered``.
 
     Attributes:
         dof_owners: A vector, with each element pointing to the object whose
@@ -77,13 +77,13 @@ class Dofs:
                  fail: Union[None, float] = 1.0e12,
                  abs_step: float = 1.0e-7,
                  rel_step: float = 0.0,
-                 centered: bool = False
+                 differences: str = "centered"
                  ):
 
         self.fail = fail
         self.abs_step = abs_step
         self.rel_step = rel_step
-        self.centered = centered
+        self.differences = differences
 
         # Convert all user-supplied function-like things to actual functions:
         funcs = [function_from_user(f) for f in funcs]
@@ -383,7 +383,7 @@ class Dofs:
         respect to all non-fixed degrees of freedom. Either a 1-sided
         or centered-difference approximation can be used.
 
-        The attributes ``abs_step``, ``rel_step``, and ``centered`` of
+        The attributes ``abs_step``, ``rel_step``, and ``differences`` of
         the ``Dofs`` object will be used in this calculation. For the
         meaning of ``abs_step`` and ``rel_step``, see
         :func:`simsopt._core.util.finite_difference_steps()`.
@@ -422,7 +422,7 @@ class Dofs:
             jac = np.zeros((self.nvals, self.nparams))
             return jac
 
-        if self.centered:
+        if self.differences == "centered":
             # Centered differences:
             jac = None
             for j in range(self.nparams):
@@ -443,7 +443,7 @@ class Dofs:
 
                 jac[:, j] = (fplus - fminus) / (2 * steps[j])
 
-        else:
+        elif self.differences == "forward":
             # 1-sided differences
             f0 = self.f()
             jac = np.zeros((self.nvals, self.nparams))
@@ -454,6 +454,9 @@ class Dofs:
                 fplus = self.f()
 
                 jac[:, j] = (fplus - f0) / steps[j]
+
+        else:
+            raise ValueError("differences should be 'centered' or 'forward'")
 
         # Weird things may happen if we do not reset the state vector
         # to x0:

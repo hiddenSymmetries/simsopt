@@ -76,10 +76,10 @@ class LeastSquaresProblem:
           type LeastSquaresTerm or else be a list or tuple of the form
           (function, goal, weight) or (object, attribute_str, goal,
           weight).
-        kwargs: Any additional arguments will be passed to the ``Dofs``
-          constructor. This is useful for passing ``fail``, ``abs_step``,
-          ``rel_step``, and ``centered``. See :obj:`~simsopt._core.Dofs`
-          for details.
+        kwargs: Any additional arguments will be passed to the
+          :class:`~simsopt._core.dofs.Dofs` constructor. This is useful for
+          passing ``fail``, ``abs_step``, ``rel_step``, and ``differences``.
+          See :class:`~simsopt._core.dofs.Dofs` for details.
     """
 
     def __init__(self,
