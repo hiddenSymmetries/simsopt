@@ -223,6 +223,21 @@ class MagneticField {
             return cache_get_or_create_and_fill("B_cyl", {npoints, 3}, [this](Array& B) { return B_cyl_impl(B);});
         }
 
+        void AbsB_impl(Array& AbsB) {
+            Array& B = this->B_ref();
+            int npoints = B.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                AbsB(i) = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
+            }
+        }
+
+        Array AbsB() {
+            return AbsB_ref();
+        }
+
+        Array& AbsB_ref() {
+            return cache_get_or_create_and_fill("AbsB", {npoints}, [this](Array& AbsB) { return AbsB_impl(AbsB);});
+        }
 
     //Bs = biotsavart.B(compute_derivatives=1)
     //GradBs = biotsavart.dB_by_dX(compute_derivatives=1)
