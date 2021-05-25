@@ -105,8 +105,8 @@ def fd_jac_mpi(dofs: Dofs,
     with respect to all non-fixed degrees of freedom. Parallel
     function evaluations will be used.
 
-    The attribues ``abs_step`', ``rel_step``, and ``centered`` of the
-    ``Dofs`` object will be queried and used to set the finite
+    The attribues ``abs_step`', ``rel_step``, and ``differences`` of
+    the ``Dofs`` object will be queried and used to set the finite
     difference step sizes, using
     :func:`simsopt._core.util.finite_difference_steps()`.
 
@@ -167,8 +167,8 @@ def fd_jac_mpi(dofs: Dofs,
     # Set up the list of parameter values to try
     steps = finite_difference_steps(x0, abs_step=dofs.abs_step, rel_step=dofs.rel_step)
     mpi.comm_leaders.Bcast(steps)
-    centered = mpi.comm_leaders.bcast(dofs.centered)
-    if centered:
+    differences = mpi.comm_leaders.bcast(dofs.differences)
+    if differences == "centered":
         nevals_jac = 2 * dofs.nparams
         xs = np.zeros((dofs.nparams, nevals_jac))
         for j in range(dofs.nparams):
@@ -176,7 +176,7 @@ def fd_jac_mpi(dofs: Dofs,
             xs[j, 2 * j] = x0[j] + steps[j]
             xs[:, 2 * j + 1] = x0[:]
             xs[j, 2 * j + 1] = x0[j] - steps[j]
-    else:
+    elif differences == "forward":
         # 1-sided differences
         nevals_jac = dofs.nparams + 1
         xs = np.zeros((dofs.nparams, nevals_jac))
@@ -184,6 +184,8 @@ def fd_jac_mpi(dofs: Dofs,
         for j in range(dofs.nparams):
             xs[:, j + 1] = x0[:]
             xs[j, j + 1] = x0[j] + steps[j]
+    else:
+        raise ValueError("differences must be 'centered' or 'forward'")
 
     # proc0_world will be responsible for detecting nvals, since
     #proc0_world always does at least 1 function evaluation. Other
@@ -229,13 +231,15 @@ def fd_jac_mpi(dofs: Dofs,
 
     # Use the evals to form the Jacobian
     jac = np.zeros((dofs.nvals, dofs.nparams))
-    if centered:
+    if differences == "centered":
         for j in range(dofs.nparams):
             jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (2 * steps[j])
-    else:
+    elif differences == "forward":
         # 1-sided differences:
         for j in range(dofs.nparams):
             jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
+    else:
+        assert False, "Program should not get here"
 
     # Weird things may happen if we do not reset the state vector
     # to x0:

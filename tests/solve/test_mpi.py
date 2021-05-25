@@ -92,7 +92,7 @@ class SolveMpiTests(unittest.TestCase):
             b = Beale()  # Any Optimizable object with 2 d.o.f.'s will do.
 
             # First examine 1-sided differences
-            prob = LeastSquaresProblem([(b, 0, 1)], centered=False,
+            prob = LeastSquaresProblem([(b, 0, 1)], differences="forward",
                                        abs_step=1e-6, rel_step=1e-2)
 
             b.set_dofs([0, 0.2])
@@ -124,7 +124,7 @@ class SolveMpiTests(unittest.TestCase):
                 np.testing.assert_allclose(xs, xs_correct)
 
             # Now examine centered differences
-            prob = LeastSquaresProblem([(b, 0, 1)], centered=True,
+            prob = LeastSquaresProblem([(b, 0, 1)], differences="centered",
                                        abs_step=1e-6, rel_step=1e-2)
 
             b.set_dofs([0, 0.2])
@@ -165,7 +165,7 @@ class SolveMpiTests(unittest.TestCase):
             logger.debug('ngroups={}'.format(ngroups))
             mpi = MpiPartition(ngroups=ngroups)
             o = TestFunction1()
-            d = Dofs([o], centered=False, abs_step=abs_step, rel_step=rel_step)
+            d = Dofs([o], differences="forward", abs_step=abs_step, rel_step=rel_step)
             logger.debug('About to do worker loop 1')
             jac, xs, evals = fd_jac_mpi(d, mpi)
             jac_reference = np.array([[5.865176283537110e-01, -6.010834349701177e-01, 2.250910244305793e-01]])
@@ -179,7 +179,7 @@ class SolveMpiTests(unittest.TestCase):
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9, -0.4]))
             logger.debug('About to do worker loop 2')
-            d.centered = True
+            d.differences = "centered"
             jac, xs, evals = fd_jac_mpi(d, mpi)
             jac_reference = np.array([[5.865175337071982e-01, -6.010834789627051e-01, 2.250910093037906e-01]])
             if mpi.proc0_world:
@@ -191,7 +191,7 @@ class SolveMpiTests(unittest.TestCase):
 
             # Now try a case with different nparams and nfuncs.
             o = TestFunction2()
-            d = Dofs([o.f0, o.f1, o.f2, o.f3], centered=False,
+            d = Dofs([o.f0, o.f1, o.f2, o.f3], differences="forward",
                      abs_step=abs_step, rel_step=rel_step)
             logger.debug('About to do worker loop 3')
             jac, xs, evals = fd_jac_mpi(d, mpi)
@@ -208,7 +208,7 @@ class SolveMpiTests(unittest.TestCase):
 
             # Repeat with centered differences
             o.set_dofs(np.array([1.2, 0.9]))
-            d.centered = True
+            d.differences = "centered"
             logger.debug('About to do worker loop 4')
             jac, xs, evals = fd_jac_mpi(d, mpi)
             jac_reference = np.array([[8.657714037352271e-01, -8.872725151820582e-01],
@@ -238,12 +238,12 @@ class SolveMpiTests(unittest.TestCase):
                     rel_steps = [1.0e-7]
 
                 for rel_step in rel_steps:
-                    for centered in [True, False]:
+                    for differences in ["forward", "centered"]:
                         logger.debug(f'ngroups={ngroups} abs_step={abs_step} ' \
-                                     f'rel_step={rel_step} centered={centered}')
+                                     f'rel_step={rel_step} differences={differences}')
                         mpi = MpiPartition(ngroups=ngroups)
                         o = TestFunction1()
-                        d = Dofs([o], centered=centered,
+                        d = Dofs([o], differences=differences,
                                  abs_step=abs_step, rel_step=rel_step)
                         logger.debug('About to do worker loop 1')
                         jac, xs, evals = fd_jac_mpi(d, mpi)
@@ -256,7 +256,7 @@ class SolveMpiTests(unittest.TestCase):
 
                         # Now try a case with different nparams and nfuncs.
                         o = TestFunction2()
-                        d = Dofs([o.f0, o.f1, o.f2, o.f3], centered=centered,
+                        d = Dofs([o.f0, o.f1, o.f2, o.f3], differences=differences,
                                  abs_step=abs_step, rel_step=rel_step)
                         logger.debug('About to do worker loop 2')
                         jac, xs, evals = fd_jac_mpi(d, mpi)
@@ -296,14 +296,14 @@ class SolveMpiTests(unittest.TestCase):
                     rel_steps = [1.0e-7]
 
                 for rel_step in rel_steps:
-                    for centered in [True, False]:
+                    for differences in ["forward", "centered"]:
                         logger.debug(f'ngroups={ngroups} abs_step={abs_step} ' \
-                                     f'rel_step={rel_step} centered={centered}')
+                                     f'rel_step={rel_step} differences={differences}')
                         mpi = MpiPartition(ngroups=ngroups)
                         o = TestFunction3(mpi.comm_groups)
                         term1 = (o.f0, 0, 1)
                         term2 = (o.f1, 0, 1)
-                        prob = LeastSquaresProblem([term1, term2], centered=centered,
+                        prob = LeastSquaresProblem([term1, term2], differences=differences,
                                                    abs_step=abs_step, rel_step=rel_step)
                         # Set initial condition different from 0,
                         # because otherwise abs_step=0 causes step
