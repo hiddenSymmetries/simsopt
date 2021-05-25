@@ -34,7 +34,6 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("dA_by_dX_ref", py::overload_cast<>(&T::dA_by_dX_ref), py::call_guard<py::gil_scoped_release>())
      .def("d2A_by_dXdX_ref", py::overload_cast<>(&T::d2A_by_dXdX_ref), py::call_guard<py::gil_scoped_release>())
      .def("cache_get_or_create", &T::cache_get_or_create)
-     .def("cache_get_status", &T::cache_get_status)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("get_points_cart_ref", &T::get_points_cart_ref)
      .def("get_points_cyl_ref", &T::get_points_cyl_ref)

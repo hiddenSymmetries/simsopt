@@ -439,9 +439,11 @@ class Testing(unittest.TestCase):
         points_xyz = np.asarray([[0.5, 0.6, 0.7]])
         points_rphiz = np.zeros_like(points_xyz)
         points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
-        points_rphiz[:, 1] = np.arctan2(points_xyz[:, 1], points_xyz[:, 0])
+        points_rphiz[:, 1] = np.mod(np.arctan2(points_xyz[:, 1], points_xyz[:, 0]), 2*np.pi)
         points_rphiz[:, 2] = points_xyz[:, 2]
         bs.set_points_cyl(points_rphiz)
+        # import IPython; IPython.embed()
+        # import sys; sys.exit()
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
 
