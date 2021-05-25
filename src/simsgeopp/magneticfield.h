@@ -83,6 +83,7 @@ class MagneticField {
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
             if(!(loc->second.status)){ // needs recomputing
+                //fmt::print("Fill array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
                 impl(loc->second.data);
                 loc->second.status = true;
             }
