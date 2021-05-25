@@ -18,6 +18,61 @@ using std::vector;
 using std::shared_ptr;
 using std::make_shared;
 
+
+template<class Array>
+class Cache {
+    private:
+        std::map<string, CachedArray<Array>> cache;
+    public:
+        bool get_status(string key) const {
+            auto loc = cache.find(key);
+            if(loc == cache.end()){ // Key not found
+                return false;
+            }
+            if(!(loc->second.status)){ // needs recomputing
+                return false;
+            }
+            return true;
+        }
+        Array& get_or_create(string key, vector<int> dims){
+            auto loc = cache.find(key);
+            if(loc == cache.end()){ // Key not found --> allocate array
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
+                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else {
+                //fmt::print("Existing array found for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            }
+            loc->second.status = true;
+            return loc->second.data;
+        }
+
+        Array& get_or_create_and_fill(string key, vector<int> dims, std::function<void(Array&)> impl) {
+            auto loc = cache.find(key);
+            if(loc == cache.end()){ // Key not found --> allocate array
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
+                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+            }
+            if(!(loc->second.status)){ // needs recomputing
+                //fmt::print("Fill array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
+                impl(loc->second.data);
+                loc->second.status = true;
+            }
+            return loc->second.data;
+        }
+
+        void invalidate_cache(){
+            for (auto it = cache.begin(); it != cache.end(); ++it) {
+                it->second.status = false;
+            }
+        }
+};
+
 template<class Array>
 class MagneticField {
     /*
@@ -36,64 +91,24 @@ class MagneticField {
      *    performance is key and when the user guarantees that the array is only
      *    read and not modified.
      */
-    private:
-        std::map<string, CachedArray<Array>> cache;
+    protected:
+        Cache<Array> field_cache;
+        Cache<Array> point_cache;
+        int npoints;
 
     public:
-        int npoints;
 
         MagneticField() {
             Array vals({{0., 0., 0.}});
             this->set_points_cart(vals);
         }
 
-        bool cache_get_status(string key){
-            auto loc = cache.find(key);
-            if(loc == cache.end()){ // Key not found
-                return false;
-            }
-            if(!(loc->second.status)){ // needs recomputing
-                return false;
-            }
-            return true;
+        void invalidate_cache() {
+            field_cache.invalidate_cache();
         }
 
         Array& cache_get_or_create(string key, vector<int> dims){
-            auto loc = cache.find(key);
-            if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
-                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
-                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-            } else {
-                //fmt::print("Existing array found for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-            }
-            loc->second.status = true;
-            return loc->second.data;
-        }
-
-        Array& cache_get_or_create_and_fill(string key, vector<int> dims, std::function<void(Array&)> impl){
-            auto loc = cache.find(key);
-            if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
-                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-            } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
-                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
-                //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-            }
-            if(!(loc->second.status)){ // needs recomputing
-                //fmt::print("Fill array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
-                impl(loc->second.data);
-                loc->second.status = true;
-            }
-            return loc->second.data;
-        }
-
-        void invalidate_cache() {
-            for (auto it = cache.begin(); it != cache.end(); ++it) {
-                it->second.status = false;
-            }
+            return this->field_cache.get_or_create(key, dims);
         }
 
         virtual void set_points_cb() {
@@ -101,9 +116,10 @@ class MagneticField {
         }
 
         virtual MagneticField& set_points_cyl(Array& p) {
-            this->invalidate_cache();
+            this->field_cache.invalidate_cache();
+            this->point_cache.invalidate_cache();
             npoints = p.shape(0);
-            Array& points = cache_get_or_create("points_cyl", {npoints, 3});
+            Array& points = point_cache.get_or_create("points_cyl", {npoints, 3});
             points = p;
             for (int i = 0; i < npoints; ++i) {
                 points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
@@ -113,9 +129,10 @@ class MagneticField {
         }
 
         virtual MagneticField& set_points_cart(Array& p) {
-            this->invalidate_cache();
+            this->field_cache.invalidate_cache();
+            this->point_cache.invalidate_cache();
             npoints = p.shape(0);
-            Array& points = cache_get_or_create("points_cart", {npoints, 3});
+            Array& points = point_cache.get_or_create("points_cart", {npoints, 3});
             points = p;
             this->set_points_cb();
             return *this;
@@ -131,11 +148,11 @@ class MagneticField {
         }
 
         Array& get_points_cyl_ref() {
-            return cache_get_or_create_and_fill("points_cyl", {npoints, 3}, [this](Array& B) { return get_points_cyl_impl(B);});
+            return point_cache.get_or_create_and_fill("points_cyl", {npoints, 3}, [this](Array& B) { return get_points_cyl_impl(B);});
         }
 
         virtual void get_points_cyl_impl(Array& points_cyl) {
-            if(!cache_get_status("points_cart"))
+            if(!point_cache.get_status("points_cart"))
                 throw logic_error("To compute points_cyl, points_cart needs to exist in the cache.");
             Array& points_cart = get_points_cart_ref();
             for (int i = 0; i < npoints; ++i) {
@@ -156,11 +173,11 @@ class MagneticField {
         }
 
         Array& get_points_cart_ref() {
-            return cache_get_or_create_and_fill("points_cart", {npoints, 3}, [this](Array& B) { return get_points_cart_impl(B);});
+            return point_cache.get_or_create_and_fill("points_cart", {npoints, 3}, [this](Array& B) { return get_points_cart_impl(B);});
         }
 
         virtual void get_points_cart_impl(Array& points_cart) {
-            if(!cache_get_status("points_cyl"))
+            if(!point_cache.get_status("points_cyl"))
                 throw logic_error("To compute points_cart, points_cyl needs to exist in the cache.");
             Array& points_cyl = get_points_cyl_ref();
             for (int i = 0; i < npoints; ++i) {
@@ -181,26 +198,26 @@ class MagneticField {
         virtual void d2A_by_dXdX_impl(Array& d2A_by_dXdX) { throw logic_error("d2A_by_dXdX_impl was not implemented"); }
 
         Array& B_ref() {
-            return cache_get_or_create_and_fill("B", {npoints, 3}, [this](Array& B) { return B_impl(B);});
+            return field_cache.get_or_create_and_fill("B", {npoints, 3}, [this](Array& B) { return B_impl(B);});
         }
         Array& dB_by_dX_ref() {
-            return cache_get_or_create_and_fill("dB_by_dX", {npoints, 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
+            return field_cache.get_or_create_and_fill("dB_by_dX", {npoints, 3, 3}, [this](Array& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
         }
         Array& d2B_by_dXdX_ref() {
-            return cache_get_or_create_and_fill("d2B_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
+            return field_cache.get_or_create_and_fill("d2B_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
         }
         Array B() { return B_ref(); }
         Array dB_by_dX() { return dB_by_dX_ref(); }
         Array d2B_by_dXdX() { return d2B_by_dXdX_ref(); }
 
         Array& A_ref() {
-            return cache_get_or_create_and_fill("A", {npoints, 3}, [this](Array& A) { return A_impl(A);});
+            return field_cache.get_or_create_and_fill("A", {npoints, 3}, [this](Array& A) { return A_impl(A);});
         }
         Array& dA_by_dX_ref() {
-            return cache_get_or_create_and_fill("dA_by_dX", {npoints, 3, 3}, [this](Array& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
+            return field_cache.get_or_create_and_fill("dA_by_dX", {npoints, 3, 3}, [this](Array& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
         }
         Array& d2A_by_dXdX_ref() {
-            return cache_get_or_create_and_fill("d2A_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
+            return field_cache.get_or_create_and_fill("d2A_by_dXdX", {npoints, 3, 3, 3}, [this](Array& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
         }
         Array A() { return A_ref(); }
         Array dA_by_dX() { return dA_by_dX_ref(); }
@@ -223,7 +240,7 @@ class MagneticField {
         }
 
         Array& B_cyl_ref() {
-            return cache_get_or_create_and_fill("B_cyl", {npoints, 3}, [this](Array& B) { return B_cyl_impl(B);});
+            return field_cache.get_or_create_and_fill("B_cyl", {npoints, 3}, [this](Array& B) { return B_cyl_impl(B);});
         }
 
         void AbsB_impl(Array& AbsB) {
@@ -239,7 +256,7 @@ class MagneticField {
         }
 
         Array& AbsB_ref() {
-            return cache_get_or_create_and_fill("AbsB", {npoints}, [this](Array& AbsB) { return AbsB_impl(AbsB);});
+            return field_cache.get_or_create_and_fill("AbsB", {npoints}, [this](Array& AbsB) { return AbsB_impl(AbsB);});
         }
 
         virtual void GradAbsB_impl(Array& GradAbsB) {
@@ -259,7 +276,7 @@ class MagneticField {
         }
 
         Array& GradAbsB_ref() {
-            return cache_get_or_create_and_fill("GradAbsB", {npoints, 3}, [this](Array& B) { return GradAbsB_impl(B);});
+            return field_cache.get_or_create_and_fill("GradAbsB", {npoints, 3}, [this](Array& B) { return GradAbsB_impl(B);});
         }
 
 };
@@ -273,6 +290,7 @@ class BiotSavart : public MagneticField<Array> {
      * computes the Biot Savart law to evaluate the field.
      */
     private:
+        using MagneticField<Array>::field_cache;
 
         vector<shared_ptr<Coil<Array>>> coils;
         // this vectors are aligned in memory for fast simd usage.
@@ -297,8 +315,6 @@ class BiotSavart : public MagneticField<Array> {
         }
 
     public:
-        using MagneticField<Array>::cache_get_or_create;
-        using MagneticField<Array>::cache_get_status;
         using MagneticField<Array>::npoints;
         BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : MagneticField<Array>(), coils(coils) {
 
@@ -311,9 +327,9 @@ class BiotSavart : public MagneticField<Array> {
             Array dummyjac = xt::zeros<double>({1, 1, 1});
             Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
             int ncoils = this->coils.size();
-            Array& B = cache_get_or_create("B", {npoints, 3});
-            Array& dB = derivatives > 0 ? cache_get_or_create("dB_by_dX", {npoints, 3, 3}) : dummyjac;
-            Array& ddB = derivatives > 1 ? cache_get_or_create("d2B_by_dXdX", {npoints, 3, 3, 3}) : dummyhess;
+            Array& B = field_cache.get_or_create("B", {npoints, 3});
+            Array& dB = derivatives > 0 ? field_cache.get_or_create("dB_by_dX", {npoints, 3, 3}) : dummyjac;
+            Array& ddB = derivatives > 1 ? field_cache.get_or_create("d2B_by_dXdX", {npoints, 3, 3, 3}) : dummyhess;
 
             B *= 0; // TODO Actually set to zero, multiplying with zero doesn't get rid of NANs
             dB *= 0;
@@ -324,17 +340,17 @@ class BiotSavart : public MagneticField<Array> {
             for (int i = 0; i < ncoils; ++i) {
                 this->coils[i]->curve->gamma();
                 this->coils[i]->curve->gammadash();
-                cache_get_or_create(fmt::format("B_{}", i), {npoints, 3});
+                field_cache.get_or_create(fmt::format("B_{}", i), {npoints, 3});
                 if(derivatives > 0)
-                    cache_get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
+                    field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
                 if(derivatives > 1)
-                    cache_get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
+                    field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
             }
 
             //fmt::print("B(0, :) = ({}, {}, {}) at {}\n", B(0, 0), B(0, 1), B(0, 2), fmt::ptr(B.data()));
 #pragma omp parallel for
             for (int i = 0; i < ncoils; ++i) {
-                Array& Bi = cache_get_or_create(fmt::format("B_{}", i), {npoints, 3});
+                Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), {npoints, 3});
                 Bi *= 0;
                 Array& gamma = this->coils[i]->curve->gamma();
                 Array& gammadash = this->coils[i]->curve->gammadash();
@@ -342,12 +358,12 @@ class BiotSavart : public MagneticField<Array> {
                 if(derivatives == 0){
                     biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dummyjac, dummyhess);
                 } else {
-                    Array& dBi = cache_get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
+                    Array& dBi = field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
                     dBi *= 0;
                     if(derivatives == 1) {
                         biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, dummyhess);
                     } else {
-                        Array& ddBi = cache_get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
+                        Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
                         ddBi *= 0;
                         if (derivatives == 2) {
                             biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi);
