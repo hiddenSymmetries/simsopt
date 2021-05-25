@@ -43,6 +43,8 @@ class MagneticField {
         int npoints;
 
         MagneticField() {
+            Array vals({{0., 0., 0.}});
+            this->set_points_cart(vals);
         }
 
         bool cache_get_status(string key){
