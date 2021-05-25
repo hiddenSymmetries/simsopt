@@ -362,7 +362,7 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
-    def test_interpolated_field(self):
+    def test_interpolated_field_close(self):
         R0test = 1.5
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
@@ -370,7 +370,46 @@ class Testing(unittest.TestCase):
         coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
-        old_err = 1e6
+        btotal = bs + B0
+        n = 10
+        rmin = 1.5
+        rmax = 1.7
+        rsteps = n
+        phimin = 0
+        phimax = 2*np.pi
+        phisteps = n*32
+        zmin = -0.1
+        zmax = 0.1
+        zsteps = n
+        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
+        N = 10
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(zmax-zmin) + zmin
+        bsh.set_points_cyl(points)
+        btotal.set_points_cyl(points)
+        B = btotal.B()
+        Bh = bsh.B()
+        dB = btotal.GradAbsB()
+        dBh = bsh.GradAbsB()
+        print("btotal.B()", B)
+        print("bsh.B()", Bh)
+        print("btotal.GradAbsB(()", dB)
+        print("bsh.GradAbsB()", dBh)
+        assert np.allclose(B, Bh, rtol=1e-3)
+        assert np.allclose(dB, dBh, rtol=1e-3)
+
+    def test_interpolated_field_convergence_rate(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        old_err_1 = 1e6
+        old_err_2 = 1e6
         btotal = bs + B0
 
         for n in [4, 8, 16]:
@@ -383,11 +422,14 @@ class Testing(unittest.TestCase):
             zmin = -0.1
             zmax = 0.1
             zsteps = n
-            bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
-            err = np.mean(bsh.estimate_error(1000))
-            print(err)
-            assert err < 0.6**5 * old_err
-            old_err = err
+            bsh = InterpolatedField(bs, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
+            err_1 = np.mean(bsh.estimate_error_B(1000))
+            err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
+            print(err_1, err_2)
+            assert err_1 < 0.6**3 * old_err_1
+            assert err_2 < 0.6**3 * old_err_2
+            old_err_1 = err_1
+            old_err_2 = err_2
 
     def test_get_set_points_cyl_cart(self):
         coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
@@ -406,7 +448,6 @@ class Testing(unittest.TestCase):
         bs.set_points_cart(points_xyz)
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
-
 
 
 if __name__ == "__main__":
