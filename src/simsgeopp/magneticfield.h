@@ -300,6 +300,7 @@ class BiotSavart : public MagneticField<Array> {
         using MagneticField<Array>::cache_get_or_create;
         using MagneticField<Array>::cache_get_status;
         using MagneticField<Array>::npoints;
+        BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : MagneticField<Array>(), coils(coils) {
 
         }
 
