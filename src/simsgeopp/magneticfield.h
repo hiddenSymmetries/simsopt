@@ -135,7 +135,6 @@ class MagneticField {
             if(!cache_get_status("points_cart"))
                 throw logic_error("To compute points_cyl, points_cart needs to exist in the cache.");
             Array& points_cart = get_points_cart_ref();
-            npoints = points_cyl.shape(0);
             for (int i = 0; i < npoints; ++i) {
                 double x = points_cart(i, 0);
                 double y = points_cart(i, 1);
@@ -415,73 +414,124 @@ class BiotSavart : public MagneticField<Array> {
 
 #include "regular_grid_interpolant_3d.h"
 
+//template<class Array>
+//struct CachedInterpolant {
+//    RegularGridInterpolant3D<Array> interp;
+//    bool status;
+//    CachedInterpolant(RegularGridInterpolant3D<Array> interp) : interp(interp), status(false) {}
+//};
+
+
 template<class Array>
 class InterpolatedField : public MagneticField<Array> {
     private:
-        shared_ptr<MagneticField<Array>> field;
-        int nr, nphi, nz;
-        double rmin, phimin, zmin;
-        double rmax, phimax, zmax;
 
         InterpolationRule rule;
-        shared_ptr<RegularGridInterpolant3D<Array>> B_interp;
         std::function<Vec(double, double, double)> f_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
+        std::function<Vec(Vec, Vec, Vec)> fbatch_GradAbsB;
+        shared_ptr<RegularGridInterpolant3D<Array>> interp_B, interp_GradAbsB;
+        bool status_B = false;
+        bool status_GradAbsB = false;
 
 
     public:
+        const shared_ptr<MagneticField<Array>> field;
+        const RangeTriplet r_range, phi_range, z_range;
         using MagneticField<Array>::npoints;
 
         InterpolatedField(shared_ptr<MagneticField<Array>> field, InterpolationRule rule, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) :
-            field(field), rule(rule),
-            rmin(std::get<0>(r_range)), rmax(std::get<1>(r_range)), nr(std::get<2>(r_range)),
-            phimin(std::get<0>(phi_range)), phimax(std::get<1>(phi_range)), nphi(std::get<2>(phi_range)),
-            zmin(std::get<0>(z_range)), zmax(std::get<1>(z_range)), nz(std::get<2>(z_range)) 
+            field(field), rule(rule), r_range(r_range), phi_range(phi_range), z_range(z_range)
+             
         {
-            B_interp = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
-            f_B = [this](double r, double phi, double z) {
-                Array points = xt::zeros<double>({1, 3});
-                points(0, 0) = r * std::cos(phi);
-                points(0, 1) = r * std::sin(phi);
-                points(0, 2) = z;
-                this->field->set_points(points);
-                auto B = this->field->B();
-                return Vec{ B(0, 0), B(0, 1), B(0, 2) };
-            };
+            //f_B = [this](double r, double phi, double z) {
+            //    Array old_points = this->field->get_points_cart();
+            //    Array points = xt::zeros<double>({1, 3});
+            //    points(0, 0) = r * std::cos(phi);
+            //    points(0, 1) = r * std::sin(phi);
+            //    points(0, 2) = z;
+            //    this->field->set_points(points);
+            //    auto B = this->field->B();
+            //    this->field->set_points_cart(old_points);
+            //    return Vec{ B(0, 0), B(0, 1), B(0, 2) };
+            //};
+
             fbatch_B = [this](Vec r, Vec phi, Vec z) {
                 int npoints = r.size();
                 Array points = xt::zeros<double>({npoints, 3});
                 for(int i=0; i<npoints; i++) {
-                    points(i, 0) = r[i] * std::cos(phi[i]);
-                    points(i, 1) = r[i] * std::sin(phi[i]);
+                    points(i, 0) = r[i];
+                    points(i, 1) = phi[i];
                     points(i, 2) = z[i];
                 }
-
-                this->field->set_points(points);
+                this->field->set_points_cyl(points);
                 auto B = this->field->B();
-                auto res = Vec(3*npoints, 0.);
-                for(int i=0; i<npoints; i++) {
-                    res[3*i + 0] = B(i, 0);
-                    res[3*i + 1] = B(i, 1);
-                    res[3*i + 2] = B(i, 2);
-                }
+                auto res = Vec(B.data(), B.data()+3*npoints);
                 return res;
             };
-            build_B();
+
+            fbatch_GradAbsB = [this](Vec r, Vec phi, Vec z) {
+                int npoints = r.size();
+                Array points = xt::zeros<double>({npoints, 3});
+                for(int i=0; i<npoints; i++) {
+                    points(i, 0) = r[i];
+                    points(i, 1) = phi[i];
+                    points(i, 2) = z[i];
+                }
+                this->field->set_points_cyl(points);
+                auto GradAbsB = this->field->GradAbsB();
+                auto res = Vec(GradAbsB.data(), GradAbsB.data() + 3*npoints);
+                return res;
+            };
         }
 
         InterpolatedField(shared_ptr<MagneticField<Array>> field, int degree, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range) : InterpolatedField(field, ChebyshevInterpolationRule(degree), r_range, phi_range, z_range) {}
 
-        void build_B(){
-            B_interp->interpolate_batch(fbatch_B);
+        void B_impl(Array& B) override {
+            if(!interp_B)
+                interp_B = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
+            if(!status_B) {
+                Array old_points = this->field->get_points_cart();
+                interp_B->interpolate_batch(fbatch_B);
+                this->field->set_points_cart(old_points);
+                status_B = true;
+            }
+            interp_B->evaluate_batch(this->get_points_cyl_ref(), B);
         }
 
-        void B_impl(Array& B) {
-            this->B_interp->evaluate_batch(this->get_points_cyl_ref(), B);
+        void GradAbsB_impl(Array& GradAbsB) override {
+            if(!interp_GradAbsB)
+                interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
+            if(!status_GradAbsB) {
+                Array old_points = this->field->get_points_cart();
+                interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
+                this->field->set_points_cart(old_points);
+                status_GradAbsB = true;
+            }
+            interp_GradAbsB->evaluate_batch(this->get_points_cyl_ref(), GradAbsB);
         }
 
-        std::pair<double, double> estimate_error(int samples) {
-            return this->B_interp->estimate_error(this->f_B, samples);
+        std::pair<double, double> estimate_error_B(int samples) {
+            if(!interp_B)
+                interp_B = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
+            if(!status_B) {
+                Array old_points = this->field->get_points_cart();
+                interp_B->interpolate_batch(fbatch_B);
+                this->field->set_points_cart(old_points);
+                status_B = true;
+            }
+            return interp_B->estimate_error(this->fbatch_B, samples);
+        }
+        std::pair<double, double> estimate_error_GradAbsB(int samples) {
+            if(!interp_GradAbsB)
+                interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Array>>(rule, r_range, phi_range, z_range, 3);
+            if(!status_GradAbsB) {
+                Array old_points = this->field->get_points_cart();
+                interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
+                this->field->set_points_cart(old_points);
+                status_GradAbsB = true;
+            }
+            return interp_GradAbsB->estimate_error(this->fbatch_GradAbsB, samples);
         }
 
 };
