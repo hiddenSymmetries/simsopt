@@ -88,7 +88,10 @@ def fun_pylbfgs(dofs,g,*args):
     iota0 = problem.boozer_surface_reference["iota"]
     G0 = problem.boozer_surface_reference["G"]
     problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
+    
     # first order continuation
+#    dc = 0.
+#    problem.boozer_surface.first_order_continuation(problem.boozer_surface, iota0, G0, dc) 
 
     problem.boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
     J = problem.J()

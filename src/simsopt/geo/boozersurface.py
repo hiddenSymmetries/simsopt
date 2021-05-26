@@ -1,5 +1,7 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
+
+from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt.geo.surfaceobjectives import boozer_surface_dlsqgrad_dcoils_vjp
 from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_vjp
@@ -44,6 +46,22 @@ class BoozerSurface():
         self.label = label
         self.targetlabel = targetlabel
         self.res = None
+    
+    def first_order_continuation(self, booz_surf, iota, G, dc):
+        surface = booz_surf.surface
+        bs = booz_surf.bs
+        boozer = boozer_surface_residual(self.surface, iota, G, self.bs, derivatives=0)
+        r = boozer[0]
+
+        dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
+        for i in range(r.shape[0]):
+            lm = np.zeros(r.shape[0])
+            lm[i] = 1.
+            import ipdb;ipdb.set_trace()
+            dri_dcoils = dconstraint_dcoils_vjp(lm, booz_surf, iota, G, bs)
+ 
+
+        r, dr_ds = boozer_surface_residual(surface, iota, G, self.bs, derivatives=1)
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         """

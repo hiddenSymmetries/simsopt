@@ -107,7 +107,7 @@ def fun_pylbfgs(dofs,g,*args):
 #tol = 0.
 #res = minimize(fun_scipy, coeffs, jac=True, method='L-BFGS-B',options={'maxiter': maxiter, 'maxcor': 200, 'ftol': tol, 'gtol': tol }, callback=problem.callback)
 coeffs = stellarator.get_dofs()
-maxiter = 300
+maxiter = 50
 try:
     res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = problem.callback, max_iterations=maxiter)
 except Exception as e:
