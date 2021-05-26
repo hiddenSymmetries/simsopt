@@ -158,7 +158,8 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     biotsavart.set_points(xsemiflat)
 
-    B = biotsavart.B(compute_derivatives=derivatives).reshape((nphi, ntheta, 3))
+    biotsavart.compute(derivatives)
+    B = biotsavart.B().reshape((nphi, ntheta, 3))
 
     tang = xphi + iota * xtheta
     residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
