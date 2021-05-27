@@ -10,6 +10,7 @@ if vmec_found:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.INFO)
 
 
 @unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
@@ -155,6 +156,30 @@ class VmecTests(unittest.TestCase):
 
         logger.info('well_vmec:', well_vmec, '  well_analytic:', well_analytic)
         np.testing.assert_allclose(well_vmec, well_analytic, rtol=2e-2, atol=0)
+
+    def test_iota(self):
+        """
+        Test the functions related to iota.
+        """
+        filename = os.path.join(TEST_DIR, 'input.LandremanSengupta2019_section5.4_B2_A80')
+        vmec = Vmec(filename)
+
+        iota_axis = vmec.iota_axis()
+        iota_edge = vmec.iota_edge()
+        mean_iota = vmec.mean_iota()
+        mean_shear = vmec.mean_shear()
+        # These next 2 lines are different ways the mean iota and
+        # shear could be defined. They are not mathematically
+        # identical to mean_iota() and mean_shear(), but they should
+        # be close.
+        mean_iota_alt = (iota_axis + iota_edge) * 0.5
+        mean_shear_alt = iota_edge - iota_axis
+        logger.info(f"iota_axis: {iota_axis}, iota_edge: {iota_edge}")
+        logger.info(f"    mean_iota: {mean_iota},     mean_shear: {mean_shear}")
+        logger.info(f"mean_iota_alt: {mean_iota_alt}, mean_shear_alt: {mean_shear_alt}")
+
+        self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
+        self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """

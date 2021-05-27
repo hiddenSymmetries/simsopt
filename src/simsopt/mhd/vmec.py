@@ -441,6 +441,29 @@ class Vmec(Optimizable):
         self.run()
         return self.wout.iotaf[-1]
 
+    def mean_iota(self):
+        """
+        Return the mean rotational transform. The average is taken over
+        the normalized toroidal flux s.
+        """
+        self.run()
+        return np.mean(self.wout.iotas[1:])
+
+    def mean_shear(self):
+        """
+        Return an average magnetic shear, d(iota)/ds, where s is the
+        normalized toroidal flux. This is computed by fitting the
+        rotational transform to a linear (plus constant) function in
+        s. The slope of this fit function is returned.
+        """
+        self.run()
+
+        # Fit a linear polynomial:
+        poly = np.polynomial.Polynomial.fit(self.s_half_grid,
+                                            self.wout.iotas[1:], deg=1)
+        # Return the slope:
+        return poly.deriv()(0)
+
     def get_max_mn(self):
         """
         Look through the rbc and zbs data in fortran to determine the
