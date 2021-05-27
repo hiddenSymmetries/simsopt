@@ -60,10 +60,12 @@ for idx,target in enumerate(np.linspace(-0.3,-1.5,30)):
     iota0 = res['iota']
     G0 = res['G']
 
+iota_target = -0.4
+iota_weight = 1.
 
-boozer_surface.res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator) 
-print(boozer_surface.res['success'],problem.J())
+res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) 
+print(res['success'], problem.J())
 
 def fun_scipy(dofs):
     stellarator.set_dofs(dofs)
@@ -73,7 +75,9 @@ def fun_scipy(dofs):
     G0 = problem.boozer_surface_reference["G"]
     problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
 
-    problem.boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+    res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
+    
     J = problem.J()
     dJ = problem.dJ()
     if not boozer_surface.res['success']:
@@ -93,13 +97,11 @@ def fun_pylbfgs(dofs,g,*args):
 #    dc = 0.
 #    problem.boozer_surface.first_order_continuation(problem.boozer_surface, iota0, G0, dc) 
 
-    problem.boozer_surface.res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+    res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
     J = problem.J()
     dJ = problem.dJ()
     
-    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}\
-             label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e},\
-             ||residual||={np.linalg.norm(boozer_surface_residual(s, boozer_surface.res['iota'], boozer_surface.res['G'], bs, derivatives=0)):.3e}")
+    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
     if not boozer_surface.res['success']:
         print("Failed to compute surface")
         J = 2*J
@@ -107,8 +109,6 @@ def fun_pylbfgs(dofs,g,*args):
     g[:] = dJ
     return J
 
-#import ipdb;ipdb.set_trace()
-#tol = 0.
 #res = minimize(fun_scipy, coeffs, jac=True, method='L-BFGS-B',options={'maxiter': maxiter, 'maxcor': 200, 'ftol': tol, 'gtol': tol }, callback=problem.callback)
 coeffs = stellarator.get_dofs()
 maxiter = 300

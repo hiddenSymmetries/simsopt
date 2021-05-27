@@ -54,12 +54,6 @@ class ToroidalFlux(object):
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
-        self.surface.dependencies.append(self)
-        self.invalidate_cache()
-
-    def invalidate_cache(self):
-        x = self.surface.gamma()[self.idx]
-        self.biotsavart.set_points(x)
 
     def J(self):
         x = self.surface.gamma()[self.idx]
@@ -395,8 +389,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
     
     .. math::
         J &= \frac{1}{2}\int_{\Gamma_{s}} (B-B_{\text{QS}})^2~dS
-          &= \frac{1}{2}\int_0^1 \int_0^1 (B - B_{\text{QS}})^2 \|\mathbf n\| ~d\varphi~\d\theta
-    
+          &= \frac{1}{2}\int_0^1 \int_0^1 (B - B_{\text{QS}})^2 \|\mathbf n\| ~d\varphi~\d\theta 
     where
     
     .. math::
@@ -404,17 +397,22 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
     
     """
-    def __init__(self, boozer_surface, stellarator):
+    def __init__(self, boozer_surface, stellarator, target_iota, iota_weight):
         self.stellarator = stellarator
         self.boozer_surface = boozer_surface
+        self.target_iota = target_iota
+        self.iota_weight = iota_weight
         if boozer_surface.res is not None:
             self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
                                              "iota": self.boozer_surface.res["iota"],
                                               "G": self.boozer_surface.res["G"]}
         else:
-            self.boozer_surface_reference = None
+            raise Exception("Please solve for the Boozer surface before initializing.")
+            #self.boozer_surface_reference = None
 
         self.biotsavart = boozer_surface.bs
+#        x = self.boozer_surface.surface.gamma().reshape((-1,3))
+#        self.biotsavart.set_points(x)
         self.boozer_surface.surface.dependencies.append(self)
         self.invalidate_cache()
     
@@ -429,6 +427,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         surface = self.boozer_surface.surface
         nphi = surface.quadpoints_phi.size
         ntheta = surface.quadpoints_theta.size
+        iota = self.boozer_surface.res["iota"]
 
         B = self.biotsavart.B()
         B = B.reshape( (nphi,ntheta,3) )
@@ -439,7 +438,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
 
         B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
         B_nonQS = modB - B_QS[None,:]
-        J = 0.5 * np.mean( dS * B_nonQS**2 )
+        J = 0.5 * np.mean( dS * B_nonQS**2 ) + 0.5 * self.iota_weight * (iota - self.target_iota)**2.
         return J
 
     def dJ(self):
@@ -450,8 +449,8 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         jac = booz_surf.res['jacobian']
         dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
 
-        # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
-        dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0.,0.]))
+        # tack on dJ_dG = 0 to the end of dJ_ds
+        dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [self.iota_weight * (iota - self.target_iota), 0.]))
         adj = np.linalg.solve(jac.T, dJ_ds)
         adj += np.linalg.solve(jac.T, dJ_ds-jac.T@adj)
         

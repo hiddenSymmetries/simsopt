@@ -60,9 +60,10 @@ for idx,target in enumerate(np.linspace(-0.3,-1.5,30)):
     iota0 = res['iota']
     G0 = res['G']
 
-
+iota_target = -0.4
+iota_weight = 1.
 boozer_surface.res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator) 
+problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) 
 print(boozer_surface.res['success'],problem.J())
 
 def fun_scipy(dofs):
@@ -94,9 +95,7 @@ def fun_pylbfgs(dofs,g,*args):
     J = problem.J()
     dJ = problem.dJ()
     
-    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}\
-             label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e},\
-             ||residual||={np.linalg.norm(boozer_surface_residual(s, boozer_surface.res['iota'], boozer_surface.res['G'], bs, derivatives=0)):.3e}")
+    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e} label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, boozer_surface.res['iota'], boozer_surface.res['G'], bs, derivatives=0)):.3e}")
     if not boozer_surface.res['success']:
         print("Failed to compute surface")
         J = 2*J
