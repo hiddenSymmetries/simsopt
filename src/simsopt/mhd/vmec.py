@@ -125,14 +125,22 @@ class Vmec(Optimizable):
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
+
+    Attributes:
+        iter: Number of times VMEC has run.
+        s_full_grid: The "full" grid in the radial coordinate s (normalized
+          toroidal flux), including points at s=0 and s=1. Used for the output
+          arrays and ``zmns``.
+        s_half_grid: The "half" grid in the radial coordinate s, used for
+          ``bmnc``, ``lmns``, and other output arrays. In contrast to
+          wout files, this array has only ns-1 entries, so there is no
+          leading 0.
+        ds: The spacing between grid points for the radial coordinate s.
     """
 
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None):
-        """
-        Constructor
-        """
         if not vmec_found:
             raise RuntimeError(
                 "Running VMEC from simsopt requires VMEC python extension. "
@@ -399,9 +407,9 @@ class Vmec(Optimizable):
         #self.wout.volume = f.variables['volume_p'][()]
         f.close()
 
-        self.s_full = np.linspace(0, 1, self.wout.ns)
-        self.ds = self.s_full[1] - self.s_full[0]
-        self.s_half = self.s_full[1:] - 0.5 * self.ds
+        self.s_full_grid = np.linspace(0, 1, self.wout.ns)
+        self.ds = self.s_full_grid[1] - self.s_full_grid[0]
+        self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
 
         return ierr
 
