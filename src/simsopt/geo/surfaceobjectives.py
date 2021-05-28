@@ -397,18 +397,22 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
     
     """
-    def __init__(self, boozer_surface, stellarator, target_iota, iota_weight):
+    def __init__(self, boozer_surface, stellarator, target_iota = None, iota_weight = 0.):
         self.stellarator = stellarator
         self.boozer_surface = boozer_surface
-        self.target_iota = target_iota
-        self.iota_weight = iota_weight
         if boozer_surface.res is not None:
             self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
                                              "iota": self.boozer_surface.res["iota"],
                                               "G": self.boozer_surface.res["G"]}
         else:
             raise Exception("Please solve for the Boozer surface before initializing.")
-            #self.boozer_surface_reference = None
+
+        if target_iota is not None:
+            self.target_iota = target_iota
+            self.iota_weight = iota_weight
+        else:
+            self.target_iota = boozer_surface.res['iota']
+            self.iota_weight = 1.
 
         self.biotsavart = boozer_surface.bs
 #        x = self.boozer_surface.surface.gamma().reshape((-1,3))
@@ -460,13 +464,6 @@ class NonQuasiAxisymmetricComponentPenalty(object):
 
         return dJ
 
-    def callback(self,x, *args):
-        # update the reference boozer surface
-        self.boozer_surface_reference = {"dofs": self.boozer_surface.surface.get_dofs(),
-                                         "iota": self.boozer_surface.res["iota"],
-                                         "G": self.boozer_surface.res["G"]}
-
-        print(self.J(), np.linalg.norm(self.dJ()))
 
     def dJ_by_dB(self):
         """

@@ -33,92 +33,48 @@ stellsym = True
 nfp = 3
 exact = True
 
-if exact:
-    phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
-    thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-else:
-    phis = np.linspace(0, 1/(2*nfp), ntor+5, endpoint=False)
-    thetas = np.linspace(0, 1, 2*mpol+5, endpoint=False)
+surf_list = []
+for idx,target in enumerate(np.linspace(-0.162,-3.206, 20)):
+    if exact:
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+    else:
+        phis = np.linspace(0, 1/(2*nfp), ntor+5, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+5, endpoint=False)
+    
+    s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+    bs = BiotSavart(stellarator.coils, stellarator.currents)
+    
+    if len(surf_list) == 0:
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota0 = -0.4
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+    else:
+        s.set_dofs(surf_list[-1].surface.get_dofs())
+        iota0 = surf_list[-1].res['iota'] 
+        G0 = surf_list[-1].res['G']
 
-s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-s.fit_to_curve(ma, 0.10, flip_theta=True)
-iota0 = -0.4
-
-bs = BiotSavart(stellarator.coils, stellarator.currents)
-bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-
-
-label = Volume(s, stellarator)
-label_target = label.J()
-boozer_surface = BoozerSurface(bs, s, label, label_target)
-
-for idx,target in enumerate(np.linspace(-0.3,-1.5,30)):
+    label = Volume(s, stellarator)
     boozer_surface = BoozerSurface(bs, s, label, target)
-    res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota0,G=G0)
-    print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+    
+    try:
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=30,iota=iota0,G=G0)
+        if res['success']:
+            surf_list += [boozer_surface]
+            print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+        else:
+            print("didn't converge")
+    except:
+        print("error thrown.")
+
     iota0 = res['iota']
     G0 = res['G']
 
 iota_target = -0.4
 iota_weight = 1.
 
-res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) 
-print(res['success'], problem.J())
+problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) for boozer_surface in surf_list[::6]]
 
-def fun_scipy(dofs):
-    stellarator.set_dofs(dofs)
-
-    # revert to reference states
-    iota0 = problem.boozer_surface_reference["iota"]
-    G0 = problem.boozer_surface_reference["G"]
-    problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
-
-    res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
-    
-    J = problem.J()
-    dJ = problem.dJ()
-    if not boozer_surface.res['success']:
-        print("Failed to compute surface")
-        J = 2*J
-        dJ = -dJ
-    return J, dJ
-def fun_pylbfgs(dofs,g,*args):
-    stellarator.set_dofs(dofs)
-    
-    # revert to reference states - zeroth order continuation
-    iota0 = problem.boozer_surface_reference["iota"]
-    G0 = problem.boozer_surface_reference["G"]
-    problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
-    
-    # first order continuation
-#    dc = 0.
-#    problem.boozer_surface.first_order_continuation(problem.boozer_surface, iota0, G0, dc) 
-
-    res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-    J = problem.J()
-    dJ = problem.dJ()
-    
-    print(f"{boozer_surface.res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
-    if not boozer_surface.res['success']:
-        print("Failed to compute surface")
-        J = 2*J
-        dJ = -dJ
-    g[:] = dJ
-    return J
-
-#res = minimize(fun_scipy, coeffs, jac=True, method='L-BFGS-B',options={'maxiter': maxiter, 'maxcor': 200, 'ftol': tol, 'gtol': tol }, callback=problem.callback)
-coeffs = stellarator.get_dofs()
-maxiter = 300
-try:
-    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = problem.callback, max_iterations=maxiter)
-except Exception as e:
-    print(e)
-    pass
-#print(boozer_surface.res['success'],problem.J())
-#print(res['success'], res['message'])
 
 colors = [
     (0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
@@ -141,7 +97,88 @@ def plot():
         mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[i%len(stellarator._base_coils)])
     mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[len(stellarator._base_coils)])
     
-    gamma = s.gamma()
-    mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2])
+    for idx, problem in enumerate(problem_list):
+        # revert to reference states - zeroth order continuation
+        s = problem.boozer_surface.surface
+        gamma = s.gamma()
+        mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2])
     mlab.show()
+plot()
+
+
+prev_J_dJ = [ None, None ]
+def callback(x, *args):
+    J = 0.
+    dJ = None
+    for problem in problem_list:
+        # update the reference boozer surface
+        problem.boozer_surface_reference = {"dofs": problem.boozer_surface.surface.get_dofs(),
+                                         "iota": problem.boozer_surface.res["iota"],
+                                         "G": problem.boozer_surface.res["G"]}
+    
+        J += problem.J()
+        if dJ is None:
+            dJ = problem.J()
+        else:
+            dJ += problem.dJ()
+    print(J, np.linalg.norm(dJ))
+    prev_J_dJ[0] = J
+    prev_J_dJ[1] = dJ
+    print("-------------------------------------------\n")
+
+def fun_pylbfgs(dofs,g,*args):
+    stellarator.set_dofs(dofs)
+    
+    J = 0
+    dJ = None
+    
+    # regularizations
+
+    # surfaces
+    for idx, problem in enumerate(problem_list):
+        # revert to reference states - zeroth order continuation
+        iota0 = problem.boozer_surface_reference["iota"]
+        G0 = problem.boozer_surface_reference["G"]
+        problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
+        #print(f"reverting to {iota0:.8f}, {G0:.8f}, {np.linalg.norm(problem.boozer_surface_reference['dofs']):.8f}")
+
+        target = problem.boozer_surface.targetlabel
+        label = problem.boozer_surface.label
+        s = problem.boozer_surface.surface
+
+        res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+        J += problem.J()
+        
+        if dJ is None:
+            dJ  = problem.dJ()
+        else:
+            dJ += problem.dJ()
+         
+        print(f"Surface {idx}: {res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
+        if not res['success']:
+            print("Failed to compute surface-----------------------------")
+            J = 2*prev_J_dJ[0]
+            dJ = -prev_J_dJ[1]
+            break
+    g[:] = dJ
+    return J
+
+
+
+
+coeffs = stellarator.get_dofs()
+callback(coeffs)
+
+
+
+
+
+coeffs = stellarator.get_dofs()
+maxiter = 300
+try:
+    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
+except Exception as e:
+    print(e)
+    pass
+
 plot()
