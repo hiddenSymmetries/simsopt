@@ -9,7 +9,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curveobjectives import CurveLength 
+from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, LpCurveCurvature
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponentPenalty, Area, Volume, ToroidalFlux, boozer_surface_residual
 from simsopt.geo.coilcollection import CoilCollection
@@ -70,11 +70,18 @@ for idx,target in enumerate(np.linspace(-0.162,-3.206, 20)):
     iota0 = res['iota']
     G0 = res['G']
 
-iota_target = -0.4
 iota_weight = 1.
+distance_weight = 1e-3
+curvature_weight = 1e-3
 
+minimum_distance = 0.02
+iota_target = -0.4
+
+coil_lengths    = [CurveLength(coil) for coil in coils]
+coil_length_targets = [J.J() for J in coil_lengths]
+min_dist = MinimumDistance(stellarator.coils, minimum_distance)
+coil_curvatures = [LpCurveCurvature(coil, 2., length) for (coil, length) in zip(coils, coil_length_targets)]
 problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) for boozer_surface in surf_list[::6]]
-
 
 colors = [
     (0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
@@ -107,23 +114,20 @@ plot()
 
 
 prev_J_dJ = [ None, None ]
-def callback(x, *args):
+def callback(x, g, fx, *args):
     J = 0.
-    dJ = None
+    dJ = np.zeros(problem_list[0].dJ().shape)
+
     for problem in problem_list:
         # update the reference boozer surface
         problem.boozer_surface_reference = {"dofs": problem.boozer_surface.surface.get_dofs(),
-                                         "iota": problem.boozer_surface.res["iota"],
-                                         "G": problem.boozer_surface.res["G"]}
+                                            "iota": problem.boozer_surface.res["iota"],
+                                            "G": problem.boozer_surface.res["G"]}
     
-        J += problem.J()
-        if dJ is None:
-            dJ = problem.J()
-        else:
-            dJ += problem.dJ()
     print(J, np.linalg.norm(dJ))
-    prev_J_dJ[0] = J
-    prev_J_dJ[1] = dJ
+    prev_J_dJ[0] = fx
+    prev_J_dJ[1] = g
+    
     print("-------------------------------------------\n")
 
 def fun_pylbfgs(dofs,g,*args):
@@ -133,7 +137,6 @@ def fun_pylbfgs(dofs,g,*args):
     dJ = None
     
     # regularizations
-
     # surfaces
     for idx, problem in enumerate(problem_list):
         # revert to reference states - zeroth order continuation
