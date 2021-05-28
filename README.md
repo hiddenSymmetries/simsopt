@@ -47,10 +47,11 @@ The design of `simsopt` is guided by several principles:
   function that can be plotted, passed to optimization packages
   outside of `simsopt`, etc.
 
-`simsopt` was originally begun as part of the [Hidden symmetries and
-fusion energy project](https://hiddensymmetries.princeton.edu).  It
-is fully open-source, and anyone is welcome to make suggestions,
-contribute, and use.
+We gratefully acknowledge funding from the [Simons Foundation's Hidden
+symmetries and fusion energy
+project](https://hiddensymmetries.princeton.edu).  `simsopt` is fully
+open-source, and anyone is welcome to make suggestions, contribute,
+and use.
 
 `simsopt` is one of several available systems for stellarator
 optimization.  Others include [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT),
