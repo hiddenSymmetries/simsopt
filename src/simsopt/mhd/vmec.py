@@ -125,14 +125,22 @@ class Vmec(Optimizable):
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
+
+    Attributes:
+        iter: Number of times VMEC has run.
+        s_full_grid: The "full" grid in the radial coordinate s (normalized
+          toroidal flux), including points at s=0 and s=1. Used for the output
+          arrays and ``zmns``.
+        s_half_grid: The "half" grid in the radial coordinate s, used for
+          ``bmnc``, ``lmns``, and other output arrays. In contrast to
+          wout files, this array has only ns-1 entries, so there is no
+          leading 0.
+        ds: The spacing between grid points for the radial coordinate s.
     """
 
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None):
-        """
-        Constructor
-        """
         if not vmec_found:
             raise RuntimeError(
                 "Running VMEC from simsopt requires VMEC python extension. "
@@ -399,6 +407,10 @@ class Vmec(Optimizable):
         #self.wout.volume = f.variables['volume_p'][()]
         f.close()
 
+        self.s_full_grid = np.linspace(0, 1, self.wout.ns)
+        self.ds = self.s_full_grid[1] - self.s_full_grid[0]
+        self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
+
         return ierr
 
     def aspect(self):
@@ -463,3 +475,44 @@ class Vmec(Optimizable):
             + " (nfp=" + str(self.indata.nfp) \
             + " mpol=" + str(self.indata.mpol) \
             + " ntor=" + str(self.indata.ntor) + ")"
+
+    def vacuum_well(self):
+        """
+        Compute a single number W that summarizes the vacuum magnetic well,
+        given by the formula
+
+        W = (dV/ds(s=0) - dV/ds(s=1)) / (dV/ds(s=0)
+
+        where dVds is the derivative of the flux surface volume with
+        respect to the radial coordinate s. Positive values of W are
+        favorable for stability to interchange modes. This formula for
+        W is motivated by the fact that
+
+        d^2 V / d s^2 < 0
+
+        is favorable for stability. Integrating over s from 0 to 1
+        and normalizing gives the above formula for W. Notice that W
+        is dimensionless, and it scales as the square of the minor
+        radius. To compute dV/ds, we use
+
+        dV/ds = 4 * pi**2 * abs(sqrt(g)_{0,0})
+
+        where sqrt(g) is the Jacobian of (s, theta, phi) coordinates,
+        computed by VMEC in the gmnc array, and _{0,0} indicates the
+        m=n=0 Fourier component. Since gmnc is reported by VMEC on the
+        half mesh, we extrapolate by half of a radial grid point to s
+        = 0 and 1.
+        """
+
+        self.run()
+
+        # gmnc is on the half mesh, so drop the 0th radial entry:
+        dVds = 4 * np.pi * np.pi * np.abs(self.wout.gmnc[0, 1:])
+
+        # To get from the half grid to s=0 and s=1, we must
+        # extrapolate by 1/2 of a radial grid point:
+        dVds_s0 = 1.5 * dVds[0] - 0.5 * dVds[1]
+        dVds_s1 = 1.5 * dVds[-1] - 0.5 * dVds[-2]
+
+        well = (dVds_s0 - dVds_s1) / dVds_s0
+        return well
