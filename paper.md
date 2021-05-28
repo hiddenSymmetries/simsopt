@@ -26,63 +26,52 @@ affiliations:
 date: 1 June 2021
 bibliography: paper.bib
 
-# Optional fields if submitting to a AAS journal too, see this blog post:
-# https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
-aas-doi: 10.3847/xxxxx <- update this with the DOI from AAS once you know it.
-aas-journal: Astrophysical Journal <- The name of the AAS journal.
 ---
 
 # Summary
 
-Blah blah.
+[//]: # (JOSS guidelines: A summary describing the high-level functionality and purpose of the software for a diverse, non-specialist audience.)
+
+A stellarator is a magnetic field configuration used to confine
+plasma, and it is a candidate configuration for fusion energy, as well
+as a general charged particle trap.  A stellarator's magnetic field is
+typically produced using electromagnetic coils, and the shaping of the
+field and coils must be optimized to achieve good confinement.
+SIMSOPT is a collection of software components for carrying out these
+optimizations.  These components include
+
+- Interfaces to physics codes, e.g. for magnetohydrodynamic (MHD) equilibrium.
+- Tools for defining objective functions and parameter spaces for optimization.
+- Geometric objects that are important for stellarators – surfaces and curves – with several available parameterizations.
+- Implementations of the Biot-Savart law and other magnetic fields, including derivatives.
+- Tools for parallelized finite-difference gradient calculations.
+
+
+
 
 # Statement of need
 
-Blah blah.
-
-We optimize using the VMEC code [@VMEC1983; @VMEC1986] and SPEC code [@SPEC].
+[//]: # (Should include references "to other software addressing related needs.")
 
 
 
-# Mathematics
+# Discussion
 
-Single dollars ($) are required for inline mathematics e.g. $f(x) = e^{\pi/x}$
+Some of the physics modules with compiled code reside in separate
+repositories. Two such modules are VMEC [@VMEC1983; @VMEC1986] and
+SPEC [@SPEC], for MHD equilibrium.  Another module in a separate
+repository is booz_xform, for calculation of Boozer coordinates.  This
+latter repository is a new C++ re-implementation of an algorithm in an
+older fortran 77 code of the same name.
 
-Double dollars make self-standing equations:
+Simsopt does not presently use input data files to define optimization
+problems, in contrast to STELLOPT. Rather, problems are specified
+using a python driver script, in which objects are defined and
+configured. However, objects related to specific physics codes may use
+their own input files. In particular, a `Vmec` object can be
+initialized using a standard VMEC `input.*` input file, and a `Spec`
+object can be initialized using a standard SPEC `*.sp` input file.
 
-$$\Theta(x) = \left\{\begin{array}{l}
-0\textrm{ if } x < 0\cr
-1\textrm{ else}
-\end{array}\right.$$
-
-You can also use plain \LaTeX for equations
-\begin{equation}\label{eq:fourier}
-\hat f(\omega) = \int_{-\infty}^{\infty} f(x) e^{i\omega x} dx
-\end{equation}
-and refer to \autoref{eq:fourier} from text.
-
-# Citations
-
-Citations to entries in paper.bib should be in
-[rMarkdown](http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html)
-format.
-
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
-
-# Figures
-
-Figures can be included like this:
-![Caption for example figure.\label{fig:example}](figure.png)
-and referenced from text using \autoref{fig:example}.
-
-Figure sizes can be customized by adding an optional second parameter:
-![Caption for example figure.](figure.png){ width=20% }
 
 # Examples
 
@@ -93,5 +82,6 @@ from simsopt.mhd.vmec import Vmec
 # Acknowledgements
 
 This work was supported by a grant from the Simons Foundation (560651, ML).
+?? PPPL grant number??
 
 # References
