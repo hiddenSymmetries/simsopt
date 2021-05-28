@@ -1,4 +1,5 @@
 import unittest
+import logging
 import os
 import numpy as np
 
@@ -7,6 +8,8 @@ from simsopt.mhd.vmec import vmec_found
 if vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
+
+logger = logging.getLogger(__name__)
 
 
 @unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
@@ -109,6 +112,40 @@ class VmecTests(unittest.TestCase):
         print(f)
         np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
+    def test_vacuum_well(self):
+        """
+        Test the calculation of magnetic well. This is done by comparison
+        to a high-aspect-ratio configuration, in which case the
+        magnetic well can be computed analytically by the method in
+        Landreman & Jorge, J Plasma Phys 86, 905860510 (2020). The
+        specific configuration considered is the one of section 5.4 in
+        Landreman & Sengupta, J Plasma Phys 85, 815850601 (2019), also
+        considered in the 2020 paper. We increase the mean field B0 to
+        2T in that configuration to make sure all the factors of B0
+        are correct.
+
+        """
+        filename = os.path.join(TEST_DIR, 'input.LandremanSengupta2019_section5.4_B2_A80')
+        vmec = Vmec(filename)
+
+        well_vmec = vmec.vacuum_well()
+        # Let psi be the toroidal flux divided by (2 pi)
+        abs_psi_a = np.abs(vmec.wout.phi[-1]) / (2 * np.pi)
+
+        # Data for this configuration from the near-axis construction code qsc:
+        # https://github.com/landreman/pyQSC
+        # or
+        # https://github.com/landreman/qsc
+        B0 = 2.0
+        G0 = 2.401752071286676
+        d2_volume_d_psi2 = 25.3041656424299
+
+        # See also "20210504-01 Computing magnetic well from VMEC.docx" by MJL
+        well_analytic = -abs_psi_a * B0 * B0 * d2_volume_d_psi2 / (4 * np.pi * np.pi * np.abs(G0))
+
+        logger.info('well_vmec:', well_vmec, '  well_analytic:', well_analytic)
+        np.testing.assert_allclose(well_vmec, well_analytic, rtol=2e-2, atol=0)
+
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -180,6 +217,7 @@ class VmecTests(unittest.TestCase):
         self.assertLess(np.abs(prob.objective), 1.0e-15)
 
         equil.finalize()
-"""     
+"""
+
 if __name__ == "__main__":
     unittest.main()
