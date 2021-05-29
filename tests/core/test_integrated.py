@@ -3,19 +3,22 @@ import logging
 
 import numpy as np
 
-from simsopt.core.surface import SurfaceRZFourier, SurfaceGarabedian
-from simsopt.core.optimizable import optimizable
-from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.util.mpi import MpiPartition
-from simsopt.solve.serial_solve import least_squares_serial_solve
-from simsopt.solve.mpi_solve import least_squares_mpi_solve
+from simsopt import LeastSquaresProblem
+from simsopt import least_squares_serial_solve
+from simsopt.solve.mpi import least_squares_mpi_solve
+
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
+
 solvers = [least_squares_serial_solve, mpi_solve_1group]
 
 #logging.basicConfig(level=logging.DEBUG)
+
 
 class IntegratedTests(unittest.TestCase):
     def test_2dof_surface_opt(self):
@@ -30,7 +33,7 @@ class IntegratedTests(unittest.TestCase):
 
             # Start with a default surface, which is axisymmetric with major
             # radius 1 and minor radius 0.1.
-            surf = optimizable(SurfaceRZFourier())
+            surf = SurfaceRZFourier(quadpoints_phi=62, quadpoints_theta=63)
 
             # Set initial surface shape. It helps to make zs(1,0) larger
             # than rc(1,0) since there are two solutions to this
@@ -49,7 +52,7 @@ class IntegratedTests(unittest.TestCase):
             # least-squares objective function. A list of terms are
             # combined to form a nonlinear-least-squares problem.
             prob = LeastSquaresProblem([(surf.volume, desired_volume, 1),
-                                        (surf.area,   desired_area,   1)])
+                                        (surf.area, desired_area, 1)])
 
             # Verify the state vector and names are what we expect
             np.testing.assert_allclose(prob.x, [0.1, 0.2])
@@ -96,15 +99,15 @@ class IntegratedTests(unittest.TestCase):
             # from the space of independent variables by setting their 'fixed'
             # property to True.
             surf.all_fixed()
-            surf.set_fixed('Delta(0,0)', False) # Minor radius
-            surf.set_fixed('Delta(2,0)', False) # Elongation
+            surf.set_fixed('Delta(0,0)', False)  # Minor radius
+            surf.set_fixed('Delta(2,0)', False)  # Elongation
 
             # Each function you want in the objective function is then
             # equipped with a shift and weight, to become a term in a
             # least-squares objective function. A list of terms are
             # combined to form a nonlinear-least-squares problem.
             prob = LeastSquaresProblem([(surf.volume, desired_volume, 1),
-                                        (surf.area,   desired_area,   1)])
+                                        (surf.area, desired_area, 1)])
 
             # Verify the state vector and names are what we expect
             np.testing.assert_allclose(prob.x, [0.1, -0.1])
@@ -132,6 +135,7 @@ class IntegratedTests(unittest.TestCase):
             self.assertAlmostEqual(surfRZ.volume(), desired_volume, places=8)
             self.assertAlmostEqual(surfRZ.area(), desired_area, places=8)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
+
 
 if __name__ == "__main__":
     unittest.main()

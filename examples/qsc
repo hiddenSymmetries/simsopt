@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 
-import numpy as np
-import sys
 import logging
-sys.path.append('/Users/mattland/pyQSC')
+import numpy as np
 from qsc import Qsc
-sys.path.append('..')
-from simsopt.core.optimizable import optimizable
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt import make_optimizable
+from simsopt import LeastSquaresProblem
+from simsopt import least_squares_serial_solve
 
 """
 Optimize the Stellarator Quasisymmetry Construction code
@@ -17,7 +14,7 @@ https://github.com/landreman/pyQSC
 
 #logging.basicConfig(level=logging.INFO)
 
-stel = optimizable(Qsc(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31))
+stel = make_optimizable(Qsc(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31))
 print('Initial dofs: ', stel.get_dofs())
 print('Names of the dofs: ', stel.names)
 
