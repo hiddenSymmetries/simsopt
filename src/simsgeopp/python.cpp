@@ -4,155 +4,302 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 
+#include "surface.cpp"
+#include "pysurface.cpp"
+#include "surfacerzfourier.cpp"
+typedef SurfaceRZFourier<PyArray> PySurfaceRZFourier;
+#include "surfacexyzfourier.cpp"
+typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
+#include "surfacexyztensorfourier.cpp"
+typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
+
 
 #include "curve.cpp"
 #include "pycurve.cpp"
 
-#include "fouriercurve.cpp"
-typedef FourierCurve<PyArray> PyFourierCurve;
-#include "magneticaxis.cpp"
-typedef StellaratorSymmetricCylindricalFourierCurve<PyArray> PyStellaratorSymmetricCylindricalFourierCurve;
+#include "curvexyzfourier.cpp"
+typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
+#include "curverzfourier.cpp"
+typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
+#include "biot_savart_py.h"
+#include "biot_savart_vjp_py.h"
 
-#include "biot_savart.h"
+#include "dommaschk.cpp"
+#include "reiman.cpp"
 
 namespace py = pybind11;
 
-template <class PyFourierCurveBase = PyFourierCurve> class PyFourierCurveTrampoline : public PyCurveTrampoline<PyFourierCurveBase> {
+template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {
     public:
-        using PyCurveTrampoline<PyFourierCurveBase>::PyCurveTrampoline; // Inherit constructors
+        using PyCurveTrampoline<PyCurveXYZFourierBase>::PyCurveTrampoline; // Inherit constructors
 
         int num_dofs() override {
-            return PyFourierCurveBase::num_dofs();
+            return PyCurveXYZFourierBase::num_dofs();
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyFourierCurveBase::set_dofs_impl(_dofs);
+            PyCurveXYZFourierBase::set_dofs_impl(_dofs);
         }
 
         vector<double> get_dofs() override {
-            return PyFourierCurveBase::get_dofs();
+            return PyCurveXYZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PyFourierCurveBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints) override {
+            PyCurveXYZFourierBase::gamma_impl(data, quadpoints);
         }
 };
 
-template <class PyStellaratorSymmetricCylindricalFourierCurveBase = PyStellaratorSymmetricCylindricalFourierCurve> class PyStellaratorSymmetricCylindricalFourierCurveTrampoline : public PyCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurveBase> {
+template <class PyCurveRZFourierBase = PyCurveRZFourier> class PyCurveRZFourierTrampoline : public PyCurveTrampoline<PyCurveRZFourierBase> {
     public:
-        using PyCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurveBase>::PyCurveTrampoline; // Inherit constructors
+        using PyCurveTrampoline<PyCurveRZFourierBase>::PyCurveTrampoline; // Inherit constructors
 
         int num_dofs() override {
-            return PyStellaratorSymmetricCylindricalFourierCurveBase::num_dofs();
+            return PyCurveRZFourierBase::num_dofs();
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyStellaratorSymmetricCylindricalFourierCurveBase::set_dofs_impl(_dofs);
+            PyCurveRZFourierBase::set_dofs_impl(_dofs);
         }
 
         vector<double> get_dofs() override {
-            return PyStellaratorSymmetricCylindricalFourierCurveBase::get_dofs();
+            return PyCurveRZFourierBase::get_dofs();
         }
 
-        void gamma_impl(PyArray& data) override {
-            PyStellaratorSymmetricCylindricalFourierCurveBase::gamma_impl(data);
+        void gamma_impl(PyArray& data, PyArray& quadpoints) override {
+            PyCurveRZFourierBase::gamma_impl(data, quadpoints);
         }
 };
+
+template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFourierTrampoline : public PySurfaceRZFourierBase {
+    public:
+        using PySurfaceRZFourierBase::PySurfaceRZFourierBase;
+        using PySurfaceRZFourierBase::mpol;
+        using PySurfaceRZFourierBase::ntor;
+        using PySurfaceRZFourierBase::nfp;
+        using PySurfaceRZFourierBase::stellsym;
+
+        int num_dofs() override {
+            return PySurfaceRZFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceRZFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceRZFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceRZFourierBase::fit_to_curve(curve, radius);
+        }
+};
+
+template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXYZFourierTrampoline : public PySurfaceXYZFourierBase {
+    public:
+        using PySurfaceXYZFourierBase::PySurfaceXYZFourierBase;
+
+        int num_dofs() override {
+            return PySurfaceXYZFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceXYZFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceXYZFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceXYZFourierBase::fit_to_curve(curve, radius);
+        }
+};
+
+template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceXYZTensorFourierBase {
+    public:
+        using PySurfaceXYZTensorFourierBase::PySurfaceXYZTensorFourierBase;
+
+        int num_dofs() override {
+            return PySurfaceXYZTensorFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceXYZTensorFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceXYZTensorFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
+        }
+};
+
+template <typename T, typename S> void register_common_surface_methods(S &s) {
+    s.def("gamma", &T::gamma)
+     .def("gamma_impl", &T::gamma_impl)
+     .def("gamma_lin", &T::gamma_lin)
+     .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
+     .def("gammadash1", &T::gammadash1)
+     .def("dgammadash1_by_dcoeff", &T::dgammadash1_by_dcoeff)
+     .def("gammadash2", &T::gammadash2)
+     .def("dgammadash2_by_dcoeff", &T::dgammadash2_by_dcoeff)
+     .def("normal", &T::normal)
+     .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
+     .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
+     .def("area", &T::area)
+     .def("darea_by_dcoeff", &T::darea_by_dcoeff)
+     .def("d2area_by_dcoeffdcoeff", &T::d2area_by_dcoeffdcoeff)
+     .def("volume", &T::volume)
+     .def("dvolume_by_dcoeff", &T::dvolume_by_dcoeff)
+     .def("d2volume_by_dcoeffdcoeff", &T::d2volume_by_dcoeffdcoeff)
+     .def("fit_to_curve", &T::fit_to_curve, py::arg("curve"), py::arg("radius"), py::arg("flip_theta") = false)
+     .def("scale", &T::scale)
+     .def("extend_via_normal", &T::extend_via_normal)
+     .def("least_squares_fit", &T::least_squares_fit)
+     .def("invalidate_cache", &T::invalidate_cache)
+     .def("set_dofs", &T::set_dofs)
+     .def("get_dofs", &T::get_dofs)
+     .def_readonly("quadpoints_phi", &T::quadpoints_phi)
+     .def_readonly("quadpoints_theta", &T::quadpoints_theta);
+}
+template <typename T, typename S> void register_common_curve_methods(S &c) {
+    c.def("gamma", &T::gamma)
+     .def("gamma_impl", &T::gamma_impl)
+     .def("gammadash", &T::gammadash)
+     .def("gammadashdash", &T::gammadashdash)
+     .def("gammadashdashdash", &T::gammadashdashdash)
+
+     .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
+     .def("dgammadash_by_dcoeff", &T::dgammadash_by_dcoeff)
+     .def("dgammadashdash_by_dcoeff", &T::dgammadashdash_by_dcoeff)
+     .def("dgammadashdashdash_by_dcoeff", &T::dgammadashdashdash_by_dcoeff)
+
+     .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
+     .def("dgammadash_by_dcoeff_vjp", &T::dgammadash_by_dcoeff_vjp)
+     .def("dgammadashdash_by_dcoeff_vjp", &T::dgammadashdash_by_dcoeff_vjp)
+     .def("dgammadashdashdash_by_dcoeff_vjp", &T::dgammadashdashdash_by_dcoeff_vjp)
+
+     .def("incremental_arclength", &T::incremental_arclength)
+     .def("dincremental_arclength_by_dcoeff", &T::dincremental_arclength_by_dcoeff)
+     .def("kappa", &T::kappa)
+     .def("dkappa_by_dcoeff", &T::dkappa_by_dcoeff)
+     .def("torsion", &T::torsion)
+     .def("dtorsion_by_dcoeff", &T::dtorsion_by_dcoeff)
+     .def("invalidate_cache", &T::invalidate_cache)
+     .def("least_squares_fit", &T::least_squares_fit)
+
+     .def("set_dofs", &T::set_dofs)
+     .def("get_dofs", &T::get_dofs)
+     .def("num_dofs", &T::num_dofs)
+     .def_readonly("quadpoints", &T::quadpoints);
+}
 
 PYBIND11_MODULE(simsgeopp, m) {
     xt::import_numpy();
+    auto pysurface = py::class_<PySurface, std::shared_ptr<PySurface>, PySurfaceTrampoline<PySurface>>(m, "Surface")
+        .def(py::init<vector<double>,vector<double>>());
+    register_common_surface_methods<PySurface>(pysurface);
 
-    py::class_<PyCurve, std::shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
-        .def(py::init<vector<double>>())
-        .def("gamma", &PyCurve::gamma)
-        .def("gammadash", &PyCurve::gammadash)
-        .def("gammadashdash", &PyCurve::gammadashdash)
-        .def("gammadashdashdash", &PyCurve::gammadashdashdash)
-        .def("dgamma_by_dcoeff", &PyCurve::dgamma_by_dcoeff)
-        .def("dgammadash_by_dcoeff", &PyCurve::dgammadash_by_dcoeff)
-        .def("dgammadashdash_by_dcoeff", &PyCurve::dgammadashdash_by_dcoeff)
-        .def("dgammadashdashdash_by_dcoeff", &PyCurve::dgammadashdashdash_by_dcoeff)
-        .def("incremental_arclength", &PyCurve::incremental_arclength)
-        .def("dincremental_arclength_by_dcoeff", &PyCurve::dincremental_arclength_by_dcoeff)
-        .def("kappa", &PyCurve::kappa)
-        .def("dkappa_by_dcoeff", &PyCurve::dkappa_by_dcoeff)
-        .def("torsion", &PyCurve::torsion)
-        .def("dtorsion_by_dcoeff", &PyCurve::dtorsion_by_dcoeff)
-        .def("invalidate_cache", &PyFourierCurve::invalidate_cache)
-        .def("set_dofs", &PyFourierCurve::set_dofs)
-        .def_readonly("quadpoints", &PyCurve::quadpoints);
+    auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, std::shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, int, int>())
+        .def_readwrite("rc", &PySurfaceRZFourier::rc)
+        .def_readwrite("rs", &PySurfaceRZFourier::rs)
+        .def_readwrite("zc", &PySurfaceRZFourier::zc)
+        .def_readwrite("zs", &PySurfaceRZFourier::zs)
+        .def_readwrite("mpol", &PySurfaceRZFourier::mpol)
+        .def_readwrite("ntor", &PySurfaceRZFourier::ntor)
+        .def_readwrite("nfp", &PySurfaceRZFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceRZFourier::stellsym)
+        .def("allocate", &PySurfaceRZFourier::allocate);
+    register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
+
+    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, std::shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
+        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, int, int>())
+        .def_readwrite("xc", &PySurfaceXYZFourier::xc)
+        .def_readwrite("xs", &PySurfaceXYZFourier::xs)
+        .def_readwrite("yc", &PySurfaceXYZFourier::yc)
+        .def_readwrite("ys", &PySurfaceXYZFourier::ys)
+        .def_readwrite("zc", &PySurfaceXYZFourier::zc)
+        .def_readwrite("zs", &PySurfaceXYZFourier::zs)
+        .def_readwrite("mpol",&PySurfaceXYZFourier::mpol)
+        .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
+        .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
+    register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
+
+    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, std::shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
+        .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
+        .def(py::init<int, int, int, bool, vector<bool>, int, int>())
+        .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
+        .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
+        .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
+        .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
+    register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
 
-    py::class_<PyFourierCurve, std::shared_ptr<PyFourierCurve>, PyFourierCurveTrampoline<PyFourierCurve>>(m, "FourierCurve")
-        //.def(py::init<int, int>())
+    auto pycurve = py::class_<PyCurve, std::shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
+        .def(py::init<vector<double>>());
+    register_common_curve_methods<PyCurve>(pycurve);
+
+    auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, std::shared_ptr<PyCurveXYZFourier>, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
         .def(py::init<vector<double>, int>())
-        .def("gamma", &PyFourierCurve::gamma)
-        .def("dgamma_by_dcoeff", &PyFourierCurve::dgamma_by_dcoeff)
-        .def("dgamma_by_dcoeff_vjp", &PyFourierCurve::dgamma_by_dcoeff_vjp)
+        .def_readonly("dofs", &PyCurveXYZFourier::dofs);
+    register_common_curve_methods<PyCurveXYZFourier>(pycurvexyzfourier);
 
-        .def("gammadash", &PyFourierCurve::gammadash)
-        .def("dgammadash_by_dcoeff", &PyFourierCurve::dgammadash_by_dcoeff)
-        .def("dgammadash_by_dcoeff_vjp", &PyFourierCurve::dgammadash_by_dcoeff_vjp)
-
-        .def("gammadashdash", &PyFourierCurve::gammadashdash)
-        .def("dgammadashdash_by_dcoeff", &PyFourierCurve::dgammadashdash_by_dcoeff)
-        .def("dgammadashdash_by_dcoeff_vjp", &PyFourierCurve::dgammadashdash_by_dcoeff_vjp)
-
-        .def("gammadashdashdash", &PyFourierCurve::gammadashdashdash)
-        .def("dgammadashdashdash_by_dcoeff", &PyFourierCurve::dgammadashdashdash_by_dcoeff)
-        .def("dgammadashdashdash_by_dcoeff_vjp", &PyFourierCurve::dgammadashdashdash_by_dcoeff_vjp)
-
-        .def("incremental_arclength", &PyFourierCurve::incremental_arclength)
-        .def("dincremental_arclength_by_dcoeff", &PyFourierCurve::dincremental_arclength_by_dcoeff)
-        .def("kappa", &PyFourierCurve::kappa)
-        .def("dkappa_by_dcoeff", &PyFourierCurve::dkappa_by_dcoeff)
-        .def("torsion", &PyFourierCurve::torsion)
-        .def("dtorsion_by_dcoeff", &PyFourierCurve::dtorsion_by_dcoeff)
-
-        .def("get_dofs", &PyFourierCurve::get_dofs)
-        .def("set_dofs", &PyFourierCurve::set_dofs)
-        .def("num_dofs", &PyFourierCurve::num_dofs)
-        .def("invalidate_cache", &PyFourierCurve::invalidate_cache)
-        .def_readonly("dofs", &PyFourierCurve::dofs)
-        .def_readonly("quadpoints", &PyFourierCurve::quadpoints);
-
-    py::class_<PyStellaratorSymmetricCylindricalFourierCurve, std::shared_ptr<PyStellaratorSymmetricCylindricalFourierCurve>, PyStellaratorSymmetricCylindricalFourierCurveTrampoline<PyStellaratorSymmetricCylindricalFourierCurve>>(m, "StellaratorSymmetricCylindricalFourierCurve")
+    auto pycurverzfourier = py::class_<PyCurveRZFourier, std::shared_ptr<PyCurveRZFourier>, PyCurveRZFourierTrampoline<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
         //.def(py::init<int, int>())
-        .def(py::init<vector<double>, int, int>())
-        .def("gamma", &PyStellaratorSymmetricCylindricalFourierCurve::gamma)
-        .def("dgamma_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff)
-        .def("dgamma_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgamma_by_dcoeff_vjp)
-
-        .def("gammadash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadash)
-        .def("dgammadash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff)
-        .def("dgammadash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadash_by_dcoeff_vjp)
-
-        .def("gammadashdash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadashdash)
-        .def("dgammadashdash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff)
-        .def("dgammadashdash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdash_by_dcoeff_vjp)
-
-        .def("gammadashdashdash", &PyStellaratorSymmetricCylindricalFourierCurve::gammadashdashdash)
-        .def("dgammadashdashdash_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff)
-        .def("dgammadashdashdash_by_dcoeff_vjp", &PyStellaratorSymmetricCylindricalFourierCurve::dgammadashdashdash_by_dcoeff_vjp)
-
-        .def("incremental_arclength", &PyStellaratorSymmetricCylindricalFourierCurve::incremental_arclength)
-        .def("dincremental_arclength_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dincremental_arclength_by_dcoeff)
-        .def("kappa", &PyStellaratorSymmetricCylindricalFourierCurve::kappa)
-        .def("dkappa_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dkappa_by_dcoeff)
-        .def("torsion", &PyStellaratorSymmetricCylindricalFourierCurve::torsion)
-        .def("dtorsion_by_dcoeff", &PyStellaratorSymmetricCylindricalFourierCurve::dtorsion_by_dcoeff)
-
-        .def("get_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::get_dofs)
-        .def("set_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::set_dofs)
-        .def("num_dofs", &PyStellaratorSymmetricCylindricalFourierCurve::num_dofs)
-        .def("invalidate_cache", &PyStellaratorSymmetricCylindricalFourierCurve::invalidate_cache)
-        .def_readonly("dofs", &PyStellaratorSymmetricCylindricalFourierCurve::dofs)
-        .def_readonly("quadpoints", &PyStellaratorSymmetricCylindricalFourierCurve::quadpoints)
-        .def_property_readonly("nfp", &PyStellaratorSymmetricCylindricalFourierCurve::get_nfp);
+        .def(py::init<vector<double>, int, int, bool>())
+        .def_readwrite("rc", &PyCurveRZFourier::rc)
+        .def_readwrite("rs", &PyCurveRZFourier::rs)
+        .def_readwrite("zc", &PyCurveRZFourier::zc)
+        .def_readwrite("zs", &PyCurveRZFourier::zs)
+        .def_property_readonly("nfp", &PyCurveRZFourier::get_nfp);
+    register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 
     m.def("biot_savart", &biot_savart);
-    m.def("biot_savart_by_dcoilcoeff_all_vjp_full", &biot_savart_by_dcoilcoeff_all_vjp_full);
+    m.def("biot_savart_B", &biot_savart_B);
+    m.def("biot_savart_vjp", &biot_savart_vjp);
 
+    m.def("DommaschkB" , &DommaschkB);
+    m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("ReimanB" , &ReimanB);
+    m.def("ReimandB", &ReimandB);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

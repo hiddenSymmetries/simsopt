@@ -3,10 +3,10 @@
 import logging
 import numpy as np
 
+from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Spec
-from simsopt.core.surface import SurfaceGarabedian
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -25,13 +25,17 @@ can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
 """
 
-logging.basicConfig(level=logging.DEBUG)
+# Print out detailed logging info. This could be commented out if desired.
+log(logging.DEBUG)
+
+# Divide up the MPI processes. Since the finite difference gradient
+# can use 2 concurrent function evaluations, we can take advantage of
+# up to 2 worker groups.
+mpi = MpiPartition(2)
+mpi.write()
 
 # Create a Spec object:
-equil = Spec('1DOF_Garabedian.sp')
-# If the xspec executable is not in PATH, the path to the executable
-# should be specified as in the following line:
-# equil = Spec('1DOF_Garabedian.sp', exe='/Users/mattland/SPEC/xspec')
+equil = Spec('1DOF_Garabedian.sp', mpi=mpi)
 
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the
@@ -54,13 +58,17 @@ prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
-least_squares_serial_solve(prob, grad=False)
+least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
-print("At the optimum,")
-print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
-print(" iota = ", equil.iota())
-print(" objective function = ", prob.objective())
+final_objective = prob.objective()
+final_iota = equil.iota()
 
-assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
-assert np.abs(equil.iota() - desired_iota) < 1.0e-5
-assert prob.objective() < 1.0e-15
+if mpi.proc0_world:
+    print("At the optimum,")
+    print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
+    print(" iota = ", final_iota)
+    print(" objective function = ", final_objective)
+
+    assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
+    assert np.abs(final_iota - desired_iota) < 1.0e-5
+    assert final_objective < 1.0e-15

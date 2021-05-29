@@ -1,7 +1,7 @@
 Simsopt documentation
 =====================
 
-``simsopt`` is a system for optimizing `stellarators
+``simsopt`` is a framework for optimizing `stellarators
 <https://en.wikipedia.org/wiki/Stellarator>`_.  The high-level
 routines are in python, with calls to C++ or fortran where needed for
 performance. Several types of components are included:
@@ -9,8 +9,10 @@ performance. Several types of components are included:
 - Interfaces to physics codes, e.g. for MHD equilibrium.
 - Tools for defining objective functions and parameter spaces for
   optimization.
-- Geometric objects that are important for stellarators: surfaces and
-  electromagnetic coils.
+- Geometric objects that are important for stellarators -- surfaces and
+  curves -- with several available parameterizations.
+- An efficient implementation of the Biot-Savart law, including
+  derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
 Some of the physics modules with compiled code reside in separate
@@ -20,7 +22,7 @@ repositories. These separate modules include
   equilibrium.
 - `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
   equilibrium. (This repository is private.)
-- `booz_xform <https://github.com/hiddenSymmetries/booz_xform>`_, for
+- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
   Boozer coordinates and quasisymmetry.
   
 The design of ``simsopt`` is guided by several principles:
@@ -41,10 +43,11 @@ The design of ``simsopt`` is guided by several principles:
   function that can be plotted, passed to optimization packages
   outside of ``simsopt``, etc.
 
-``simsopt`` was originally begun as part of the `Hidden symmetries and
-fusion energy project <https://hiddensymmetries.princeton.edu>`_.  It
-is fully open-source, and anyone is welcome to make suggestions,
-contribute, and use.
+We gratefully acknowledge funding from the `Simons Foundation's Hidden
+symmetries and fusion energy project
+<https://hiddensymmetries.princeton.edu>`_.  ``simsopt`` is fully
+open-source, and anyone is welcome to make suggestions, contribute,
+and use.
 
 ``simsopt`` is one of several available systems for stellarator
 optimization.  Others include `STELLOPT
@@ -57,9 +60,19 @@ optimization.  Others include `STELLOPT
    :caption: Contents
 
    getting_started
+   concepts
    problems
    testing
    source
+   cite
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Examples
+
+   example_vmec_only
+   example_quasisymmetry
+   example_islands
 
 .. toctree::
    :maxdepth: 3

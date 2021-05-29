@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
-from simsopt.core.optimizable import Optimizable
-from simsopt.core.functions import Adder
+from simsopt._core.optimizable import Optimizable
+from simsopt.objectives.functions import Adder
+
 
 class OptimizableTests(unittest.TestCase):
     def test_index(self):
@@ -27,7 +28,7 @@ class OptimizableTests(unittest.TestCase):
         o.set('foo', -12)
         self.assertEqual(o.get('foo'), -12)
         np.testing.assert_allclose(o.get_dofs(), [-12, 0, 42, 0])
-        
+
     def test_get_set_fixed(self):
         """
         Test Optimizable.set_fixed() and Optimizable.get_fixed()
@@ -39,6 +40,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertTrue(o.get_fixed('gee'))
         o.set_fixed('gee', False)
         self.assertFalse(o.get_fixed('gee'))
-        
+
+
 if __name__ == "__main__":
     unittest.main()

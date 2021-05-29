@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
-import sys
-import logging
-sys.path.append('../src')
-
 from mpi4py import MPI
 import numpy as np
 
 from simsopt.mhd import Vmec
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.util.mpi import MpiPartition
-from simsopt.solve.mpi_solve import least_squares_mpi_solve
+from simsopt import LeastSquaresProblem
+from simsopt.util.mpi import MpiPartition, log
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -29,8 +25,8 @@ can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
 """
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+# Print detailed logging info. This line could be commented out if desired.
+log()
 
 # In the next line, we can adjust how many groups the pool of MPI
 # processes is split into.
