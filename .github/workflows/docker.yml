@@ -3,13 +3,13 @@ name: docker container
 on: 
   push:
     branches:
-      - master
+      - main
       - docker
     tags:
       - v*
   pull_request:
     branches:
-      - master
+      - main
     tags:
       - v*
 
@@ -40,7 +40,7 @@ jobs:
       
       - name: Build and push
         uses: docker/build-push-action@v2
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
@@ -55,6 +55,8 @@ jobs:
           file: ci/Dockerfile.ubuntu
           push: true
           tags: medbha/simsopt:test
+          #secrets: "spec_checkout=${{ secrets.SPEC_CHECKOUT }}"
+|
 
       - name: Build and push for tag
         uses: docker/build-push-action@v2
