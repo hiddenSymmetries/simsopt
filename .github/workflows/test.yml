@@ -57,7 +57,15 @@ jobs:
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev 
     - name: Test with tox
       run: tox
+    - name: Upload coverage to github
+      if: ${{ matrix.python-version == '3.8' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: tox-gh-actions-coverage
+        path: coverage.xml
+        if-no-files-found: error
     - name: Upload coverage to Codecov
+      if: ${{ matrix.python-version == '3.8' }}
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
