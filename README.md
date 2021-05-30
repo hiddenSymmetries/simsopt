@@ -1,7 +1,7 @@
 # simsopt
 
 ![GitHub](https://img.shields.io/github/license/hiddensymmetries/simsopt)
-![Codecov](https://img.shields.io/codecov/c/github/hiddensymmetries/simsopt)
+[![codecov](https://codecov.io/gh/hiddenSymmetries/simsopt/branch/tox/graph/badge.svg?token=ltN6qonZ5p)](https://codecov.io/gh/hiddenSymmetries/simsopt)
 [![DOI](https://zenodo.org/badge/247710081.svg)](https://zenodo.org/badge/latestdoi/247710081)
 
 
