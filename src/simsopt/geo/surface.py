@@ -49,7 +49,7 @@ class Surface(Optimizable):
             "dphi x dtheta": (contig(n[..., 0]), contig(n[..., 1]), contig(n[..., 2])),
             "dphi": (contig(dphi[..., 0]), contig(dphi[..., 1]), contig(dphi[..., 2])),
             "dtheta": (contig(dtheta[..., 0]), contig(dtheta[..., 1]), contig(dtheta[..., 2])),
-            })
+        })
 
     def __repr__(self):
         return "Surface " + str(hex(id(self)))
