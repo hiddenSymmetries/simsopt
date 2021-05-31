@@ -89,7 +89,56 @@ Figure sizes can be customized by adding an optional second parameter:
 # Examples
 
 ~~~python
+import numpy as np
+from simsopt.util.mpi import MpiPartition
 from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.boozer import Boozer, Quasisymmetry
+from simsopt.mhd.spec import Spec, Residue
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+
+# Create objects for the Vmec and Spec equilibrium
+mpi = MpiPartition()
+vmec = Vmec("input.nfp2_QA_iota0.4", mpi=mpi)
+surf = vmec.boundary
+spec = Spec("nfp2_QA_iota0.4.sp", mpi=mpi)
+spec.boundary = surf  # Identify the Vmec and Spec boundaries
+
+# Configure quasisymmetry objective:
+boozer = Boozer(vmec)
+qs = Quasisymmetry(boozer,
+                   0.5, # Radius s to target
+                   1, 0) # (M, N) you want in |B|
+# iota = p / q
+p = -2
+q = 5
+residue1 = Residue(spec, p, q)
+residue2 = Residue(spec, p, q, theta=np.pi)
+
+# Define objective function                                                                                                                      
+prob = LeastSquaresProblem([(vmec.aspect, 6, 1.0),
+                            (vmec.iota_axis, 0.39, 1),
+                            (vmec.iota_edge, 0.42, 1),
+                            (qs, 0, 2),
+                            (residue1, 0, 2),
+                            (residue2, 0, 2)])
+
+for step in range(3):
+    max_mode = step + 3
+
+    vmec.indata.mpol = 4 + step
+    vmec.indata.ntor = vmec.indata.mpol
+
+    boozer.mpol = 24 + step * 8
+    boozer.ntor = boozer.mpol
+
+    # Define parameter space:                                                                                                                    
+    surf.all_fixed()
+    surf.fixed_range(mmin=0, mmax=max_mode,
+                     nmin=-max_mode, nmax=max_mode, fixed=False)
+    surf.set_fixed("rc(0,0)") # Major radius                                                                                                     
+
+    least_squares_mpi_solve(prob, mpi, grad=True)
 ~~~
 
 # Acknowledgements
