@@ -48,11 +48,14 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 
 void init_magneticfields(py::module_ &m){
 
-    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule");
+    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule")
+        .def_readonly("degree", &InterpolationRule::degree);
     py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule")
-        .def(py::init<int>());
+        .def(py::init<int>())
+        .def_readonly("degree", &UniformInterpolationRule::degree);
     py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule")
-        .def(py::init<int>());
+        .def(py::init<int>())
+        .def_readonly("degree", &ChebyshevInterpolationRule::degree);
 
     py::class_<RegularGridInterpolant3D<PyArray>, shared_ptr<RegularGridInterpolant3D<PyArray>>>(m, "RegularGridInterpolant3D")
         .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())

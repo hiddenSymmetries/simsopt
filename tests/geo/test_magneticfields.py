@@ -381,7 +381,7 @@ class Testing(unittest.TestCase):
         zmin = -0.1
         zmax = 0.1
         zsteps = n
-        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
+        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
         N = 10
         points = np.random.uniform(size=(N, 3))
         points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
@@ -422,7 +422,7 @@ class Testing(unittest.TestCase):
             zmin = -0.1
             zmax = 0.1
             zsteps = n
-            bsh = InterpolatedField(bs, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps])
+            bsh = InterpolatedField(bs, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
             print(err_1, err_2)
