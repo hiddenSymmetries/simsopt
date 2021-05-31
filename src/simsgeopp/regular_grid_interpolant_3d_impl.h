@@ -4,7 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#define _EPS_ 1e-10
+#define _EPS_ 1e-13
 
 template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, double, double)> &f) {
@@ -122,12 +122,18 @@ int RegularGridInterpolant3D<Array>::locate_unsafe(double x, double y, double z)
 
 template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, double z, double* res){
-    if(x < xmin || x >= xmax)
-        throw std::runtime_error(fmt::format("x={} not within [{}, {}]", x, xmin, xmax));
-    if(y < ymin || y >= ymax)
-        throw std::runtime_error(fmt::format("y={} not within [{}, {}]", y, ymin, ymax));
-    if(z < zmin || z >= zmax)
-        throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
+    if(this->extrapolate){
+        x = std::max(std::min(x, xmax-_EPS_), xmin+_EPS_);
+        y = std::max(std::min(y, ymax-_EPS_), ymin+_EPS_);
+        z = std::max(std::min(z, zmax-_EPS_), zmin+_EPS_);
+    } else {
+        if(x < xmin || x >= xmax)
+            throw std::runtime_error(fmt::format("x={} not within [{}, {}]", x, xmin, xmax));
+        if(y < ymin || y >= ymax)
+            throw std::runtime_error(fmt::format("y={} not within [{}, {}]", y, ymin, ymax));
+        if(z < zmin || z >= zmax)
+            throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
+    }
     int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));

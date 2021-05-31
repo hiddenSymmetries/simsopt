@@ -376,3 +376,13 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+
+def curves_to_vtk(curves, filename):
+    from pyevtk.hl import polyLinesToVTK
+    x = np.concatenate([c.gamma()[:, 0] for c in curves])
+    y = np.concatenate([c.gamma()[:, 1] for c in curves])
+    z = np.concatenate([c.gamma()[:, 2] for c in curves])
+    ppl = np.asarray([c.gamma().shape[0] for c in curves])
+    data = np.concatenate([i*np.ones((curves[i].gamma().shape[0], )) for i in range(len(curves))])
+    polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})

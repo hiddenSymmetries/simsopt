@@ -108,12 +108,14 @@ class RegularGridInterpolant3D {
         Vec pkxs, pkys, pkzs;
 
     public:
+        bool extrapolate;
 
-        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size) :
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate) :
             rule(rule), 
             xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)),
             ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)),
-            zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)), value_size(value_size)
+            zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)),
+            value_size(value_size), extrapolate(extrapolate)
         {
             int degree = rule.degree;
             pkxs = Vec(degree+1, 0.);
@@ -158,7 +160,7 @@ class RegularGridInterpolant3D {
         }
 
         RegularGridInterpolant3D(InterpolationRule rule, int nx, int ny, int nz, int value_size) : 
-            RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size) {
+            RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size, true) {
 
         }
 

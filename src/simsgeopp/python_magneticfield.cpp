@@ -1,5 +1,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "pybind11/functional.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 #include "py_shared_ptr.h"
@@ -48,10 +49,16 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 void init_magneticfields(py::module_ &m){
 
     py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule");
-    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>>(m, "UniformInterpolationRule")
+    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule")
         .def(py::init<int>());
-    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>>(m, "ChebyshevInterpolationRule")
+    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule")
         .def(py::init<int>());
+
+    py::class_<RegularGridInterpolant3D<PyArray>, shared_ptr<RegularGridInterpolant3D<PyArray>>>(m, "RegularGridInterpolant3D")
+        .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
+        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray>::interpolate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<PyArray>::evaluate)
+        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray>::evaluate_batch);
 
     py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
         .def(py::init<double>())
@@ -77,14 +84,14 @@ void init_magneticfields(py::module_ &m){
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, PyMagneticFieldTrampoline<PyInterpolatedField>, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet>())
-        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)
         .def_readonly("phi_range", &PyInterpolatedField::phi_range)
-        .def_readonly("z_range", &PyInterpolatedField::z_range);
-
+        .def_readonly("z_range", &PyInterpolatedField::z_range)
+        .def_readonly("rule", &PyInterpolatedField::rule);
     register_common_field_methods<PyInterpolatedField>(ifield);
  
 }

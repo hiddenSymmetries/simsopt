@@ -360,5 +360,19 @@ class ChebyshevInterpolationRule(sgpp.ChebyshevInterpolationRule):
     pass
 
 
-class InterpolatedField(sgpp.InterpolatedField):
-    pass
+class InterpolatedField(sgpp.InterpolatedField, MagneticField):
+
+    def __init__(self, *args):
+        MagneticField.__init__(self)
+        sgpp.InterpolatedField.__init__(self, *args)
+
+    def to_vtk(self, filename, h=0.1):
+        degree = self.rule.degree
+        MagneticField.to_vtk(
+            self, filename, 
+            nr=self.r_range[2]*degree+1,
+            nphi=self.phi_range[2]*degree+1,
+            nz=self.z_range[2]*degree+1,
+            rmin=self.r_range[0], rmax=self.r_range[1],
+            zmin=self.z_range[0], zmax=self.z_range[1]
+        )
