@@ -24,6 +24,27 @@ class MagneticField(sgpp.MagneticField):
     def __rmul__(self, other):
         return MagneticFieldMultiply(other, self)
 
+    def to_vtk(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5):
+        from pyevtk.hl import gridToVTK
+        rs = np.linspace(rmin, rmax, nr, endpoint=True)
+        phis = np.linspace(0, 2*np.pi, nphi, endpoint=True)
+        zs = np.linspace(zmin, zmax, nz, endpoint=True)
+
+        R, Phi, Z = np.meshgrid(rs, phis, zs)
+        X = R * np.cos(Phi)
+        Y = R * np.sin(Phi)
+        Z = Z
+
+        RPhiZ = np.zeros((R.size, 3))
+        RPhiZ[:, 0] = R.flatten()
+        RPhiZ[:, 1] = Phi.flatten()
+        RPhiZ[:, 2] = Z.flatten()
+
+        self.set_points_cyl(RPhiZ)
+        vals = self.B()
+        contig = np.ascontiguousarray
+        gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[:, 0]), contig(vals[:, 1]), contig(vals[:, 2]))})
+
 
 class MagneticFieldMultiply(MagneticField):
     '''
