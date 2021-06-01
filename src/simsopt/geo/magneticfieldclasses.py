@@ -141,10 +141,6 @@ class ScalarPotentialRZMagneticField(MagneticField):
         if compute_derivatives >= 1:
             self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
 
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
-
 
 class CircularCoil(MagneticField):
     '''
