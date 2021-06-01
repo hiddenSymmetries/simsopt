@@ -180,11 +180,11 @@ class DofsTests(unittest.TestCase):
             for nvals in range(1, 5):
                 o = Affine(nparams=nparams, nvals=nvals)
                 o.set_dofs((np.random.rand(nparams) - 0.5) * 4)
-                dofs = Dofs([o])
+                dofs = Dofs([o], diff_method="centered")
                 np.testing.assert_allclose(dofs.f(), np.matmul(o.A, o.x) + o.B, \
                                            rtol=1e-13, atol=1e-13)
                 np.testing.assert_allclose(dofs.jac(), o.A, rtol=1e-13, atol=1e-13)
-                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                np.testing.assert_allclose(dofs.fd_jac(), \
                                            o.A, rtol=1e-7, atol=1e-7)
 
     def test_multiple_vector_valued(self):
@@ -201,7 +201,7 @@ class DofsTests(unittest.TestCase):
                 o1 = Affine(nparams=nparams1, nvals=nvals1)
                 o2 = Affine(nparams=nparams2, nvals=nvals2)
                 o3 = Affine(nparams=nparams3, nvals=nvals3)
-                dofs = Dofs([o1, o2, o3])
+                dofs = Dofs([o1, o2, o3], diff_method="centered")
                 dofs.set((np.random.rand(nparams1 + nparams2 + nparams3) - 0.5) * 4)
                 f1 = np.matmul(o1.A, o1.x) + o1.B
                 f2 = np.matmul(o2.A, o2.x) + o2.B
@@ -214,7 +214,7 @@ class DofsTests(unittest.TestCase):
                 true_jac[nvals1 + nvals2:nvals1 + nvals2 + nvals3, \
                          nparams1 + nparams2:nparams1 + nparams2 + nparams3] = o3.A
                 np.testing.assert_allclose(dofs.jac(), true_jac, rtol=1e-13, atol=1e-13)
-                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                np.testing.assert_allclose(dofs.fd_jac(), \
                                            true_jac, rtol=1e-7, atol=1e-7)
 
     def test_mixed_vector_valued(self):
@@ -234,7 +234,7 @@ class DofsTests(unittest.TestCase):
                 o3 = Affine(nparams=nparams3, nvals=nvals3)
                 a1 = Adder(n=2)
                 a2 = Adder(n=3)
-                dofs = Dofs([o1, o2, a1, o3, a2])
+                dofs = Dofs([o1, o2, a1, o3, a2], diff_method="centered")
                 dofs.set((np.random.rand(nparams1 + nparams2 + nparams3 + 5) - 0.5) * 4)
                 f1 = np.matmul(o1.A, o1.x) + o1.B
                 f2 = np.matmul(o2.A, o2.x) + o2.B
@@ -253,7 +253,7 @@ class DofsTests(unittest.TestCase):
                 true_jac[nvals1 + nvals2 + 1 + nvals3:nvals1 + nvals2 + nvals3 + 2, \
                          nparams1 + nparams2 + nparams3 + 2:nparams1 + nparams2 + nparams3 + 5] = np.ones(3)
                 np.testing.assert_allclose(dofs.jac(), true_jac, rtol=1e-13, atol=1e-13)
-                np.testing.assert_allclose(dofs.fd_jac(centered=True), \
+                np.testing.assert_allclose(dofs.fd_jac(), \
                                            true_jac, rtol=1e-7, atol=1e-7)
 
     def test_Jacobian(self):
@@ -300,8 +300,10 @@ class DofsTests(unittest.TestCase):
                     nvals_per_func = [3, 1]
 
                 jac = dofs.jac()
+                dofs.diff_method = "forward"
                 fd_jac = dofs.fd_jac()
-                fd_jac_centered = dofs.fd_jac(centered=True)
+                dofs.diff_method = "centered"
+                fd_jac_centered = dofs.fd_jac()
                 #print('j=', j, '  Diff in Jacobians:', jac - fd_jac)
                 #print('jac: ', jac)
                 #print('fd_jac: ', fd_jac)
