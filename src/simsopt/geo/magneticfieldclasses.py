@@ -119,7 +119,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.PhiStr = PhiStr
         self.Phiparsed = parse_expr(PhiStr)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R), self.Phiparsed.diff(Phi)/R, self.Phiparsed.diff(Z)])
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R)+1e-30*sp.sin(Phi), self.Phiparsed.diff(Phi)/R+1e-30*sp.sin(Phi), self.Phiparsed.diff(Z)+1e-30*sp.sin(Phi)])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
             [[sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
@@ -136,7 +136,8 @@ class ScalarPotentialRZMagneticField(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        self._B = np.array(self.Blambdify(r, z, phi)).T
+        Btemp = np.array(self.Blambdify(r, z, phi)).T
+        self._B = np.array([np.cos(phi)*Btemp[:,0]-np.sin(phi)*Btemp[:,1],np.sin(phi)*Btemp[:,0]+np.cos(phi)*Btemp[:,1],Btemp[:,2]]).T
 
         if compute_derivatives >= 1:
             self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
