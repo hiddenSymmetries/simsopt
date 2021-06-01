@@ -3,13 +3,13 @@ name: docker container
 on: 
   push:
     branches:
-      - main
+      - master
       - docker
     tags:
       - v*
   pull_request:
     branches:
-      - main
+      - master
     tags:
       - v*
 
@@ -40,12 +40,12 @@ jobs:
       
       - name: Build and push
         uses: docker/build-push-action@v2
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
           push: true
-          tags: medbha/simsopt:latest
+          tags: hiddensymmetries/simsopt:latest
 
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -54,7 +54,7 @@ jobs:
           context: ci
           file: ci/Dockerfile.ubuntu
           push: true
-          tags: medbha/simsopt:test
+          tags: hiddensymmetries/simsopt:test
           #secrets: "spec_checkout=${{ secrets.SPEC_CHECKOUT }}"
 |
 
@@ -65,4 +65,4 @@ jobs:
           context: ci
           file: ci/Dockerfile.ubuntu
           push: true
-          tags: "medbha/simsopt:${{steps.vars.outputs.tag}}"
+          tags: "hiddensymmetries/simsopt:${{steps.vars.outputs.tag}}"
