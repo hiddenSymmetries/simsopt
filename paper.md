@@ -120,8 +120,8 @@ Presently, MPI and OpenMP parallelism are used in different code
 components.  The parallelized finite-difference gradient capability
 uses MPI, to support use of multiple compute nodes, and to support
 concurrent calculations with physics codes like VMEC and SPEC that
-employ MPI. Biot-Savart calculations are presently parallelized using
-OpenMP for simplicity.
+employ MPI. Biot-Savart calculations are accelerated using SIMD intrinsics
+and OpenMP parallelization.
 
 `SIMSOPT` does not presently use input data files to define optimization
 problems, in contrast to `STELLOPT`. Rather, problems are specified
