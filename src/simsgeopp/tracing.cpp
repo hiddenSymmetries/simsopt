@@ -1,14 +1,9 @@
 #include <memory>
 #include <vector>
 #include <functional>
-#include <boost/numeric/odeint.hpp>
 #include "magneticfield.h"
 #include <cassert>
 #include "tracing.h"
-
-
-using namespace boost::numeric::odeint;
-
 using std::shared_ptr;
 using std::vector;
 using std::tuple;
@@ -19,12 +14,22 @@ using std::function;
 typedef xt::pyarray<double> Array;
 
 
+
+
+#if WITH_BOOST
+#include <boost/math/tools/roots.hpp>
+#include <boost/numeric/odeint.hpp>
+using boost::math::tools::toms748_solve;
+using namespace boost::numeric::odeint;
+#else
+#endif
+
 template<class Array>
 tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
         shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
         double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
-
+#if WITH_BOOST
 
     Array xyz({{xinit, yinit, zinit}});
     field->set_points(xyz);
@@ -80,6 +85,9 @@ tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
 
     return make_tuple(res_t, res_y);
 
+#else
+    throw runtime_error("Guiding center computation not available without boost.")
+#endif
 }
 
 template
@@ -107,14 +115,14 @@ double get_phi(const vector<double>& pt, double phi_near){
         return opt3;
 }
 
-#include <boost/math/tools/roots.hpp>
-using boost::math::tools::toms748_solve;
+
 
 template<class Array>
 tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fieldline_tracing(
         shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
         double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
+#if WITH_BOOST
     runge_kutta_dopri5<vector<double>> stepper;
     //runge_kutta_fehlberg78<vector<double>> stepper;
     auto rhs_class = FieldlineRHS<Array>(field);
@@ -195,6 +203,9 @@ tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fi
     }
 
     return make_tuple(res_t, res_y, res_phi_hits);
+#else
+    throw runtime_error("Fieldline computation not available without boost.")
+#endif
 }
 
 template

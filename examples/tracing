@@ -42,11 +42,11 @@ sc.to_vtk('/tmp/levelset', h=0.01)
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
-    nfieldlines = 20
+    nfieldlines = 10
     res_gyro_t_cpp, res_gyro_cpp, res_phi_hits_cpp = compute_fieldlines(
         bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.005, tmax=1000,)
     t2 = time.time()
-    print(f"Time for fieldline tracing={t2-t1:.3s}", flush=True)
+    print(f"Time for fieldline tracing={t2-t1:.3f}s", flush=True)
     particles_to_vtk(res_gyro_cpp, '/tmp/fieldlines_{label}')
     nfieldlines = 20
     import matplotlib.pyplot as plt
@@ -67,7 +67,7 @@ def trace_particles(bfield):
         Ekinev=900, umin=-1, umax=+1,
         stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
     t2 = time.time()
-    print(f"Time for particle tracing={t2-t1:.3s}", flush=True)
+    print(f"Time for particle tracing={t2-t1:.3f}s", flush=True)
     particles_to_vtk(res_gyro, '/tmp/traces_{label}')
 
 

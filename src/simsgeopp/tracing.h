@@ -77,6 +77,7 @@ class StoppingCriterion {
     public:
         // Should return true if the Criterion is satisfied.
         virtual bool operator()(int iter, double t, const vector<double>& y) = 0;
+        virtual ~StoppingCriterion() {}
 };
 
 class IterationStoppingCriterion : public StoppingCriterion{
