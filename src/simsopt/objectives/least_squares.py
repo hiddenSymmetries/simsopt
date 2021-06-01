@@ -78,7 +78,7 @@ class LeastSquaresProblem:
           weight).
         kwargs: Any additional arguments will be passed to the
           :class:`~simsopt._core.dofs.Dofs` constructor. This is useful for
-          passing ``fail``, ``abs_step``, ``rel_step``, and ``differences``.
+          passing ``fail``, ``abs_step``, ``rel_step``, and ``diff_method``.
           See :class:`~simsopt._core.dofs.Dofs` for details.
     """
 
