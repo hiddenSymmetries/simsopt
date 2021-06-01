@@ -102,7 +102,7 @@ class Testing(unittest.TestCase):
         # Analytical Formula for B
         rphiz = [[np.sqrt(np.power(point[0], 2) + np.power(point[1], 2)), np.arctan2(point[1], point[0]), point[2]] for point in points]
         B2 = np.array([[0.2*point[2]+0.8*point[0], (0.1+0.3*point[2])/point[0], 0.2*point[0]+0.3*point[1]+point[2]] for point in rphiz])
-        B2 = np.array([np.cos(rphiz[:,1])*B2[:,0]-np.sin(rphiz[:,1])*B2[:,1],np.sin(rphiz[:,1])*B2[:,0]+np.cos(rphiz[:,1])*B2[:,1],B2[:,2]]).T
+        B2 = np.array([np.cos(rphiz[:, 1])*B2[:, 0]-np.sin(rphiz[:, 1])*B2[:, 1], np.sin(rphiz[:, 1])*B2[:, 0]+np.cos(rphiz[:, 1])*B2[:, 1], B2[:, 2]]).T
         dB2_by_dX = np.array([
             [[0.8*np.cos(point[1]), -(np.cos(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.cos(point[1])-0.3*np.sin(point[1])/point[0]],
              [0.8*np.sin(point[1]), -(np.sin(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.sin(point[1])+0.3*np.cos(point[1])/point[0]],
@@ -360,6 +360,7 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
+
 
 if __name__ == "__main__":
     unittest.main()
