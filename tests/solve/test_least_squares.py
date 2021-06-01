@@ -37,8 +37,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
             term2 = (iden2.J, 2, 2)
             term3 = (iden3.J, 3, 3)
             prob = LeastSquaresProblem([term1, term2, term3])
-            if solver==serial_solve:
-                solver(prob,tol=1e-12)
+            if solver == serial_solve:
+                solver(prob, tol=1e-12)
             else:
                 solver(prob)
             self.assertAlmostEqual(prob.objective(), 0)
@@ -167,8 +167,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 term1 = (r.term1, 0, 1)
                 term2 = (r.term2, 0, 1)
                 prob = LeastSquaresProblem((term1, term2))
-                if solver==serial_solve:
-                    if grad==True:
+                if solver == serial_solve:
+                    if grad == True:
                         continue
                     else:
                         solver(prob, tol=1e-12)
@@ -188,8 +188,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
             for grad in [True, False]:
                 r = Rosenbrock()
                 prob = LeastSquaresProblem([(r.terms, 0, 1)])
-                if solver==serial_solve:
-                    if grad==True:
+                if solver == serial_solve:
+                    if grad == True:
                         continue
                     else:
                         solver(prob, tol=1e-12)
@@ -208,7 +208,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         #for solver in [least_squares_serial_solve]:
         for solver in solvers:
-            if solver==serial_solve:
+            if solver == serial_solve:
                 continue
             for abs_step in [0, 1.0e-7]:
                 rel_steps = [0, 1.0e-7]
