@@ -12,7 +12,7 @@ authors:
   - name: Matt Landreman^[mattland@umd.edu]
     orcid: 0000-0003-0872-7098
     affiliation: 1
-  - name: Florian Wechshung
+  - name: Florian Wechsung
     affiliation: 2
   - name: Bharat Medasani
     orcid: 0000-0002-2073-4162
