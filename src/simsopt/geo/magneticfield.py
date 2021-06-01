@@ -1,5 +1,4 @@
 import numpy as np
-from simsopt.geo.poincare import compute_poincare, plot_poincare
 
 
 class MagneticField():
@@ -71,6 +70,7 @@ class MagneticField():
 
     def __rmul__(self, other):
         return MagneticFieldMultiply(other, self)
+
 
 class MagneticFieldMultiply(MagneticField):
     '''
