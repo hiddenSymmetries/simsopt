@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
 
+@unittest.skipIf(not spec_found, "SPEC python module not found")
 class SpecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
@@ -51,7 +52,6 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
-    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_run(self):
         """
         Try running SPEC and reading in the output.
@@ -72,7 +72,6 @@ class SpecTests(unittest.TestCase):
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
 
-    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -142,7 +141,6 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
 
-    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
         This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -204,7 +202,6 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.iota(), desired_iota, places=5)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
 
-    @unittest.skipIf(not spec_found, "SPEC python module not found")
     def test_integrated_stellopt_scenarios_2dof(self):
         """
         This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from

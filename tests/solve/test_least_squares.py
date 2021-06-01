@@ -1,7 +1,9 @@
 import unittest
 import logging
 
-from simsopt.objectives.functions import Identity, Rosenbrock
+import numpy as np
+
+from simsopt.objectives.functions import Identity, Rosenbrock, Beale
 from simsopt._core.optimizable import Target
 from simsopt.objectives.least_squares import LeastSquaresProblem, \
     LeastSquaresTerm
@@ -16,7 +18,8 @@ def mpi_solve_1group(prob, **kwargs):
 
 solvers = [least_squares_serial_solve, mpi_solve_1group]
 
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class LeastSquaresProblemTests(unittest.TestCase):
@@ -181,6 +184,31 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 v = r.get_dofs()
                 self.assertAlmostEqual(v[0], 1)
                 self.assertAlmostEqual(v[1], 1)
+
+    def test_solve_with_finite_differences(self):
+        """
+        Minimize a function for which analytic derivatives are not
+        provided. Provides test coverage for the finite-differencing
+        options.
+        """
+        #for solver in [least_squares_serial_solve]:
+        for solver in solvers:
+            for abs_step in [0, 1.0e-7]:
+                rel_steps = [0, 1.0e-7]
+                if abs_step == 0:
+                    rel_steps = [1.0e-7]
+                for rel_step in rel_steps:
+                    for diff_method in ["forward", "centered"]:
+                        logger.debug(f'solver={solver} diff_method={diff_method} ' \
+                                     f'abs_step={abs_step} rel_step={rel_step}')
+                        b = Beale()
+                        b.set_dofs([0.1, -0.2])
+                        prob = LeastSquaresProblem([(b, 0, 1)], diff_method=diff_method,
+                                                   abs_step=abs_step, rel_step=rel_step)
+                        #least_squares_serial_solve(prob, grad=True)
+                        solver(prob, grad=True)
+                        np.testing.assert_allclose(prob.x, [3, 0.5])
+                        np.testing.assert_allclose(prob.f(), [0, 0, 0], atol=1e-10)
 
 
 if __name__ == "__main__":
