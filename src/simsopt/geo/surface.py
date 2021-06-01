@@ -253,16 +253,3 @@ class Surface(Optimizable):
 
         AR = R_major/R_minor
         return AR
-
-    def darea(self):
-        """ 
-        Short hand for `Surface.darea_by_dcoeff()`
-        """
-        return self.darea_by_dcoeff()
-
-    def dvolume(self):
-        """
-        Short hand for `Surface.dvolume_by_dcoeff()`
-        """
-        return self.dvolume_by_dcoeff()
-
