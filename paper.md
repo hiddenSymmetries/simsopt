@@ -9,19 +9,26 @@ tags:
   - stellarator
   - fusion energy
 authors:
-  - name: Adrian M. Price-Whelan^[Custom footnotes for e.g. denoting who the corresponding author is can be included like this.]
+  - name: Matt Landremann^[Custom footnotes for e.g. denoting who the corresponding author is can be included like this.]
     orcid: 0000-0003-0872-7098
     affiliation: "1, 2" # (Multiple affiliations must be quoted)
-  - name: Author Without ORCID
+  - name: Florian Wechshung
     affiliation: 2
-  - name: Author with no affiliation
+  - name: Bharat Medasani
+    orcid: 0000-0002-2073-4162
+    affiliation: 3
+  - name: Andrew Guiliani
+    affiliation: 2
+  - name: Rogerio Jorge
+    affiliation: 1
+  - name: Caoxiang Zhu
     affiliation: 3
 affiliations:
- - name: Lyman Spitzer, Jr. Fellow, Princeton University
+ - name: University of Maryland 
    index: 1
- - name: Institution Name
+ - name: New York University
    index: 2
- - name: Independent Researcher
+ - name: Princeton Plasma Physics Lab
    index: 3
 date: 1 June 2021
 bibliography: paper.bib
