@@ -60,6 +60,24 @@ optimizations.  These components include
 
 [//]: # (Should include references "to other software addressing related needs.")
 
+To effectively confine plasmas for the goal of fusion energy, 
+the three-dimensional magnetic field of a stellarator has to be carefully designed.
+The design effort is essentially to vary the magnetohydrodynamic (MHD) 
+equilibrium to meet multiple metrics, for example, MHD stability, 
+neoclassical transport, fast-ion confinement, turbulence transport, and buildable coils. 
+This process involves calling several physics codes and cannot be done manually. 
+Therefore, we need a stellarator optimization code.
+
+Although the idea of stellarator optimization has been proposed for decades, 
+there are limited codes available to use. 
+The two most commonly used codes are STELLOPT [@STELLOPT] and ROSE [@ROSE]. 
+While ROSE is closed-sourced, STELLOPT is written in Fortran and couples all the codes explicitly. 
+It requires non-trial effort to learn to use the code and write an interface for a new module. 
+The goal of SIMSOPT is to flatten the learning curve, 
+improve the flexibility of prototyping new problems, and enhance the extendibility & maintainability. 
+To achieve the goals, SIMSOPT is written in objective-oriented Python and stays close to standards. 
+The physics codes are interfaced using a Fortran/Python wrapper or a C++/Python binding tool. 
+Modern tools are used in SIMSOPT to manage the documentation and unity tests.
 
 
 # Structure
