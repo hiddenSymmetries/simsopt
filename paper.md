@@ -18,7 +18,7 @@ authors:
   - name: Florian Wechsung
     orcid: 0000-0003-2195-6522
     affiliation: 3
-  - name: Andrew Guiliani
+  - name: Andrew Giuliani
     orcid: 0000-0002-4388-2782
     affiliation: 3
   - name: Rogerio Jorge
