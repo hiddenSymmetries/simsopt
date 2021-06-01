@@ -26,7 +26,7 @@ authors:
 affiliations:
  - name: University of Maryland 
    index: 1
- - name: New York University
+ - name: Courant Institute of Mathematical Sciences, New York University
    index: 2
  - name: Princeton Plasma Physics Laboratory
    index: 3
@@ -184,6 +184,7 @@ Benjamin Faber,
 Stuart Hudson,
 Thomas Kruger,
 Jonathan Schilling,
+Georg Stadler,
 and
 Zhisong Qu.
 This work was supported by a grant from the Simons Foundation (560651,
