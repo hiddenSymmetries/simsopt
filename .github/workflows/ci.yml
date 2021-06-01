@@ -74,7 +74,9 @@ jobs:
       run: which python3
 
     - name: which pip after python setup
-      run: pip --version
+      run: |
+        python -m pip install --upgrade pip
+        pip --version
 
     - name: env after adding python
       run: env
@@ -187,20 +189,49 @@ jobs:
     #  run: |
     #    pip install mpi4py
 
-    - name: Install simsopt package
-      run: pip install -v .[MPI,SPEC]
+    #- name: Install simsopt package
+    #  run: pip install -v .[MPI,SPEC]
 
-    - name: Run mpi unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: ./run_tests_mpi
+    #- name: Run mpi unit tests
+    #  if: "contains(matrix.test-type, 'unit')"
+    #  run: ./run_tests_mpi
 
-    - name: Run serial unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: |
-        cd tests
-        python3 -m unittest -v
+    #- name: Run serial unit tests
+    #  if: "contains(matrix.test-type, 'unit')"
+    #  run: |
+    #    cd tests
+    #    python3 -m unittest -v
+    
+    - name: Install tox dependencies
+      run: pip install tox tox-gh-actions tox-venv
 
-    - name: Run integrated tests
+    - name: Run tests under tox
+      run: tox
+
+    - name: Upload coverage to github
+      if: ${{ matrix.python-version == '3.8' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: tox-gh-actions-coverage
+        path: coverage.xml
+        if-no-files-found: error
+
+    - name: Upload coverage to Codecov
+      if: ${{ matrix.python-version == '3.8' }}
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        #files: ./coverage1.xml,./coverage2.xml
+        #directory: ./coverage/reports/
+        flags: unittests
+        env_vars: PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        #path_to_write_report: ./coverage/codecov_report.gz
+        verbose: true
+
+    - name: Run examples as integrated tests
       if: "contains(matrix.test-type, 'integrated')"
       run: |
         cd examples
