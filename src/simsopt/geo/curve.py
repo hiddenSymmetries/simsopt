@@ -11,6 +11,9 @@ from .._core.optimizable import Optimizable
 
 @jit
 def incremental_arclength_pure(d1gamma):
+    """
+    This function is used in a Python+Jax implementation of the curve arc length formula.
+    """
     return jnp.linalg.norm(d1gamma, axis=1)
 
 
@@ -19,6 +22,9 @@ incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_a
 
 @jit
 def kappa_pure(d1gamma, d2gamma):
+    """
+    This function is used in a Python+Jax implementation of formula for curvature.
+    """
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
 
 
@@ -30,6 +36,9 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 
 @jit
 def torsion_pure(d1gamma, d2gamma, d3gamma):
+    """
+    This function is used in a Python+Jax implementation of formula for torsion.
+    """
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
 
 
@@ -85,12 +94,29 @@ class Curve(Optimizable):
             mlab.show()
 
     def dincremental_arclength_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{d\|\Gamma`\|}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}}
+        
+        where :math:`\|\Gamma'\|` is the incremental arclength, 
+        :math:`\Gamma'` is the tangent to the curve and :math:`\mathbf{c}` are the coil dofs.
+        """
+
         return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
 
     def kappa_impl(self, kappa):
+        """
+        This function implements the curvature.
+        """
         kappa[:] = np.asarray(kappa_pure(self.gammadash(), self.gammadashdash()))
 
     def dkappa_by_dcoeff_impl(self, dkappa_by_dcoeff):
+        """
+        This function computes the derivative of the curvature with respect to the coil coefficients.
+        """
+
         dgamma_by_dphi = self.gammadash()
         dgamma_by_dphidphi = self.gammadashdash()
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
@@ -107,9 +133,15 @@ class Curve(Optimizable):
             - (norm(numerator) * 3 / denominator**5)[:, None] * np.sum(dgamma_by_dphi[:, :, None] * dgamma_by_dphidcoeff[:, :, :], axis=1)
 
     def torsion_impl(self, torsion):
+        """
+        This function returns the torsion of a curve.
+        """
         torsion[:] = torsion_pure(self.gammadash(), self.gammadashdash(), self.gammadashdashdash())
 
     def dtorsion_by_dcoeff_impl(self, dtorsion_by_dcoeff):
+        """
+        This function returns the derivative of torsion with respect to the coil dofs.
+        """
         d1gamma = self.gammadash()
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
@@ -123,15 +155,35 @@ class Curve(Optimizable):
         dtorsion_by_dcoeff[:, :] -= np.sum(np.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1)[:, None] * np.sum(2 * np.cross(d1gamma, d2gamma, axis=1)[:, :, None] * (np.cross(d1gammadcoeff, d2gamma[:, :, None], axis=1) + np.cross(d1gamma[:, :, None], d2gammadcoeff, axis=1)), axis=1)/np.sum(np.cross(d1gamma, d2gamma, axis=1)**2, axis=1)[:, None]**2
 
     def dkappa_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \left[ \frac{d \kappa}{d\Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{d \kappa}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}} \right]
+        
+        """
+
         return self.dgammadash_by_dcoeff_vjp(kappavjp0(self.gammadash(), self.gammadashdash(), v)) \
             + self.dgammadashdash_by_dcoeff_vjp(kappavjp1(self.gammadash(), self.gammadashdash(), v))
 
     def dtorsion_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \left[ \frac{d \tau}{d\Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{d \tau}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}} \right]
+        
+        """
+
         return self.dgammadash_by_dcoeff_vjp(torsionvjp0(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
             + self.dgammadashdash_by_dcoeff_vjp(torsionvjp1(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
             + self.dgammadashdashdash_by_dcoeff_vjp(torsionvjp2(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v))
 
     def frenet_frame(self):
+        r"""
+        This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
+        associated to the curve.
+        """
         gammadash = self.gammadash()
         gammadashdash = self.gammadashdash()
         l = self.incremental_arclength()
@@ -150,6 +202,9 @@ class Curve(Optimizable):
         return t, n, b
 
     def kappadash(self):
+        r"""
+        This function returns :math:`\kappa'(\phi)`.
+        """
         dkappa_by_dphi = np.zeros((len(self.quadpoints), ))
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
@@ -162,6 +217,14 @@ class Curve(Optimizable):
         return dkappa_by_dphi
 
     def dfrenet_frame_by_dcoeff(self):
+        r"""
+        This function returns the derivative of the curve's Frenet frame, 
+        
+        .. math::
+            \left(\frac{d\mathbf{t}}{d\mathbf{c}}, \frac{d\mathbf{n}}{d\mathbf{c}}, \frac{d\mathbf{b}}{d\mathbf{c}}\right),
+        
+        with respect to the coil dofs.
+        """
         dgamma_by_dphi = self.gammadash()
         d2gamma_by_dphidphi = self.gammadashdash()
         d2gamma_by_dphidcoeff = self.dgammadash_by_dcoeff()

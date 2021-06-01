@@ -94,7 +94,7 @@ class LpCurveCurvature(Optimizable):
 @jit
 def Lp_torsion_pure(torsion, gammadash, p):
     """
-    This formula is used in a Python+Jax implementation of the formula for the torsion penalty term.
+    This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.abs(torsion)**p * arc_length)
