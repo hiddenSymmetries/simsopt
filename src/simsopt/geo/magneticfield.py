@@ -72,40 +72,6 @@ class MagneticField():
     def __rmul__(self, other):
         return MagneticFieldMultiply(other, self)
 
-    def BR_Bphi_BZ(self):
-        Bxyz = self.B()
-        phi = np.arctan2(self.points[:, 1], self.points[:, 0])
-        B_phi = np.cos(phi)*Bxyz[:, 1] - np.sin(phi)*Bxyz[:, 0]
-        B_r = np.cos(phi)*Bxyz[:, 0] + np.sin(phi)*Bxyz[:, 1]
-        B_z = Bxyz[:, 2]
-        return np.vstack((B_r, B_phi, B_z)).T
-
-    def dB_by_drphiz(self):
-        phi = np.arctan2(self.points[:, 1], self.points[:, 0])
-        x = self.points[:, 0]
-        y = self.points[:, 1]
-        dB = self.dB_by_dX()
-        B = self.B()
-        drBr = np.cos(phi)*(np.cos(phi)*dB[:, 0, 0]+np.sin(phi)*dB[:, 0, 1])+np.sin(phi)*(np.cos(phi)*dB[:, 1, 0]+np.sin(phi)*dB[:, 1, 1])
-        dphiBr = -np.sin(phi)*B[:, 0]+np.cos(phi)*B[:, 1]+x*(-np.sin(phi)*dB[:, 0, 0]+np.cos(phi)*dB[:, 0, 1])+y*(-np.sin(phi)*dB[:, 1, 0]+np.cos(phi)*dB[:, 1, 1])
-        dzBr = np.cos(phi)*dB[:, 0, 2]+np.sin(phi)*dB[:, 1, 2]
-        drBphi = np.cos(phi)*(np.cos(phi)*dB[:, 1, 0]+np.sin(phi)*dB[:, 1, 1])-np.sin(phi)*(np.cos(phi)*dB[:, 0, 0]+np.sin(phi)*dB[:, 0, 1])
-        dphiBphi = -np.sin(phi)*B[:, 1]-np.cos(phi)*B[:, 0]+x*(-np.sin(phi)*dB[:, 1, 0]+np.cos(phi)*dB[:, 1, 1])-y*(-np.sin(phi)*dB[:, 0, 0]+np.cos(phi)*dB[:, 0, 1])
-        dzBphi = np.cos(phi)*dB[:, 1, 2]-np.sin(phi)*dB[:, 0, 2]
-        drBz = np.cos(phi)*dB[:, 2, 0]+np.sin(phi)*dB[:, 2, 1]
-        dphiBz = -y*dB[:, 2, 0]+x*dB[:, 2, 1]
-        dzBz = dB[:, 2, 2]
-        return np.transpose(np.array([[drBr, drBphi, dzBr], [dphiBr, dphiBphi, dphiBz], [drBz, dzBphi, dzBz]]), [2, 1, 0])
-
-    def d_RZ_d_phi(self, phi, RZ):
-        R = RZ[0]
-        Z = RZ[1]
-        x = R*np.cos(phi)
-        y = R*np.sin(phi)
-        self.set_points([[x, y, Z]])
-        BR, Bphi, BZ = self.BR_Bphi_BZ()[0]
-        return [R * BR / Bphi, R * BZ / Bphi]
-
 class MagneticFieldMultiply(MagneticField):
     '''
     Class used to multiply a magnetic field by a scalar.
