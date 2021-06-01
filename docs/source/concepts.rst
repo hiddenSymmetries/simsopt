@@ -187,12 +187,20 @@ A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1
 
 The different curve classes, such as :obj:`simsopt.geo.curverzfourier.CurveRZFourier` and :obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` differ in the way curves are discretized.
 Each of these take an array of ``dofs`` (e.g. Fourier coefficients) and turn these into a function :math:`\Gamma:[0, 1] \to R^3`.
-These dofs can be set via ``Curve.set_dofs(dofs)`` and ``dofs = Curve.get_dofs()``.
+These dofs can be set via ``Curve.set_dofs(dofs)`` and ``dofs = Curve.get_dofs()``, where ``n_dofs = dofs.size``.
 Changing dofs will change the shape of the curve. Simsopt is able to compute derivatives of all relevant quantities with respect to the discretisation parameters.
 For example, to compute the derivative of the coordinates of the curve at quadrature points, one calls ``Curve.dgamma_by_dcoeff()``.
-One obtains a numpy array of shape ``(n, 3, n_dofs)``, containing the derivative of the position at every quadrature point with respect to every degree of freedom of the curve.
+One obtains a numpy array of shape ``(n_phi, 3, n_dofs)``, containing the derivative of the position at every quadrature point with respect to every degree of freedom of the curve.
 In the same way one can compute the derivative of quantities such as curvature (via ``Curve.dkappa_by_dcoeff()``) or torsion (via ``Curve.dtorsion_by_dcoeff()``).
 
+A number of quantities are implemented in `simsopt.geo.curveobjectives` and are computed on a :obj:`simsopt.geo.curve.Curve`:
+
+- ``CurveLength``: computes the length of the ``Curve``.
+- ``LpCurveCurvature``: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
+- ``LpCurveTorsion``: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
+- ``MinimumDistance``: computes a penalty term on the minimum distance between a set of curves.
+
+The value of the quantity and its derivative with respect to the curve dofs can be obtained by calling e.g., ``CurveLength.J()`` and ``CurveLength.dJ()``.
 
 **Surfaces**
 
@@ -205,6 +213,16 @@ The usage is similar to that of the :obj:`~simsopt.geo.curve.Curve` class:
 - ``Surface.gammadash1()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
 - ``Surface.gammadash2()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\theta \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
 - ``Surface.normal()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)\times \partial_\theta \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.area()``: returns the surface area.
+- ``Surface.volume()``: returns the volume enclosed by the surface.
+
+A number of quantities are implemented in `simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.surface.Surface`:
+
+- ``ToroidalFlux``: computes the flux through a toroidal cross section of a ``Surface``.
+
+The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., ``ToroidalFlux.J()`` and ``ToroidalFlux.dJ_dsurfacecoefficients()``.
+
+
 
 **Implementation note**
 
