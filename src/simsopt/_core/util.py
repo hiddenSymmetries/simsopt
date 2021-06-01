@@ -202,8 +202,7 @@ def finite_difference_steps(x: RealArray,
     if rel_step < 0:
         raise ValueError('rel_step must be >= 0')
 
-    steps = np.max((np.abs(x) * rel_step,
-                    np.full(len(x), abs_step)),
+    steps = np.max((np.abs(x) * rel_step, np.full(len(x), abs_step)),
                    axis=0)
 
     # If abs_step == 0 and any elements of x are 0, we could end up

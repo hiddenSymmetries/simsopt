@@ -198,12 +198,12 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 if abs_step == 0:
                     rel_steps = [1.0e-7]
                 for rel_step in rel_steps:
-                    for differences in ["forward", "centered"]:
-                        logger.debug(f'solver={solver} differences={differences} ' \
+                    for diff_method in ["forward", "centered"]:
+                        logger.debug(f'solver={solver} diff_method={diff_method} ' \
                                      f'abs_step={abs_step} rel_step={rel_step}')
                         b = Beale()
                         b.set_dofs([0.1, -0.2])
-                        prob = LeastSquaresProblem([(b, 0, 1)], differences=differences,
+                        prob = LeastSquaresProblem([(b, 0, 1)], diff_method=diff_method,
                                                    abs_step=abs_step, rel_step=rel_step)
                         #least_squares_serial_solve(prob, grad=True)
                         solver(prob, grad=True)
