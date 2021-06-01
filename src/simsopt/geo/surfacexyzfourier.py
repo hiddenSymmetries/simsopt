@@ -5,20 +5,19 @@ from .surfacerzfourier import SurfaceRZFourier
 
 
 class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
-    r"""
-    SurfaceXYZFourier is a surface that is represented in Cartesian
+    r"""`SurfaceXYZFourier` is a surface that is represented in Cartesian
     coordinates using the following Fourier series:
 
     .. math::
         \hat x(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_{\text{tor}}}^{n_{tor}} [
-              x_{c,m,n} \cos(m \theta - n_\text{ nfp } \phi)
-            + x_{s,m,n} \sin(m \theta - n_\text{ nfp } \phi)]\\
+              x_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
+            + x_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]\\
         \hat y(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
-              y_{c,m,n} \cos(m \theta - n_\text{nfp} \phi)
-            + y_{s,m,n} \sin(m \theta - n_\text{nfp} \phi)]\\
+              y_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
+            + y_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]\\
         z(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
-              z_{c,m,n} \cos(m \theta - n_\text{ nfp} \phi)
-            + z_{s,m,n} \sin(m \theta - n_\text{ nfp} \phi)]
+              z_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
+            + z_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]
 
     where
 
@@ -31,7 +30,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
 
     When enforcing stellarator symmetry, we set the
 
-    x_{s,*,*}, y_{c,*,*} and z_{c,*,*}
+    :math:`x_{s,*,*},\ y_{c,*,*} \text{ and } z_{c,*,*}`
 
     terms to zero.
     """
