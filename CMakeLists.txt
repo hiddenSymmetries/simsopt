@@ -19,7 +19,14 @@ message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
 message(status "Python version is ${Python_VERSION}")
 
 find_package(OpenMP)
-find_package(Boost REQUIRED) 
+find_package(Boost)
+if(Boost_FOUND)
+    message(STATUS "Boost version" ${Boost_VERSION_STRING})
+    message(STATUS "Boost include" ${Boost_INCLUDE_DIRS})
+    add_compile_definitions(WITH_BOOST)
+else()
+    message(STATUS "Compiling without boost.")
+endif()
 
 
 find_package(Git QUIET)
