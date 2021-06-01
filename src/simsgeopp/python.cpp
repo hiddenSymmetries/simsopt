@@ -22,6 +22,7 @@ using std::shared_ptr;
 void init_surfaces(py::module_ &);
 void init_curves(py::module_ &);
 void init_magneticfields(py::module_ &);
+void init_tracing(py::module_ &);
 
 
 PYBIND11_MODULE(simsgeopp, m) {
@@ -30,6 +31,7 @@ PYBIND11_MODULE(simsgeopp, m) {
     init_curves(m);
     init_surfaces(m);
     init_magneticfields(m);
+    init_tracing(m);
 
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
