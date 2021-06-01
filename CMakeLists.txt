@@ -12,12 +12,15 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
 
-find_package(OpenMP)
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
 message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
 message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
 message(status "Python version is ${Python_VERSION}")
+
+find_package(OpenMP)
+find_package(Boost REQUIRED) 
+
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -49,18 +52,18 @@ set(XTENSOR_USE_OPENMP 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/python.cpp src/simsgeopp/python_surfaces.cpp src/simsgeopp/python_curves.cpp
-    src/simsgeopp/python_magneticfield.cpp
+    src/simsgeopp/python_magneticfield.cpp src/simsgeopp/python_tracing.cpp
     src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp
     src/simsgeopp/regular_grid_interpolant_3d_py.cpp
     src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
     src/simsgeopp/surface.cpp src/simsgeopp/surfacerzfourier.cpp src/simsgeopp/surfacexyzfourier.cpp
-    src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp
+    src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp src/simsgeopp/tracing.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/" ${Boost_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
 add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d_c.cpp)
