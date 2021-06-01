@@ -256,10 +256,6 @@ class CircularCoil(MagneticField):
                  np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
                  np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
 
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
-
     def compute_A(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
@@ -273,17 +269,9 @@ class CircularCoil(MagneticField):
         ellipkk2 = ellipk(k**2)
 
         self._A = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
-            (2*self.r0*+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
+            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipek2-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
-            np.array([-points[:, 1], points[:, 0], 0])).T)
-
-        if compute_derivatives >= 1:
-            self._dA_by_dX = None
-            raise RuntimeError("First derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
-
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = None
-            raise RuntimeError("Second derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
+            np.array([-points[:, 1], points[:, 0], 0*points[:, 0]]))).T
 
 
 class Dommaschk(MagneticField):
