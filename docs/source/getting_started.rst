@@ -93,7 +93,7 @@ Docker Hub.
 
 .. code-block::
 
-   docker run -it --rm medbha/simsopt_ubuntu_focal python
+   docker run -it --rm hiddensymmetries/simsopt python
 
 The above command shoud load the python shell that comes with the simsopt
 docker container. When you run it first time, the image is downloaded

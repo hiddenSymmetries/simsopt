@@ -19,7 +19,7 @@ Docker Hub.
 
 .. code-block::
 
-   docker run -it --rm medbha/simsopt_ubuntu_focal python # Linux users, prefix the command with sudo
+   docker run -it --rm hiddensymmetries/simsopt python # Linux users, prefix the command with sudo
 
 The above command should load the python shell that comes with the simsopt
 docker container. When you run it first time, the image is downloaded
@@ -39,7 +39,7 @@ is only useful if a few commands need to be executed or to load a python module 
 
 .. code-block::
 
-    docker run -it --rm medbha/simsopt_ubuntu_focal ipython
+    docker run -it --rm hiddensymmetries/simsopt ipython
 
 Bash Shell
 ----------
@@ -50,7 +50,7 @@ to mount the current directory
 
 .. code-block:: 
 
-    docker run -it --rm -v $PWD:/my_mount medbha/simsopt_ubuntu_focal 
+    docker run -it --rm -v $PWD:/my_mount hiddensymmetries/simsopt 
     <container ###> cd /my_mount
     <container ###> python <driver_script>
 
@@ -62,7 +62,7 @@ the container using the command:
 
 .. code-block::
    
-    docker run -it --rm -v $PWD:/my_mount -p 8888:8888 medbha/simsopt_ubuntu_focal 
+    docker run -it --rm -v $PWD:/my_mount -p 8888:8888 hiddensymmetries/simsopt 
     <container ###> cd /my_mount
     <container ###> jupyter notebook --ip 0.0.0.0 --no-browser # On linux use --allow-root option 
 
