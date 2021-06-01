@@ -55,8 +55,6 @@ jobs:
           file: ci/Dockerfile.ubuntu
           push: true
           tags: hiddensymmetries/simsopt:test
-          #secrets: "spec_checkout=${{ secrets.SPEC_CHECKOUT }}"
-|
 
       - name: Build and push for tag
         uses: docker/build-push-action@v2
