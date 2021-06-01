@@ -88,17 +88,24 @@ rotational transform at the magnetic axis and edge, $B_{m,n}$ is the
 amplitude of the $\cos(m\theta-n\varphi)$ Fourier mode of the field
 strength in Boozer coordinates for the flux surface with normalized
 toroidal flux $s=0.5$, only $n \ne 0$ modes are included in the sum,
-and $R_X$ and $R_O$ are the residues [@Greene] for the X- and
-O-points.  The notion of eliminating islands by minimizing residues is
-taken from [@Hanson].  A single radial domain is used for SPEC
-calculations. The initial configuration, shown in
+and $R_X$ and $R_O$ are the residues [@Greene] for the X- and O-points
+of the primary island chain.  The residues are included in the
+objective to reduce the island width, as in [@Hanson], since the
+residues are zero when the islands have zero width.  The residues are
+computed by postprocessing of the SPEC solution, while the other terms
+in the objective are computed from the VMEC solution, with the
+$B_{m,n}$ values computed by postprocessing of the VMEC solution with
+booz_xform.  A single radial domain is used for SPEC calculations. The
+initial configuration, shown in
 \autoref{fig:xsections}-\autoref{fig:poincare}, is a two field period
 vacuum field obtained by minimizing the same objective function with
-`simsopt` but without the residue terms.  As shown in figure
+`simsopt` but without the residue terms.  As shown in
 \autoref{fig:poincare}, this initial configuration has a significant
-island chain at the $\iota=2/5$ resonance. The parameter space for the
-optimization consists of the Fourier modes of the boundary toroidal
-surface
+island chain at the $\iota=2/5$ resonance. Therefore, VMEC and SPEC do
+not agree on the internal flux surface shapes near the islands for
+this initial configuration.  The parameter space for the optimization
+consists of the Fourier modes $\{R_{m,n},\,Z_{m,n}\}$ of the boundary
+toroidal surface
 
 $$R(\theta,\phi) = \sum_{m,n}R_{m,n}\cos(m\theta-2n\phi), \;\;\; Z(\theta,\phi) = \sum_{m,n}Z_{m,n}\sin(m\theta-2n\phi)$$
 
@@ -169,20 +176,25 @@ Notably, the `Spec` object is configured to use the same boundary
 `Surface` object as the `Vmec` instance, so when the shape of this
 single surface is modified during the optimization, the outputs of
 both Vmec and Spec change accordingly.  Also, since the optimization
-problem is formulated with a script, any other desired scripting
-elements can be included. Here this capability is used to define a
-series of optimization stages, in which the size of the parameter
-space is increased at each step, along with the numerical resolution
+problem is defined with a script, any other desired scripting elements
+can be included. Here this capability is used to define a series of
+three optimization stages, in which the size of the parameter space
+(the maximum $m$ and $n$ values of the $\{R_{m,n},\,Z_{m,n}\}$ to
+vary) is increased at each step, along with the numerical resolution
 parameters of the codes. The former is valuable to avoid getting stuck
 in a local minimum, and the latter improves computational efficiency.
 
 It can be seen in figure \autoref{fig:poincare} that the optimization
 has successfully eliminated the islands; indeed the residues have been
 reduced from $\pm2\times 10^{-3}$ to $-2\times 10^{-6}$. Therefore the
-VMEC and SPEC solutions agree on the surface shapes at the optimum,
-and calculations based on the VMEC solution can be trusted.  The final
-configuration also has extremely good quasiaxisymmetry, as shown by
-the straight horizontal contours of $|B|$ in \autoref{fig:boozer}.
+VMEC and SPEC solutions agree on the internal flux surface shapes at
+the optimum, and calculations based on the VMEC solution can be
+trusted.  The rotational transform ranges from 0.39 to 0.42 for both
+the initial and optimized configurations, so the islands were not
+eliminated by shifting the resonance out of the domain, but rather by
+eliminating the resonant field.  The final configuration also has
+extremely good quasiaxisymmetry, as shown by the straight horizontal
+contours of $|B|$ in \autoref{fig:boozer}.
 
 ![Magnetic field strength for the optimized stellarator shape,
  computed from VMEC and booz_xform, showing good
