@@ -74,7 +74,7 @@ A software framework is needed to connect these physics calculations with numeri
 
 Although the idea of stellarator optimization is several decades old, 
 there are limited codes available to use. 
-The two most commonly used codes are STELLOPT [@STELLOPT] and ROSE [@ROSE]. 
+The two most commonly used codes are STELLOPT [@STELLOPT_Hirshman; @STELLOPT_Spong; @STELLOPT_repo] and ROSE [@ROSE]. 
 While ROSE is closed-sourced, STELLOPT is written in Fortran and couples all the codes explicitly. 
 It requires modification of several core STELLOPT source files to write an interface for a new module. 
 The goal of SIMSOPT is to flatten the learning curve, 
@@ -99,10 +99,10 @@ repositories. Two such modules are the VMEC [@VMEC1983] and SPEC
 using the `f90wrap` package [@f90wrap], so data can be passed directly
 in memory to and from python.  This is particularly useful for passing
 MPI communicators for parallelized evaluation of finite-difference
-gradients.  Another module in a separate repository is BOOZ_XFORM, for
-calculation of Boozer coordinates.  This latter repository is a new
-C++ re-implementation of an algorithm in an older fortran 77 code of
-the same name.
+gradients.  Another module in a separate repository is BOOZ_XFORM
+[@booz_xform], for calculation of Boozer coordinates.  This latter
+repository is a new C++ re-implementation of an algorithm in an older
+fortran 77 code of the same name.
 
 A variety of geometric objects and magnetic field types are included
 in SIMSOPT.  Several discretizations of curves and toroidal surfaces
@@ -114,7 +114,7 @@ they carry. Other available magnetic field types include Dommaschk
 potentials [@Dommaschk] and the analytic formula for the field of a
 circular coil, and magnetic field instances can be scaled and
 summed. All the geometric and magnetic field classes provide one or
-two derivatives, either provided by explicit formulae, or by automatic
+two derivatives, either explicit formulae, or by automatic
 differentiation with the `jax` package [@jax].  Caching is available
 to avoid repeated calculations.
 
