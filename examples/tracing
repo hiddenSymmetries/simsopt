@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+from simsopt.geo.biotsavart import BiotSavart
+from simsopt.geo.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
+from simsopt.geo.coilcollection import CoilCollection
+from simsopt.tracing.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
+    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion
+from simsopt.geo.curve import curves_to_vtk
+import numpy as np
+import time
+import os
+import sys
+sys.path.append(os.path.join("..", "tests", "geo"))
+from surface_test_helpers import get_ncsx_data # noqa
+
+"""
+This examples demonstrate how to use SIMSOPT to compute Poincare plots and
+guiding center trajectories of particles
+"""
+
+
+coils, currents, ma = get_ncsx_data(Nt_coils=10, Nt_ma=10)
+stellarator = CoilCollection(coils, currents, 3, True)
+coils = stellarator.coils
+currents = stellarator.currents
+bs = BiotSavart(coils, currents)
+curves_to_vtk(coils, '/tmp/coils')
+
+mpol = 5
+ntor = 5
+stellsym = True
+nfp = 3
+phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
+thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+s = SurfaceRZFourier(
+    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+s.fit_to_curve(ma, 0.40, flip_theta=False)
+s.to_vtk('/tmp/surface')
+sc = SurfaceClassifier(s, h=0.05, p=2)
+sc.to_vtk('/tmp/levelset', h=0.01)
+
+
+def trace_fieldlines(bfield, label):
+    t1 = time.time()
+    nfieldlines = 20
+    res_gyro_t_cpp, res_gyro_cpp, res_phi_hits_cpp = compute_fieldlines(
+        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.005, tmax=1000,)
+    t2 = time.time()
+    print(f"Time for fieldline tracing={t2-t1:.3s}", flush=True)
+    particles_to_vtk(res_gyro_cpp, '/tmp/fieldlines_{label}')
+    nfieldlines = 20
+    import matplotlib.pyplot as plt
+    for i in range(len(res_phi_hits_cpp)):
+        plt.figure()
+        for j in range(len(res_phi_hits_cpp[i])):
+            if res_phi_hits_cpp[i][j].size >= 3:
+                plt.scatter(res_phi_hits_cpp[i][j][:, 1], res_phi_hits_cpp[i][j][:, 3], s=0.1)
+        plt.savefig(f'phi_{i}_{label}.png')
+        plt.close()
+
+
+def trace_particles(bfield):
+    nparticles = 10
+    t1 = time.time()
+    res_gyro_t, res_gyro = trace_particles_starting_on_axis(
+        ma.gamma(), bfield, nparticles, tmax=1e-3, seed=1, mass=1.67e-27, charge=1,
+        Ekinev=900, umin=-1, umax=+1,
+        stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
+    t2 = time.time()
+    print(f"Time for particle tracing={t2-t1:.3s}", flush=True)
+    particles_to_vtk(res_gyro, '/tmp/traces_{label}')
+
+
+trace_fieldlines(bs, 'bs')
+trace_particles(bs, 'bs')
+
+n = 16
+rrange = (1.0, 2.0, n)
+phirange = (0, 2*np.pi, n*6)
+zrange = (-0.7, 0.7, n)
+bsh = InterpolatedField(
+    bs, UniformInterpolationRule(3),
+    rrange, phirange, zrange, True
+)
+print(bsh.estimate_error_B(1000), flush=True)
+print(bsh.estimate_error_GradAbsB(1000), flush=True)
+trace_fieldlines(bsh, 'bsh')
+trace_particles(bsh, 'bsh')
