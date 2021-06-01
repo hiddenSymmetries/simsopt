@@ -106,15 +106,6 @@ class MagneticField():
         BR, Bphi, BZ = self.BR_Bphi_BZ()[0]
         return [R * BR / Bphi, R * BZ / Bphi]
 
-    def compute_poincare(self, R0, Z0, NFP=1, npoints=20, rtol=1e-6, atol=1e-9):
-        self.Poincare_data = compute_poincare(self, R0, Z0, NFP=NFP, npoints=npoints, rtol=rtol, atol=atol)
-        return self.Poincare_data
-
-    def plot_poincare(self, R0, Z0, NFP=1, npoints=20, rtol=1e-6, atol=1e-9, marker_size=2, extra_str=""):
-        self.Poincare_data = compute_poincare(self, R0, Z0, NFP=NFP, npoints=npoints, rtol=rtol, atol=atol)
-        plot_poincare(self.Poincare_data, marker_size=2, extra_str="")
-
-
 class MagneticFieldMultiply(MagneticField):
     '''
     Class used to multiply a magnetic field by a scalar.
