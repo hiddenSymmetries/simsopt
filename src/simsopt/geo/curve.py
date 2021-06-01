@@ -171,7 +171,7 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{d \tau}{d\Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{d \tau}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}} \right]
+            v^T \left[ \frac{\partial \tau}{\partial \Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} \right]
         
         """
 
@@ -221,7 +221,7 @@ class Curve(Optimizable):
         This function returns the derivative of the curve's Frenet frame, 
         
         .. math::
-            \left(\frac{d\mathbf{t}}{d\mathbf{c}}, \frac{d\mathbf{n}}{d\mathbf{c}}, \frac{d\mathbf{b}}{d\mathbf{c}}\right),
+            \left(\frac{\partial \mathbf{t}}{\partial \mathbf{c}}, \frac{\partial \mathbf{n}}{\partial \mathbf{c}}, \frac{\partial \mathbf{b}}{\partial \mathbf{c}}\right),
         
         with respect to the coil dofs.
         """
