@@ -282,12 +282,6 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
         return s
 
-    def darea(self):
-        return self.darea_by_dcoeff()
-
-    def dvolume(self):
-        return self.dvolume_by_dcoeff()
-
     def set_dofs(self, dofs):
         sgpp.SurfaceRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
