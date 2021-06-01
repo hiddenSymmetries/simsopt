@@ -376,3 +376,28 @@ class Failer(Optimizable):
 
     def set_dofs(self, x):
         self.x = x
+
+
+class Beale(Optimizable):
+    """
+    This is a test function which does not supply derivatives. It is
+    taken from
+    https://en.wikipedia.org/wiki/Test_functions_for_optimization
+    """
+
+    def __init__(self):
+        self.x = np.zeros(2)
+
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, x):
+        assert len(x) == 2
+        self.x = np.array(x)
+
+    def J(self):
+        x = self.x[0]
+        y = self.x[1]
+        return np.array([1.5 - x + x * y,
+                         2.25 - x + x * y * y,
+                         2.625 - x + x * y * y * y])

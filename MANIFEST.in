@@ -3,6 +3,7 @@ include examples/*
 exclude examples/wout*.nc examples/mercier* examples/jxbout* examples/spec*.sp examples/spec*.sp.* examples/.gitignore
 
 recursive-include thirdparty *
+recursive-include profiling *
 recursive-include src/simsgeopp *
 recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
 
