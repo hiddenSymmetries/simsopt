@@ -63,7 +63,6 @@ class LpCurveCurvature(Optimizable):
     provided, :math:`\kappa_0 = 2 \pi / \text{desired_length}`, otherwise :math:`\kappa_0=0`.
     """
 
-
     def __init__(self, curve, p, desired_length=None):
         self.curve = curve
         self.depends_on = ["curve"]
@@ -111,7 +110,6 @@ class LpCurveTorsion(Optimizable):
         J = \frac{1}{p} \int_{\text{curve}} \tau^p ~dl.
     
     """
-
 
     def __init__(self, curve, p):
         self.curve = curve
@@ -162,7 +160,6 @@ class MinimumDistance(Optimizable):
     coil :math:`j` lie more than :math:`d_\min` away from one another, for :math:`i, j \in \{1, \cdots, \text{num_coils}\}`
 
     """
-
 
     def __init__(self, curves, minimum_distance):
         self.curves = curves
