@@ -9,7 +9,7 @@ from .._core.optimizable import Optimizable
 @jit
 def curve_length_pure(l):
     """
-    A Python+Jax implementation of the formula for the curve length.
+    This function is used in a Python+Jax implementation of the curve length formula.
     """
     return jnp.mean(l)
 
@@ -44,7 +44,7 @@ class CurveLength(Optimizable):
 @jit
 def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
     """
-    A Python+Jax implementation of the formula for the curvature penalty term.
+    This function is used in a Python+Jax implementation of the curvature penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
@@ -94,7 +94,7 @@ class LpCurveCurvature(Optimizable):
 @jit
 def Lp_torsion_pure(torsion, gammadash, p):
     """
-    A Python+Jax implementation of the formula for the torsion penalty term.
+    This formula is used in a Python+Jax implementation of the formula for the torsion penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.abs(torsion)**p * arc_length)
@@ -136,7 +136,7 @@ class LpCurveTorsion(Optimizable):
 
 def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
-    A Python+Jax implementation of the distance formula.
+    This function is used in a Python+Jax implementation of the distance formula.
     """
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
     alen = jnp.linalg.norm(l1, axis=1) * jnp.linalg.norm(l2, axis=1)
