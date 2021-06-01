@@ -45,6 +45,12 @@ class Curve(Optimizable):
         self.fixed = np.full(len(self.get_dofs()), False)
 
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True, color=None, linestyle=None):
+        """
+        Plot the curve using :mod:`matplotlib.pyplot`, along with optionally its tangent when ``plot_derivative=True``. 
+        When ``close_loop=False`` the first and final point on the surface will not be connected, and
+        when it is ``True``, they will be connected by a line segment and a closed curve will be plotted.
+        """
+
         import matplotlib.pyplot as plt
 
         gamma = self.gamma()
@@ -68,6 +74,10 @@ class Curve(Optimizable):
         return ax
 
     def plot_mayavi(self, show=True):
+        """
+        Plot the curve using :mod:`mayavi.mlab` rather than :mod:`matplotlib.pyplot`.
+        """
+
         from mayavi import mlab
         g = self.gamma()
         mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
