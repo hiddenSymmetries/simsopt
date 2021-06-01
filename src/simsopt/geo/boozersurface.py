@@ -4,33 +4,33 @@ from simsopt.geo.surfaceobjectives import boozer_surface_residual
 
 
 class BoozerSurface():
-    """
+    r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
     or SurfaceXYZTensorFourier), a magnetic field evaluator, surface label evaluator,
     and a target surface label.
 
     The Boozer angles are computed by solving a constrained least squares problem.
-    The least squares objective is given by 0.5*|| f ||^2_2, where f is the residual
+    The least squares objective is given by :math:`\frac{1}{2}\| f \|^2_2`, where :math:`f` is the residual
     computed by boozer_surface_residual (see surfaceobjectives.py).  This objective
-    is zero when (phi,theta) that parametrize the surface correspond to Boozer angles.
+    is zero when :math:`(\phi,\theta)` that parametrize the surface correspond to Boozer angles.
 
     The surface label can be area, volume, or toroidal flux. The surface is constrained
     by the user-provided targetlabel.
 
     This constrained least squares problem can be solved by scalarizing and adding
     the constraint as an additional penalty term to the objective.  This is done in
-
-        minimize_boozer_penalty_constraints_LBFGS
-        minimize_boozer_penalty_constraints_newton
-        minimize_boozer_penalty_constraints_ls
+    
+        #. ``minimize_boozer_penalty_constraints_LBFGS``
+        #. ``minimize_boozer_penalty_constraints_newton``
+        #. ``minimize_boozer_penalty_constraints_ls``
 
     where LBFGS, Newton, or scipy.optimize.least_squares optimizers are used, respectively.
 
     Alternatively, the exactly constrained least squares optimization problem can be solved.
     This is done in
 
-        minimize_boozer_exact_constraints_newton
+        #. ``minimize_boozer_exact_constraints_newton``
 
     where Newton is used to solve the first order optimality condition.
     """
