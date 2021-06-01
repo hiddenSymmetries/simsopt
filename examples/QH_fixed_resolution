@@ -31,7 +31,8 @@ qs = Quasisymmetry(Boozer(vmec),
 
 # Define objective function
 prob = LeastSquaresProblem([(vmec.aspect, 7, 1),
-                            (qs, 0, 1)])
+                            (qs, 0, 1)],
+                           rel_step=1e-3, abs_step=1e-5)
 
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
