@@ -136,8 +136,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        Btemp = np.array(self.Blambdify(r, z, phi)).T
-        self._B = np.array([np.cos(phi)*Btemp[:, 0]-np.sin(phi)*Btemp[:, 1], np.sin(phi)*Btemp[:, 0]+np.cos(phi)*Btemp[:, 1], Btemp[:, 2]]).T
+        self._B = np.array(self.Blambdify(r, z, phi)).T
 
         if compute_derivatives >= 1:
             self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
