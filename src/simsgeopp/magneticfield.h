@@ -187,7 +187,7 @@ class MagneticField {
             this->points_cyl.invalidate_cache();
             npoints = p.shape(0);
             Tensor2& points = points_cyl.get_or_create({npoints, 3});
-            points = p;
+            memcpy(points.data(), p.data(), 3*npoints*sizeof(double));
             for (int i = 0; i < npoints; ++i) {
                 points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
             }
@@ -201,7 +201,7 @@ class MagneticField {
             this->points_cyl.invalidate_cache();
             npoints = p.shape(0);
             Tensor2& points = points_cart.get_or_create({npoints, 3});
-            points = p;
+            memcpy(points.data(), p.data(), 3*npoints*sizeof(double));
             this->set_points_cb();
             return *this;
         }
