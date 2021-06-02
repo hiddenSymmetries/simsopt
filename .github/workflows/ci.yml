@@ -189,8 +189,8 @@ jobs:
     #  run: |
     #    pip install mpi4py
 
-    #- name: Install simsopt package
-    #  run: pip install -v .[MPI,SPEC]
+    - name: Install simsopt package
+      run: pip install -v .[MPI,SPEC]
 
     #- name: Run mpi unit tests
     #  if: "contains(matrix.test-type, 'unit')"
