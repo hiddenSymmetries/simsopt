@@ -124,9 +124,11 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
      .def("area", &T::area)
      .def("darea_by_dcoeff", &T::darea_by_dcoeff)
+     .def("darea", &T::darea_by_dcoeff) // shorthand
      .def("d2area_by_dcoeffdcoeff", &T::d2area_by_dcoeffdcoeff)
      .def("volume", &T::volume)
      .def("dvolume_by_dcoeff", &T::dvolume_by_dcoeff)
+     .def("dvolume", &T::dvolume_by_dcoeff) // shorthand
      .def("d2volume_by_dcoeffdcoeff", &T::d2volume_by_dcoeffdcoeff)
      .def("fit_to_curve", &T::fit_to_curve, py::arg("curve"), py::arg("radius"), py::arg("flip_theta") = false)
      .def("scale", &T::scale)
