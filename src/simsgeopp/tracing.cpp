@@ -11,6 +11,7 @@ using std::pair;
 using std::function;
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
 
 
@@ -19,45 +20,47 @@ typedef xt::pyarray<double> Array;
 #if WITH_BOOST
 #include <boost/math/tools/roots.hpp>
 #include <boost/numeric/odeint.hpp>
+//#include <boost/numeric/odeint/stepper/bulirsch_stoer_dense_out.hpp>
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 #else
 #endif
 
-template<class Array>
-tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
-        shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing(
+        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
         double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
 #if WITH_BOOST
 
-    Array xyz({{xinit, yinit, zinit}});
+    typename MagneticField<T>::Tensor2 xyz({{xinit, yinit, zinit}});
     field->set_points(xyz);
     double AbsB = field->AbsB_ref()(0);
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*AbsB);
 
 
-    runge_kutta_dopri5<vector<double>> stepper;
+    runge_kutta_dopri5<array<double, 4>> stepper;
     //runge_kutta_fehlberg78<vector<double>> stepper;
-    auto rhs_class = GuidingCenterRHS<Array>(field, m, q, mu);
-    GuidingCenterRHS<Array>& rhs_ref = rhs_class; 
-    vector<double> y = {xinit, yinit, zinit, vtang};
+    auto rhs_class = GuidingCenterRHS<T>(field, m, q, mu);
+    GuidingCenterRHS<T>& rhs_ref = rhs_class; 
+    array<double, 4> y = {xinit, yinit, zinit, vtang};
 
     double dtmax = 0.1/vtotal; // can at most move 1cm per step
     double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-    auto res_y = vector<vector<double>>();
+    auto res_y = vector<array<double, 4>>();
     res_y.reserve(2*int(tmax/dtmax));
     auto res_t = vector<double>();
     res_t.reserve(2*int(tmax/dtmax));
-    function<void(const vector<double> &, double)> observer =
-        [&res_y, &res_t](const vector<double> &y, double t) {
+    function<void(const array<double, 4> &, double)> observer =
+        [&res_y, &res_t](const array<double, 4> &y, double t) {
             res_y.push_back(y);
             res_t.push_back(t);
         };
     
-    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<vector<double>>>::type dense_stepper_type;
-    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<vector<double>>());
+    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<array<double, 4>>>::type dense_stepper_type;
+    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<array<double, 4>>());
+    //bulirsch_stoer_dense_out<array<double, 4>> dense(tol, tol, 1.0, 1.0, dtmax);
     double t = 0;
     dense.initialize(y, t, dt);
     int iter = 0;
@@ -70,7 +73,7 @@ tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
         t = dense.current_time();
         y = dense.current_state();
         for (int i = 0; i < stopping_criteria.size(); ++i) {
-            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y)){
+            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2])){
                 stop = true;
                 break;
             }
@@ -78,7 +81,7 @@ tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
     } while(t < tmax && !stop);
     if(!stop){
         res_t.push_back(tmax);
-        vector<double> yfinal(4, 0.);
+        array<double, 4> yfinal;
         dense.calc_state(tmax, yfinal);
         res_y.push_back(yfinal);
     }
@@ -91,11 +94,11 @@ tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing(
 }
 
 template
-tuple<vector<double>, vector<vector<double>>> particle_guiding_center_tracing<Array>(
-        shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
+tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing<xt::pytensor>(
+        shared_ptr<MagneticField<xt::pytensor>> field, double xinit, double yinit, double zinit,
         double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
-double get_phi(const vector<double>& pt, double phi_near){
+double get_phi(const array<double, 3>& pt, double phi_near){
     double phi = std::atan2(pt[1], pt[0]);
     if(phi < 0)
         phi += 2*M_PI;
@@ -117,33 +120,33 @@ double get_phi(const vector<double>& pt, double phi_near){
 
 
 
-template<class Array>
-tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fieldline_tracing(
-        shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>> fieldline_tracing(
+        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
         double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
 #if WITH_BOOST
-    runge_kutta_dopri5<vector<double>> stepper;
+    runge_kutta_dopri5<array<double, 3>> stepper;
     //runge_kutta_fehlberg78<vector<double>> stepper;
-    auto rhs_class = FieldlineRHS<Array>(field);
-    vector<double> y = {xinit, yinit, zinit};
+    auto rhs_class = FieldlineRHS<T>(field);
+    array<double, 3> y = {xinit, yinit, zinit};
 
     double dtmax = 0.1; // can at most move 1cm per step
     double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    auto res_y = vector<vector<double>>();
+    auto res_y = vector<array<double, 3>>();
     res_y.reserve(2*int(tmax/dtmax));
     auto res_t = vector<double>();
     res_t.reserve(2*int(tmax/dtmax));
-    vector<vector<vector<double>>> res_phi_hits(phis.size(), vector<vector<double>>());
-    function<void(const vector<double> &, double)> observer =
-        [&res_y, &res_t](const vector<double> &y, double t) {
+    vector<vector<array<double, 4>>> res_phi_hits(phis.size(), vector<array<double, 4>>());
+    function<void(const array<double, 3> &, double)> observer =
+        [&res_y, &res_t](const array<double, 3> &y, double t) {
             res_y.push_back(y);
             res_t.push_back(t);
         };
     
-    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<vector<double>>>::type dense_stepper_type;
-    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<vector<double>>());
+    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<array<double, 3>>>::type dense_stepper_type;
+    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<array<double, 3>>());
     double t = 0;
     dense.initialize(y, t, dt);
     int iter = 0;
@@ -151,7 +154,7 @@ tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fi
     double phi_last = get_phi(y, M_PI);
     double phi_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
-    vector<double> temp = {0., 0., 0.};
+    array<double, 3> temp = {0., 0., 0.};
     do {
         res_t.push_back(t);
         res_y.push_back(y);
@@ -189,7 +192,7 @@ tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fi
         }
         phi_last = phi_current;
         for (int i = 0; i < stopping_criteria.size(); ++i) {
-            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y)){
+            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2])){
                 stop = true;
                 break;
             }
@@ -197,7 +200,7 @@ tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fi
     } while(t < tmax && !stop);
     if(!stop){
         res_t.push_back(tmax);
-        vector<double> yfinal(3, 0.);
+        array<double, 3> yfinal;
         dense.calc_state(tmax, yfinal);
         res_y.push_back(yfinal);
     }
@@ -209,6 +212,6 @@ tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fi
 }
 
 template
-tuple<vector<double>, vector<vector<double>>, vector<vector<vector<double>>>> fieldline_tracing(
-        shared_ptr<MagneticField<Array>> field, double xinit, double yinit, double zinit,
+tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>> fieldline_tracing(
+        shared_ptr<MagneticField<xt::pytensor>> field, double xinit, double yinit, double zinit,
         double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);

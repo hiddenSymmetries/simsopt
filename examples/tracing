@@ -34,38 +34,37 @@ phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-s.fit_to_curve(ma, 0.50, flip_theta=False)
+s.fit_to_curve(ma, 0.70, flip_theta=False)
 s.to_vtk('/tmp/surface')
-sc = SurfaceClassifier(s, h=0.05, p=2)
-sc.to_vtk('/tmp/levelset', h=0.01)
+sc = SurfaceClassifier(s, h=0.1, p=2)
+sc.to_vtk('/tmp/levelset', h=0.02)
 
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
-    nfieldlines = 20
+    nfieldlines = 50
     res_gyro_t_cpp, res_gyro_cpp, res_phi_hits_cpp = compute_fieldlines(
-        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.005, tmax=1000,
+        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.0025, tmax=4000,
         stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s", flush=True)
     particles_to_vtk(res_gyro_cpp, f'/tmp/fieldlines_{label}')
-    nfieldlines = 20
     import matplotlib.pyplot as plt
     for i in range(len(res_phi_hits_cpp)):
         plt.figure()
         for j in range(len(res_phi_hits_cpp[i])):
             if res_phi_hits_cpp[i][j].size >= 3:
-                plt.scatter(res_phi_hits_cpp[i][j][:, 1], res_phi_hits_cpp[i][j][:, 3], s=0.1)
-        plt.savefig(f'/tmp/phi_{i}_{label}.png')
+                plt.scatter(res_phi_hits_cpp[i][j][:, 1], res_phi_hits_cpp[i][j][:, 3], marker='o', s=0.2, linewidths=0)
+        plt.savefig(f'/tmp/phi_{i}_{label}.png', dpi=600)
         plt.close()
 
 
 def trace_particles(bfield, label):
-    nparticles = 10
+    nparticles = 20
     t1 = time.time()
     res_gyro_t, res_gyro = trace_particles_starting_on_axis(
         ma.gamma(), bfield, nparticles, tmax=1e-3, seed=1, mass=1.67e-27, charge=1,
-        Ekinev=900, umin=-1, umax=+1,
+        Ekinev=9000, umin=-1, umax=+1,
         stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
     t2 = time.time()
     print(f"Time for particle tracing={t2-t1:.3f}s", flush=True)
@@ -84,6 +83,6 @@ bsh = InterpolatedField(
     rrange, phirange, zrange, True
 )
 print(bsh.estimate_error_B(1000), flush=True)
-print(bsh.estimate_error_GradAbsB(1000), flush=True)
 trace_fieldlines(bsh, 'bsh')
+print(bsh.estimate_error_GradAbsB(1000), flush=True)
 trace_particles(bsh, 'bsh')
