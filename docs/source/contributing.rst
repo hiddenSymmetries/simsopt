@@ -28,8 +28,7 @@ If you are proposing/requesting a new feature or new algorithm:
 
 - Explain in detail why the feature is needed with a demo problem that couldn't be implemented with existing code.
 - Features that are ambitious will take time or may not be implemented at all. So, keep the scope of the feature as narrow as possible, to make it easier to implement.
-- Remember this project is volunteer-driven, and hence is always short on manpower. Your contributions
-  are always welcome!
+- Your contributions are always welcome!
 
 
 Bug Reports
