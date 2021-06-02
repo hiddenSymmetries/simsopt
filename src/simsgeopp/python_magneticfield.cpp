@@ -4,6 +4,7 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
+typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "py_shared_ptr.h"
 PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
@@ -58,11 +59,12 @@ void init_magneticfields(py::module_ &m){
         .def(py::init<int>())
         .def_readonly("degree", &ChebyshevInterpolationRule::degree);
 
-    py::class_<RegularGridInterpolant3D<PyArray>, shared_ptr<RegularGridInterpolant3D<PyArray>>>(m, "RegularGridInterpolant3D")
+    py::class_<RegularGridInterpolant3D<PyTensor>, shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D")
         .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
-        .def("interpolate_batch", &RegularGridInterpolant3D<PyArray>::interpolate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<PyArray>::evaluate)
-        .def("evaluate_batch", &RegularGridInterpolant3D<PyArray>::evaluate_batch);
+        .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch)
+        .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate)
+        .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch);
+
 
     py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
         .def(py::init<double>())
