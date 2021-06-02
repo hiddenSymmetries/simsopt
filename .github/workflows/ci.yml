@@ -212,7 +212,7 @@ jobs:
       run: tox
 
     - name: Upload coverage to github
-      if: "contains(matrix.test-type, 'unit')" && ${{ matrix.python-version == '3.8' }}
+      if: contains(${{ matrix.test-type }}, 'unit') && ${{ matrix.python-version == '3.8' }}
       uses: actions/upload-artifact@v2
       with:
         name: tox-gh-actions-coverage
@@ -220,7 +220,7 @@ jobs:
         if-no-files-found: error
 
     - name: Upload coverage to Codecov
-      if: "contains(matrix.test-type, 'unit')" && ${{ matrix.python-version == '3.8' }}
+      if: contains(${{ matrix.test-type }}, 'unit') && ${{ matrix.python-version == '3.8' }}
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
