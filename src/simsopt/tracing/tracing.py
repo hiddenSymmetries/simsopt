@@ -10,7 +10,6 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
     Ekin = Ekinev*e
     m = mass
     q = charge*e
-
     vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
     tol = 1e-9
@@ -40,7 +39,7 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
 def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, stopping_criteria=[]):
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.asarray([r0 + i*linestep for i in range(nlines)])
-    tol = 1e-10
+    tol = 1e-9
     res_ts = []
     res_ys = []
     phis = [i*2*np.pi/(4*3) for i in range(4)]
