@@ -65,7 +65,7 @@ free to submit a PR focused on fixing or improving the
 documentation. Steps to build documentation locally can be found `here <https://github.com/hiddenSymmetries/simsopt/tree/contributing/docs>`_.
 
 
-Code development: Preliminary Steps
+Code development Workflow
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
@@ -74,14 +74,14 @@ Code development: Preliminary Steps
    which is your personal fork (or just 'your fork'), as opposed to this repository
    (github.com/hiddensymmetries/simsopt), which is conventionally referred to as upstream repository in git parlance.
 
-2. Clone your fork to your machine by opening a console and doing
+2. Clone your fork to your machine by opening a console and executing
 
    .. code-block::
 
         git clone https://github.com/<your_account>/simsopt.git
 
    Make sure to clone your fork, not the upstream repo. This will create a
-   directory called 'simsopt/'. Navigate to it and execute
+   directory called ``simsopt``. Navigate to it and execute
 
    .. code-block::
 
@@ -94,7 +94,7 @@ Code development: Preliminary Steps
    code. To prevent frequent reinstallation of simsopt after each modification, 
    and to reflect the changes immediately, install ``simsopt`` as editable.
 
-   .. code-bloc::
+   .. code-block::
 	
         pip install -e .
 
@@ -121,4 +121,5 @@ Code development: Preliminary Steps
 
 8. Once the changes are in your fork you can submit a pull-request.
    Your contributions will be reviewed and merged to upstream repository if ``simsopt`` are 
-   satisfied with the code quality.
+   satisfied with the code quality. Please note this is not a full tutorial on using git and you need to know additional
+   git commands to be more efficient or not to get stuck with git conflicts.
