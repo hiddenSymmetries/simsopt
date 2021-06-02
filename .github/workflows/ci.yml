@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.7, 3.8, 3.9]
-        #test-type: [unit, integrated]
+        test-type: [unit, integrated]
 
     steps:
     # First print out lots of information. We do this in separate 
@@ -190,6 +190,7 @@ jobs:
     #    pip install mpi4py
 
     - name: Install simsopt package
+      if: "contains(matrix.test-type, 'integrated')"
       run: pip install -v .[MPI,SPEC]
 
     #- name: Run mpi unit tests
@@ -203,13 +204,15 @@ jobs:
     #    python3 -m unittest -v
     
     - name: Install tox dependencies
+      if: "contains(matrix.test-type, 'unit')"
       run: pip install tox tox-gh-actions tox-venv
 
     - name: Run tests under tox
+      if: "contains(matrix.test-type, 'unit')"
       run: tox
 
     - name: Upload coverage to github
-      if: ${{ matrix.python-version == '3.8' }}
+      if: "contains(matrix.test-type, 'unit')" && ${{ matrix.python-version == '3.8' }}
       uses: actions/upload-artifact@v2
       with:
         name: tox-gh-actions-coverage
@@ -217,7 +220,7 @@ jobs:
         if-no-files-found: error
 
     - name: Upload coverage to Codecov
-      if: ${{ matrix.python-version == '3.8' }}
+      if: "contains(matrix.test-type, 'unit')" && ${{ matrix.python-version == '3.8' }}
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
@@ -232,7 +235,7 @@ jobs:
         verbose: true
 
     - name: Run examples as integrated tests
-      #if: "contains(matrix.test-type, 'integrated')"
+      if: "contains(matrix.test-type, 'integrated')"
       run: |
         cd examples
         ./run_examples
