@@ -70,8 +70,11 @@ set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/" ${Boost_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+if(Boost_FOUND)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+endif()
 
 add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
