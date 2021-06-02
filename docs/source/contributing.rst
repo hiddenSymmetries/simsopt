@@ -22,7 +22,7 @@ Both big and small contributions to ``simsopt`` are welcome. Some ways you can c
 Submit Feedback
 ---------------
 
-You can give your feedback on ``simsopt``  by opening an `issue <https://github.com/hiddensymmetries/simsopt/issues>_`.
+You can give your feedback on ``simsopt``  by opening an `issue <https://github.com/hiddensymmetries/simsopt/issues>`_.
 
 If you are proposing/requesting a new feature or new algorithm:
 
@@ -35,7 +35,7 @@ If you are proposing/requesting a new feature or new algorithm:
 Bug Reports
 -----------
 
-To report a bug in the package, open an `issue <https://github.com/hiddensymmetries/simsopt/issues>_`.
+To report a bug in the package, open an `issue <https://github.com/hiddensymmetries/simsopt/issues>`_.
 
 Please include in your bug report:
 
@@ -62,7 +62,7 @@ Improve Documentation
 
 If you feel the documentation is lagging at any place, please feel
 free to submit a PR focused on fixing or improving the 
-documentation. Steps to write documentation can be found `here <https://netrd.readthedocs.io/en/latest/>_`.
+documentation. Steps to write documentation can be found `here <https://github.com/hiddenSymmetries/simsopt/tree/contributing/docs>`_.
 
 
 Code development: Preliminary Steps
