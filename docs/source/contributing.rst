@@ -111,15 +111,19 @@ Code development Workflow
         git add <your_new_file_or_modified_file>
         git commit -m "Brief message highlighting the changes implemented"
 
-6. Before submitting your changes, run ``autopep8`` to fix formatting issues using the supplied ``run_autopep`` script.
+6. Make sure run_tests, run_tests_mpi, and examples/run_examples all pass. Running these locally will help you to catch bugs while developing.
+
+7. Before submitting your changes, run ``autopep8`` to fix formatting issues using the supplied ``run_autopep`` script.
    Don't forget to run step 5, once again.
 
-7. Push the changes to github. 
+9. Push the changes to github. 
 
     .. code block::
         git push
 
-8. Once the changes are in your fork you can submit a pull-request.
-   Your contributions will be reviewed and merged to upstream repository if ``simsopt`` are 
-   satisfied with the code quality. Please note this is not a full tutorial on using git and you need to know additional
-   git commands to be more efficient or not to get stuck with git conflicts.
+10. Once the changes are in your fork you can submit a pull-request. PRs will only be merged if run_tests, 
+    run_tests_mpi, and examples/run_examples all pass. Request at least 1 review from the ``simsopt`` 
+    developers (Bharat Medasani, Matt Landreman, Florian Wechshung). The last reviewer to approve will be in charge of merging.
+    Your contributions will be reviewed and merged to upstream repository if ``simsopt`` developers are 
+    satisfied with the code quality. Please note this is not a full tutorial on using git and you need to know additional
+    git commands to be more efficient or not to get stuck with git conflicts.
