@@ -4,6 +4,17 @@ from simsopt.geo.magneticfield import MagneticField
 
 
 class BiotSavart(sgpp.BiotSavart, MagneticField):
+    r"""
+    Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
+    The field is given by
+
+    .. math::
+        
+        B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{(\Gamma_k(\phi)-\mathbf{x})\times \Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|^3} d\phi
+
+    where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant.
+        
+    """
 
     def __init__(self, coils, coil_currents):
         assert len(coils) == len(coil_currents)
@@ -15,6 +26,15 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         self.coil_currents = coil_currents
 
     def compute_A(self, compute_derivatives=0):
+        r"""
+        Compute the potential of a BiotSavart field
+
+        .. math::
+            
+            A(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{\Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|} d\phi
+
+        as well as the derivatives of `A` if requested.
+        """
         points = self.get_points_cart_ref()
         assert compute_derivatives <= 2
 
@@ -60,24 +80,24 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
             if compute_derivatives >= 2:
                 self._d3A_by_dXdXdcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
 
-        A = self.cache_get_or_create('A', [npoints, 3])
-        A[:] = sum(self.coil_currents[i] * self._dA_by_dcoilcurrents[i] for i in range(len(self.coil_currents)))
+        self._A = sum(self.coil_currents[i] * self._dA_by_dcoilcurrents[i] for i in range(len(self.coil_currents)))
         if compute_derivatives >= 1:
-            dA = self.cache_get_or_create('dA_by_dX', [npoints, 3, 3])
-            dA[:] = sum(self.coil_currents[i] * self._d2A_by_dXdcoilcurrents[i] for i in range(len(self.coil_currents)))
+            self._dA = sum(self.coil_currents[i] * self._d2A_by_dXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         if compute_derivatives >= 2:
-            ddA = self.cache_get_or_create('d2A_by_dXdX', [npoints, 3, 3, 3])
-            ddA[:] = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
+            self._ddA = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         return self
 
     def A_impl(self, A):
         self.compute_A(compute_derivatives=0)
+        A[:] = self._A
 
     def dA_by_dX_impl(self, dA_by_dX):
         self.compute_A(compute_derivatives=1)
+        dA_by_dX[:] = self._dA
 
-    def d2A_by_dXdX_impl(self, dA_by_dX):
+    def d2A_by_dXdX_impl(self, d2A_by_dXdX):
         self.compute_A(compute_derivatives=2)
+        d2A_by_dXdX[:] = self._ddA
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         if any([not self.cache_get_or_create(f'B_{i}' for i in range(len(self.coils)))]):
@@ -101,6 +121,18 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         return self._d3B_by_dXdXdcoilcurrents
 
     def B_vjp(self, v):
+        """
+        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
+        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
+        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
+        This function returns the vector Jacobian product of this dependency, i.e.
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
+
+        """
+
         gammas = [coil.gamma() for coil in self.coils]
         dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
         currents = self.coil_currents
@@ -113,6 +145,14 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         return res_B
 
     def B_and_dB_vjp(self, v, vgrad):
+        r"""
+        Same as :obj:`simsopt.geo.biotsavart.BiotSavart.B_vjp` but returns the vector Jacobian product for :math:`B` and :math:`\nabla B`, i.e. it returns
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{grad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \mathbf{B}_i \}_k.
+        """
+
         gammas = [coil.gamma() for coil in self.coils]
         dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
         currents = self.coil_currents

@@ -5,26 +5,44 @@ import simsgeopp as sgpp
 class MagneticField(sgpp.MagneticField):
 
     '''
-    Generic class that represents any magnetic field for which each magnetic
-    field class inherits.
+    Generic class that represents any magnetic field from which each magnetic
+    field class inherits. The usage of ``MagneticField`` is as follows:
+
+    .. code-block::
+
+        bfield = BiotSavart(coils, currents) # An instance of a MagneticField
+        points = ... # points is a (n, 3) numpy array
+        bfield.set_points(points)
+        B = bfield.B() # returns the Magnetic field at `points`
+        dA = bfield.dA_by_dX() # returns the gradient of the potential of the field at `points`
+
+    ``MagneticField`` has a cache to avoid repeated calculations.
+    To clear this cache, call the `clear_cached_properties()` function.
+    The cache is automatically cleard when ``set_points`` is called.
+
     '''
 
     def __init__(self):
         sgpp.MagneticField.__init__(self)
 
     def clear_cached_properties(self):
+        """Clear the cache."""
         sgpp.MagneticField.invalidate_cache(self)
 
     def __add__(self, other):
+        """Add two magnetic fields."""
         return MagneticFieldSum([self, other])
 
     def __mul__(self, other):
+        """Multiply a field with a scalar."""
         return MagneticFieldMultiply(other, self)
 
     def __rmul__(self, other):
+        """Multiply a field with a scalar."""
         return MagneticFieldMultiply(other, self)
 
     def to_vtk(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5):
+        """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         from pyevtk.hl import gridToVTK
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
         phis = np.linspace(0, 2*np.pi, nphi, endpoint=True)
@@ -47,11 +65,11 @@ class MagneticField(sgpp.MagneticField):
 
 
 class MagneticFieldMultiply(MagneticField):
-    '''
-    Class used to multiply a magnetic field by a scalar.
-    It takes as input a MagneticField class and a scalar and multiplies B, A and their derivatives by that value
-    '''
-
+    """
+    Class used to multiply a magnetic field by a scalar.  It takes as input a
+    MagneticField class and a scalar and multiplies B, A and their derivatives
+    by that value.
+    """
     def __init__(self, scalar, Bfield):
         MagneticField.__init__(self)
         self.scalar = scalar
@@ -80,12 +98,12 @@ class MagneticFieldMultiply(MagneticField):
 
 
 class MagneticFieldSum(MagneticField):
-    '''
+    """
     Class used to sum two or more magnetic field together.  It can either be
     called directly with a list of magnetic fields given as input and outputing
     another magnetic field with B, A and its derivatives added together or it
     can be called by summing magnetic fields classes as Bfield1 + Bfield1
-    '''
+    """
 
     def __init__(self, Bfields):
         MagneticField.__init__(self)
