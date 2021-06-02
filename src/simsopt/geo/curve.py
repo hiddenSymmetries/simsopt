@@ -98,7 +98,7 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \frac{d\|\Gamma`\|}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}}
+            v^T \frac{\partial \|\Gamma`\|}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}}
         
         where :math:`\|\Gamma'\|` is the incremental arclength, 
         :math:`\Gamma'` is the tangent to the curve and :math:`\mathbf{c}` are the coil dofs.
@@ -159,7 +159,7 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{d \kappa}{d\Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{d \kappa}{d\Gamma'} \frac{d\Gamma'}{d\mathbf{c}} \right]
+            v^T \left[ \frac{\partial \kappa}{\partial \Gamma} \frac{\partial \Gamma}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} \right]
         
         """
 
