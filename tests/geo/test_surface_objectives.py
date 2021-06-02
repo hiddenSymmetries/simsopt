@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
-from .surface_test_helpers import CoilCollection, get_ncsx_data, get_surface, get_exact_surface
+from simsopt.geo.coilcollection import CoilCollection
+from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
