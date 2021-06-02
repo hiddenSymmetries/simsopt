@@ -80,24 +80,24 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
             if compute_derivatives >= 2:
                 self._d3A_by_dXdXdcoilcurrents[l] *= (1e-7/num_coil_quadrature_points)
 
-        A = self.cache_get_or_create('A', [npoints, 3])
-        A[:] = sum(self.coil_currents[i] * self._dA_by_dcoilcurrents[i] for i in range(len(self.coil_currents)))
+        self._A = sum(self.coil_currents[i] * self._dA_by_dcoilcurrents[i] for i in range(len(self.coil_currents)))
         if compute_derivatives >= 1:
-            dA = self.cache_get_or_create('dA_by_dX', [npoints, 3, 3])
-            dA[:] = sum(self.coil_currents[i] * self._d2A_by_dXdcoilcurrents[i] for i in range(len(self.coil_currents)))
+            self._dA = sum(self.coil_currents[i] * self._d2A_by_dXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         if compute_derivatives >= 2:
-            ddA = self.cache_get_or_create('d2A_by_dXdX', [npoints, 3, 3, 3])
-            ddA[:] = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
+            self._ddA = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         return self
 
     def A_impl(self, A):
         self.compute_A(compute_derivatives=0)
+        A[:] = self._A
 
     def dA_by_dX_impl(self, dA_by_dX):
         self.compute_A(compute_derivatives=1)
+        dA_by_dX[:] = self._dA
 
-    def d2A_by_dXdX_impl(self, dA_by_dX):
+    def d2A_by_dXdX_impl(self, d2A_by_dXdX):
         self.compute_A(compute_derivatives=2)
+        d2A_by_dXdX[:] = self._ddA
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         if any([not self.cache_get_or_create(f'B_{i}' for i in range(len(self.coils)))]):
