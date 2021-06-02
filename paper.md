@@ -68,7 +68,7 @@ To effectively confine plasmas for the goal of fusion energy,
 the three-dimensional magnetic field of a stellarator has to be carefully designed.
 The design effort is essentially to vary the magnetohydrodynamic (MHD) 
 equilibrium to meet multiple metrics, for example, MHD stability, 
-neoclassical transport, fast-ion confinement, turbulence transport, and buildable coils. 
+neoclassical transport, fast-ion confinement, turbulent transport, and buildable coils. 
 This process involves calling several physics codes and cannot be done manually. 
 A software framework is needed to connect these physics calculations with numerical optimization algorithms.
 
@@ -76,7 +76,7 @@ Although the idea of stellarator optimization is several decades old,
 there are limited codes available to use. 
 The two most commonly used codes are STELLOPT [@STELLOPT_Hirshman; @STELLOPT_Spong; @STELLOPT_repo] and ROSE [@ROSE]. 
 While ROSE is closed-sourced, STELLOPT is written in Fortran and couples all the codes explicitly. 
-It requires modification of several core STELLOPT source files to write an interface for a new module. 
+It requires modification of multiple core STELLOPT source files to write an interface for a new module. 
 The goal of SIMSOPT is to flatten the learning curve, 
 improve the flexibility of prototyping new problems, and enhance the extendibility and maintainability. 
 To achieve these goals, SIMSOPT is written in object-oriented Python and incorporates software engineering best practices like continuous integration.
@@ -129,16 +129,19 @@ Presently, MPI and OpenMP parallelism are used in different code
 components.  The parallelized finite-difference gradient capability
 uses MPI, to support use of multiple compute nodes, and to support
 concurrent calculations with physics codes like VMEC and SPEC that
-employ MPI. Biot-Savart calculations are accelerated using SIMD intrinsics
-and OpenMP parallelization.
+employ MPI. Biot-Savart calculations are accelerated using SIMD
+intrinsics and OpenMP parallelization.
 
 SIMSOPT does not presently use input data files to define optimization
 problems, in contrast to STELLOPT. Rather, problems are specified
 using a python driver script, in which objects are defined and
-configured. However, objects related to specific physics codes may use
-their own input files. In particular, a `Vmec` object can be
-initialized using a standard VMEC `input.*` input file, and a `Spec`
-object can be initialized using a standard SPEC `*.sp` input file.
+configured.  An advantage of this approach is that any other desired
+scripting elements can be included. One way this capability can be
+used (which is done in the first example below) is to define a series
+of optimization steps, in which the size of the parameter space is
+increased at each step, along with the numerical resolution parameters
+of the codes. The former is valuable to avoid getting stuck in a local
+minimum, and the latter improves computational efficiency.
 
 
 # Capabilities
@@ -164,8 +167,8 @@ stage-1 optimization including both VMEC and SPEC simultaneously is
 shown in \autoref{fig:xsections}-\autoref{fig:poincare}. Here, the
 shape is optimized to both eliminate an internal island chain, as
 computed from SPEC, and to achieve quasisymmetry, as computed from
-VMEC and BOOZ_XFORM. This example will be described in more detail in
-a separate publication.
+VMEC and BOOZ_XFORM. More details of this calculation will be
+presented elsewhere.
 
 ![An example of stage-1 optimization using SIMSOPT, in which the
  shape of a toroidal boundary is optimized to eliminate magnetic
@@ -204,7 +207,7 @@ detail in a separate publication.
 
 # Acknowledgements
 
-We gratefully acknowledge discussions and assistance from
+We gratefully acknowledge discussions with and assistance from
 Aaron Bader,
 Antoine Baillod,
 David Bindel,
