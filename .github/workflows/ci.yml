@@ -216,10 +216,10 @@ jobs:
     - name: Run tests using coverage
       if: "contains(matrix.test-type, 'unit')"
       run: | 
-	coverage run --source=simsopt -m unittest discover -s tests
-	mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
-	mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
-	mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
+        coverage run --source=simsopt -m unittest discover -s tests
+        mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
 
     - name: Upload coverage to github
       if: "contains(matrix.test-type, 'unit')"
