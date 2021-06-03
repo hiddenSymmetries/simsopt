@@ -103,7 +103,7 @@ class RegularGridInterpolant3D {
         Vec zsmesh;
         AlignedVec all_local_vals;
         int local_vals_size;
-        static constexpr int simdcount = xsimd::simd_type<double>::size;
+        static const int simdcount = xsimd::simd_type<double>::size;
         const InterpolationRule rule;
         Vec pkxs, pkys, pkzs;
 
