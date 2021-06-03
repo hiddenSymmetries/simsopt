@@ -65,6 +65,7 @@ optimization.  Others include `STELLOPT
    testing
    source
    cite
+   contributing
 
 .. toctree::
    :maxdepth: 3
