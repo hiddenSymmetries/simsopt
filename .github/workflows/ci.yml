@@ -250,8 +250,8 @@ jobs:
     - name: Install coverage dependencies
       run: pip install coverage
 
-    - name: Install coverage dependencies
-      run:| 
+    - name: Combine coverage reports
+      run: | 
         coverage combine
         coverage report
         coverage xml
@@ -276,4 +276,3 @@ jobs:
         fail_ci_if_error: true
         #path_to_write_report: ./coverage/codecov_report.gz
         verbose: true
-
