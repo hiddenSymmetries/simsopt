@@ -221,7 +221,7 @@ jobs:
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
         mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
 
-    - name: Upload coverage to github
+    - name: Upload uncombined coverage to github
       if: "contains(matrix.test-type, 'unit')"
       uses: actions/upload-artifact@v2
       with:
@@ -247,7 +247,7 @@ jobs:
       with:
         python-version: 3.8
 
-    - name: Install coverage dependencies
+    - name: Install coverage
       run: pip install coverage
 
     - name: Combine coverage reports
