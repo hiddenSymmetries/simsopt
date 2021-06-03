@@ -55,6 +55,8 @@ endif()
 add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
+set(XTENSOR_USE_SIMD 0)
+set(XTENSOR_USE_TBB 0)
 
 
 pybind11_add_module(${PROJECT_NAME}

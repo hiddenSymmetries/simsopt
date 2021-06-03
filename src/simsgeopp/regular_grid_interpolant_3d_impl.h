@@ -7,6 +7,9 @@
 #define _EPS_ 1e-13
 
 template<class Array>
+const int RegularGridInterpolant3D<Array>::simdcount;
+
+template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, double, double)> &f) {
     int degree = rule.degree;
     Vec t;
