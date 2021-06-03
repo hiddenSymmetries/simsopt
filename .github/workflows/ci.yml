@@ -239,8 +239,8 @@ jobs:
         name: gh-actions-parallel-coverage
         path: ./
 
-    -name: Display coverage files before combine 
-     run: ls -R
+    - name: Display coverage files before combine 
+      run: ls -R
 
     - name: Set up Python 
       uses: actions/setup-python@v2
