@@ -89,7 +89,7 @@ tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing(
     return make_tuple(res_t, res_y);
 
 #else
-    throw runtime_error("Guiding center computation not available without boost.")
+    throw runtime_error("Guiding center computation not available without boost.");
 #endif
 }
 
@@ -207,7 +207,7 @@ tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>
 
     return make_tuple(res_t, res_y, res_phi_hits);
 #else
-    throw runtime_error("Fieldline computation not available without boost.")
+    throw runtime_error("Fieldline computation not available without boost.");
 #endif
 }
 
