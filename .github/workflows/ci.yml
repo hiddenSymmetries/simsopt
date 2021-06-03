@@ -256,12 +256,12 @@ jobs:
         coverage report
         coverage xml
 
-    #- name: Upload coverage to github
-    #  uses: actions/upload-artifact@v2
-    #  with:
-    #    name: tox-gh-actions-coverage
-    #    path: coverage.xml
-    #    if-no-files-found: error
+    - name: Upload coverage to github
+      uses: actions/upload-artifact@v2
+      with:
+        name: tox-gh-actions-coverage
+        path: coverage.xml
+        if-no-files-found: error
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
