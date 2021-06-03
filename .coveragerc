@@ -1,0 +1,9 @@
+[run]
+parallel = true
+source = simsopt
+
+[paths]
+sources = 
+    .tox/py37/lib/python3.7/site-packages/
+    .tox/py38/lib/python3.8/site-packages/
+    .tox/py39/lib/python3.9/site-packages/
