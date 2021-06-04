@@ -29,7 +29,6 @@ Optional Packages
 -----------------
 - For MPI support:
     * mpi4py
-    * MPILogger
 - For SPEC support:
     * py_spec
     * pyoculus
@@ -49,16 +48,22 @@ Installation
 
 From PyPi
 ---------
-Currently, older versions of ``simsopt`` are avaialable at test.pypi.org.
-You can install the latest among them using
+This is the easiest and preferred method. 
 
 .. code-block::
 
-    pip install --index-url https://test.pypi.org/simple/ simsopt
+    pip install simsopt
+
+Running the above command will install simsopt and all of its mandatory dependencies. To install
+optional depdencies related to SPEC and MPI, run the following command:
+
+.. code-block::
+
+    pip install simsopt[MPI,SPEC]
     
 From Source
 -----------
-This is the preferred method. First, install ``git`` if not already installed. Then clone the repository using
+First, install ``git`` if not already installed. Then clone the repository using
 
 .. code-block::
 
