@@ -78,7 +78,7 @@ The two most commonly used codes are STELLOPT [@STELLOPT_Hirshman; @STELLOPT_Spo
 While ROSE is closed-sourced, STELLOPT is written in Fortran and couples all the codes explicitly. 
 It requires modification of multiple core STELLOPT source files to write an interface for a new module. 
 The goal of SIMSOPT is to flatten the learning curve, 
-improve the flexibility of prototyping new problems, and enhance the extendibility and maintainability. 
+improve the flexibility for prototyping new problems, and enhance the extendibility and maintainability. 
 To achieve these goals, SIMSOPT is written in object-oriented Python and incorporates software engineering best practices like continuous integration.
 Modern tools are used in SIMSOPT to manage the documentation and unit tests.
 
@@ -114,7 +114,7 @@ they carry. Other available magnetic field types include Dommaschk
 potentials [@Dommaschk] and the analytic formula for the field of a
 circular coil, and magnetic field instances can be scaled and
 summed. All the geometric and magnetic field classes provide one or
-two derivatives, either explicit formulae, or by automatic
+two derivatives, either by explicit formulae, or by automatic
 differentiation with the `jax` package [@jax].  Caching is available
 to avoid repeated calculations.
 
@@ -158,17 +158,20 @@ For the first stage, MHD equilibria or vacuum fields can be
 represented using the VMEC or SPEC code, or both at the same time.
 VMEC, which makes the assumption that good nested magnetic surfaces
 exist, is extremely robust and many other physics codes are able to
-postprocess its output.  SPEC can provide added value because of its
-ability to represent magnetic islands, which are undesirable since a
-large temperature gradient cannot be supported across them.  Islands
-can be eliminated using SIMSOPT by minimizing the magnitude of the
-residues [@Greene], similar to the method in [@Hanson].  An example of
-stage-1 optimization including both VMEC and SPEC simultaneously is
-shown in \autoref{fig:xsections}-\autoref{fig:poincare}. Here, the
-shape is optimized to both eliminate an internal island chain, as
-computed from SPEC, and to achieve quasisymmetry, as computed from
-VMEC and BOOZ_XFORM. More details of this calculation will be
-presented elsewhere.
+postprocess its output.  In VMEC-based optimizations, a typical
+objective to minimize is the departure from quasisymmetry, a symmetry
+in the field strength that provides good confinement [@Nuhrenberg].
+SPEC can provide added value because of its ability to represent
+magnetic islands, which are undesirable since a large temperature
+gradient cannot be supported across them.  Islands can be eliminated
+using SIMSOPT by minimizing the magnitude of the residues [@Greene],
+similar to the method in [@Hanson].  An example of stage-1
+optimization including both VMEC and SPEC simultaneously is shown in
+\autoref{fig:xsections}-\autoref{fig:poincare}. Here, the shape is
+optimized to both eliminate an internal island chain, as computed from
+SPEC, and to achieve quasisymmetry, as computed from VMEC and
+BOOZ_XFORM. More details of this calculation will be presented
+elsewhere.
 
 ![An example of stage-1 optimization using SIMSOPT, in which the
  shape of a toroidal boundary is optimized to eliminate magnetic
