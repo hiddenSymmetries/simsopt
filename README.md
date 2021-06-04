@@ -4,6 +4,8 @@
 [![codecov](https://codecov.io/gh/hiddenSymmetries/simsopt/branch/master/graph/badge.svg?token=ltN6qonZ5p)](https://codecov.io/gh/hiddenSymmetries/simsopt)
 [![DOI](https://zenodo.org/badge/247710081.svg)](https://zenodo.org/badge/latestdoi/247710081)
 
+![SIMSOPT](docs/source/logo.png)
+![SIMSOPT](docs/source/coils_and_surfaces.png)
 
 `simsopt` is a framework for optimizing
 [stellarators](https://en.wikipedia.org/wiki/Stellarator).
