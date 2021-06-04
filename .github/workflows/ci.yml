@@ -57,7 +57,8 @@ jobs:
     # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
     # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
     - name: Download the VMEC2000 standalone repository
-      run: git clone https://gitlab.com/mattland/VMEC2000.git
+      # run: git clone https://gitlab.com/mattland/VMEC2000.git
+      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
@@ -185,10 +186,6 @@ jobs:
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    #- name: Install mpi4py
-    #  run: |
-    #    pip install mpi4py
-
     - name: Install simsopt package
       # if: "contains(matrix.test-type, 'integrated')"
       run: pip install -v .[MPI,SPEC]
@@ -233,14 +230,6 @@ jobs:
     runs-on: ubuntu-18.04
     needs: [ test ]
     steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: gh-actions-parallel-coverage
-        path: ./
-
-    - name: Display coverage files before combine 
-      run: ls -Ra
 
     - name: Set up Python 
       uses: actions/setup-python@v2
@@ -255,6 +244,15 @@ jobs:
 
     - name: Install simsopt before running coverage
       run: pip install .
+
+    - name: Download artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: gh-actions-parallel-coverage
+        path: ./
+
+    - name: Display coverage files before combine 
+      run: ls -a
 
     - name: Combine coverage reports
       run: | 
