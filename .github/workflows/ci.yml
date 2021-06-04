@@ -164,24 +164,32 @@ jobs:
     - name: ls in VMEC2000/python 1
       run: ls -l VMEC2000/python
 
+    # - name: Configure VMEC2000 module
+    #   run: |
+    #     cd VMEC2000/python
+    #     cp ubuntu.json cmake_config_file.json
+    #     cat cmake_config_file.json
+
     - name: Configure VMEC2000 module
       run: |
-        cd VMEC2000/python
-        cp ubuntu.json cmake_config_file.json
+        cd VMEC2000
+        cp python/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
 
-    - name: Build VMEC2000 module
+    - name: Build and install VMEC2000 module
       run: |
-        cd VMEC2000/python
-        python setup.py build_ext
+        # cd VMEC2000/python
+        # python setup.py build_ext
+        cd VMEC2000
+        pip install .
 
-    - name: Install VMEC2000 module
-      run: |
-        cd VMEC2000/python
-        python setup.py install
+    # - name: Install VMEC2000 module
+    #   run: |
+    #     cd VMEC2000/python
+    #     python setup.py install
 
-    - name: ls in VMEC2000/python 2
-      run: ls -l VMEC2000/python
+    # - name: ls in VMEC2000/python 2
+    #   run: ls -l VMEC2000/python
 
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
