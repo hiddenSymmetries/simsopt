@@ -343,15 +343,15 @@ class BoozerSurface():
             resdict['s'] = s
             resdict['iota'] = iota
 
-            val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-            resdict["jacobian"] = d2val
+#            val, dval, d2val = self.boozer_penalty_constraints(
+#                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+#            resdict["jacobian"] = d2val
 
             self.res = resdict
-            if not resdict['success']:
-                s.set_dofs(backup)
-                resdict['iota'] = iota0
-                resdict['G'] = G0
+#            if not resdict['success']:
+#                s.set_dofs(backup)
+#                resdict['iota'] = iota0
+#                resdict['G'] = G0
 
             return resdict
         fun = lambda x: self.boozer_penalty_constraints(

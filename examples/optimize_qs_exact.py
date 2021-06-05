@@ -9,7 +9,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, LpCurveCurvature
+from simsopt.geo.curveobjectives import CurveLength, MinimumDistance 
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponentPenalty, Area, Volume, ToroidalFlux, boozer_surface_residual
 from simsopt.geo.coilcollection import CoilCollection
@@ -21,20 +21,22 @@ from lbfgs import fmin_lbfgs
 
 
 
-coils, currents, ma = get_ncsx_data()
+coils, currents, ma = get_ncsx_data(Nt_coils=10, Nt_ma=10, ppp=10)
 stellarator = CoilCollection(coils, currents, 3, True)
 coils = stellarator.coils
 currents = stellarator.currents
 
 
-mpol = 10  # try increasing this to 8 or 10 for smoother surfaces
-ntor = 10  # try increasing this to 8 or 10 for smoother surfaces
+mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
 stellsym = True
 nfp = 3
 exact = True
 
 surf_list = []
-for idx,target in enumerate(np.linspace(-0.162,-3.206, 20)):
+#for idx,target in enumerate(np.linspace(-0.162,-4.0, 20)):
+#for idx,target in enumerate(np.linspace(-0.162,-2., 20)): NON UNIQUENESS HERE
+for idx,target in enumerate(np.linspace(-0.162,-1., 20)):
     if exact:
         phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -61,7 +63,7 @@ for idx,target in enumerate(np.linspace(-0.162,-3.206, 20)):
         res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=30,iota=iota0,G=G0)
         if res['success']:
             surf_list += [boozer_surface]
-            print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+            print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}, AR={s.aspect_ratio():.3f}")
         else:
             print("didn't converge")
     except:
@@ -70,18 +72,18 @@ for idx,target in enumerate(np.linspace(-0.162,-3.206, 20)):
     iota0 = res['iota']
     G0 = res['G']
 
-iota_weight = 1.
-distance_weight = 1e-3
-curvature_weight = 1e-3
+target_minimum_distance = 0.15
+min_dist = MinimumDistance(stellarator.coils, target_minimum_distance)
 
-minimum_distance = 0.02
 iota_target = -0.4
+iota_weight = 1.
 
-coil_lengths    = [CurveLength(coil) for coil in coils]
-coil_length_targets = [J.J() for J in coil_lengths]
-min_dist = MinimumDistance(stellarator.coils, minimum_distance)
-coil_curvatures = [LpCurveCurvature(coil, 2., length) for (coil, length) in zip(coils, coil_length_targets)]
-problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) for boozer_surface in surf_list[::6]]
+problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) for boozer_surface in [surf_list[0], surf_list[int(len(surf_list)/2)], surf_list[-1]]]
+
+curvelength_list = [CurveLength(curve) for curve in stellarator.coils]
+target_lengths = [c.J() for c in curvelength_list]
+
+
 
 colors = [
     (0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
@@ -97,6 +99,10 @@ colors = [
 ]
 def plot():
     import mayavi.mlab as mlab
+    mlab.figure(1, bgcolor=(1,1,1))
+    mlab.gcf().scene.parallel_projection = True
+
+
     #mlab.figure(bgcolor=(1, 1, 1))
     for i in range(0, len(stellarator.coils)):
         gamma = stellarator.coils[i].gamma()
@@ -108,35 +114,72 @@ def plot():
         # revert to reference states - zeroth order continuation
         s = problem.boozer_surface.surface
         gamma = s.gamma()
-        mlab.mesh(gamma[:,:,0], gamma[:,:,1], gamma[:,:,2])
+        mlab.mesh(np.concatenate((gamma[:,:,0], gamma[:,0,0].reshape((-1,1)) ), axis = 1), 
+                  np.concatenate((gamma[:,:,1], gamma[:,0,1].reshape((-1,1)) ), axis = 1),
+                  np.concatenate((gamma[:,:,2], gamma[:,0,2].reshape((-1,1)) ), axis = 1) )
+#        mlab.mesh(np.concatenate((gamma[:,:,0], gamma[:,0,0].reshape((-1,1)) ), axis = 1), 
+#                  np.concatenate((gamma[:,:,1], gamma[:,0,1].reshape((-1,1)) ), axis = 1),
+#                  np.concatenate((gamma[:,:,2], gamma[:,0,2].reshape((-1,1)) ), axis = 1), representation='wireframe' )
+    mlab.view(azimuth=100, elevation=55)
     mlab.show()
 plot()
 
 
 prev_J_dJ = [ None, None ]
-def callback(x, g, fx, *args):
-    J = 0.
-    dJ = np.zeros(problem_list[0].dJ().shape)
+def callback(x, g, fx, xnorm, gnorm, step, k, num_eval, *args):
+    length_penalties = []
+    dlength_penalties = []
+    # regularizations
+    for l, l0 in zip(curvelength_list, target_lengths):
+        length_penalties += [0.5*(l.J() - l0)**2]
+        dlength_penalties += [(l.J() - l0) * l.dJ()]
+    J = np.sum(length_penalties)
+    dJ = stellarator.reduce_coefficient_derivatives(dlength_penalties)
+    
+    J  += min_dist.J()
+    dJ += stellarator.reduce_coefficient_derivatives(min_dist.dJ())
 
-    for problem in problem_list:
+    for idx,problem in enumerate(problem_list):
         # update the reference boozer surface
         problem.boozer_surface_reference = {"dofs": problem.boozer_surface.surface.get_dofs(),
-                                            "iota": problem.boozer_surface.res["iota"],
-                                            "G": problem.boozer_surface.res["G"]}
+                                         "iota": problem.boozer_surface.res["iota"],
+                                         "G": problem.boozer_surface.res["G"]}
     
-    print(J, np.linalg.norm(dJ))
-    prev_J_dJ[0] = fx
-    prev_J_dJ[1] = g
+        J += problem.J()
+        if dJ is None:
+            dJ = problem.J()
+        else:
+            dJ += problem.dJ()
+        if k%200 == 0:
+            np.savetxt(f"surface{idx}_{k}.txt", problem.boozer_surface.surface.get_dofs())
     
+    if k%200 == 0:
+        np.savetxt(f"stellarator_{k}.txt", stellarator.get_dofs())
+#        import ipdb;ipdb.set_trace()
+
+    print(f"iter={k}, J={J:.6e}, ||dJ||={np.linalg.norm(dJ):6e}, min_dist={min_dist.J():6e}")
+    prev_J_dJ[0] = J
+    prev_J_dJ[1] = dJ
     print("-------------------------------------------\n")
 
 def fun_pylbfgs(dofs,g,*args):
     stellarator.set_dofs(dofs)
-    
-    J = 0
-    dJ = None
-    
+
+
+    #import ipdb;ipdb.set_trace()
+    length_penalties = []
+    dlength_penalties = []
     # regularizations
+    for l, l0 in zip(curvelength_list, target_lengths):
+        length_penalties += [0.5*(l.J() - l0)**2]
+        dlength_penalties += [(l.J() - l0) * l.dJ()]
+    J = np.sum(length_penalties)
+    dJ = stellarator.reduce_coefficient_derivatives(dlength_penalties)
+
+    J  += min_dist.J()
+    dJ += stellarator.reduce_coefficient_derivatives(min_dist.dJ())
+
+
     # surfaces
     for idx, problem in enumerate(problem_list):
         # revert to reference states - zeroth order continuation
@@ -145,19 +188,17 @@ def fun_pylbfgs(dofs,g,*args):
         problem.boozer_surface.surface.set_dofs(problem.boozer_surface_reference["dofs"])
         #print(f"reverting to {iota0:.8f}, {G0:.8f}, {np.linalg.norm(problem.boozer_surface_reference['dofs']):.8f}")
 
+        res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+        J += problem.J()
+        dJ += problem.dJ()
+        
         target = problem.boozer_surface.targetlabel
         label = problem.boozer_surface.label
         s = problem.boozer_surface.surface
 
-        res = problem.boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
-        J += problem.J()
-        
-        if dJ is None:
-            dJ  = problem.dJ()
-        else:
-            dJ += problem.dJ()
-         
-        print(f"Surface {idx}: {res['success']}, iota={res['iota']:.6e}, J={J:.6e}, label={label.J():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}")
+
+
+        print(f"Surface {idx}: {res['success']}, iota={res['iota']:.6e}, J={J:.6e}, area={s.area():.3f}, label={label.J():.3f}, |label error|={np.abs(label.J()-target):.3e}, ||residual||={np.linalg.norm(res['residual']):.3e}, AR={s.aspect_ratio():.3f}")
         if not res['success']:
             print("Failed to compute surface-----------------------------")
             J = 2*prev_J_dJ[0]
@@ -167,21 +208,45 @@ def fun_pylbfgs(dofs,g,*args):
     return J
 
 
+coeffs = stellarator.get_dofs()
+callback(0,coeffs, 0, 0, 0, 0, 0, 0, 0, 0)
+
+
+#grad = np.zeros( (189,) )
+#f0 = fun_pylbfgs(coeffs, grad)
+#lm = np.random.uniform(size=coeffs.size)-0.5
+#fd_exact = np.dot(grad, lm) 
+#
+#err_old = 1e9
+#epsilons = np.power(2., -np.asarray(range(7, 20)))
+#print("################################################################################")
+#for eps in epsilons:
+#    f1 = fun_pylbfgs(coeffs + eps * lm, grad)
+#    Jfd = (f1-f0)/eps
+#    err = np.linalg.norm(Jfd-fd_exact)/np.linalg.norm(fd_exact)
+#    print(err/err_old)
+#    assert err < err_old * 0.55
+#    err_old = err
+#print("################################################################################")
+
+
+
+
+
+
+
+
 
 
 coeffs = stellarator.get_dofs()
-callback(coeffs)
-
-
-
-
-
-coeffs = stellarator.get_dofs()
-maxiter = 300
+maxiter = 4000
 try:
     res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
 except Exception as e:
     print(e)
     pass
 
+coeffs = stellarator.get_dofs()
+np.savetxt("stellarator.txt", coeffs)
+import ipdb;ipdb.set_trace()
 plot()
