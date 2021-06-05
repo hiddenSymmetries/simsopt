@@ -10,7 +10,9 @@ from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
 
+
 class QfmSurfaceTests(unittest.TestCase):
+
     def test_residual(self):
         """
         This test loads a SurfaceXYZFourier that interpolates the xyz coordinates
@@ -36,7 +38,7 @@ class QfmSurfaceTests(unittest.TestCase):
         qfm_surface = QfmSurface(bs, s, tf, tf_target)
         x = s.get_dofs()
         r0 = qfm_surface.qfm_penalty_constraints(x, derivatives=0,
-            constraint_weight=weight)
+                                                 constraint_weight=weight)
         assert(r0 < 1e-10)
 
     def test_qfm_objective_gradient(self):
@@ -234,12 +236,12 @@ class QfmSurfaceTests(unittest.TestCase):
         ]
         for surfacetype, stellsym in configs:
             with self.subTest(
-                surfacetype=surfacetype, stellsym=stellsym):
+                    surfacetype=surfacetype, stellsym=stellsym):
                 self.subtest_qfm_surface_optimization_convergence(surfacetype,
-                    stellsym)
+                                                                  stellsym)
 
     def subtest_qfm_surface_optimization_convergence(self, surfacetype,
-                                                        stellsym):
+                                                     stellsym):
         """
         For each configuration, first reduce penalty objective using LBFGS at
         fixed volume. Then solve constrained problem using SLSQP. Repeat
@@ -259,10 +261,10 @@ class QfmSurfaceTests(unittest.TestCase):
             currents_flipped = [-cur for cur in currents]
             for c in coils_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
-                                                            size=c.rotmat.shape)
+                                                    size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
             stellarator = CoilCollection(coils + coils_flipped,
-                                        currents + currents_flipped, 3, False)
+                                         currents + currents_flipped, 3, False)
 
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)

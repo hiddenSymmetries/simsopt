@@ -2,6 +2,7 @@ from scipy.optimize import minimize, least_squares, NonlinearConstraint
 import numpy as np
 from simsopt.geo.surfaceobjectives import QfmResidual
 
+
 class QfmSurface():
 
     def __init__(self, biotsavart, surface, label, targetlabel):
@@ -108,13 +109,13 @@ class QfmSurface():
 
         d2r = qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
         d2l = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        d2val =  r*d2r + dr[:,None]*dr[None,:] \
-            + constraint_weight*rl*d2l + constraint_weight*dl[:,None]*dl[None,:]
+        d2val = r*d2r + dr[:, None]*dr[None, :] \
+            + constraint_weight*rl*d2l + constraint_weight*dl[:, None]*dl[None, :]
 
         return val, dval, d2val
 
     def minimize_qfm_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000,
-        constraint_weight=1.):
+                                               constraint_weight=1.):
         """
         This function tries to find the surface that approximately solves
 
@@ -131,11 +132,11 @@ class QfmSurface():
         res = minimize(
             fun, x, jac=True, method='L-BFGS-B',
             options={'maxiter': maxiter, 'ftol': tol, 'gtol': tol,
-                'maxcor': 200})
+                     'maxcor': 200})
 
         resdict = {
             "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res,
-                "success": res.success,
+            "success": res.success,
         }
         s.set_dofs(res.x)
         resdict['s'] = s
@@ -158,18 +159,18 @@ class QfmSurface():
         x = s.get_dofs()
 
         fun = lambda x: self.qfm_objective(x, derivatives=1)
-        con = lambda x : self.qfm_label_constraint(x, derivatives=1)[0]
-        dcon = lambda x : self.qfm_label_constraint(x, derivatives=1)[1]
+        con = lambda x: self.qfm_label_constraint(x, derivatives=1)[0]
+        dcon = lambda x: self.qfm_label_constraint(x, derivatives=1)[1]
 
         nlc = NonlinearConstraint(con, 0, 0)
-        eq_constraints = [{'type' : 'eq', 'fun': con, 'jac': dcon}]
+        eq_constraints = [{'type': 'eq', 'fun': con, 'jac': dcon}]
         res = minimize(
-            fun, x, jac=True, method='SLSQP',constraints=eq_constraints,
+            fun, x, jac=True, method='SLSQP', constraints=eq_constraints,
             options={'maxiter': maxiter, 'ftol': tol})
 
         resdict = {
             "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res,
-                "success": res.success,
+            "success": res.success,
         }
         s.set_dofs(res.x)
         resdict['s'] = s
