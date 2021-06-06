@@ -55,14 +55,15 @@ class ToroidalField(MagneticField):
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = 2*self.B0*self.R0*np.multiply(
                 1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
-                    [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
-                        points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
+                    [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))],
+                     [points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
                         np.zeros((len(points)))],
                      np.zeros((3, len(points)))],
                     [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
                       np.zeros((len(points)))],
                      [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
-                      np.zeros((len(points)))], np.zeros((3, len(points)))],
+                      np.zeros((len(points)))],
+                     np.zeros((3, len(points)))],
                     np.zeros((3, 3, len(points)))])).T
         return self
 
@@ -102,33 +103,33 @@ class ToroidalField(MagneticField):
 
 class ScalarPotentialRZMagneticField(MagneticField):
     """
-    Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the
-    magnetic field scalar potential.  It takes Phi as an input string, which
+    Vacuum magnetic field as a solution of B = grad(phi) where phi is the
+    magnetic field scalar potential.  It takes phi as an input string, which
     should contain an expression involving the standard cylindrical coordinates
     (R, phi, Z) Example: ScalarPotentialRZMagneticField("2*phi") yields a
     magnetic field B = grad(2*phi) = (0,2/R,0).  Note: this function needs
     sympy.
 
     Args:
-        PhiStr:  string containing vacuum scalar potential expression as a function of R, Z and phi
+        phi_str:  string containing vacuum scalar potential expression as a function of R, Z and phi
     """
 
-    def __init__(self, PhiStr):
+    def __init__(self, phi_str):
         if not sympy_found:
             raise RuntimeError("Sympy is required for the ScalarPotentialRZMagneticField class")
-        self.PhiStr = PhiStr
-        self.Phiparsed = parse_expr(PhiStr)
-        R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R)+1e-30*sp.sin(Phi), self.Phiparsed.diff(Phi)/R+1e-30*sp.sin(Phi), self.Phiparsed.diff(Z)+1e-30*sp.sin(Phi)])
+        self.phi_str = phi_str
+        self.phi_parsed = parse_expr(phi_str)
+        R, Z, phi = sp.symbols('R Z phi')
+        self.Blambdify = sp.lambdify((R, Z, phi), [self.phi_parsed.diff(R)+1e-30*sp.sin(phi), self.phi_parsed.diff(phi)/R+1e-30*sp.sin(phi), self.phi_parsed.diff(Z)+1e-30*sp.sin(phi)])
         self.dBlambdify_by_dX = sp.lambdify(
-            (R, Z, Phi),
-            [[sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
+            (R, Z, phi),
+            [[sp.cos(phi)*self.phi_parsed.diff(R).diff(R)-(sp.sin(phi)/R)*self.phi_parsed.diff(R).diff(phi),
+              sp.cos(phi)*(self.phi_parsed.diff(phi)/R).diff(R)-(sp.sin(phi)/R)*(self.phi_parsed.diff(phi)/R).diff(phi),
+              sp.cos(phi)*self.phi_parsed.diff(Z).diff(R)-(sp.sin(phi)/R)*self.phi_parsed.diff(Z).diff(phi)],
+             [sp.sin(phi)*self.phi_parsed.diff(R).diff(R)+(sp.cos(phi)/R)*self.phi_parsed.diff(R).diff(phi),
+              sp.sin(phi)*(self.phi_parsed.diff(phi)/R).diff(R)+(sp.cos(phi)/R)*(self.phi_parsed.diff(phi)/R).diff(phi),
+              sp.sin(phi)*self.phi_parsed.diff(Z).diff(R)+(sp.cos(phi)/R)*self.phi_parsed.diff(Z).diff(phi)],
+             [self.phi_parsed.diff(R).diff(Z)+1e-30*sp.sin(phi), (self.phi_parsed.diff(phi)/R).diff(Z), self.phi_parsed.diff(Z).diff(Z)+1e-30*sp.sin(phi)]])
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
