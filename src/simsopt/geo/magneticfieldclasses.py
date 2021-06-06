@@ -275,7 +275,7 @@ class Dommaschk(MagneticField):
     """
     Vacuum magnetic field created by an explicit representation of the magnetic
     field scalar potential as proposed by W. Dommaschk (1986), Computer Physics
-    Communications 40, 203-218 As inputs, it takes the arrays for the harmonics
+    Communications 40, 203-218. As inputs, it takes the arrays for the harmonics
     m, n and its corresponding coefficients
 
     Args:
