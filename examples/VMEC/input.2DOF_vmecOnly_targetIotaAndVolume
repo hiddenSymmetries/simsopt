@@ -1,0 +1,165 @@
+&INDATA
+!----- Runtime Parameters -----
+  DELT =   5.00E-01
+  NITER = 10000
+  NSTEP =  200
+  TCON0 =   2.00E+00
+!  NS_ARRAY    =      13       25       49 
+!  NITER_ARRAY =     600     1000     4000
+!  FTOL_ARRAY  = 1.0E-30  1.0E-30  1.0E-12
+
+!  NS_ARRAY    =      13       25 
+!  NITER_ARRAY =     600     4000
+!  FTOL_ARRAY  = 1.0E-16  1.0E-12
+
+  NS_ARRAY    =      15
+  NITER_ARRAY =    3000
+  FTOL_ARRAY  = 1.0E-10
+
+  PRECON_TYPE = 'none'
+  PREC2D_THRESHOLD =   1.000000E-19
+!----- Grid Parameters -----
+  LASYM = F
+  NFP = 0005
+  MPOL = 0003
+  NTOR = 0003
+!  MPOL = 0005
+!  NTOR = 0004
+  PHIEDGE =    5.143860000000E-001
+!----- Free Boundary Parameters -----
+  LFREEB = F
+  NVACSKIP =    6
+!----- Pressure Parameters -----
+  GAMMA =    0.000000000000E+000
+  BLOAT =    1.000000000000E+000
+  SPRES_PED =    1.000000000000E+000
+  PRES_SCALE =    1.000000000000E+000
+  PMASS_TYPE = 'power_series'
+  AM =   000000000E+00
+!----- Current/Iota Parameters -----
+  CURTOR =  0
+  NCURR = 1
+  PIOTA_TYPE = 'power_series'
+  PCURR_TYPE = 'power_series'
+!----- Axis Parameters ----- 
+  RAXIS_CC =   1
+  ZAXIS_CS =    0
+!----- Boundary Parameters -----
+! n comes before m!
+
+  ! Mean major radius:
+  RBC(0,0) =   1.0E+00     ZBS(0,0) =   0.0000E+00
+
+  ! Helicity of the axis:
+  RBC(1,0) =   0     ZBS(1,0) =   0
+
+  ! axisymmetric circular or elliptical cross-section
+  RBC(0,1) =   1.0E-01     ZBS(0,1) =   1.0E-01
+
+  ! Rotating elongation
+  RBC(1,1) = 0.05    ZBS(1,1) = -0.05
+/
+&OPTIMUM
+!-----------------------------------------------------------------------
+!          OPTIMIZER RUN CONTROL PARAMETERS
+!-----------------------------------------------------------------------
+  NFUNC_MAX = 10000
+  EQUIL_TYPE = 'VMEC2000'
+  ! OPT_TYPE   = 'ONE_ITER'
+   opt_type = 'lmdif'
+  !opt_type='map'
+  mode=10
+  FTOL =  1.00000000000000E-06
+  XTOL =  1.00000000000000E-30
+  GTOL =  1.00000000000000E-30
+  FACTOR =   100.0
+  EPSFCN =   1.0E-05
+  LKEEP_MINS = T
+!  NOPTIMIZERS = 1
+!-----------------------------------------------------------------------
+!          OPTIMIZED QUANTITIES
+!-----------------------------------------------------------------------
+!  LCURTOR_OPT = T   CURTOR_MIN  = -1.0E6  CURTOR_MAX  = -1.0E4
+
+! n comes before m!
+
+! Axis shape:
+LBOUND_OPT(1,1) = T
+
+RBC_MIN(1,1) = -0.07  RBC_MAX(1,1) = 0.07
+ZBS_MIN(1,1) = -0.07  ZBS_MAX(1,1) = 0.07
+
+! 2 degrees of freedom
+
+!----------------------------------------------------------------------
+!       Profile Functions
+!----------------------------------------------------------------------
+  NE_TYPE = 'power_series'
+  NE_OPT =    0.00000000000000E+00
+  TE_TYPE = 'power_series'
+  TE_OPT =    0.00000000000000E+00
+  TI_TYPE = 'power_series'
+  TI_OPT =    0.00000000000000E+00
+!------------------------------------------------------------------------
+!       Boozer Coordinate Transformation
+!------------------------------------------------------------------------
+  MBOZ = 32
+  NBOZ = 16
+!-----------------------------------------------------------------------
+!          PLASMA PROPERTIES
+!-----------------------------------------------------------------------
+!  TARGET_ASPECT  = 4.370  SIGMA_ASPECT  = 1.0
+!  TARGET_BETA    = 0.042  SIGMA_BETA    = 1.0
+!  TARGET_CURTOR  = 2.0E5  SIGMA_CURTOR  = 1.0E5
+!  TARGET_PHIEDGE = 0.500  SIGMA_PHIEDGE = 1.0
+!  TARGET_RBTOR   = 2.380  SIGMA_RBTOR   = 1.0
+!  TARGET_R0      = 1.600  SIGMA_R0      = 1.0
+  TARGET_VOLUME  = 0.15  SIGMA_VOLUME  = 1.0
+!  TARGET_WP      = 1.0E3  SIGMA_WP      = 1.0E3
+!------------------------------------------------------------------------
+!       Boozer Coordinate Helicity
+!         Note that helicity targeting is by surface.  Axis (01) is ignored.
+!         (X,0): Quasi-Axisymetry
+!         (0,X): Quasi-Poloidal Symmetry
+!         (L,K): Quasi-Helical Symmetry (m *K + n*L)
+!------------------------------------------------------------------------
+  HELICITY = (1,0)
+!  TARGET_HELICITY(1:99) = 99*0.0  SIGMA_HELICITY(1:99) = 99*1.0
+!  TARGET_HELICITY(2) = 0.0  SIGMA_HELICITY(2) = 1.0
+!  TARGET_HELICITY(8) = 0.0  SIGMA_HELICITY(8) = 1.0
+!  TARGET_HELICITY(25) = 0.0  SIGMA_HELICITY(25) = 1.0
+
+!TARGET_HELICITY_OLD(25) = 0.0  SIGMA_HELICITY_OLD(25) = 1.0
+
+!------------------------------------------------------------------------
+!       Ballooning Stability (as calculated by COBRA_VMEC)
+!         Note that ballooning stability is by surface.  Axis (01) is ignored.
+!         THETA, ZETA: Ballooning angle perturbations
+!------------------------------------------------------------------------
+!  BALLOON_THETA   = 0.0
+!  BALLOON_ZETA    = 0.0
+!  TARGET_BALLOON(1:99) = 99*0.0  SIGMA_BALLOON(1:99) = 99*1.0
+!------------------------------------------------------------------------
+!       Neoclassical Transport Calculation (as calculated by NEO)
+!         Note that neoclassical transport is by surface. Axis (01) is ignored.
+!------------------------------------------------------------------------
+!  TARGET_NEO(1:99) = 99*0.0  SIGMA_NEO(1:99) = 99*1.0
+!  TARGET_NEO( 2) = 0.0  SIGMA_NEO( 2) = 1.0
+!  TARGET_NEO(25) = 0.0  SIGMA_NEO(25) = 1.0
+!------------------------------------------------------------------------
+!       Drift Kinetic Equation Solver (DKES)
+!         Axis (01) is ignored.
+!------------------------------------------------------------------------
+!  TARGET_DKES(1:99) = 99*0.0  SIGMA_DKES(1:99) = 99*1.0
+!  TARGET_DKES(3) = 0.0  SIGMA_DKES(3) = 1.0
+!  TARGET_DKES(3:99) = 97*0.0  SIGMA_DKES(3:99) = 97*1.0
+!------------------------------------------------------------------------
+!       Bootstrap Current Calculation (as calculated by BOOTSJ)
+!------------------------------------------------------------------------
+!  TARGET_BOOTSTRAP(1:99) = 99*0.0  SIGMA_BOOTSTRAP(1:99) = 99*1.0
+
+! Rotational transform:
+TARGET_IOTA(001) =   0.41  SIGMA_IOTA(001) =   1.0  S_IOTA(001) =   0.0000
+
+/ 
+
