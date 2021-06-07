@@ -159,7 +159,7 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \kappa}{\partial \Gamma} \frac{\partial \Gamma}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} \right]
+            v^T \left[ \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} \right]
         
         """
 
@@ -171,7 +171,7 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \tau}{\partial \Gamma} \frac{d\Gamma}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} \right]
+            v^T \left[ \frac{\partial \tau}{\partial \Gamma'} \frac{d\Gamma'}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'''} \frac{\partial \Gamma'''}{\partial \mathbf{c}} \right]
         
         """
 
@@ -264,6 +264,11 @@ class Curve(Optimizable):
         return dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff
 
     def dkappadash_by_dcoeff(self):
+
+        r"""
+        This function returns :math:`\frac{\partial \kappa'(\phi)}{\partial \mathbf{c}}`.
+        """
+
         dkappadash_by_dcoeff = np.zeros((len(self.quadpoints), self.num_dofs()))
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
@@ -346,15 +351,27 @@ class JaxCurve(sgpp.Curve, Curve):
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def gamma_impl(self, gamma, quadpoints):
+        r"""
+        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`.
+        """
+        
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
+        r"""
+        This function returns :math:`\frac{\partial \Gamma}{\partial \mathbf c}`.
+        """
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_vjp(self, v):
         return self.dgamma_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadash_impl(self, gammadash):
+
+        r"""
+        This function returns :math:`\Gamma'(\varphi)`.
+        """
+
         gammadash[:, :] = self.gammadash_jax(self.get_dofs())
 
     def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
@@ -382,9 +399,25 @@ class JaxCurve(sgpp.Curve, Curve):
         return self.dgammadashdashdash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def dkappa_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \left[ \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} \right]
+        
+        """
         return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def dtorsion_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \left[ \frac{\partial \tau}{\partial \Gamma'} \frac{d\Gamma'}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'''} \frac{\partial \Gamma'''}{\partial \mathbf{c}} \right]
+        
+        """
+
+
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
 
@@ -405,37 +438,81 @@ class RotatedCurve(sgpp.Curve, Curve):
         curve.dependencies.append(self)
 
     def get_dofs(self):
+        """
+        This function returns the curve dofs.
+        """
+
         return self.curve.get_dofs()
 
     def set_dofs_impl(self, d):
+        """
+        This function sets the curve dofs.
+        """
+
         return self.curve.set_dofs(d)
 
     def num_dofs(self):
+        """
+        This function returns the number of dofs associated to the curve.
+        """
+
         return self.curve.num_dofs()
 
     def gamma_impl(self, gamma, quadpoints):
+        r"""
+        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`.
+        """
+
         self.curve.gamma_impl(gamma, quadpoints)
         gamma[:] = gamma @ self.rotmat
 
     def gammadash_impl(self, gammadash):
+        r"""
+        This function returns :math:`\Gamma'(\varphi)`.
+        """
+
         gammadash[:] = self.curve.gammadash() @ self.rotmat
 
     def gammadashdash_impl(self, gammadashdash):
+        r"""
+        This function returns :math:`\Gamma''(\varphi)`.
+        """
+
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
 
     def gammadashdashdash_impl(self, gammadashdashdash):
+        r"""
+        This function returns :math:`\Gamma'''(\varphi)`.
+        """
+
         gammadashdashdash[:] = self.curve.gammadashdashdash() @ self.rotmat
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
+        r"""
+        This function returns :math:`\frac{\Gamma}{\partial \mathbf c}`.
+        """
+
         dgamma_by_dcoeff[:] = self.rotmatT @ self.curve.dgamma_by_dcoeff()
 
     def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
+        r"""
+        This function returns :math:`\frac{\Gamma}{\partial \mathbf c}`.
+        """
+
         dgammadash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadash_by_dcoeff()
 
     def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
+        r"""
+        This function returns :math:`\frac{\Gamma''}{\partial \mathbf c}`.
+        """
+
         dgammadashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdash_by_dcoeff()
 
     def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
+        r"""
+        This function returns :math:`\frac{\Gamma'''}{\partial \mathbf c}`.
+        """
+
         dgammadashdashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdashdash_by_dcoeff()
 
     def dgamma_by_dcoeff_vjp(self, v):
