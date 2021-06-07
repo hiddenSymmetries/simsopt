@@ -27,80 +27,9 @@ using namespace boost::numeric::odeint;
 #else
 #endif
 
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing(
-        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
-{
-#if WITH_BOOST
 
-    typename MagneticField<T>::Tensor2 xyz({{xinit, yinit, zinit}});
-    field->set_points(xyz);
-    double AbsB = field->AbsB_ref()(0);
-    double vperp2 = vtotal*vtotal - vtang*vtang;
-    double mu = vperp2/(2*AbsB);
-
-
-    runge_kutta_dopri5<array<double, 4>> stepper;
-    //runge_kutta_fehlberg78<vector<double>> stepper;
-    auto rhs_class = GuidingCenterRHS<T>(field, m, q, mu);
-    GuidingCenterRHS<T>& rhs_ref = rhs_class; 
-    array<double, 4> y = {xinit, yinit, zinit, vtang};
-
-    double dtmax = 0.1/vtotal; // can at most move 1cm per step
-    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-    auto res_y = vector<array<double, 4>>();
-    res_y.reserve(2*int(tmax/dtmax));
-    auto res_t = vector<double>();
-    res_t.reserve(2*int(tmax/dtmax));
-    function<void(const array<double, 4> &, double)> observer =
-        [&res_y, &res_t](const array<double, 4> &y, double t) {
-            res_y.push_back(y);
-            res_t.push_back(t);
-        };
-    
-    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<array<double, 4>>>::type dense_stepper_type;
-    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<array<double, 4>>());
-    //bulirsch_stoer_dense_out<array<double, 4>> dense(tol, tol, 1.0, 1.0, dtmax);
-    double t = 0;
-    dense.initialize(y, t, dt);
-    int iter = 0;
-    bool stop = false;
-    do {
-        res_t.push_back(t);
-        res_y.push_back(y);
-        dense.do_step(rhs_ref);
-        iter++;
-        t = dense.current_time();
-        y = dense.current_state();
-        for (int i = 0; i < stopping_criteria.size(); ++i) {
-            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2])){
-                stop = true;
-                break;
-            }
-        }
-    } while(t < tmax && !stop);
-    if(!stop){
-        res_t.push_back(tmax);
-        array<double, 4> yfinal;
-        dense.calc_state(tmax, yfinal);
-        res_y.push_back(yfinal);
-    }
-
-    return make_tuple(res_t, res_y);
-
-#else
-    throw std::runtime_error("Guiding center computation not available without boost.");
-#endif
-}
-
-template
-tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing<xt::pytensor>(
-        shared_ptr<MagneticField<xt::pytensor>> field, double xinit, double yinit, double zinit,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
-
-double get_phi(const array<double, 3>& pt, double phi_near){
-    double phi = std::atan2(pt[1], pt[0]);
+double get_phi(double x, double y, double phi_near){
+    double phi = std::atan2(y, x);
     if(phi < 0)
         phi += 2*M_PI;
     double phi_near_mod = std::fmod(phi_near, 2*M_PI);
@@ -120,53 +49,35 @@ double get_phi(const array<double, 3>& pt, double phi_near){
 }
 
 
-
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>> fieldline_tracing(
-        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
-        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+template<class RHS>
+tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
 #if WITH_BOOST
-    runge_kutta_dopri5<array<double, 3>> stepper;
-    //runge_kutta_fehlberg78<vector<double>> stepper;
-    auto rhs_class = FieldlineRHS<T>(field);
-    array<double, 3> y = {xinit, yinit, zinit};
-
-    double dtmax = 0.1; // can at most move 1cm per step
-    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-
-    auto res_y = vector<array<double, 3>>();
-    res_y.reserve(2*int(tmax/dtmax));
-    auto res_t = vector<double>();
-    res_t.reserve(2*int(tmax/dtmax));
-    vector<vector<array<double, 4>>> res_phi_hits(phis.size(), vector<array<double, 4>>());
-    function<void(const array<double, 3> &, double)> observer =
-        [&res_y, &res_t](const array<double, 3> &y, double t) {
-            res_y.push_back(y);
-            res_t.push_back(t);
-        };
-    
-    typedef boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<array<double, 3>>>::type dense_stepper_type;
-    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<array<double, 3>>());
+    vector<array<double, RHS::Size+1>> res = {};
+    vector<array<double, RHS::Size+2>> res_phi_hits = {};
+    typedef typename RHS::State State;
+    typedef typename boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<State>>::type dense_stepper_type;
+    dense_stepper_type dense = make_dense_output(tol, tol, dtmax, runge_kutta_dopri5<State>());
     double t = 0;
     dense.initialize(y, t, dt);
     int iter = 0;
     bool stop = false;
-    double phi_last = get_phi(y, M_PI);
+    double phi_last = get_phi(y[0], y[1], M_PI);
     double phi_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
-    array<double, 3> temp = {0., 0., 0.};
+    uintmax_t rootmaxit = 200;
+    State temp;
     do {
-        res_t.push_back(t);
-        res_y.push_back(y);
-        tuple<double, double> step = dense.do_step(rhs_class);
+        res.push_back(join<1, RHS::Size>({t}, y));
+        tuple<double, double> step = dense.do_step(rhs);
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-        phi_current = get_phi(y, phi_last);
+        phi_current = get_phi(y[0], y[1], phi_last);
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
-        //fmt::print("tlast={:5f}, tcurrent={:5f}, phi_last={:5f}, phi_current={:5f}\n", tlast, tcurrent, phi_last, phi_current);
+        // Now check whether we have hit any of the phi planes
         for (int i = 0; i < phis.size(); ++i) {
             double phi = phis[i];
             if(std::floor((phi_last-phi)/(2*M_PI)) != std::floor((phi_current-phi)/(2*M_PI))){ // check whether phi+k*2pi for some k was crossed
@@ -176,43 +87,89 @@ tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>
 
                 std::function<double(double)> rootfun = [&dense, &phi_shift, &temp, &phi_last](double t){
                     dense.calc_state(t, temp);
-                    return get_phi(temp, phi_last)-phi_shift;
+                    double diff = get_phi(temp[0], temp[1], phi_last)-phi_shift;
+                    return diff;
                 };
 
-                uintmax_t maxit = 100;
-                auto root = toms748_solve(rootfun, tlast, tcurrent, phi_last - phi_shift, phi_current-phi_shift, roottol, maxit);
-                auto troot = (std::get<0>(root)+std::get<1>(root))/2;
+                auto root = toms748_solve(rootfun, tlast, tcurrent, phi_last - phi_shift, phi_current-phi_shift, roottol, rootmaxit);
+                double f0 = rootfun(root.first);
+                double f1 = rootfun(root.second);
+                double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
                 double rroot = std::sqrt(temp[0]*temp[0] + temp[1]*temp[1]);
                 double phiroot = std::atan2(temp[1], temp[0]);
                 if(phiroot<0)
                     phiroot += 2*M_PI;
+                //fmt::print("root=({:.5f}, {:.5f}), tlast={:.5f}, phi_last={:.5f}, tcurrent={:.5f}, phi_current={:.5f}, phi_shift={:.5f}, phi_root={:.5f}\n", std::get<0>(root), std::get<1>(root), tlast, phi_last, tcurrent, phi_current, phi_shift, get_phi(temp[0], temp[1], phi_last));
                 //fmt::print("t={:.5f}, xyz=({:.5f}, {:.5f}, {:.5f}), rphiz=({}, {}, {})\n", troot, temp[0], temp[1], temp[2], rroot, phiroot, temp[2]);
-                res_phi_hits[i].push_back({troot, rroot, phiroot, temp[2]});
+                //fmt::print("x={}, y={}, phi={}\n", temp[0], temp[1], std::atan2(temp[1], temp[0]));
+                res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, temp));
             }
         }
-        phi_last = phi_current;
+        // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
         for (int i = 0; i < stopping_criteria.size(); ++i) {
             if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2])){
                 stop = true;
+                res_phi_hits.push_back(join<2, RHS::Size>({t, -1-double(i)}, y));
                 break;
             }
         }
+        phi_last = phi_current;
     } while(t < tmax && !stop);
     if(!stop){
-        res_t.push_back(tmax);
-        array<double, 3> yfinal;
-        dense.calc_state(tmax, yfinal);
-        res_y.push_back(yfinal);
+        dense.calc_state(tmax, y);
+        res.push_back(join<1, RHS::Size>({tmax}, y));
     }
-
-    return make_tuple(res_t, res_y, res_phi_hits);
+    return std::make_tuple(res, res_phi_hits);
 #else
-    throw std::runtime_error("Fieldline computation not available without boost.");
+    throw std::runtime_error("Guiding center computation not available without boost.");
 #endif
 }
 
+
+
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_tracing(
+        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
+        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+{
+    typename MagneticField<T>::Tensor2 xyz({{xinit, yinit, zinit}});
+    field->set_points(xyz);
+    double AbsB = field->AbsB_ref()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*AbsB);
+
+    auto rhs_class = GuidingCenterRHS<T>(field, m, q, mu);
+    array<double, 4> y = {xinit, yinit, zinit, vtang};
+
+    double dtmax = 0.01/vtotal; // can at most move 1cm per step
+    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+
+    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+}
+
 template
-tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>> fieldline_tracing(
+tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
         shared_ptr<MagneticField<xt::pytensor>> field, double xinit, double yinit, double zinit,
-        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+
+
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 4>>, vector<array<double, 5>>>
+fieldline_tracing(
+    shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
+    double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+{
+    auto rhs_class = FieldlineRHS<T>(field);
+    array<double, 3> y = {xinit, yinit, zinit};
+    double dtmax = 0.1; // todo: better guess for dtmax (maybe bound so that one can't do more than half a rotation per step or so)
+    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+}
+
+template
+tuple<vector<array<double, 4>>, vector<array<double, 5>>>
+fieldline_tracing(
+    shared_ptr<MagneticField<xt::pytensor>> field, double xinit, double yinit, double zinit,
+    double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
