@@ -67,7 +67,7 @@ the container using the command:
    
     docker run -it --rm -v $PWD:/my_mount -p 8888:8888 hiddensymmetries/simsopt 
     <container ###> cd /my_mount
-    <container ###> jupyter notebook --ip 0.0.0.0 --no-browser # On linux use --allow-root option 
+    <container ###> jupyter notebook --ip 0.0.0.0 --no-browser --allow-root 
 
 Running the above command gives a link to open the jupyter console on the browser that typically 
 starts with **http://127.0.0.1:8888/?token=**. Copy the full link and paste it on any browser in your
