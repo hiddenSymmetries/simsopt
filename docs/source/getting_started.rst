@@ -61,6 +61,12 @@ optional depdencies related to SPEC and MPI, run the following command:
 
     pip install simsopt[MPI,SPEC]
     
+On some systems, you may not have permission to install packages to
+the default location. In this case, add the ``--user`` flag to ``pip``
+so the package can be installed for your user only::
+
+    pip install --user simsopt
+    
 From Source
 -----------
 First, install ``git`` if not already installed. Then clone the repository using
@@ -82,9 +88,9 @@ being a copy of the source files at the time of installation. Hence,
 edits to code in your local repository are immediately reflected in
 the package you can import.
 
-On some systems, you may not have permission to install packages to
-the default location. In this case, add the ``--user`` flag to ``pip``
-so the package can be installed for your user only::
+Again, if you do not have permission to install python packages to the
+default location, add the ``--user`` flag to ``pip`` so the package
+can be installed for your user only::
 
     pip install --user -e .
 
