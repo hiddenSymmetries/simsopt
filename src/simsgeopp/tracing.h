@@ -12,16 +12,19 @@ class GuidingCenterRHS {
     private:
         std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
         typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
-    public:
         shared_ptr<MagneticField<T>> field;
         double m, q, mu;
+    public:
+        static constexpr int Size = 4;
+        using State = std::array<double, Size>;
+
 
         GuidingCenterRHS(shared_ptr<MagneticField<T>> field, double m, double q, double mu)
             : field(field), m(m), q(q), mu(mu) {
 
             }
 
-        void operator()(const array<double, 4> &ys, array<double, 4> &dydt,
+        void operator()(const State &ys, array<double, 4> &dydt,
                 const double t) {
             double x = ys[0];
             double y = ys[1];
@@ -55,8 +58,10 @@ template<template<class, std::size_t, xt::layout_type> class T>
 class FieldlineRHS {
     private:
         typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
-    public:
         shared_ptr<MagneticField<T>> field;
+    public:
+        static constexpr int Size = 3;
+        using State = std::array<double, Size>;
 
         FieldlineRHS(shared_ptr<MagneticField<T>> field)
             : field(field) {
@@ -116,19 +121,27 @@ class LevelsetStoppingCriterion : public StoppingCriterion{
 
 
 template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing(
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_tracing(
         shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<double>, vector<array<double, 4>>> particle_guiding_center_tracing(
-        shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
-        double m, double q, double vtotal, double vtang, double tmax, double tol){
-    return particle_guiding_center_tracing(
-            field, xinit, yinit, zinit, m, q, vtotal, vtang, tmax, tol, {});
-}
-
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<double>, vector<array<double, 3>>, vector<vector<array<double, 4>>>> fieldline_tracing(
+tuple<vector<array<double, 4>>, vector<array<double, 5>>>
+fieldline_tracing(
         shared_ptr<MagneticField<T>> field, double xinit, double yinit, double zinit,
         double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+
+
+template<std::size_t m, std::size_t n>
+std::array<double, m+n> join(const std::array<double, m>& a, const std::array<double, n>& b){
+     std::array<double, m+n> res;
+     for (int i = 0; i < m; ++i) {
+         res[i] = a[i];
+     }
+     for (int i = 0; i < n; ++i) {
+         res[i+m] = b[i];
+     }
+     return res;
+}
+

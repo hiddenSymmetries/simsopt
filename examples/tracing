@@ -20,11 +20,21 @@ guiding center trajectories of particles
 
 
 coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
+
+# scale up the device to larger major radius and stronger B field
+scale = 8.
+for c in coils:
+    c.set_dofs(scale*c.get_dofs())
+ma.set_dofs(scale*ma.get_dofs())
+currents = [32 * c for c in currents]
+
 stellarator = CoilCollection(coils, currents, 3, True)
 coils = stellarator.coils
 currents = stellarator.currents
 bs = BiotSavart(coils, currents)
-curves_to_vtk(coils, '/tmp/coils')
+print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
+print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
+curves_to_vtk(coils + [ma], '/tmp/coils')
 
 mpol = 5
 ntor = 5
@@ -34,27 +44,33 @@ phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-s.fit_to_curve(ma, 0.70, flip_theta=False)
+s.fit_to_curve(ma, scale*0.70, flip_theta=False)
 s.to_vtk('/tmp/surface')
-sc = SurfaceClassifier(s, h=0.1, p=2)
-sc.to_vtk('/tmp/levelset', h=0.02)
+sc = SurfaceClassifier(s, h=scale*0.1, p=2)
+sc.to_vtk('/tmp/levelset', h=scale*0.02)
 
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
-    nfieldlines = 50
-    res_gyro_t_cpp, res_gyro_cpp, res_phi_hits_cpp = compute_fieldlines(
-        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.0025, tmax=4000,
-        stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
+    nfieldlines = 20
+    phis = [i*2*np.pi/(4*3) for i in range(4)]
+    tmax = 4000
+    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.02, tmax=tmax,
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
     t2 = time.time()
-    print(f"Time for fieldline tracing={t2-t1:.3f}s", flush=True)
-    particles_to_vtk(res_gyro_cpp, f'/tmp/fieldlines_{label}')
+    dtavg = sum([ty[-1, 0] for ty in fieldlines_tys])/sum([len(ty) for ty in fieldlines_tys])
+    print(f"Time for fieldline tracing={t2-t1:.3f}s. Average timestepsize={dtavg:.10f}", flush=True)
+    particles_to_vtk(fieldlines_tys, f'/tmp/fieldlines_{label}')
     import matplotlib.pyplot as plt
-    for i in range(len(res_phi_hits_cpp)):
+    for i in range(len(phis)):
         plt.figure()
-        for j in range(len(res_phi_hits_cpp[i])):
-            if res_phi_hits_cpp[i][j].size >= 3:
-                plt.scatter(res_phi_hits_cpp[i][j][:, 1], res_phi_hits_cpp[i][j][:, 3], marker='o', s=0.2, linewidths=0)
+        for j in range(len(fieldlines_phi_hits)):
+            data_this_phi = np.asarray([tixyz for tixyz in fieldlines_phi_hits[j] if tixyz[1] == i])
+            if len(data_this_phi) == 0:
+                continue
+            r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
+            plt.scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0)
         plt.savefig(f'/tmp/phi_{i}_{label}.png', dpi=600)
         plt.close()
 
@@ -62,22 +78,24 @@ def trace_fieldlines(bfield, label):
 def trace_particles(bfield, label):
     nparticles = 20
     t1 = time.time()
-    res_gyro_t, res_gyro = trace_particles_starting_on_axis(
-        ma.gamma(), bfield, nparticles, tmax=1e-3, seed=1, mass=1.67e-27, charge=1,
-        Ekinev=9000, umin=-1, umax=+1,
+    gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+        ma.gamma(), bfield, nparticles, tmax=1e-3, seed=1, mass=4*1.67e-27, charge=2*1,
+        Ekinev=3.5*1e6, umin=-0.1, umax=+0.1,
+        phis=[2*np.pi/6 for i in range(6)],
         stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
     t2 = time.time()
-    print(f"Time for particle tracing={t2-t1:.3f}s", flush=True)
-    particles_to_vtk(res_gyro, f'/tmp/traces_{label}')
+    dtavg = sum([ty[-1, 0] for ty in gc_tys])/sum([len(ty) for ty in gc_tys])
+    print(f"Time for particle tracing={t2-t1:.3f}s. Average timestepsize={dtavg:.10f}", flush=True)
+    particles_to_vtk(gc_tys, f'/tmp/traces_{label}')
 
 
 # trace_fieldlines(bs, 'bs')
 # trace_particles(bs, 'bs')
 
 n = 16
-rrange = (1.0, 2.0, n)
+rrange = (scale*1.0, scale*2.0, n)
 phirange = (0, 2*np.pi, n*6)
-zrange = (-0.7, 0.7, n)
+zrange = (scale*-0.7, scale*0.7, n)
 bsh = InterpolatedField(
     bs, UniformInterpolationRule(3),
     rrange, phirange, zrange, True

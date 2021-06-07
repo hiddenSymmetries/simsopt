@@ -21,10 +21,22 @@ void init_tracing(py::module_ &m){
     py::class_<LevelsetStoppingCriterion<PyTensor>, shared_ptr<LevelsetStoppingCriterion<PyTensor>>, StoppingCriterion>(m, "LevelsetStoppingCriterion")
         .def(py::init<shared_ptr<RegularGridInterpolant3D<PyTensor>>>());
 
-    m.def("particle_guiding_center_tracing", py::overload_cast<shared_ptr<MagneticField<xt::pytensor>>, double, double, double,
-        double, double, double, double, double, double, vector<shared_ptr<StoppingCriterion>>>(&particle_guiding_center_tracing<xt::pytensor>));
-    m.def("particle_guiding_center_tracing", py::overload_cast<shared_ptr<MagneticField<xt::pytensor>>, double, double, double,
-        double, double, double, double, double, double>(&particle_guiding_center_tracing<xt::pytensor>));
+    m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
+        py::arg("field"), 
+        py::arg("xinit"), 
+        py::arg("yinit"), 
+        py::arg("zinit"),
+        py::arg("m"),
+        py::arg("q"), 
+        py::arg("vtotal"), 
+        py::arg("vtang"), 
+        py::arg("tmax"), 
+        py::arg("tol"), 
+        py::arg("phis")=vector<double>{},
+        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
+        );
+    //m.def("particle_guiding_center_tracing", py::overload_cast<shared_ptr<MagneticField<xt::pytensor>>, double, double, double,
+    //    double, double, double, double, double, double>(&particle_guiding_center_tracing<xt::pytensor>));
     m.def("fieldline_tracing", &fieldline_tracing<xt::pytensor>, 
             py::arg("field"),
             py::arg("xinit"),
@@ -32,6 +44,6 @@ void init_tracing(py::module_ &m){
             py::arg("zinit"),
             py::arg("tmax"),
             py::arg("tol"),
-            py::arg("phis"),
+            py::arg("phis")=vector<double>{},
             py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
 }

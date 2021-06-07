@@ -5,64 +5,62 @@ import simsgeopp as sgpp
 
 def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
                                      mass=1.67e-27, charge=1, Ekinev=9000,
-                                     umin=-1, umax=+1, stopping_criteria=[]):
+                                     umin=-1, umax=+1, phis=[], stopping_criteria=[]):
     e = 1.6e-19
     Ekin = Ekinev*e
     m = mass
     q = charge*e
     vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
-    tol = 1e-9
+    tol = 1e-7
 
     np.random.seed(seed)
     xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
 
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
     vtangs = us*vtotal
+    print("vtangs", vtangs)
 
-    res_ts = []
-    res_ys = []
+    res_tys = []
+    res_phi_hits = []
+
     loss_ctr = 0
     for i in range(nparticles):
-        res_t, res_y = sgpp.particle_guiding_center_tracing(
+        res_ty, res_phi_hit = sgpp.particle_guiding_center_tracing(
             field, xyz_inits[i, 0], xyz_inits[i, 1], xyz_inits[i, 2],
-            m, q, vtotal, vtangs[i], tmax, tol, stopping_criteria)
-        res_ts.append(np.asarray(res_t))
-        res_ys.append(np.asarray(res_y))
-        print(f"{i+1:3d}/{nparticles}, t_final={res_t[-1]}", flush=True)
-        if res_t[-1] < tmax - 1e-15:
+            m, q, vtotal, vtangs[i], tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+        res_tys.append(np.asarray(res_ty))
+        res_phi_hits.append(res_phi_hit)
+        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}", flush=True)
+        if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     print(f'Particles lost {loss_ctr}/{nparticles}={loss_ctr/nparticles}', flush=True)
-    return res_ts, res_ys
+    return res_tys, res_phi_hits
 
 
-def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, stopping_criteria=[]):
+def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, phis=[], stopping_criteria=[]):
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.asarray([r0 + i*linestep for i in range(nlines)])
-    tol = 1e-9
-    res_ts = []
-    res_ys = []
-    phis = [i*2*np.pi/(4*3) for i in range(4)]
-    res_phi_hits = [[] for phi in phis]
+    tol = 1e-7
+    res_tys = []
+    res_phi_hits = []
     for i in range(nlines):
-        res_t, res_y, res_phi_hit = sgpp.fieldline_tracing(
+        res_ty, res_phi_hit = sgpp.fieldline_tracing(
             field, xyz_inits[i, 0], xyz_inits[i, 1], xyz_inits[i, 2],
-            tmax, tol, phis, stopping_criteria=stopping_criteria)
-        res_ts.append(np.asarray(res_t))
-        res_ys.append(np.asarray(res_y))
-        for j in range(len(phis)):
-            res_phi_hits[j].append(np.asarray(res_phi_hit[j]))
-        print(f"{i+1}/{nlines}, t_final={res_t[-1]}", flush=True)
-    return res_ts, res_ys, res_phi_hits
+            tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+        res_tys.append(np.asarray(res_ty))
+        res_phi_hits.append(res_phi_hit)
+        print(f"{i+1}/{nlines}, t_final={res_ty[-1][0]}", flush=True)
+    return res_tys, res_phi_hits
 
 
-def particles_to_vtk(res_ys, filename):
+def particles_to_vtk(res_tys, filename):
     from pyevtk.hl import polyLinesToVTK
-    x = np.concatenate([xyz[:, 0] for xyz in res_ys])
-    y = np.concatenate([xyz[:, 1] for xyz in res_ys])
-    z = np.concatenate([xyz[:, 2] for xyz in res_ys])
-    ppl = np.asarray([xyz.shape[0] for xyz in res_ys])
-    data = np.concatenate([i*np.ones((res_ys[i].shape[0], )) for i in range(len(res_ys))])
+    x = np.concatenate([xyz[:, 1] for xyz in res_tys])
+    y = np.concatenate([xyz[:, 2] for xyz in res_tys])
+    z = np.concatenate([xyz[:, 3] for xyz in res_tys])
+    ppl = np.asarray([xyz.shape[0] for xyz in res_tys])
+    data = np.concatenate([i*np.ones((res_tys[i].shape[0], )) for i in range(len(res_tys))])
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
 
