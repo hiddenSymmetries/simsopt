@@ -48,6 +48,13 @@ torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_p
 
 
 class Curve(Optimizable):
+    
+    """
+    Curve  is a base class for various representations of curves in simsopt.
+    """
+
+
+
     def __init__(self):
         Optimizable.__init__(self)
         self.dependencies = []
@@ -375,27 +382,75 @@ class JaxCurve(sgpp.Curve, Curve):
         gammadash[:, :] = self.gammadash_jax(self.get_dofs())
 
     def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
+
+        r"""
+        This function returns :math:`\frac{\partial \Gamma'}{\partial \mathbf c}`.
+        """
+
         dgammadash_by_dcoeff[:, :, :] = self.dgammadash_by_dcoeff_jax(self.get_dofs())
 
     def dgammadash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns :math:`\mathbf v^T \Gamma'`.
+        """
+
         return self.dgammadash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadashdash_impl(self, gammadashdash):
+
+        r"""
+        This function returns :math:`\Gamma''(\varphi)`.
+        """
+
         gammadashdash[:, :] = self.gammadashdash_jax(self.get_dofs())
 
     def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
+
+        r"""
+        This function returns :math:`\frac{\partial \Gamma''}{\partial \mathbf c}`.
+        """
+
         dgammadashdash_by_dcoeff[:, :, :] = self.dgammadashdash_by_dcoeff_jax(self.get_dofs())
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T  \frac{\partial \Gamma'}{\partial \mathbf c} 
+        
+        """
+
         return self.dgammadashdash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadashdashdash_impl(self, gammadashdashdash):
+
+        r"""
+        This function returns :math:`\Gamma'''(\varphi)`.
+        """
+
         gammadashdashdash[:, :] = self.gammadashdashdash_jax(self.get_dofs())
 
     def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
+
+        r"""
+        This function returns :math:`\frac{\partial \Gamma'''}{\partial \mathbf c}`.
+        """
+
         dgammadashdashdash_by_dcoeff[:, :, :] = self.dgammadashdashdash_by_dcoeff_jax(self.get_dofs())
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T  \frac{\partial \Gamma'''}{\partial \mathbf c} 
+        
+        """
+
         return self.dgammadashdashdash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def dkappa_by_dcoeff_vjp(self, v):
@@ -422,6 +477,12 @@ class JaxCurve(sgpp.Curve, Curve):
 
 
 class RotatedCurve(sgpp.Curve, Curve):
+    
+    """
+    RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by `theta`, and
+    optionally reflects about the XY plane when `flip=True`.
+    """
+
 
     def __init__(self, curve, theta, flip):
         self.curve = curve
@@ -489,7 +550,7 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\Gamma}{\partial \mathbf c}`.
+        This function returns :math:`\frac{\partial \Gamma}{\partial \mathbf c}`.
         """
 
         dgamma_by_dcoeff[:] = self.rotmatT @ self.curve.dgamma_by_dcoeff()
@@ -516,13 +577,51 @@ class RotatedCurve(sgpp.Curve, Curve):
         dgammadashdashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdashdash_by_dcoeff()
 
     def dgamma_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma}{\partial \mathbf c} 
+        
+        """
+
         return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
 
     def dgammadash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma'}{\partial \mathbf c} 
+        
+        """
+
         return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma''}{\partial \mathbf c} 
+        
+        """
+
+
+
         return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmat.T)
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
+
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma'''}{\partial \mathbf c} 
+        
+        """
+
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
