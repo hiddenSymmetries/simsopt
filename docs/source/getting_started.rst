@@ -94,6 +94,22 @@ can be installed for your user only::
 
     pip install --user -e .
 
+From docker image
+-----------------
+A docker image with simsopt along with all of its dependencies such as
+SPEC and VMEC pre-installed is available from docker hub. After 
+`installing docker <https://docs.docker.com/get-docker/>`_, you can run
+the simsopt container directly from the simsopt docker image uploaded to
+Docker Hub.
+
+.. code-block::
+
+   docker run -it --rm hiddensymmetries/simsopt python
+
+The above command shoud load the python shell that comes with the simsopt
+docker container. When you run it first time, the image is downloaded
+automatically, so be patient.
+
 Post-Installation
 -----------------
 
