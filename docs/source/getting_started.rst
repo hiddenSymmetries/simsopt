@@ -29,7 +29,6 @@ Optional Packages
 -----------------
 - For MPI support:
     * mpi4py
-    * MPILogger
 - For SPEC support:
     * py_spec
     * pyoculus
@@ -49,16 +48,28 @@ Installation
 
 From PyPi
 ---------
-Currently, older versions of ``simsopt`` are avaialable at test.pypi.org.
-You can install the latest among them using
+This is the easiest and preferred method. 
 
 .. code-block::
 
-    pip install --index-url https://test.pypi.org/simple/ simsopt
+    pip install simsopt
+
+Running the above command will install simsopt and all of its mandatory dependencies. To install
+optional depdencies related to SPEC and MPI, run the following command:
+
+.. code-block::
+
+    pip install simsopt[MPI,SPEC]
+    
+On some systems, you may not have permission to install packages to
+the default location. In this case, add the ``--user`` flag to ``pip``
+so the package can be installed for your user only::
+
+    pip install --user simsopt
     
 From Source
 -----------
-This is the preferred method. First, install ``git`` if not already installed. Then clone the repository using
+First, install ``git`` if not already installed. Then clone the repository using
 
 .. code-block::
 
@@ -77,11 +88,27 @@ being a copy of the source files at the time of installation. Hence,
 edits to code in your local repository are immediately reflected in
 the package you can import.
 
-On some systems, you may not have permission to install packages to
-the default location. In this case, add the ``--user`` flag to ``pip``
-so the package can be installed for your user only::
+Again, if you do not have permission to install python packages to the
+default location, add the ``--user`` flag to ``pip`` so the package
+can be installed for your user only::
 
     pip install --user -e .
+
+From docker image
+-----------------
+A docker image with simsopt along with all of its dependencies such as
+SPEC and VMEC pre-installed is available from docker hub. After 
+`installing docker <https://docs.docker.com/get-docker/>`_, you can run
+the simsopt container directly from the simsopt docker image uploaded to
+Docker Hub.
+
+.. code-block::
+
+   docker run -it --rm hiddensymmetries/simsopt python
+
+The above command shoud load the python shell that comes with the simsopt
+docker container. When you run it first time, the image is downloaded
+automatically, so be patient.
 
 Post-Installation
 -----------------
