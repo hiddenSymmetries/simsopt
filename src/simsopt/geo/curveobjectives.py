@@ -52,7 +52,7 @@ def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
 
 class LpCurveCurvature(Optimizable):
     r"""
-    LpCurveCurvature is a class that computes a penalty term based on the :math:`L_p` norm
+    This class computes a penalty term based on the :math:`L_p` norm
     of the curve's curvature, and penalizes where the local curve curvature exceeds a threshold
 
     

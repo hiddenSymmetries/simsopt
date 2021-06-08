@@ -11,9 +11,11 @@ from .._core.optimizable import Optimizable
 
 @jit
 def incremental_arclength_pure(d1gamma):
+
     """
     This function is used in a Python+Jax implementation of the curve arc length formula.
     """
+    
     return jnp.linalg.norm(d1gamma, axis=1)
 
 
@@ -22,9 +24,11 @@ incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_a
 
 @jit
 def kappa_pure(d1gamma, d2gamma):
+
     """
     This function is used in a Python+Jax implementation of formula for curvature.
     """
+    
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
 
 
@@ -36,9 +40,11 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 
 @jit
 def torsion_pure(d1gamma, d2gamma, d3gamma):
+    
     """
     This function is used in a Python+Jax implementation of formula for torsion.
     """
+    
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
 
 
@@ -50,7 +56,7 @@ torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_p
 class Curve(Optimizable):
     
     """
-    Curve  is a base class for various representations of curves in simsopt.
+    Curve  is a base class for various representations of curves in SIMSOPT.
     """
 
 
@@ -105,23 +111,28 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \frac{\partial \|\Gamma`\|}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}}
+            v^T \frac{\partial \|\Gamma'\|}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}}
         
         where :math:`\|\Gamma'\|` is the incremental arclength, 
-        :math:`\Gamma'` is the tangent to the curve and :math:`\mathbf{c}` are the coil dofs.
+        :math:`\Gamma'` is the tangent to the curve and :math:`\mathbf{c}` are the curve dofs.
         """
 
         return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
 
     def kappa_impl(self, kappa):
-        """
-        This function implements the curvature.
+        r"""
+        This function implements the curvature, :math:`\kappa(\varphi)`.
         """
         kappa[:] = np.asarray(kappa_pure(self.gammadash(), self.gammadashdash()))
 
     def dkappa_by_dcoeff_impl(self, dkappa_by_dcoeff):
-        """
-        This function computes the derivative of the curvature with respect to the coil coefficients.
+        r"""
+        This function computes the derivative of the curvature with respect to the curve coefficients.
+        
+        .. math::
+            \frac{\partial \kappa}{\partial \mathbf c}
+        
+        where :math:`\mathbf c` are the curve dofs.
         """
 
         dgamma_by_dphi = self.gammadash()
@@ -140,14 +151,19 @@ class Curve(Optimizable):
             - (norm(numerator) * 3 / denominator**5)[:, None] * np.sum(dgamma_by_dphi[:, :, None] * dgamma_by_dphidcoeff[:, :, :], axis=1)
 
     def torsion_impl(self, torsion):
-        """
-        This function returns the torsion of a curve.
+        r"""
+        This function returns the torsion, :math:`\tau`, of a curve.
         """
         torsion[:] = torsion_pure(self.gammadash(), self.gammadashdash(), self.gammadashdashdash())
 
     def dtorsion_by_dcoeff_impl(self, dtorsion_by_dcoeff):
-        """
-        This function returns the derivative of torsion with respect to the coil dofs.
+        r"""
+        This function returns the derivative of torsion with respect to the curve dofs.
+         
+        .. math::
+            \frac{\partial \tau}{\partial \mathbf c}
+        
+        where :math:`\mathbf c` are the curve dofs.
         """
         d1gamma = self.gammadash()
         d2gamma = self.gammadashdash()
@@ -191,6 +207,7 @@ class Curve(Optimizable):
         This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
         associated to the curve.
         """
+        
         gammadash = self.gammadash()
         gammadashdash = self.gammadashdash()
         l = self.incremental_arclength()
@@ -230,7 +247,7 @@ class Curve(Optimizable):
         .. math::
             \left(\frac{\partial \mathbf{t}}{\partial \mathbf{c}}, \frac{\partial \mathbf{n}}{\partial \mathbf{c}}, \frac{\partial \mathbf{b}}{\partial \mathbf{c}}\right),
         
-        with respect to the coil dofs.
+        with respect to the curve dofs.
         """
         dgamma_by_dphi = self.gammadash()
         d2gamma_by_dphidphi = self.gammadashdash()
@@ -273,7 +290,11 @@ class Curve(Optimizable):
     def dkappadash_by_dcoeff(self):
 
         r"""
-        This function returns :math:`\frac{\partial \kappa'(\phi)}{\partial \mathbf{c}}`.
+        This function returns 
+
+        .. math::
+            \frac{\partial \kappa'(\phi)}{\partial \mathbf{c}}.
+        
         """
 
         dkappadash_by_dcoeff = np.zeros((len(self.quadpoints), self.num_dofs()))
@@ -359,18 +380,31 @@ class JaxCurve(sgpp.Curve, Curve):
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
-        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`.
+        This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
+        
         """
         
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\partial \Gamma}{\partial \mathbf c}`.
+        This function returns 
+
+        .. math::
+            \frac{\partial \Gamma}{\partial \mathbf c}
+        
         """
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_vjp(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T  \frac{\partial \Gamma}{\partial \mathbf c} 
+        
+        """
+
         return self.dgamma_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadash_impl(self, gammadash):
@@ -384,7 +418,11 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
 
         r"""
-        This function returns :math:`\frac{\partial \Gamma'}{\partial \mathbf c}`.
+        This function returns 
+
+        .. math::
+            \frac{\partial \Gamma'}{\partial \mathbf c}
+        
         """
 
         dgammadash_by_dcoeff[:, :, :] = self.dgammadash_by_dcoeff_jax(self.get_dofs())
@@ -392,7 +430,10 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadash_by_dcoeff_vjp(self, v):
 
         r"""
-        This function returns :math:`\mathbf v^T \Gamma'`.
+        This function returns 
+
+        .. math::
+            \mathbf v^T \frac{\partial \Gamma'}{\partial \mathbf c}
         """
 
         return self.dgammadash_by_dcoeff_vjp_jax(self.get_dofs(), v)
@@ -400,7 +441,7 @@ class JaxCurve(sgpp.Curve, Curve):
     def gammadashdash_impl(self, gammadashdash):
 
         r"""
-        This function returns :math:`\Gamma''(\varphi)`.
+        This function returns :math:`\Gamma''(\varphi)`
         """
 
         gammadashdash[:, :] = self.gammadashdash_jax(self.get_dofs())
@@ -408,7 +449,11 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
 
         r"""
-        This function returns :math:`\frac{\partial \Gamma''}{\partial \mathbf c}`.
+        This function returns 
+        
+        .. math::
+            \frac{\partial \Gamma''}{\partial \mathbf c}
+        
         """
 
         dgammadashdash_by_dcoeff[:, :, :] = self.dgammadashdash_by_dcoeff_jax(self.get_dofs())
@@ -436,7 +481,11 @@ class JaxCurve(sgpp.Curve, Curve):
     def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
 
         r"""
-        This function returns :math:`\frac{\partial \Gamma'''}{\partial \mathbf c}`.
+        This function returns 
+        
+        .. math::
+            \frac{\partial \Gamma'''}{\partial \mathbf c}
+        
         """
 
         dgammadashdashdash_by_dcoeff[:, :, :] = self.dgammadashdashdash_by_dcoeff_jax(self.get_dofs())
@@ -550,28 +599,44 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\partial \Gamma}{\partial \mathbf c}`.
+        This function returns
+
+        .. math::
+            \frac{\partial \Gamma}{\partial \mathbf c}
+        
         """
 
         dgamma_by_dcoeff[:] = self.rotmatT @ self.curve.dgamma_by_dcoeff()
 
     def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\Gamma}{\partial \mathbf c}`.
+        This function returns 
+        
+        .. math::
+            \frac{\partial \Gamma'}{\partial \mathbf c}
+        
         """
 
         dgammadash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadash_by_dcoeff()
 
     def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\Gamma''}{\partial \mathbf c}`.
+        This function returns 
+        
+        .. math::
+            \frac{\partial \Gamma''}{\partial \mathbf c}
+
         """
 
         dgammadashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdash_by_dcoeff()
 
     def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
         r"""
-        This function returns :math:`\frac{\Gamma'''}{\partial \mathbf c}`.
+        This function returns 
+        
+        .. math::
+            \frac{\partial \Gamma'''}{\partial \mathbf c}
+        
         """
 
         dgammadashdashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdashdash_by_dcoeff()
