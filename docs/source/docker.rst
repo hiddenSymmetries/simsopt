@@ -90,6 +90,7 @@ you can do so by removing the `--rm` command and specifying a container name via
 And to restart and rejoin the container:
 
 .. code-block::
+
     docker start mycontainer
-    docker docker exec -it mycontainer /bin/bash
+    docker exec -it mycontainer /bin/bash
     <container ###> source /venv/bin/activate
