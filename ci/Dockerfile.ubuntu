@@ -32,6 +32,8 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
     cd /src/VMEC && \
     cp python/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install  .
+
+ENV CI=True
 RUN /venv/bin/pip install -v "git+https://github.com/hiddenSymmetries/simsopt"
 
 
