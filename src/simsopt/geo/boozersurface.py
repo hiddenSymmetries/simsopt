@@ -205,7 +205,7 @@ class BoozerSurface():
 
         .. math::
             \text{min}_x ~J(x) + \frac{1}{2} w_c (l - l_0)^2
-                                 + \frac{1}{2} c_w (z(\varphi=0, \theta=0) - 0)^2
+                                 + \frac{1}{2} w_c (z(\varphi=0, \theta=0) - 0)^2
 
         where :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
         the Boozer residuals at quadrature points :math:`1,\dots,n`, as well as the constraints.
