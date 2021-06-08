@@ -74,3 +74,21 @@ starts with **http://127.0.0.1:8888/?token=**. Copy the full link and paste it o
 computer.
 
 
+Persistent containers
+^^^^^^^^^^^^^^^^^^^^^
+
+Using the intructions above will create a fresh container each time and delete the container after exiting.
+If you would like to create a persistent container (e.g. because you are installing additional pip packages inside) that you can reuse at any time,
+you can do so by removing the `--rm` command and specifying a container name via `--name=`
+
+.. code-block::
+
+    docker run --name=mycontainer -it -v $PWD:/my_mount hiddensymmetries/simsopt
+    <container ###> cd /my_mount
+    <container ###> python <driver_script>
+
+And to restart and rejoin the container:
+
+.. code-block::
+    docker start mycontainer
+    docker docker exec -it mycontainer /bin/bash
