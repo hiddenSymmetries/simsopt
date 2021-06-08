@@ -598,7 +598,9 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
-        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`.
+        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`, where :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         self.curve.gamma_impl(gamma, quadpoints)
@@ -606,21 +608,27 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def gammadash_impl(self, gammadash):
         r"""
-        This function returns :math:`\Gamma'(\varphi)`.
+        This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         gammadash[:] = self.curve.gammadash() @ self.rotmat
 
     def gammadashdash_impl(self, gammadashdash):
         r"""
-        This function returns :math:`\Gamma''(\varphi)`.
+        This function returns :math:`\Gamma''(\varphi)`, where :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
 
     def gammadashdashdash_impl(self, gammadashdashdash):
         r"""
-        This function returns :math:`\Gamma'''(\varphi)`.
+        This function returns :math:`\Gamma'''(\varphi)`, where :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         gammadashdashdash[:] = self.curve.gammadashdashdash() @ self.rotmat
@@ -632,7 +640,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             \frac{\partial \Gamma}{\partial \mathbf c}
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         dgamma_by_dcoeff[:] = self.rotmatT @ self.curve.dgamma_by_dcoeff()
@@ -644,7 +654,8 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             \frac{\partial \Gamma'}{\partial \mathbf c}
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
         """
 
         dgammadash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadash_by_dcoeff()
@@ -656,7 +667,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             \frac{\partial \Gamma''}{\partial \mathbf c}
 
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         dgammadashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdash_by_dcoeff()
@@ -668,7 +681,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             \frac{\partial \Gamma'''}{\partial \mathbf c}
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         dgammadashdashdash_by_dcoeff[:] = self.rotmatT @ self.curve.dgammadashdashdash_by_dcoeff()
@@ -681,7 +696,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             v^T \frac{\partial \Gamma}{\partial \mathbf c} 
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
@@ -694,7 +711,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             v^T \frac{\partial \Gamma'}{\partial \mathbf c} 
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
@@ -707,7 +726,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             v^T \frac{\partial \Gamma''}{\partial \mathbf c} 
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmat.T)
@@ -720,7 +741,9 @@ class RotatedCurve(sgpp.Curve, Curve):
         .. math::
             v^T \frac{\partial \Gamma'''}{\partial \mathbf c} 
         
-        where :math:`\mathbf{c}` are the curve dofs
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
         """
 
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
