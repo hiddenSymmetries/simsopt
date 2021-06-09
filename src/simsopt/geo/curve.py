@@ -109,10 +109,10 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \frac{\partial \|\Gamma'\|}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}}
+            v^T \frac{\partial \|\Gamma'\|}{\partial \mathbf{c}}
         
-        where :math:`\Gamma` is the x, y, z coordinates of the curve, :math:`\|\Gamma'\|` is the incremental arclength, 
-        :math:`\Gamma'` is the tangent to the curve and :math:`\mathbf{c}` are the curve dofs.
+        where :math:`\|\Gamma'\|` is the incremental arclength, :math:`\Gamma'` is the tangent 
+        to the curve and :math:`\mathbf{c}` are the curve dofs.
         """
 
         return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
@@ -180,10 +180,9 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} \right]
+            v^T \frac{\partial \kappa}{\partial \mathbf{c}} 
         
-        where :math:`\mathbf c` are the curve dofs, :math:`\Gamma` are the x, y, z coordinates of the curve,
-        and :math:`\kappa` is the curvature.
+        where :math:`\mathbf c` are the curve dofs and :math:`\kappa` is the curvature.
         """
 
         return self.dgammadash_by_dcoeff_vjp(kappavjp0(self.gammadash(), self.gammadashdash(), v)) \
@@ -194,10 +193,9 @@ class Curve(Optimizable):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \tau}{\partial \Gamma'} \frac{d\Gamma'}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'''} \frac{\partial \Gamma'''}{\partial \mathbf{c}} \right]
+            v^T  \frac{\partial \tau}{\partial \mathbf{c}} 
         
-        where :math:`\mathbf c` are the curve dofs, :math:`\Gamma` are the x, y, z coordinates of the curve,
-        and :math:`\tau` is the torsion.
+        where :math:`\mathbf c` are the curve dofs, and :math:`\tau` is the torsion.
         """
 
         return self.dgammadash_by_dcoeff_vjp(torsionvjp0(self.gammadash(), self.gammadashdash(), self.gammadashdashdash(), v)) \
@@ -479,7 +477,7 @@ class JaxCurve(sgpp.Curve, Curve):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T  \frac{\partial \Gamma'}{\partial \mathbf c} 
+            v^T  \frac{\partial \Gamma''}{\partial \mathbf c} 
         
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
@@ -531,10 +529,9 @@ class JaxCurve(sgpp.Curve, Curve):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \kappa}{\partial \Gamma'} \frac{\partial \Gamma'}{\partial \mathbf{c}} + \frac{\partial \kappa}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} \right]
+            v^T \frac{\partial \kappa}{\partial \mathbf{c}}
         
-        where :math:`\mathbf{c}` are the curve dofs, :math:`\kappa` is the curvature, and :math:`\Gamma` are the x, y, z coordinates
-        of the curve.
+        where :math:`\mathbf{c}` are the curve dofs and :math:`\kappa` is the curvature.
 
         """
         return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
@@ -544,10 +541,9 @@ class JaxCurve(sgpp.Curve, Curve):
         This function returns the vector Jacobian product
 
         .. math::
-            v^T \left[ \frac{\partial \tau}{\partial \Gamma'} \frac{d\Gamma'}{d\mathbf{c}} + \frac{\partial \tau}{\partial \Gamma''} \frac{\partial \Gamma''}{\partial \mathbf{c}} + \frac{\partial \tau}{\partial \Gamma'''} \frac{\partial \Gamma'''}{\partial \mathbf{c}} \right]
+            v^T \frac{\partial \tau}{\partial \mathbf{c}} 
         
-        where :math:`\mathbf{c}` are the curve dofs, :math:`\tau` is the torsion, and :math:`\Gamma` are the x, y, z coordinates
-        of the curve.
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\tau` is the torsion.
 
         """
 
@@ -557,8 +553,8 @@ class JaxCurve(sgpp.Curve, Curve):
 class RotatedCurve(sgpp.Curve, Curve):
     
     """
-    RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by `theta`, and
-    optionally reflects about the XY plane when `flip=True`.
+    RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
+    optionally reflects about the XY plane when ``flip=True``.
     """
 
     def __init__(self, curve, theta, flip):

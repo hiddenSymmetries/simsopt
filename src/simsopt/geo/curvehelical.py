@@ -22,7 +22,7 @@ def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
 
 class CurveHelical(JaxCurve):
     r'''Curve representation of a helical coil.
-    The helical coil positions are specified by a poloidal angle eta that is a function of the toroidal angle phi with Fourier coefficients A_k and B_k.
+    The helical coil positions are specified by a poloidal angle eta that is a function of the toroidal angle phi with Fourier coefficients :math:`A_k` and :math:`B_k`.
     The poloidal angle is represented as 
 
     .. math:: 

@@ -30,13 +30,13 @@ class CurveLength(Optimizable):
 
     def J(self):
         """
-        This function returns the value of this quantity.
+        This returns the value of the quantity.
         """
         return curve_length_pure(self.curve.incremental_arclength())
 
     def dJ(self):
         """
-        This function returns the derivative of this quantity with respect to the curve dofs.
+        This returns the derivative of the quantity with respect to the curve dofs.
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(self.thisgrad(self.curve.incremental_arclength()))
 
@@ -78,13 +78,13 @@ class LpCurveCurvature(Optimizable):
 
     def J(self):
         """
-        This function returns the value of this quantity.
+        This returns the value of the quantity.
         """
         return self.J_jax(self.curve.kappa(), self.curve.gammadash())
 
     def dJ(self):
         """
-        This function returns the derivative of this quantity with respect to the curve dofs.
+        This returns the derivative of the quantity with respect to the curve dofs.
         """
         grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
@@ -121,13 +121,13 @@ class LpCurveTorsion(Optimizable):
 
     def J(self):
         """
-        This function returns the value of this quantity.
+        This returns the value of the quantity.
         """
         return self.J_jax(self.curve.torsion(), self.curve.gammadash())
 
     def dJ(self):
         """
-        This function returns the derivative of this quantity with respect to the curve dofs.
+        This returns the derivative of the quantity with respect to the curve dofs.
         """
         grad0 = self.thisgrad0(self.curve.torsion(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
@@ -174,7 +174,7 @@ class MinimumDistance(Optimizable):
 
     def J(self):
         """
-        This function returns the value of this quantity.
+        This returns the value of the quantity.
         """
         res = 0
         for i in range(len(self.curves)):
@@ -188,7 +188,7 @@ class MinimumDistance(Optimizable):
 
     def dJ(self):
         """
-        This function returns the derivative of this quantity with respect to the curve dofs.
+        This returns the derivative of the quantity with respect to the curve dofs.
         """
         dgamma_by_dcoeff_vjp_vecs = [None for c in self.curves]
         dgammadash_by_dcoeff_vjp_vecs = [None for c in self.curves]
