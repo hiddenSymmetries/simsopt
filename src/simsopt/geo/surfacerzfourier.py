@@ -5,24 +5,23 @@ from .surface import Surface
 
 class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
     r"""`SurfaceRZFourier` is a surface that is represented in cylindrical
-       coordinates using the following Fourier series:
+    coordinates using the following Fourier series:
+    
+    .. math::
+           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}} \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
+               r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
+               + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
 
-       .. math::
-
-           r(\theta, z, \phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-               r_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
-               + r_{s,m,n} \sin(m \theta - n \,\mathrm{nfp}\,  \phi) ]
-
-       and the same for :math:`z(\theta, \phi)`.
-
-       Here, :math:`(r, \phi, z)` are standard cylindrical coordinates, and :math:`\theta`
-       is any poloidal angle.
-
-       Note that for :math:`m=0` we skip the :math:`n<0` term for the :math:`\cos` terms, and the :math:`n<=0`
-       for the :math:`\sin` terms.
-
-       In addition, in the ``stellsym=True`` case, we skip the :math:`\sin` terms for :math:`r`, and
-       the :math:`\cos` terms for :math:`z`.
+    and the same for :math:`z(\theta, \phi)`.
+    
+    Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
+    is any poloidal angle.
+    
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
+    for the sin terms.
+    
+    In addition, in the ``stellsym=True`` case, we skip the sin terms for :math:`r`, and
+    the cos terms for :math:`z`.
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63, quadpoints_theta=62):
@@ -37,6 +36,9 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         self.make_names()
 
     def get_dofs(self):
+        """
+        Return the dofs associated to this surface.
+        """
         return np.asarray(sgpp.SurfaceRZFourier.get_dofs(self))
 
     def make_names(self):
@@ -299,3 +301,8 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
+
+    def set_dofs(self, dofs):
+        sgpp.SurfaceRZFourier.set_dofs(self, dofs)
+        for d in self.dependencies:
+            d.invalidate_cache()
