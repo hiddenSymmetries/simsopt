@@ -389,5 +389,6 @@ class Testing(unittest.TestCase):
         curve1 = get_curve(self.curvetypes[1], True)
         curves_to_vtk([curve0, curve1], '/tmp/curves')
 
+
 if __name__ == "__main__":
     unittest.main()

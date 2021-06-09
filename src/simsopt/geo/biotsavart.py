@@ -9,11 +9,11 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
     The field is given by
 
     .. math::
-        
+
         B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{(\Gamma_k(\phi)-\mathbf{x})\times \Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|^3} d\phi
 
     where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant.
-        
+
     """
 
     def __init__(self, coils, coil_currents):
@@ -30,7 +30,7 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         Compute the potential of a BiotSavart field
 
         .. math::
-            
+
             A(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{\Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|} d\phi
 
         as well as the derivatives of `A` if requested.
