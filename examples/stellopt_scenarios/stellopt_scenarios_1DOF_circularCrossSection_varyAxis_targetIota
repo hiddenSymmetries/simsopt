@@ -35,7 +35,7 @@ mpi.write()
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-equil = Vmec("inputs/input.1DOF_Garabedian", mpi=mpi)
+equil = Vmec("stellopt_scenarios/inputs/input.1DOF_Garabedian", mpi=mpi)
 
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the
