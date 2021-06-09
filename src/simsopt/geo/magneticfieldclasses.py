@@ -168,17 +168,17 @@ class CircularCoil(MagneticField):
             self.normal = [normal[0], -normal[1]]
         else:
             self.normal = [np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2]), -np.arctan2(normal[0], normal[1])]
-        self.rot_matrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]),
+        self.rotMatrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]),
                                     np.cos(self.normal[0])*np.sin(self.normal[1])],
                                    [0, np.cos(self.normal[0]), -np.sin(self.normal[0])],
                                    [np.sin(self.normal[1]), np.sin(self.normal[0])*np.cos(self.normal[1]),
                                     np.cos(self.normal[0])*np.cos(self.normal[1])]])
-        self.rot_matrix_inv = np.array(self.rot_matrix.T)
+        self.rotMatrixInv = np.array(self.rotMatrix.T)
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rot_matrix, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -187,7 +187,7 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
-        self._B = np.dot(self.rot_matrix_inv, np.array(
+        self._B = np.dot(self.rotMatrixInv, np.array(
             [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
@@ -243,20 +243,20 @@ class CircularCoil(MagneticField):
                 [dBxdz, dBydz, dBzdz]])
 
             self._dB_by_dX = np.array([
-                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm))],
-                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm))],
-                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm)),
-                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm))]]).T
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm))],
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm))],
+                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
+                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
 
     def compute_A(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rot_matrix, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -265,7 +265,7 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        self._A = -self.Inorm/2*np.dot(self.rot_matrix_inv, np.array(
+        self._A = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
             (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipek2-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
             np.array([-points[:, 1], points[:, 0], 0*points[:, 0]]))).T
