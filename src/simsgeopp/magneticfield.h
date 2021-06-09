@@ -489,43 +489,15 @@ class BiotSavart : public MagneticField<T> {
             this->field_cache.invalidate_cache();
         }
 
-        Array& cache_get_or_create(string key, vector<int> dims){
+        Array& fieldcache_get_or_create(string key, vector<int> dims){
             return this->field_cache.get_or_create(key, dims);
         }
 
+        bool fieldcache_get_status(string key){
+            return this->field_cache.get_status(key);
+        }
 
-        //Array dB_by_dcoeff_vjp(Array& vec) {
-        //    int num_coils = this->coilcollection.curves.size();
-        //    Array dummy = Array();
-        //    auto res_gamma = std::vector<Array>(num_coils, Array());
-        //    auto res_gammadash = std::vector<Array>(num_coils, Array());
-        //    auto res_current = std::vector<Array>(num_coils, Array());
-        //    for(int i=0; i<num_coils; i++) {
-        //        int num_points = this->coils[i].curve.gamma().shape(0);
-        //        res_gamma[i] = xt::zeros<double>({num_points, 3});
-        //        res_gammadash[i] = xt::zeros<double>({num_points, 3});
-        //        res_current[i] = xt::zeros<double>({1});
-        //    }
-        //    this->fill_points(points);
-        //    for(int i=0; i<num_coils; i++) {
-        //            biot_savart_vjp_kernel<Array, 0>(pointsx, pointsy, pointsz, this->coilcollection.curves[i].gamma(), this->coilcollection.curves[i].gammadash(),
-        //                    vec, res_gamma[i], res_gammadash[i], dummy, dummy, dummy);
-        //    }
 
-        //    int npoints = points.shape(0);
-        //    for(int i=0; i<num_coils; i++) {
-        //        Array& Bi = cache_get_or_create(fmt::format("B_{}", i), {static_cast<int>(points.shape(0)), 3});
-        //        for (int j = 0; j < npoints; ++j) {
-        //            res_current[i] += Bi(j, 0)*vec(j, 0) + Bi(j, 1)*vec(j, 1) + Bi(j, 2)*vec(j, 2);
-        //        }
-        //    }
-
-        //    // TODO: figure out how to add these in the right way, when some correspond to coil dofs, others correspond to coil currents etc
-        //    return this->coilcollection.dgamma_by_dcoeff_vjp(res_gamma)
-        //        + this->coilcollection.dgammadash_by_dcoeff_vjp(res_gammadash)
-        //        + this->coilcollection.dcurrent_by_dcoeff_vjp(res_current);
-
-        //}
 
 };
 
@@ -557,18 +529,6 @@ class InterpolatedField : public MagneticField<T> {
             field(field), rule(rule), r_range(r_range), phi_range(phi_range), z_range(z_range), extrapolate(extrapolate)
              
         {
-            //f_B = [this](double r, double phi, double z) {
-            //    Array old_points = this->field->get_points_cart();
-            //    Array points = xt::zeros<double>({1, 3});
-            //    points(0, 0) = r * std::cos(phi);
-            //    points(0, 1) = r * std::sin(phi);
-            //    points(0, 2) = z;
-            //    this->field->set_points(points);
-            //    auto B = this->field->B();
-            //    this->field->set_points_cart(old_points);
-            //    return Vec{ B(0, 0), B(0, 1), B(0, 2) };
-            //};
-
             fbatch_B = [this](Vec r, Vec phi, Vec z) {
                 int npoints = r.size();
                 Tensor2 points = xt::zeros<double>({npoints, 3});
