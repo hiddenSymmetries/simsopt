@@ -4,6 +4,8 @@
 [![codecov](https://codecov.io/gh/hiddenSymmetries/simsopt/branch/master/graph/badge.svg?token=ltN6qonZ5p)](https://codecov.io/gh/hiddenSymmetries/simsopt)
 [![DOI](https://zenodo.org/badge/247710081.svg)](https://zenodo.org/badge/latestdoi/247710081)
 
+![SIMSOPT](docs/source/logo.png)
+![SIMSOPT](docs/source/coils_and_surfaces.png)
 
 `simsopt` is a framework for optimizing
 [stellarators](https://en.wikipedia.org/wiki/Stellarator).
@@ -47,26 +49,21 @@ The design of `simsopt` is guided by several principles:
   function that can be plotted, passed to optimization packages
   outside of `simsopt`, etc.
 
-We gratefully acknowledge funding from the [Simons Foundation's Hidden
-symmetries and fusion energy
-project](https://hiddensymmetries.princeton.edu).  `simsopt` is fully
-open-source, and anyone is welcome to make suggestions, contribute,
-and use.
-
-`simsopt` is one of several available systems for stellarator
-optimization.  Others include [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT),
-[ROSE](https://doi.org/10.1088/1741-4326/aaed50), and
-[LASSO](https://gitlab.com/wistell).
-
+`simsopt` is fully open-source, and anyone is welcome to make suggestions, contribute, and use.
 Several methods are available for installing `simsopt`. One
-recommended approach is to first clone the repository using
+recommended approach is to use pip
 
-    git clone https://github.com/hiddenSymmetries/simsopt.git
-
-Then install the package to your local python environment with
-
-    cd simsopt
-    pip install -e .
+    pip install simsopt
 
 For more installation options and other information, see the [main
 simsopt documentation here.](https://simsopt.readthedocs.io)
+
+[//]: # (`simsopt` is one of several available systems for stellarator)
+[//]: # "optimization.  Others include [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT),"
+[//]: # "[ROSE](https://doi.org/10.1088/1741-4326/aaed50), and"
+[//]: # "[LASSO](https://gitlab.com/wistell).)"
+
+
+We gratefully acknowledge funding from the [Simons Foundation's Hidden
+symmetries and fusion energy
+project](https://hiddensymmetries.princeton.edu). 
