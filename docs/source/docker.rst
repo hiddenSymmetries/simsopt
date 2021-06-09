@@ -8,7 +8,9 @@ software can be obtained from `docker website <https://docs.docker.com/get-docke
 Check the `docker get started webpage <https://docs.docker.com/get-started/>`_ for installation instructions 
 as well as for tutorials to get a feel for docker containers. On linux, you may need to start the docker daemon
 before proceeding further.
+
 .. warning::
+
    On Mac, the default 2 GB memory per container assigned by Docker Desktop is not sufficient. Increase the memory of
    the container to at least 3 GB to run simsopt much faster.
 
