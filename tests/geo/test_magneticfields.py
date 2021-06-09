@@ -81,17 +81,24 @@ class Testing(unittest.TestCase):
         # Set up sum of the three in two different ways
         Btotal1 = MagneticFieldSum([Bhelical, Btoroidal1, Btoroidal2])
         Btotal2 = Bhelical+Btoroidal1+Btoroidal2
+        Btotal3 = Btoroidal1+Btoroidal2
         # Evaluate at a given point
         Bhelical.set_points(points)
         Btoroidal1.set_points(points)
         Btoroidal2.set_points(points)
         Btotal1.set_points(points)
         Btotal2.set_points(points)
+        Btotal3.set_points(points)
         # Verify
         assert np.allclose(Btotal1.B(), Btotal2.B())
         assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(), Btotal1.B())
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
+
+        assert np.allclose(Btoroidal1.d2B_by_dXdX()+Btoroidal2.d2B_by_dXdX(), Btotal3.d2B_by_dXdX())
+        assert np.allclose(Btoroidal1.A()+Btoroidal2.A(), Btotal3.A())
+        assert np.allclose(Btoroidal1.dA_by_dX()+Btoroidal2.dA_by_dX(), Btotal3.dA_by_dX())
+        assert np.allclose(Btoroidal1.d2A_by_dXdX()+Btoroidal2.d2A_by_dXdX(), Btotal3.d2A_by_dXdX())
 
     @unittest.skipIf(not sympy_found, "Sympy not found")
     def test_scalarpotential_Bfield(self):
