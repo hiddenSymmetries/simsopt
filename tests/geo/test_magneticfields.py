@@ -12,6 +12,12 @@ from .surface_test_helpers import get_ncsx_data
 import numpy as np
 import unittest
 
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
+
 
 class Testing(unittest.TestCase):
 
@@ -453,6 +459,13 @@ class Testing(unittest.TestCase):
         bs.set_points_cart(points_xyz)
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
+
+    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    def test_to_vtk(self):
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs.to_vtk('/tmp/bfield')
 
 
 if __name__ == "__main__":
