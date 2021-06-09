@@ -16,9 +16,16 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
         Surface.__init__(self)
 
     def get_dofs(self):
+        """
+        Return the dofs associated to this surface.
+        """
         return np.asarray(sgpp.SurfaceXYZTensorFourier.get_dofs(self))
 
     def to_RZFourier(self):
+        """
+        Return a SurfaceRZFourier instance corresponding to the shape of this
+        surface.
+        """
         surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym, self.quadpoints_phi, self.quadpoints_theta)
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
@@ -27,6 +34,9 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
         return surf
 
     def set_dofs(self, dofs):
+        """
+        Set the dofs associated to this surface.
+        """
         sgpp.SurfaceXYZTensorFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()

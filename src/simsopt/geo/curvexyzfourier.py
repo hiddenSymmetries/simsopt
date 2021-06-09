@@ -12,7 +12,7 @@ import simsgeopp as sgpp
 class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
 
     r"""
-       CurveXYZFourier is a curve that is represented in cartesian
+       CurveXYZFourier is a curve that is represented in Cartesian
        coordinates using the following Fourier series:
 
         .. math::
@@ -52,7 +52,7 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
         """
         This function loads a file containing Fourier coefficients for several coils.
-        The file is expected to have ``6*num_coils`` many columns, and ``order+1`` many rows.
+        The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
         The columns are in the following order,
 
             sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
@@ -99,7 +99,7 @@ class JaxCurveXYZFourier(JaxCurve):
     """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
     actually no reason why one should use this over the C++ implementation in
-    simsgeopp, but the point of this class is to illustrate how jax can be used
+    :mod:`simsgeopp`, but the point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\phi`) automatically.
     """

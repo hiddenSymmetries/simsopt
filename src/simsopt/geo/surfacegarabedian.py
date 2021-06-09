@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 class SurfaceGarabedian(Surface):
     """
     SurfaceGarabedian represents a toroidal surface for which the
-    shape is parameterized using Garabedian's Delta_{m,n}
+    shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
     coefficients.
 
     The present implementation assumes stellarator symmetry. Note that
-    non-stellarator-symmetric surfaces require that the Delta_{m,n}
+    non-stellarator-symmetric surfaces require that the :math:`\Delta_{m,n}`
     coefficients be imaginary.
     """
 
@@ -54,7 +54,7 @@ class SurfaceGarabedian(Surface):
 
     def allocate(self):
         """
-        Create the array for the Delta_{m,n} coefficients.
+        Create the array for the :math:`\Delta_{m,n}` coefficients.
         """
         logger.info("Allocating SurfaceGarabedian")
         self.mdim = self.mmax - self.mmin + 1
@@ -68,13 +68,13 @@ class SurfaceGarabedian(Surface):
 
     def get_Delta(self, m, n):
         """
-        Return a particular Delta_{m,n} coefficient.
+        Return a particular :math:`\Delta_{m,n}` coefficient.
         """
         return self.Delta[m - self.mmin, n - self.nmin]
 
     def set_Delta(self, m, n, val):
         """
-        Set a particular Delta_{m,n} coefficient.
+        Set a particular :math:`\Delta_{m,n}` coefficient.
         """
         self.Delta[m - self.mmin, n - self.nmin] = val
         self.recalculate = True

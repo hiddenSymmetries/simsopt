@@ -6,7 +6,7 @@ class CoilCollection():
     """
     This class represents a collection of coils and currents.
     For stellarators with symmetries (rotational, stellarator symmetry), this class performs reflections and
-    rotations to generate a full set of stellarator coils from the base modular coils.
+    rotations to generate a full set of stellarator coils from a base set of modular coils.
     """
 
     def __init__(self, coils, currents, nfp, stellarator_symmetry):

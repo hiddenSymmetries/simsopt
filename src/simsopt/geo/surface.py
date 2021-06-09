@@ -15,6 +15,10 @@ class Surface(Optimizable):
         self.fixed = np.full(len(self.get_dofs()), False)
 
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+        """
+        This function plots the surface using :mod:`mayavi.mlab`, along with optionally its
+        surface normal (when ``plot_normal=True``), and its tangents (when ``plot_derivative=True``).
+        """
         gamma = self.gamma()
 
         from mayavi import mlab
@@ -47,7 +51,7 @@ class Surface(Optimizable):
     def cross_section(self, phi, thetas=None):
         """
         This function takes in a cylindrical angle :math:`\phi` and returns the cross
-        section of the surface in that plane evaluated at `thetas`. This is
+        section of the surface in that plane evaluated at :mod:`thetas`. This is
         done using the method of bisection.
 
         This function assumes that the surface intersection with the plane is a
