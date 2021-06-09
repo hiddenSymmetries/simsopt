@@ -277,9 +277,11 @@ class Testing(unittest.TestCase):
                 self.subtest_biotsavart_d2A_by_dXdX_taylortest(idx)
 
     def test_biotsavart_coil_current_taylortest(self):
-        coil = get_coil()
-        current = 1e4
-        bs = BiotSavart([coil], [current])
+        coil0 = get_coil()
+        current0 = 1e4
+        coil1 = get_coil(perturb=True)
+        current1 = 1e3
+        bs = BiotSavart([coil0, coil1], [current0, current1])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
         B = bs.B()
@@ -303,9 +305,9 @@ class Testing(unittest.TestCase):
         dB_approx = (Bp-Bm)/(2*h)
         dJ_approx = (Jp-Jm)/(2*h)
         dH_approx = (Hp-Hm)/(2*h)
-        assert np.linalg.norm(dB-dB_approx) < 1e-15
-        assert np.linalg.norm(dJ-dJ_approx) < 1e-15
-        assert np.linalg.norm(dH-dH_approx) < 1e-15
+        assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
 
 if __name__ == "__main__":

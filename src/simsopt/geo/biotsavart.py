@@ -41,11 +41,11 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         npoints = len(points)
         ncoils = len(self.coils)
 
-        self._dA_by_dcoilcurrents = [self.cache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
+        self._dA_by_dcoilcurrents = [self.fieldcache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
         if compute_derivatives >= 1:
-            self._d2A_by_dXdcoilcurrents = [self.cache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
+            self._d2A_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         if compute_derivatives >= 2:
-            self._d3A_by_dXdXdcoilcurrents = [self.cache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
+            self._d3A_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
 
         gammas = [coil.gamma() for coil in self.coils]
         dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
