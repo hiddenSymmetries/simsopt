@@ -7,7 +7,7 @@ from simsopt.objectives.functions import Identity, Rosenbrock, Beale
 from simsopt._core.optimizable import Target
 from simsopt.objectives.least_squares import LeastSquaresProblem, \
     LeastSquaresTerm
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.solve.serial import least_squares_serial_solve, serial_solve
 from simsopt.util.mpi import MpiPartition
 from simsopt.solve.mpi import least_squares_mpi_solve
 
@@ -16,7 +16,7 @@ def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [least_squares_serial_solve, mpi_solve_1group]
+solvers = [serial_solve, least_squares_serial_solve, mpi_solve_1group]
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -37,7 +37,10 @@ class LeastSquaresProblemTests(unittest.TestCase):
             term2 = (iden2.J, 2, 2)
             term3 = (iden3.J, 3, 3)
             prob = LeastSquaresProblem([term1, term2, term3])
-            solver(prob)
+            if solver == serial_solve:
+                solver(prob, tol=1e-12)
+            else:
+                solver(prob)
             self.assertAlmostEqual(prob.objective(), 0)
             self.assertAlmostEqual(iden1.x, 1)
             self.assertAlmostEqual(iden2.x, 2)
@@ -164,7 +167,13 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 term1 = (r.term1, 0, 1)
                 term2 = (r.term2, 0, 1)
                 prob = LeastSquaresProblem((term1, term2))
-                solver(prob, grad=grad)
+                if solver == serial_solve:
+                    if grad == True:
+                        continue
+                    else:
+                        solver(prob, tol=1e-12)
+                else:
+                    solver(prob, grad=grad)
                 self.assertAlmostEqual(prob.objective(), 0)
                 v = r.get_dofs()
                 self.assertAlmostEqual(v[0], 1)
@@ -179,7 +188,13 @@ class LeastSquaresProblemTests(unittest.TestCase):
             for grad in [True, False]:
                 r = Rosenbrock()
                 prob = LeastSquaresProblem([(r.terms, 0, 1)])
-                solver(prob, grad=grad)
+                if solver == serial_solve:
+                    if grad == True:
+                        continue
+                    else:
+                        solver(prob, tol=1e-12)
+                else:
+                    solver(prob, grad=grad)
                 self.assertAlmostEqual(prob.objective(), 0)
                 v = r.get_dofs()
                 self.assertAlmostEqual(v[0], 1)
@@ -193,6 +208,8 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         #for solver in [least_squares_serial_solve]:
         for solver in solvers:
+            if solver == serial_solve:
+                continue
             for abs_step in [0, 1.0e-7]:
                 rel_steps = [0, 1.0e-7]
                 if abs_step == 0:
