@@ -35,7 +35,7 @@ mpi = MpiPartition(2)
 mpi.write()
 
 # Create a Spec object:
-equil = Spec('SPEC/1DOF_Garabedian.sp', mpi=mpi)
+equil = Spec('inputs/1DOF_Garabedian.sp', mpi=mpi)
 
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the

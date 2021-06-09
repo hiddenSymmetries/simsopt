@@ -1,7 +1,7 @@
 #import mpi4py
 #mpi4py.rc(initialize=False, finalize=False)
 import sys
-sys.path.append('../modules/VMEC')
+sys.path.append('../../modules/VMEC')
 from mpi4py import MPI
 import numpy as np
 from vmec_class import VMEC
@@ -15,7 +15,7 @@ print("Hello from rank %s of %s." % (rank, size))
 #print(MPI.Is_finalized())
 
 fcomm = comm.py2f()
-path = 'VMEC/input.QAS'
+path = 'inputs/input.QAS'
 if rank == 0:
     verbose = True
 else:

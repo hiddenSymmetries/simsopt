@@ -16,10 +16,10 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./just_a_quadratic
-./surface_volume_and_area
-./minimize_curve_length
-./qsc
+./1_simple/just_a_quadratic
+./1_simple/surface_volume_and_area
+./1_simple/minimize_curve_length
+./2_intermediate/qsc
 
 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
@@ -46,12 +46,12 @@ mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSp
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
 
-mpiexec $MPI_OPTIONS -n 2 ./resolution_increase
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase
 
-./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 2 ./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 3 ./eliminate_magnetic_islands
+./2_Intermediate/eliminate_magnetic_islands
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands
+mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands
 
-./boozer
+./2_Intermediate/boozer
 
-mpiexec $MPI_OPTIONS -n 2 ./QH_fixed_resolution
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution
