@@ -10,14 +10,14 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
 
     .. math::
         \hat x(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_{\text{tor}}}^{n_{tor}} [
-              x_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
-            + x_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]\\
+              x_{c,m,n} \cos(m \theta - n_\text{ fp } n \phi)
+            + x_{s,m,n} \sin(m \theta - n_\text{ fp } n \phi)]\\
         \hat y(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
-              y_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
-            + y_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]\\
+              y_{c,m,n} \cos(m \theta - n_\text{fp} n \phi)
+            + y_{s,m,n} \sin(m \theta - n_\text{fp} n \phi)]\\
         z(\phi,\theta) &= \sum_{m=0}^{m_\text{pol}} \sum_{n=-n_\text{tor}}^{n_\text{tor}} [
-              z_{c,m,n} \cos(m \theta - n\,\mathrm{nfp}\, \phi)
-            + z_{s,m,n} \sin(m \theta - n\,\mathrm{nfp}\, \phi)]
+              z_{c,m,n} \cos(m \theta - n_\text{fp}n \phi)
+            + z_{s,m,n} \sin(m \theta - n_\text{fp}n \phi)]
 
     where
 
@@ -29,8 +29,9 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
     for the sin terms.
 
     When enforcing stellarator symmetry, we set the
-
-    :math:`x_{s,*,*},\ y_{c,*,*} \text{ and } z_{c,*,*}`
+    
+    .. math::
+        x_{s,*,*}, ~y_{c,*,*}, \text{and} ~z_{c,*,*}
 
     terms to zero.
     """
@@ -46,9 +47,16 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         Surface.__init__(self)
 
     def get_dofs(self):
+        """
+        Return the dofs associated to this surface.
+        """
         return np.asarray(sgpp.SurfaceXYZFourier.get_dofs(self))
 
     def to_RZFourier(self):
+        """
+        Return a SurfaceRZFourier instance corresponding to the shape of this
+        surface.
+        """
         ntor = self.ntor
         mpol = self.mpol 
         surf = SurfaceRZFourier(nfp=self.nfp, 
@@ -66,6 +74,9 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         return surf
 
     def set_dofs(self, dofs):
+        """
+        Set the dofs associated to this surface.
+        """
         sgpp.SurfaceXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
