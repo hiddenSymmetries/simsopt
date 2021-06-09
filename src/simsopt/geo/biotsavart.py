@@ -130,7 +130,7 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         return self._d3B_by_dXdXdcoilcurrents
 
     def B_vjp(self, v):
-        """
+        r"""
         Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
         :math:`\{\mathbf{B}_i\}_{i=1}^n`.
         These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
