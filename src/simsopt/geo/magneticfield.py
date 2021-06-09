@@ -70,6 +70,7 @@ class MagneticFieldMultiply(MagneticField):
     MagneticField class and a scalar and multiplies B, A and their derivatives
     by that value.
     """
+
     def __init__(self, scalar, Bfield):
         MagneticField.__init__(self)
         self.scalar = scalar
