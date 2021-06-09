@@ -60,6 +60,7 @@ optimization.  Others include `STELLOPT
    :caption: Contents
 
    getting_started
+   docker
    concepts
    problems
    testing
