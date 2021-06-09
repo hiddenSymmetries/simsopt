@@ -16,10 +16,10 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./1_simple/just_a_quadratic
-./1_simple/surface_volume_and_area
-./1_simple/minimize_curve_length
-./2_intermediate/qsc
+./1_Simple/just_a_quadratic
+./1_Simple/surface_volume_and_area
+./1_Simple/minimize_curve_length
+./2_Intermediate/qsc
 
 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
