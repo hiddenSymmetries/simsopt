@@ -35,9 +35,9 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
 
         as well as the derivatives of `A` if requested.
         """
-        points = self.get_points_cart_ref()
         assert compute_derivatives <= 2
 
+        points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self.coils)
 
@@ -100,24 +100,33 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         d2A_by_dXdX[:] = self._ddA
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
-        if any([not self.cache_get_or_create(f'B_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
-        self._dB_by_dcoilcurrents = [self.check_the_cache(f'B_{i}', [len(self.points), 3]) for i in range(len(self.coils))]
+        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
         return self._dB_by_dcoilcurrents
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
-        if any([not self.cache_get_or_create(f'dB_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
-        self._d2B_by_dXdcoilcurrents = [self.check_the_cache(f'dB_{i}', [len(self.points), 3, 3]) for i in range(len(self.coils))]
+        self._d2B_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dB_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         return self._d2B_by_dXdcoilcurrents
 
     def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
-        if any([not self.cache_get_or_create(f'ddB_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
-        self._d3B_by_dXdXdcoilcurrents = [self.check_the_cache(f'ddB_{i}', [len(self.points), 3, 3, 3]) for i in range(len(self.coils))]
+        self._d3B_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddB_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
         return self._d3B_by_dXdXdcoilcurrents
 
     def B_vjp(self, v):
