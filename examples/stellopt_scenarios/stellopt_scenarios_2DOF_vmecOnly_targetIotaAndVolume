@@ -35,7 +35,7 @@ mpi = MpiPartition(ngroups=3)
 mpi.write()
 
 # Initialize VMEC from an input file:
-equil = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume', mpi)
+equil = Vmec('inputs/input.2DOF_vmecOnly_targetIotaAndVolume', mpi)
 surf = equil.boundary
 
 # VMEC parameters are all fixed by default, while surface parameters

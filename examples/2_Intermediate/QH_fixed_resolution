@@ -14,7 +14,7 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 # gradients.
 mpi = MpiPartition(25)
 
-vmec = Vmec("VMEC/input.nfp4_QH_warm_start", mpi=mpi)
+vmec = Vmec("inputs/input.nfp4_QH_warm_start", mpi=mpi)
 
 # Define parameter space:
 surf = vmec.boundary
