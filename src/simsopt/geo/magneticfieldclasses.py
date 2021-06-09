@@ -282,7 +282,7 @@ class CircularCoil(MagneticField):
         ellipkk2 = ellipk(k**2)
 
         A[:] = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
-            (2*self.r0*+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
+            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
             np.array([-points[:, 1], points[:, 0], 0])).T)
 
