@@ -11,6 +11,8 @@ using std::shared_ptr;
 using std::vector;
 
 #include "magneticfield.h"
+#include "magneticfield_biotsavart.h"
+#include "magneticfield_interpolated.h"
 #include "pymagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
