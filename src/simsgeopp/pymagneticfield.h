@@ -11,26 +11,26 @@ template <class MagneticFieldBase = PyMagneticField> class PyMagneticFieldTrampo
     public:
         using MagneticFieldBase::MagneticFieldBase;
 
-        virtual void __set_points_cb() override {
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __set_points_cb);
+        virtual void _set_points_cb() override {
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _set_points_cb);
         }
 
-        virtual void __B_impl(typename MagneticFieldBase::Tensor2& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __B_impl, data);
+        virtual void _B_impl(typename MagneticFieldBase::Tensor2& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _B_impl, data);
         }
-        virtual void __dB_by_dX_impl(typename MagneticFieldBase::Tensor3& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __dB_by_dX_impl, data);
+        virtual void _dB_by_dX_impl(typename MagneticFieldBase::Tensor3& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _dB_by_dX_impl, data);
         }
-        virtual void __d2B_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __d2B_by_dXdX_impl, data);
+        virtual void _d2B_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _d2B_by_dXdX_impl, data);
         }
-        virtual void __A_impl(typename MagneticFieldBase::Tensor2& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __A_impl, data);
+        virtual void _A_impl(typename MagneticFieldBase::Tensor2& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _A_impl, data);
         }
-        virtual void __dA_by_dX_impl(typename MagneticFieldBase::Tensor3& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __dA_by_dX_impl, data);
+        virtual void _dA_by_dX_impl(typename MagneticFieldBase::Tensor3& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _dA_by_dX_impl, data);
         }
-        virtual void __d2A_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override { 
-            PYBIND11_OVERLOAD(void, MagneticFieldBase, __d2A_by_dXdX_impl, data);
+        virtual void _d2A_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override { 
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _d2A_by_dXdX_impl, data);
         }
 };
