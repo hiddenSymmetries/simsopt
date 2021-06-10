@@ -20,66 +20,66 @@ typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
 
 template <typename T, typename S> void register_common_field_methods(S &c) {
     c
-     .def("B", py::overload_cast<>(&T::B), py::call_guard<py::gil_scoped_release>())
-     .def("dB_by_dX", py::overload_cast<>(&T::dB_by_dX), py::call_guard<py::gil_scoped_release>())
-     .def("d2B_by_dXdX", py::overload_cast<>(&T::d2B_by_dXdX), py::call_guard<py::gil_scoped_release>())
-     .def("GradAbsB", py::overload_cast<>(&T::GradAbsB), py::call_guard<py::gil_scoped_release>())
-     .def("AbsB", py::overload_cast<>(&T::AbsB), py::call_guard<py::gil_scoped_release>())
-     .def("B_ref", py::overload_cast<>(&T::B_ref), py::call_guard<py::gil_scoped_release>())
-     .def("dB_by_dX_ref", py::overload_cast<>(&T::dB_by_dX_ref), py::call_guard<py::gil_scoped_release>())
-     .def("d2B_by_dXdX_ref", py::overload_cast<>(&T::d2B_by_dXdX_ref), py::call_guard<py::gil_scoped_release>())
-     .def("GradAbsB_ref", py::overload_cast<>(&T::GradAbsB_ref), py::call_guard<py::gil_scoped_release>())
-     .def("AbsB_ref", py::overload_cast<>(&T::AbsB_ref), py::call_guard<py::gil_scoped_release>())
-     //.def("B_cyl_ref", py::overload_cast<>(&T::B_cyl_ref), py::call_guard<py::gil_scoped_release>())
-     .def("A", py::overload_cast<>(&T::A), py::call_guard<py::gil_scoped_release>())
-     .def("dA_by_dX", py::overload_cast<>(&T::dA_by_dX), py::call_guard<py::gil_scoped_release>())
-     .def("d2A_by_dXdX", py::overload_cast<>(&T::d2A_by_dXdX), py::call_guard<py::gil_scoped_release>())
-     .def("A_ref", py::overload_cast<>(&T::A_ref), py::call_guard<py::gil_scoped_release>())
-     .def("dA_by_dX_ref", py::overload_cast<>(&T::dA_by_dX_ref), py::call_guard<py::gil_scoped_release>())
-     .def("d2A_by_dXdX_ref", py::overload_cast<>(&T::d2A_by_dXdX_ref), py::call_guard<py::gil_scoped_release>())
-     .def("invalidate_cache", &T::invalidate_cache)
-     .def("get_points_cart_ref", &T::get_points_cart_ref)
-     .def("get_points_cyl_ref", &T::get_points_cyl_ref)
-     .def("get_points_cart", &T::get_points_cart)
-     .def("get_points_cyl", &T::get_points_cyl)
-     .def("set_points_cart", &T::set_points_cart)
-     .def("set_points_cyl", &T::set_points_cyl)
-     .def("set_points", &T::set_points);
-     //.def_readwrite("points", &T::points);
+     .def("B", py::overload_cast<>(&T::B), "Returns a `(npoints, 3)` array containing the magnetic field (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `B_l(x_i)`.")
+     .def("dB_by_dX", py::overload_cast<>(&T::dB_by_dX), "Returns a `(npoints, 3, 3)` array containing the gradient of magnetic field (in cartesian coordinates). Denoting the indices by `i`, `j` and `l`, the result contains  `\\partial_j B_l(x_i)`.")
+     .def("d2B_by_dXdX", py::overload_cast<>(&T::d2B_by_dXdX), "Returns a `(npoints, 3, 3, 3)` array containing the hessian of magnetic field (in cartesian coordinates). Denoting the indices by `i`, `j`, `k` and `l`, the result contains  `\\partial_k\\partial_j B_l(x_i)`.")
+     .def("AbsB", py::overload_cast<>(&T::AbsB), "Returns a `(npoints, 1)` array containing the absolute value of the magnetic field (in cartesian coordinates).")
+     .def("GradAbsB", py::overload_cast<>(&T::GradAbsB), "Returns a `(npoints, 3)` array containing the gradient of the absolute value of the magnetic field (in cartesian coordinates).")
+     .def("B_ref", py::overload_cast<>(&T::B_ref), "As `B`, but returns a reference to the array (this array should be read only).")
+     .def("dB_by_dX_ref", py::overload_cast<>(&T::dB_by_dX_ref), "As `dB_by_dX`, but returns a reference to the array (this array should be read only).")
+     .def("d2B_by_dXdX_ref", py::overload_cast<>(&T::d2B_by_dXdX_ref), "As `d2B_by_dXdX`, but returns a reference to the array (this array should be read only).")
+     .def("AbsB_ref", py::overload_cast<>(&T::AbsB_ref), "As `AbsB`, but returns a reference to the array (this array should be read only).")
+     .def("GradAbsB_ref", py::overload_cast<>(&T::GradAbsB_ref), "As `GradAbsB`, but returns a reference to the array (this array should be read only).")
+     //.def("B_cyl_ref", py::overload_cast<>(&T::B_cyl_ref))
+     .def("A", py::overload_cast<>(&T::A), "Returns a `(npoints, 3)` array containing the magnetic potential (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `A_l(x_i)`.")
+     .def("dA_by_dX", py::overload_cast<>(&T::dA_by_dX), "Returns a `(npoints, 3, 3)` array containing the gradient of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j` and `l`, the result contains  `\\partial_j A_l(x_i)`.")
+     .def("d2A_by_dXdX", py::overload_cast<>(&T::d2A_by_dXdX), "Returns a `(npoints, 3, 3)` array containing the hessian of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j`, `k` and `l`, the result contains  `\\partial_k\\partial_j  A_l(x_i)`.")
+     .def("A_ref", py::overload_cast<>(&T::A_ref), "As `A`, but returns a reference to the array (this array should be read only).")
+     .def("dA_by_dX_ref", py::overload_cast<>(&T::dA_by_dX_ref), "As `dA_by_dX`, but returns a reference to the array (this array should be read only).")
+     .def("d2A_by_dXdX_ref", py::overload_cast<>(&T::d2A_by_dXdX_ref), "As `d2A_by_dXdX`, but returns a reference to the array (this array should be read only).")
+     .def("invalidate_cache", &T::invalidate_cache, "Clear the cache. Called automatically after each call to `set_points[...]`.")
+     .def("get_points_cart", &T::get_points_cart, "Get the point where the field should be evaluated in cartesian coordinates.")
+     .def("get_points_cyl", &T::get_points_cyl, "Get the point where the field should be evaluated in cylindrical coordinates.")
+     .def("get_points_cart_ref", &T::get_points_cart_ref, "As `get_points_cart`, but returns a reference to the array (this array should be read only).")
+     .def("get_points_cyl_ref", &T::get_points_cyl_ref, "As `get_points_cyl`, but returns a reference to the array (this array should be read only).")
+     .def("set_points_cart", &T::set_points_cart, "Set the points where to evaluate the magnetic fields, in cartesian coordinates.")
+     .def("set_points_cyl", &T::set_points_cyl, "Set the points where to evaluate the magnetic fields, in cylindrical coordinates.")
+     .def("set_points", &T::set_points, "Shorthand for `set_points_cart`.");
 }
 
 void init_magneticfields(py::module_ &m){
 
-    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule")
-        .def_readonly("degree", &InterpolationRule::degree);
-    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule")
+    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule", "Abstract class for interpolation rules on an interval.")
+        .def_readonly("degree", &InterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
+
+    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule", "Polynomial interpolation using equispaced points.")
         .def(py::init<int>())
-        .def_readonly("degree", &UniformInterpolationRule::degree);
-    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule")
+        .def_readonly("degree", &UniformInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
+    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule", "Polynomial interpolation using chebychev points.")
         .def(py::init<int>())
-        .def_readonly("degree", &ChebyshevInterpolationRule::degree);
+        .def_readonly("degree", &ChebyshevInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
 
     py::class_<RegularGridInterpolant3D<PyTensor>, shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D")
         .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
-        .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch)
-        .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate)
-        .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch);
+        .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch, "Interpolate a function by evaluating the function on all interpolation nodes simultanuously.")
+        .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate, "Evaluate the interpolant at a point.")
+        .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
 
-    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current")
+    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
         .def(py::init<double>())
-        .def("set_dofs", &Current<PyArray>::set_dofs)
-        .def("get_dofs", &Current<PyArray>::get_dofs)
-        .def("set_value", &Current<PyArray>::set_value)
-        .def("get_value", &Current<PyArray>::get_value);
+        .def("set_dofs", &Current<PyArray>::set_dofs, "Set the current.")
+        .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
+        .def("set_value", &Current<PyArray>::set_value, "Set the current.")
+        .def("get_value", &Current<PyArray>::get_value, "Get the current.");
         
 
-    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil")
+    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
         .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<Current<PyArray>>>())
-        .def_readonly("curve", &Coil<PyArray>::curve)
-        .def_readonly("current", &Coil<PyArray>::current);
+        .def_readonly("curve", &Coil<PyArray>::curve, "Get the underlying curve.")
+        .def_readonly("current", &Coil<PyArray>::current, "Get the underlying current.");
 
-    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, shared_ptr<PyMagneticField>>(m, "MagneticField")
+    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, shared_ptr<PyMagneticField>>(m, "MagneticField", "Abstract class representing magnetic fields.")
         .def(py::init<>());
     register_common_field_methods<PyMagneticField>(mf);
         //.def("B", py::overload_cast<>(&PyMagneticField::B));
