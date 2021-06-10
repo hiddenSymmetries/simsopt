@@ -177,7 +177,7 @@ class MagneticField {
             data_Bcyl.invalidate_cache();
         }
 
-        virtual void set_points_cb() {
+        virtual void __set_points_cb() {
 
         }
 
@@ -191,7 +191,7 @@ class MagneticField {
             for (int i = 0; i < npoints; ++i) {
                 points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
             }
-            this->set_points_cb();
+            this->__set_points_cb();
             return *this;
         }
 
@@ -202,7 +202,7 @@ class MagneticField {
             npoints = p.shape(0);
             Tensor2& points = points_cart.get_or_create({npoints, 3});
             memcpy(points.data(), p.data(), 3*npoints*sizeof(double));
-            this->set_points_cb();
+            this->__set_points_cb();
             return *this;
         }
 
@@ -258,40 +258,40 @@ class MagneticField {
             }
         }
 
-        virtual void B_impl(Tensor2& B) { throw logic_error("B_impl was not implemented"); }
-        virtual void dB_by_dX_impl(Tensor3& dB_by_dX) { throw logic_error("dB_by_dX_impl was not implemented"); }
-        virtual void d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) { throw logic_error("d2B_by_dXdX_impl was not implemented"); }
-        virtual void A_impl(Tensor2& A) { throw logic_error("A_impl was not implemented"); }
-        virtual void dA_by_dX_impl(Tensor3& dA_by_dX) { throw logic_error("dA_by_dX_impl was not implemented"); }
-        virtual void d2A_by_dXdX_impl(Tensor4& d2A_by_dXdX) { throw logic_error("d2A_by_dXdX_impl was not implemented"); }
+        virtual void __B_impl(Tensor2& B) { throw logic_error("__B_impl was not implemented"); }
+        virtual void __dB_by_dX_impl(Tensor3& dB_by_dX) { throw logic_error("__dB_by_dX_impl was not implemented"); }
+        virtual void __d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) { throw logic_error("__d2B_by_dXdX_impl was not implemented"); }
+        virtual void __A_impl(Tensor2& A) { throw logic_error("__A_impl was not implemented"); }
+        virtual void __dA_by_dX_impl(Tensor3& dA_by_dX) { throw logic_error("__dA_by_dX_impl was not implemented"); }
+        virtual void __d2A_by_dXdX_impl(Tensor4& d2A_by_dXdX) { throw logic_error("__d2A_by_dXdX_impl was not implemented"); }
 
         Tensor2& B_ref() {
-            return data_B.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return B_impl(B);});
+            return data_B.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return __B_impl(B);});
         }
         Tensor3& dB_by_dX_ref() {
-            return data_dB.get_or_create_and_fill({npoints, 3, 3}, [this](Tensor3& dB_by_dX) { return dB_by_dX_impl(dB_by_dX);});
+            return data_dB.get_or_create_and_fill({npoints, 3, 3}, [this](Tensor3& dB_by_dX) { return __dB_by_dX_impl(dB_by_dX);});
         }
         Tensor4& d2B_by_dXdX_ref() {
-            return data_ddB.get_or_create_and_fill({npoints, 3, 3, 3}, [this](Tensor4& d2B_by_dXdX) { return d2B_by_dXdX_impl(d2B_by_dXdX);});
+            return data_ddB.get_or_create_and_fill({npoints, 3, 3, 3}, [this](Tensor4& d2B_by_dXdX) { return __d2B_by_dXdX_impl(d2B_by_dXdX);});
         }
         Tensor2 B() { return B_ref(); }
         Tensor3 dB_by_dX() { return dB_by_dX_ref(); }
         Tensor4 d2B_by_dXdX() { return d2B_by_dXdX_ref(); }
 
         Tensor2& A_ref() {
-            return data_A.get_or_create_and_fill({npoints, 3}, [this](Tensor2& A) { return A_impl(A);});
+            return data_A.get_or_create_and_fill({npoints, 3}, [this](Tensor2& A) { return __A_impl(A);});
         }
         Tensor3& dA_by_dX_ref() {
-            return data_dA.get_or_create_and_fill({npoints, 3, 3}, [this](Tensor3& dA_by_dX) { return dA_by_dX_impl(dA_by_dX);});
+            return data_dA.get_or_create_and_fill({npoints, 3, 3}, [this](Tensor3& dA_by_dX) { return __dA_by_dX_impl(dA_by_dX);});
         }
         Tensor4& d2A_by_dXdX_ref() {
-            return data_ddA.get_or_create_and_fill({npoints, 3, 3, 3}, [this](Tensor4& d2A_by_dXdX) { return d2A_by_dXdX_impl(d2A_by_dXdX);});
+            return data_ddA.get_or_create_and_fill({npoints, 3, 3, 3}, [this](Tensor4& d2A_by_dXdX) { return __d2A_by_dXdX_impl(d2A_by_dXdX);});
         }
         Tensor2 A() { return A_ref(); }
         Tensor3 dA_by_dX() { return dA_by_dX_ref(); }
         Tensor4 d2A_by_dXdX() { return d2A_by_dXdX_ref(); }
 
-        void B_cyl_impl(Tensor2& B_cyl) {
+        void __B_cyl_impl(Tensor2& B_cyl) {
             Tensor2& B = this->B_ref();
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = B.shape(0);
@@ -308,10 +308,10 @@ class MagneticField {
         }
 
         Tensor2& B_cyl_ref() {
-            return data_Bcyl.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return B_cyl_impl(B);});
+            return data_Bcyl.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return __B_cyl_impl(B);});
         }
 
-        void AbsB_impl(Tensor2& AbsB) {
+        void __AbsB_impl(Tensor2& AbsB) {
             Tensor2& B = this->B_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
@@ -324,10 +324,10 @@ class MagneticField {
         }
 
         Tensor2& AbsB_ref() {
-            return data_AbsB.get_or_create_and_fill({npoints}, [this](Tensor2& AbsB) { return AbsB_impl(AbsB);});
+            return data_AbsB.get_or_create_and_fill({npoints}, [this](Tensor2& AbsB) { return __AbsB_impl(AbsB);});
         }
 
-        virtual void GradAbsB_impl(Tensor2& GradAbsB) {
+        virtual void __GradAbsB_impl(Tensor2& GradAbsB) {
             Tensor2& B = this->B_ref();
             Tensor3& GradB = this->dB_by_dX_ref();
             int npoints = B.shape(0);
@@ -344,7 +344,7 @@ class MagneticField {
         }
 
         Tensor2& GradAbsB_ref() {
-            return data_GradAbsB.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return GradAbsB_impl(B);});
+            return data_GradAbsB.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return __GradAbsB_impl(B);});
         }
 
 };
@@ -472,15 +472,15 @@ class BiotSavart : public MagneticField<T> {
         }
 
 
-        void B_impl(Tensor2& B) override {
+        void __B_impl(Tensor2& B) override {
             this->compute(0);
         }
         
-        void dB_by_dX_impl(Tensor3& dB_by_dX) override {
+        void __dB_by_dX_impl(Tensor3& dB_by_dX) override {
             this->compute(1);
         }
 
-        void d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) override {
+        void __d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) override {
             this->compute(2);
         }
 
@@ -562,7 +562,7 @@ class InterpolatedField : public MagneticField<T> {
 
         InterpolatedField(shared_ptr<MagneticField<T>> field, int degree, RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range, bool extrapolate) : InterpolatedField(field, UniformInterpolationRule(degree), r_range, phi_range, z_range, extrapolate) {}
 
-        void B_impl(Tensor2& B) override {
+        void __B_impl(Tensor2& B) override {
             if(!interp_B)
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_B) {
@@ -574,7 +574,7 @@ class InterpolatedField : public MagneticField<T> {
             interp_B->evaluate_batch(this->get_points_cyl_ref(), B);
         }
 
-        void GradAbsB_impl(Tensor2& GradAbsB) override {
+        void __GradAbsB_impl(Tensor2& GradAbsB) override {
             if(!interp_GradAbsB)
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_GradAbsB) {

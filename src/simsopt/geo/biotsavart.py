@@ -87,15 +87,15 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
             self._ddA = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         return self
 
-    def A_impl(self, A):
+    def __A_impl(self, A):
         self.compute_A(compute_derivatives=0)
         A[:] = self._A
 
-    def dA_by_dX_impl(self, dA_by_dX):
+    def __dA_by_dX_impl(self, dA_by_dX):
         self.compute_A(compute_derivatives=1)
         dA_by_dX[:] = self._dA
 
-    def d2A_by_dXdX_impl(self, d2A_by_dXdX):
+    def __d2A_by_dXdX_impl(self, d2A_by_dXdX):
         self.compute_A(compute_derivatives=2)
         d2A_by_dXdX[:] = self._ddA
 
