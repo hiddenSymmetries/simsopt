@@ -55,14 +55,15 @@ class ToroidalField(MagneticField):
         if compute_derivatives >= 2:
             self._d2B_by_dXdX = 2*self.B0*self.R0*np.multiply(
                 1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
-                    [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
-                        points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
+                    [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))],
+                     [points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
                         np.zeros((len(points)))],
                      np.zeros((3, len(points)))],
                     [[points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, 3*points[:, 0]**2*points[:, 1]-points[:, 1]**3,
                       np.zeros((len(points)))],
                      [3*points[:, 0]**2*points[:, 1]-points[:, 1]**3, -points[:, 0]**3+3*points[:, 0]*points[:, 1]**2,
-                      np.zeros((len(points)))], np.zeros((3, len(points)))],
+                      np.zeros((len(points)))],
+                     np.zeros((3, len(points)))],
                     np.zeros((3, 3, len(points)))])).T
         return self
 
@@ -102,33 +103,33 @@ class ToroidalField(MagneticField):
 
 class ScalarPotentialRZMagneticField(MagneticField):
     """
-    Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the
-    magnetic field scalar potential.  It takes Phi as an input string, which
+    Vacuum magnetic field as a solution of B = grad(phi) where phi is the
+    magnetic field scalar potential.  It takes phi as an input string, which
     should contain an expression involving the standard cylindrical coordinates
     (R, phi, Z) Example: ScalarPotentialRZMagneticField("2*phi") yields a
     magnetic field B = grad(2*phi) = (0,2/R,0).  Note: this function needs
     sympy.
 
     Args:
-        PhiStr:  string containing vacuum scalar potential expression as a function of R, Z and phi
+        phi_str:  string containing vacuum scalar potential expression as a function of R, Z and phi
     """
 
-    def __init__(self, PhiStr):
+    def __init__(self, phi_str):
         if not sympy_found:
             raise RuntimeError("Sympy is required for the ScalarPotentialRZMagneticField class")
-        self.PhiStr = PhiStr
-        self.Phiparsed = parse_expr(PhiStr)
-        R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R), self.Phiparsed.diff(Phi)/R, self.Phiparsed.diff(Z)])
+        self.phi_str = phi_str
+        self.phi_parsed = parse_expr(phi_str)
+        R, Z, phi = sp.symbols('R Z phi')
+        self.Blambdify = sp.lambdify((R, Z, phi), [self.phi_parsed.diff(R)+1e-30*sp.sin(phi), self.phi_parsed.diff(phi)/R+1e-30*sp.sin(phi), self.phi_parsed.diff(Z)+1e-30*sp.sin(phi)])
         self.dBlambdify_by_dX = sp.lambdify(
-            (R, Z, Phi),
-            [[sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
+            (R, Z, phi),
+            [[sp.cos(phi)*self.phi_parsed.diff(R).diff(R)-(sp.sin(phi)/R)*self.phi_parsed.diff(R).diff(phi),
+              sp.cos(phi)*(self.phi_parsed.diff(phi)/R).diff(R)-(sp.sin(phi)/R)*(self.phi_parsed.diff(phi)/R).diff(phi),
+              sp.cos(phi)*self.phi_parsed.diff(Z).diff(R)-(sp.sin(phi)/R)*self.phi_parsed.diff(Z).diff(phi)],
+             [sp.sin(phi)*self.phi_parsed.diff(R).diff(R)+(sp.cos(phi)/R)*self.phi_parsed.diff(R).diff(phi),
+              sp.sin(phi)*(self.phi_parsed.diff(phi)/R).diff(R)+(sp.cos(phi)/R)*(self.phi_parsed.diff(phi)/R).diff(phi),
+              sp.sin(phi)*self.phi_parsed.diff(Z).diff(R)+(sp.cos(phi)/R)*self.phi_parsed.diff(Z).diff(phi)],
+             [self.phi_parsed.diff(R).diff(Z)+1e-30*sp.sin(phi), (self.phi_parsed.diff(phi)/R).diff(Z), self.phi_parsed.diff(Z).diff(Z)+1e-30*sp.sin(phi)]])
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
@@ -140,10 +141,6 @@ class ScalarPotentialRZMagneticField(MagneticField):
 
         if compute_derivatives >= 1:
             self._dB_by_dX = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
-
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
 
 
 class CircularCoil(MagneticField):
@@ -171,17 +168,17 @@ class CircularCoil(MagneticField):
             self.normal = [normal[0], -normal[1]]
         else:
             self.normal = [np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2]), -np.arctan2(normal[0], normal[1])]
-        self.rotMatrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]),
+        self.rot_matrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]),
                                     np.cos(self.normal[0])*np.sin(self.normal[1])],
                                    [0, np.cos(self.normal[0]), -np.sin(self.normal[0])],
                                    [np.sin(self.normal[1]), np.sin(self.normal[0])*np.cos(self.normal[1]),
                                     np.cos(self.normal[0])*np.cos(self.normal[1])]])
-        self.rotMatrixInv = np.array(self.rotMatrix.T)
+        self.rot_matrix_inv = np.array(self.rot_matrix.T)
 
     def compute(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self.rot_matrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -190,7 +187,7 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
-        self._B = np.dot(self.rotMatrixInv, np.array(
+        self._B = np.dot(self.rot_matrix_inv, np.array(
             [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
@@ -246,24 +243,20 @@ class CircularCoil(MagneticField):
                 [dBxdz, dBydz, dBzdz]])
 
             self._dB_by_dX = np.array([
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[0, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[0, :], dB_by_dXm))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[1, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[1, :], dB_by_dXm))],
-                [np.dot(self.rotMatrix[:, 0], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 1], np.dot(self.rotMatrixInv[2, :], dB_by_dXm)),
-                 np.dot(self.rotMatrix[:, 2], np.dot(self.rotMatrixInv[2, :], dB_by_dXm))]]).T
-
-        if compute_derivatives >= 2:
-            self._d2B_by_dXdX = None
-            raise RuntimeError("Second derivative of scalar potential magnetic field not implemented yet")
+                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[0, :], dB_by_dXm))],
+                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[1, :], dB_by_dXm))],
+                [np.dot(self.rot_matrix[:, 0], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 1], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm)),
+                 np.dot(self.rot_matrix[:, 2], np.dot(self.rot_matrix_inv[2, :], dB_by_dXm))]]).T
 
     def compute_A(self, points, compute_derivatives=0):
         assert compute_derivatives <= 2
 
-        points = np.array(np.dot(self.rotMatrix, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self.rot_matrix, np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -272,26 +265,18 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        self._A = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
-            (2*self.r0*+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
+        self._A = -self.Inorm/2*np.dot(self.rot_matrix_inv, np.array(
+            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipek2-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
-            np.array([-points[:, 1], points[:, 0], 0])).T)
-
-        if compute_derivatives >= 1:
-            self._dA_by_dX = None
-            raise RuntimeError("First derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
-
-        if compute_derivatives >= 2:
-            self._d2A_by_dXdX = None
-            raise RuntimeError("Second derivative of magnetic vector potential of the circular coil magnetic field not implemented yet")
+            np.array([-points[:, 1], points[:, 0], 0*points[:, 0]]))).T
 
 
 class Dommaschk(MagneticField):
     """
     Vacuum magnetic field created by an explicit representation of the magnetic
     field scalar potential as proposed by W. Dommaschk (1986), Computer Physics
-    Communications 40, 203-218 As inputs, it takes the arrays for the harmonics
-    m, n and its corresponding coefficients
+    Communications 40, 203-218. As inputs, it takes the arrays for the harmonics
+    m, n and its corresponding coefficients.
 
     Args:
         m: first harmonic array
