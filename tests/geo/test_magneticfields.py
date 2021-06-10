@@ -173,6 +173,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        Bfield.set_points([[0.1, 0.2, 0.3]])
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15786, -2.643056]])
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         coils = [CurveXYZFourier(300, 1)]
