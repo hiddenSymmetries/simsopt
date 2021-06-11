@@ -554,7 +554,7 @@ class RotatedCurve(sgpp.Curve, Curve):
     
     """
     RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
-    optionally reflects about the XY plane when ``flip=True``.
+    optionally completes a reflection when ``flip=True``.
     """
 
     def __init__(self, curve, theta, flip):
