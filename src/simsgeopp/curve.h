@@ -13,7 +13,7 @@ using std::logic_error;
 #include "xtensor/xarray.hpp"
 #include "cachedarray.h"
 
-#include <Eigen/Dense>
+#include <Eigen/QR>
 
 template<class Array>
 Array curve_vjp_contraction(const Array& mat, const Array& v){

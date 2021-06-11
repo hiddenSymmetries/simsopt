@@ -56,6 +56,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
     src/simsgeopp/surface.cpp src/simsgeopp/surfacerzfourier.cpp src/simsgeopp/surfacexyzfourier.cpp
     src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp
+    src/simsgeopp/magneticfield_biotsavart.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
