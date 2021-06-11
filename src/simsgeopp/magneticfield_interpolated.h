@@ -1,5 +1,7 @@
 #pragma once 
 
+#include "magneticfield.h"
+#include "xtensor/xlayout.hpp"
 #include "regular_grid_interpolant_3d.h"
 
 template<template<class, std::size_t, xt::layout_type> class T>

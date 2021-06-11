@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <functional>
 
 #include <tuple>
 #include <random>
@@ -20,9 +21,9 @@ Vec linspace(double min, double max, int n, bool endpoint);
 
 class InterpolationRule {
     public:
+        const int degree;
         Vec nodes;
         Vec scalings;
-        const int degree;
         InterpolationRule(int degree) : degree(degree), nodes(degree+1, 0.), scalings(degree+1, 1.0) {
         }
         double basis_fun(int idx, double x) const {
@@ -149,7 +150,7 @@ class RegularGridInterpolant3D {
             }
 
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
-            int nsimdblocks = padded_value_size/simdcount;
+            //int nsimdblocks = padded_value_size/simdcount;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             vals = AlignedVec(nnodes*padded_value_size, 0.);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
@@ -174,7 +175,6 @@ class RegularGridInterpolant3D {
         }
 
         inline int idx_cell(int i, int j, int k){
-            int degree = rule.degree;
             return i*ny*nz + j*nz + k;
         }
 
