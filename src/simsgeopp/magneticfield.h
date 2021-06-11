@@ -8,10 +8,6 @@
 
 
 #include "cachedarray.h"
-#include "biot_savart_impl.h"
-#include "curve.h"
-#include "current.h"
-#include "coil.h"
 #include "cache.h"
 #include "cachedtensor.h"
 

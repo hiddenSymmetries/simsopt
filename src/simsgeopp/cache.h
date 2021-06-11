@@ -1,11 +1,16 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include <xtensor/xarray.hpp>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#include "cachedarray.h"
 
 
+using std::string;
+using std::vector;
 
 template<class Array>
 class Cache {

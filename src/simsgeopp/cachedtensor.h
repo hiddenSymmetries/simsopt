@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include "xtensor/xarray.hpp"
+#include "xtensor/xlayout.hpp"
 
 using std::vector;
 using std::array;

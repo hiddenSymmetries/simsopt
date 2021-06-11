@@ -20,6 +20,7 @@ typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
 typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
 
 
+
 template <typename T, typename S> void register_common_field_methods(S &c) {
     c
      .def("B", py::overload_cast<>(&T::B), "Returns a `(npoints, 3)` array containing the magnetic field (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `B_l(x_i)`.")
