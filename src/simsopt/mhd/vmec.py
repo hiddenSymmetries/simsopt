@@ -82,7 +82,8 @@ reset_jacdt_flag = 32
 #                        control its own run history
 
 
-@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
+# Temporarily commenting out the decorator till __instancecheck__ method is made working
+#@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
@@ -155,6 +156,8 @@ class Vmec(Optimizable):
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None):
+        if MPI is None:
+            raise RuntimeError("mpi4py needs to be installed for running VMEC")
         if vmec is None:
             raise RuntimeError(
                 "Running VMEC from simsopt requires VMEC python extension. "
