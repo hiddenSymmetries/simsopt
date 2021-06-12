@@ -60,7 +60,7 @@ class Boozer(Optimizable):
         """
         Constructor
         """
-        if not booz_xform_found:
+        if booz_xform is None:
             raise RuntimeError(
                 "To use a Boozer object, the booz_xform package "
                 "must be installed. Run 'pip install -v booz_xform'")
