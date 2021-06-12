@@ -14,9 +14,10 @@ import logging
 from typing import Union
 import numpy as np
 
+from monty.dev import requires
 try:
     from mpi4py import MPI
-except ImportError as err:
+except ImportError:
     MPI = None
 
 STOP = 0
@@ -41,6 +42,7 @@ def log(level: int = logging.INFO):
 logger = logging.getLogger(__name__)
 
 
+@requires(MPI is not None, "mpi4py is not installed")
 class MpiPartition:
     """
     This module contains functions related to dividing up the set of
@@ -73,13 +75,16 @@ class MpiPartition:
     """
 
     def __init__(self,
-                 ngroups: Union[None, int] = None,
-                 comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
-        if MPI is None:
-            raise RuntimeError("MpiPartition class requires the mpi4py package.")
+                 # ngroups: Union[None, int] = None,
+                 # comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
+                 ngroups=None,
+                 comm_world=None):
+        # if MPI is None:
+        #     raise RuntimeError("MpiPartition class requires the mpi4py package.")
 
         self.is_apart = False
-        self.comm_world = comm_world
+        self.comm_world = comm_world if comm_world is not None else MPI.COMM_WORLD
+
         self.rank_world = comm_world.Get_rank()
         self.nprocs_world = comm_world.Get_size()
         self.proc0_world = (self.rank_world == 0)
