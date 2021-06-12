@@ -232,7 +232,7 @@ jobs:
     #    python3 -m unittest -v
     
     - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && matrix.spec == false && matrix.vmec == false
+      if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
         ./run_serial_examples
