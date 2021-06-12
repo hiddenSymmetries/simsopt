@@ -85,8 +85,8 @@ class MpiPartition:
         self.is_apart = False
         self.comm_world = comm_world if comm_world is not None else MPI.COMM_WORLD
 
-        self.rank_world = comm_world.Get_rank()
-        self.nprocs_world = comm_world.Get_size()
+        self.rank_world = self.comm_world.Get_rank()
+        self.nprocs_world = self.comm_world.Get_size()
         self.proc0_world = (self.rank_world == 0)
 
         if ngroups is None:
