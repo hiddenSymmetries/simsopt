@@ -382,6 +382,94 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     return r, J, H
 
 
+class MajorRadius(object): 
+    r"""
+    This objective computes the major radius of a toroidal surface with the following formula:
+    
+    R_major = (1/2*pi) * (V / mean_cross_sectional_area)
+    
+    where mean_cross_sectional_area = \int^1_0 \int^1_0 z_\theta(xy_\varphi -yx_\varphi) - z_\varphi(xy_\theta-yx_\theta) ~d\theta d\varphi
+
+    """
+    def __init__(self, surface):
+        self.surface = surface
+
+    def J(self):
+        """
+        Return the objective value
+        """
+        surface = self.surface
+
+        g  = surface.gamma()
+        g1 = surface.gammadash1()
+        g2 = surface.gammadash2()
+        
+        x = g[:,:,0]
+        y = g[:,:,1]
+        
+        r = np.sqrt(x**2+y**2)
+
+        xvarphi = g1[:,:,0]
+        yvarphi = g1[:,:,1]
+        zvarphi = g1[:,:,2]
+
+        xtheta = g2[:,:,0]
+        ytheta = g2[:,:,1]
+        ztheta = g2[:,:,2]
+
+        mean_area = np.mean((ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta))/r)/(2*np.pi)
+        R_major = surface.volume() / (2. * np.pi * mean_area)
+        return R_major
+
+    def dJ(self):
+        """
+        Return the objective value
+        """
+
+        surface = self.surface
+
+        g  = surface.gamma()
+        g1 = surface.gammadash1()
+        g2 = surface.gammadash2()
+
+        dg_ds = surface.dgamma_by_dcoeff()
+        dg1_ds = surface.dgammadash1_by_dcoeff()
+        dg2_ds = surface.dgammadash2_by_dcoeff()
+
+        
+        x = g[:,:,0, None]
+        y = g[:,:,1, None]
+
+        dx_ds = dg_ds[:,:,0,:]
+        dy_ds = dg_ds[:,:,1,:]
+
+        r = np.sqrt(x**2+y**2)
+        dr_ds =  (x*dx_ds+y*dy_ds)/r
+
+        xvarphi = g1[:,:,0, None]
+        yvarphi = g1[:,:,1, None]
+        zvarphi = g1[:,:,2, None]
+
+        xtheta = g2[:,:,0, None]
+        ytheta = g2[:,:,1, None]
+        ztheta = g2[:,:,2, None]
+
+        dxvarphi_ds = dg1_ds[:,:,0,:]
+        dyvarphi_ds = dg1_ds[:,:,1,:]
+        dzvarphi_ds = dg1_ds[:,:,2,:]
+
+        dxtheta_ds = dg2_ds[:,:,0,:]
+        dytheta_ds = dg2_ds[:,:,1,:]
+        dztheta_ds = dg2_ds[:,:,2,:]
+
+        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))
+        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta* dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi* dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis = (0,1) )
+
+        dR_major_ds = (-surface.volume() * dmean_area_ds + surface.dvolume_by_dcoeff() * mean_area) / mean_area**2
+        return dR_major_ds
+
+
+
 class NonQuasiAxisymmetricComponentPenalty(object):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
@@ -397,7 +485,8 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
     
     """
-    def __init__(self, boozer_surface, stellarator, target_iota = None, iota_weight = 0.):
+    def __init__(self, boozer_surface, stellarator, target_iota = None, iota_weight = 0.,
+                 target_major_radius = None, major_radius_weight = 0.):
         self.stellarator = stellarator
         self.boozer_surface = boozer_surface
         if boozer_surface.res is not None:
@@ -415,6 +504,13 @@ class NonQuasiAxisymmetricComponentPenalty(object):
             self.iota_weight = 1.
 
         self.biotsavart = boozer_surface.bs
+        self.major_radius = MajorRadius(boozer_surface.surface)
+        self.major_radius_weight = major_radius_weight
+        if target_major_radius is None:
+            self.target_major_radius = self.major_radius.J()
+        else:
+            self.target_major_radius = target_major_radius
+
 #        x = self.boozer_surface.surface.gamma().reshape((-1,3))
 #        self.biotsavart.set_points(x)
         self.boozer_surface.surface.dependencies.append(self)
@@ -442,7 +538,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
 
         B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
         B_nonQS = modB - B_QS[None,:]
-        J = 0.5 * np.mean( dS * B_nonQS**2 ) + 0.5 * self.iota_weight * (iota - self.target_iota)**2.
+        J = 0.5 * np.mean( dS * B_nonQS**2 ) + 0.5 * self.iota_weight * (iota - self.target_iota)**2. + 0.5 * self.major_radius_weight * ( self.major_radius.J() - self.target_major_radius)**2.
         return J
 
     def dJ(self):
@@ -531,93 +627,7 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         B_QS_dc = (dnum_dc * denom[:,None] - ddenom_dc * num[:,None])/denom[:,None]**2
         B_nonQS_dc = dmodB_dc - B_QS_dc[None,:]
         
-        dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) )
+        dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) ) + self.major_radius_weight * ( self.major_radius.J() - self.target_major_radius) * self.major_radius.dJ()
         return dJ_by_dc
-
-class MajorRadius(object): 
-    r"""
-    This objective computes the major radius of a toroidal surface with the following formula:
-    
-    R_major = (1/2*pi) * (V / mean_cross_sectional_area)
-    
-    where mean_cross_sectional_area = \int^1_0 \int^1_0 z_\theta(xy_\varphi -yx_\varphi) - z_\varphi(xy_\theta-yx_\theta) ~d\theta d\varphi
-
-    """
-    def __init__(self, surface):
-        self.surface = surface
-
-    def J(self):
-        """
-        Return the objective value
-        """
-        surface = self.surface
-
-        g  = surface.gamma()
-        g1 = surface.gammadash1()
-        g2 = surface.gammadash2()
-        
-        x = g[:,:,0]
-        y = g[:,:,1]
-        
-        r = np.sqrt(x**2+y**2)
-
-        xvarphi = g1[:,:,0]
-        yvarphi = g1[:,:,1]
-        zvarphi = g1[:,:,2]
-
-        xtheta = g2[:,:,0]
-        ytheta = g2[:,:,1]
-        ztheta = g2[:,:,2]
-
-        mean_area = np.mean((ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta))/r)/(2*np.pi)
-        R_major = surface.volume() / (2. * np.pi * mean_area)
-        return R_major
-
-    def dJ(self):
-        """
-        Return the objective value
-        """
-
-        surface = self.surface
-
-        g  = surface.gamma()
-        g1 = surface.gammadash1()
-        g2 = surface.gammadash2()
-
-        dg_ds = surface.dgamma_by_dcoeff()
-        dg1_ds = surface.dgammadash1_by_dcoeff()
-        dg2_ds = surface.dgammadash2_by_dcoeff()
-
-        
-        x = g[:,:,0, None]
-        y = g[:,:,1, None]
-
-        dx_ds = dg_ds[:,:,0,:]
-        dy_ds = dg_ds[:,:,1,:]
-
-        r = np.sqrt(x**2+y**2)
-        dr_ds =  (x*dx_ds+y*dy_ds)/r
-
-        xvarphi = g1[:,:,0, None]
-        yvarphi = g1[:,:,1, None]
-        zvarphi = g1[:,:,2, None]
-
-        xtheta = g2[:,:,0, None]
-        ytheta = g2[:,:,1, None]
-        ztheta = g2[:,:,2, None]
-
-        dxvarphi_ds = dg1_ds[:,:,0,:]
-        dyvarphi_ds = dg1_ds[:,:,1,:]
-        dzvarphi_ds = dg1_ds[:,:,2,:]
-
-        dxtheta_ds = dg2_ds[:,:,0,:]
-        dytheta_ds = dg2_ds[:,:,1,:]
-        dztheta_ds = dg2_ds[:,:,2,:]
-
-        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))
-        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta* dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi* dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis = (0,1) )
-
-        dR_major_ds = (-surface.volume() * dmean_area_ds + surface.dvolume_by_dcoeff() * mean_area) / mean_area**2
-        return dR_major_ds
 
 

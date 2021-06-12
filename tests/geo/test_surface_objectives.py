@@ -163,7 +163,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
 
         iota_target = 2. * res['iota']
         iota_weight = 3.1213
-        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, iota_target, iota_weight)
+        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1., target_major_radius=0.1) 
         coeffs = s.get_dofs()
         def f(dofs):
             s.set_dofs(dofs)
@@ -201,7 +201,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
 
         iota_target = 2. * res['iota']
         iota_weight = 3.1213
-        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, iota_target, iota_weight)
+        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1., target_major_radius=0.1)
         coeffs = stellarator.get_dofs()
         def f(dofs):
             stellarator.set_dofs(dofs)
@@ -248,7 +248,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
 
         iota_target = res['iota']
         iota_weight = 3.1213
-        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, iota_target, iota_weight)
+        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_s, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1., target_major_radius=0.1)
 
 
 
@@ -286,7 +286,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
         bs = BiotSavartTestField(coils,currents)
         boozer_surface = BoozerSurface(bs, s, label, label_target)
         boozer_surface.res = boozer_s.res
-        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight)
+        non_qs = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, target_iota=iota_target, iota_weight=iota_weight)
         
         assert np.abs(non_qs.J()) < 1e-14
 
@@ -324,7 +324,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
         
         iota_target = 2. * res['iota']
         iota_weight = 3.1213
-        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) 
+        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1., target_major_radius=0.1) 
         coeffs = stellarator.get_dofs()
         
         def f(dofs):
@@ -376,7 +376,7 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
         
         iota_target = 2. * res['iota']
         iota_weight = 3.1213
-        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) 
+        problem = NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1., target_major_radius=0.1) 
         coeffs = stellarator.get_dofs()
         
         def f(dofs):
