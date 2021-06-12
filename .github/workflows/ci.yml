@@ -250,7 +250,7 @@ jobs:
         ./run_vmec_examples
 
     - name: Run vmec and spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && matrix.spec == true && matrix.vmec = true
+      if: contains(matrix.test-type, 'integrated') && matrix.spec == true && matrix.vmec == true
       run: |
         cd examples
         ./run_spec_vmec_examples
