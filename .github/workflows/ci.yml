@@ -232,15 +232,15 @@ jobs:
     #    python3 -m unittest -v
     
     - name: Run examples as integrated tests
-      # if: contains(matrix.test-type, 'integrated') && matrix.mpi = false
-      if: matrix.test-type == 'integrated' && matrix.mpi = false
+      if: contains(matrix.test-type, 'integrated') && matrix.mpi == false
+      # if: matrix.test-type == 'integrated' && matrix.mpi = false
       run: |
         cd examples
         ./run_examples
 
     - name: Run examples as integrated tests
-      # if: contains(matrix.test-type, 'integrated') && matrix.mpi = true
-      if: matrix.test-type == 'integrated' && matrix.mpi = true
+      if: contains(matrix.test-type, 'integrated') && matrix.mpi == true
+      # if: matrix.test-type == 'integrated' && matrix.mpi = true
       run: |
         cd examples
         ./run_mpi_examples
