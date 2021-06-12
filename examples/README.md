@@ -6,32 +6,44 @@ The examples are divided in four folders: **1_Simple**, **2_Intermediate**, **3_
 
 Examples where SIMSOPT takes as objective function one/several simple geometric measure such as length, are or volume. There is no need for external libraries or dependencies.
 
-just_a_quadratic: Minimize f(x,y,z) = ((x-1)/1)^2 + ((y-2)/2)^2 + ((z-3)/3)^2.
-logger_example: Example file for transparently logging both MPI and serial jobs
-minimize_curve_length: Minimize the length of a curve, holding the 0-frequency Fourier mode fixed resulting in a circle.
-surface_volume_and_area: Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area.
-graph_surf_vol_area: Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area using the graph method.
+###just_a_quadratic
+Minimize f(x,y,z) = ((x-1)/1)^2 + ((y-2)/2)^2 + ((z-3)/3)^2.
+###logger_example
+Example file for transparently logging both MPI and serial jobs
+###minimize_curve_length
+Minimize the length of a curve, holding the 0-frequency Fourier mode fixed resulting in a circle.
+###surface_volume_and_area
+Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area.
+###graph_surf_vol_area
+Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area using the graph method.
 
 ## 2_Intermediate
 
 Examples where SIMSOPT specifically optimizes for an objective function associated with a stellarator magnetic field such as quasi-simmetry or rotational transform. These scripts need external dependencies, such as VMEC, SPEC or QSC.
 
-boozer: How to compute surfaces in Boozer coordinates for a magnetic field induced by coils.
-eliminate_magnetic_islands: Show how the shape of a boundary magnetic
+###boozer
+How to compute surfaces in Boozer coordinates for a magnetic field induced by coils.
+###eliminate_magnetic_islands
+Show how the shape of a boundary magnetic
 surface can be adjusted to eliminate magnetic islands inside it,
 considering a vacuum field. The SPEC code is used with a single radial domain.
-QAS: Perform several runs with the VMEC python wrapper while changing a particular surface Fourier coefficient.
-QH_fixed_resolution: Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
-QSC: Optimize an axis shape and the first-order shape of the flux surface
+###QAS
+Perform several runs with the VMEC python wrapper while changing a particular surface Fourier coefficient.
+###QH_fixed_resolution
+Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
+###QSC
+Optimize an axis shape and the first-order shape of the flux surface
 at first order near the magnetic axis for a target iota and low elongation
 using the Stellarator Quasisymmetry Construction code https://github.com/landreman/pyQSC
-resolution_increase: Show how to increase the size of the parameter space and refine the resolution of the calculations during an optimization. The objective function targets quasi-axisymmetry and the iota profile.
+###resolution_increase
+Show how to increase the size of the parameter space and refine the resolution of the calculations during an optimization. The objective function targets quasi-axisymmetry and the iota profile.
 
 ## 3_Advanced
 
 Examples where SIMSOPT takes several external libraries together (such as VMEC+SPEC+) to optimize for an objective function associated with a stellarator magnetic field, such as quasi-simmetry and magnetic islands.
 
-optimize_qs_and_islands_simultaneously: simultaneously optimize for quasisymmetry and the elimination of magnetic islands, with both VMEC and SPEC called in the objective function.
+###optimize_qs_and_islands_simultaneously
+simultaneously optimize for quasisymmetry and the elimination of magnetic islands, with both VMEC and SPEC called in the objective function.
 
 ## stellopt_scenarios
 
