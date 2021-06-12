@@ -31,11 +31,12 @@ except ImportError as e:
 
 from .._core.optimizable import Optimizable
 
-try:
+#try:
+if MPI is not None:
     from .vmec import Vmec
-except ImportError as e:
-    Vmec = None
-    logger.warning(str(e))
+#except ImportError as e:
+    #Vmec = None
+    #logger.warning(str(e))
 
 
 #@requires(booz_xform is not None,
