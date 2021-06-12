@@ -3,7 +3,7 @@ import numpy as np
 
 class Area(object):
     """
-    Wrapper class for surface area computation
+    Wrapper class for surface area label.
     """
 
     def __init__(self, surface):
@@ -11,26 +11,26 @@ class Area(object):
 
     def J(self):
         """
-        Compute the area of a surface
+        Compute the area of a surface.
         """
         return self.surface.area()
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients
+        Calculate the derivatives with respect to the surface coefficients.
         """
         return self.surface.darea_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
-        Calculate the second derivatives with respect to the surface coefficients
+        Calculate the second derivatives with respect to the surface coefficients.
         """
         return self.surface.d2area_by_dcoeffdcoeff()
 
 
 class Volume(object):
     """
-    Wrapper class for volume computation
+    Wrapper class for volume label.
     """
 
     def __init__(self, surface):
@@ -38,19 +38,19 @@ class Volume(object):
 
     def J(self):
         """
-        Compute the volume enclosed by the surface
+        Compute the volume enclosed by the surface.
         """
         return self.surface.volume()
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients
+        Calculate the derivatives with respect to the surface coefficients.
         """
         return self.surface.dvolume_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
-        Calculate the second derivatives with respect to the surface coefficients
+        Calculate the second derivatives with respect to the surface coefficients.
         """
         return self.surface.d2volume_by_dcoeffdcoeff()
 
@@ -64,7 +64,8 @@ class ToroidalFlux(object):
        &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
        &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
 
-    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`.
+    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`, and :math:`\mathbf A` 
+    is the magnetic vector potential.
     """
 
     def __init__(self, surface, biotsavart, idx=0):
@@ -81,7 +82,7 @@ class ToroidalFlux(object):
     def J(self):
         r"""
         Compute the toroidal flux on the surface where 
-        :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`
+        :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`.
         """
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
@@ -91,7 +92,7 @@ class ToroidalFlux(object):
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients
+        Calculate the derivatives with respect to the surface coefficients.
         """
         ntheta = self.surface.gamma().shape[1]
         dA_by_dX = self.biotsavart.dA_by_dX()
@@ -109,7 +110,7 @@ class ToroidalFlux(object):
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
-        Calculate the second derivatives with respect to the surface coefficients
+        Calculate the second derivatives with respect to the surface coefficients.
         """
         ntheta = self.surface.gamma().shape[1]
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
@@ -131,16 +132,18 @@ class ToroidalFlux(object):
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     r"""
-    For a given surface with points x on it, this function computes the
+    For a given surface, this function computes the
     residual
 
     .. math::
         G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
-    iota, and G.
+    iota, and G.  In the above, :math:`\mathbf x` are points on the surface, :math:`\iota` is the
+    rotational transform on that surface, and :math:`\mathbf B_{\text{BS}}` is the magnetic field
+    computed using the Biot-Savart law.
 
-    :math:`G` is known for exact boozer surfaces, so if :math:`G` = None is passed, then that
+    :math:`G` is known for exact boozer surfaces, so if ``G=None`` is passed, then that
     value is used instead.
     """
 
