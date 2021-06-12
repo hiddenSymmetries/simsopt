@@ -23,4 +23,4 @@ class SimsoptRequires(requires):
         return decorated
 
     def __instancecheck__(self, other):
-        return isinstance(other, self.__callable)
+        return isinstance(other, self._callable)
