@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 def compute_gc_radius(m, vperp, q, absb):
     return m*vperp/(abs(q)*absb)
 
+
 def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
     nparticles = xyz_inits.shape[0]
     xyz_inits_full = np.zeros_like(xyz_inits)
