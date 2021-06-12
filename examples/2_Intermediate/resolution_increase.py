@@ -24,7 +24,7 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec("inputs/input.nfp2_QA", mpi=mpi)
+vmec = Vmec("2_Intermediate/inputs/input.nfp2_QA", mpi=mpi)
 vmec.verbose = mpi.proc0_world
 surf = vmec.boundary
 
@@ -32,8 +32,8 @@ surf = vmec.boundary
 boozer = Boozer(vmec)
 boozer.bx.verbose = mpi.proc0_world
 qs = Quasisymmetry(boozer,
-                   0.5, # Radius to target
-                   1, 0) # (M, N) you want in |B|
+                   0.5,  # Radius to target
+                   1, 0)  # (M, N) you want in |B|
 
 # Define objective function
 prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
@@ -46,7 +46,7 @@ prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
 # included in the VMEC and booz_xform calculations.
 for step in range(3):
     max_mode = step + 1
-    
+
     # VMEC's mpol & ntor will be 3, 4, 5:
     vmec.indata.mpol = 3 + step
     vmec.indata.ntor = vmec.indata.mpol
@@ -54,7 +54,7 @@ for step in range(3):
     # booz_xform's mpol & ntor will be 16, 24, 32:
     boozer.mpol = 16 + step * 8
     boozer.ntor = boozer.mpol
-    
+
     if mpi.proc0_world:
         print("Beginning optimization with max_mode =", max_mode, \
               ", vmec mpol=ntor=", vmec.indata.mpol, \
@@ -65,7 +65,7 @@ for step in range(3):
     surf.all_fixed()
     surf.fixed_range(mmin=0, mmax=max_mode, 
                      nmin=-max_mode, nmax=max_mode, fixed=False)
-    surf.set_fixed("rc(0,0)") # Major radius
+    surf.set_fixed("rc(0,0)")  # Major radius
 
     # For the test to run quickly, we stop after the first function
     # evaluation, by passing max_nfev=1 to scipy.optimize. For a

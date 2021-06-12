@@ -74,6 +74,6 @@ print(" objective function = ", prob.objective())
 assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 0.001
 assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 0.001
 assert np.abs(equil.volume() - 0.178091) < 0.001
-assert np.abs(surf.volume()  - 0.178091) < 0.001
+assert np.abs(surf.volume() - 0.178091) < 0.001
 assert np.abs(equil.iota() - (-0.4114567)) < 0.001
 assert (prob.objective() - 7.912501330E-04) < 0.2e-4

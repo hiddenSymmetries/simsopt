@@ -21,8 +21,8 @@ vmec.boundary.set_fixed("zs(0,1)", False)
 # Define objective function:
 boozer = Boozer(vmec, mpol=32, ntor=16)
 qs = Quasisymmetry(boozer,
-                   1.0, # Radius to target
-                   1, 0, # (M, N) you want in |B|
+                   1.0,  # Radius to target
+                   1, 0,  # (M, N) you want in |B|
                    normalization="symmetric",
                    weight="stellopt_ornl")
 

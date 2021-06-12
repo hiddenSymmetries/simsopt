@@ -24,7 +24,7 @@ mpi = MpiPartition()
 mpi.write()
 
 # Initialze a Spec object from a standard SPEC input file:
-s = Spec('inputs/QH-residues.sp', mpi=mpi)
+s = Spec('2_Intermediate/inputs/QH-residues.sp', mpi=mpi)
 
 # Expand number of Fourier modes to include larger poloidal mode numbers:
 s.boundary.change_resolution(6, s.boundary.ntor)
@@ -68,7 +68,7 @@ least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
 final_r1 = residue1.J()                                                                    
 final_r2 = residue2.J()                                                                    
-expected_solution = np.array([1.1076171888771095e-03,  4.5277618989828059e-04])
+expected_solution = np.array([1.1076171888771095e-03, 4.5277618989828059e-04])
 if mpi.proc0_world:
     logging.info(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")
     logging.info(f"Expected state vector: {expected_solution}")

@@ -23,14 +23,14 @@ vmec.boundary = surf
 # Define parameter space:
 surf.all_fixed()
 surf.fixed_range(mmin=0, mmax=2, nmin=-1, nmax=1, fixed=False)
-surf.set_fixed("Delta(1,0)") # toroidally-averaged major radius
-surf.set_fixed("Delta(0,0)") # toroidally-averaged minor radius
+surf.set_fixed("Delta(1,0)")  # toroidally-averaged major radius
+surf.set_fixed("Delta(0,0)")  # toroidally-averaged minor radius
 
 # Define objective function:
 boozer = Boozer(vmec, mpol=32, ntor=16)
 qs = Quasisymmetry(boozer,
-                   1.0, # Radius to target
-                   1, 0, # (M, N) you want in |B|
+                   1.0,  # Radius to target
+                   1, 0,  # (M, N) you want in |B|
                    normalization="symmetric",
                    weight="stellopt")
 

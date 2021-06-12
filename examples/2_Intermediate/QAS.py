@@ -15,7 +15,7 @@ print("Hello from rank %s of %s." % (rank, size))
 #print(MPI.Is_finalized())
 
 fcomm = comm.py2f()
-path = 'inputs/input.QAS'
+path = '2_Intermediate/inputs/input.QAS'
 if rank == 0:
     verbose = True
 else:
