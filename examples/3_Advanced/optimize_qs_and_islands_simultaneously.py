@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 
-"""
-In this example, we simultaneously optimize for quasisymmetry and
-the elimination of magnetic islands, with both VMEC and SPEC called in
-the objective function.
-"""
-
 import numpy as np
 
 from simsopt.util.mpi import log, MpiPartition
@@ -13,6 +7,12 @@ from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry
 from simsopt.mhd.spec import Residue
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+
+"""
+In this example, we simultaneously optimize for quasisymmetry and
+the elimination of magnetic islands, with both VMEC and SPEC called in
+the objective function.
+"""
 
 log()
 mpi = MpiPartition()

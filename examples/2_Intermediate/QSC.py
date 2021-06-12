@@ -8,7 +8,9 @@ from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
 
 """
-Optimize the Stellarator Quasisymmetry Construction code
+Optimize an axis shape and the first-order shape of the flux surface
+at first order near the magnetic axis for a target iota and low elongation
+using the Stellarator Quasisymmetry Construction code
 https://github.com/landreman/pyQSC
 """
 

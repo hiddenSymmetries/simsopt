@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-"""
-In this example, we optimize for quasi-helical symmetry.
-"""
-
 from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+
+"""
+Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
+"""
 
 # This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
 # concurrent function evaluations for 1-sided finite difference
