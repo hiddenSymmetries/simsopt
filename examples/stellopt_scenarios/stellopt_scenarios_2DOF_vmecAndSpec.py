@@ -88,6 +88,6 @@ if mpi.proc0_world:
     assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
     assert np.abs(spec_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_volume - 0.178091) < 1.0e-3
-    assert np.abs(surf_volume  - 0.178091) < 1.0e-3
+    assert np.abs(surf_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
     assert final_objective < 1.0e-2

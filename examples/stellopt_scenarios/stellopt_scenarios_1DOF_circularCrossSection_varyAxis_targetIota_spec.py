@@ -53,7 +53,7 @@ surf.set_fixed('Delta(1,-1)', False)
 # with a shift and weight, to become a term in a least-squares
 # objective function.  A list of terms are combined to form a
 # nonlinear-least-squares problem.
-desired_iota = 0.41 # Sign was + for VMEC
+desired_iota = 0.41  # Sign was + for VMEC
 prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
 
 # Solve the minimization problem. We can choose whether to use a

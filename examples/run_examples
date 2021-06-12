@@ -16,42 +16,42 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./1_Simple/just_a_quadratic
-./1_Simple/surface_volume_and_area
-./1_Simple/minimize_curve_length
-./2_Intermediate/qsc
+./1_Simple/just_a_quadratic.py
+./1_Simple/surface_volume_and_area.py
+./1_Simple/minimize_curve_length.py
+./2_Intermediate/QSC.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
+./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
+./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec
+./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry
+./stellopt_scenarios/stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume
+./stellopt_scenarios/stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec
+./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
 
-mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 
-./2_Intermediate/eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands
+./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands.py
 
-./2_Intermediate/boozer
+./2_Intermediate/boozer.py
 
-mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py

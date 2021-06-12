@@ -14,7 +14,7 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 # gradients.
 mpi = MpiPartition(25)
 
-vmec = Vmec("inputs/input.nfp4_QH_warm_start", mpi=mpi)
+vmec = Vmec("2_Intermediate/inputs/input.nfp4_QH_warm_start", mpi=mpi)
 
 # Define parameter space:
 surf = vmec.boundary
@@ -22,12 +22,12 @@ surf.all_fixed()
 max_mode = 2
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
-surf.set_fixed("rc(0,0)") # Major radius
+surf.set_fixed("rc(0,0)")  # Major radius
 
 # Configure quasisymmetry objective:
 qs = Quasisymmetry(Boozer(vmec),
-                   0.5, # Radius to target
-		   1, 1) # (M, N) you want in |B|
+                   0.5,  # Radius to target
+                   1, 1)  # (M, N) you want in |B|
 
 # Define objective function
 prob = LeastSquaresProblem([(vmec.aspect, 7, 1),
