@@ -55,7 +55,6 @@ endif()
 add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
-set(XTENSOR_USE_SIMD 0)
 set(XTENSOR_USE_TBB 0)
 
 
@@ -67,6 +66,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
     src/simsgeopp/surface.cpp src/simsgeopp/surfacerzfourier.cpp src/simsgeopp/surfacexyzfourier.cpp
     src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp src/simsgeopp/tracing.cpp
+    src/simsgeopp/magneticfield_biotsavart.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
@@ -78,7 +78,7 @@ if(Boost_FOUND)
     target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 endif()
 
-add_executable(profiling profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d_c.cpp)
+add_executable(profiling EXCLUDE_FROM_ALL profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14

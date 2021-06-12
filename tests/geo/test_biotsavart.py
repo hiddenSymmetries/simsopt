@@ -6,13 +6,16 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.biotsavart import BiotSavart
 
 
-def get_coil(num_quadrature_points=200):
+def get_coil(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
     coeffs = coil.dofs
     coeffs[1][0] = 1.
     coeffs[1][1] = 0.5
     coeffs[2][2] = 0.5
     coil.set_dofs(np.concatenate(coeffs))
+    if perturb:
+        d = coil.get_dofs()
+        coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
 
 
@@ -272,6 +275,39 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_biotsavart_d2A_by_dXdX_taylortest(idx)
+
+    def test_biotsavart_coil_current_taylortest(self):
+        coil0 = get_coil()
+        current0 = 1e4
+        coil1 = get_coil(perturb=True)
+        current1 = 1e3
+        bs = BiotSavart([coil0, coil1], [current0, current1])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        B = bs.B()
+        J = bs.dB_by_dX()
+        H = bs.d2B_by_dXdX()
+        dB = bs.dB_by_dcoilcurrents()
+        dJ = bs.d2B_by_dXdcoilcurrents()
+        dH = bs.d3B_by_dXdXdcoilcurrents()
+
+        h = 1.
+        bs.currents_optim[0].set_dofs(1e4+h)
+        bs.invalidate_cache()
+        Bp = bs.B()
+        Jp = bs.dB_by_dX()
+        Hp = bs.d2B_by_dXdX()
+        bs.currents_optim[0].set_dofs(1e4-h)
+        bs.invalidate_cache()
+        Bm = bs.B()
+        Jm = bs.dB_by_dX()
+        Hm = bs.d2B_by_dXdX()
+        dB_approx = (Bp-Bm)/(2*h)
+        dJ_approx = (Jp-Jm)/(2*h)
+        dH_approx = (Hp-Hm)/(2*h)
+        assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
 
 if __name__ == "__main__":

@@ -70,30 +70,31 @@ class MagneticFieldMultiply(MagneticField):
     MagneticField class and a scalar and multiplies B, A and their derivatives
     by that value.
     """
+
     def __init__(self, scalar, Bfield):
         MagneticField.__init__(self)
         self.scalar = scalar
         self.Bfield = Bfield
 
-    def set_points_cb(self):
+    def _set_points_cb(self):
         self.Bfield.set_points_cart(self.get_points_cart_ref())
 
-    def B_impl(self, B):
+    def _B_impl(self, B):
         B[:] = self.scalar*self.Bfield.B()
 
-    def dB_by_dX_impl(self, dB):
+    def _dB_by_dX_impl(self, dB):
         dB[:] = self.scalar*self.Bfield.dB_by_dX()
 
-    def d2B_by_dXdX_impl(self, ddB):
+    def _d2B_by_dXdX_impl(self, ddB):
         ddB[:] = self.scalar*self.Bfield.d2B_by_dXdX()
 
-    def A_impl(self, A):
+    def _A_impl(self, A):
         A[:] = self.scalar*self.Bfield.A()
 
-    def dA_by_dX_impl(self, dA):
+    def _dA_by_dX_impl(self, dA):
         dA[:] = self.scalar*self.Bfield.dA_by_dX()
 
-    def d2A_by_dXdX_impl(self, ddA):
+    def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
 
@@ -109,24 +110,24 @@ class MagneticFieldSum(MagneticField):
         MagneticField.__init__(self)
         self.Bfields = Bfields
 
-    def set_points_cb(self):
+    def _set_points_cb(self):
         for bf in self.Bfields:
             bf.set_points_cart(self.get_points_cart_ref())
 
-    def B_impl(self, B):
+    def _B_impl(self, B):
         B[:] = np.sum([bf.B() for bf in self.Bfields], axis=0)
 
-    def dB_by_dX_impl(self, dB):
+    def _dB_by_dX_impl(self, dB):
         dB[:] = np.sum([bf.dB_by_dX() for bf in self.Bfields], axis=0)
 
-    def d2B_by_dXdX_impl(self, ddB):
+    def _d2B_by_dXdX_impl(self, ddB):
         ddB[:] = np.sum([bf.d2B_by_dXdX() for bf in self.Bfields], axis=0)
 
-    def A_impl(self, A):
+    def _A_impl(self, A):
         A[:] = np.sum([bf.A() for bf in self.Bfields], axis=0)
 
-    def dA_by_dX_impl(self, dA):
+    def _dA_by_dX_impl(self, dA):
         dA[:] = np.sum([bf.dA_by_dX() for bf in self.Bfields], axis=0)
 
-    def d2A_by_dXdX_impl(self, ddA):
+    def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
