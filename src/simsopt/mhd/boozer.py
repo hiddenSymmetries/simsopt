@@ -11,7 +11,7 @@ import logging
 from typing import Union, Iterable
 
 import numpy as np
-from monty.dev import requires
+from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ if MPI is not None:
 #@requires(booz_xform is not None,
 #          "To use a Boozer object, the booz_xform package "
 #          "must be installed. Run 'pip install -v booz_xform'")
-@requires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.

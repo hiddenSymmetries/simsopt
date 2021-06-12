@@ -12,7 +12,7 @@ from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
-from monty.dev import requires
+from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ reset_jacdt_flag = 32
 #                        control its own run history
 
 
-@requires(MPI is not None, "mpi4py needs to be installed for running VMEC")
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.

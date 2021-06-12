@@ -12,7 +12,6 @@ import os.path
 import traceback
 
 import numpy as np
-from monty.dev import requires
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +48,7 @@ except ImportError as e:
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
+from ..util.dev import SimsoptRequires
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
@@ -56,7 +56,7 @@ else:
 #from ..util.mpi import MpiPartition
 
 
-@requires(MPI is not None, "mpi4py needs to be installed for running SPEC")
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running SPEC")
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
