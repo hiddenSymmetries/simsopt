@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script runs the examples that require either spec or vmec or both. This script is used by the Github
+# This script runs the examples that require both spec and vmec. This script is used by the Github
 # Actions continuous integration. Examples that can use MPI are run
 # for various numbers of processes.
 
@@ -17,35 +17,5 @@ MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-
-./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-
-./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-
-./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec
-
-./stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry
-
-./stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume
-
 ./stellopt_scenarios_2DOF_vmecAndSpec
 mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_2DOF_vmecAndSpec
-
-./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-
-mpiexec $MPI_OPTIONS -n 2 ./resolution_increase
-
-./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 2 ./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 3 ./eliminate_magnetic_islands
-
-mpiexec $MPI_OPTIONS -n 2 ./QH_fixed_resolution
