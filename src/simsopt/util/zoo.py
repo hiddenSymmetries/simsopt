@@ -7,7 +7,7 @@ DATA_DIR = (Path(__file__).parent / "data").resolve()
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
-    filename = DATA_DIR / 'NCSX_coil_coeffs.dat'
+    filename = DATA_DIR / 'NCSX.dat'
     coils = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
     currents = [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]
