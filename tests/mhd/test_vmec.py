@@ -17,7 +17,7 @@ except ImportError:
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
 # from simsopt.mhd.vmec import vmec_found
-if MPI is not None:
+if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
