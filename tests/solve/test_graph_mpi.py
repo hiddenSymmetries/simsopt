@@ -2,12 +2,16 @@ import logging
 import unittest
 
 import numpy as np
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
 
 from simsopt._core.graph_optimizable import Optimizable
-from simsopt.util.mpi import MpiPartition
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import fd_jac_mpi, least_squares_mpi_solve
+if MPI is not None:
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.solve.graph_mpi import fd_jac_mpi, least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -75,6 +79,7 @@ class TestFunction3(Optimizable):
     return_fn_map = {'f0': f0, 'f1': f1}
 
 
+@unittest.skipIf(MPI is None, "Requires mpi4py")
 class MpiPartitionTests(unittest.TestCase):
     def test_ngroups1(self):
         """
