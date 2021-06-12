@@ -2,6 +2,8 @@ from simsopt.geo.magneticfieldclasses import ToroidalField
 from simsopt.tracing.tracing import compute_fieldlines, particles_to_vtk
 import unittest
 import numpy as np
+import logging
+logging.basicConfig()
 
 
 def validate_phi_hits(phi_hits, nphis):
@@ -12,7 +14,6 @@ def validate_phi_hits(phi_hits, nphis):
     for i in range(len(phi_hits)-1):
         this_idx = int(phi_hits[i][1])
         next_idx = int(phi_hits[i+1][1])
-        print(this_idx, next_idx)
         if not next_idx == (this_idx + 1) % nphis:
             return False
     return True
@@ -21,6 +22,8 @@ def validate_phi_hits(phi_hits, nphis):
 class FieldlineTesting(unittest.TestCase):
 
     def test_poincare(self):
+        logger = logging.getLogger('simsopt.tracing.tracing')
+        logger.setLevel(1)
         # Test a toroidal magnetic field with no rotational transform
         R0test = 1.3
         B0test = 0.8

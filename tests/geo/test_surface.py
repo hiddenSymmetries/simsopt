@@ -7,7 +7,7 @@ from simsopt._core.optimizable import make_optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
+from .surface_test_helpers import get_surface, get_exact_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
