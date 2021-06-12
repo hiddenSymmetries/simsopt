@@ -9,11 +9,11 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
     The field is given by
 
     .. math::
-        
+
         B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{(\Gamma_k(\phi)-\mathbf{x})\times \Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|^3} d\phi
 
     where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant.
-        
+
     """
 
     def __init__(self, coils, coil_currents):
@@ -30,22 +30,22 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         Compute the potential of a BiotSavart field
 
         .. math::
-            
+
             A(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{\Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|} d\phi
 
         as well as the derivatives of `A` if requested.
         """
-        points = self.get_points_cart_ref()
         assert compute_derivatives <= 2
 
+        points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self.coils)
 
-        self._dA_by_dcoilcurrents = [self.cache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
+        self._dA_by_dcoilcurrents = [self.fieldcache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
         if compute_derivatives >= 1:
-            self._d2A_by_dXdcoilcurrents = [self.cache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
+            self._d2A_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         if compute_derivatives >= 2:
-            self._d3A_by_dXdXdcoilcurrents = [self.cache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
+            self._d3A_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
 
         gammas = [coil.gamma() for coil in self.coils]
         dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
@@ -87,41 +87,50 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
             self._ddA = sum(self.coil_currents[i] * self._d3A_by_dXdXdcoilcurrents[i] for i in range(len(self.coil_currents)))
         return self
 
-    def A_impl(self, A):
+    def _A_impl(self, A):
         self.compute_A(compute_derivatives=0)
         A[:] = self._A
 
-    def dA_by_dX_impl(self, dA_by_dX):
+    def _dA_by_dX_impl(self, dA_by_dX):
         self.compute_A(compute_derivatives=1)
         dA_by_dX[:] = self._dA
 
-    def d2A_by_dXdX_impl(self, d2A_by_dXdX):
+    def _d2A_by_dXdX_impl(self, d2A_by_dXdX):
         self.compute_A(compute_derivatives=2)
         d2A_by_dXdX[:] = self._ddA
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
-        if any([not self.cache_get_or_create(f'B_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
-        self._dB_by_dcoilcurrents = [self.check_the_cache(f'B_{i}', [len(self.points), 3]) for i in range(len(self.coils))]
+        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
         return self._dB_by_dcoilcurrents
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
-        if any([not self.cache_get_or_create(f'dB_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
-        self._d2B_by_dXdcoilcurrents = [self.check_the_cache(f'dB_{i}', [len(self.points), 3, 3]) for i in range(len(self.coils))]
+        self._d2B_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dB_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         return self._d2B_by_dXdcoilcurrents
 
     def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
-        if any([not self.cache_get_or_create(f'ddB_{i}' for i in range(len(self.coils)))]):
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self.coils)
+        if any([not self.fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
-        self._d3B_by_dXdXdcoilcurrents = [self.check_the_cache(f'ddB_{i}', [len(self.points), 3, 3, 3]) for i in range(len(self.coils))]
+        self._d3B_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddB_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
         return self._d3B_by_dXdXdcoilcurrents
 
     def B_vjp(self, v):
-        """
+        r"""
         Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
         :math:`\{\mathbf{B}_i\}_{i=1}^n`.
         These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.

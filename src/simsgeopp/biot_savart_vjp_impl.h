@@ -1,4 +1,5 @@
 #include "simdhelpers.h"
+#include "vec3dsimd.h"
 #include <stdexcept>
 #include "xtensor/xlayout.hpp"
 

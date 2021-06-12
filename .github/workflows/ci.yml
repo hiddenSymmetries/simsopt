@@ -11,7 +11,7 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  CI:
+  test:
     runs-on: ubuntu-18.04
 
     env:
@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
         test-type: [unit, integrated]
 
     steps:
@@ -57,7 +57,8 @@ jobs:
     # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
     # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
     - name: Download the VMEC2000 standalone repository
-      run: git clone https://gitlab.com/mattland/VMEC2000.git
+      # run: git clone https://gitlab.com/mattland/VMEC2000.git
+      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
@@ -74,7 +75,9 @@ jobs:
       run: which python3
 
     - name: which pip after python setup
-      run: pip --version
+      run: |
+        python -m pip install --upgrade pip
+        pip --version
 
     - name: env after adding python
       run: env
@@ -82,7 +85,7 @@ jobs:
     - name: Install python dependencies
       run: |
         #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
@@ -161,47 +164,127 @@ jobs:
     - name: ls in VMEC2000/python 1
       run: ls -l VMEC2000/python
 
+    # - name: Configure VMEC2000 module
+    #   run: |
+    #     cd VMEC2000/python
+    #     cp ubuntu.json cmake_config_file.json
+    #     cat cmake_config_file.json
+
     - name: Configure VMEC2000 module
       run: |
-        cd VMEC2000/python
-        cp ubuntu.json cmake_config_file.json
+        cd VMEC2000
+        cp python/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
 
-    - name: Build VMEC2000 module
+    - name: Build and install VMEC2000 module
       run: |
-        cd VMEC2000/python
-        python setup.py build_ext
+        # cd VMEC2000/python
+        # python setup.py build_ext
+        cd VMEC2000
+        pip install .
 
-    - name: Install VMEC2000 module
-      run: |
-        cd VMEC2000/python
-        python setup.py install
+    # - name: Install VMEC2000 module
+    #   run: |
+    #     cd VMEC2000/python
+    #     python setup.py install
 
-    - name: ls in VMEC2000/python 2
-      run: ls -l VMEC2000/python
+    # - name: ls in VMEC2000/python 2
+    #   run: ls -l VMEC2000/python
 
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    #- name: Install mpi4py
-    #  run: |
-    #    pip install mpi4py
-
     - name: Install simsopt package
+      # if: "contains(matrix.test-type, 'integrated')"
       run: pip install -v .[MPI,SPEC]
 
-    - name: Run mpi unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: ./run_tests_mpi
+    #- name: Run mpi unit tests
+    #  if: "contains(matrix.test-type, 'unit')"
+    #  run: ./run_tests_mpi
 
-    - name: Run serial unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: |
-        cd tests
-        python3 -m unittest -v
-
-    - name: Run integrated tests
+    #- name: Run serial unit tests
+    #  if: "contains(matrix.test-type, 'unit')"
+    #  run: |
+    #    cd tests
+    #    python3 -m unittest -v
+    
+    - name: Run examples as integrated tests
       if: "contains(matrix.test-type, 'integrated')"
       run: |
         cd examples
         ./run_examples
+
+    - name: Install coverage dependencies
+      if: "contains(matrix.test-type, 'unit')"
+      run: pip install coverage # tox tox-gh-actions tox-venv
+
+    - name: Run tests using coverage
+      if: "contains(matrix.test-type, 'unit')"
+      run: | 
+        coverage run --source=simsopt -m unittest discover -s tests
+        mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
+
+    - name: Upload uncombined coverage to github
+      if: "contains(matrix.test-type, 'unit')"
+      uses: actions/upload-artifact@v2
+      with:
+        name: gh-actions-parallel-coverage
+        path: .coverage.*
+        if-no-files-found: error
+
+  coverage:
+    runs-on: ubuntu-18.04
+    needs: [ test ]
+    steps:
+
+    - name: Set up Python 
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7.10
+
+    - name: Install coverage
+      run: pip install coverage
+
+    - name: Checkout simsopt 
+      uses: actions/checkout@v2
+
+    - name: Install simsopt before running coverage
+      run: pip install .
+
+    - name: Download artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: gh-actions-parallel-coverage
+        path: ./
+
+    - name: Display coverage files before combine 
+      run: ls -a
+
+    - name: Combine coverage reports
+      run: | 
+        coverage combine
+        coverage report
+        coverage xml
+
+    - name: Upload coverage to github
+      uses: actions/upload-artifact@v2
+      with:
+        name: tox-gh-actions-coverage
+        path: coverage.xml
+        if-no-files-found: error
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        #files: ./coverage1.xml,./coverage2.xml
+        #directory: ./coverage/reports/
+        flags: unittests
+        env_vars: PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        #path_to_write_report: ./coverage/codecov_report.gz
+        verbose: true

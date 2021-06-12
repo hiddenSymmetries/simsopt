@@ -1,4 +1,5 @@
 #include "simdhelpers.h"
+#include "vec3dsimd.h"
 #include <stdexcept>
 #include "xtensor/xlayout.hpp"
 
@@ -77,7 +78,7 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
 #pragma unroll
                 for(int k=0; k<3; k++) {
                     auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
-                    auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
+                    //auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
                     //auto temp = numerator2-numerator1;
                     //dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
                     //dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);

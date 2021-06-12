@@ -12,6 +12,12 @@ from .surface_test_helpers import get_ncsx_data
 import numpy as np
 import unittest
 
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
+
 
 class Testing(unittest.TestCase):
 
@@ -75,17 +81,24 @@ class Testing(unittest.TestCase):
         # Set up sum of the three in two different ways
         Btotal1 = MagneticFieldSum([Bhelical, Btoroidal1, Btoroidal2])
         Btotal2 = Bhelical+Btoroidal1+Btoroidal2
+        Btotal3 = Btoroidal1+Btoroidal2
         # Evaluate at a given point
         Bhelical.set_points(points)
         Btoroidal1.set_points(points)
         Btoroidal2.set_points(points)
         Btotal1.set_points(points)
         Btotal2.set_points(points)
+        Btotal3.set_points(points)
         # Verify
         assert np.allclose(Btotal1.B(), Btotal2.B())
         assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(), Btotal1.B())
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
+
+        assert np.allclose(Btoroidal1.d2B_by_dXdX()+Btoroidal2.d2B_by_dXdX(), Btotal3.d2B_by_dXdX())
+        assert np.allclose(Btoroidal1.A()+Btoroidal2.A(), Btotal3.A())
+        assert np.allclose(Btoroidal1.dA_by_dX()+Btoroidal2.dA_by_dX(), Btotal3.dA_by_dX())
+        assert np.allclose(Btoroidal1.d2A_by_dXdX()+Btoroidal2.d2A_by_dXdX(), Btotal3.d2A_by_dXdX())
 
     @unittest.skipIf(not sympy_found, "Sympy not found")
     def test_scalarpotential_Bfield(self):
@@ -175,6 +188,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        Bfield.set_points([[0.1, 0.2, 0.3]])
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15786, -2.643056]])
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         coils = [CurveXYZFourier(300, 1)]
@@ -450,6 +466,13 @@ class Testing(unittest.TestCase):
         bs.set_points_cart(points_xyz)
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
+
+    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    def test_to_vtk(self):
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs.to_vtk('/tmp/bfield')
 
 
 if __name__ == "__main__":
