@@ -11,19 +11,37 @@ import logging
 from typing import Union, Iterable
 
 import numpy as np
-
-booz_xform_found = True
-try:
-    import booz_xform
-except ImportError as err:
-    booz_xform_found = False
-
-from .._core.optimizable import Optimizable
-from .vmec import Vmec
+from monty.dev import requires
 
 logger = logging.getLogger(__name__)
 
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None 
+    logger.warning(str(e))
 
+# booz_xform_found = True
+try:
+    import booz_xform
+except ImportError as e:
+    # booz_xform_found = False
+    booz_xform = None
+    logger.warning(str(e))
+
+from .._core.optimizable import Optimizable
+
+try:
+    from .vmec import Vmec
+except ImportError as e:
+    Vmec = None
+    logger.warning(str(e))
+
+
+#@requires(booz_xform is not None,
+#          "To use a Boozer object, the booz_xform package "
+#          "must be installed. Run 'pip install -v booz_xform'")
+@requires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
