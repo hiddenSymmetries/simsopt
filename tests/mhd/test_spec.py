@@ -24,6 +24,8 @@ try:
 except:
     MPI = None
 
+if (MPI is not None) and spec_found:
+    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
