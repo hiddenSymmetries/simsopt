@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# This script runs non-MPI examples. This script is used by the Github
+# Actions continuous integration. 
+set -ex
+
+./just_a_quadratic
+./surface_volume_and_area
+./minimize_curve_length
+./qsc
+./boozer
+
