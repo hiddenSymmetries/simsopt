@@ -1,40 +1,75 @@
 from math import sqrt
 import numpy as np
 import simsgeopp as sgpp
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
+def compute_gc_radius(m, vperp, q, absb):
+    return m*vperp/(abs(q)*absb)
+
+def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
+    nparticles = xyz_inits.shape[0]
+    xyz_inits_full = np.zeros_like(xyz_inits)
+    v_inits = np.zeros((nparticles, 3))
+    rgs = np.zeros((nparticles, ))
+    field.set_points(xyz_inits)
+    Bs = field.B()
+    AbsBs = field.AbsB()
+    eB = Bs/AbsBs
+    ez = np.asarray(nparticles*[[0., 0., -1.]])
+    ez -= eB * np.sum(eB*ez, axis=1)[:, None]
+    ez *= 1./np.linalg.norm(ez, axis=1)[:, None]
+    Bperp = np.cross(eB, ez, axis=1)
+    Bperp *= 1./np.linalg.norm(Bperp, axis=1)[:, None]
+    vperp2s = vtotal**2 - vtangs**2
+    for i in range(nparticles):
+        rgs[i] = compute_gc_radius(m, sqrt(vperp2s[i]), q, AbsBs[i, 0])
+        xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * ez[i, :]
+        v_inits[i, :] = -sqrt(vperp2s[i]) * Bperp[i, :] + vtangs[i] * eB[i, :]
+    print("rgs", rgs)
+    return xyz_inits_full, v_inits, rgs
 
 
 def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
                                      mass=1.67e-27, charge=1, Ekinev=9000,
-                                     umin=-1, umax=+1, phis=[], stopping_criteria=[]):
+                                     umin=-1, umax=+1, phis=[], stopping_criteria=[], mode='gc'):
+    assert mode in ['gc', 'full']
     e = 1.6e-19
     Ekin = Ekinev*e
     m = mass
     q = charge*e
     vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
-    tol = 1e-7
+    tol = 1e-9
 
     np.random.seed(seed)
-    xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
-
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
     vtangs = us*vtotal
-    print("vtangs", vtangs)
-
+    xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
+    if mode == 'full':
+        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q)
     res_tys = []
     res_phi_hits = []
 
     loss_ctr = 0
     for i in range(nparticles):
-        res_ty, res_phi_hit = sgpp.particle_guiding_center_tracing(
-            field, xyz_inits[i, 0], xyz_inits[i, 1], xyz_inits[i, 2],
-            m, q, vtotal, vtangs[i], tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+        if mode == 'gc':
+            res_ty, res_phi_hit = sgpp.particle_guiding_center_tracing(
+                field, xyz_inits[i, :],
+                m, q, vtotal, vtangs[i], tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+        else:
+            res_ty, res_phi_hit = sgpp.particle_fullorbit_tracing(
+                field, xyz_inits[i, :], v_inits[i, :],
+                m, q, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
         res_phi_hits.append(res_phi_hit)
-        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}", flush=True)
+        logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
-    print(f'Particles lost {loss_ctr}/{nparticles}={loss_ctr/nparticles}', flush=True)
+    logger.debug(f'Particles lost {loss_ctr}/{nparticles}={loss_ctr/nparticles}')
     return res_tys, res_phi_hits
 
 
@@ -46,11 +81,11 @@ def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, phis=[], stop
     res_phi_hits = []
     for i in range(nlines):
         res_ty, res_phi_hit = sgpp.fieldline_tracing(
-            field, xyz_inits[i, 0], xyz_inits[i, 1], xyz_inits[i, 2],
+            field, xyz_inits[i, :],
             tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
         res_phi_hits.append(res_phi_hit)
-        print(f"{i+1}/{nlines}, t_final={res_ty[-1][0]}", flush=True)
+        logger.debug(f"{i+1}/{nlines}, t_final={res_ty[-1][0]}")
     return res_tys, res_phi_hits
 
 

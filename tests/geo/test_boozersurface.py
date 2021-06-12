@@ -5,7 +5,8 @@ from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
+from simsopt.util.zoo import get_ncsx_data
+from .surface_test_helpers import get_surface, get_exact_surface
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
