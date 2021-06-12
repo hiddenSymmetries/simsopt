@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+import logging
+import numpy as np
+from simsopt.util.mpi import MpiPartition, log
+from simsopt.mhd.spec import Spec, Residue
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+
 """
 In this example, we show how the shape of a boundary magnetic
 surface can be adjusted to eliminate magnetic islands inside it,
@@ -10,13 +17,6 @@ will eliminate the islands by minimizing an objective function
 involving Greene's residue for several O-points and X-points, similar
 to the approach of Hanson and Cary (1984).
 """
-
-import logging
-import numpy as np
-from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
 
 log()
 

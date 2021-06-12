@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 #import mpi4py
 #mpi4py.rc(initialize=False, finalize=False)
 import sys
@@ -5,6 +7,11 @@ sys.path.append('../../modules/VMEC')
 from mpi4py import MPI
 import numpy as np
 from vmec_class import VMEC
+
+"""
+Perform several runs with the VMEC python wrapper
+while changing a particular surface Fourier coefficient.
+"""
 
 # initial settings
 comm = MPI.COMM_WORLD
