@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 #include "magneticfield.h"
+#include "regular_grid_interpolant_3d.h"
 
 using std::shared_ptr;
 using std::vector;
