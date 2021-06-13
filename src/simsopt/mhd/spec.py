@@ -65,9 +65,9 @@ class Spec(Optimizable):
           the worker groups will be used for SPEC calculations. If ``None``,
           each MPI process will run SPEC independently.
         verbose: Whether to print SPEC output to stdout.
-        keep_all_files: If ``false``, all output files will be deleted
+        keep_all_files: If ``False``, all output files will be deleted
           except for the first and most recent ones from worker group 0. If 
-          ``true``, all output files will be kept.
+          ``True``, all output files will be kept.
     """
 
     def __init__(self,

@@ -132,9 +132,9 @@ class Vmec(Optimizable):
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
-        keep_all_files: If ``false``, all ``wout`` output files will be deleted
+        keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If 
-          ``true``, all ``wout`` files will be kept.
+          ``True``, all ``wout`` files will be kept.
 
     Attributes:
         iter: Number of times VMEC has run.
