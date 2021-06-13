@@ -257,13 +257,12 @@ jobs:
 
     - name: Install coverage dependencies
       if: "contains(matrix.test-type, 'unit')"
-      run: pip install coverage pytest pytest-xdist # tox tox-gh-actions tox-venv
+      run: pip install coverage # tox tox-gh-actions tox-venv
 
     - name: Run tests using coverage
       if: "contains(matrix.test-type, 'unit')"
       run: | 
-        # coverage run --source=simsopt -m unittest discover -s tests
-        coverage run --source=simsopt -m py.test -n auto tests
+        coverage run --source=simsopt -m unittest discover -s tests
 
     - name: Run tests using coverage
       if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true)
