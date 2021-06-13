@@ -18,7 +18,7 @@ def mpi_solve_1group(prob, **kwargs):
 
 solvers = [serial_solve, least_squares_serial_solve, mpi_solve_1group]
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
