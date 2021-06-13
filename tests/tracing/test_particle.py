@@ -24,7 +24,8 @@ def validate_phi_hits(phi_hits, bfield, nphis):
     """
     for i in range(len(phi_hits)-1):
         this_idx = int(phi_hits[i][1])
-        this_B = bfield.set_points(np.asarray(phi_hits[i][2:5]).reshape((1, 3))).B_cyl()
+        this_B = bfield.set_points(np.asarray(
+            phi_hits[i][2:5]).reshape((1, 3))).B_cyl()
         vtang = phi_hits[i][5]
         forward = np.sign(vtang * this_B[0, 1]) > 0
         next_idx = int(phi_hits[i+1][1])
@@ -123,6 +124,10 @@ class ParticleTracingTesting(unittest.TestCase):
             quadpoints_theta=np.linspace(0, 1, 2*mpol+1, endpoint=False))
         s.fit_to_curve(ma, 0.10, flip_theta=False)
         sc = SurfaceClassifier(s, h=0.1, p=2)
+        sc.to_vtk('/tmp/classifier')
+        # check that the axis is classified as inside the domain
+        assert sc.evaluate(ma.gamma()[:1, :]) > 0
+        assert sc.evaluate(2*ma.gamma()[:1, :]) < 0
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
