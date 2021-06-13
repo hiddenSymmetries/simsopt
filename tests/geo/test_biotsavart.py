@@ -305,9 +305,9 @@ class Testing(unittest.TestCase):
         dB_approx = (Bp-Bm)/(2*h)
         dJ_approx = (Jp-Jm)/(2*h)
         dH_approx = (Hp-Hm)/(2*h)
-        assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
-        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
-        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+        assert np.linalg.norm(dB[0]-dB_approx) < 1e-14
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-14
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-14
 
 
 if __name__ == "__main__":
