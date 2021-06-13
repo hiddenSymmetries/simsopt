@@ -11,7 +11,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance 
 from simsopt.geo.boozersurface import BoozerSurface
-from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponentPenalty, Area, Volume, ToroidalFlux, boozer_surface_residual
+from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponentPenalty, Area, Volume, ToroidalFlux, boozer_surface_residual, MajorRadius
 from simsopt.geo.coilcollection import CoilCollection
 sys.path.append(os.path.join("..", "tests", "geo"))
 from surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
@@ -78,10 +78,13 @@ min_dist = MinimumDistance(stellarator.coils, target_minimum_distance)
 iota_target = -0.4
 iota_weight = 1.
 
-problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, iota_target, iota_weight) for boozer_surface in [surf_list[0], surf_list[int(len(surf_list)/2)], surf_list[-1]]]
+problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=1.) for boozer_surface in [surf_list[0], surf_list[int(len(surf_list)/2)], surf_list[-1]]]
+major_radius = [MajorRadius(problem.boozer_surface.surface) for problem in problem_list]
+target_radius = [mr.J() for mr in major_radius]
 
 curvelength_list = [CurveLength(curve) for curve in stellarator.coils]
 target_lengths = [c.J() for c in curvelength_list]
+
 
 
 
@@ -155,6 +158,7 @@ def callback(x, g, fx, xnorm, gnorm, step, k, num_eval, *args):
     
     if k%200 == 0:
         np.savetxt(f"stellarator_{k}.txt", stellarator.get_dofs())
+#        plot()
 #        import ipdb;ipdb.set_trace()
 
     print(f"iter={k}, J={J:.6e}, ||dJ||={np.linalg.norm(dJ):6e}, min_dist={min_dist.J():6e}")
@@ -241,7 +245,7 @@ callback(0,coeffs, 0, 0, 0, 0, 0, 0, 0, 0)
 coeffs = stellarator.get_dofs()
 maxiter = 4000
 try:
-    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
+    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='default', epsilon=1e-5, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
 except Exception as e:
     print(e)
     pass
