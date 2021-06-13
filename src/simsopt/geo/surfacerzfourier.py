@@ -4,24 +4,24 @@ from .surface import Surface
 
 
 class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
-    r"""
-    SurfaceRZFourier is a surface that is represented in cylindrical
-       coordinates using the following Fourier series:
+    r"""`SurfaceRZFourier` is a surface that is represented in cylindrical
+    coordinates using the following Fourier series:
+    
+    .. math::
+           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}} \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
+               r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
+               + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
 
-           r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
-               r_{c,m,n} \cos(m \theta - n nfp \phi)
-               + r_{s,m,n} \sin(m \theta - n nfp \phi) ]
-
-       and the same for z(theta, phi).
-
-       Here, (r, phi, z) are standard cylindrical coordinates, and theta
-       is any poloidal angle.
-
-       Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
-       for the sin terms.
-
-       In addition, in the stellsym=True case, we skip the sin terms for r, and
-       the cos terms for z.
+    and the same for :math:`z(\theta, \phi)`.
+    
+    Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
+    is any poloidal angle.
+    
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
+    for the sin terms.
+    
+    In addition, in the ``stellsym=True`` case, we skip the sin terms for :math:`r`, and
+    the cos terms for :math:`z`.
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63, quadpoints_theta=62):
@@ -36,11 +36,14 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         self.make_names()
 
     def get_dofs(self):
+        """
+        Return the dofs associated to this surface.
+        """
         return np.asarray(sgpp.SurfaceRZFourier.get_dofs(self))
 
     def make_names(self):
         """
-        Form a list of names of the rc, zs, rs, or zc array elements.
+        Form a list of names of the `rc`, `zs`, `rs`, or `zc` array elements.
         """
         self.names = self.make_names_helper('rc', True) + self.make_names_helper('zs', False)
         if not self.stellsym:
@@ -105,7 +108,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def change_resolution(self, mpol, ntor):
         """
-        Change the values of mpol and ntor. Any new Fourier amplitudes
+        Change the values of `mpol` and `ntor`. Any new Fourier amplitudes
         will have a magnitude of zero.  Any previous nonzero Fourier
         amplitudes that are not within the new range will be
         discarded.
@@ -148,7 +151,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def _validate_mn(self, m, n):
         """
-        Check whether m and n are in the allowed range.
+        Check whether `m` and `n` are in the allowed range.
         """
         if m < 0:
             raise ValueError('m must be >= 0')
@@ -161,14 +164,14 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def get_rc(self, m, n):
         """
-        Return a particular rc Parameter.
+        Return a particular `rc` Parameter.
         """
         self._validate_mn(m, n)
         return self.rc[m, n + self.ntor]
 
     def get_rs(self, m, n):
         """
-        Return a particular rs Parameter.
+        Return a particular `rs` Parameter.
         """
         if self.stellsym:
             return ValueError(
@@ -178,7 +181,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def get_zc(self, m, n):
         """
-        Return a particular zc Parameter.
+        Return a particular `zc` Parameter.
         """
         if self.stellsym:
             return ValueError(
@@ -188,14 +191,14 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def get_zs(self, m, n):
         """
-        Return a particular zs Parameter.
+        Return a particular `zs` Parameter.
         """
         self._validate_mn(m, n)
         return self.zs[m, n + self.ntor]
 
     def set_rc(self, m, n, val):
         """
-        Set a particular rc Parameter.
+        Set a particular `rc` Parameter.
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
@@ -204,7 +207,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def set_rs(self, m, n, val):
         """
-        Set a particular rs Parameter.
+        Set a particular `rs` Parameter.
         """
         if self.stellsym:
             return ValueError(
@@ -216,7 +219,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def set_zc(self, m, n, val):
         """
-        Set a particular zc Parameter.
+        Set a particular `zc` Parameter.
         """
         if self.stellsym:
             return ValueError(
@@ -228,7 +231,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def set_zs(self, m, n, val):
         """
-        Set a particular zs Parameter.
+        Set a particular `zs` Parameter.
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
@@ -237,11 +240,11 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
-        Set the 'fixed' property for a range of m and n values.
+        Set the 'fixed' property for a range of `m` and `n` values.
 
-        All modes with m in the interval [mmin, mmax] and n in the
-        interval [nmin, nmax] will have their fixed property set to
-        the value of the 'fixed' parameter. Note that mmax and nmax
+        All modes with `m` in the interval [`mmin`, `mmax`] and `n` in the
+        interval [`nmin`, `nmax`] will have their fixed property set to
+        the value of the `fixed` parameter. Note that `mmax` and `nmax`
         are included (unlike the upper bound in python's range(min,
         max).)
         """
@@ -260,7 +263,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
 
     def to_Garabedian(self):
         """
-        Return a SurfaceGarabedian object with the identical shape.
+        Return a `SurfaceGarabedian` object with the identical shape.
 
         For a derivation of the transformation here, see 
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
@@ -286,3 +289,15 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         sgpp.SurfaceRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
+
+    def darea(self):
+        """
+        Short hand for `Surface.darea_by_dcoeff()`
+        """
+        return self.darea_by_dcoeff()
+
+    def dvolume(self):
+        """
+        Short hand for `Surface.dvolume_by_dcoeff()`
+        """
+        return self.dvolume_by_dcoeff()

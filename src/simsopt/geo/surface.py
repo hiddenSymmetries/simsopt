@@ -4,9 +4,12 @@ from .._core.optimizable import Optimizable
 
 
 class Surface(Optimizable):
-    """
-    Surface is a base class for various representations of toroidal
+    r"""
+    ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
+
+    A ``Surface`` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
+
     """
 
     def __init__(self):
@@ -15,6 +18,18 @@ class Surface(Optimizable):
         self.fixed = np.full(len(self.get_dofs()), False)
 
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+        """
+        Plot the surface using mayavi. 
+        Note: the `ax` and `show` parameter can be used to plot more than one surface:
+
+        .. code-block::
+
+            ax = surface1.plot(show=False)
+            ax = surface2.plot(ax=ax, show=False)
+            surface3.plot(ax=ax, show=True)
+
+
+        """
         gamma = self.gamma()
 
         from mayavi import mlab
@@ -56,7 +71,7 @@ class Surface(Optimizable):
 
     def to_RZFourier(self):
         """
-        Return a SurfaceRZFourier instance corresponding to the shape of this
+        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance corresponding to the shape of this
         surface.  All subclasses should implement this abstract
         method.
         """
