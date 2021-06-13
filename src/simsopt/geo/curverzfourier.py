@@ -9,17 +9,20 @@ class CurveRZFourier(sgpp.CurveRZFourier, Curve):
     CurveRZFourier is a curve that is represented in cylindrical
        coordinates using the following Fourier series:
 
-           r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
-           z(phi) = \sum_{n=0}^{order} z_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order z_{s,n}sin(n*nfp*phi)
+        .. math::
+           r(\phi) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(n_{\text{fp}} m \phi) \\
+           z(\phi) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(n_{\text{fp}} m \phi)
 
-       If stellsym = true, then the sin terms for r and the cos terms for z are zero.
+       If ``stellsym = True``, then the :math:`\sin` terms for :math:`r` and the :math:`\cos` terms for :math:`z` are zero.
 
-       For the stellsym = False case, the dofs are stored in the order
+       For the ``stellsym = False`` case, the dofs are stored in the order
 
-           [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order},z_{c,0},....]
+        .. math::
+           [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, z_{c,0},....]
 
-       or in the stellsym = true case they are stored
+       or in the ``stellsym = True`` case they are stored
 
+        .. math::
            [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
     """
 
@@ -32,9 +35,15 @@ class CurveRZFourier(sgpp.CurveRZFourier, Curve):
         Curve.__init__(self)
 
     def get_dofs(self):
+        """
+        This function returns the dofs associated to this object.
+        """
         return np.asarray(sgpp.CurveRZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
+        """
+        This function sets the dofs associated to this object.
+        """
         sgpp.CurveRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
