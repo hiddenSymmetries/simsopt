@@ -51,6 +51,13 @@ class Spec(Optimizable):
     object to before Spec is run. Therefore, you may sometimes need to
     manually change the mpol and ntor values for the Spec object.
 
+    The default behavior is that all  output files will be
+    deleted except for the first and most recent iteration on worker
+    group 0. If you wish to keep all the output files, you can set
+    ``keep_all_files = True``. If you want to save the output files
+    for a certain intermediate iteration, you can set the
+    ``files_to_delete`` attribute to ``[]`` after that run of SPEC.
+
     Args:
         filename: SPEC input file to use for initialization. It should end
           in ``.sp``. Or, if None, default values will be used.
@@ -58,12 +65,16 @@ class Spec(Optimizable):
           the worker groups will be used for SPEC calculations. If ``None``,
           each MPI process will run SPEC independently.
         verbose: Whether to print SPEC output to stdout.
+        keep_all_files: If ``false``, all output files will be deleted
+          except for the first and most recent ones from worker group 0. If 
+          ``true``, all output files will be kept.
     """
 
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
-                 verbose: bool = True):
+                 verbose: bool = True,
+                 keep_all_files: bool = False):
 
         if not spec_found:
             raise RuntimeError(
@@ -113,6 +124,8 @@ class Spec(Optimizable):
 
         self.init(filename)
         self.extension = filename[:-3]
+        self.keep_all_files = keep_all_files
+        self.files_to_delete = []
 
         # Create a surface object for the boundary:
         si = spec.inputlist  # Shorthand
@@ -135,7 +148,7 @@ class Spec(Optimizable):
 
         self.depends_on = ["boundary"]
         self.need_to_run_code = True
-        self.counter = 0
+        self.counter = -1
 
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
@@ -182,6 +195,7 @@ class Spec(Optimizable):
             logger.info("run() called but no need to re-run SPEC.")
             return
         logger.info("Preparing to run SPEC.")
+        self.counter += 1
 
         si = self.inputlist  # Shorthand
 
@@ -278,8 +292,26 @@ class Spec(Optimizable):
             raise ObjectiveFailure("Unable to read results following SPEC execution")
 
         logger.info("Successfully loaded SPEC results.")
-        self.counter += 1
         self.need_to_run_code = False
+
+        # Group leaders handle deletion of files:
+        if self.mpi.proc0_groups:
+
+            # If the worker group is not 0, delete all wout files, unless
+            # keep_all_files is True:
+            if (not self.keep_all_files) and (self.mpi.group > 0):
+                os.remove(filename + '.sp.h5')
+                os.remove(filename + '.sp.end')
+
+            # Delete the previous output file, if desired:
+            for file_to_delete in self.files_to_delete:
+                os.remove(file_to_delete)
+            self.files_to_delete = []
+
+            # Record the latest output file to delete if we run again:
+            if (self.mpi.group == 0) and (self.counter > 0) and (not self.keep_all_files):
+                self.files_to_delete.append(filename + '.sp.h5')
+                self.files_to_delete.append(filename + '.sp.end')
 
     def volume(self):
         """

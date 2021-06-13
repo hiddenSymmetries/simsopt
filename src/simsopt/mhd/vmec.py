@@ -119,12 +119,22 @@ class Vmec(Optimizable):
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
+    The default behavior is that all ``wout`` output files will be
+    deleted except for the first and most recent iteration on worker
+    group 0. If you wish to keep all the ``wout`` files, you can set
+    ``keep_all_files = True``. If you want to save the ``wout`` file
+    for a certain intermediate iteration, you can set the
+    ``files_to_delete`` attribute to ``[]`` after that run of VMEC.
+
     Args:
         filename: Name of a VMEC input file to use for loading the 
           initial parameters. If ``None``, default parameters will be used.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
+        keep_all_files: If ``false``, all ``wout`` output files will be deleted
+          except for the first and most recent ones from worker group 0. If 
+          ``true``, all ``wout`` files will be kept.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -140,7 +150,8 @@ class Vmec(Optimizable):
 
     def __init__(self,
                  filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None):
+                 mpi: Union[MpiPartition, None] = None,
+                 keep_all_files: bool = False):
         if not vmec_found:
             raise RuntimeError(
                 "Running VMEC from simsopt requires VMEC python extension. "
@@ -166,7 +177,9 @@ class Vmec(Optimizable):
         self.fcomm = comm.py2f()
 
         self.ictrl = np.zeros(5, dtype=np.int32)
-        self.iter = 0
+        self.iter = -1
+        self.keep_all_files = keep_all_files
+        self.files_to_delete = []
         self.wout = Struct()
 
         self.ictrl[0] = restart_flag + readin_flag
@@ -318,21 +331,41 @@ class Vmec(Optimizable):
         self.load_wout()
         logger.info("Done loading VMEC output.")
 
-        # Delete some files produced by VMEC that we never care
-        # about. For some reason the os.remove statements give a 'file
-        # not found' error in the CI, hence the try-except blocks.
-        try:
-            os.remove(mercier_file)
-        except:
-            pass
-        try:
-            os.remove(jxbout_file)
-        except:
-            pass
-        try:
-            os.remove("fort.9")
-        except:
-            pass
+        # Group leaders handle deletion of files:
+        if self.mpi.proc0_groups:
+            # Delete some files produced by VMEC that we never care
+            # about. For some reason the os.remove statements give a 'file
+            # not found' error in the CI, hence the try-except blocks.
+            try:
+                os.remove(mercier_file)
+            except FileNotFoundError:
+                logger.debug(f'Tried to delete the file {mercier_file} but it was not found')
+                raise
+
+            try:
+                os.remove(jxbout_file)
+            except FileNotFoundError:
+                logger.debug(f'Tried to delete the file {jxbout_file} but it was not found')
+                raise
+
+            try:
+                os.remove("fort.9")
+            except FileNotFoundError:
+                logger.debug('Tried to delete the file fort.9 but it was not found')
+
+            # If the worker group is not 0, delete all wout files, unless
+            # keep_all_files is True:
+            if (not self.keep_all_files) and (self.mpi.group > 0):
+                os.remove(self.output_file)
+
+            # Delete the previous output file, if desired:
+            for filename in self.files_to_delete:
+                os.remove(filename)
+            self.files_to_delete = []
+
+            # Record the latest output file to delete if we run again:
+            if (self.mpi.group == 0) and (self.iter > 0) and (not self.keep_all_files):
+                self.files_to_delete.append(self.output_file)
 
         self.need_to_run_code = False
 

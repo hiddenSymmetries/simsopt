@@ -6,20 +6,20 @@ from .surface import Surface
 class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
     r"""`SurfaceRZFourier` is a surface that is represented in cylindrical
     coordinates using the following Fourier series:
-    
+
     .. math::
            r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}} \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
                r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
                + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
 
     and the same for :math:`z(\theta, \phi)`.
-    
+
     Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
     is any poloidal angle.
-    
+
     Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
     for the sin terms.
-    
+
     In addition, in the ``stellsym=True`` case, we skip the sin terms for :math:`r`, and
     the cos terms for :math:`z`.
     """
