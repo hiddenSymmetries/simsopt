@@ -360,6 +360,10 @@ class ChebyshevInterpolationRule(sgpp.ChebyshevInterpolationRule):
 
 
 class InterpolatedField(sgpp.InterpolatedField, MagneticField):
+    r"""
+    This field takes an existing field and interpolates it on a regular grid in :math:`r,\phi,z`.
+    This resulting interpolant can then be evaluated very quickly.
+    """
 
     def __init__(self, *args):
         MagneticField.__init__(self)

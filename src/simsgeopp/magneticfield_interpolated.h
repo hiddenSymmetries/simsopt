@@ -64,7 +64,7 @@ class InterpolatedField : public MagneticField<T> {
                 }
                 this->field->set_points_cyl(points);
                 auto B = this->field->B();
-                fmt::print("B: Actual size: ({}, {}), 3*npoints={}\n", B.shape(0), B.shape(1), 3*npoints);
+                //fmt::print("B: Actual size: ({}, {}), 3*npoints={}\n", B.shape(0), B.shape(1), 3*npoints);
                 auto res = Vec(B.data(), B.data()+3*npoints);
                 return res;
             };
@@ -79,7 +79,7 @@ class InterpolatedField : public MagneticField<T> {
                 }
                 this->field->set_points_cyl(points);
                 auto GradAbsB = this->field->GradAbsB();
-                fmt::print("GradAbsB: Actual size: ({}, {}), 3*npoints={}\n", GradAbsB.shape(0), GradAbsB.shape(1), 3*npoints);
+                //fmt::print("GradAbsB: Actual size: ({}, {}), 3*npoints={}\n", GradAbsB.shape(0), GradAbsB.shape(1), 3*npoints);
                 auto res = Vec(GradAbsB.data(), GradAbsB.data() + 3*npoints);
                 return res;
             };
