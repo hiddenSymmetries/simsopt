@@ -3,6 +3,7 @@ from simsopt.geo.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.tracing.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 import numpy as np
 import unittest
@@ -10,9 +11,40 @@ import logging
 logging.basicConfig()
 
 
-class FieldlineTesting(unittest.TestCase):
+def validate_phi_hits(phi_hits, bfield, nphis):
+    """
+    After hitting one of the phi planes, three things can happen:
+    A: We can hit the same phi plane again (i.e. the particle bounces)
+    B: We can hit one of the stopping criteria
+    C: We can hit the next phi plane. Note that the definition of 'next'
+       depends on the direction the particle is going. By looking at the
+       direction of the B field and the tangential velocity, we can figure out
+       if the particle was going clockwise or anti clockwise, and hence we know
+       which is the 'next' phi plane.
+    """
+    for i in range(len(phi_hits)-1):
+        this_idx = int(phi_hits[i][1])
+        this_B = bfield.set_points(np.asarray(phi_hits[i][2:5]).reshape((1, 3))).B_cyl()
+        vtang = phi_hits[i][5]
+        forward = np.sign(vtang * this_B[0, 1]) > 0
+        next_idx = int(phi_hits[i+1][1])
+        hit_same_phi = next_idx == this_idx
+        hit_stopping_criteria = next_idx < 0
+        hit_next_phi = next_idx == (this_idx + 1) % nphis
+        hit_previous_phi = next_idx == (this_idx - 1) % nphis
+        if forward:
+            if not (hit_next_phi or hit_same_phi or hit_stopping_criteria):
+                return False
+        else:
+            if not (hit_previous_phi or hit_same_phi or hit_stopping_criteria):
+                return False
+    return True
 
-    def test_poincare(self):
+
+class ParticleTracingTesting(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.tracing.tracing')
         logger.setLevel(1)
         # Test a toroidal magnetic field with no rotational transform
@@ -28,10 +60,17 @@ class FieldlineTesting(unittest.TestCase):
             bs, UniformInterpolationRule(3),
             rrange, phirange, zrange, True
         )
+        self.bsh = bsh
+        self.ma = ma
+
+    def test_guidingcenter_vs_fullorbit(self):
+        bsh = self.bsh
+        ma = self.ma
         nparticles = 2
         m = 1.67e-27
         nphis = 4
         phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
+        np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
             Ekinev=9000, umin=-0.1, umax=+0.1,
@@ -47,8 +86,6 @@ class FieldlineTesting(unittest.TestCase):
 
         # pick 100 random points on each trace, and ensure that the guiding
         # center and the full orbit simulation are close to each other
-
-        np.random.seed(1)
 
         N = 100
         for i in range(nparticles):
@@ -69,3 +106,30 @@ class FieldlineTesting(unittest.TestCase):
                 dist = np.linalg.norm(gc_xyzs[j, :] - fo_ty[jdx, 1:4])
                 assert dist < 4*r
                 assert dist > 0.5*r
+
+    def test_guidingcenterphihits(self):
+        bsh = self.bsh
+        ma = self.ma
+        nparticles = 2
+        m = 1.67e-27
+        nphis = 10
+        phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
+        mpol = 5
+        ntor = 5
+        nfp = 3
+        s = SurfaceRZFourier(
+            mpol=mpol, ntor=ntor, stellsym=True, nfp=nfp,
+            quadpoints_phi=np.linspace(0, 1, nfp*2*ntor+1, endpoint=False),
+            quadpoints_theta=np.linspace(0, 1, 2*mpol+1, endpoint=False))
+        s.fit_to_curve(ma, 0.10, flip_theta=False)
+        sc = SurfaceClassifier(s, h=0.1, p=2)
+        np.random.seed(1)
+        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+            Ekinev=9000, umin=-0.1, umax=+0.1, phis=phis, mode='gc',
+            stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
+
+        particles_to_vtk(gc_tys, '/tmp/particles_gc')
+        for i in range(nparticles):
+            print(len(gc_phi_hits[i]))
+            assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
