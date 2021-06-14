@@ -7,6 +7,7 @@ sys.path.append('../../modules/VMEC')
 from mpi4py import MPI
 import numpy as np
 from vmec_class import VMEC
+import os
 
 """
 Perform several runs with the VMEC python wrapper

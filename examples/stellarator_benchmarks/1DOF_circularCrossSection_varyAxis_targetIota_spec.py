@@ -7,6 +7,7 @@ from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Spec
 from simsopt import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """¡
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
