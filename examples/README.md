@@ -17,11 +17,11 @@ Minimize the length of a curve, holding the 0-frequency Fourier mode fixed resul
 ### surface_volume_and_area
 Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area.
 ### graph_surf_vol_area
-Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area using the graph method.
+Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area using the graph optimizable objects.
 
 ## 2_Intermediate
 
-Examples where SIMSOPT specifically optimizes for an objective function associated with a stellarator magnetic field such as quasi-simmetry or rotational transform. These scripts need external dependencies, such as VMEC, SPEC or QSC.
+Examples where SIMSOPT specifically optimizes for an objective function associated with a stellarator magnetic field such as quasi-symmetry or rotational transform. These scripts need external dependencies, such as VMEC, SPEC or QSC.
 
 ### boozer
 How to compute surfaces in Boozer coordinates for a magnetic field induced by coils.
@@ -42,7 +42,7 @@ Show how to increase the size of the parameter space and refine the resolution o
 
 ## 3_Advanced
 
-Examples where SIMSOPT takes several external libraries together (such as VMEC+SPEC+) to optimize for an objective function associated with a stellarator magnetic field, such as quasi-simmetry and magnetic islands.
+Examples where SIMSOPT takes several external libraries together (such as VMEC+SPEC) to optimize for an objective function associated with a stellarator magnetic field, such as quasi-symmetry and magnetic islands.
 
 ### optimize_qs_and_islands_simultaneously
 simultaneously optimize for quasisymmetry and the elimination of magnetic islands, with both VMEC and SPEC called in the objective function.
