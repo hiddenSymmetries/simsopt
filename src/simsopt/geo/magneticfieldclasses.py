@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import ellipk, ellipe
 from simsopt.geo.magneticfield import MagneticField
-import simsgeopp as sgpp
+import simsoptpp as sopp
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
@@ -312,11 +312,11 @@ class Dommaschk(MagneticField):
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = np.add.reduce(sgpp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
+        B[:] = np.add.reduce(sopp.DommaschkB(self.m, self.n, self.coeffs, points))+self.Btor.B()
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = np.add.reduce(sgpp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
+        dB[:] = np.add.reduce(sopp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
 
 class Reiman(MagneticField):
@@ -344,22 +344,22 @@ class Reiman(MagneticField):
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sgpp.ReimanB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+        B[:] = sopp.ReimanB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = sgpp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+        dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
 
-class UniformInterpolationRule(sgpp.UniformInterpolationRule):
+class UniformInterpolationRule(sopp.UniformInterpolationRule):
     pass
 
 
-class ChebyshevInterpolationRule(sgpp.ChebyshevInterpolationRule):
+class ChebyshevInterpolationRule(sopp.ChebyshevInterpolationRule):
     pass
 
 
-class InterpolatedField(sgpp.InterpolatedField, MagneticField):
+class InterpolatedField(sopp.InterpolatedField, MagneticField):
     r"""
     This field takes an existing field and interpolates it on a regular grid in :math:`r,\phi,z`.
     This resulting interpolant can then be evaluated very quickly.
@@ -367,7 +367,7 @@ class InterpolatedField(sgpp.InterpolatedField, MagneticField):
 
     def __init__(self, *args):
         MagneticField.__init__(self)
-        sgpp.InterpolatedField.__init__(self, *args)
+        sopp.InterpolatedField.__init__(self, *args)
 
     def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""

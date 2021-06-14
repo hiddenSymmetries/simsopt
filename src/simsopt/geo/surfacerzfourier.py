@@ -1,9 +1,9 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .surface import Surface
 
 
-class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
+class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     r"""`SurfaceRZFourier` is a surface that is represented in cylindrical
     coordinates using the following Fourier series:
     
@@ -28,7 +28,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sgpp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
@@ -39,7 +39,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         """
         Return the dofs associated to this surface.
         """
-        return np.asarray(sgpp.SurfaceRZFourier.get_dofs(self))
+        return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
 
     def make_names(self):
         """
@@ -286,7 +286,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         return s
 
     def set_dofs(self, dofs):
-        sgpp.SurfaceRZFourier.set_dofs(self, dofs)
+        sopp.SurfaceRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 

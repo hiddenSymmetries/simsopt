@@ -24,7 +24,7 @@ void init_curves(py::module_ &);
 void init_magneticfields(py::module_ &);
 
 
-PYBIND11_MODULE(simsgeopp, m) {
+PYBIND11_MODULE(simsoptpp, m) {
     xt::import_numpy();
 
     init_curves(m);
