@@ -26,7 +26,7 @@ class Testing(unittest.TestCase):
         currents = [1e4]
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         B1 = BiotSavart(coils, currents).set_points(points).B()
-        from simsgeopp import biot_savart_B
+        from simsoptpp import biot_savart_B
         B2 = biot_savart_B(points, [c.gamma() for c in coils], [c.gammadash() for c in coils], currents)
         assert np.linalg.norm(B1) > 1e-5
         assert np.allclose(B1, B2)

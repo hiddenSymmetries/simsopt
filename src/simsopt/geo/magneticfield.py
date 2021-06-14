@@ -1,8 +1,8 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 
 
-class MagneticField(sgpp.MagneticField):
+class MagneticField(sopp.MagneticField):
 
     '''
     Generic class that represents any magnetic field from which each magnetic
@@ -23,11 +23,11 @@ class MagneticField(sgpp.MagneticField):
     '''
 
     def __init__(self):
-        sgpp.MagneticField.__init__(self)
+        sopp.MagneticField.__init__(self)
 
     def clear_cached_properties(self):
         """Clear the cache."""
-        sgpp.MagneticField.invalidate_cache(self)
+        sopp.MagneticField.invalidate_cache(self)
 
     def __add__(self, other):
         """Add two magnetic fields."""

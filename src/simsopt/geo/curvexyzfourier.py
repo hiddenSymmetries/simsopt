@@ -6,10 +6,10 @@ import jax.numpy as jnp
 
 from .curve import JaxCurve
 from .curve import Curve
-import simsgeopp as sgpp
+import simsoptpp as sopp
 
 
-class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
+class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     r"""
        CurveXYZFourier is a curve that is represented in Cartesian
@@ -31,20 +31,20 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        sgpp.CurveXYZFourier.__init__(self, quadpoints, order)
+        sopp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self)
 
     def get_dofs(self):
         """
         This function returns the dofs associated to this object.
         """
-        return np.asarray(sgpp.CurveXYZFourier.get_dofs(self))
+        return np.asarray(sopp.CurveXYZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
         """
         This function sets the dofs associated to this object.
         """
-        sgpp.CurveXYZFourier.set_dofs(self, dofs)
+        sopp.CurveXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 
@@ -99,7 +99,7 @@ class JaxCurveXYZFourier(JaxCurve):
     """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
     actually no reason why one should use this over the C++ implementation in
-    :mod:`simsgeopp`, but the point of this class is to illustrate how jax can be used
+    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\phi`) automatically.
     """

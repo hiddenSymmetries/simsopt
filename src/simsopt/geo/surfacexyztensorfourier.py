@@ -1,10 +1,10 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
 
-class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
+class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     r"""
     `SurfaceXYZTensorFourier` is a surface that is represented in cartesian
@@ -39,7 +39,7 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sgpp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym, clamped_dims, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym, clamped_dims, quadpoints_phi, quadpoints_theta)
         self.x[0, 0] = 1.0
         self.x[1, 0] = 0.1
         self.z[mpol+1, 0] = 0.1
@@ -49,7 +49,7 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
         """
         Return the dofs associated to this surface.
         """
-        return np.asarray(sgpp.SurfaceXYZTensorFourier.get_dofs(self))
+        return np.asarray(sopp.SurfaceXYZTensorFourier.get_dofs(self))
 
     def to_RZFourier(self):
         """
@@ -67,6 +67,6 @@ class SurfaceXYZTensorFourier(sgpp.SurfaceXYZTensorFourier, Surface):
         """
         Set the dofs associated to this surface.
         """
-        sgpp.SurfaceXYZTensorFourier.set_dofs(self, dofs)
+        sopp.SurfaceXYZTensorFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
