@@ -1,20 +1,22 @@
 #!/usr/bin/env python
 
+from simsopt.util.mpi import MpiPartition, log
+from simsopt.mhd import Vmec, Boozer, Quasisymmetry
+from simsopt import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+
 """
 This script solve the problem in
 https://github.com/landreman/stellopt_scenarios/tree/master/7DOF_varyAxisAndElongation_targetIotaAndQuasisymmetry
 See that website for a detailed description of the problem.
 """
 
-from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-
+# This next line turns on detailed logging. It can be commented out if
+# you do not want such verbose output.
 log()
 
 mpi = MpiPartition()
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.stellopt_scenarios_7dof', mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.stellopt_scenarios_7dof'), mpi)
 
 # We will optimize in the space of Garabedian coefficients:
 surf = vmec.boundary.to_Garabedian()
