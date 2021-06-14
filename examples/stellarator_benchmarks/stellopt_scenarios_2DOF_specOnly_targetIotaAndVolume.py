@@ -30,7 +30,7 @@ https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_target
 logging.basicConfig(level=logging.INFO)
 
 # Initialize SPEC from an input file
-equil = Spec('stellopt_scenarios/inputs/2DOF_targetIotaAndVolume.sp')
+equil = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '2DOF_targetIotaAndVolume.sp'))
 
 # If the xspec executable is not in PATH, the path to the executable
 # should be specified as in the following line:

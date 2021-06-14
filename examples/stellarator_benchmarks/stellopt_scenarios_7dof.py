@@ -14,7 +14,7 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 log()
 
 mpi = MpiPartition()
-vmec = Vmec("stellopt_scenarios/inputs/input.stellopt_scenarios_7dof", mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.stellopt_scenarios_7dof', mpi)
 
 # We will optimize in the space of Garabedian coefficients:
 surf = vmec.boundary.to_Garabedian()

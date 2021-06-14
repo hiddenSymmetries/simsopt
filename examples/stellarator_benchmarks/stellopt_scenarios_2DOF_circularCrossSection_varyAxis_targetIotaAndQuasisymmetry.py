@@ -11,7 +11,7 @@ from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
 
-vmec = Vmec("stellopt_scenarios/inputs/input.2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry")
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry'))
 
 # Define parameter space:
 vmec.boundary.all_fixed()

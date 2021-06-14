@@ -33,11 +33,11 @@ log(logging.INFO)
 mpi = MpiPartition()
 
 # Initialize VMEC from an input file:
-vmec = Vmec('stellopt_scenarios/inputs/input.2DOF_vmecOnly_targetIotaAndVolume', mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_vmecOnly_targetIotaAndVolume'), mpi=mpi)
 surf = vmec.boundary
 
 # Initialize SPEC from an input file:
-spec = Spec('stellopt_scenarios/inputs/2DOF_targetIotaAndVolume.sp', mpi=mpi)
+spec = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '2DOF_targetIotaAndVolume.sp'), mpi=mpi)
 
 # Set the SPEC boundary to be the same object as the VMEC boundary!
 spec.boundary = surf

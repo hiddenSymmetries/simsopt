@@ -14,7 +14,7 @@ Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
 # gradients.
 mpi = MpiPartition(25)
 
-vmec = Vmec("2_Intermediate/inputs/input.nfp4_QH_warm_start", mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start'), mpi=mpi)
 
 # Define parameter space:
 surf = vmec.boundary

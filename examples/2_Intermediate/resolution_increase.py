@@ -24,7 +24,7 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec("2_Intermediate/inputs/input.nfp2_QA", mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA'), mpi=mpi)
 vmec.verbose = mpi.proc0_world
 surf = vmec.boundary
 

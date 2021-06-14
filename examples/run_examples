@@ -21,30 +21,30 @@ echo MPI_OPTIONS=$MPI_OPTIONS
 ./1_Simple/minimize_curve_length.py
 ./2_Intermediate/QSC.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
+./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
+./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume.py
 
-./stellopt_scenarios/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec.py
+./stellarator_benchmarks/stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py
+./stellarator_benchmarks/stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume.py
+./stellarator_benchmarks/stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec.py
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecAndSpec.py
+./stellarator_benchmarks/stellopt_scenarios_2DOF_vmecAndSpec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/stellopt_scenarios_2DOF_vmecAndSpec.py
 
-./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
+./stellarator_benchmarks/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 
