@@ -6,6 +6,7 @@ from simsopt.mhd import Vmec
 from simsopt import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from

@@ -6,6 +6,7 @@ from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd.spec import Spec, Residue
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """
 In this example, we show how the shape of a boundary magnetic

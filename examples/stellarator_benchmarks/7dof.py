@@ -4,6 +4,7 @@ from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """
 This script solve the problem in

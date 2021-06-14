@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+from simsopt.util.mpi import MpiPartition, log
+from simsopt.mhd import Vmec, Boozer, Quasisymmetry
+from simsopt import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+import os
+
 """
 This example shows how scripting can be used to increase the size
 of the parameter space and refine the resolution of the calculations
@@ -13,11 +19,6 @@ booz_xform increased at the same time.  Then the parameter space is
 widened again to include m and |n| values up through 3, and again the
 resolution for VMEC and booz_xform is increased.
 """
-
-from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
 
 #log()
 

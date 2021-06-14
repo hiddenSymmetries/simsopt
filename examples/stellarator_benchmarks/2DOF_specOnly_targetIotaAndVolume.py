@@ -6,6 +6,7 @@ import numpy as np
 from simsopt.mhd import Spec
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
+import os
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
