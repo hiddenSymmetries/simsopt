@@ -122,7 +122,7 @@ class ToroidalFlux(object):
 
 
 
-def boozer_surface_dexactresidual_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
+def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dresidual_dcoils:
@@ -146,7 +146,11 @@ def boozer_surface_dexactresidual_dcoils_vjp(lm, booz_surf, iota, G, biotsavart)
 
     lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
     dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
-    return dres_dcoils
+    
+    dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
+    dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
+    
+    return dres_dcoils, dres_dcurrents
     
 def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     """
@@ -548,17 +552,20 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         G = booz_surf.res['G']
         jac = booz_surf.res['jacobian']
         dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
+        current_fak = 1./(4 * np.pi * 1e-7)
 
         # tack on dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [self.iota_weight * (iota - self.target_iota), 0.]))
         adj = np.linalg.solve(jac.T, dJ_ds)
         adj += np.linalg.solve(jac.T, dJ_ds-jac.T@adj)
         
-        adj_times_dg_dc = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
-        dJ = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcoefficients(), adj_times_dg_dc)]
-        dJ = self.stellarator.reduce_coefficient_derivatives(dJ)
-
-        return dJ
+        adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
+        dJ_coil = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcoefficients(), adj_times_dg_dcoil)]
+        dJ_coil = self.stellarator.reduce_coefficient_derivatives(dJ_coil)
+        
+        dJ_curr = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(self.dJ_by_dcoilcurrents(), adj_times_dg_dcurr)]
+        dJ_curr = self.stellarator.reduce_current_derivatives(dJ_curr) * current_fak
+        return dJ_curr, dJ_coil
 
 
     def dJ_by_dB(self):
@@ -592,6 +599,12 @@ class NonQuasiAxisymmetricComponentPenalty(object):
         dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
         return dJ_by_dcoils
+    
+    def dJ_by_dcoilcurrents(self):
+        dJ_by_dB = self.dJ_by_dB().reshape((-1,3))
+        dB_by_dcoilcurrents = self.biotsavart.dB_by_dcoilcurrents()
+        dJ_by_dcoilcurrents = [np.sum(dJ_by_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
+        return dJ_by_dcoilcurrents
 
     def dJ_by_dsurfacecoefficients(self):
         """

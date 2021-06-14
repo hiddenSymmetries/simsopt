@@ -4,7 +4,7 @@ import numpy as np
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt.geo.surfaceobjectives import boozer_surface_dlsqgrad_dcoils_vjp
-from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_vjp
+from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_dcurrents_vjp
 
 
 class BoozerSurface():
@@ -589,7 +589,7 @@ class BoozerSurface():
 
         res = {
                 "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
-                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_vjp
+                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
         }
         
         self.res = res

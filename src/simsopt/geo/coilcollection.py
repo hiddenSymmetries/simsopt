@@ -55,3 +55,33 @@ class CoilCollection():
             else:
                 res[self.map[i]] += derivatives[i]
         return np.concatenate(res, axis=axis)
+
+
+    def set_currents(self, currents):
+        self._base_currents = currents
+        for i in range(len(self.currents)):
+            self.currents[i] = self.current_sign[i] * currents[self.map[i]]
+
+    def get_currents(self):
+        return np.asarray(self._base_currents)
+
+    def reduce_current_derivatives(self, derivatives):
+        """
+        Combine derivatives with respect to current for all those coils that
+        were obtained by rotation and reflection of the initial coils.
+        """
+        assert len(derivatives) == len(self.coils) or len(derivatives) == len(self._base_coils)
+        res = len(self._base_coils) * [None]
+        for i in range(len(derivatives)):
+            if res[self.map[i]] is None:
+                res[self.map[i]]  = self.current_sign[i] * derivatives[i]
+            else:
+                res[self.map[i]] += self.current_sign[i] * derivatives[i]
+        return np.asarray(res)
+
+    def savetotxt(self, dirname):
+        import os
+        os.makedirs(dirname, exist_ok=True)
+        for i in range(len(self.coils)):
+            np.savetxt(os.path.join(dirname, 'coil-%i.txt' % i), self.coils[i].gamma)
+            np.savetxt(os.path.join(dirname, 'current-%i.txt' % i), [self.currents[i]])

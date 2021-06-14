@@ -1,3 +1,4 @@
+import numpy as np
 from jax import grad, vjp
 import jax.numpy as jnp
 from .jit import jit
@@ -137,4 +138,24 @@ class MinimumDistance(Optimizable):
                     dgammadash_by_dcoeff_vjp_vecs[j] += temp
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
+        return res
+
+class UniformArclength():
+
+    def __init__(self, curve, desired_length):
+        self.curve = curve
+        self.desired_arclength = desired_length
+
+    def J(self):
+        l = self.curve.incremental_arclength()
+        num_points = l.shape[0]
+        return np.mean((l-self.desired_arclength)**2)
+
+    def dJ_by_dcoefficients(self):
+        l = self.curve.incremental_arclength()
+        dl = self.curve.dincremental_arclength_by_dcoeff()
+        num_coeff = dl.shape[1]
+        res = np.zeros((num_coeff, ))
+        for i in range(num_coeff):
+            res[i] = np.mean(2 * (l-self.desired_arclength) * dl[:, i])
         return res
