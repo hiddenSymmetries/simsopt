@@ -8,7 +8,7 @@ from simsopt.mhd import Spec
 from simsopt import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
 
-"""
+"""¡
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
 example from
 https://github.com/landreman/stellopt_scenarios
@@ -35,7 +35,7 @@ mpi = MpiPartition(2)
 mpi.write()
 
 # Create a Spec object:
-equil = Spec('stellopt_scenarios/inputs/1DOF_Garabedian.sp', mpi=mpi)
+equil = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '1DOF_Garabedian.sp'), mpi=mpi)
 
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the

@@ -18,10 +18,10 @@ log()
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec("3_Advanced/inputs/input.nfp2_QA_iota0.4_withIslands", mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA_iota0.4_withIslands'), mpi=mpi)
 surf = vmec.boundary
 
-spec = Spec("3_Advanced/inputs/nfp2_QA_iota0.4_withIslands.sp", mpi=mpi)
+spec = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'nfp2_QA_iota0.4_withIslands.sp'), mpi=mpi)
 
 # This next line is where the boundary surface objects of VMEC and
 # SPEC are linked:

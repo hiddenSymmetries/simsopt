@@ -22,7 +22,7 @@ print("Hello from rank %s of %s." % (rank, size))
 #print(MPI.Is_finalized())
 
 fcomm = comm.py2f()
-path = '2_Intermediate/inputs/input.QAS'
+path = os.path.join(os.path.dirname(__file__), 'inputs', 'input.QAS')
 if rank == 0:
     verbose = True
 else:
