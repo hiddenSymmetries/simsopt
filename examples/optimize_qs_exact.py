@@ -79,6 +79,7 @@ iota_target = -0.4
 iota_weight = 1.
 
 problem_list = [NonQuasiAxisymmetricComponentPenalty(boozer_surface, stellarator, target_iota=iota_target, iota_weight=iota_weight, major_radius_weight=mrw) for boozer_surface, mrw in zip([surf_list[0], surf_list[int(len(surf_list)/2)], surf_list[-1]], [1,0,0])]
+problem_list = [problem_list[0]]
 curvelength_list = [CurveLength(curve) for curve in stellarator.coils]
 target_lengths = [c.J() for c in curvelength_list]
 arclength_list = [UniformArclength(curve, l) for curve, l in zip(stellarator.coils, target_lengths)]
@@ -249,9 +250,9 @@ callback(0,coeffs, 0, 0, 0, 0, 0, 0, 0, 0)
 
 
 
-maxiter = 4000
+maxiter = 8000
 try:
-    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-5, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
+    res = fmin_lbfgs(fun_pylbfgs, coeffs, line_search='wolfe', epsilon=1e-12, max_linesearch=100, m=5000, progress = callback, max_iterations=maxiter)
 except Exception as e:
     print(e)
     pass

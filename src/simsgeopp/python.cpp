@@ -290,6 +290,7 @@ PYBIND11_MODULE(simsgeopp, m) {
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 
     m.def("biot_savart", &biot_savart);
+    m.def("biot_savart_vector_potential", &biot_savart_vector_potential);
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
 

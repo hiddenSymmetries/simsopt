@@ -37,6 +37,8 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
     }
 }
 
+
+
 Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents){
     auto dB_by_dXs = vector<Array>();
     auto d2B_by_dXdXs = vector<Array>();
@@ -52,3 +54,55 @@ Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_
     }
     return B;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void biot_savart_vector_potential(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& A, vector<Array>& dA_by_dX, vector<Array>& d2A_by_dXdX) {
+    auto pointsx = vector_type(points.shape(0), 0);
+    auto pointsy = vector_type(points.shape(0), 0);
+    auto pointsz = vector_type(points.shape(0), 0);
+    int num_points = points.shape(0);
+    for (int i = 0; i < num_points; ++i) {
+        pointsx[i] = points(i, 0);
+        pointsy[i] = points(i, 1);
+        pointsz[i] = points(i, 2);
+    }
+    int num_coils  = gammas.size();
+
+    Array dummyjac = xt::zeros<double>({1, 1, 1});
+    Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
+
+    int nderivs = 0;
+    if(dA_by_dX.size() == num_coils) {
+        nderivs = 1;
+        if(d2A_by_dXdX.size() == num_coils) {
+            nderivs = 2;
+        }
+    }
+
+#pragma omp parallel for
+    for(int i=0; i<num_coils; i++) {
+        if(nderivs == 2)
+            biot_savart_kernel_A<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], A[i], dA_by_dX[i], d2A_by_dXdX[i]);
+        else {
+            if(nderivs == 1) 
+                biot_savart_kernel_A<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], A[i], dA_by_dX[i], dummyhess);
+            else
+                biot_savart_kernel_A<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], A[i], dummyjac, dummyhess);
+        }
+    }
+}
+
+
