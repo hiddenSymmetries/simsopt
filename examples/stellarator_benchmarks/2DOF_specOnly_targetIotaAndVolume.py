@@ -6,6 +6,7 @@ import numpy as np
 from simsopt.mhd import Spec
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
+import os
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -30,7 +31,7 @@ https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_target
 logging.basicConfig(level=logging.INFO)
 
 # Initialize SPEC from an input file
-equil = Spec('2DOF_targetIotaAndVolume.sp')
+equil = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '2DOF_targetIotaAndVolume.sp'))
 
 # If the xspec executable is not in PATH, the path to the executable
 # should be specified as in the following line:
@@ -74,6 +75,6 @@ print(" objective function = ", prob.objective())
 assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 0.001
 assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 0.001
 assert np.abs(equil.volume() - 0.178091) < 0.001
-assert np.abs(surf.volume()  - 0.178091) < 0.001
+assert np.abs(surf.volume() - 0.178091) < 0.001
 assert np.abs(equil.iota() - (-0.4114567)) < 0.001
 assert (prob.objective() - 7.912501330E-04) < 0.2e-4
