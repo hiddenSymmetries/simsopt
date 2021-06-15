@@ -259,7 +259,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7.10
+        python-version: 3.8.10
 
     - name: Install coverage
       run: pip install coverage
