@@ -16,6 +16,5 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-
-./stellopt_scenarios_2DOF_vmecAndSpec
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_2DOF_vmecAndSpec
+./stellarator_benchmarks/2DOF_vmecAndSpec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecAndSpec.py

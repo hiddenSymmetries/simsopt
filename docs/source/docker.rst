@@ -1,5 +1,9 @@
-simsopt in a docker container
-=====================================
+Docker container
+================
+
+A Docker container for simsopt is available, allowing you to use
+simsopt without having to compile any code yourself.  The container
+includes VMEC and BOOZ_XFORM.
 
 Requirements
 ^^^^^^^^^^^^
@@ -15,7 +19,7 @@ before proceeding further.
    the container to at least 3 GB to run simsopt much faster.
 
 Install From Docker Hub
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 The easiest way to get simsopt docker image which comes with simsopt and all of its dependencies such as
 SPEC and VMEC pre-installed is to use Docker Hub. After 
 `installing docker <https://docs.docker.com/get-started/>`_, you can run
@@ -37,10 +41,11 @@ Ways to use simsopt docker container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 IPython Shell
-------------
+-------------
 
-Easiest way is to start ipython shell and import the simsopt library. But this approach
-is only useful if a few commands need to be executed or to load a python module and execute it.
+Easiest way is to start ipython shell and import the simsopt
+library. But this approach is only useful if a few commands need to be
+executed or to load a python module and execute it.
 
 .. code-block::
 
@@ -50,7 +55,7 @@ Bash Shell
 ----------
 
 In this approach, you write a simsopt based driver script for your optimization problem. One
-needs to mount the host directory in the container before running scripts. Use the `-v` flag 
+needs to mount the host directory in the container before running scripts. Use the ``-v`` flag 
 to mount the current directory
 
 .. code-block:: 
@@ -71,9 +76,12 @@ the container using the command:
     <container ###> cd /my_mount
     <container ###> jupyter notebook --ip 0.0.0.0 --no-browser --allow-root 
 
-Running the above command gives a link to open the jupyter console on the browser that typically 
-starts with **http://127.0.0.1:8888/?token=**. Copy the full link and paste it on any browser in your
-computer.
+Running the above command, a link will be printed that you can use to
+open the jupyter console in a web browser. The link typically starts
+with ``http://127.0.0.1:8888/?token=``. (Several links are printed,
+but only the last one listed will work for browsers running outside
+the container.) Copy the full link and paste it into any browser in
+your computer.
 
 
 Persistent containers
@@ -81,7 +89,7 @@ Persistent containers
 
 Using the intructions above will create a fresh container each time and delete the container after exiting.
 If you would like to create a persistent container (e.g. because you are installing additional pip packages inside) that you can reuse at any time,
-you can do so by removing the `--rm` command and specifying a container name via `--name=`
+you can do so by removing the ``--rm`` command and specifying a container name via ``--name=``
 
 .. code-block::
 

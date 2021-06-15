@@ -42,5 +42,5 @@ prob = LeastSquaresProblem([term1, term2, term3])
 least_squares_serial_solve(prob)
 
 print("An optimum was found at x=", iden1.x, ", y=", iden2.x, \
-          ", z=", iden3.x)
+      ", z=", iden3.x)
 print("The minimum value of the objective function is ", prob.objective())
