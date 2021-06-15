@@ -7,6 +7,7 @@ from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Spec
 from simsopt import LeastSquaresProblem
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -33,11 +34,11 @@ log(logging.INFO)
 mpi = MpiPartition()
 
 # Initialize VMEC from an input file:
-vmec = Vmec('input.2DOF_vmecOnly_targetIotaAndVolume', mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_vmecOnly_targetIotaAndVolume'), mpi=mpi)
 surf = vmec.boundary
 
 # Initialize SPEC from an input file:
-spec = Spec('2DOF_targetIotaAndVolume.sp', mpi=mpi)
+spec = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '2DOF_targetIotaAndVolume.sp'), mpi=mpi)
 
 # Set the SPEC boundary to be the same object as the VMEC boundary!
 spec.boundary = surf
@@ -88,6 +89,6 @@ if mpi.proc0_world:
     assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
     assert np.abs(spec_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_volume - 0.178091) < 1.0e-3
-    assert np.abs(surf_volume  - 0.178091) < 1.0e-3
+    assert np.abs(surf_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
     assert final_objective < 1.0e-2

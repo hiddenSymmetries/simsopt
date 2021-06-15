@@ -1,27 +1,27 @@
 #!/usr/bin/env python
 
+import numpy as np
+
+from simsopt.util.mpi import log, MpiPartition
+from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry
+from simsopt.mhd.spec import Residue
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+
 """
 In this example, we simultaneously optimize for quasisymmetry and
 the elimination of magnetic islands, with both VMEC and SPEC called in
 the objective function.
 """
 
-import numpy as np
-
-from simsopt.util.mpi import log, MpiPartition
-from simsopt.mhd import Vmec, Spec,  Boozer, Quasisymmetry
-from simsopt.mhd.spec import Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-
 log()
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec("input.nfp2_QA_iota0.4_withIslands", mpi=mpi)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA_iota0.4_withIslands'), mpi=mpi)
 surf = vmec.boundary
 
-spec = Spec("nfp2_QA_iota0.4_withIslands.sp", mpi=mpi)
+spec = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'nfp2_QA_iota0.4_withIslands.sp'), mpi=mpi)
 
 # This next line is where the boundary surface objects of VMEC and
 # SPEC are linked:
@@ -31,12 +31,12 @@ spec.boundary = surf
 surf.all_fixed()
 surf.fixed_range(mmin=0, mmax=3,
                  nmin=-3, nmax=3, fixed=False)
-surf.set_fixed("rc(0,0)") # Major radius
+surf.set_fixed("rc(0,0)")  # Major radius
 
 # Configure quasisymmetry objective:
 qs = Quasisymmetry(Boozer(vmec),
-                   0.5, # Radius to target
-                   1, 0) # (M, N) you want in |B|
+                   0.5,  # Radius to target
+                   1, 0)  # (M, N) you want in |B|
 
 # iota = p / q
 p = -2

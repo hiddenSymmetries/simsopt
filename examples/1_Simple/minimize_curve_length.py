@@ -8,7 +8,7 @@ from simsopt import least_squares_serial_solve
 
 """
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.
-The result should be a circle
+The result should be a circle.
 """
 
 # Create a curve:

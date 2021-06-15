@@ -25,7 +25,7 @@ Fixed resolution
    ~/Box Sync/work21/wout_20210421-01-005_QH_example_nfp4_QH_warm_start_000_000165.nc
 
 This example is also available as ``QH_fixed_resolution`` in the
-``examples/`` directory.  As usual, a driver script begins with
+``examples/2_Intermediate`` directory.  As usual, a driver script begins with
 imports of the classes and functions we will need::
 
   #!/usr/bin/env python
@@ -58,7 +58,7 @@ We next initialize a VMEC object from an input file::
 
   vmec = Vmec("input.nfp4_QH_warm_start", mpi=mpi)
 
-This file can be found in the ``examples/`` directory. The file
+This file can be found in the ``examples/2_Intermediate/inputs`` directory. The file
 describes a configuration that has already been partially optimized
 for quasi-helical symmetry in a very small parameter space, keeping
 poloidal and toroidal mode numbers only up through 1:
@@ -164,7 +164,7 @@ you are free to add other scripting. Here we show how this capability
 can be used to increase the numerical resolution of VMEC and
 booz_xform during the optimization. At the same time, we will increase
 the number of Fourier modes in the parameter space during the
-optimization. This example can also be found in the ``examples/``
+optimization. This example can also be found in the ``examples/2_Intermediate``
 directory as ``resolution_increase``.
 
 As usual, we begin with the necessary imports::
@@ -188,7 +188,7 @@ starting "from scratch"::
 
   vmec = Vmec("input.nfp2_QA", mpi=mpi)
 
-This input file can be found in the ``examples`` directory. We define
+This input file can be found in the ``examples/2_Intermediate/inputs`` directory. We define
 the quasisymmetry objective as in the previous section, except that we
 specify a helicity of (1,0) instead of (1,1) to get quasi-axisymmetry
 instead of quasi-helical symmetry::

@@ -5,7 +5,7 @@ from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
-obtain a desired volume and area.
+obtain a desired volume and area using the graph method.
 """
 
 desired_volume = 0.6
