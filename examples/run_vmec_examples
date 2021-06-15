@@ -16,20 +16,20 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota
+./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume
+./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
 
-./stellopt_scenarios_2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry
+./stellarator_benchmarks/2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py
 
-./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume
+./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
 
-mpiexec $MPI_OPTIONS -n 2 ./resolution_increase
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 
-mpiexec $MPI_OPTIONS -n 2 ./QH_fixed_resolution
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py

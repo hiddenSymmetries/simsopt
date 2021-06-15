@@ -35,9 +35,9 @@ Optional Packages
     * h5py
     * f90nml
 - For VMEC support
-    * https://github.com/hiddenSymmetries/vmec2000 (For VMEC interface)
+    * https://github.com/hiddenSymmetries/vmec2000
 - For quasisymmetry optimization
-    * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_,
+    * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 
 For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
@@ -94,21 +94,24 @@ can be installed for your user only::
 
     pip install --user -e .
 
-From docker image
------------------
-A docker image with simsopt along with all of its dependencies such as
-SPEC and VMEC pre-installed is available from docker hub. After 
-`installing docker <https://docs.docker.com/get-docker/>`_, you can run
-the simsopt container directly from the simsopt docker image uploaded to
-Docker Hub.
+From docker container
+---------------------
+
+A docker image with simsopt along with its dependencies, VMEC, and
+BOOZ_XFORM pre-installed is available from docker hub. This container
+allows you to use simsopt without having to compile any code yourself.
+After `installing docker <https://docs.docker.com/get-docker/>`_, you
+can run the simsopt container directly from the docker image uploaded
+to Docker Hub.
 
 .. code-block::
 
    docker run -it --rm hiddensymmetries/simsopt python
 
-The above command shoud load the python shell that comes with the simsopt
-docker container. When you run it first time, the image is downloaded
-automatically, so be patient.
+The above command should load the python shell that comes with the
+simsopt docker container. When you run it first time, the image is
+downloaded automatically, so be patient. More information about using
+simsopt with Docker can be found :doc:`here <docker>`.
 
 Post-Installation
 -----------------

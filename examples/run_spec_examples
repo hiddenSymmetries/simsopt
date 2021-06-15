@@ -16,14 +16,14 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 2 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
-mpiexec $MPI_OPTIONS -n 3 ./stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec
+./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 
-./stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume_spec
+./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_spec.py
 
-./stellopt_scenarios_2DOF_specOnly_targetIotaAndVolume
+./stellarator_benchmarks/2DOF_specOnly_targetIotaAndVolume.py
 
-./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 2 ./eliminate_magnetic_islands
-mpiexec $MPI_OPTIONS -n 3 ./eliminate_magnetic_islands
+./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands.py
