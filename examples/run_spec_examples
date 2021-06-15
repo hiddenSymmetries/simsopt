@@ -16,42 +16,14 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
-./1_Simple/just_a_quadratic.py
-./1_Simple/surface_volume_and_area.py
-./1_Simple/minimize_curve_length.py
-./2_Intermediate/QSC.py
-
-./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
-mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
-mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
-
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
 
-./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
-mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
-mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume.py
-
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_spec.py
 
-./stellarator_benchmarks/2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py
-
 ./stellarator_benchmarks/2DOF_specOnly_targetIotaAndVolume.py
-
-./stellarator_benchmarks/2DOF_vmecAndSpec.py
-mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecAndSpec.py
-
-./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
-mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
-mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
-
-mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 
 ./2_Intermediate/eliminate_magnetic_islands.py
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands.py
 mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands.py
-
-./2_Intermediate/boozer.py
-
-mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
