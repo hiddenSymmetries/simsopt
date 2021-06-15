@@ -75,8 +75,9 @@ A software framework is needed to connect these physics calculations with numeri
 Although the idea of stellarator optimization is several decades old, 
 there are limited codes available to use. 
 The two most commonly used codes are STELLOPT [@STELLOPT_Hirshman; @STELLOPT_Spong; @STELLOPT_repo] and ROSE [@ROSE]. 
-While ROSE is closed-sourced, STELLOPT is written in Fortran and couples all the codes explicitly. 
-It requires modification of multiple core STELLOPT source files to write an interface for a new module. 
+ROSE is
+closed-sourced, and STELLOPT has the disadvantage that it is written in Fortran and couples all the codes explicitly, meaning
+that it requires modification of multiple core STELLOPT source files to write an interface for a new module. 
 The goal of SIMSOPT is to flatten the learning curve, 
 improve the flexibility for prototyping new problems, and enhance the extendibility and maintainability. 
 To achieve these goals, SIMSOPT is written in object-oriented Python and incorporates software engineering best practices like continuous integration.
@@ -115,7 +116,7 @@ potentials [@Dommaschk] and the analytic formula for the field of a
 circular coil, and magnetic field instances can be scaled and
 summed. All the geometric and magnetic field classes provide one or
 two derivatives, either by explicit formulae, or by automatic
-differentiation with the `jax` package [@jax].  Caching is available
+differentiation with the `jax` package [@jax].  Caching is done automatically
 to avoid repeated calculations.
 
 To date, SIMSOPT calculations have primarily used optimization
@@ -130,7 +131,7 @@ components.  The parallelized finite-difference gradient capability
 uses MPI, to support use of multiple compute nodes, and to support
 concurrent calculations with physics codes like VMEC and SPEC that
 employ MPI. Biot-Savart calculations are accelerated using SIMD
-intrinsics and OpenMP parallelization.
+intrinsics (via the xsimd library [@xsimd]) and OpenMP parallelization.
 
 SIMSOPT does not presently use input data files to define optimization
 problems, in contrast to STELLOPT. Rather, problems are specified
@@ -176,12 +177,15 @@ elsewhere.
 ![An example of stage-1 optimization using SIMSOPT, in which the
  shape of a toroidal boundary is optimized to eliminate magnetic
  islands and improve
- quasisymmetry.\label{fig:xsections}](20210530-01-014-combinedVmecSpecOpt_xsections.pdf)
+ quasisymmetry.  Shown on the left are slices through the surface
+at different angles $\phi$ of the initial and the optimized
+configuratios. \label{fig:xsections}](20210530-01-014-combinedVmecSpecOpt_xsections.pdf)
 
 ![VMEC flux surfaces (black lines) and Poincare plot computed from the
  SPEC solution (colored points) for the initial and optimized
  configurations in
- \autoref{fig:xsections}.\label{fig:poincare}](20210530-01-014-combinedVmecSpecOpt_poincare.png)
+ \autoref{fig:xsections}.
+ The initial configuration contains an island chain, whereas the optimized configuration has nested flux surfaces.\label{fig:poincare}](20210530-01-014-combinedVmecSpecOpt_poincare.png)
 
 The curve and magnetic field classes in SIMSOPT can then be used for
 the second optimization stage, in which coil shapes are designed.
