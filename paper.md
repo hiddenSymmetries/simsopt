@@ -95,7 +95,7 @@ law is implemented in C++.
 
 Some of the physics modules with compiled code reside in separate
 repositories. Two such modules are the VMEC [@VMEC1983] and SPEC
-[@SPEC] codes, for MHD equilibrium. These Fortran codes are interfaced
+[@SPEC;@SPEC2] codes, for MHD equilibrium. These Fortran codes are interfaced
 using the `f90wrap` package [@f90wrap], so data can be passed directly
 in memory to and from python.  This is particularly useful for passing
 MPI communicators for parallelized evaluation of finite-difference
