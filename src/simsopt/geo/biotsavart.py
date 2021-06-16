@@ -1,9 +1,10 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from simsopt.geo.magneticfield import MagneticField
+from simsopt.geo.curve import Curve
 
 
-class BiotSavart(sgpp.BiotSavart, MagneticField):
+class BiotSavart(sopp.BiotSavart, MagneticField):
     r"""
     Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
     The field is given by
@@ -18,12 +19,14 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
 
     def __init__(self, coils, coil_currents):
         assert len(coils) == len(coil_currents)
-        self.currents_optim = [sgpp.Current(c) for c in coil_currents]
-        self.coils_optim = [sgpp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
-        MagneticField.__init__(self)
-        sgpp.BiotSavart.__init__(self, self.coils_optim)
+        assert all(isinstance(item, Curve) for item in coils)
+        assert all(isinstance(item, float) for item in coil_currents)
+        self.currents_optim = [sopp.Current(c) for c in coil_currents]
+        self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
         self.coils = coils
         self.coil_currents = coil_currents
+        MagneticField.__init__(self)
+        sopp.BiotSavart.__init__(self, self.coils_optim)
 
     def compute_A(self, compute_derivatives=0):
         r"""
@@ -150,7 +153,7 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         n = len(self.coils)
         coils = self.coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
-        sgpp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
+        sopp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
         return res_B
 
     def B_and_dB_vjp(self, v, vgrad):
@@ -171,5 +174,5 @@ class BiotSavart(sgpp.BiotSavart, MagneticField):
         coils = self.coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         res_dB = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
-        sgpp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
+        sopp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
         return (res_B, res_dB)

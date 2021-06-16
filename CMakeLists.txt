@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(simsgeopp)
+project(simsoptpp)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #find_package(PythonInterp 3 REQUIRED)
@@ -59,31 +59,31 @@ set(XTENSOR_USE_TBB 0)
 
 
 pybind11_add_module(${PROJECT_NAME}
-    src/simsgeopp/python.cpp src/simsgeopp/python_surfaces.cpp src/simsgeopp/python_curves.cpp
-    src/simsgeopp/python_magneticfield.cpp src/simsgeopp/python_tracing.cpp
-    src/simsgeopp/biot_savart_py.cpp src/simsgeopp/biot_savart_vjp_py.cpp
-    src/simsgeopp/regular_grid_interpolant_3d_py.cpp
-    src/simsgeopp/curve.cpp src/simsgeopp/curverzfourier.cpp src/simsgeopp/curvexyzfourier.cpp
-    src/simsgeopp/surface.cpp src/simsgeopp/surfacerzfourier.cpp src/simsgeopp/surfacexyzfourier.cpp
-    src/simsgeopp/dommaschk.cpp src/simsgeopp/reiman.cpp src/simsgeopp/tracing.cpp
-    src/simsgeopp/magneticfield_biotsavart.cpp
+    src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp
+    src/simsoptpp/biot_savart_py.cpp src/simsoptpp/biot_savart_vjp_py.cpp
+    src/simsoptpp/regular_grid_interpolant_3d_py.cpp
+    src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp
+    src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
+    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
+    src/simsoptpp/magneticfield_biotsavart.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 if(Boost_FOUND)
     target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 endif()
 
-add_executable(profiling EXCLUDE_FROM_ALL profiling/profiling.cpp src/simsgeopp/biot_savart_c.cpp src/simsgeopp/biot_savart_vjp_c.cpp src/simsgeopp/regular_grid_interpolant_3d_c.cpp)
+add_executable(profiling EXCLUDE_FROM_ALL profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsgeopp/")
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
