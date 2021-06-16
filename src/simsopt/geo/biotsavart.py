@@ -1,6 +1,7 @@
 import numpy as np
 import simsoptpp as sopp
 from simsopt.geo.magneticfield import MagneticField
+from simsopt.geo.curve import Curve
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
@@ -18,12 +19,14 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
     def __init__(self, coils, coil_currents):
         assert len(coils) == len(coil_currents)
+        assert all(isinstance(item, Curve) for item in coils)
+        assert all(isinstance(item, float) for item in coil_currents)
         self.currents_optim = [sopp.Current(c) for c in coil_currents]
         self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
-        MagneticField.__init__(self)
-        sopp.BiotSavart.__init__(self, self.coils_optim)
         self.coils = coils
         self.coil_currents = coil_currents
+        MagneticField.__init__(self)
+        sopp.BiotSavart.__init__(self, self.coils_optim)
 
     def compute_A(self, compute_derivatives=0):
         r"""
