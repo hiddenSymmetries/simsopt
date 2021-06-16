@@ -48,40 +48,36 @@ class ParticleTracingTesting(unittest.TestCase):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.tracing.tracing')
         logger.setLevel(1)
-        # Test a toroidal magnetic field with no rotational transform
-        coils, currents, ma = get_ncsx_data()
+        coils, currents, ma = get_ncsx_data(Nt_coils=8)
         currents = [3 * c for c in currents]
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
-        n = 16
-        rrange = (1.0, 2.0, n)
+        n = 10
+        rrange = (1.1, 1.8, n)
         phirange = (0, 2*np.pi, n*6)
-        zrange = (-0.7, 0.7, n)
+        zrange = (-0.3, 0.3, n)
         bsh = InterpolatedField(
-            bs, UniformInterpolationRule(3),
+            bs, UniformInterpolationRule(4),
             rrange, phirange, zrange, True
         )
         self.bsh = bsh
         self.ma = ma
+        bsh.to_vtk('/tmp/bfield')
 
     def test_guidingcenter_vs_fullorbit(self):
         bsh = self.bsh
         ma = self.ma
         nparticles = 2
         m = 1.67e-27
-        nphis = 4
-        phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
             Ekinev=9000, umin=-0.1, umax=+0.1,
-            phis=phis, mode='gc')
-        # stopping_criteria=[LevelsetStoppingCriterion(sc.dist)], mode=mode)
+            phis=[], mode='gc')
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
             Ekinev=9000, umin=-0.1, umax=+0.1,
-            phis=phis, mode='full')
-        # stopping_criteria=[LevelsetStoppingCriterion(sc.dist)], mode=mode)
+            phis=[], mode='full')
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
@@ -136,5 +132,4 @@ class ParticleTracingTesting(unittest.TestCase):
 
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
-            print(len(gc_phi_hits[i]))
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
