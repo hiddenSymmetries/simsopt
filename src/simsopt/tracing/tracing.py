@@ -30,21 +30,30 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
         rgs[i] = compute_gc_radius(m, sqrt(vperp2s[i]), q, AbsBs[i, 0])
         xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * ez[i, :]
         v_inits[i, :] = -sqrt(vperp2s[i]) * Bperp[i, :] + vtangs[i] * eB[i, :]
-    print("rgs", rgs)
     return xyz_inits_full, v_inits, rgs
 
 
+def parallel_loop_bounds(comm, n):
+    if comm is None:
+        return 0, n
+    else:
+        size = comm.size
+        idxs = [i*n//size for i in range(size+1)]
+        assert idxs[0] == 0
+        assert idxs[-1] == n
+        return idxs[comm.rank], idxs[comm.rank+1]
+
+
 def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
-                                     mass=1.67e-27, charge=1, Ekinev=9000,
-                                     umin=-1, umax=+1, phis=[], stopping_criteria=[], mode='gc'):
+                                     mass=1.67e-27, charge=1, Ekinev=9000, tol=1e-9,
+                                     umin=-1, umax=+1, comm=None,
+                                     phis=[], stopping_criteria=[], mode='gc'):
     assert mode in ['gc', 'full']
     e = 1.6e-19
     Ekin = Ekinev*e
     m = mass
     q = charge*e
     vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
-
-    tol = 1e-9
 
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
@@ -54,9 +63,9 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
         xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q)
     res_tys = []
     res_phi_hits = []
-
     loss_ctr = 0
-    for i in range(nparticles):
+    first, last = parallel_loop_bounds(comm, nparticles)
+    for i in range(first, last):
         if mode == 'gc':
             res_ty, res_phi_hit = sgpp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
@@ -66,27 +75,37 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
                 field, xyz_inits[i, :], v_inits[i, :],
                 m, q, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
-        res_phi_hits.append(res_phi_hit)
-        logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}")
+        res_phi_hits.append(np.asarray(res_phi_hit))
+        dtavg = res_ty[-1][0]/len(res_ty)
+        logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
-    logger.debug(f'Particles lost {loss_ctr}/{nparticles}={loss_ctr/nparticles}')
+    if comm is not None:
+        loss_ctr = comm.allreduce(loss_ctr)
+    if comm is not None:
+        res_tys = [i for o in comm.allgather(res_tys) for i in o]
+        res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
+    logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_phi_hits
 
 
-def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, phis=[], stopping_criteria=[]):
+def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.asarray([r0 + i*linestep for i in range(nlines)])
-    tol = 1e-7
     res_tys = []
     res_phi_hits = []
-    for i in range(nlines):
+    first, last = parallel_loop_bounds(comm, nlines)
+    for i in range(first, last):
         res_ty, res_phi_hit = sgpp.fieldline_tracing(
             field, xyz_inits[i, :],
             tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
-        res_phi_hits.append(res_phi_hit)
-        logger.debug(f"{i+1}/{nlines}, t_final={res_ty[-1][0]}")
+        res_phi_hits.append(np.asarray(res_phi_hit))
+        dtavg = res_ty[-1][0]/len(res_ty)
+        logger.debug(f"{i+1:3d}/{nlines}, t_final={res_ty[-1][0]}, average timestep {dtavg:.10f}s")
+    if comm is not None:
+        res_tys = [i for o in comm.allgather(res_tys) for i in o]
+        res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
     return res_tys, res_phi_hits
 
 
