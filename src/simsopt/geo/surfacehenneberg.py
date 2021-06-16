@@ -194,15 +194,17 @@ class SurfaceHenneberg(Surface):
         mpol = self.mmax
         ntor = self.nmax + 1 # More modes are needed in the SurfaceRZFourier because some indices are shifted by +/- 2*alpha.
         s = SurfaceRZFourier(nfp=self.nfp, stellsym=True, mpol=mpol, ntor=ntor)
+        s.rc[:] = 0.0
+        s.zs[:] = 0.0
         
         # Set Rmn.
         # Handle the 1d arrays (R0nH, bn):
         for nprime in range(self.nmax + 1):
             n = nprime
             # Handle the R0nH term:
-            s.set_rc(0, n, self.R0nH[n])
+            s.set_rc(0, n, s.get_rc(0, n) + self.R0nH[n])
             # Handle the b_n term:
-            s.set_rc(1, n, 0.25 * self.bn[nprime])
+            s.set_rc(1, n, s.get_rc(1, n) + 0.25 * self.bn[nprime])
             # Handle the b_{-n} term:
             n = -nprime
             s.set_rc(1, n, s.get_rc(1, n) + 0.25 * self.bn[nprime])
@@ -227,9 +229,9 @@ class SurfaceHenneberg(Surface):
         for nprime in range(self.nmax + 1):
             n = nprime
             # Handle the Z0nH term:
-            s.set_zs(0, n, -self.Z0nH[n])
+            s.set_zs(0, n, s.get_zs(0, n) - self.Z0nH[n])
             # Handle the b_n term:
-            s.set_zs(1, n, 0.25 * self.bn[nprime])
+            s.set_zs(1, n, s.get_zs(1, n) + 0.25 * self.bn[nprime])
             # Handle the b_{-n} term:
             n = -nprime
             s.set_zs(1, n, s.get_zs(1, n) + 0.25 * self.bn[nprime])

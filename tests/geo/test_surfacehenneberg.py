@@ -109,9 +109,6 @@ class SurfaceHennebergTests(unittest.TestCase):
                         surfH.bn[0] = a
                         surfH.set_rhomn(1, 0, a)
                         surf = surfH.to_RZFourier()
-                        print(f'\nnfp={nfp}, 2alpha={alpha_times_2}, mmax={mmax}, nmax={nmax}')
-                        print('rc:\n', surf.rc)
-                        print('zs:\n', surf.zs)
                         for m in range(surf.mpol + 1):
                             for n in range(-surf.ntor, surf.ntor + 1):
                                 if m == 0 and n == 0:
