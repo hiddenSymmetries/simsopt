@@ -152,8 +152,8 @@ void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
     auto t1 = std::chrono::high_resolution_clock::now();
     fh.evaluate_batch(xyz, fhxyz);
     auto t2 = std::chrono::high_resolution_clock::now();
-    double time = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-    fmt::print("{:1d}  {:10d}   {:.7f}ms   {:.15f}\n", rule.degree, nx*ny*nz, time/samples, (err.first+err.second)/2);
+    double time = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
+    fmt::print("{:1d}  {:10d}   {:.7f}µs   {:.15f}\n", rule.degree, nx*ny*nz, time/samples, (err.first+err.second)/2);
     //std::cout << std::setw (10) << rule.degree
     //    << std::setw (10) << nx*ny*nz
     //    << std::setw (13) << time/samples
