@@ -21,6 +21,13 @@ class SurfaceHenneberg(Surface):
     which are all numpy arrays.  There is also a discrete degree of
     freedom :math:`\alpha` which should be 0.5 or -0.5. The attribute
     ``alpha_times_2`` corresponds to :math:`2\alpha`.
+
+    For the 2D array ``rhomn``, functions ``set_rhomn`` and
+    ``get_rhomn`` are provided for convenience so you can specify
+    ``n``, since the corresponding array index is shifted by
+    ``nmax``. There are no corresponding functions for the 1D arrays
+    ``R0nH``, ``Z0nH``, and ``bn`` since these arrays all have a first
+    index corresponding to ``n=0``.
     """
 
     def __init__(self, nfp, alpha_times_2, mmax, nmax):
@@ -29,9 +36,7 @@ class SurfaceHenneberg(Surface):
         
         self.nfp = nfp
         self.alpha_times_2 = alpha_times_2
-        self.mmin = mmin
         self.mmax = mmax
-        self.nmin = nmin
         self.nmax = nmax
         self.stellsym = True
         self.allocate()
@@ -39,8 +44,9 @@ class SurfaceHenneberg(Surface):
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
-        self.set_Delta(1, 0, 1.0)
-        self.set_Delta(0, 0, 0.1)
+        self.R0nH[0] = 1.0
+        self.bn[0] = 0.1
+        self.set_rhomn(1, 0, 0.1)
         Surface.__init__(self)
 
     def __repr__(self):
@@ -59,49 +65,49 @@ class SurfaceHenneberg(Surface):
         # rhomn array has some elements for (m=0, n<0) even though
         # these elements are always zero.
         
-        self.R0nH = np.zeros(self.mmax + 1)
-        self.Z0nH = np.zeros(self.mmax + 1)
-        self.b0nH = np.zeros(self.mmax + 1)
+        self.R0nH = np.zeros(self.nmax + 1)
+        self.Z0nH = np.zeros(self.nmax + 1)
+        self.bn = np.zeros(self.nmax + 1)
         
         self.ndim = 2 * self.nmax + 1
         myshape = (self.mmax + 1, self.ndim)
         self.rhomn = np.zeros(myshape)
         
         self.names = []
-        for n in range(self.nmax + 2):
+        for n in range(self.nmax + 1):
             self.names.append('R0nH(' + str(n) + ')')
-        for n in range(1, self.nmax + 2):
+        for n in range(1, self.nmax + 1):
             self.names.append('Z0nH(' + str(n) + ')')
-        for n in range(self.nmax + 2):
+        for n in range(self.nmax + 1):
             self.names.append('bn(' + str(n) + ')')
         # Handle m = 0 modes in rho_mn:
-        for n in range(self.nmax + 2):
+        for n in range(self.nmax + 1):
             self.names.append('rhomn(0,' + str(n) + ')')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
                 self.names.append('rhomn(' + str(m) + ',' + str(n) + ')')
 
-    def get_Delta(self, m, n):
+    def get_rhomn(self, m, n):
         """
-        Return a particular :math:`\Delta_{m,n}` coefficient.
+        Return a particular :math:`\rho_{m,n}` coefficient.
         """
-        return self.Delta[m - self.mmin, n - self.nmin]
+        return self.rhomn[m, n - self.nmax]
 
-    def set_Delta(self, m, n, val):
+    def set_rhomn(self, m, n, val):
         """
-        Set a particular :math:`\Delta_{m,n}` coefficient.
+        Set a particular :math:`\rho_{m,n}` coefficient.
         """
-        self.Delta[m - self.mmin, n - self.nmin] = val
+        self.rhomn[m, n - self.nmax] = val
         self.recalculate = True
-        self.recalculate_derivs = True
 
     def get_dofs(self):
         """
         Return a 1D numpy array with all the degrees of freedom.
         """
-        num_dofs = (self.mmax - self.mmin + 1) * (self.nmax - self.nmin + 1)
-        return np.reshape(self.Delta, (num_dofs,), order='F')
+        return np.concatenate((self.R0nH, self.Z0nH[1:], self.bn,
+                               self.rhomn[0, self.nmax:],
+                               np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='F')))
 
     def set_dofs(self, v):
         """
@@ -120,23 +126,64 @@ class SurfaceHenneberg(Surface):
 
         logger.info('set_dofs called, and at least one dof changed')
         self.recalculate = True
-        self.recalculate_derivs = True
 
-        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
+        index = 0
+        nvals = self.nmax + 1
+        self.R0nH = v[index : index + nvals]
+        index += nvals
 
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+        nvals = self.nmax
+        self.Z0nH[1:] = v[index : index + nvals]
+        index += nvals
+
+        nvals = self.nmax + 1
+        self.bn = v[index : index + nvals]
+        index += nvals
+
+        nvals = self.nmax + 1
+        self.rhomn[0, self.nmax:] = v[index : index + nvals]
+        index += nvals
+
+        self.rhomn[1:, :] = np.reshape(v[index:], (self.mmax, 2 * self.nmax + 1), order='F')
+
+    def fixed_range(self, mmax, nmax, fixed=True):
         """
-        Set the 'fixed' property for a range of m and n values.
+        Set the ``fixed`` property for a range of ``m`` and ``n`` values.
 
-        All modes with m in the interval [mmin, mmax] and n in the
-        interval [nmin, nmax] will have their fixed property set to
-        the value of the 'fixed' parameter. Note that mmax and nmax
-        are included (unlike the upper bound in python's range(min,
-        max).)
+        All modes with ``m <= mmax`` and ``|n| <= nmax`` will have
+        their fixed property set to the value of the ``fixed``
+        parameter. Note that ``mmax`` and ``nmax`` are included.
+
+        Both ``mmax`` and ``nmax`` must be >= 0.
+
+        For any value of ``mmax``, the ``fixed`` properties of
+        ``R0nH``, ``Z0nH``, and ``rhomn`` are set. The ``fixed``
+        properties of ``bn`` are set only if ``mmax > 0``. In other
+        words, the ``bn`` modes are treated as having ``m=1``.
         """
-        for m in range(mmin, mmax + 1):
-            for n in range(nmin, nmax + 1):
-                self.set_fixed('Delta({},{})'.format(m, n), fixed)
+        if mmax < 0:
+            raise ValueError('mmax must be >= 0')
+        if mmax > self.mmax:
+            mmax = self.mmax
+        if nmax < 0:
+            raise ValueError('nmax must be >= 0')
+        if nmax > self.nmax:
+            nmax = self.nmax
+
+        for n in range(nmax + 1):
+            self.set_fixed(f'R0nH({n})', fixed)
+        for n in range(1, nmax + 1):
+            self.set_fixed(f'Z0nH({n})', fixed)
+        if mmax > 0:
+            for n in range(nmax + 1):
+                self.set_fixed(f'bn({n})', fixed)
+            
+        for m in range(mmax + 1):
+            nmin_to_use = -nmax
+            if m == 0:
+                nmin_to_use = 0
+            for n in range(nmin_to_use, nmax + 1):
+                self.set_fixed(f'rhomn({m},{n})', fixed)
 
     def to_RZFourier(self):
         """
