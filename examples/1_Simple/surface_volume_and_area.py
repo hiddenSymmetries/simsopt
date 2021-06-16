@@ -24,7 +24,7 @@ surf.set_fixed('rc(0,0)')
 # Each target function is then equipped with a shift and weight, to
 # become a term in a least-squares objective function
 term1 = (surf.volume, desired_volume, 1)
-term2 = (surf.area,   desired_area,   1)
+term2 = (surf.area, desired_area, 1)
 
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.

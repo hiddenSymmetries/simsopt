@@ -1,19 +1,26 @@
 import unittest
 
 import numpy as np
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
 
 from simsopt.objectives.graph_functions import Identity, Rosenbrock
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve, serial_solve
-from simsopt.util.mpi import MpiPartition
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
+if MPI is not None:
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [serial_solve, least_squares_serial_solve, mpi_solve_1group]
+solvers = [serial_solve, least_squares_serial_solve]
+if MPI is not None:
+    solvers.append(mpi_solve_1group)
 
 
 class LeastSquaresProblemTests(unittest.TestCase):

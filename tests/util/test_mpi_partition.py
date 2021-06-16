@@ -1,13 +1,19 @@
 import logging
 import unittest
 import numpy as np
-from mpi4py import MPI
-from simsopt.util.mpi import MpiPartition
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+if MPI is not None:
+    from simsopt.util.mpi import MpiPartition
 
-#logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+# logging.basicConfig(level=logging.DEBUG)
+# logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 
+@unittest.skipIf(MPI is None, "Requires mpi4py")
 class MpiPartitionTests(unittest.TestCase):
     def test_ngroups1(self):
         """

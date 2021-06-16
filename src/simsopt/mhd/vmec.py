@@ -12,20 +12,33 @@ from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
-from mpi4py import MPI
+from ..util.dev import SimsoptRequires
 
-vmec_found = True
+logger = logging.getLogger(__name__)
+
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None 
+    logger.warning(str(e))
+
+# vmec_found = True
 try:
     import vmec
-except ImportError as err:
-    vmec_found = False
+except ImportError as e:
+    # vmec_found = False
+    vmec = None
+    logger.warning(str(e))
 
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
-from ..util.mpi import MpiPartition
 
-logger = logging.getLogger(__name__)
+if MPI is not None:
+    from ..util.mpi import MpiPartition
+else:
+    MpiPartition = None
+
 
 # Flags used by runvmec():
 restart_flag = 1
@@ -69,6 +82,8 @@ reset_jacdt_flag = 32
 #                        control its own run history
 
 
+# Temporarily commenting out the decorator till __instancecheck__ method is made working
+#@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
     """
     This class represents the VMEC equilibrium code.
@@ -141,7 +156,9 @@ class Vmec(Optimizable):
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None):
-        if not vmec_found:
+        if MPI is None:
+            raise RuntimeError("mpi4py needs to be installed for running VMEC")
+        if vmec is None:
             raise RuntimeError(
                 "Running VMEC from simsopt requires VMEC python extension. "
                 "Install the VMEC python extension from "
