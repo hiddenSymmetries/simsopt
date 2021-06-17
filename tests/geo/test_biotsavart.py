@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 
 
 def get_coil(num_quadrature_points=200, perturb=False):

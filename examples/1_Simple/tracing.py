@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from simsopt.geo.biotsavart import BiotSavart
-from simsopt.geo.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
 from simsopt.geo.coilcollection import CoilCollection
-from simsopt.tracing.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
+from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion
 from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
@@ -16,7 +16,7 @@ import logging
 import sys
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
-logger = logging.getLogger('simsopt.tracing.tracing')
+logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
 # check whether we're in CI, in that case we make the run a bit cheaper

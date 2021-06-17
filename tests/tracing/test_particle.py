@@ -1,10 +1,10 @@
 from simsopt.geo.coilcollection import CoilCollection
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.tracing.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
+from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 import numpy as np
 import unittest
 import logging
@@ -46,7 +46,7 @@ class ParticleTracingTesting(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
-        logger = logging.getLogger('simsopt.tracing.tracing')
+        logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
         coils, currents, ma = get_ncsx_data(Nt_coils=8)
         currents = [3 * c for c in currents]

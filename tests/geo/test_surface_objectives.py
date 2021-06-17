@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.util.zoo import get_ncsx_data
