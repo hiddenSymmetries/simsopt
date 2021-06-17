@@ -21,7 +21,7 @@ class BoozerSurface():
     to the user-provided ``targetlabel``, depending on how the label constraint is imposed.  This 
     constrained least squares problem can be solved by scalarizing and adding the constraint as 
     an additional penalty term to the objective.  This is done in
-    
+
         #. :mod:`minimize_boozer_penalty_constraints_LBFGS`
         #. :mod:`minimize_boozer_penalty_constraints_newton`
         #. :mod:`minimize_boozer_penalty_constraints_ls`
@@ -358,7 +358,7 @@ class BoozerSurface():
         using Lagrange multipliers and Newton's method. In the above, 
         :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
         the Boozer residuals at quadrature points :math:`1,\dots,n`.
- 
+
         The final constraint is not necessary for stellarator symmetric surfaces as it is automatically
         satisfied by the stellarator symmetric surface parametrization.
         """

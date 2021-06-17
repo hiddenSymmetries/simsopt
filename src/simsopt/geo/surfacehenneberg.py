@@ -8,34 +8,47 @@ logger = logging.getLogger(__name__)
 
 
 class SurfaceHenneberg(Surface):
-    """
+    r"""
     This class represents a toroidal surface using the
     parameterization in Henneberg, Helander, and Drevlak,
     arXiv:2105.00768 (2021).
 
     In the implementation here, stellarator symmetry is assumed.
 
-    The continuous degrees of freedom are :math:`\{rho_{m,n}, b_n,
+    The continuous degrees of freedom are :math:`\{\rho_{m,n}, b_n,
     R_{0,n}^H, Z_{0,n}^H\}`.  These variables correspond to the
     attributes ``rhomn``, ``bn``, ``R0nH``, and ``Z0nH`` respectively,
     which are all numpy arrays.  There is also a discrete degree of
-    freedom :math:`\alpha` which should be 0.5 or -0.5. The attribute
-    ``alpha_times_2`` corresponds to :math:`2\alpha`.
+    freedom :math:`\alpha` which should be :math:`\pm n_{fp}/2` where
+    :math:`n_{fp}` is the number of field periods. The attribute
+    ``alpha_fac`` corresponds to :math:`2\alpha/n_{fp}`, so
+    ``alpha_fac`` is either 1 or -1.
 
-    For the 2D array ``rhomn``, functions ``set_rhomn`` and
-    ``get_rhomn`` are provided for convenience so you can specify
+    For :math:`R_{0,n}^H` and :math:`b_n`, :math:`n` is 0 or any
+    positive integer up through ``ntor`` (inclusive).  For
+    :math:`Z_{0,n}^H`, :math:`n` is any positive integer up through
+    ``ntor``.  For :math:`\rho_{m,n}`, :math:`m` is an integer from 0
+    through ``mpol`` (inclusive). For positive values of :math:`m`,
+    :math:`n` can be any integer from ``-ntor`` through ``ntor``.  For
+    :math:`m=0`, :math:`n` is restricted to integers from 1 through
+    ``ntor``.  Note that we exclude the element of :math:`\rho_{m,n}`
+    with :math:`m=n=0`, because this degree of freedom is already
+    represented in :math:`R_{0,0}^H`.
+
+    For the 2D array ``rhomn``, functions :func:`set_rhomn()` and
+    :func:`get_rhomn()` are provided for convenience so you can specify
     ``n``, since the corresponding array index is shifted by
     ``nmax``. There are no corresponding functions for the 1D arrays
     ``R0nH``, ``Z0nH``, and ``bn`` since these arrays all have a first
     index corresponding to ``n=0``.
     """
 
-    def __init__(self, nfp, alpha_times_2, mmax, nmax):
-        if alpha_times_2 != 1 and alpha_times_2 != -1:
-            raise ValueError('alpha_times_2 must be 1 or -1')
-        
+    def __init__(self, nfp, alpha_fac, mmax, nmax):
+        if alpha_fac != 1 and alpha_fac != -1:
+            raise ValueError('alpha_fac must be 1 or -1')
+
         self.nfp = nfp
-        self.alpha_times_2 = alpha_times_2
+        self.alpha_fac = alpha_fac
         self.mmax = mmax
         self.nmax = nmax
         self.stellsym = True
@@ -51,7 +64,7 @@ class SurfaceHenneberg(Surface):
 
     def __repr__(self):
         return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", alpha=" + str(self.alpha_times_2 * 0.5) \
+            str(self.nfp) + ", alpha=" + str(self.alpha_fac * 0.5) \
             + ", mmax=" + str(self.mmax) + ", nmax=" + str(self.nmax) + ")"
 
     def allocate(self):
@@ -64,15 +77,15 @@ class SurfaceHenneberg(Surface):
         # for n=0 even though this element is always 0. Similarly, the
         # rhomn array has some elements for (m=0, n<0) even though
         # these elements are always zero.
-        
+
         self.R0nH = np.zeros(self.nmax + 1)
         self.Z0nH = np.zeros(self.nmax + 1)
         self.bn = np.zeros(self.nmax + 1)
-        
+
         self.ndim = 2 * self.nmax + 1
         myshape = (self.mmax + 1, self.ndim)
         self.rhomn = np.zeros(myshape)
-        
+
         self.names = []
         for n in range(self.nmax + 1):
             self.names.append('R0nH(' + str(n) + ')')
@@ -81,23 +94,40 @@ class SurfaceHenneberg(Surface):
         for n in range(self.nmax + 1):
             self.names.append('bn(' + str(n) + ')')
         # Handle m = 0 modes in rho_mn:
-        for n in range(self.nmax + 1):
+        for n in range(1, self.nmax + 1):
             self.names.append('rhomn(0,' + str(n) + ')')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
                 self.names.append('rhomn(' + str(m) + ',' + str(n) + ')')
 
-    def get_rhomn(self, m, n):
+    def _validate_mn(self, m, n):
+        r"""
+        Check whether given (m, n) values are allowed for :math:`\rho_{m,n}`.
         """
+        if m < 0:
+            raise ValueError(f'm must be >= 0, but m = {m}')
+        if m > self.mmax:
+            raise ValueError(f'm must be <= mmax, but m = {m}')
+        if m == 0 and n < 1:
+            raise ValueError(f'For m=0, n must be >= 1, but n = {n}')
+        if n > self.nmax:
+            raise ValueError(f'n must be <= nmax, but n = {n}')
+        if n < -self.nmax:
+            raise ValueError(f'n must be >= -nmax, but n = {n}')
+
+    def get_rhomn(self, m, n):
+        r"""
         Return a particular :math:`\rho_{m,n}` coefficient.
         """
+        self._validate_mn(m, n)
         return self.rhomn[m, n - self.nmax]
 
     def set_rhomn(self, m, n, val):
-        """
+        r"""
         Set a particular :math:`\rho_{m,n}` coefficient.
         """
+        self._validate_mn(m, n)
         self.rhomn[m, n - self.nmax] = val
         self.recalculate = True
 
@@ -106,7 +136,7 @@ class SurfaceHenneberg(Surface):
         Return a 1D numpy array with all the degrees of freedom.
         """
         return np.concatenate((self.R0nH, self.Z0nH[1:], self.bn,
-                               self.rhomn[0, self.nmax:],
+                               self.rhomn[0, self.nmax + 1:],
                                np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='F')))
 
     def set_dofs(self, v):
@@ -129,19 +159,19 @@ class SurfaceHenneberg(Surface):
 
         index = 0
         nvals = self.nmax + 1
-        self.R0nH = v[index : index + nvals]
+        self.R0nH = v[index: index + nvals]
         index += nvals
 
         nvals = self.nmax
-        self.Z0nH[1:] = v[index : index + nvals]
+        self.Z0nH[1:] = v[index: index + nvals]
         index += nvals
 
         nvals = self.nmax + 1
-        self.bn = v[index : index + nvals]
+        self.bn = v[index: index + nvals]
         index += nvals
 
-        nvals = self.nmax + 1
-        self.rhomn[0, self.nmax:] = v[index : index + nvals]
+        nvals = self.nmax
+        self.rhomn[0, self.nmax + 1:] = v[index: index + nvals]
         index += nvals
 
         self.rhomn[1:, :] = np.reshape(v[index:], (self.mmax, 2 * self.nmax + 1), order='F')
@@ -177,26 +207,26 @@ class SurfaceHenneberg(Surface):
         if mmax > 0:
             for n in range(nmax + 1):
                 self.set_fixed(f'bn({n})', fixed)
-            
+
         for m in range(mmax + 1):
             nmin_to_use = -nmax
             if m == 0:
-                nmin_to_use = 0
+                nmin_to_use = 1
             for n in range(nmin_to_use, nmax + 1):
                 self.set_fixed(f'rhomn({m},{n})', fixed)
 
     def to_RZFourier(self):
         """
-        Return a SurfaceRZFourier object with the identical shape. This
+        Return a :obj:`~.surfacerzfourier.SurfaceRZFourier` object with the identical shape. This
         routine implements eq (4.5)-(4.6) in the Henneberg paper, plus
         m=0 terms for R0 and Z0.
         """
         mpol = self.mmax
-        ntor = self.nmax + 1 # More modes are needed in the SurfaceRZFourier because some indices are shifted by +/- 2*alpha.
+        ntor = self.nmax + 1  # More modes are needed in the SurfaceRZFourier because some indices are shifted by +/- 2*alpha.
         s = SurfaceRZFourier(nfp=self.nfp, stellsym=True, mpol=mpol, ntor=ntor)
         s.rc[:] = 0.0
         s.zs[:] = 0.0
-        
+
         # Set Rmn.
         # Handle the 1d arrays (R0nH, bn):
         for nprime in range(self.nmax + 1):
@@ -209,21 +239,24 @@ class SurfaceHenneberg(Surface):
             n = -nprime
             s.set_rc(1, n, s.get_rc(1, n) + 0.25 * self.bn[nprime])
             # Handle the b_{n-2alpha} term:
-            n = nprime + self.alpha_times_2
+            n = nprime + self.alpha_fac
             s.set_rc(1, n, s.get_rc(1, n) - 0.25 * self.bn[nprime])
             # Handle the b_{-n+2alpha} term:
-            n = -nprime + self.alpha_times_2
+            n = -nprime + self.alpha_fac
             s.set_rc(1, n, s.get_rc(1, n) - 0.25 * self.bn[nprime])
         # Handle the 2D rho terms:
         for m in range(self.mmax + 1):
-            for nprime in range(-self.nmax, self.nmax + 1):
+            nmin = -self.nmax
+            if m == 0:
+                nmin = 1
+            for nprime in range(nmin, self.nmax + 1):
                 # Handle the rho_{m, -n} term:
                 n = -nprime
                 s.set_rc(m, n, s.get_rc(m, n) + 0.5 * self.get_rhomn(m, nprime))
                 # Handle the rho_{m, -n+2alpha} term:
-                n = -nprime + self.alpha_times_2
+                n = -nprime + self.alpha_fac
                 s.set_rc(m, n, s.get_rc(m, n) + 0.5 * self.get_rhomn(m, nprime))
-        
+
         # Set Zmn.
         # Handle the 1d arrays (Z0nH, bn):
         for nprime in range(self.nmax + 1):
@@ -236,21 +269,24 @@ class SurfaceHenneberg(Surface):
             n = -nprime
             s.set_zs(1, n, s.get_zs(1, n) + 0.25 * self.bn[nprime])
             # Handle the b_{n-2alpha} term:
-            n = nprime + self.alpha_times_2
+            n = nprime + self.alpha_fac
             s.set_zs(1, n, s.get_zs(1, n) + 0.25 * self.bn[nprime])
             # Handle the b_{-n+2alpha} term:
-            n = -nprime + self.alpha_times_2
+            n = -nprime + self.alpha_fac
             s.set_zs(1, n, s.get_zs(1, n) + 0.25 * self.bn[nprime])
         # Handle the 2D rho terms:
         for m in range(self.mmax + 1):
-            for nprime in range(-self.nmax, self.nmax + 1):
+            nmin = -self.nmax
+            if m == 0:
+                nmin = 1
+            for nprime in range(nmin, self.nmax + 1):
                 # Handle the rho_{m, -n} term:
                 n = -nprime
                 s.set_zs(m, n, s.get_zs(m, n) + 0.5 * self.get_rhomn(m, nprime))
                 # Handle the rho_{m, -n+2alpha} term:
-                n = -nprime + self.alpha_times_2
+                n = -nprime + self.alpha_fac
                 s.set_zs(m, n, s.get_zs(m, n) - 0.5 * self.get_rhomn(m, nprime))
-        
+
         return s
 
     def area_volume(self):
