@@ -48,6 +48,24 @@ class Surface(Optimizable):
         if show:
             mlab.show()
 
+    def to_vtk(self, filename):
+        from pyevtk.hl import gridToVTK
+        g = self.gamma()
+        ntor = g.shape[0]
+        npol = g.shape[1]
+        x = self.gamma()[:, :, 0].reshape((1, ntor, npol)).copy()
+        y = self.gamma()[:, :, 1].reshape((1, ntor, npol)).copy()
+        z = self.gamma()[:, :, 2].reshape((1, ntor, npol)).copy()
+        n = self.normal().reshape((1, ntor, npol, 3))
+        dphi = self.gammadash1().reshape((1, ntor, npol, 3))
+        dtheta = self.gammadash2().reshape((1, ntor, npol, 3))
+        contig = np.ascontiguousarray
+        gridToVTK(filename, x, y, z, pointData={
+            "dphi x dtheta": (contig(n[..., 0]), contig(n[..., 1]), contig(n[..., 2])),
+            "dphi": (contig(dphi[..., 0]), contig(dphi[..., 1]), contig(dphi[..., 2])),
+            "dtheta": (contig(dtheta[..., 0]), contig(dtheta[..., 1]), contig(dtheta[..., 2])),
+        })
+
     def __repr__(self):
         return "Surface " + str(hex(id(self)))
 

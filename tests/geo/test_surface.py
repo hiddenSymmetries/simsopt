@@ -7,12 +7,17 @@ from simsopt._core.optimizable import make_optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface 
+from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
-surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier"]
 stellsym_list = [True, False]
+
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
 
 
 class SurfaceXYZFourierTests(unittest.TestCase):
@@ -271,6 +276,18 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print(AR, AR_cs)
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
+
+    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    def test_to_vtk(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        s.to_vtk('/tmp/surface')
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
