@@ -1,6 +1,6 @@
 from math import sqrt
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 import logging
 
 
@@ -67,11 +67,11 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         if mode == 'gc':
-            res_ty, res_phi_hit = sgpp.particle_guiding_center_tracing(
+            res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
                 m, q, vtotal, vtangs[i], tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         else:
-            res_ty, res_phi_hit = sgpp.particle_fullorbit_tracing(
+            res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
                 m, q, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
@@ -96,7 +96,7 @@ def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, tol=1e-7, phi
     res_phi_hits = []
     first, last = parallel_loop_bounds(comm, nlines)
     for i in range(first, last):
-        res_ty, res_phi_hit = sgpp.fieldline_tracing(
+        res_ty, res_phi_hit = sopp.fieldline_tracing(
             field, xyz_inits[i, :],
             tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
@@ -166,8 +166,8 @@ class SurfaceClassifier():
             xyz[:, 2] = zs
             return list(signed_distance_from_surface(xyz, surface))
 
-        rule = sgpp.UniformInterpolationRule(p)
-        self.dist = sgpp.RegularGridInterpolant3D(
+        rule = sopp.UniformInterpolationRule(p)
+        self.dist = sopp.RegularGridInterpolant3D(
             rule, [rmin, rmax, nr], [0., 2*np.pi, nphi], [zmin, zmax, nz], 1, True)
         self.dist.interpolate_batch(fbatch)
 
@@ -205,5 +205,5 @@ class SurfaceClassifier():
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
 
 
-class LevelsetStoppingCriterion(sgpp.LevelsetStoppingCriterion):
+class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
     pass
