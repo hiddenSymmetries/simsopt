@@ -1,12 +1,19 @@
 import logging
 import unittest
 import numpy as np
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
 from simsopt._core.dofs import Dofs
-from simsopt.util.mpi import MpiPartition, log
 from simsopt.objectives.functions import Beale
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import fd_jac_mpi, least_squares_mpi_solve
+
+from simsopt.util.mpi import log
+if MPI:
+    from simsopt.util.mpi import MpiPartition  # , log
+    from simsopt.solve.mpi import fd_jac_mpi, least_squares_mpi_solve
+
 
 log(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -81,6 +88,7 @@ class TestFunction3:
         return self.x[0] ** 2 - self.x[1]
 
 
+@unittest.skipIf(MPI is None, "MPI is missing")
 class SolveMpiTests(unittest.TestCase):
     def test_fd_jac_eval_points(self):
         """

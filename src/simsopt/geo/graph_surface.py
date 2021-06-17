@@ -15,13 +15,12 @@ config.update("jax_enable_x64", True)  # Use double precision:
 
 import jax.numpy as jnp
 from jax import jacrev
-from mpi4py import MPI
 #import xarray as xr
 
 from .._core.util import isbool
 from .._core.graph_optimizable import Optimizable
 
-logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+logger = logging.getLogger(__name__)
 
 
 # @jit(static_argnums=(4, 5, 6, 7, 8, 9))

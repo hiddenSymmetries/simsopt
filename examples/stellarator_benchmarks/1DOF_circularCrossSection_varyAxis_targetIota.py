@@ -7,6 +7,7 @@ from simsopt.mhd import Vmec
 from simsopt import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.solve.mpi import least_squares_mpi_solve
+import os
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -35,7 +36,7 @@ mpi.write()
 
 # Start with a default surface, which is axisymmetric with major
 # radius 1 and minor radius 0.1.
-equil = Vmec("input.1DOF_Garabedian", mpi=mpi)
+equil = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.1DOF_Garabedian'), mpi=mpi)
 
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the

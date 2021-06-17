@@ -3,9 +3,21 @@ import logging
 import os
 import numpy as np
 
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+try:
+    import vmec
+    vmec_found = True
+except ImportError:
+    vmec_found = False
+
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.mhd.vmec import vmec_found
-if vmec_found:
+
+# from simsopt.mhd.vmec import vmec_found
+if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
@@ -13,7 +25,7 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
 
 
-@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
+@unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
