@@ -1,5 +1,8 @@
-import numpy as np
 import logging
+import numpy as np
+from scipy.optimize import minimize_scalar
+from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
@@ -288,6 +291,205 @@ class SurfaceHenneberg(Surface):
                 s.set_zs(m, n, s.get_zs(m, n) - 0.5 * self.get_rhomn(m, nprime))
 
         return s
+
+    @classmethod
+    def from_RZFourier(cls,
+                       surf,
+                       alpha_fac: int,
+                       mmax=None,
+                       nmax=None,
+                       ntheta=None,
+                       nphi=None):
+        """
+        Convert a :obj:`~.surfacerzfourier.SurfaceRZFourier` surface to a
+        :obj:`SurfaceHenneberg` surface.
+
+        Args:
+            surf: The :obj:`~.surfacerzfourier.SurfaceRZFourier` object to convert.
+            mmax: 
+        """
+        if not surf.stellsym:
+            raise RuntimeError('SurfaceHenneberg.from_RZFourier() only works for stellarator symmetric surfaces')
+        if mmax is None:
+            mmax = surf.mpol
+        if nmax is None:
+            nmax = surf.ntor
+        if ntheta is None:
+            ntheta = mmax * 4
+        if nphi is None:
+            nphi = nmax * 4
+        logger.info(f'Beginning conversion with mmax={mmax}, nmax={nmax}, ntheta={ntheta}, nphi={nphi}')
+        nfp = surf.nfp
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+        alpha = 0.5 * nfp * alpha_fac
+
+        # Initialize arrays to store quantities in real-space:
+        R0_realsp = np.zeros(nphi)
+        Z0_realsp = np.zeros(nphi)
+        b_realsp = np.zeros(nphi)
+        rho_realsp = np.zeros((ntheta, nphi))
+
+        def b_min(theta, phi0, cosaphi, sinaphi):
+            """
+            This function is minimized as part of finding b.
+            """
+            R = 0
+            Z = 0
+            for m in range(surf.mpol + 1):
+                for n in range(-surf.ntor, surf.ntor + 1):
+                    angle = m * theta - n * nfp * phi0
+                    R += surf.get_rc(m, n) * np.cos(angle)
+                    Z += surf.get_zs(m, n) * np.sin(angle)
+            return Z * cosaphi - R * sinaphi
+
+        def b_max(theta, phi0, cosaphi, sinaphi):
+            return -b_min(theta, phi0, cosaphi, sinaphi)
+
+        for jphi, phi0 in enumerate(phi):
+            logger.debug(f'Transforming jphi={jphi} of {nphi}')
+            cosaphi = np.cos(alpha * phi0)
+            sinaphi = np.sin(alpha * phi0)
+
+            opt_result = minimize_scalar(b_min, args=(phi0, cosaphi, sinaphi))
+            min_for_b = opt_result.fun
+
+            opt_result = minimize_scalar(b_max, args=(phi0, cosaphi, sinaphi))
+            max_for_b = -opt_result.fun
+
+            b = 0.5 * (max_for_b - min_for_b)
+            Q = 0.5 * (max_for_b + min_for_b)
+
+            R = np.zeros(ntheta)
+            Z = np.zeros(ntheta)
+            d_Z_d_theta = np.zeros(ntheta)
+            d_R_d_theta = np.zeros(ntheta)
+            for m in range(surf.mpol + 1):
+                for n in range(-surf.ntor, surf.ntor + 1):
+                    angle = m * theta - n * nfp * phi0
+                    R += surf.get_rc(m, n) * np.cos(angle)
+                    Z += surf.get_zs(m, n) * np.sin(angle)
+                    d_Z_d_theta += surf.get_zs(m, n) * m * np.cos(angle)
+                    d_R_d_theta += surf.get_rc(m, n) * m * (-np.sin(angle))
+
+            d_Z_rot_d_theta = d_Z_d_theta * cosaphi - d_R_d_theta * sinaphi
+
+            # Old method:
+            """
+            theta_H = np.arcsin((Z * cosaphi - R * sinaphi - Q) / b) + alpha * phi0
+            # Copy the first element to the end, for periodicity:
+            d_Z_rot_d_theta_circ = np.concatenate((d_Z_rot_d_theta, [d_Z_rot_d_theta[0]]))
+            sign_flips = d_Z_rot_d_theta_circ[1:] * d_Z_rot_d_theta_circ[:-1]
+            sign_flip_indices = [j for j in range(ntheta) if sign_flips[j] <= 0]
+            if len(sign_flip_indices) != 2:
+                raise RuntimeError(f'More than 2 sign flips detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}')
+            #print('Number of sign flips:', np.sum(sign_flips <= 0))
+            #print('sign flip indices:', sign_flip_indices)
+            theta_H[sign_flip_indices[0] + 1 : sign_flip_indices[1] + 1] = np.pi - theta_H[sign_flip_indices[0] + 1:sign_flip_indices[1] + 1] + 2 * alpha * phi0
+            theta_H[sign_flip_indices[1] + 1:] += 2 * np.pi
+            """
+
+            # New method:
+            arcsin_term = np.arcsin((Z * cosaphi - R * sinaphi - Q) / b)
+            # arcsin returns values in the range [-pi/2, pi/2]
+            mask = d_Z_rot_d_theta < 0
+            arcsin_term[mask] = np.pi - arcsin_term[mask]
+            mask = arcsin_term < 0
+            arcsin_term[mask] = arcsin_term[mask] + 2 * np.pi
+            theta_H = arcsin_term + alpha * phi0
+
+            # Copy arrays 3 times, so endpoints are interpolated correctly:
+            theta_H_3 = np.concatenate((theta_H - 2 * np.pi, theta_H, theta_H + 2 * np.pi))
+            R_3 = np.concatenate((R, R, R))
+            Z_3 = np.concatenate((Z, Z, Z))
+            R_interp = interp1d(theta_H_3, R_3, kind='cubic')
+            Z_interp = interp1d(theta_H_3, Z_3, kind='cubic')
+
+            R_H = R_interp(theta)
+            Z_H = Z_interp(theta)
+
+            avg_R = np.mean(R_H)
+            avg_Z = np.mean(Z_H)
+
+            R0H = avg_R * cosaphi * cosaphi + avg_Z * sinaphi * cosaphi - Q * sinaphi
+            Z0H = avg_R * cosaphi * sinaphi + avg_Z * sinaphi * sinaphi + Q * cosaphi
+
+            R0_realsp[jphi] = R0H
+            Z0_realsp[jphi] = Z0H
+            b_realsp[jphi] = b
+            rho_realsp[:, jphi] = (R_H - R0H) * cosaphi + (Z_H - Z0H) * sinaphi
+
+        surf_H = cls(nfp=nfp, alpha_fac=alpha_fac, mmax=mmax, nmax=nmax)
+        # Now convert from real-space to Fourier space.
+        # Start with the 0-frequency terms:
+        surf_H.R0nH[0] = np.mean(R0_realsp)
+        surf_H.bn[0] = np.mean(b_realsp)
+        Z00H = np.mean(Z0_realsp)
+        logger.info(f'n=0 term of Z0nH: {Z00H} (should be ~ 0)')
+        assert np.abs(Z00H) < 1.0e-6
+        rho00 = np.mean(rho_realsp)
+        logger.info(f'm=n=0 term of rho_mn: {rho00} (should be ~ 0)')
+        assert np.abs(rho00) < 1.0e-6
+
+        # Now handle 1D arrays:
+        for n in range(1, nmax + 1):
+            cosnphi_fac = np.cos(n * nfp * phi) / nphi
+            sinnphi_fac = np.sin(n * nfp * phi) / nphi
+            surf_H.R0nH[n] = 2 * np.sum(R0_realsp * cosnphi_fac)
+            surf_H.Z0nH[n] = 2 * np.sum(Z0_realsp * sinnphi_fac)
+            surf_H.bn[n] = 2 * np.sum(b_realsp * cosnphi_fac)
+
+        # Transform rho:
+        phi2d, theta2d = np.meshgrid(phi, theta)
+        print('phi2d.shape:', phi2d.shape)
+        for m in range(mmax + 1):
+            nmin = -nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, nmax + 1):
+                # Eq above (4.5):
+                angle = m * theta2d + (n * nfp - alpha) * phi2d
+                surf_H.set_rhomn(m, n, 2 * np.sum(rho_realsp * np.cos(angle)) / (ntheta * nphi))
+
+        """
+        plt.figure()
+        plt.contourf(phi2d, theta2d, rho_realsp, 25)
+        plt.colorbar()
+        plt.xlabel('phi')
+        plt.ylabel('theta')
+        plt.title('rho_realsp')
+        plt.show()
+        """
+
+        # Check transforms:        
+        b_alt = np.zeros(nphi)
+        R0_alt = np.zeros(nphi)
+        Z0_alt = np.zeros(nphi)
+        for n in range(nmax + 1):
+            b_alt += surf_H.bn[n] * np.cos(n * nfp * phi)
+            R0_alt += surf_H.R0nH[n] * np.cos(n * nfp * phi)
+            Z0_alt += surf_H.Z0nH[n] * np.sin(n * nfp * phi)
+
+        print('b_realsp:', b_realsp)
+        print('b_alt:   ', b_alt)
+        print('bn:', surf_H.bn)
+        print('Diff in b:', np.max(np.abs(b_alt - b_realsp)))
+        print('Diff in R0:', np.max(np.abs(R0_alt - R0_realsp)))
+        print('Diff in Z0:', np.max(np.abs(Z0_alt - Z0_realsp)))
+
+        rho_alt = np.zeros((ntheta, nphi))
+        for m in range(mmax + 1):
+            nmin = -nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, nmax + 1):
+                angle = m * theta2d + (n * nfp - alpha) * phi2d
+                rho_alt += surf_H.get_rhomn(m, n) * np.cos(angle)
+        print('rho_realsp:', rho_realsp)
+        print('rho_alt:   ', rho_alt)
+        print('Diff in rho:', np.max(np.abs(rho_realsp - rho_alt)))
+
+        return surf_H
 
     def area_volume(self):
         """
