@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import ellipk, ellipe
-from simsopt.geo.magneticfield import MagneticField
+from simsopt.field.magneticfield import MagneticField
 import simsoptpp as sopp
 try:
     from sympy.parsing.sympy_parser import parse_expr
