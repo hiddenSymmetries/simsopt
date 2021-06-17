@@ -5,7 +5,7 @@ from jax import vjp, jacfwd, jvp
 from .jit import jit
 import jax.numpy as jnp
 
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 
 
@@ -345,11 +345,11 @@ class Curve(Optimizable):
         return dkappadash_by_dcoeff
 
 
-class JaxCurve(sgpp.Curve, Curve):
+class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        sgpp.Curve.__init__(self, quadpoints)
+        sopp.Curve.__init__(self, quadpoints)
         Curve.__init__(self)
         self.gamma_pure = gamma_pure
         points = np.asarray(self.quadpoints)
@@ -550,7 +550,7 @@ class JaxCurve(sgpp.Curve, Curve):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
 
-class RotatedCurve(sgpp.Curve, Curve):
+class RotatedCurve(sopp.Curve, Curve):
     
     """
     RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
@@ -559,7 +559,7 @@ class RotatedCurve(sgpp.Curve, Curve):
 
     def __init__(self, curve, theta, flip):
         self.curve = curve
-        sgpp.Curve.__init__(self, curve.quadpoints)
+        sopp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self)
         self.rotmat = np.asarray([
             [cos(theta), -sin(theta), 0],
@@ -743,3 +743,13 @@ class RotatedCurve(sgpp.Curve, Curve):
         """
 
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+
+def curves_to_vtk(curves, filename):
+    from pyevtk.hl import polyLinesToVTK
+    x = np.concatenate([c.gamma()[:, 0] for c in curves])
+    y = np.concatenate([c.gamma()[:, 1] for c in curves])
+    z = np.concatenate([c.gamma()[:, 2] for c in curves])
+    ppl = np.asarray([c.gamma().shape[0] for c in curves])
+    data = np.concatenate([i*np.ones((curves[i].gamma().shape[0], )) for i in range(len(curves))])
+    polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})

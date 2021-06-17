@@ -1,6 +1,6 @@
 #pragma once
 
-#include "surface.cpp"
+#include "surface.h"
 
 template<class Array>
 class SurfaceXYZTensorFourier : public Surface<Array> {

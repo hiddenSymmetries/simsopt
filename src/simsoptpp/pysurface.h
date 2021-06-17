@@ -1,6 +1,6 @@
 #pragma once
 
-#include "surface.cpp"
+#include "surface.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 
@@ -22,15 +22,15 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
             PYBIND11_OVERLOAD_PURE(vector<double>, SurfaceBase, get_dofs);
         }
         virtual void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_impl, data);
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_impl, data, quadpoints_phi, quadpoints_theta);
         }
         virtual void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_lin, data);
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_lin, data, quadpoints_phi, quadpoints_theta);
         }
-         virtual void gammadash1_impl(PyArray& data) override {
-            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash1_impl, data);
+        virtual void gammadash1_impl(PyArray& data) override {
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1_impl, data);
         }
         virtual void gammadash2_impl(PyArray& data) override {
-            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash2_impl, data);
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash2_impl, data);
         }
 };
