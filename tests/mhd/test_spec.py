@@ -3,9 +3,29 @@ import numpy as np
 import os
 import logging
 import shutil
-from simsopt.mhd.spec import spec_found
-if spec_found:
-    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
+
+#from simsopt.mhd.spec import spec_found
+#if spec_found:
+#    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
+try:
+    import spec
+    spec_found = True
+except:
+    spec_found = False
+
+try:
+    import pyoculus
+    pyoculus_found = True
+except:
+    pyoculus_found = False
+
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+if (MPI is not None) and spec_found:
+    from simsopt.mhd.spec import Spec, Residue
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
