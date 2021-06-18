@@ -3,7 +3,7 @@ from typing import Union
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
@@ -128,14 +128,14 @@ class SurfaceHenneberg(Surface):
         Return a particular :math:`\rho_{m,n}` coefficient.
         """
         self._validate_mn(m, n)
-        return self.rhomn[m, n - self.nmax]
+        return self.rhomn[m, n + self.nmax]
 
     def set_rhomn(self, m, n, val):
         r"""
         Set a particular :math:`\rho_{m,n}` coefficient.
         """
         self._validate_mn(m, n)
-        self.rhomn[m, n - self.nmax] = val
+        self.rhomn[m, n + self.nmax] = val
         self.recalculate = True
 
     def get_dofs(self):
@@ -144,7 +144,7 @@ class SurfaceHenneberg(Surface):
         """
         return np.concatenate((self.R0nH, self.Z0nH[1:], self.bn,
                                self.rhomn[0, self.nmax + 1:],
-                               np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='F')))
+                               np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='C')))
 
     def set_dofs(self, v):
         """
@@ -181,7 +181,7 @@ class SurfaceHenneberg(Surface):
         self.rhomn[0, self.nmax + 1:] = v[index: index + nvals]
         index += nvals
 
-        self.rhomn[1:, :] = np.reshape(v[index:], (self.mmax, 2 * self.nmax + 1), order='F')
+        self.rhomn[1:, :] = np.reshape(v[index:], (self.mmax, 2 * self.nmax + 1), order='C')
 
     def fixed_range(self, mmax, nmax, fixed=True):
         """
