@@ -191,12 +191,12 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       run: pip install coverage
 
-    - name: Run tests using coverage
+    - name: Run tests on 1 process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         coverage run --source=simsopt -m unittest discover -s tests
 
-    - name: Run tests using coverage
+    - name: Run MPI tests using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
@@ -219,7 +219,8 @@ jobs:
         if-no-files-found: error
 
     - name: Upload coverage to Codecov
-      if: contains(matrix.test-type, 'unit')
+      # The last conditional on the next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
+      if: contains(matrix.test-type, 'unit') && ${{ github.repository_owner == 'hiddenSymmetries' }}
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
