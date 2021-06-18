@@ -240,9 +240,14 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
                 auto res_grad_gamma_add = Vec3dSimd();
 #pragma unroll
                 for(int k=0; k<3; k++){
-                    res_grad_dgamma_by_dphi_add += vgrad_i[k] * norm_diff_inv_3;
-                    res_grad_gamma_add += diff * inner(vgrad_i[k], dgamma_j_by_dphi) * (3 * diff[k]) * norm_diff_inv_5 - vgrad_i[k] * norm_diff_inv_3;
+                    res_grad_dgamma_by_dphi_add -= vgrad_i[k] * norm_diff_inv_3 * diff[k]  ;
+                    res_grad_gamma_add -= diff * inner(vgrad_i[k], dgamma_j_by_dphi) * (3 * diff[k]) * norm_diff_inv_5;
                 }
+
+                res_grad_gamma_add.x += inner(vgrad_i[0], dgamma_j_by_dphi) * norm_diff_inv_3;
+                res_grad_gamma_add.y += inner(vgrad_i[1], dgamma_j_by_dphi) * norm_diff_inv_3;
+                res_grad_gamma_add.z += inner(vgrad_i[2], dgamma_j_by_dphi) * norm_diff_inv_3;
+                
                 res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
                 res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
                 res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);

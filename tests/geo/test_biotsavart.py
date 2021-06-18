@@ -83,33 +83,33 @@ class Testing(unittest.TestCase):
 #            assert err_new < 0.55 * err
 #            err = err_new
 
-#    def test_dA_by_dcoilcoeff_reverse_taylortest(self):
-#        np.random.seed(1)
-#        coil = get_coil()
-#        bs = BiotSavart([coil], [1e4])
-#        points = np.asarray(17* [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-#        points += 0.001 * (np.random.rand(*points.shape)-0.5)
-#
-#        bs.set_points(points)
-#        coil_dofs = np.asarray(coil.get_dofs())
-#        A = bs.A()
-#        J0 = np.sum(A**2)
-#        dJ = bs.A_vjp(A)
-#        
-#        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
-#        dJ_dh = 2*np.sum(dJ[0] * h)
-#        err = 1e6
-#        for i in range(5, 10):
-#            eps = 0.5**i
-#            coil.set_dofs(coil_dofs + eps * h)
-#            bs.clear_cached_properties()
-#            Ah = bs.A()
-#            Jh = np.sum(Ah**2)
-#            deriv_est = (Jh-J0)/eps
-#            err_new = np.linalg.norm(deriv_est-dJ_dh)
-#            print(err_new/err)
-#            assert err_new < 0.55 * err
-#            err = err_new
+    def test_dA_by_dcoilcoeff_reverse_taylortest(self):
+        np.random.seed(1)
+        coil = get_coil()
+        bs = BiotSavart([coil], [1e4])
+        points = np.asarray(17* [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+
+        bs.set_points(points)
+        coil_dofs = np.asarray(coil.get_dofs())
+        A = bs.A()
+        J0 = np.sum(A**2)
+        dJ = bs.A_vjp(A)
+        
+        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
+        dJ_dh = 2*np.sum(dJ[0] * h)
+        err = 1e6
+        for i in range(5, 10):
+            eps = 0.5**i
+            coil.set_dofs(coil_dofs + eps * h)
+            bs.clear_cached_properties()
+            Ah = bs.A()
+            Jh = np.sum(Ah**2)
+            deriv_est = (Jh-J0)/eps
+            err_new = np.linalg.norm(deriv_est-dJ_dh)
+            print(err_new/err)
+            assert err_new < 0.55 * err
+            err = err_new
 
 
     def test_dAdX_by_dcoilcoeff_reverse_taylortest(self):
@@ -137,7 +137,7 @@ class Testing(unittest.TestCase):
             Jh = np.sum(dAdXh**2)
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-dJ_dh)
-            print(err_new/err)
+            print(err_new/err, deriv_est, dJ_dh)
 #            assert err_new < 0.55 * err
             err = err_new
 
