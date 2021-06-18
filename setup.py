@@ -100,11 +100,11 @@ class CMakeBuild(build_ext):
             ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
         )
         subprocess.check_call(
-            ["cmake", "--build", ".", "--target", "simsgeopp"] + build_args, cwd=self.build_temp
+            ["cmake", "--build", ".", "--target", "simsoptpp"] + build_args, cwd=self.build_temp
         )
 
 
 setup(
-    ext_modules=[CMakeExtension("simsgeopp")],
+    ext_modules=[CMakeExtension("simsoptpp")],
     cmdclass={"build_ext": CMakeBuild}
 )

@@ -1,8 +1,25 @@
 import unittest
+import os
 from pathlib import Path
 import numpy as np
 
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
+
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+try:
+    import vmec
+    vmec_found = True
+except ImportError:
+    vmec_found = False
+
+if (MPI is not None) and vmec_found:
+    from simsopt.mhd.vmec import Vmec
+else:
+    Vmec = None
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -103,7 +120,7 @@ class SurfaceHennebergTests(unittest.TestCase):
         R0 = 1.5
         a = 0.3
         for nfp in range(1, 3):
-            for alpha_fac in [-1, 1]:
+            for alpha_fac in [-1, 0, 1]:
                 for mmax in range(1, 3):
                     for nmax in range(3):
                         surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac, mmax=mmax, nmax=nmax)
@@ -122,6 +139,33 @@ class SurfaceHennebergTests(unittest.TestCase):
                                 else:
                                     self.assertAlmostEqual(surf.get_rc(m, n), 0.0)
                                     self.assertAlmostEqual(surf.get_zs(m, n), 0.0)
+
+    @unittest.skipIf(Vmec is None, "Valid Python interface to VMEC not found")
+    def test_from_RZFourier(self):
+        """
+        Take a VMEC boundary in the original RZFourier representation,
+        convert it to the Henneberg representation, and convert it
+        back to the RZFourier representation. Coordinate-independent
+        quantities like the volume and area should not change. If the
+        result is converted to the Henneberg representation yet again,
+        the degrees of freedom should be unchanged from the earlier
+        Henneberg representation.
+        """
+        # Try a QI, QA, and a QH:
+        files = ['input.W7-X_standard_configuration', 'input.cfqs_2b40', 'input.NuhrenbergZille_1988_QHS']
+        alpha_facs = [1, 1, -1]
+        for test_file, alpha_fac in zip(files, alpha_facs):
+            vmec = Vmec(os.path.join(TEST_DIR, test_file))
+            surf1 = vmec.boundary
+            surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
+            surf3 = surf2.to_RZFourier()
+            np.testing.assert_allclose(surf1.volume(), surf3.volume(), atol=0, rtol=1e-3)
+            np.testing.assert_allclose(surf1.area(), surf3.area(), atol=0, rtol=1e-3)
+            surf4 = SurfaceHenneberg.from_RZFourier(surf3, alpha_fac, mmax=surf2.mmax, nmax=surf2.nmax)
+            np.testing.assert_allclose(surf2.R0nH, surf4.R0nH, atol=1e-12, rtol=1e-4)
+            np.testing.assert_allclose(surf2.Z0nH, surf4.Z0nH, atol=1e-12, rtol=1e-4)
+            np.testing.assert_allclose(surf2.bn, surf4.bn, atol=1e-12, rtol=1e-4)
+            np.testing.assert_allclose(surf2.rhomn, surf4.rhomn, atol=1e-8, rtol=1e-4)
 
 
 if __name__ == "__main__":

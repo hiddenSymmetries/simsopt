@@ -2,21 +2,28 @@ import unittest
 import logging
 
 import numpy as np
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
 
 from simsopt.objectives.functions import Identity, Rosenbrock, Beale
 from simsopt._core.optimizable import Target
 from simsopt.objectives.least_squares import LeastSquaresProblem, \
     LeastSquaresTerm
 from simsopt.solve.serial import least_squares_serial_solve, serial_solve
-from simsopt.util.mpi import MpiPartition
-from simsopt.solve.mpi import least_squares_mpi_solve
+if MPI is not None:
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.solve.mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [serial_solve, least_squares_serial_solve, mpi_solve_1group]
+solvers = [serial_solve, least_squares_serial_solve]
+if MPI is not None:
+    solvers.append(mpi_solve_1group)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
