@@ -300,6 +300,25 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
             res_gamma(j, 0) += res_gamma_add.coeff(0);
             res_gamma(j, 1) += res_gamma_add.coeff(1);
             res_gamma(j, 2) += res_gamma_add.coeff(2);
+        
+            MYIF(derivs>0) {
+                auto norm_diff_inv_5 = norm_diff_inv_3 * norm_diff_inv * norm_diff_inv;
+                auto res_grad_dgamma_by_dphi_add = Vec3d();
+                auto res_grad_gamma_add = Vec3d();
+#pragma unroll
+                for(int k=0; k<3; k++){
+                    res_grad_dgamma_by_dphi_add -= vgrad_i[k] * norm_diff_inv_3 * diff[k]  ;
+                    res_grad_gamma_add -= diff * inner(vgrad_i[k], dgamma_j_by_dphi) * (3 * diff[k]) * norm_diff_inv_5;
+                }
+                res_grad_gamma_add += Vec3d{inner(vgrad_i[0], dgamma_j_by_dphi), inner(vgrad_i[1], dgamma_j_by_dphi) , inner(vgrad_i[2], dgamma_j_by_dphi)}  * norm_diff_inv_3;
+
+                res_grad_dgamma_by_dphi(j, 0) += res_grad_dgamma_by_dphi_add.coeff(0);
+                res_grad_dgamma_by_dphi(j, 1) += res_grad_dgamma_by_dphi_add.coeff(1);
+                res_grad_dgamma_by_dphi(j, 2) += res_grad_dgamma_by_dphi_add.coeff(2);
+                res_grad_gamma(j, 0) += res_grad_gamma_add.coeff(0);
+                res_grad_gamma(j, 1) += res_grad_gamma_add.coeff(1);
+                res_grad_gamma(j, 2) += res_grad_gamma_add.coeff(2);
+            }
         }
     }
 
