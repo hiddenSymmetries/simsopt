@@ -293,6 +293,7 @@ PYBIND11_MODULE(simsgeopp, m) {
     m.def("biot_savart_vector_potential", &biot_savart_vector_potential);
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
+    m.def("biot_savart_vector_potential_vjp", &biot_savart_vector_potential_vjp);
 
 
 #ifdef VERSION_INFO
