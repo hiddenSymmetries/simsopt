@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
@@ -25,7 +26,10 @@ class SurfaceHenneberg(Surface):
     freedom :math:`\alpha` which should be :math:`\pm n_{fp}/2` where
     :math:`n_{fp}` is the number of field periods. The attribute
     ``alpha_fac`` corresponds to :math:`2\alpha/n_{fp}`, so
-    ``alpha_fac`` is either 1 or -1.
+    ``alpha_fac`` is either 1, 0, or -1. Using ``alpha_fac = 0`` is
+    appropriate for axisymmetry, while values of 1 or -1 are
+    appropriate for a stellarator, depending on the handedness of the
+    rotating elongation.
 
     For :math:`R_{0,n}^H` and :math:`b_n`, :math:`n` is 0 or any
     positive integer up through ``ntor`` (inclusive).  For
@@ -47,8 +51,8 @@ class SurfaceHenneberg(Surface):
     """
 
     def __init__(self, nfp, alpha_fac, mmax, nmax):
-        if alpha_fac != 1 and alpha_fac != -1:
-            raise ValueError('alpha_fac must be 1 or -1')
+        if alpha_fac > 1 or alpha_fac < -1:
+            raise ValueError('alpha_fac must be 1, 0, or -1')
 
         self.nfp = nfp
         self.alpha_fac = alpha_fac
@@ -67,7 +71,7 @@ class SurfaceHenneberg(Surface):
 
     def __repr__(self):
         return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", alpha=" + str(self.alpha_fac * 0.5) \
+            str(self.nfp) + ", alpha_fac=" + str(self.alpha_fac) \
             + ", mmax=" + str(self.mmax) + ", nmax=" + str(self.nmax) + ")"
 
     def allocate(self):
@@ -296,17 +300,24 @@ class SurfaceHenneberg(Surface):
     def from_RZFourier(cls,
                        surf,
                        alpha_fac: int,
-                       mmax=None,
-                       nmax=None,
-                       ntheta=None,
-                       nphi=None):
+                       mmax: Union[int, None] = None,
+                       nmax: Union[int, None] = None,
+                       ntheta: Union[int, None] = None,
+                       nphi: Union[int, None] = None):
         """
         Convert a :obj:`~.surfacerzfourier.SurfaceRZFourier` surface to a
         :obj:`SurfaceHenneberg` surface.
 
         Args:
             surf: The :obj:`~.surfacerzfourier.SurfaceRZFourier` object to convert.
-            mmax: 
+            mmax: Maximum poloidal mode number to include in the new surface. If ``None``,
+              the value ``mpol`` from the old surface will be used.
+            nmax: Maximum toroidal mode number to include in the new surface. If ``None``,
+              the value ``ntor`` from the old surface will be used.
+            ntheta: Number of grid points in the poloidal angle used for the transformation.
+              If ``None``, the value ``3 * ntheta`` will be used.
+            nphi: Number of grid points in the toroidal angle used for the transformation.
+              If ``None``, the value ``3 * nphi`` will be used.
         """
         if not surf.stellsym:
             raise RuntimeError('SurfaceHenneberg.from_RZFourier() only works for stellarator symmetric surfaces')
@@ -315,9 +326,9 @@ class SurfaceHenneberg(Surface):
         if nmax is None:
             nmax = surf.ntor
         if ntheta is None:
-            ntheta = mmax * 4
+            ntheta = mmax * 3
         if nphi is None:
-            nphi = nmax * 4
+            nphi = nmax * 3
         logger.info(f'Beginning conversion with mmax={mmax}, nmax={nmax}, ntheta={ntheta}, nphi={nphi}')
         nfp = surf.nfp
         theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
@@ -346,15 +357,17 @@ class SurfaceHenneberg(Surface):
         def b_max(theta, phi0, cosaphi, sinaphi):
             return -b_min(theta, phi0, cosaphi, sinaphi)
 
+        # An independent transformation is performed at each grid point in phi:
         for jphi, phi0 in enumerate(phi):
             logger.debug(f'Transforming jphi={jphi} of {nphi}')
             cosaphi = np.cos(alpha * phi0)
             sinaphi = np.sin(alpha * phi0)
 
-            opt_result = minimize_scalar(b_min, args=(phi0, cosaphi, sinaphi))
+            # Find the max and min of the surface in the zeta direction:
+            opt_result = minimize_scalar(b_min, args=(phi0, cosaphi, sinaphi), tol=1e-12)
             min_for_b = opt_result.fun
 
-            opt_result = minimize_scalar(b_max, args=(phi0, cosaphi, sinaphi))
+            opt_result = minimize_scalar(b_max, args=(phi0, cosaphi, sinaphi), tol=1e-12)
             max_for_b = -opt_result.fun
 
             b = 0.5 * (max_for_b - min_for_b)
@@ -372,26 +385,34 @@ class SurfaceHenneberg(Surface):
                     d_Z_d_theta += surf.get_zs(m, n) * m * np.cos(angle)
                     d_R_d_theta += surf.get_rc(m, n) * m * (-np.sin(angle))
 
+            # Now compute the new theta for each grid point in the old
+            # theta.  This mostly amount to taking an arcsin, but we
+            # must be careful to assign points to the proper half of
+            # [0, 2pi], since arcsin by itself only returns values in
+            # the range [-pi/2, pi/2].
             d_Z_rot_d_theta = d_Z_d_theta * cosaphi - d_R_d_theta * sinaphi
-
-            # Old method:
-            """
-            theta_H = np.arcsin((Z * cosaphi - R * sinaphi - Q) / b) + alpha * phi0
             # Copy the first element to the end, for periodicity:
             d_Z_rot_d_theta_circ = np.concatenate((d_Z_rot_d_theta, [d_Z_rot_d_theta[0]]))
             sign_flips = d_Z_rot_d_theta_circ[1:] * d_Z_rot_d_theta_circ[:-1]
-            sign_flip_indices = [j for j in range(ntheta) if sign_flips[j] <= 0]
+            sign_flip_indices = [j for j in range(ntheta) if sign_flips[j] < 0]
             if len(sign_flip_indices) != 2:
-                raise RuntimeError(f'More than 2 sign flips detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}')
-            #print('Number of sign flips:', np.sum(sign_flips <= 0))
-            #print('sign flip indices:', sign_flip_indices)
-            theta_H[sign_flip_indices[0] + 1 : sign_flip_indices[1] + 1] = np.pi - theta_H[sign_flip_indices[0] + 1:sign_flip_indices[1] + 1] + 2 * alpha * phi0
-            theta_H[sign_flip_indices[1] + 1:] += 2 * np.pi
-            """
+                logger.warning(f'A number of sign flips other than 2 detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}.' \
+                               ' This may mean the surface cannot be represented in Henneberg form.' \
+                               f' sign_flips={sign_flips}')
 
-            # New method:
-            arcsin_term = np.arcsin((Z * cosaphi - R * sinaphi - Q) / b)
-            # arcsin returns values in the range [-pi/2, pi/2]
+            temp = (Z * cosaphi - R * sinaphi - Q) / b
+            if np.any(temp > 1):
+                # Going outside [-1, 1] by ~ roundoff is okay, but
+                # warn if we are much farther than that.
+                if np.any(temp > 1 + 1.0e-12):
+                    logger.warning(f'Argument of arcsin exceeds 1: {temp[temp > 1] - 1}')
+                temp[temp > 1] = 1.0
+            if np.any(temp < -1):
+                if np.any(temp < -1 - 1.0e-12):
+                    logger.warning(f'Argument of arcsin is below -1: {temp[temp < -1] + 1}')
+                temp[temp < -1] = -1.0
+
+            arcsin_term = np.arcsin(temp)
             mask = d_Z_rot_d_theta < 0
             arcsin_term[mask] = np.pi - arcsin_term[mask]
             mask = arcsin_term < 0
@@ -441,7 +462,7 @@ class SurfaceHenneberg(Surface):
 
         # Transform rho:
         phi2d, theta2d = np.meshgrid(phi, theta)
-        print('phi2d.shape:', phi2d.shape)
+        #print('phi2d.shape:', phi2d.shape)
         for m in range(mmax + 1):
             nmin = -nmax
             if m == 0:
@@ -461,7 +482,8 @@ class SurfaceHenneberg(Surface):
         plt.show()
         """
 
-        # Check transforms:        
+        # Check that the inverse-transform of the transform gives back
+        # the original arrays, approximately:
         b_alt = np.zeros(nphi)
         R0_alt = np.zeros(nphi)
         Z0_alt = np.zeros(nphi)
@@ -485,8 +507,8 @@ class SurfaceHenneberg(Surface):
             for n in range(nmin, nmax + 1):
                 angle = m * theta2d + (n * nfp - alpha) * phi2d
                 rho_alt += surf_H.get_rhomn(m, n) * np.cos(angle)
-        print('rho_realsp:', rho_realsp)
-        print('rho_alt:   ', rho_alt)
+        #print('rho_realsp:', rho_realsp)
+        #print('rho_alt:   ', rho_alt)
         print('Diff in rho:', np.max(np.abs(rho_realsp - rho_alt)))
 
         return surf_H

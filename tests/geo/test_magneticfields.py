@@ -1,14 +1,22 @@
 from simsopt.geo.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    Reiman, sympy_found
+    Reiman, sympy_found, InterpolatedField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.biotsavart import BiotSavart
+from simsopt.geo.coilcollection import CoilCollection
+from .surface_test_helpers import get_ncsx_data
 
 import numpy as np
 import unittest
+
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
 
 
 class Testing(unittest.TestCase):
@@ -73,17 +81,24 @@ class Testing(unittest.TestCase):
         # Set up sum of the three in two different ways
         Btotal1 = MagneticFieldSum([Bhelical, Btoroidal1, Btoroidal2])
         Btotal2 = Bhelical+Btoroidal1+Btoroidal2
+        Btotal3 = Btoroidal1+Btoroidal2
         # Evaluate at a given point
         Bhelical.set_points(points)
         Btoroidal1.set_points(points)
         Btoroidal2.set_points(points)
         Btotal1.set_points(points)
         Btotal2.set_points(points)
+        Btotal3.set_points(points)
         # Verify
         assert np.allclose(Btotal1.B(), Btotal2.B())
         assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(), Btotal1.B())
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
+
+        assert np.allclose(Btoroidal1.d2B_by_dXdX()+Btoroidal2.d2B_by_dXdX(), Btotal3.d2B_by_dXdX())
+        assert np.allclose(Btoroidal1.A()+Btoroidal2.A(), Btotal3.A())
+        assert np.allclose(Btoroidal1.dA_by_dX()+Btoroidal2.dA_by_dX(), Btotal3.dA_by_dX())
+        assert np.allclose(Btoroidal1.d2A_by_dXdX()+Btoroidal2.d2A_by_dXdX(), Btotal3.d2A_by_dXdX())
 
     @unittest.skipIf(not sympy_found, "Sympy not found")
     def test_scalarpotential_Bfield(self):
@@ -362,6 +377,102 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
+
+    def test_interpolated_field_close(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        btotal = bs + B0
+        n = 10
+        rmin = 1.5
+        rmax = 1.7
+        rsteps = n
+        phimin = 0
+        phimax = 2*np.pi
+        phisteps = n*32
+        zmin = -0.1
+        zmax = 0.1
+        zsteps = n
+        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
+        N = 10
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(zmax-zmin) + zmin
+        bsh.set_points_cyl(points)
+        btotal.set_points_cyl(points)
+        B = btotal.B()
+        Bh = bsh.B()
+        dB = btotal.GradAbsB()
+        dBh = bsh.GradAbsB()
+        print("btotal.B()", B)
+        print("bsh.B()", Bh)
+        print("btotal.GradAbsB(()", dB)
+        print("bsh.GradAbsB()", dBh)
+        assert np.allclose(B, Bh, rtol=1e-3)
+        assert np.allclose(dB, dBh, rtol=1e-3)
+
+    def test_interpolated_field_convergence_rate(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        old_err_1 = 1e6
+        old_err_2 = 1e6
+        btotal = bs + B0
+
+        for n in [4, 8, 16]:
+            rmin = 1.3
+            rmax = 1.7
+            rsteps = n
+            phimin = 0
+            phimax = 2*np.pi
+            phisteps = n*32
+            zmin = -0.1
+            zmax = 0.1
+            zsteps = n
+            bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
+            err_1 = np.mean(bsh.estimate_error_B(1000))
+            err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
+            print(err_1, err_2)
+            assert err_1 < 0.6**3 * old_err_1
+            assert err_2 < 0.6**3 * old_err_2
+            old_err_1 = err_1
+            old_err_2 = err_2
+
+    def test_get_set_points_cyl_cart(self):
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        points_xyz = np.asarray([[0.5, 0.6, 0.7]])
+        points_rphiz = np.zeros_like(points_xyz)
+        points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
+        points_rphiz[:, 1] = np.mod(np.arctan2(points_xyz[:, 1], points_xyz[:, 0]), 2*np.pi)
+        points_rphiz[:, 2] = points_xyz[:, 2]
+        bs.set_points_cyl(points_rphiz)
+        # import IPython; IPython.embed()
+        # import sys; sys.exit()
+        assert np.allclose(bs.get_points_cyl(), points_rphiz)
+        assert np.allclose(bs.get_points_cart(), points_xyz)
+
+        bs.set_points_cart(points_xyz)
+        assert np.allclose(bs.get_points_cyl(), points_rphiz)
+        assert np.allclose(bs.get_points_cart(), points_xyz)
+
+    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    def test_to_vtk(self):
+        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs.to_vtk('/tmp/bfield')
 
 
 if __name__ == "__main__":

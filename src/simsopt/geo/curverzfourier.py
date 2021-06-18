@@ -1,10 +1,10 @@
 import numpy as np
 
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .curve import Curve
 
 
-class CurveRZFourier(sgpp.CurveRZFourier, Curve):
+class CurveRZFourier(sopp.CurveRZFourier, Curve):
     r"""
     CurveRZFourier is a curve that is represented in cylindrical
        coordinates using the following Fourier series:
@@ -31,19 +31,19 @@ class CurveRZFourier(sgpp.CurveRZFourier, Curve):
             quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        sgpp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
+        sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
         Curve.__init__(self)
 
     def get_dofs(self):
         """
         This function returns the dofs associated to this object.
         """
-        return np.asarray(sgpp.CurveRZFourier.get_dofs(self))
+        return np.asarray(sopp.CurveRZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
         """
         This function sets the dofs associated to this object.
         """
-        sgpp.CurveRZFourier.set_dofs(self, dofs)
+        sopp.CurveRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
