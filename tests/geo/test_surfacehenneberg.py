@@ -112,6 +112,37 @@ class SurfaceHennebergTests(unittest.TestCase):
         np.testing.assert_equal(surf.fixed, [False, False, False, False, False, False,
                                              False, False, False, True, True, True])
 
+    def test_indexing(self):
+        """
+        Check that set_rhomn() sets the expected element of the dofs vector.
+        """
+        mmax = 3
+        nmax = 2
+        surf = SurfaceHenneberg(nfp=2, alpha_fac=1, mmax=mmax, nmax=nmax)
+        for n in range(nmax + 1):
+            surf.R0nH[n] = 1000.0 + n
+            surf.bn[n] = 2000.0 + n
+        for n in range(1, nmax + 1):
+            surf.Z0nH[n] = 3000.0 + n
+        for m in range(mmax + 1):
+            nmin = -nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, nmax + 1):
+                surf.set_rhomn(m, n, m * 100 + n)
+
+        x = surf.get_dofs()
+        np.testing.assert_allclose(x, [1.000e+03, 1.001e+03, 1.002e+03, 3.001e+03, 3.002e+03, 2.000e+03, 2.001e+03, \
+                                       2.002e+03, 1.000e+00, 2.000e+00, 9.800e+01, 9.900e+01, 1.000e+02, 1.010e+02, \
+                                       1.020e+02, 1.980e+02, 1.990e+02, 2.000e+02, 2.010e+02, 2.020e+02, 2.980e+02, \
+                                       2.990e+02, 3.000e+02, 3.010e+02, 3.020e+02])
+        self.assertListEqual(surf.names, ['R0nH(0)', 'R0nH(1)', 'R0nH(2)', 'Z0nH(1)', 'Z0nH(2)', 'bn(0)',
+                                          'bn(1)', 'bn(2)', 'rhomn(0,1)', 'rhomn(0,2)', 'rhomn(1,-2)',
+                                          'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)', 'rhomn(1,2)',
+                                          'rhomn(2,-2)', 'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)',
+                                          'rhomn(2,2)', 'rhomn(3,-2)', 'rhomn(3,-1)', 'rhomn(3,0)',
+                                          'rhomn(3,1)', 'rhomn(3,2)'])
+
     def test_axisymm(self):
         """
         Verify to_RZFourier() for an axisymmetric surface with circular
