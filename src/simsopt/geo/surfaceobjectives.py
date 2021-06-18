@@ -73,7 +73,9 @@ class ToroidalFlux(object):
         return dJ_by_dA.reshape((-1, 3))
 
     def dJ_by_dcoilcoefficients(self):
-        return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
+        dJ_by_dA = self.dJ_by_dA()
+        dJ = self.biotsavart.A_vjp(dJ_by_dA)
+        return dJ
 
     def dJ_by_dsurfacecoefficients(self):
         """
