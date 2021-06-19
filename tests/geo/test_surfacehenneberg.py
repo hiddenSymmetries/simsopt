@@ -1,9 +1,13 @@
 import unittest
 import os
+import logging
 from pathlib import Path
 import numpy as np
 
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
+
+#logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 try:
     from mpi4py import MPI
@@ -197,6 +201,31 @@ class SurfaceHennebergTests(unittest.TestCase):
             np.testing.assert_allclose(surf2.Z0nH, surf4.Z0nH, atol=1e-12, rtol=1e-4)
             np.testing.assert_allclose(surf2.bn, surf4.bn, atol=1e-12, rtol=1e-4)
             np.testing.assert_allclose(surf2.rhomn, surf4.rhomn, atol=1e-8, rtol=1e-4)
+
+    @unittest.skipIf(Vmec is None, "Valid Python interface to VMEC not found")
+    def test_vmec(self):
+        """
+        If we run VMEC using a given boundary shape, then convert the
+        boundary to the Henneberg representation and convert back and
+        run VMEC again, the rotational transform should be almost
+        identical.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'input.cfqs_2b40'))
+        vmec.run()
+        iota1 = vmec.wout.iotaf
+
+        vmec.boundary = SurfaceHenneberg.from_RZFourier(vmec.boundary, 1)
+        vmec.need_to_run_code = True
+        vmec.run()
+        iota2 = vmec.wout.iotaf
+
+        logger.info(f'iota1: {iota1}')
+        logger.info(f'iota2: {iota2}')
+        logger.info(f'diff: {iota1 - iota2}')
+        np.testing.assert_allclose(iota1, iota2, atol=1e-3, rtol=1e-3)
+        # But if the 2 iota profiles are _exactly_ the same, vmec must
+        # not have actually used the converted boundary.
+        self.assertTrue(np.max(np.abs(iota1 - iota2)) > 1e-12)
 
 
 if __name__ == "__main__":
