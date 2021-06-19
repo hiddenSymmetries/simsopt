@@ -35,6 +35,7 @@ extensions = [
               'sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx.ext.mathjax',
+              'sphinx.ext.intersphinx',
 ]
 
 autodoc_mock_imports=['mpi4py', 'pyoculus', 'py_spec']

@@ -1,9 +1,9 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .surface import Surface
 
 
-class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
+class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     r"""`SurfaceRZFourier` is a surface that is represented in cylindrical
     coordinates using the following Fourier series:
 
@@ -28,7 +28,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sgpp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
@@ -39,7 +39,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         """
         Return the dofs associated to this surface.
         """
-        return np.asarray(sgpp.SurfaceRZFourier.get_dofs(self))
+        return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
 
     def make_names(self):
         """
@@ -265,7 +265,7 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         """
         Return a `SurfaceGarabedian` object with the identical shape.
 
-        For a derivation of the transformation here, see 
+        For a derivation of the transformation here, see
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         if not self.stellsym:
@@ -286,12 +286,12 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         return s
 
     def set_dofs(self, dofs):
-        sgpp.SurfaceRZFourier.set_dofs(self, dofs)
+        sopp.SurfaceRZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 
     def darea(self):
-        """ 
+        """
         Short hand for `Surface.darea_by_dcoeff()`
         """
         return self.darea_by_dcoeff()
@@ -301,8 +301,3 @@ class SurfaceRZFourier(sgpp.SurfaceRZFourier, Surface):
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
-
-    def set_dofs(self, dofs):
-        sgpp.SurfaceRZFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()

@@ -4,8 +4,14 @@ import unittest
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
+
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
 
 parameters['jit'] = False
 
@@ -376,6 +382,12 @@ class Testing(unittest.TestCase):
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated)
+
+    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    def test_curve_to_vtk(self):
+        curve0 = get_curve(self.curvetypes[0], False)
+        curve1 = get_curve(self.curvetypes[1], True)
+        curves_to_vtk([curve0, curve1], '/tmp/curves')
 
 
 if __name__ == "__main__":

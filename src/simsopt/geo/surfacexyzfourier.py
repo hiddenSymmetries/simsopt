@@ -1,10 +1,10 @@
 import numpy as np
-import simsgeopp as sgpp
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
 
-class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
+class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     r"""`SurfaceXYZFourier` is a surface that is represented in Cartesian
     coordinates using the following Fourier series:
 
@@ -40,7 +40,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sgpp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
@@ -50,7 +50,7 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         """
         Return the dofs associated to this surface.
         """
-        return np.asarray(sgpp.SurfaceXYZFourier.get_dofs(self))
+        return np.asarray(sopp.SurfaceXYZFourier.get_dofs(self))
 
     def to_RZFourier(self):
         """
@@ -77,6 +77,6 @@ class SurfaceXYZFourier(sgpp.SurfaceXYZFourier, Surface):
         """
         Set the dofs associated to this surface.
         """
-        sgpp.SurfaceXYZFourier.set_dofs(self, dofs)
+        sopp.SurfaceXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()

@@ -1,8 +1,10 @@
 import unittest
-from mpi4py import MPI
-import numpy as np
 import os
-#from simsopt.mhd.vmec_f90wrap.core import run_modes
+import numpy as np
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
 try:
     import vmec
     vmec_found = True

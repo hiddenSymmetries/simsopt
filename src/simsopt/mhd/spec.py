@@ -13,32 +13,50 @@ import traceback
 
 import numpy as np
 
-spec_found = True
+logger = logging.getLogger(__name__)
+
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None 
+    logger.warning(str(e))
+
+# spec_found = True
 try:
     import spec
 except ImportError as e:
-    spec_found = False
+    spec = None
+    logger.warning(str(e))
+    # spec_found = False
 
-py_spec_found = True
+# py_spec_found = True
 try:
     import py_spec
 except ImportError as e:
-    py_spec_found = False
+    py_spec = None
+    logger.warning(str(e))
+    # py_spec_found = False
 
-pyoculus_found = True
+# pyoculus_found = True
 try:
     import pyoculus
 except ImportError as e:
-    pyoculus_found = False
+    pyoculus = None
+    logger.warning(str(e))
+    # pyoculus_found = False
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
-from ..util.mpi import MpiPartition
+from ..util.dev import SimsoptRequires
+if MPI is not None:
+    from ..util.mpi import MpiPartition
+else:
+    MpiPartition = None
+#from ..util.mpi import MpiPartition
 
-logger = logging.getLogger(__name__)
 
-
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running SPEC")
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -76,11 +94,13 @@ class Spec(Optimizable):
                  verbose: bool = True,
                  keep_all_files: bool = False):
 
-        if not spec_found:
+        #if not spec_found:
+        if spec is None:
             raise RuntimeError(
                 "Using Spec requires spec python wrapper to be installed.")
 
-        if not py_spec_found:
+        #if not py_spec_found:
+        if py_spec is None:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
 
@@ -345,10 +365,12 @@ class Residue(Optimizable):
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
         """
-        if not spec_found:
+        # if not spec_found:
+        if spec is None:
             raise RuntimeError(
                 "Residue requires py_spec package to be installed.")
-        if not pyoculus_found:
+        # if not pyoculus_found:
+        if pyoculus is None:
             raise RuntimeError(
                 "Residue requires pyoculus package to be installed.")
 
