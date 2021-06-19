@@ -69,7 +69,7 @@ Then we create the equilibrium object, starting from an input file::
 
   equil = Spec('2DOF_targetIotaAndVolume.sp')
 
-This file can be found in the ``examples`` directory; you can prepend
+This file can be found in the ``examples/stellarator_benchmarks/inputs`` directory; you can prepend
 the path to the filename if needed.
 
 Next, we define the independent variables for the optimization, by
