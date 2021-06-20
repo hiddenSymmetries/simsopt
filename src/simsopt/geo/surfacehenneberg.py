@@ -15,9 +15,23 @@ class SurfaceHenneberg(Surface):
     r"""
     This class represents a toroidal surface using the
     parameterization in Henneberg, Helander, and Drevlak,
-    arXiv:2105.00768 (2021).
+    arXiv:2105.00768 (2021). Stellarator symmetry is assumed.
 
-    In the implementation here, stellarator symmetry is assumed.
+    In this representation by Henneberg et al, the cylindrical
+    coordinates :math:`(R,\phi,Z)` are written in terms of a unique
+    poloidal angle :math:`\theta` as follows:
+
+    .. math::
+        R(\theta,\phi) = R_0^H(\phi) + \rho(\theta,\phi) \cos(\alpha\phi) - \zeta(\theta,\phi) \sin(\alpha\phi), \\
+        Z(\theta,\phi) = Z_0^H(\phi) + \rho(\theta,\phi) \sin(\alpha\phi) + \zeta(\theta,\phi) \cos(\alpha\phi),
+
+    where
+
+    .. math::
+        R_0^H(\phi) &=& \sum_{n=0}^{nmax} R_{0,n}^H \cos(n_{fp} n \phi), \\
+        Z_0^H(\phi) &=& \sum_{n=1}^{nmax} Z_{0,n}^H \sin(n_{fp} n \phi), \\
+        \zeta(\theta,\phi) &=& \sum_{n=0}^{nmax} b_n \cos(n_{fp} n \phi) \sin(\theta - \alpha \phi), \\
+        \rho(\theta,\phi) &=& \sum_{n,m} \rho_{n,m} \cos(m \theta - n_{fp} n \phi - \alpha \phi).
 
     The continuous degrees of freedom are :math:`\{\rho_{m,n}, b_n,
     R_{0,n}^H, Z_{0,n}^H\}`.  These variables correspond to the
@@ -32,13 +46,13 @@ class SurfaceHenneberg(Surface):
     rotating elongation.
 
     For :math:`R_{0,n}^H` and :math:`b_n`, :math:`n` is 0 or any
-    positive integer up through ``ntor`` (inclusive).  For
+    positive integer up through ``nmax`` (inclusive).  For
     :math:`Z_{0,n}^H`, :math:`n` is any positive integer up through
-    ``ntor``.  For :math:`\rho_{m,n}`, :math:`m` is an integer from 0
-    through ``mpol`` (inclusive). For positive values of :math:`m`,
-    :math:`n` can be any integer from ``-ntor`` through ``ntor``.  For
+    ``nmax``.  For :math:`\rho_{m,n}`, :math:`m` is an integer from 0
+    through ``mmax`` (inclusive). For positive values of :math:`m`,
+    :math:`n` can be any integer from ``-nmax`` through ``nmax``.  For
     :math:`m=0`, :math:`n` is restricted to integers from 1 through
-    ``ntor``.  Note that we exclude the element of :math:`\rho_{m,n}`
+    ``nmax``.  Note that we exclude the element of :math:`\rho_{m,n}`
     with :math:`m=n=0`, because this degree of freedom is already
     represented in :math:`R_{0,0}^H`.
 
@@ -50,7 +64,7 @@ class SurfaceHenneberg(Surface):
     index corresponding to ``n=0``.
     """
 
-    def __init__(self, nfp, alpha_fac, mmax, nmax):
+    def __init__(self, nfp: int, alpha_fac: int, mmax: int, nmax: int):
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
 
@@ -60,6 +74,8 @@ class SurfaceHenneberg(Surface):
         self.nmax = nmax
         self.stellsym = True
         self.allocate()
+        # The recalculate attribute could be used in the future for
+        # cacheing, but it is not used for anything yet.
         self.recalculate = True
 
         # Initialize to an axisymmetric torus with major radius 1m and
@@ -513,34 +529,23 @@ class SurfaceHenneberg(Surface):
 
         return surf_H
 
-    def area_volume(self):
-        """
-        Compute the surface area and the volume enclosed by the surface.
-        """
-        if self.recalculate:
-            logger.info('Running calculation of area and volume')
-        else:
-            logger.info('area_volume called, but no need to recalculate')
-            return
-
-        self.recalculate = False
-
-        # Delegate to the area and volume calculations of SurfaceRZFourier():
-        s = self.to_RZFourier()
-        self._area = s.area()
-        self._volume = s.volume()
-
     def area(self):
         """
-        Return the area of the surface.
+        Return the area of the surface. In the future this could be
+        computed directly within the Henneberg representation rather
+        than via transformation to RZFourier, if an application arises
+        for which speed is critical.
         """
-        self.area_volume()
-        return self._area
+        s = self.to_RZFourier()
+        return s.area()
 
     def volume(self):
         """
-        Return the volume of the surface.
+        Return the volume of the surface. In the future this could be
+        computed directly within the Henneberg representation rather
+        than via transformation to RZFourier, if an application arises
+        for which speed is critical.
         """
-        self.area_volume()
-        return self._volume
+        s = self.to_RZFourier()
+        return s.volume()
 
