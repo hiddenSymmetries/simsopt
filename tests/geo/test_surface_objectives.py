@@ -415,7 +415,9 @@ class NonQuasiAxiSymmetricComponentPenaltyTests(unittest.TestCase):
             dJ_curr, dJ_coil = problem.dJ()
             return np.concatenate([dJ_curr, dJ_coil])
         
-        taylor_test1(f, df, coeffs)
+        h = np.zeros(coeffs.shape)
+        h[-1]=1.
+        taylor_test1(f, df, coeffs, direction=h)
 
 
 

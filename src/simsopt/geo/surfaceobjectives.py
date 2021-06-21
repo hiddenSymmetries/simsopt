@@ -64,6 +64,12 @@ class ToroidalFlux(object):
         self.idx = idx
         x = self.surface.gamma()[self.idx]
         self.biotsavart.set_points(x)
+        self.surface.dependencies.append(self)
+        self.invalidate_cache()
+    
+    def invalidate_cache(self):
+        x = self.surface.gamma()[self.idx]
+        self.biotsavart.set_points(x)
 
     def J(self):
         xtheta = self.surface.gammadash2()[self.idx]
@@ -94,9 +100,6 @@ class ToroidalFlux(object):
         """
         Calculate the derivatives with respect to the surface coefficients
         """
-        x = self.surface.gamma()[self.idx]
-        self.biotsavart.set_points(x)
-
         ntheta = self.surface.gamma().shape[1]
         dA_by_dX = self.biotsavart.dA_by_dX()
         A = self.biotsavart.A()
@@ -115,9 +118,6 @@ class ToroidalFlux(object):
         """
         Calculate the second derivatives with respect to the surface coefficients
         """
-        x = self.surface.gamma()[self.idx]
-        self.biotsavart.set_points(x)
-
         ntheta = self.surface.gamma().shape[1]
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
         d2A_by_dXdX = self.biotsavart.d2A_by_dXdX().reshape((ntheta, 3, 3, 3))
@@ -172,39 +172,6 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
 
     return dres_dcoils, dres_dcurrents
    
-
-#def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
-#    """
-#    For a given surface with points x on it, this function computes the
-#    vector-Jacobian product of \lm^T * dresidual_dcoils:
-#
-#    lm^T dresidual_dcoils = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcoils
-#    
-#    G is known for exact boozer surfaces, so if G=None is passed, then that
-#    value is used instead.
-#    """
-#    surface = booz_surf.surface
-#    user_provided_G = G is not None
-#    if not user_provided_G:
-#        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-#
-#    res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0)
-#    dres_dB = dres_dB.reshape((-1, 3, 3))
-#
-#    lmask = np.zeros(booz_surf.res["mask"].shape)
-#    lmask[booz_surf.res["mask"]] = lm[:-1]
-#    lm = lmask.reshape( (-1,3) )
-#
-#    lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
-#    dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
-#    
-#
-#    dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
-#    dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
-#    
-#    return dres_dcoils, dres_dcurrents
-#    
-
 
 
 def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
