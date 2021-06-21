@@ -35,6 +35,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         z(\theta, \phi) &= \sum_{i=0}^{m_\text{pol}} \sum_{j=n_\text{tor}+1}^{2n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi) + \sum_{i=m_\text{pol}+1}^{2m_\text{pol}} \sum_{j=0}^{n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi)
 
     """
+
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1, clamped_dims=[False, False, False], quadpoints_phi=32, quadpoints_theta=32):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
