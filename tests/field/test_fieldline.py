@@ -28,14 +28,15 @@ class FieldlineTesting(unittest.TestCase):
         R0test = 1.3
         B0test = 0.8
         Bfield = ToroidalField(R0test, B0test)
-        r0 = 1.1
         nlines = 10
+        R0 = [1.1 + i*0.1 for i in range(nlines)]
+        Z0 = [0 for i in range(nlines)]
         nphis = 10
         phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
         res_tys, res_phi_hits = compute_fieldlines(
-            Bfield, r0, nlines, linestep=0.1, tmax=100, phis=phis, stopping_criteria=[])
+            Bfield, R0, Z0, tmax=100, phis=phis, stopping_criteria=[])
         for i in range(nlines):
             assert np.allclose(res_tys[i][:, 3], 0.)
-            assert np.allclose(np.linalg.norm(res_tys[i][:, 1:3], axis=1), r0+0.1*i)
+            assert np.allclose(np.linalg.norm(res_tys[i][:, 1:3], axis=1), R0[i])
             assert validate_phi_hits(res_phi_hits[i], nphis)
         particles_to_vtk(res_tys, '/tmp/fieldlines')

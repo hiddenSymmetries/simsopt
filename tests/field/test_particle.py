@@ -70,13 +70,19 @@ class ParticleTracingTesting(unittest.TestCase):
         nparticles = 2
         m = 1.67e-27
         np.random.seed(1)
+        with self.assertRaises(RuntimeError):
+            gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+                ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+                Ekin=9000, umin=-0.1, umax=+0.1,
+                phis=[], mode='gc')
+
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
-            Ekinev=9000, umin=-0.1, umax=+0.1,
-            phis=[], mode='gc')
+            Ekin=9000, umin=-0.1, umax=+0.1,
+            phis=[], mode='gc_vac')
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
-            Ekinev=9000, umin=-0.1, umax=+0.1,
+            Ekin=9000, umin=-0.1, umax=+0.1,
             phis=[], mode='full')
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         particles_to_vtk(fo_tys, '/tmp/particles_fo')
@@ -127,9 +133,10 @@ class ParticleTracingTesting(unittest.TestCase):
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
-            Ekinev=9000, umin=-0.1, umax=+0.1, phis=phis, mode='gc',
+            Ekin=9000, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
             stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
 
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
+
