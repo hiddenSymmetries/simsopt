@@ -7,5 +7,6 @@ set -ex
 ./1_Simple/just_a_quadratic.py
 ./1_Simple/surface_volume_and_area.py
 ./1_Simple/minimize_curve_length.py
+./1_Simple/tracing.py
 ./2_Intermediate/QSC.py
 ./2_Intermediate/boozer.py
