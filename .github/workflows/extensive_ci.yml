@@ -210,6 +210,12 @@ jobs:
         cd examples
         ./run_serial_examples
 
+    - name: Run simple parallel examples as part of integrated tests
+      if: contains(matrix.test-type, 'integrated')
+      run: |
+        cd examples
+        ./run_parallel_examples
+
     - name: Run spec examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && matrix.spec == true 
       run: |
