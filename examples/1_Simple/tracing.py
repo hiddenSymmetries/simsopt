@@ -70,9 +70,10 @@ sc_particle = SurfaceClassifier(s, h=scale*0.1, p=2)
 def trace_fieldlines(bfield, label):
     t1 = time.time()
     phis = [i*2*np.pi/(4*3) for i in range(4)]
+    R0 = [ma.gamma()[0, 0] + i*0.015 for i in range(nfieldlines)]
+    Z0 = [ma.gamma()[0, 2] for i in range(nfieldlines)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, ma.gamma()[0, 0], nfieldlines, linestep=0.015, tmax=tmax_fl, tol=1e-7,
-        comm=comm,
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-7, comm=comm,
         phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
@@ -90,11 +91,11 @@ def trace_fieldlines(bfield, label):
             plt.close()
 
 
-def trace_particles(bfield, label, mode='gc'):
+def trace_particles(bfield, label, mode='gc_vac'):
     t1 = time.time()
     gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
         ma.gamma(), bfield, nparticles, tmax=1e-4, seed=1, mass=4*1.67e-27, charge=2*1,
-        Ekinev=3.5*1e6, umin=-0.1, umax=+0.1, comm=comm,
+        Ekin=3.5*1e6, umin=-0.1, umax=+0.1, comm=comm,
         phis=[2*np.pi/6 for i in range(6)],
         stopping_criteria=[LevelsetStoppingCriterion(sc_particle.dist)], mode=mode)
     t2 = time.time()
@@ -118,5 +119,5 @@ bsh = InterpolatedField(
 print('Error in B', bsh.estimate_error_B(1000), flush=True)
 trace_fieldlines(bsh, 'bsh')
 print('Error in AbsB', bsh.estimate_error_GradAbsB(1000), flush=True)
-trace_particles(bsh, 'bsh', 'gc')
+trace_particles(bsh, 'bsh', 'gc_vac')
 trace_particles(bsh, 'bsh', 'full')
