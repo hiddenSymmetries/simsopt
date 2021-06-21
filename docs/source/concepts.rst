@@ -225,7 +225,7 @@ A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` a
 The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., ``ToroidalFlux.J()`` and ``ToroidalFlux.dJ_dsurfacecoefficients()``.
 
 
-Cacheing
+Caching
 ~~~~~~~~
 
 The quantities that Simsopt can compute for curves and surfaces often depend on each other.
