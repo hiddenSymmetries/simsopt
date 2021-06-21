@@ -17,7 +17,7 @@ def curve_length_pure(l):
 class CurveLength(Optimizable):
     r"""
     CurveLength is a class that computes the length of a curve, i.e.
-    
+
     .. math::
         J = \int_{\text{curve}}~dl.
 
@@ -55,10 +55,10 @@ class LpCurveCurvature(Optimizable):
     This class computes a penalty term based on the :math:`L_p` norm
     of the curve's curvature, and penalizes where the local curve curvature exceeds a threshold
 
-    
+
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \text{max}(\kappa - \kappa_0, 0)^p ~dl
-    
+
     where :math:`\kappa_0` is a threshold curvature.  When ``desired_length`` is
     provided, :math:`\kappa_0 = 2 \pi / \text{desired_length}`, otherwise :math:`\kappa_0=0`.
     """
@@ -105,10 +105,10 @@ class LpCurveTorsion(Optimizable):
     LpCurveTorsion is a class that computes a penalty term based on the :math:`L_p` norm
     of the curve's torsion:
 
-    
+
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \tau^p ~dl.
-    
+
     """
 
     def __init__(self, curve, p):
@@ -146,15 +146,15 @@ def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
 class MinimumDistance(Optimizable):
     r"""
     MinimumDistance is a class that computes
-    
+
     .. math::
         J = \sum_{i = 1}^{\text{num_coils}} \sum_{j = 1}^{i-1} d_{i,j}
-    
+
     where 
-    
+
     .. math::
         d_{i,j} = \int_{\text{curve}_i} \int_{\text{curve}_j} \max(0, d_{\min} - \| \mathbf{r}_i - \mathbf{r}_j \|_2)^2 ~dl_j ~dl_i\\
-    
+
     and :math:`\mathbf{r}_i`, :math:`\mathbf{r}_j` are points on coils :math:`i` and :math:`j`, respectively.
     :math:`d_\min` is a desired threshold minimum intercoil distance.  This penalty term is zero when the points on coil :math:`i` and 
     coil :math:`j` lie more than :math:`d_\min` away from one another, for :math:`i, j \in \{1, \cdots, \text{num_coils}\}`
