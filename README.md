@@ -51,12 +51,21 @@ The design of `simsopt` is guided by several principles:
 
 `simsopt` is fully open-source, and anyone is welcome to make suggestions, contribute, and use.
 Several methods are available for installing `simsopt`. One
-recommended approach is to use pip
+recommended approach is to use pip:
 
     pip install simsopt
 
-For more installation options and other information, see the [main
-simsopt documentation here.](https://simsopt.readthedocs.io)
+Also, a Docker container is available with `simsopt` and its components pre-installed, which
+can be started using
+
+    docker run -it --rm hiddensymmetries/simsopt
+
+More [installation
+options](https://simsopt.readthedocs.io/en/latest/getting_started.html#),
+[instructions for the Docker
+container](https://simsopt.readthedocs.io/en/latest/docker.html), and
+other information can be found in the [main simsopt documentation
+here.](https://simsopt.readthedocs.io)
 
 [//]: # (`simsopt` is one of several available systems for stellarator)
 [//]: # "optimization.  Others include [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT),"
