@@ -30,6 +30,7 @@ void init_tracing(py::module_ &m){
         py::arg("vtang"), 
         py::arg("tmax"), 
         py::arg("tol"), 
+        py::arg("vacuum"),
         py::arg("phis")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
         );

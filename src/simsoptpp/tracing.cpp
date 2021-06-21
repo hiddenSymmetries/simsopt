@@ -28,7 +28,7 @@ using namespace boost::numeric::odeint;
 #endif
 
 template<template<class, std::size_t, xt::layout_type> class T>
-class GuidingCenterRHS {
+class GuidingCenterVacuumRHS {
     private:
         std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
         typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
@@ -39,7 +39,7 @@ class GuidingCenterRHS {
         using State = std::array<double, Size>;
 
 
-        GuidingCenterRHS(shared_ptr<MagneticField<T>> field, double m, double q, double mu)
+        GuidingCenterVacuumRHS(shared_ptr<MagneticField<T>> field, double m, double q, double mu)
             : field(field), m(m), q(q), mu(mu) {
 
             }
@@ -268,7 +268,7 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename MagneticField<T>::Tensor2 xyz({{xyz_init[0], xyz_init[1], xyz_init[2]}});
     field->set_points(xyz);
@@ -276,19 +276,24 @@ particle_guiding_center_tracing(
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*AbsB);
 
-    auto rhs_class = GuidingCenterRHS<T>(field, m, q, mu);
     array<double, 4> y = {xyz_init[0], xyz_init[1], xyz_init[2], vtang};
 
     double dtmax = 0.01/vtotal; // can at most move 1cm per step
     double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+    if(vacuum){
+        auto rhs_class = GuidingCenterVacuumRHS<T>(field, m, q, mu);
+        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+    }
+    else
+        throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
 }
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
         shared_ptr<MagneticField<xt::pytensor>> field, array<double, 3> xyz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
+        vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 
 template<template<class, std::size_t, xt::layout_type> class T>
@@ -330,6 +335,3 @@ tuple<vector<array<double, 4>>, vector<array<double, 5>>>
 fieldline_tracing(
     shared_ptr<MagneticField<xt::pytensor>> field, array<double, 3> xyz_init,
     double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
-
-
-

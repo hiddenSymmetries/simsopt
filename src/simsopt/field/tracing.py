@@ -2,16 +2,32 @@ from math import sqrt
 import numpy as np
 import simsoptpp as sopp
 import logging
+from simsopt.field.magneticfield import MagneticField
+from nptyping import NDArray, Float
 
 
 logger = logging.getLogger(__name__)
 
 
 def compute_gc_radius(m, vperp, q, absb):
+
+    """
+    Computes the gyro radius of a particle in a field with strenght ``absb```,
+    that is ``r=m*vperp/(abs(q)*absb)``.
+    """
+
     return m*vperp/(abs(q)*absb)
 
 
 def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
+
+    """
+    Takes in guiding center positions ``xyz_inits`` as well as a tangential
+    velocities ``vtangs`` and total velocities ``vtotal`` to compute orbit
+    positions for a full orbit calculation that matches the given guiding
+    center.
+    """
+
     nparticles = xyz_inits.shape[0]
     xyz_inits_full = np.zeros_like(xyz_inits)
     v_inits = np.zeros((nparticles, 3))
@@ -34,6 +50,13 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
 
 
 def parallel_loop_bounds(comm, n):
+
+    """
+    Split up an array [0, 1, ..., n-1] across an mpi communicator.  Example: n
+    = 8, comm with size=2 will return (0, 4) on core 0, (4, 8) on core 1,
+    meaning that the array is split up as [0, 1, 2, 3] + [4, 5, 6, 7].
+    """
+
     if comm is None:
         return 0, n
     else:
@@ -44,21 +67,65 @@ def parallel_loop_bounds(comm, n):
         return idxs[comm.rank], idxs[comm.rank+1]
 
 
-def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
-                                     mass=1.67e-27, charge=1, Ekinev=9000, tol=1e-9,
-                                     umin=-1, umax=+1, comm=None,
-                                     phis=[], stopping_criteria=[], mode='gc'):
-    assert mode in ['gc', 'full']
+def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
+                    tangential_velocities: NDArray[Float], tmax=1e-4,
+                    mass=1.6726219e-27, charge=1, Ekin=9000, tol=1e-9,
+                    comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
+
+    r"""
+    Follow particles in a magnetic field.
+
+    Args:
+        field: The magnetic field.
+        xyz_inits: A (nparticles, 3) array with the initial positions of the particles.
+        tangential_velocities: A (nparticles, ) array containing the velocities in direction of the B field.
+        tmax: integration time
+        mass: particle mass in kg, defaults to the mass of a proton
+        charge: charge in elementary charges, defaults to 1 (charge of a proton)
+        Ekin: kinetic energy in eV, defaults to 9000eV
+        tol: tolerance for the adaptive ode solver
+        comm: MPI communicator to parallelize over
+        phis: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that phi should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. options are
+            `gc`: general guiding center equations,
+            `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
+            `full`: full orbit calculation (slow!)
+
+    Returns: 2 element tuple containing
+        - ``res_tys``:
+            A list of numpy arrays (one for each particle) describing the
+            solution over time. The numpy array is of shape (ntimesteps, M)
+            with M depending on the ``mode``.  Each row contains the time and
+            the state.  So for `mode='gc'` and `mode='gc_vac'` the state
+            consists of the xyz position and the tangential velocity, hence
+            each row contains `[t, x, y, z, v_tang]`.  For `mode='full'`, the
+            state consists of position and velocity vector, i.e. each row
+            contains `[t, x, y, z, vx, vy, vz]`.
+
+        - ``res_phi_hits``:
+            A list of numpy arrays (one for each particle) containing
+            information on each time the particle hits one of the phi planes or
+            one of the stopping criteria. Each row of the array contains
+            `[time] + [idx] + state`, where `idx` tells us which of the `phis`
+            or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
+            was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+    """
+
+    nparticles = xyz_inits.shape[0]
+    assert xyz_inits.shape[0] == len(tangential_velocities)
+    vtangs = tangential_velocities
+    mode = mode.lower()
+    assert mode in ['gc', 'gc_vac', 'full']
     e = 1.6e-19
-    Ekin = Ekinev*e
+    Ekine = Ekin*e
     m = mass
     q = charge*e
-    vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    vtotal = sqrt(2*Ekine/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
-    np.random.seed(seed)
-    us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
-    vtangs = us*vtotal
-    xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
     if mode == 'full':
         xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q)
     res_tys = []
@@ -66,10 +133,11 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
     loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
-        if mode == 'gc':
+        if 'gc' in mode:
             res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
-                m, q, vtotal, vtangs[i], tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+                m, q, vtotal, vtangs[i], tmax, tol,
+                vacuum=(mode == 'gc_vac'), phis=phis, stopping_criteria=stopping_criteria)
         else:
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
@@ -89,9 +157,59 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4, seed=1,
     return res_tys, res_phi_hits
 
 
-def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
+                                     mass=1.67e-27, charge=1, Ekin=9000, tol=1e-9,
+                                     comm=None, seed=1, umin=-1, umax=+1,
+                                     phis=[], stopping_criteria=[], mode='gc_vac'):
+    r"""
+    Follows particles spawned at random locations on the magnetic axis with random pitch angle.
+
+    Args:
+        axis: The magnetic axis.
+        field: The magnetic field.
+        nparticles: number of particles to follow.
+        tmax: integration time
+        mass: particle mass in kg, defaults to the mass of a proton
+        charge: charge in elementary charges, defaults to 1 (charge of a proton)
+        Ekin: kinetic energy in eV, defaults to 9000eV
+        tol: tolerance for the adaptive ode solver
+        comm: MPI communicator to parallelize over
+        seed: random seed
+        umin: the tangential velocity is defined as  ``v_tang = u * vtotal``
+            where  ``u`` is drawn uniformly in ``[umin, umax]``
+        umax: see ``umin``
+        phis: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that phi should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. options are
+            `gc`: general guiding center equations,
+            `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
+            `full`: full orbit calculation (slow!)
+
+    Returns: see :mod:`simsopt.field.tracing.trace_particles`
+    """
+    e = 1.6e-19
+    Ekine = Ekin*e
+    m = mass
+    vtotal = sqrt(2*Ekine/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    np.random.seed(seed)
+    us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    vtangs = us*vtotal
+    xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
+    return trace_particles(
+        field, xyz_inits, vtangs, tmax=tmax, mass=mass, charge=charge,
+        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        stopping_criteria=stopping_criteria, mode=mode)
+
+
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+    assert len(R0) == len(Z0)
+    nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
-    xyz_inits[:, 0] = np.asarray([r0 + i*linestep for i in range(nlines)])
+    xyz_inits[:, 0] = np.asarray(R0)
+    xyz_inits[:, 2] = np.asarray(Z0)
     res_tys = []
     res_phi_hits = []
     first, last = parallel_loop_bounds(comm, nlines)
@@ -110,6 +228,10 @@ def compute_fieldlines(field, r0, nlines, linestep=0.01, tmax=200, tol=1e-7, phi
 
 
 def particles_to_vtk(res_tys, filename):
+    """
+    Export particle tracing or field lines to a vtk file.
+    Expects that the xyz positions can be obtained by ``xyz[:, 1:4]``.
+    """
     from pyevtk.hl import polyLinesToVTK
     x = np.concatenate([xyz[:, 1] for xyz in res_tys])
     y = np.concatenate([xyz[:, 2] for xyz in res_tys])
@@ -120,6 +242,10 @@ def particles_to_vtk(res_tys, filename):
 
 
 def signed_distance_from_surface(xyz, surface):
+    """
+    Compute the signed distances from points ``xyz`` to a surface.  The sign is
+    positive for points inside the volume surrounded by the surface.
+    """
     gammas = surface.gamma().reshape((-1, 3))
     from scipy.spatial.distance import cdist
     dists = cdist(xyz, gammas)
