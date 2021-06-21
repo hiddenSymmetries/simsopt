@@ -18,6 +18,10 @@ class Area(object):
     
     def dJ_by_dcoilcoefficients(self):
         return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
+    
+    def dJ_by_dcoilcurrents(self):
+        return [0. for c in self.stellarator.coils]
+
 
 class Volume(object):
 
@@ -37,6 +41,10 @@ class Volume(object):
     def dJ_by_dcoilcoefficients(self):
         return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
 
+    def dJ_by_dcoilcurrents(self):
+        return [0. for c in self.stellarator.coils]
+
+
 
 class ToroidalFlux(object):
 
@@ -54,10 +62,10 @@ class ToroidalFlux(object):
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
-
-    def J(self):
         x = self.surface.gamma()[self.idx]
         self.biotsavart.set_points(x)
+
+    def J(self):
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         A = self.biotsavart.A()
@@ -66,16 +74,21 @@ class ToroidalFlux(object):
 
     def dJ_by_dA(self):
         xtheta = self.surface.gammadash2()[self.idx]
-        nphi = self.surface.gamma().shape[0]
         ntheta = self.surface.gamma().shape[1]
-        dJ_by_dA = np.zeros((nphi, ntheta, 3))
-        dJ_by_dA[self.idx, :] = xtheta/ntheta
-        return dJ_by_dA.reshape((-1, 3))
+        dJ_by_dA = np.zeros((ntheta, 3))
+        dJ_by_dA[:, ] = xtheta/ntheta
+        return dJ_by_dA
 
     def dJ_by_dcoilcoefficients(self):
         dJ_by_dA = self.dJ_by_dA()
         dJ = self.biotsavart.A_vjp(dJ_by_dA)
         return dJ
+
+    def dJ_by_dcoilcurrents(self):
+        dJ_by_dA = self.dJ_by_dA()
+        dA_by_dcoilcurrents = self.biotsavart.dA_by_dcoilcurrents()
+        dJ_dcurrents = [np.sum(dJ_by_dA*dA_dcurr) for dA_dcurr in dA_by_dcoilcurrents]
+        return dJ_dcurrents
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -142,18 +155,58 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0)
     dres_dB = dres_dB.reshape((-1, 3, 3))
 
+    lm_label = lm[-1]
     lmask = np.zeros(booz_surf.res["mask"].shape)
     lmask[booz_surf.res["mask"]] = lm[:-1]
     lm = lmask.reshape( (-1,3) )
-
+    
     lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
     dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
-    
+    dlabel_dcoils = booz_surf.label.dJ_by_dcoilcoefficients()
+    dres_dcoils = [t1+lm_label*t2 for t1,t2 in zip(dres_dcoils, dlabel_dcoils)]
+
     dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
     dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
-    
+    dlabel_dcoilcurrents = booz_surf.label.dJ_by_dcoilcurrents()
+    dres_dcurrents = [t1+lm_label*t2 for t1,t2 in zip(dres_dcurrents, dlabel_dcoilcurrents)] 
+
     return dres_dcoils, dres_dcurrents
-    
+   
+
+#def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
+#    """
+#    For a given surface with points x on it, this function computes the
+#    vector-Jacobian product of \lm^T * dresidual_dcoils:
+#
+#    lm^T dresidual_dcoils = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcoils
+#    
+#    G is known for exact boozer surfaces, so if G=None is passed, then that
+#    value is used instead.
+#    """
+#    surface = booz_surf.surface
+#    user_provided_G = G is not None
+#    if not user_provided_G:
+#        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+#
+#    res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0)
+#    dres_dB = dres_dB.reshape((-1, 3, 3))
+#
+#    lmask = np.zeros(booz_surf.res["mask"].shape)
+#    lmask[booz_surf.res["mask"]] = lm[:-1]
+#    lm = lmask.reshape( (-1,3) )
+#
+#    lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
+#    dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
+#    
+#
+#    dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
+#    dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
+#    
+#    return dres_dcoils, dres_dcurrents
+#    
+
+
+
 def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
