@@ -25,7 +25,7 @@ solvers = [serial_solve, least_squares_serial_solve]
 if MPI is not None:
     solvers.append(mpi_solve_1group)
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 

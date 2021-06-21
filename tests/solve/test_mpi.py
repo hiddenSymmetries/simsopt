@@ -15,7 +15,7 @@ if MPI:
     from simsopt.solve.mpi import fd_jac_mpi, least_squares_mpi_solve
 
 
-log(level=logging.DEBUG)
+#log(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
