@@ -29,7 +29,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     for the sin terms.
 
     When enforcing stellarator symmetry, we set the
-    
+
     .. math::
         x_{s,*,*}, ~y_{c,*,*}, \text{and} ~z_{c,*,*}
 
