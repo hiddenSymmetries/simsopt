@@ -7,7 +7,12 @@ from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClass
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion
 from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+except ImportError:
+    comm = None
+
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -24,8 +29,6 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nfieldlines = 3 if ci else 80
 tmax_fl = 10000 if ci else 40000
 nparticles = 3 if ci else 40
-
-comm = MPI.COMM_WORLD
 
 
 """
@@ -77,7 +80,7 @@ def trace_fieldlines(bfield, label):
         phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    if comm.rank == 0:
+    if comm is None or comm.rank == 0:
         particles_to_vtk(fieldlines_tys, f'/tmp/fieldlines_{label}')
         for i in range(len(phis)):
             plt.figure()
@@ -100,7 +103,7 @@ def trace_particles(bfield, label, mode='gc_vac'):
         stopping_criteria=[LevelsetStoppingCriterion(sc_particle.dist)], mode=mode)
     t2 = time.time()
     print(f"Time for particle tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in gc_tys])//nparticles}", flush=True)
-    if comm.rank == 0:
+    if comm is None or comm.rank == 0:
         particles_to_vtk(gc_tys, f'/tmp/particles_{label}_{mode}')
 
 
