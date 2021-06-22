@@ -87,7 +87,7 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
