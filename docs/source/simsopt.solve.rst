@@ -4,21 +4,41 @@ simsopt.solve package
 Submodules
 ----------
 
-simsopt.solve.mpi\_solve module
+simsopt.solve.graph\_mpi module
 -------------------------------
 
-.. automodule:: simsopt.solve.mpi_solve
+.. automodule:: simsopt.solve.graph_mpi
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
-simsopt.solve.serial\_solve module
+simsopt.solve.graph\_serial module
 ----------------------------------
 
-.. automodule:: simsopt.solve.serial_solve
+.. automodule:: simsopt.solve.graph_serial
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
+
+simsopt.solve.mpi module
+------------------------
+
+.. automodule:: simsopt.solve.mpi
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.solve.serial module
+---------------------------
+
+.. automodule:: simsopt.solve.serial
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
 
 Module contents
 ---------------
@@ -27,3 +47,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
