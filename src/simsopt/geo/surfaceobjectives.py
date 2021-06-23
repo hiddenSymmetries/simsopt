@@ -269,11 +269,7 @@ class QfmResidual(object):
         self.biotsavart.set_points(xsemiflat)
 
     def J(self):
-        x = self.surface.gamma()
-        x = x.reshape((x.size//3, 3))
-        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
-        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
-        N = np.cross(xtheta, xphi)
+        N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=1)
         n = N/norm_N[:, None]
         B = self.biotsavart.B()
@@ -287,26 +283,16 @@ class QfmResidual(object):
         """
         x = self.surface.gamma()
         x = x.reshape((x.size//3, 3))
-        dB_by_dX = self.biotsavart.dB_by_dX()
-        B = self.biotsavart.B()
-        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
-        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
-
         dx_by_dc = self.surface.dgamma_by_dcoeff().reshape((x.size//3, 3,
                                                             len(self.surface.get_dofs())))
-        dxphi_by_dc = self.surface.dgammadash1_by_dcoeff().reshape((x.size//3,
-                                                                    3, len(self.surface.get_dofs())))
-        dxtheta_by_dc = self.surface.dgammadash2_by_dcoeff().reshape((x.size//3,
-                                                                      3, len(self.surface.get_dofs())))
-
+        dB_by_dX = self.biotsavart.dB_by_dX()
+        B = self.biotsavart.B()
         d_B = np.einsum('ijl,ijm->iml', dx_by_dc, dB_by_dX)
 
-        N = np.cross(xtheta, xphi)
+        N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=1)
         n = N/norm_N[:, None]
-
-        d_N = np.cross(dxtheta_by_dc, xphi[:, :, None], axis=1) \
-            + np.cross(xtheta[:, :, None], dxphi_by_dc, axis=1)
+        d_N = self.surface.dnormal_by_dcoeff()
         d_norm_N = np.einsum('ijk,ij->ik', d_N, n)
         d_n = d_N/norm_N[:, None, None] \
             - N[:, :, None] * d_norm_N[:, None, :]/norm_N[:, None, None]**2
@@ -334,38 +320,18 @@ class QfmResidual(object):
         dB_by_dX = self.biotsavart.dB_by_dX()
         d2B_by_dXdX = self.biotsavart.d2B_by_dXdX()
         B = self.biotsavart.B()
-        xtheta = self.surface.gammadash2().reshape((x.size//3, 3))
-        xphi = self.surface.gammadash1().reshape((x.size//3, 3))
-
         dx_by_dc = self.surface.dgamma_by_dcoeff().reshape((x.size//3, 3,
                                                             len(self.surface.get_dofs())))
-        dxphi_by_dc = self.surface.dgammadash1_by_dcoeff().reshape((x.size//3,
-                                                                    3, len(self.surface.get_dofs())))
-        dxtheta_by_dc = self.surface.dgammadash2_by_dcoeff().reshape((x.size//3,
-                                                                      3, len(self.surface.get_dofs())))
 
         d_B = np.einsum('ijl,ijm->iml', dx_by_dc, dB_by_dX)
         d2_B = np.einsum('ijl,ikm,ijkn->inlm', dx_by_dc, dx_by_dc, d2B_by_dXdX)
 
-        N = np.cross(xtheta, xphi)
+        N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=1)
         n = N/norm_N[:, None]
 
-        d_N = np.cross(dxtheta_by_dc, xphi[:, :, None], axis=1) \
-            + np.cross(xtheta[:, :, None], dxphi_by_dc, axis=1)
-        d2_N = np.zeros_like(d2_B)
-        d2_N[:, 0, :, :] = dxtheta_by_dc[:, 1, :, None] * dxphi_by_dc[:, 2, None, :] \
-            - dxtheta_by_dc[:, 2, :, None] * dxphi_by_dc[:, 1, None, :] \
-            + dxtheta_by_dc[:, 1, None, :] * dxphi_by_dc[:, 2, :, None] \
-            - dxtheta_by_dc[:, 2, None, :] * dxphi_by_dc[:, 1, :, None]
-        d2_N[:, 1, :, :] = dxtheta_by_dc[:, 2, :, None] * dxphi_by_dc[:, 0, None, :] \
-            - dxtheta_by_dc[:, 0, :, None] * dxphi_by_dc[:, 2, None, :] \
-            + dxtheta_by_dc[:, 2, None, :] * dxphi_by_dc[:, 0, :, None] \
-            - dxtheta_by_dc[:, 0, None, :] * dxphi_by_dc[:, 2, :, None]
-        d2_N[:, 2, :, :] = dxtheta_by_dc[:, 0, :, None] * dxphi_by_dc[:, 1, None, :] \
-            - dxtheta_by_dc[:, 1, :, None] * dxphi_by_dc[:, 0, None, :] \
-            + dxtheta_by_dc[:, 0, None, :] * dxphi_by_dc[:, 1, :, None] \
-            - dxtheta_by_dc[:, 1, None, :] * dxphi_by_dc[:, 0, :, None]
+        d_N = self.surface.dnormal_by_dcoeff()
+        d2_N = self.surface.d2normal_by_dcoeffdcoeff()
 
         d_norm_N = np.einsum('ijk,ij->ik', d_N, n)
         d2_norm_N = (np.einsum('ijk,ijl->ikl', d_N, d_N)
