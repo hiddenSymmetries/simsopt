@@ -118,7 +118,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        epsilons = np.power(2., -np.asarray(range(7, 17)))
         print("################################################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_label_constraint(
@@ -176,7 +176,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        epsilons = np.power(2., -np.asarray(range(7, 17)))
         print("################################################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_penalty_constraints(
@@ -201,7 +201,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         tf = ToroidalFlux(s, bs_tf)
 
-        tf_target = 0.1
+        tf_target = 0.5
         qfm_surface = QfmSurface(bs, s, tf, tf_target)
 
         x = s.get_dofs()
@@ -212,7 +212,7 @@ class QfmSurfaceTests(unittest.TestCase):
         d2f = h1@H0@h2
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(15, 25)))
+        epsilons = np.power(2., -np.asarray(range(9, 18)))
         print("################################################################################")
         for eps in epsilons:
             fp, Jp = qfm_surface.qfm_penalty_constraints(x + eps*h1, derivatives=1)
@@ -282,7 +282,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-9, maxiter=1000, constraint_weight=1e3)
+            tol=1e-9, maxiter=1000, constraint_weight=1e4)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-2
@@ -296,7 +296,7 @@ class QfmSurfaceTests(unittest.TestCase):
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-3
         assert res['fun'] < 1e-5
-        assert np.abs(vol_target - vol.J()) < 1e-6
+        assert np.abs(vol_target - vol.J()) < 1e-5
 
         vol_opt1 = vol.J()
 
@@ -307,12 +307,12 @@ class QfmSurfaceTests(unittest.TestCase):
         qfm_surface = QfmSurface(bs, s, ar, ar_target)
 
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-9, maxiter=1000, constraint_weight=1e3)
+            tol=1e-9, maxiter=1000, constraint_weight=1e4)
 
         assert res['success']
         assert res['fun'] < 1e-5
         assert np.linalg.norm(res['gradient']) < 1e-3
-        assert np.abs(ar_target - ar.J()) < 1e-8
+        assert np.abs(ar_target - ar.J()) < 1e-7
 
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9, maxiter=1000)
 
