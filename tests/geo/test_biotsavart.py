@@ -6,14 +6,18 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.biotsavart import BiotSavart
 
 
-def get_coil(num_quadrature_points=200):
+def get_coil(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
     coeffs = coil.dofs
     coeffs[1][0] = 1.
     coeffs[1][1] = 0.5
     coeffs[2][2] = 0.5
     coil.set_dofs(np.concatenate(coeffs))
+    if perturb:
+        d = coil.get_dofs()
+        coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
+
 
 class Testing(unittest.TestCase):
 
@@ -21,8 +25,8 @@ class Testing(unittest.TestCase):
         coils = [get_coil()]
         currents = [1e4]
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        B1 = BiotSavart(coils, currents).set_points(points).B(compute_derivatives=0)
-        from simsgeopp import biot_savart_B
+        B1 = BiotSavart(coils, currents).set_points(points).B()
+        from simsoptpp import biot_savart_B
         B2 = biot_savart_B(points, [c.gamma() for c in coils], [c.gammadash() for c in coils], currents)
         assert np.linalg.norm(B1) > 1e-5
         assert np.allclose(B1, B2)
@@ -33,26 +37,26 @@ class Testing(unittest.TestCase):
         # points = np.asarray(17 * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04 ]])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         tic = time()
-        btrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).B(compute_derivatives=0)
+        btrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).B()
         # print(btrue)
-        bcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).B(compute_derivatives=0)
-        bfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).B(compute_derivatives=0)
+        bcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).B()
+        bfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).B()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 
         tic = time()
-        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
+        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).dB_by_dX()
         # print(dbtrue)
-        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
-        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).dB_by_dX(compute_derivatives=1)
+        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).dB_by_dX()
+        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).dB_by_dX()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 
         tic = time()
-        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
+        dbtrue = BiotSavart([get_coil(1000)], [1e4]).set_points(points).d2B_by_dXdX()
         # print("dbtrue", dbtrue)
-        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
-        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).d2B_by_dXdX(compute_derivatives=2)
+        dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).d2B_by_dXdX()
+        dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).d2B_by_dXdX()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
         # print(time()-tic)
 
@@ -178,16 +182,16 @@ class Testing(unittest.TestCase):
                 err = 1e6
                 for i in range(5, 10):
                     eps = 0.5**i
-                    
+
                     ed2 = np.zeros((1, 3))
                     ed2[0, d2] = 1.
-                    
+
                     bs.set_points(points + eps * ed2)
                     dB_dXp = bs.dB_by_dX()[idx, d1]
-                    
+
                     bs.set_points(points - eps * ed2)
                     dB_dXm = bs.dB_by_dX()[idx, d1]
-                    
+
                     second_deriv_est = (dB_dXp - dB_dXm)/(2. * eps)
 
                     new_err = np.linalg.norm(second_deriv-second_deriv_est)
@@ -220,7 +224,6 @@ class Testing(unittest.TestCase):
         bs.set_points(points)
         A0 = bs.A()[idx]
         dA = bs.dA_by_dX()[idx]
-        
 
         for direction in [np.asarray((1., 0, 0)), np.asarray((0, 1., 0)), np.asarray((0, 0, 1.))]:
             deriv = dA.T.dot(direction)
@@ -251,16 +254,16 @@ class Testing(unittest.TestCase):
                 err = 1e6
                 for i in range(5, 10):
                     eps = 0.5**i
-                    
+
                     ed2 = np.zeros((1, 3))
                     ed2[0, d2] = 1.
-                    
+
                     bs.set_points(points + eps * ed2)
                     dA_dXp = bs.dA_by_dX()[idx, d1]
-                    
+
                     bs.set_points(points - eps * ed2)
                     dA_dXm = bs.dA_by_dX()[idx, d1]
-                    
+
                     second_deriv_est = (dA_dXp - dA_dXm)/(2. * eps)
 
                     new_err = np.linalg.norm(second_deriv-second_deriv_est)
@@ -273,8 +276,38 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_biotsavart_d2A_by_dXdX_taylortest(idx)
 
+    def test_biotsavart_coil_current_taylortest(self):
+        coil0 = get_coil()
+        current0 = 1e4
+        coil1 = get_coil(perturb=True)
+        current1 = 1e3
+        bs = BiotSavart([coil0, coil1], [current0, current1])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        B = bs.B()
+        J = bs.dB_by_dX()
+        H = bs.d2B_by_dXdX()
+        dB = bs.dB_by_dcoilcurrents()
+        dJ = bs.d2B_by_dXdcoilcurrents()
+        dH = bs.d3B_by_dXdXdcoilcurrents()
 
-
+        h = 1.
+        bs.currents_optim[0].set_dofs(1e4+h)
+        bs.invalidate_cache()
+        Bp = bs.B()
+        Jp = bs.dB_by_dX()
+        Hp = bs.d2B_by_dXdX()
+        bs.currents_optim[0].set_dofs(1e4-h)
+        bs.invalidate_cache()
+        Bm = bs.B()
+        Jm = bs.dB_by_dX()
+        Hm = bs.d2B_by_dXdX()
+        dB_approx = (Bp-Bm)/(2*h)
+        dJ_approx = (Jp-Jm)/(2*h)
+        dH_approx = (Hp-Hm)/(2*h)
+        assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-13
 
 
 if __name__ == "__main__":
