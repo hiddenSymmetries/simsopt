@@ -71,6 +71,8 @@ class ToroidalFluxTests(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
         
+        import ipdb;ipdb.set_trace()
+
         gamma = s.gamma()
         num_phi = gamma.shape[0]
         
