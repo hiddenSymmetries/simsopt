@@ -304,31 +304,52 @@ double Surface<Array>::volume() {
     double volume = 0.;
     auto n = this->normal();
     auto xyz = this->gamma();
+
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             volume += (1./3) * (xyz(i, j, 0)*n(i,j,0)+xyz(i,j,1)*n(i,j,1)+xyz(i,j,2)*n(i,j,2));
         }
     }
     return volume/(numquadpoints_phi*numquadpoints_theta);
+
 }
 
 template<class Array>
 void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
-    data *= 0.;
     auto n = this->normal();
-    auto dn_dc = this->dnormal_by_dcoeff();
     auto xyz = this->gamma();
-    auto dxyz_dc = this->dgamma_by_dcoeff();
     int ndofs = num_dofs();
+    //data *= 0.;
+    //auto dn_dc = this->dnormal_by_dcoeff();
+    //auto dxyz_dc = this->dgamma_by_dcoeff();
+    //for (int i = 0; i < numquadpoints_phi; ++i) {
+    //    for (int j = 0; j < numquadpoints_theta; ++j) {
+    //        for (int m = 0; m < ndofs; ++m) {
+    //            data(m) += (1./3) * (dxyz_dc(i,j,0,m)*n(i,j,0)+dxyz_dc(i,j,1,m)*n(i,j,1)+dxyz_dc(i,j,2,m)*n(i,j,2));
+    //            data(m) += (1./3) * (xyz(i,j,0)*dn_dc(i,j,0,m)+xyz(i,j,1)*dn_dc(i,j,1,m)+xyz(i,j,2)*dn_dc(i,j,2,m));
+    //        }
+    //    }
+    //}
+    //data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+
+    Array dvolume_by_dn = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array dvolume_by_dx = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m) {
-                data(m) += (1./3) * (dxyz_dc(i,j,0,m)*n(i,j,0)+dxyz_dc(i,j,1,m)*n(i,j,1)+dxyz_dc(i,j,2,m)*n(i,j,2));
-                data(m) += (1./3) * (xyz(i,j,0)*dn_dc(i,j,0,m)+xyz(i,j,1)*dn_dc(i,j,1,m)+xyz(i,j,2)*dn_dc(i,j,2,m));
-            }
+            dvolume_by_dn(i, j, 0) = (1./3) * xyz(i, j, 0);
+            dvolume_by_dn(i, j, 1) = (1./3) * xyz(i, j, 1);
+            dvolume_by_dn(i, j, 2) = (1./3) * xyz(i, j, 2);
+            dvolume_by_dx(i, j, 0) = (1./3) * n(i, j, 0);
+            dvolume_by_dx(i, j, 1) = (1./3) * n(i, j, 1);
+            dvolume_by_dx(i, j, 2) = (1./3) * n(i, j, 2);
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dn *= 1./(numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dx *= 1./(numquadpoints_phi*numquadpoints_theta);
+    Array temp = dnormal_by_dcoeff_vjp(dvolume_by_dn) + dgamma_by_dcoeff_vjp(dvolume_by_dx);
+    for (int m = 0; m < ndofs; ++m) {
+        data(m) = temp(m);
+    }
 }
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
