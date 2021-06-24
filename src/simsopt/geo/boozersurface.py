@@ -1,4 +1,5 @@
 from scipy.optimize import minimize, least_squares
+from scipy.linalg import lu
 import numpy as np
 
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
@@ -446,7 +447,6 @@ class BoozerSurface():
         return res
     
 
-    
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For
@@ -586,10 +586,11 @@ class BoozerSurface():
             ))
             b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
 
-
+        P, L, U = lu(J)
         res = {
                 "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
-                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
+                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp,
+                "PLU": (P, L, U)
         }
         
         self.res = res
