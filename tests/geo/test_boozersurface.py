@@ -202,11 +202,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
 
         configs = [
-            ("SurfaceXYZTensorFourier", True,  True,  'residual_exact'),
-            ("SurfaceXYZTensorFourier", True,  True,  'newton_exact'),
-            ("SurfaceXYZTensorFourier", True,  True,  'newton'),
-            ("SurfaceXYZTensorFourier", False, True,  'ls'),
-            ("SurfaceXYZFourier",       True,  False, 'ls'),
+            ("SurfaceXYZTensorFourier", True, True, 'residual_exact'),  # noqa
+            ("SurfaceXYZTensorFourier", True, True, 'newton_exact'),  # noqa
+            ("SurfaceXYZTensorFourier", True, True, 'newton'),  # noqa
+            ("SurfaceXYZTensorFourier", False, True, 'ls'),  # noqa
+            ("SurfaceXYZFourier", True, False, 'ls'),  # noqa
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             with self.subTest(
