@@ -125,6 +125,10 @@ class Surface {
         virtual void dgammadash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
         virtual void dgammadash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2_by_dcoeff_impl was not implemented"); };
 
+        virtual Array dgamma_by_dcoeff_vjp(Array& v) {
+            return surface_vjp_contraction<Array>(dgamma_by_dcoeff(), v);
+        };
+
         virtual Array dgammadash1_by_dcoeff_vjp(Array& v) {
             return surface_vjp_contraction<Array>(dgammadash1_by_dcoeff(), v);
         };
