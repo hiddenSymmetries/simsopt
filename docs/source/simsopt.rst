@@ -7,9 +7,10 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   simsopt.core
+   simsopt._core
    simsopt.geo
    simsopt.mhd
+   simsopt.objectives
    simsopt.solve
    simsopt.util
 
@@ -20,3 +21,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
