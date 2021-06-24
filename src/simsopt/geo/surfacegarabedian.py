@@ -1,22 +1,23 @@
+import numpy as np
+import logging
 
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
-import numpy as np
-import logging
 logger = logging.getLogger(__name__)
 
 
 class SurfaceGarabedian(Surface):
     """
-    SurfaceGarabedian represents a toroidal surface for which the
-    shape is parameterized using Garabedian's Delta_{m,n}
+    `SurfaceGarabedian` represents a toroidal surface for which the
+    shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
     coefficients.
 
     The present implementation assumes stellarator symmetry. Note that
-    non-stellarator-symmetric surfaces require that the Delta_{m,n}
+    non-stellarator-symmetric surfaces require that the :math:`\Delta_{m,n}`
     coefficients be imaginary.
     """
+
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
         if nmin is None:
             nmin = -nmax
@@ -53,7 +54,7 @@ class SurfaceGarabedian(Surface):
 
     def allocate(self):
         """
-        Create the array for the Delta_{m,n} coefficients.
+        Create the array for the :math:`\Delta_{m,n}` coefficients.
         """
         logger.info("Allocating SurfaceGarabedian")
         self.mdim = self.mmax - self.mmin + 1
@@ -67,13 +68,13 @@ class SurfaceGarabedian(Surface):
 
     def get_Delta(self, m, n):
         """
-        Return a particular Delta_{m,n} coefficient.
+        Return a particular :math:`\Delta_{m,n}` coefficient.
         """
         return self.Delta[m - self.mmin, n - self.nmin]
 
     def set_Delta(self, m, n, val):
         """
-        Set a particular Delta_{m,n} coefficient.
+        Set a particular :math:`\Delta_{m,n}` coefficient.
         """
         self.Delta[m - self.mmin, n - self.nmin] = val
         self.recalculate = True
@@ -95,7 +96,7 @@ class SurfaceGarabedian(Surface):
         if len(v) != n:
             raise ValueError('Input vector should have ' + str(n) + \
                              ' elements but instead has ' + str(len(v)))
-        
+
         # Check whether any elements actually change:
         if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
             logger.info('set_dofs called, but no dofs actually changed')
@@ -120,7 +121,7 @@ class SurfaceGarabedian(Surface):
         for m in range(mmin, mmax + 1):
             for n in range(nmin, nmax + 1):
                 self.set_fixed('Delta({},{})'.format(m, n), fixed)
-        
+
     def to_RZFourier(self):
         """
         Return a SurfaceRZFourier object with the identical shape.

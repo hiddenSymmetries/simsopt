@@ -3,7 +3,9 @@
 *.so
 *.o
 *.mod
+*fort.9
 simsopt_20*.dat
+objective*.dat
 residuals_20*.dat
 _skbuild/
 build/
@@ -24,6 +26,12 @@ __pycache__/
 *.fpp
 f90wrap_*.f90
 
+# Python egg and wheel builder
+*.egg-info
+
+# IDE
+.idea
+
 # VMEC specific
 modules/VMEC/vmec.py
 modules/VMEC/vmec_pkg/
@@ -33,6 +41,7 @@ jxbout*
 parvmecinfo.txt
 threed*
 vmec_f90wrap.py
+fort.9
 
 # SPEC specific
 spec*.sp
@@ -46,5 +55,5 @@ examples/*.log
 # Sphinx related files
 docs/build/
 
-# IDE
+# IDE related
 .idea

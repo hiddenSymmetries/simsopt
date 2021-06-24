@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
-project(simsgeopp)
+project(simsoptpp)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #find_package(PythonInterp 3 REQUIRED)
 #find_package(PythonLibs 3 REQUIRED)
 #find_package(NumPy REQUIRED)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
@@ -31,21 +34,44 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     endif()
 endif()
 
-set(CMAKE_CXX_FLAGS "-O2 -march=x86-64")
+IF(DEFINED ENV{CI})
+    message(STATUS "CI environment detected. Set compilation flags accordingly (target ivybridge which supports avx).")
+    set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge -mfma -ffp-contract=fast")
+else()
+    message(STATUS "Local build detected. Set compilation flags accordingly (march=native).")
+    set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
+endif()
 
 add_subdirectory(thirdparty/pybind11)
+add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
+set(XTENSOR_USE_TBB 0)
 
 
 pybind11_add_module(${PROJECT_NAME}
-    src/simsgeopp/python.cpp src/simsgeopp/biot_savart.cpp src/simsgeopp/biot_savart_derivative.cpp
+    src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/python_magneticfield.cpp
+    src/simsoptpp/biot_savart_py.cpp src/simsoptpp/biot_savart_vjp_py.cpp
+    src/simsoptpp/regular_grid_interpolant_3d_py.cpp
+    src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp
+    src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
+    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp
+    src/simsoptpp/magneticfield_biotsavart.cpp
     )
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsgeopp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
+add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
+set_target_properties(profiling
+    PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON)
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
 if(OpenMP_CXX_FOUND)

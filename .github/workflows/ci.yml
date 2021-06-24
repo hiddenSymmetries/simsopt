@@ -6,12 +6,17 @@
 # This appears to be a known harmless annoyance:
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
 
-name: CI
+name: Simple CI
 
-on: [push, pull_request]
+on: 
+  push:
+    branches-ignore: [master]
+    tags-ignore: [v*]
+  pull_request:
+    branches-ignore: [master]
 
 jobs:
-  CI:
+  test:
     runs-on: ubuntu-18.04
 
     env:
@@ -21,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.8.10] # To sync with coveragerc
         test-type: [unit, integrated]
 
     steps:
@@ -47,7 +52,7 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-openmpi-dev git m4 libfftw3-dev
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev
 
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
@@ -55,9 +60,8 @@ jobs:
       #  submodules: true
 
     # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
-    # For now we use the mattland fork of VMEC. Once changes are pushed to mbkumar's fork, we can use that instead.
     - name: Download the VMEC2000 standalone repository
-      run: git clone https://gitlab.com/mattland/VMEC2000.git
+      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
@@ -74,15 +78,16 @@ jobs:
       run: which python3
 
     - name: which pip after python setup
-      run: pip --version
+      run: |
+        python -m pip install --upgrade pip
+        pip --version
 
     - name: env after adding python
       run: env
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc
-        # qsc is used for an integrated test.
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -97,6 +102,8 @@ jobs:
         repository: PrincetonUniversity/SPEC
         path: SPEC
         token: ${{ secrets.SPEC_CHECKOUT }}
+        #ref: python_hdf5
+        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
@@ -110,17 +117,20 @@ jobs:
         ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    - name: Install py_spec
-      run: |
-        pip install -e SPEC/Utilities/pythontools
-        python -c "import py_spec; print('success')"
+    #- name: Install py_spec
+    #  run: |
+    #    pip install -e SPEC/Utilities/pythontools
+    #    python -c "import py_spec; print('success')"
 
     - name: Build SPEC.
       run: |
         cd SPEC
-        cat Makefile | sed 's/CC=intel/CC=gfortran_ubuntu/' > Makefile1
-        cp Makefile1 Makefile
-        head -n30 Makefile
+        # In the SPEC Makefile, we need to set BUILD_ENV:
+        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+        # f90wrap gets confused by "-Wl,-rpath" so remove it:
+        cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
+        #cp Makefile1 Makefile
+        head -n126 Makefile
         make -j
 
     - name: Add xspec to PATH.
@@ -130,7 +140,18 @@ jobs:
         echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
-      run: pip install git+https://github.com/jameskermode/f90wrap
+      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
+
+    - name: Build SPEC python wrapper.
+      run: |
+        cd SPEC/Utilities/python_wrapper
+        make all
+
+    - name: Add spec python wrapper to PYTHONPATH.
+      run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
+
+    - name: Try import spec
+      run: python -c "import spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -144,47 +165,134 @@ jobs:
     - name: ls in VMEC2000/python 1
       run: ls -l VMEC2000/python
 
-    - name: Configure VMEC2000 module
+    - name: Configure and install VMEC2000 module
       run: |
-        cd VMEC2000/python
-        cp ubuntu.json cmake_config_file.json
+        cd VMEC2000
+        cp python/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-
-    - name: Build VMEC2000 module
-      run: |
-        cd VMEC2000/python
-        python setup.py build_ext
-
-    - name: Install VMEC2000 module
-      run: |
-        cd VMEC2000/python
-        python setup.py install
-
-    - name: ls in VMEC2000/python 2
-      run: ls -l VMEC2000/python
+        pip install .
 
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
-    - name: Install mpi4py
-      run: |
-        pip install mpi4py
-
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[MPI,SPEC]
 
-    - name: Run mpi unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: ./run_tests_mpi
-
-    - name: Run serial unit tests
-      if: "contains(matrix.test-type, 'unit')"
-      run: |
-        cd tests
-        python3 -m unittest -v
-
-    - name: Run integrated tests
-      if: "contains(matrix.test-type, 'integrated')"
+    - name: Run examples as part of integrated tests
+      if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
-        ./run_examples
+        ./run_serial_examples
+        ./run_spec_examples
+        ./run_vmec_examples
+        ./run_spec_vmec_examples
+
+    - name: Install coverage dependencies
+      if: contains(matrix.test-type, 'unit')
+      run: pip install coverage
+
+    - name: Run tests using coverage
+      if: contains(matrix.test-type, 'unit')
+      run: | 
+        coverage run --source=simsopt -m unittest discover -s tests
+
+    - name: Run tests using coverage
+      if: contains(matrix.test-type, 'unit')
+      run: | 
+        mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
+
+    - name: Combine coverage reports
+      if: contains(matrix.test-type, 'unit')
+      run: | 
+        coverage combine
+        coverage report
+        coverage xml
+
+    - name: Upload coverage to github
+      if: contains(matrix.test-type, 'unit')
+      uses: actions/upload-artifact@v2
+      with:
+        name: tox-gh-actions-coverage
+        path: coverage.xml
+        if-no-files-found: error
+
+    - name: Upload coverage to Codecov
+      # The last conditional on the next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
+      if: contains(matrix.test-type, 'unit') && github.repository_owner == 'hiddenSymmetries'
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        #files: ./coverage1.xml,./coverage2.xml
+        #directory: ./coverage/reports/
+        flags: unittests
+        env_vars: PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        #path_to_write_report: ./coverage/codecov_report.gz
+        verbose: true
+
+#    - name: Upload uncombined coverage to github
+#      if: contains(matrix.test-type, 'unit')
+#      uses: actions/upload-artifact@v2
+#      with:
+#        name: gh-actions-parallel-coverage
+#        path: .coverage.*
+#        if-no-files-found: error
+#
+#  coverage:
+#    runs-on: ubuntu-18.04
+#    needs: [ test ]
+#    steps:
+#
+#    - name: Set up Python 
+#      uses: actions/setup-python@v2
+#      with:
+#        python-version: 3.8.10
+#
+#    - name: Install coverage
+#      run: pip install coverage
+#
+#    - name: Checkout simsopt 
+#      uses: actions/checkout@v2
+#
+#    - name: Install simsopt before running coverage
+#      run: pip install .
+#
+#    - name: Download artifact
+#      uses: actions/download-artifact@v2
+#      with:
+#        name: gh-actions-parallel-coverage
+#        path: ./
+#
+#    - name: Display coverage files before combine 
+#      run: ls -a
+#
+#    - name: Combine coverage reports
+#      run: | 
+#        coverage combine
+#        coverage report
+#        coverage xml
+#
+#    - name: Upload coverage to github
+#      uses: actions/upload-artifact@v2
+#      with:
+#        name: tox-gh-actions-coverage
+#        path: coverage.xml
+#        if-no-files-found: error
+#
+#    - name: Upload coverage to Codecov
+#      uses: codecov/codecov-action@v1
+#      with:
+#        token: ${{ secrets.CODECOV_TOKEN }}
+#        file: ./coverage.xml
+#        #files: ./coverage1.xml,./coverage2.xml
+#        #directory: ./coverage/reports/
+#        flags: unittests
+#        env_vars: PYTHON
+#        name: codecov-umbrella
+#        fail_ci_if_error: true
+#        #path_to_write_report: ./coverage/codecov_report.gz
+#        verbose: true

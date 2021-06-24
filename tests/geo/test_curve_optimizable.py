@@ -6,9 +6,9 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt.core.optimizable import optimizable
-from simsopt.core.least_squares_problem import LeastSquaresProblem
-from simsopt.solve.serial_solve import least_squares_serial_solve
+from simsopt._core.optimizable import make_optimizable
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 
 parameters['jit'] = False
 
@@ -36,7 +36,7 @@ class Testing(unittest.TestCase):
 
         # Presently in simsgeo, the length objective is a separate object
         # rather than a function of Curve itself.
-        obj = optimizable(CurveLength(curve))
+        obj = make_optimizable(CurveLength(curve))
 
         # For now, we need to add this attribute to CurveLength. Eventually
         # this would hopefully be done in simsgeo, but for now I'll put it here.
@@ -73,9 +73,10 @@ class Testing(unittest.TestCase):
         assert abs(obj.J() - 2 * np.pi * x0[0]) < 1e-8
 
     def test_curve_first_derivative(self):
-            for rotated in [True, False]:
-                with self.subTest(rotated=rotated):
-                    self.subtest_curve_length_optimisation(rotated=rotated)
+        for rotated in [True, False]:
+            with self.subTest(rotated=rotated):
+                self.subtest_curve_length_optimisation(rotated=rotated)
+
 
 if __name__ == "__main__":
     unittest.main()

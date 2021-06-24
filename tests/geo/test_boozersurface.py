@@ -183,7 +183,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         h = np.random.uniform(size=xl.shape)-0.5
         dres_exact = dres0@h
 
-
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
         print("################################################################################")

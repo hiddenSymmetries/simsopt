@@ -58,8 +58,8 @@ More details about setting degrees of freedom and defining
 objective functions can be found on the :doc:`problems` page.
 
 For the solution step, two functions are provided presently,
-:meth:`simsopt.solve.serial_solve.least_squares_serial_solve` and
-:meth:`simsopt.solve.mpi_solve.least_squares_mpi_solve`.  The first
+:meth:`simsopt.solve.serial.least_squares_serial_solve` and
+:meth:`simsopt.solve.mpi.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
 
@@ -122,7 +122,7 @@ The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the 
 
   # ... code to define an optimization problem "prob" ...
   
-  from simsopt.solve.mpi_solve import least_squares_mpi_solve
+  from simsopt.solve.mpi import least_squares_mpi_solve
   
   least_squares_mpi_solve(prob, mpi, grad=True)
 
@@ -169,3 +169,69 @@ communicators is available as ``mpi.rank_world``, ``mpi.rank_groups``,
 and ``mpi.rank_leaders``.  To determine if the present processor has
 rank 0 in a communicator, you can use the variables
 ``mpi.proc0_world`` or ``mpi.proc0_groups``, which have type ``bool``.
+
+Geometric Objects
+-----------------
+
+Simsopt contains implementations of two commonly used geometric objects: curves and surfaces.
+
+Curves
+~~~~~~
+
+A :obj:`simsopt.geo.curve.Curve` is modelled as a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.
+A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\} \subset [0, 1]` and return all information about the curve, at these quadrature points.
+
+- ``Curve.gamma()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns a list of XYZ coordinates along the curve.
+- ``Curve.gammadash()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma'(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns the tangent along the curve.
+- ``Curve.kappa()``: returns a ``(n_phi, 1)`` array containing the curvature :math:`\kappa` of the curve at the quadrature points.
+- ``Curve.torsion()``: returns a ``(n_phi, 1)`` array containing the torsion :math:`\tau` of the curve at the quadrature points.
+
+The different curve classes, such as :obj:`simsopt.geo.curverzfourier.CurveRZFourier` and :obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` differ in the way curves are discretized.
+Each of these take an array of ``dofs`` (e.g. Fourier coefficients) and turn these into a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.
+These dofs can be set via ``Curve.set_dofs(dofs)`` and ``dofs = Curve.get_dofs()``, where ``n_dofs = dofs.size``.
+Changing dofs will change the shape of the curve. Simsopt is able to compute derivatives of all relevant quantities with respect to the discretisation parameters.
+For example, to compute the derivative of the coordinates of the curve at quadrature points, one calls ``Curve.dgamma_by_dcoeff()``.
+One obtains a numpy array of shape ``(n_phi, 3, n_dofs)``, containing the derivative of the position at every quadrature point with respect to every degree of freedom of the curve.
+In the same way one can compute the derivative of quantities such as curvature (via ``Curve.dkappa_by_dcoeff()``) or torsion (via ``Curve.dtorsion_by_dcoeff()``).
+
+A number of quantities are implemented in :obj:`simsopt.geo.curveobjectives` and are computed on a :obj:`simsopt.geo.curve.Curve`:
+
+- ``CurveLength``: computes the length of the ``Curve``.
+- ``LpCurveCurvature``: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
+- ``LpCurveTorsion``: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
+- ``MinimumDistance``: computes a penalty term on the minimum distance between a set of curves.
+
+The value of the quantity and its derivative with respect to the curve dofs can be obtained by calling e.g., ``CurveLength.J()`` and ``CurveLength.dJ()``.
+
+Surfaces
+~~~~~~~~
+
+The second large class of geometric objects are surfaces.
+A :obj:`simsopt.geo.surface.Surface` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to \mathbb{R}^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
+
+The usage is similar to that of the :obj:`~simsopt.geo.curve.Curve` class:
+
+- ``Surface.gamma()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`, i.e. returns a list of XYZ coordinates on the surface.
+- ``Surface.gammadash1()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.gammadash2()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\theta \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.normal()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)\times \partial_\theta \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.area()``: returns the surface area.
+- ``Surface.volume()``: returns the volume enclosed by the surface.
+
+A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.surface.Surface`:
+
+- ``ToroidalFlux``: computes the flux through a toroidal cross section of a ``Surface``.
+
+The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., ``ToroidalFlux.J()`` and ``ToroidalFlux.dJ_dsurfacecoefficients()``.
+
+
+Caching
+~~~~~~~~
+
+The quantities that Simsopt can compute for curves and surfaces often depend on each other.
+For example, the curvature or torsion of a curve both rely on ``Curve.gammadash()``; to avoid repeated calculation 
+geometric objects contain a cache that is automatically managed.
+If a quantity for the curve is requested, the cache is checked to see whether it was already computed.
+This cache can be cleared manually by calling ``Curve.invalidate_cache()``.
+This function is called everytime ``Curve.set_dofs()`` is called (and the shape of the curve changes).
+
