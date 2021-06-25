@@ -78,6 +78,12 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         self.compute_A(compute_derivatives=2)
         d2A_by_dXdX[:] = self._ddA
 
+    def dA_by_dcoilcurrents(self, compute_derivatives=0):
+        if self._dA_by_dcoilcurrents is None:
+            assert compute_derivatives >= 0
+            self.compute_A(self.points, compute_derivatives)
+        return self._dA_by_dcoilcurrents
+
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()
         npoints = len(points)

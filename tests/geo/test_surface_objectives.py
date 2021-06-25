@@ -19,7 +19,7 @@ stellsym_list = [True, False]
 
 
 def taylor_test1(f, df, x, epsilons=None, direction=None):
-    np.random.seed(1)
+    np.random.seed(2)
     f0 = f(x)
     if direction is None:
         direction = np.random.rand(*(x.shape))-0.5
@@ -65,6 +65,152 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
 
 
 class ToroidalFluxTests(unittest.TestCase):
+    def test_ToroidalFlux_by_coilcoefficients(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Area(s, stellarator)
+        label_target = label.J()
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_s = BoozerSurface(bs, s, label, label_target)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+
+        if not res['success']:
+            raise Exception('Surface computation did not converge')
+
+        current_fak = 1./(4 * np.pi * 1e-7)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        tf = ToroidalFlux(s, bs_tf, stellarator, boozer_surface=boozer_s) 
+        coeffs = stellarator.get_currents()/current_fak
+
+        def f(dofs):
+            stellarator.set_currents(current_fak * dofs)
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+            tf.clear_cached_properties()
+            return tf.J()
+
+        def df(dofs):
+            stellarator.set_currents(current_fak * dofs)
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+            tf.clear_cached_properties()
+            dJ_by_dcurrents = stellarator.reduce_current_derivatives(tf.dJ_by_dcoilcurrents()) * current_fak
+            return dJ_by_dcurrents
+        taylor_test1(f, df, coeffs)
+
+    def test_ToroidalFlux_by_coilcoefficients(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Area(s, stellarator)
+        label_target = label.J()
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_s = BoozerSurface(bs, s, label, label_target)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+
+        if not res['success']:
+            raise Exception('Surface computation did not converge')
+
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        tf = ToroidalFlux(s, bs_tf, stellarator, boozer_surface=boozer_s) 
+        coeffs = stellarator.get_dofs()
+
+        def f(dofs):
+            stellarator.set_dofs(dofs)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+            tf.clear_cached_properties()
+            return tf.J()
+
+        def df(dofs):
+            stellarator.set_dofs(dofs)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+            tf.clear_cached_properties()
+            dJ_by_dcoils = tf.dJ_by_dcoefficients()
+            dJ_by_dcoils = stellarator.reduce_coefficient_derivatives(dJ_by_dcoils)
+            return dJ_by_dcoils
+        taylor_test1(f, df, coeffs)
+
+    def test_ToroidalFlux_by_surfacecoefficients(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Area(s, stellarator)
+        label_target = label.J()
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_s = BoozerSurface(bs, s, label, label_target)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+
+        if not res['success']:
+            raise Exception('Surface computation did not converge')
+
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        tf = ToroidalFlux(s, bs_tf, stellarator, boozer_surface=boozer_s) 
+        coeffs = s.get_dofs()
+
+        def f(dofs):
+            s.set_dofs(dofs)
+            tf.clear_cached_properties()
+            return tf.J()
+
+        def df(dofs):
+            s.set_dofs(dofs)
+            tf.clear_cached_properties()
+            return tf.dJ_by_dsurfacecoefficients() 
+        taylor_test1(f, df, coeffs)
+
+
+
+
+
+
+
     def test_toroidal_flux_is_constant(self):
         # this test ensures that the toroidal flux does not change, regardless
         # of the cross section (varphi = constant) across which it is computed
