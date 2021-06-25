@@ -42,7 +42,7 @@ s.fit_to_curve(ma, 0.10, flip_theta=True)
 iota = -0.4
 
 tf = ToroidalFlux(s, bs_tf, stellarator)
-ar = Area(s)
+ar = Area(s, stellarator)
 ar_target = ar.J()
 
 boozer_surface = BoozerSurface(bs, s, ar, ar_target)
