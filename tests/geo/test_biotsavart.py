@@ -58,7 +58,7 @@ class Testing(unittest.TestCase):
         dbcoarse = BiotSavart([get_coil(10)], [1e4]).set_points(points).d2B_by_dXdX()
         dbfine = BiotSavart([get_coil(20)], [1e4]).set_points(points).d2B_by_dXdX()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-       # print(time()-tic)
+        # print(time()-tic)
 
     def test_dB_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
@@ -91,7 +91,7 @@ class Testing(unittest.TestCase):
         np.random.seed(1)
         coil = get_coil()
         bs = BiotSavart([coil], [1e4])
-        points = np.asarray(17* [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
         bs.set_points(points)
@@ -114,7 +114,6 @@ class Testing(unittest.TestCase):
             print(err_new/err)
             assert err_new < 0.55 * err
             err = err_new
-
 
     def test_dAdX_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
@@ -144,7 +143,6 @@ class Testing(unittest.TestCase):
             print(err_new/err)
             assert err_new < 0.55 * err
             err = err_new
-
 
     def test_dBdX_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)

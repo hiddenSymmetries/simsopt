@@ -49,16 +49,14 @@ class BoozerSurfaceTests(unittest.TestCase):
         assert np.max(np.abs(r0[ignores_idxs < 0.5])) < 1e-8
         assert np.max(np.abs(r0[-2:])) < 1e-6
 
-
     def test_dexactresidual_dcoils_vjp(self):
         """
         This test verifies that the dresidual_dcoils_vjp calculation is correct.
         """
 
-        def get_exact_residual(surface, label, target_label, biotsavart,iota=0.,G=None):
+        def get_exact_residual(surface, label, target_label, biotsavart, iota=0., G=None):
             if not isinstance(s, SurfaceXYZTensorFourier):
                 raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
-        
             m = surface.get_stellsym_mask()
             mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
             if surface.stellsym:
@@ -84,9 +82,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         s.fit_to_curve(ma, 0.10, flip_theta=True)
         iota = -0.4
 
-
-
-
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
     
         label = Area(s, stellarator)
@@ -95,15 +90,12 @@ class BoozerSurfaceTests(unittest.TestCase):
         booz_surf = BoozerSurface(bs, s, label, target_label)
         
         coeffs = stellarator.get_dofs()
+
         def f(dofs):
             stellarator.set_dofs(dofs)
             bs.clear_cached_properties()
-            return get_exact_residual(s, label, target_label, bs,iota,G0)
+            return get_exact_residual(s, label, target_label, bs, iota, G0)
         f0 = f(coeffs)
-
-
-
-
 
         m = s.get_stellsym_mask()
         mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
@@ -111,7 +103,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             mask[0, 0, 0] = False
         mask = mask.flatten()
         
-        booz_surf.res = { "mask" : mask }
+        booz_surf.res = {"mask": mask}
 
         np.random.seed(1)
         lm1 = np.random.uniform(size=(np.sum(mask)+1,))-0.5
@@ -120,7 +112,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils)
         
         lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
-        fd_exact = np.dot(lm1_dg_dcoils , lm2)
+        fd_exact = np.dot(lm1_dg_dcoils, lm2)
         
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
@@ -134,15 +126,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_old = err
         print("################################################################################")
 
-
-
-
     def test_dlsqgrad_dcoils_vjp(self):
         """
         This test verifies that the dlsqgrad_dcoils_vjp calculation is correct.
         """
 
-        def get_lsqgrad(surface, label, target_label, biotsavart,iota=0.,G=None):
+        def get_lsqgrad(surface, label, target_label, biotsavart, iota=0., G=None):
             if not isinstance(s, SurfaceXYZTensorFourier):
                 raise RuntimeError('Exact solution of Boozer Surfaces only supported for SurfaceXYZTensorFourier')
         
@@ -168,6 +157,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         booz_surf = BoozerSurface(bs, s, label, target_label)
 
         coeffs = stellarator.get_dofs()
+
         def f(dofs):
             stellarator.set_dofs(dofs)
             bs.clear_cached_properties()
@@ -183,7 +173,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         lm1_dg_dcoils = stellarator.reduce_coefficient_derivatives(lm1_dg_dcoils)
         
         lm2 = np.random.uniform(size=lm1_dg_dcoils.size)-0.5
-        fd_exact = np.dot(lm1_dg_dcoils , lm2)
+        fd_exact = np.dot(lm1_dg_dcoils, lm2)
         
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
@@ -196,17 +186,6 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert err < err_old * 0.55
             err_old = err
         print("################################################################################")
-
-
-
-
-
-
-
-
-
-#
-   
 
     def test_boozer_penalty_constraints_gradient(self):
         """

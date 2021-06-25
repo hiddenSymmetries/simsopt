@@ -14,7 +14,6 @@ from simsopt.geo.boozersurface import BoozerSurface
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
 
-
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
 
@@ -39,7 +38,8 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         err_old = err
     print("################################################################################")
 
-def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = None):
+
+def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None):
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
@@ -63,6 +63,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2 = Non
         err_old = err
     print("################################################################################")
 
+
 class ToroidalFluxTests(unittest.TestCase):
     def test_toroidal_flux_is_constant(self):
         # this test ensures that the toroidal flux does not change, regardless
@@ -75,13 +76,13 @@ class ToroidalFluxTests(unittest.TestCase):
         gamma = s.gamma()
         num_phi = gamma.shape[0]
         
-        tf_list = np.zeros( (num_phi,) )
+        tf_list = np.zeros((num_phi,))
         for idx in range(num_phi):
-            tf = ToroidalFlux(s, bs_tf, stellarator, idx = idx)
+            tf = ToroidalFlux(s, bs_tf, stellarator, idx=idx)
             tf_list[idx] = tf.J()
         mean_tf = np.mean(tf_list)
 
-        max_err = np.max( np.abs(mean_tf - tf_list) ) / mean_tf
+        max_err = np.max(np.abs(mean_tf - tf_list)) / mean_tf
         assert max_err < 1e-2
     
 #    def test_toroidal_flux_dcoilcoeff(self):
@@ -102,17 +103,17 @@ class ToroidalFluxTests(unittest.TestCase):
 #            return dJ_by_dcoils 
 #        taylor_test1(f, df, coeffs )
 
-
     def test_toroidal_flux_first_derivative(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux1(surfacetype,stellsym)
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_toroidal_flux1(surfacetype, stellsym)
+
     def test_toroidal_flux_second_derivative(self):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype = surfacetype, stellsym=stellsym):
-                    self.subtest_toroidal_flux2(surfacetype,stellsym)
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_toroidal_flux2(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()
@@ -185,36 +186,35 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
  
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         boozer_s = BoozerSurface(bs, s, label, label_target)
-        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
         iota = res['iota']
         G0 = res['G']
 
-        if not res['success'] :
+        if not res['success']:
             raise Exception('Surface computation did not converge')
 
         non_qs = NonQuasiAxisymmetricComponent(boozer_s)
         coeffs = stellarator.get_currents()/current_fak
+
         def f(dofs):
-            stellarator.set_currents(current_fak *dofs )
+            stellarator.set_currents(current_fak * dofs)
             for coil, curr in zip(bs.coils_optim, stellarator.currents):
                 coil.current.set_value(curr) 
 
-            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
             non_qs.clear_cached_properties()
             return non_qs.J()
+
         def df(dofs):
-            stellarator.set_currents(current_fak *dofs )
+            stellarator.set_currents(current_fak * dofs)
             for coil, curr in zip(bs.coils_optim, stellarator.currents):
                 coil.current.set_value(curr) 
-            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
             bs.clear_cached_properties()
             non_qs.clear_cached_properties()
             dJ_by_dcurrents = stellarator.reduce_current_derivatives(non_qs.dJ_by_dcoilcurrents()) * current_fak
             return dJ_by_dcurrents
-        taylor_test1(f, df, coeffs )
-
-
-
+        taylor_test1(f, df, coeffs)
 
     def test_NonQuasiAxiSymmetricComponent_by_surfacecoefficients(self):
         coils, currents, ma = get_ncsx_data()
@@ -238,24 +238,27 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
  
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         boozer_s = BoozerSurface(bs, s, label, label_target)
-        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
 
         if not res['success']:
             raise Exception('Surface computation did not converge')
 
         non_qs = NonQuasiAxisymmetricComponent(boozer_s) 
         coeffs = s.get_dofs()
+
         def f(dofs):
             s.set_dofs(dofs)
-            bs.set_points(boozer_s.surface.gamma().reshape((-1,3)))
+            bs.set_points(boozer_s.surface.gamma().reshape((-1, 3)))
             non_qs.clear_cached_properties()
             return non_qs.J()
+
         def df(dofs):
             s.set_dofs(dofs)
-            bs.set_points(boozer_s.surface.gamma().reshape((-1,3)))
+            bs.set_points(boozer_s.surface.gamma().reshape((-1, 3)))
             non_qs.clear_cached_properties()
             return non_qs.dJ_by_dsurfacecoefficients() 
-        taylor_test1(f, df, coeffs )
+        taylor_test1(f, df, coeffs)
+
     def test_NonQuasiSymmetricComponent_by_coilcoefficients(self):
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -278,26 +281,28 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
  
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         boozer_s = BoozerSurface(bs, s, label, label_target)
-        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
 
         if res['success'] == False:
             raise Exception('Surface computation did not converge')
 
         non_qs = NonQuasiAxisymmetricComponent(boozer_s)
         coeffs = stellarator.get_dofs()
+
         def f(dofs):
             stellarator.set_dofs(dofs)
-            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
             non_qs.clear_cached_properties()
             return non_qs.J()
+
         def df(dofs):
             stellarator.set_dofs(dofs)
-            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+            res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
             non_qs.clear_cached_properties()
             dJ_by_dcoils = non_qs.dJ_by_dcoefficients()
             dJ_by_dcoils = stellarator.reduce_coefficient_derivatives(dJ_by_dcoils)
             return dJ_by_dcoils
-        taylor_test1(f, df, coeffs )
+        taylor_test1(f, df, coeffs)
 
 #    def test_NonQuasiSymmetricComponentPenalty_exact(self):
 #        """
@@ -374,6 +379,7 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
 #        
 #        assert np.abs(non_qs.J()) < 1e-14
 
+
 class MajorRadiusTests(unittest.TestCase):
     def test_first_derivative(self):
         coils, currents, ma = get_ncsx_data()
@@ -397,7 +403,7 @@ class MajorRadiusTests(unittest.TestCase):
  
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         boozer_s = BoozerSurface(bs, s, label, label_target)
-        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
 
         if res['success'] == False:
             raise Exception('Surface computation did not converge')
@@ -405,10 +411,12 @@ class MajorRadiusTests(unittest.TestCase):
         mr = MajorRadius(boozer_s)
 
         coeffs = s.get_dofs()
+
         def f(dofs):
             s.set_dofs(dofs)
             mr.clear_cached_properties()
             return mr.J()
+
         def df(dofs):
             s.set_dofs(dofs)
             mr.clear_cached_properties()
