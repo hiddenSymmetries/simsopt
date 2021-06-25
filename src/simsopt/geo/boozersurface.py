@@ -9,37 +9,36 @@ from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_d
 
 
 class BoozerSurface():
-    """
+    r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
     or SurfaceXYZTensorFourier), a magnetic field evaluator, surface label evaluator,
     and a target surface label.
 
     The Boozer angles are computed by solving a constrained least squares problem.
-    The least squares objective is given by 0.5*|| f ||^2_2, where f is the residual
-    computed by boozer_surface_residual (see surfaceobjectives.py).  This objective
-    is zero when (phi,theta) that parametrize the surface correspond to Boozer angles.
+    The least squares objective is given by :math:`J(x) = \frac{1}{2} \mathbf r^T(x) \mathbf r(x)`, 
+    where :math:`\mathbf r` is a vector of residuals computed by :mod:`boozer_surface_residual` 
+    (see :mod:`surfaceobjectives.py`), and some constraints.  This objective is zero when the surface corresponds 
+    to a magnetic surface of the field and :math:`(\phi,\theta)` that parametrize the surface correspond to 
+    Boozer angles, and the constraints are satisfied.
 
-    The surface label can be area, volume, or toroidal flux. The surface is constrained
-    by the user-provided targetlabel.
+    The surface label can be area, volume, or toroidal flux. The label on the computed surface will be equal or close
+    to the user-provided ``targetlabel``, depending on how the label constraint is imposed.  This 
+    constrained least squares problem can be solved by scalarizing and adding the constraint as 
+    an additional penalty term to the objective.  This is done in
 
-    This constrained least squares problem can be solved by scalarizing and adding
-    the constraint as an additional penalty term to the objective.  This is done in
-        
-        minimize_boozer_penalty_constraints_LBFGS
-        minimize_boozer_penalty_constraints_newton
-        minimize_boozer_penalty_constraints_ls
+        #. :mod:`minimize_boozer_penalty_constraints_LBFGS`
+        #. :mod:`minimize_boozer_penalty_constraints_newton`
+        #. :mod:`minimize_boozer_penalty_constraints_ls`
 
-    where LBFGS, Newton, or scipy.optimize.least_squares optimizers are used, respectively.
-    
+    where LBFGS, Newton, or :mod:`scipy.optimize.least_squares` optimizers are used, respectively.
     Alternatively, the exactly constrained least squares optimization problem can be solved.
     This is done in
-    
-        minimize_boozer_exact_constraints_newton
 
-    where Newton is used to solve the first order optimality condition.
+        #. :mod:`minimize_boozer_exact_constraints_newton`
+
+    where Newton is used to solve the first order necessary conditions for optimality.
     """
-
 
     def __init__(self, biotsavart, surface, label, targetlabel):
         self.bs = biotsavart
@@ -48,41 +47,26 @@ class BoozerSurface():
         self.targetlabel = targetlabel
         self.res = None
     
-    def first_order_continuation(self, booz_surf, iota, G, dc):
-        surface = booz_surf.surface
-        bs = booz_surf.bs
-        boozer = boozer_surface_residual(self.surface, iota, G, self.bs, derivatives=0)
-        r = boozer[0]
-
-        dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
-        for i in range(r.shape[0]):
-            lm = np.zeros(r.shape[0])
-            lm[i] = 1.
-            import ipdb;ipdb.set_trace()
-            dri_dcoils = dconstraint_dcoils_vjp(lm, booz_surf, iota, G, bs)
- 
-
-        r, dr_ds = boozer_surface_residual(surface, iota, G, self.bs, derivatives=1)
-
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
-        """
+        r"""
         Define the residual
 
-        r(x) = [
-            f_1(x),...,f_n(x),
-            sqrt(constraint_weight) * (label-targetlabel),
-            sqrt(constraint_weight) * (z(varphi=0, theta=0) - 0),
-        ]
+        .. math::
+            \mathbf r(x) = [r_1(x),...,r_n(x), \sqrt{w_c}  (l-l_0), \sqrt{w_c}  (z(\varphi=0, \theta=0) - 0)]
 
-        where {f_i}_i are the Boozer residuals at quadrature points 1,...,n.
+        where :math:`w_c` is the constraint weight, :math:`r_i` are the Boozer residuals 
+        at quadrature points :math:`1,\dots,n`, :math:`l` is the surface label, and :math:`l_0` is
+        the target surface label.
 
-        For scalarized=False, this function returns r(x) and optionally the Jacobian of r.
+        For ``scalarized=False``, this function returns :math:`\mathbf r(x)` and optionally the Jacobian 
+        of :math:`\mathbf r(x)`.
 
-        for scalarized=True, this function returns
+        for ``scalarized=True``, this function returns
 
-            g(x) = 0.5 * r(x)^T * r(x),
+        .. math::
+            J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x),
 
-        i.e. the least squares residual and optionally the gradient and the Hessian of g.
+        i.e. the least squares residual and optionally the gradient and the Hessian of :math:`J(x)`.
         """
 
         assert derivatives in [0, 1, 2]
@@ -154,17 +138,22 @@ class BoozerSurface():
         return val, dval, d2val
 
     def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True):
-        """
-        This function returns the optimality conditions corresponding to the minimisation problem
+        r"""
+        This function returns the optimality conditions corresponding to the minimization problem
 
-            min 0.5 * || f(x) ||^2_2
+        .. math::
+            \text{min}_x ~J(x)
 
-            subject to 
+        subject to 
 
-            label - targetlabel = 0
-            z(varphi=0,theta=0) - 0 = 0
+        .. math::
+            l - l_0 &= 0 \\
+            z(\varphi=0,\theta=0) - 0 &= 0
 
-        as well as optionally the first derivatives for these optimality conditions.
+        where :math:`l` is the surface label and :math:`l_0` is the target surface label, 
+        :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
+        the Boozer residuals at quadrature points :math:`1,\dots,n`.
+        We can also optionally return the first derivatives of these optimality conditions.
         """
         assert derivatives in [0, 1]
         if optimize_G:
@@ -215,13 +204,16 @@ class BoozerSurface():
         return res, dres
 
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
-        """
+        r"""
         This function tries to find the surface that approximately solves
-        min 0.5 * || f(x) ||^2_2 + 0.5 * constraint_weight * (label - labeltarget)^2
-                                 + 0.5 * constraint_weight * (z(varphi=0, theta=0) - 0)^2
 
-        where || f(x)||^2_2 is the sum of squares of the Boozer residual at
-        the quadrature points.  This is done using LBFGS.
+        .. math::
+            \text{min}_x ~J(x) + \frac{1}{2} w_c (l - l_0)^2
+                                 + \frac{1}{2} w_c (z(\varphi=0, \theta=0) - 0)^2
+
+        where :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
+        the Boozer residuals at quadrature points :math:`1,\dots,n`.
+        This is done using LBFGS.
         """
 
         s = self.surface
@@ -251,10 +243,9 @@ class BoozerSurface():
 
         return resdict
 
-
     def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
         """
-        This function does the same as the above, but instead of LBFGS it uses
+        This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
         """
         s = self.surface
@@ -297,8 +288,10 @@ class BoozerSurface():
 
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
         """
-        This function does the same as the above, but instead of LBFGS it uses a nonlinear least squares algorithm.
-        Options for method are the same as for scipy.optimize.least_squares.
+        This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
+        uses a nonlinear least squares algorithm when ``method='lm'``.  Options for the method 
+        are the same as for :mod:`scipy.optimize.least_squares`. If ``method='manual'``, then a 
+        damped Gauss-Newton method is used.
         """
         s = self.surface
         if G is None:
@@ -388,18 +381,24 @@ class BoozerSurface():
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
-        """
+        r"""
         This function solves the constrained optimization problem
-            min 0.5 * || f(x) ||^2_2
 
-            subject to
+        .. math::
+            \text{min}_x ~ J(x)
 
-            label - targetlabel = 0
-            z(varphi=0,theta=0) - 0 = 0
+        subject to
 
-        using Lagrange multipliers and Newton's method.  The final constraint
-        is not necessary for stellarator symmetric surfaces as it is automatically
-        satisfied by stellarator symmetric surfaces.
+        .. math::
+            l - l_0 &= 0 \\
+            z(\varphi=0,\theta=0) - 0 &= 0
+
+        using Lagrange multipliers and Newton's method. In the above,
+        :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
+        the Boozer residuals at quadrature points :math:`1,\dots,n`.
+
+        The final constraint is not necessary for stellarator symmetric surfaces as it is automatically
+        satisfied by the stellarator symmetric surface parametrization.
         """
         s = self.surface
         if G is not None:

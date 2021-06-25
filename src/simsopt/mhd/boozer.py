@@ -11,18 +11,39 @@ import logging
 from typing import Union, Iterable
 
 import numpy as np
-
-booz_xform_found = True
-try:
-    import booz_xform
-except ImportError as err:
-    booz_xform_found = False
-
-from .._core.optimizable import Optimizable
-from .vmec import Vmec
+from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None 
+    logger.warning(str(e))
+print(f"Is MPI None? {MPI is None}")
+
+# booz_xform_found = True
+try:
+    import booz_xform
+except ImportError as e:
+    # booz_xform_found = False
+    booz_xform = None
+    logger.warning(str(e))
+
+from .._core.optimizable import Optimizable
+
+#try:
+if MPI is not None:
+    from .vmec import Vmec
+#except ImportError as e:
+    #Vmec = None
+    #logger.warning(str(e))
+
+
+#@requires(booz_xform is not None,
+#          "To use a Boozer object, the booz_xform package "
+#          "must be installed. Run 'pip install -v booz_xform'")
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -33,6 +54,7 @@ class Boozer(Optimizable):
     out on all these surfaces. The registry can be cleared at any time
     by setting the s attribute to {}.
     """
+
     def __init__(self,
                  equil: Vmec,
                  mpol: int = 32,
@@ -40,11 +62,11 @@ class Boozer(Optimizable):
         """
         Constructor
         """
-        if not booz_xform_found:
+        if booz_xform is None:
             raise RuntimeError(
                 "To use a Boozer object, the booz_xform package "
                 "must be installed. Run 'pip install -v booz_xform'")
-                
+
         self.equil = equil
         self.depends_on = ["equil"]
         self.mpol = mpol
@@ -52,7 +74,7 @@ class Boozer(Optimizable):
         self.bx = booz_xform.Booz_xform()
         self.s = set()
         self.need_to_run_code = True
-        self._calls = 0 # For testing, keep track of how many times we call bx.run()
+        self._calls = 0  # For testing, keep track of how many times we call bx.run()
 
         # We may at some point want to allow booz_xform to use a
         # different partitioning of the MPI processors compared to the
@@ -68,7 +90,7 @@ class Boozer(Optimizable):
 
     def set_dofs(self, x):
         self.need_to_run_code = True
-        
+
     def register(self, s: Union[float, Iterable[float]]) -> None:
         """
         This function is called by objects that depend on this Boozer
@@ -96,21 +118,21 @@ class Boozer(Optimizable):
         """
         Run booz_xform on all the surfaces that have been registered.
         """
-        
+
         if (self.mpi is not None) and (not self.mpi.proc0_groups):
             logger.info("This proc is skipping Boozer.run since it is not a group leader.")
             return
-            
+
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
-        
+
         s = sorted(list(self.s))
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
             self.equil.run()
-            wout = self.equil.wout # Shorthand
+            wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
             ns = wout.ns
@@ -131,7 +153,7 @@ class Boozer(Optimizable):
             # s_to_index_all_surfs. In a second step,
             # s_to_index_all_surfs and the list of compute_surfs are
             # used to find s_to_index.
-            
+
             compute_surfs = []
             s_to_index_all_surfs = dict()
             self.s_used = dict()
@@ -140,7 +162,7 @@ class Boozer(Optimizable):
                 compute_surfs.append(index)
                 s_to_index_all_surfs[ss] = index
                 self.s_used[ss] = s_half[index]
-                
+
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
             logger.info("compute_surfs={}".format(compute_surfs))
@@ -193,7 +215,7 @@ class Boozer(Optimizable):
                 bmns = arr
                 bsubumns = arr
                 bsubvmns = arr
-                
+
             # For quantities that depend on radius, booz_xform handles
             # interpolation and discarding the rows of zeros:
             self.bx.init_from_vmec(wout.ns,
@@ -218,14 +240,14 @@ class Boozer(Optimizable):
             # Cases for SPEC, GVEC, etc could be added here.
             raise ValueError("equil is not an equilibrium type supported by"
                              "Boozer")
-        
+
         logger.info("About to call booz_xform.Booz_xform.run().")
         self.bx.run()
         self._calls += 1
         logger.info("Returned from calling booz_xform.Booz_xform.run().")
         self.need_to_run_code = False
-        
-        
+
+
 class Quasisymmetry(Optimizable):
     """
     This class is used to compute the departure from quasisymmetry on
@@ -245,6 +267,7 @@ class Quasisymmetry(Optimizable):
            modes on the same surface. This is the normalization used in stellopt.
         weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
     """
+
     def __init__(self,
                  boozer: Boozer,
                  s: Union[float, Iterable[float]],
@@ -290,10 +313,10 @@ class Quasisymmetry(Optimizable):
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
-        
+
         # The next line is the expensive part of the calculation:
         self.boozer.run()
-        
+
         symmetry_error = []
         for js, s in enumerate(self.s):
             index = self.boozer.s_to_index[s]
@@ -352,7 +375,7 @@ class Quasisymmetry(Optimizable):
                 # evaluated outside of any loop over m, so m ends up
                 # taking the value mboz instead of the actual m for
                 # each mode. As a result, there is an even weight by s_used**2.
-                
+
                 s_used = self.boozer.s_used[s]
                 logger.info('s_used, in Quasisymmetry: {}'.format(s_used))
                 """
@@ -373,7 +396,7 @@ class Quasisymmetry(Optimizable):
                 # radial weight only when sigma < 0, the opposite of
                 # when using the non-ORNL helicity! Here, we do not
                 # apply such a weight.
-                
+
                 temp = bmnc[nonsymmetric]
                 symmetry_error.append(np.array([np.sqrt(np.sum(temp * temp))]))
 

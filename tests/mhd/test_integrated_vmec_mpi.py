@@ -2,17 +2,28 @@ import unittest
 import logging
 
 import numpy as np
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
+try:
+    import vmec
+except ImportError:
+    vmec = None
 
-from simsopt.mhd.vmec import Vmec, vmec_found
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-from simsopt.util.mpi import MpiPartition
+
+if MPI is not None:
+    from simsopt.mhd.vmec import Vmec
+    from simsopt.solve.mpi import least_squares_mpi_solve
+    from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
 
 #@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
-@unittest.skipIf(not vmec_found, "Valid Python interface to VMEC not found")
+
+
+@unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
 class IntegratedTests(unittest.TestCase):
     def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
@@ -32,8 +43,9 @@ class IntegratedTests(unittest.TestCase):
         https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
         """
 
-        #logging.basicConfig(level=logging.DEBUG)
-        logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+        # logging.basicConfig(level=logging.DEBUG)
+        # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
+        logger = logging.getLogger(__name__)
 
         for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
             for grad in [False, True]:
@@ -84,6 +96,6 @@ class IntegratedTests(unittest.TestCase):
                 assert np.abs(surf.volume() - 0.15) < 1.0e-6
                 assert prob.objective() < 1.0e-15
 
-                
+
 if __name__ == "__main__":
     unittest.main()

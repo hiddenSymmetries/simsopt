@@ -31,10 +31,11 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
     err_old = 1e9
     for eps in epsilons:
         fpluseps = f(x + eps * direction)
-        dfest = (fpluseps-f0)/eps
+        fminuseps = f(x - eps * direction)
+        dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
-        print(err/err_old)
-        assert err < 0.55 * err_old
+        print(err, err/err_old)
+        assert err < 1e-9 or err < 0.3 * err_old
         err_old = err
     print("################################################################################")
 
@@ -126,6 +127,7 @@ class ToroidalFluxTests(unittest.TestCase):
             s.set_dofs(dofs)
             tf.clear_cached_properties() 
             return tf.J()
+
         def df(dofs):
             s.set_dofs(dofs)
             tf.clear_cached_properties() 
@@ -145,10 +147,12 @@ class ToroidalFluxTests(unittest.TestCase):
             s.set_dofs(dofs)
             tf.clear_cached_properties() 
             return tf.J()
+
         def df(dofs):
             s.set_dofs(dofs)
             tf.clear_cached_properties() 
             return tf.dJ_by_dsurfacecoefficients() 
+
         def d2f(dofs):
             s.set_dofs(dofs)
             tf.clear_cached_properties() 
@@ -182,6 +186,8 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
         G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         boozer_s = BoozerSurface(bs, s, label, label_target)
         res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        iota = res['iota']
+        G0 = res['G']
 
         if not res['success'] :
             raise Exception('Surface computation did not converge')
@@ -190,11 +196,16 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
         coeffs = stellarator.get_currents()/current_fak
         def f(dofs):
             stellarator.set_currents(current_fak *dofs )
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
             res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
             non_qs.clear_cached_properties()
             return non_qs.J()
         def df(dofs):
             stellarator.set_currents(current_fak *dofs )
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
             res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
             bs.clear_cached_properties()
             non_qs.clear_cached_properties()
@@ -363,43 +374,45 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
 #        
 #        assert np.abs(non_qs.J()) < 1e-14
 
-#class MajorRadiusTests(unittest.TestCase):
-#    def test_first_derivative(self):
-#        coils, currents, ma = get_ncsx_data()
-#        stellarator = CoilCollection(coils, currents, 3, True)
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-#
-#        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
-#        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
-#        stellsym = True
-#        nfp = 3
-#        
-#        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
-#        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-#        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-#        s.fit_to_curve(ma, 0.10, flip_theta=True)
-#        iota = -0.4
-#        
-#        bs = BiotSavart(stellarator.coils, stellarator.currents)
-#        label = Area(s, stellarator)
-#        label_target = label.J()
-# 
-#        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-#        boozer_s = BoozerSurface(bs, s, label, label_target)
-#        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
-#
-#        if res['success'] == False:
-#            raise Exception('Surface computation did not converge')
-#
-#        mr = MajorRadius(boozer_s)
-#
-#        coeffs = s.get_dofs()
-#        def f(dofs):
-#            s.set_dofs(dofs)
-#            return mr.J()
-#        def df(dofs):
-#            s.set_dofs(dofs)
-#            return mr.dJ() 
-#        taylor_test1(f, df, coeffs)
+class MajorRadiusTests(unittest.TestCase):
+    def test_first_derivative(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+
+        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Area(s, stellarator)
+        label_target = label.J()
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_s = BoozerSurface(bs, s, label, label_target)
+        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+
+        if res['success'] == False:
+            raise Exception('Surface computation did not converge')
+
+        mr = MajorRadius(boozer_s)
+
+        coeffs = s.get_dofs()
+        def f(dofs):
+            s.set_dofs(dofs)
+            mr.clear_cached_properties()
+            return mr.J()
+        def df(dofs):
+            s.set_dofs(dofs)
+            mr.clear_cached_properties()
+            return mr.dJ_dsurfacecoefficients() 
+        taylor_test1(f, df, coeffs)
 
 

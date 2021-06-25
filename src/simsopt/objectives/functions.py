@@ -12,12 +12,14 @@ import numpy as np
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 
+
 class Identity(Optimizable):
     """
     This class represents a term in an objective function which is just
     the identity. It has one degree of freedom, and the output of the function
     is equal to this degree of freedom.
     """
+
     def __init__(self, x=0.0):
         self.x = x
         self.dx = np.array([1.0])
@@ -29,25 +31,27 @@ class Identity(Optimizable):
 
     def dJ(self):
         return np.array([1.0])
-    
+
     @property
     def f(self):
         """
         Same as the function J(), but a property instead of a function.
         """
         return self.x
+
     @property
     def df(self):
         """
         Same as the function dJ(), but a property instead of a function.
         """
         return np.array([1.0])
-    
+
     def get_dofs(self):
         return np.array([self.x])
 
     def set_dofs(self, xin):
         self.x = xin[0]
+
 
 class Adder(Optimizable):
     """This class defines a minimal object that can be optimized. It has
@@ -68,26 +72,27 @@ class Adder(Optimizable):
 
     def dJ(self):
         return np.ones(self.n)
-        
+
     @property
     def f(self):
         """
         Same as the function J(), but a property instead of a function.
         """
         return self.J()
-    
+
     @property
     def df(self):
         """
         Same as the function dJ(), but a property instead of a function.
         """
         return np.ones(self.n)
-    
+
     def get_dofs(self):
         return self.x
 
     def set_dofs(self, xin):
         self.x = np.array(xin)
+
 
 class Rosenbrock(Optimizable):
     """
@@ -106,7 +111,7 @@ class Rosenbrock(Optimizable):
         Returns the first of the two quantities that is squared and summed.
         """
         return self._x - 1
-        
+
     def term2(self):
         """
         Returns the second of the two quantities that is squared and summed.
@@ -118,41 +123,41 @@ class Rosenbrock(Optimizable):
         Returns the gradient of term1
         """
         return np.array([1.0, 0.0])
-    
+
     def dterm2(self):
         """
         Returns the gradient of term2
         """
         return np.array([2 * self._x, -1.0]) / self._sqrtb
-    
+
     @property
     def term1prop(self):
         """
         Same as term1, but a property rather than a callable function.
         """
         return self.term1()
-    
+
     @property
     def term2prop(self):
         """
         Same as term2, but a property rather than a callable function.
         """
         return self.term2()
-    
+
     @property
     def dterm1prop(self):
         """
         Same as dterm1, but a property rather than a callable function.
         """
         return self.dterm1()
-    
+
     @property
     def dterm2prop(self):
         """
         Same as dterm2, but a property rather than a callable function.
         """
         return self.dterm2()
-    
+
     def f(self):
         """
         Returns the total function, squaring and summing the two terms.
@@ -173,13 +178,14 @@ class Rosenbrock(Optimizable):
         """
         return np.array([[1.0, 0.0],
                          [2 * self._x / self._sqrtb, -1.0 / self._sqrtb]])
-    
+
     def get_dofs(self):
         return np.array([self._x, self._y])
 
     def set_dofs(self, xin):
         self._x = xin[0]
         self._y = xin[1]
+
 
 class RosenbrockWithFailures(Rosenbrock):
     """
@@ -198,15 +204,16 @@ class RosenbrockWithFailures(Rosenbrock):
         self.nevals += 1
         if np.mod(self.nevals, self.fail_interval) == 0:
             raise ObjectiveFailure("Planned failure")
-    
+
         return super().term1()
-        
+
 
 class TestObject1(Optimizable):
     """
     This is an optimizable object used for testing. It depends on two
     sub-objects, both of type Adder.
     """
+
     def __init__(self, val):
         self.val = val
         self.names = ['val']
@@ -220,7 +227,7 @@ class TestObject1(Optimizable):
 
     def get_dofs(self):
         return np.array([self.val])
-    
+
     def J(self):
         return (self.val + 2 * self.adder1.J()) / (10.0 + self.adder2.J())
 
@@ -232,6 +239,7 @@ class TestObject1(Optimizable):
         return np.concatenate((np.array([1.0 / (10.0 + a2)]),
                                np.full(self.adder1.n, 2.0 / (10.0 + a2)),
                                np.full(self.adder2.n, -(v + 2 * a1) / ((10.0 + a2) ** 2))))
+
     @property
     def f(self):
         """
@@ -246,12 +254,13 @@ class TestObject1(Optimizable):
         """
         return self.dJ()
 
-    
+
 class TestObject2(Optimizable):
     """
     This is an optimizable object used for testing. It depends on two
     sub-objects, both of type Adder.
     """
+
     def __init__(self, val1, val2):
         self.val1 = val1
         self.val2 = val2
@@ -267,7 +276,7 @@ class TestObject2(Optimizable):
 
     def get_dofs(self):
         return np.array([self.val1, self.val2])
-    
+
     def J(self):
         v1 = self.val1
         v2 = self.val2
@@ -286,6 +295,7 @@ class TestObject2(Optimizable):
         return np.concatenate((np.array([1.0, -a * sinat]),
                                -a * sinat * self.t.dJ(),
                                cosat * self.adder.dJ()))
+
     @property
     def f(self):
         """
@@ -300,12 +310,13 @@ class TestObject2(Optimizable):
         """
         return self.dJ()
 
-    
+
 class Affine(Optimizable):
     """
     This class represents a random affine (i.e. linear plus constant)
     transformation from R^n to R^m.
     """
+
     def __init__(self, nparams, nvals):
         """
         nparams = number of independent variables.
@@ -329,7 +340,7 @@ class Affine(Optimizable):
     def dJ(self):
         return self.A
 
-    
+
 class Failer(Optimizable):
     """
     This class is used for testing failures of the objective
@@ -342,6 +353,7 @@ class Failer(Optimizable):
         nvals: Number of entries in the return vector.
         fail_index: Which function evaluation to fail on.
     """
+
     def __init__(self,
                  nparams: int = 2,
                  nvals: int = 3,
@@ -364,3 +376,28 @@ class Failer(Optimizable):
 
     def set_dofs(self, x):
         self.x = x
+
+
+class Beale(Optimizable):
+    """
+    This is a test function which does not supply derivatives. It is
+    taken from
+    https://en.wikipedia.org/wiki/Test_functions_for_optimization
+    """
+
+    def __init__(self):
+        self.x = np.zeros(2)
+
+    def get_dofs(self):
+        return self.x
+
+    def set_dofs(self, x):
+        assert len(x) == 2
+        self.x = np.array(x)
+
+    def J(self):
+        x = self.x[0]
+        y = self.x[1]
+        return np.array([1.5 - x + x * y,
+                         2.25 - x + x * y * y,
+                         2.625 - x + x * y * y * y])

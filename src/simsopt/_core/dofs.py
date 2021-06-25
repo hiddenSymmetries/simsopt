@@ -3,8 +3,7 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides the collect_dofs() function, used by least-squares
-and general optimization problems.
+This module provides the Dofs class.
 
 This module should not depend on anything involving communication
 (e.g. MPI) or on specific types of optimization problems.
@@ -15,7 +14,7 @@ from typing import Union
 import numpy as np
 
 from .optimizable import function_from_user
-from .util import unique, ObjectiveFailure
+from .util import unique, ObjectiveFailure, finite_difference_steps
 
 logger = logging.getLogger(__name__)
 
@@ -44,39 +43,47 @@ class Dofs:
     that have been combined from multiple optimizable objects, keeping
     only the non-fixed dofs.
 
+    For the meaning of ``abs_step`` and ``rel_step``, see
+    :func:`simsopt._core.util.finite_difference_steps()`.
+
     Args:
+        funcs: A list, tuple, or set of optimizable functions.
         fail: Should be None, a large positive float, or NaN. If not
           None, any ObjectiveFailure excpetions raised will be caught
           and the corresponding residual values will be replaced by this
           value.
+        abs_step: Absolute step size for finite differences.
+        rel_step: Relative step size for finite differences.
+        diff_method: Method to use if and when finite differences are
+          evaluated. Should be ``forward`` or ``centered``.
+
+    Attributes:
+        dof_owners: A vector, with each element pointing to the object whose
+          set_dofs() function should be called to update the corresponding
+          dof.
+
+        all_owners: A list of all objects involved in computing funcs,
+          including those that do not directly own any of the non-fixed
+          dofs.
+
+        indices: A vector of ints, with each element giving the index in
+          the owner's set_dofs method corresponding to this dof.
+
+        names: A list of strings to identify each of the dofs.
     """
 
     def __init__(self,
                  funcs,
-                 fail: Union[None, float] = None):
-        """
-        Given a list of optimizable functions, 
-
-        funcs: A list/set/tuple of callable functions.
-
-        returns: an object with the following attributes:
-        x: A 1D numpy vector of variable dofs.
-
-        dof_owners: A vector, with each element pointing to the object whose
-        set_dofs() function should be called to update the corresponding
-        dof.
-
-        all_owners: A list of all objects involved in computing funcs,
-        including those that do not directly own any of the non-fixed
-        dofs.
-
-        indices: A vector of ints, with each element giving the index in
-        the owner's set_dofs method corresponding to this dof.
-
-        names: A list of strings to identify each of the dofs.
-        """
+                 fail: Union[None, float] = 1.0e12,
+                 abs_step: float = 1.0e-7,
+                 rel_step: float = 0.0,
+                 diff_method: str = "centered"
+                 ):
 
         self.fail = fail
+        self.abs_step = abs_step
+        self.rel_step = rel_step
+        self.diff_method = diff_method
 
         # Convert all user-supplied function-like things to actual functions:
         funcs = [function_from_user(f) for f in funcs]
@@ -245,7 +252,7 @@ class Dofs:
                 # As soon as any functions fail, don't bother
                 # evaluating the rest:
                 break
-            
+
             if isinstance(f, (np.ndarray, list, tuple)):
                 self.nvals_per_func[j] = len(f)
                 val_list.append(np.array(f))
@@ -259,9 +266,9 @@ class Dofs:
                 # function evaluation, so we do not yet know how many
                 # residuals to return.
                 raise RuntimeError("Objective failed on first function evaluation")
-            
+
             return np.full(self.nvals, self.fail)
-        
+
         else:
             logger.debug('Detected nvals_per_func={}'.format(self.nvals_per_func))
             self.nvals = np.sum(self.nvals_per_func)
@@ -368,12 +375,18 @@ class Dofs:
                     objx[self.indices[j]] = x[j]
             owner.set_dofs(objx)
 
-    def fd_jac(self, x=None, eps=1e-7, centered=False):
+    def fd_jac(self,
+               x: np.ndarray = None
+               ) -> np.ndarray:
         """
         Compute the finite-difference Jacobian of the functions with
         respect to all non-fixed degrees of freedom. Either a 1-sided
-        or centered-difference approximation is used, with step size
-        eps.
+        or centered-difference approximation can be used.
+
+        The attributes ``abs_step``, ``rel_step``, and ``diff_method`` of
+        the ``Dofs`` object will be used in this calculation. For the
+        meaning of ``abs_step`` and ``rel_step``, see
+        :func:`simsopt._core.util.finite_difference_steps()`.
 
         If the argument x is not supplied, the Jacobian will be
         evaluated for the present state vector. If x is supplied, then
@@ -381,6 +394,9 @@ class Dofs:
         global state vector to x.
 
         No parallelization is used here.
+
+        Args:
+            x: The state vector at which you wish to compute the Jacobian.
         """
 
         if x is not None:
@@ -389,6 +405,7 @@ class Dofs:
         logger.info('Beginning finite difference gradient calculation for functions ' + str(self.funcs))
 
         x0 = self.x
+        steps = finite_difference_steps(x0, abs_step=self.abs_step, rel_step=self.rel_step)
         logger.info('  nparams: {}, nfuncs: {}, nvals: {}'.format(self.nparams, self.nfuncs, self.nvals))
         logger.info('  x0: ' + str(x0))
 
@@ -405,13 +422,13 @@ class Dofs:
             jac = np.zeros((self.nvals, self.nparams))
             return jac
 
-        if centered:
+        if self.diff_method == "centered":
             # Centered differences:
             jac = None
             for j in range(self.nparams):
                 x = np.copy(x0)
 
-                x[j] = x0[j] + eps
+                x[j] = x0[j] + steps[j]
                 self.set(x)
                 # fplus = np.array([f() for f in self.funcs])
                 fplus = self.f()
@@ -420,23 +437,28 @@ class Dofs:
                     # the size of the Jacobian.
                     jac = np.zeros((self.nvals, self.nparams))
 
-                x[j] = x0[j] - eps
+                x[j] = x0[j] - steps[j]
                 self.set(x)
                 fminus = self.f()
 
-                jac[:, j] = (fplus - fminus) / (2 * eps)
+                jac[:, j] = (fplus - fminus) / (2 * steps[j])
 
-        else:
+        elif self.diff_method == "forward":
             # 1-sided differences
             f0 = self.f()
             jac = np.zeros((self.nvals, self.nparams))
             for j in range(self.nparams):
                 x = np.copy(x0)
-                x[j] = x0[j] + eps
+                x[j] = x0[j] + steps[j]
                 self.set(x)
                 fplus = self.f()
 
-                jac[:, j] = (fplus - f0) / eps
+                jac[:, j] = (fplus - f0) / steps[j]
+
+        else:
+            raise ValueError(f"Finite difference method {self.diff_method} " \
+                             "not implemented. Available methods are " \
+                             "'centered' or 'forward'")
 
         # Weird things may happen if we do not reset the state vector
         # to x0:
