@@ -9,7 +9,7 @@ tags:
   - stellarator
   - fusion energy
 authors:
-  - name: Matt Landreman^[mattland@umd.edu]
+  - name: Matt Landreman
     orcid: 0000-0002-7233-577X
     affiliation: 1
   - name: Bharat Medasani
