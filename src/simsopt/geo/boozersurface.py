@@ -449,7 +449,8 @@ class BoozerSurface():
         res['s'] = s
         res['iota'] = iota
         return res
-    
+   
+#    @profile
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For

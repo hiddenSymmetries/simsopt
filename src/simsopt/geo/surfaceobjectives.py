@@ -244,6 +244,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     return dres_dcoils, dres_dcurrents
    
 
+@profile
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     r"""
     For a given surface, this function computes the
