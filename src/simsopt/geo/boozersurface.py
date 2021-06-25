@@ -135,7 +135,11 @@ class BoozerSurface():
             np.sqrt(constraint_weight) * d2l[None, :, :],
             np.zeros(d2l[None, :, :].shape)), axis=0)
         d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
-        return val, dval, d2val
+        
+        if scalarize:
+            return val, dval, d2val
+        else:
+            return r, J, H
 
     def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True):
         r"""
@@ -368,8 +372,9 @@ class BoozerSurface():
             resdict['G'] = G
         resdict['s'] = s
         resdict['iota'] = iota
+        
         val, dval, d2val = self.boozer_penalty_constraints(
-            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+            res.x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         resdict["jacobian"] = d2val
         
         self.res = resdict
