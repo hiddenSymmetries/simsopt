@@ -41,8 +41,6 @@ bibliography: paper.bib
 
 # Summary
 
-[//]: # (JOSS guidelines: A summary describing the high-level functionality and purpose of the software for a diverse, non-specialist audience.)
-
 A stellarator is a magnetic field configuration used to confine
 plasma, and it is a candidate configuration for fusion energy, as well
 as a general charged particle trap.  A stellarator's magnetic field is
@@ -61,8 +59,6 @@ optimizations.  These components include
 
 
 # Statement of need
-
-[//]: # (Should include references "to other software addressing related needs.")
 
 To effectively confine plasmas for the goal of fusion energy, 
 the three-dimensional magnetic field of a stellarator has to be carefully designed.
