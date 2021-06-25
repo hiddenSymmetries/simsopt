@@ -359,7 +359,7 @@ class BoozerSurface():
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         resdict = {
             "info": res, "residual": res.fun, "gradient": res.grad, "JTJ": res.jac, "success": res.status > 0,
-            "G": None, "mask":np.ones(res.grad.shape, dtype=bool)
+            "G": None, "mask": np.ones(res.grad.shape, dtype=bool)
 
         }
         if G is None:
@@ -450,7 +450,6 @@ class BoozerSurface():
         res['iota'] = iota
         return res
     
-
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For
@@ -551,7 +550,7 @@ class BoozerSurface():
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-        norm = np.linalg.norm(np.concatenate((r,[label.J()-self.targetlabel])))
+        norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])))
         while i < maxiter and norm > tol:
             if s.stellsym:
                 J = np.vstack((
@@ -574,7 +573,7 @@ class BoozerSurface():
             G = x[-1]
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-            norm = np.linalg.norm(np.concatenate((r,[label.J()-self.targetlabel])))
+            norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])))
 
         if s.stellsym:
             J = np.vstack((
@@ -592,9 +591,9 @@ class BoozerSurface():
 
         P, L, U = lu(J)
         res = {
-                "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
-                "mask" : mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp,
-                "PLU": (P, L, U)
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
+            "mask": mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp,
+            "PLU": (P, L, U)
         }
         
         self.res = res

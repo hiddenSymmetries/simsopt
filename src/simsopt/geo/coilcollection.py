@@ -52,11 +52,10 @@ class CoilCollection():
         res = len(self._base_coils) * [None]
         for i in range(len(derivatives)):
             if res[self.map[i]] is None:
-                res[self.map[i]]  = derivatives[i]
+                res[self.map[i]] = derivatives[i]
             else:
                 res[self.map[i]] += derivatives[i]
         return np.concatenate(res, axis=axis)
-
 
     def set_currents(self, currents):
         self._base_currents = currents
@@ -75,7 +74,7 @@ class CoilCollection():
         res = len(self._base_coils) * [None]
         for i in range(len(derivatives)):
             if res[self.map[i]] is None:
-                res[self.map[i]]  = self.current_sign[i] * derivatives[i]
+                res[self.map[i]] = self.current_sign[i] * derivatives[i]
             else:
                 res[self.map[i]] += self.current_sign[i] * derivatives[i]
         return np.asarray(res)

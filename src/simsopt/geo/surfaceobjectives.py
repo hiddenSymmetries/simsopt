@@ -2,9 +2,13 @@ import numpy as np
 import simsoptpp as sopp
 import scipy
 
+
 def forward_backward(P, L, U, rhs):
-    y = scipy.linalg.solve_triangular( U.T, rhs, lower=True) 
-    z = scipy.linalg.solve_triangular( L.T, y, lower=False) 
+    """
+    Solve a linear system of the form PLU*adj = rhs
+    """
+    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True) 
+    z = scipy.linalg.solve_triangular(L.T, y, lower=False) 
     adj = P@z 
     return adj
 
@@ -17,6 +21,7 @@ class Area(object):
     def __init__(self, surface, stellarator):
         self.stellarator = stellarator
         self.surface = surface
+    
     def J(self):
         """
         Compute the area of a surface.
@@ -106,27 +111,25 @@ class ToroidalFlux(object):
         self.biotsavart.set_points(x)
 
     def J(self, compute_derivatives=0):
-        assert compute_derivatives>=0
-        if compute_derivatives>0:
-            assert self.boozer_surface is not None # you need to initialize with a BoozerSurface to have access to Jacobian
+        assert compute_derivatives >= 0
+        if compute_derivatives > 0:
+            assert self.boozer_surface is not None  # you need to initialize with a BoozerSurface to have access to Jacobian
         
         if self._J is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._J
 
     def dJ_by_dcoefficients(self, compute_derivatives=1):
-        assert compute_derivatives>=1 and self.boozer_surface is not None
+        assert compute_derivatives >= 1 and self.boozer_surface is not None
         if self._dJ_by_dcoefficients is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoefficients
 
     def dJ_by_dcoilcurrents(self, compute_derivatives=1):
-        assert compute_derivatives>=1 and self.boozer_surface is not None
+        assert compute_derivatives >= 1 and self.boozer_surface is not None
         if self._dJ_by_dcoilcurrents is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoilcurrents
-
-
 
     def compute(self, compute_derivatives=0):
         xtheta = self.surface.gammadash2()[self.idx]
@@ -151,12 +154,12 @@ class ToroidalFlux(object):
             adj = forward_backward(P, L, U, dJ_ds)
         
             adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, booz_surf.bs)
-            self._dJ_by_dcoefficients = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoils, adj_times_dg_dcoil) ]
+            self._dJ_by_dcoefficients = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoils, adj_times_dg_dcoil)]
 
             dA_by_dcoilcurrents = self.biotsavart.dA_by_dcoilcurrents()
             dJ_dcurrents = [np.sum(dJ_by_dA*dA_dcurr) for dA_dcurr in dA_by_dcoilcurrents]
            
-            self._dJ_by_dcoilcurrents = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_dcurrents, adj_times_dg_dcurr) ]
+            self._dJ_by_dcoilcurrents = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_dcurrents, adj_times_dg_dcurr)]
 
     def dJ_by_dA(self):
         xtheta = self.surface.gammadash2()[self.idx]
@@ -205,12 +208,6 @@ class ToroidalFlux(object):
         return out
 
 
-
-
-
-
-
-
 def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
@@ -232,21 +229,20 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     lm_label = lm[-1]
     lmask = np.zeros(booz_surf.res["mask"].shape)
     lmask[booz_surf.res["mask"]] = lm[:-1]
-    lm = lmask.reshape( (-1,3) )
+    lm = lmask.reshape((-1, 3))
     
-    lm_times_dres_dB = np.sum(lm[:,:,None] * dres_dB, axis=1).reshape( (-1,3) )
+    lm_times_dres_dB = np.sum(lm[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
     dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
     dlabel_dcoils = booz_surf.label.dJ_by_dcoilcoefficients()
-    dres_dcoils = [t1+lm_label*t2 for t1,t2 in zip(dres_dcoils, dlabel_dcoils)]
+    dres_dcoils = [t1+lm_label*t2 for t1, t2 in zip(dres_dcoils, dlabel_dcoils)]
 
     dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
     dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
     dlabel_dcoilcurrents = booz_surf.label.dJ_by_dcoilcurrents()
-    dres_dcurrents = [t1+lm_label*t2 for t1,t2 in zip(dres_dcurrents, dlabel_dcoilcurrents)] 
+    dres_dcurrents = [t1+lm_label*t2 for t1, t2 in zip(dres_dcurrents, dlabel_dcoilcurrents)] 
 
     return dres_dcoils, dres_dcurrents
    
-
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     r"""
@@ -385,11 +381,12 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     d2r_dsdgradB = boozer[4]
     
     v1 = np.sum(np.sum(lm[:, None]*dr_ds.T, axis=0).reshape((-1, 3, 1)) * dr_dB, axis=1)
-    v2 = np.sum(r.reshape((-1, 3, 1))*np.sum(lm[None,None,:]*d2r_dsdB, axis=-1).reshape((-1, 3, 3)), axis=1)
-    v3 = np.sum(r.reshape((-1, 3, 1, 1))*np.sum(lm[None,None,None,:]*d2r_dsdgradB, axis=-1).reshape((-1, 3, 3, 3)), axis=1)
+    v2 = np.sum(r.reshape((-1, 3, 1))*np.sum(lm[None, None, :]*d2r_dsdB, axis=-1).reshape((-1, 3, 3)), axis=1)
+    v3 = np.sum(r.reshape((-1, 3, 1, 1))*np.sum(lm[None, None, None, :]*d2r_dsdgradB, axis=-1).reshape((-1, 3, 3, 3)), axis=1)
     vjp = biotsavart.B_and_dB_vjp(v1+v2, v3)
-    vjp = [a + b for a,b in zip(vjp[0], vjp[1])]
+    vjp = [a + b for a, b in zip(vjp[0], vjp[1])]
     return vjp
+
 
 def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     """
@@ -424,11 +421,11 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     tang = xphi + iota * xtheta
     residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
     
-    GI = np.eye(3,3) * G
-    dresidual_dB = GI[None,None,:,:] - 2. * tang[:,:,:,None] * B[:,:,None,:]
+    GI = np.eye(3, 3) * G
+    dresidual_dB = GI[None, None, :, :] - 2. * tang[:, :, :, None] * B[:, :, None, :]
 
     residual_flattened = residual.reshape((nphi*ntheta*3, ))
-    dresidual_dB_flattened = dresidual_dB.reshape((nphi*ntheta*3,3))
+    dresidual_dB_flattened = dresidual_dB.reshape((nphi*ntheta*3, 3))
     r = residual_flattened
     dr_dB = dresidual_dB_flattened
     if derivatives == 0:
@@ -450,7 +447,7 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     d2residual_dcdB = -2*dB_dc[:, :, None, :, :] * tang[:, :, :, None, None] - 2*B[:, :, None, :, None] * dtang_dc[:, :, :, None, :]
     d2residual_diotadB = -2.*B[:, :, None, :] * xtheta[:, :, :, None]
     d2residual_dcdgradB = -2.*B[:, :, None, None, :, None]*dx_dc[:, :, None, :, None, :]*tang[:, :, :, None, None, None]
-    idx = np.arange( 3 )
+    idx = np.arange(3)
     d2residual_dcdgradB[:, :, idx, :, idx, :] += dx_dc * G
 
     dresidual_dc_flattened = dresidual_dc.reshape((nphi*ntheta*3, nsurfdofs))
@@ -466,7 +463,7 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
         J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened, dresidual_dG_flattened), axis=1)
         
         d2residual_dGdB = np.ones((nphi*ntheta, 3, 3))
-        d2residual_dGdB[:,:,:] = np.eye(3)[None,:,:]
+        d2residual_dGdB[:, :, :] = np.eye(3)[None, :, :]
         d2residual_dGdB = d2residual_dGdB.reshape((3*nphi*ntheta, 3, 1))
         d2residual_dGdgradB = np.zeros((3*nphi*ntheta, 3, 3, 1))
 
@@ -485,8 +482,6 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     if derivatives == 1:
         return r, dr_dB, J, d2residual_dsurfacedB, d2residual_dsurfacedgradB
     
-
-
 
 class NonQuasiAxisymmetricComponent(object):
     r"""
@@ -521,15 +516,15 @@ class NonQuasiAxisymmetricComponent(object):
         ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
-        B = B.reshape( (nphi,ntheta,3) )
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         
         nor = surface.normal()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
-        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
-        B_nonQS = modB - B_QS[None,:]
-        self._J = 0.5 * np.mean( dS * B_nonQS**2 ) 
+        B_QS = np.mean(modB * dS, axis=0) / np.mean(dS, axis=0)
+        B_nonQS = modB - B_QS[None, :]
+        self._J = 0.5 * np.mean(dS * B_nonQS**2) 
         
         if compute_derivatives > 0:
             bs = self.biotsavart
@@ -539,7 +534,7 @@ class NonQuasiAxisymmetricComponent(object):
             P, L, U = booz_surf.res['PLU']
             dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
 
-            dJ_by_dB = self.dJ_by_dB().reshape( (-1,3) )
+            dJ_by_dB = self.dJ_by_dB().reshape((-1, 3))
             dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
 
             # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
@@ -547,26 +542,26 @@ class NonQuasiAxisymmetricComponent(object):
             adj = forward_backward(P, L, U, dJ_ds)
             
             adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
-            self._dJ_by_dcoefficients = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(dJ_by_dcoils, adj_times_dg_dcoil)]
+            self._dJ_by_dcoefficients = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoils, adj_times_dg_dcoil)]
 
             dB_by_dcoilcurrents = self.biotsavart.dB_by_dcoilcurrents()
             dJ_by_dcoilcurrents = [np.sum(dJ_by_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
-            self._dJ_by_dcoilcurrents = [dj_dc - adj_dg_dc for dj_dc,adj_dg_dc in zip(dJ_by_dcoilcurrents, adj_times_dg_dcurr)]
+            self._dJ_by_dcoilcurrents = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoilcurrents, adj_times_dg_dcurr)]
     
     def J(self, compute_derivatives=0):
-        assert compute_derivatives>=0
+        assert compute_derivatives >= 0
         if self._J is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._J
 
     def dJ_by_dcoefficients(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoefficients is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoefficients
 
     def dJ_by_dcoilcurrents(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoilcurrents is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoilcurrents
@@ -580,18 +575,18 @@ class NonQuasiAxisymmetricComponent(object):
         ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
-        B = B.reshape( (nphi,ntheta,3) )
+        B = B.reshape((nphi, ntheta, 3))
         
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         nor = surface.normal()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
-        denom = np.mean( dS, axis = 0)
-        B_QS = np.mean(modB * dS, axis = 0) / denom
-        B_nonQS = modB - B_QS[None,:]
+        denom = np.mean(dS, axis=0)
+        B_QS = np.mean(modB * dS, axis=0) / denom
+        B_nonQS = modB - B_QS[None, :]
         
-        dmodB_dB = B / modB[...,None]
-        dJ_by_dB = B_nonQS[...,None] * dmodB_dB * dS[:,:,None] / (nphi * ntheta)
+        dmodB_dB = B / modB[..., None]
+        dJ_by_dB = B_nonQS[..., None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)
         return dJ_by_dB
     
     def dJ_by_dsurfacecoefficients(self):
@@ -603,33 +598,34 @@ class NonQuasiAxisymmetricComponent(object):
         ntheta = surface.quadpoints_theta.size
 
         B = self.biotsavart.B()
-        B = B.reshape( (nphi,ntheta,3) )
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         
         nor = surface.normal()
         dnor_dc = surface.dnormal_by_dcoeff()
-        dS = np.sqrt(nor[:,:,0]**2 + nor[:,:,1]**2 + nor[:,:,2]**2)
-        dS_dc = (nor[:,:,0,None]*dnor_dc[:,:,0,:] + nor[:,:,1,None]*dnor_dc[:,:,1,:] + nor[:,:,2,None]*dnor_dc[:,:,2,:])/dS[:,:,None]
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+        dS_dc = (nor[:, :, 0, None]*dnor_dc[:, :, 0, :] + nor[:, :, 1, None]*dnor_dc[:, :, 1, :] + nor[:, :, 2, None]*dnor_dc[:, :, 2, :])/dS[:, :, None]
 
-        B_QS = np.mean(modB * dS, axis = 0) / np.mean(dS, axis = 0)
-        B_nonQS = modB - B_QS[None,:]
+        B_QS = np.mean(modB * dS, axis=0) / np.mean(dS, axis=0)
+        B_nonQS = modB - B_QS[None, :]
         
-        dB_by_dX    = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
         dx_dc = surface.dgamma_by_dcoeff()
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
         
-        modB = np.sqrt( B[:,:,0]**2 + B[:,:,1]**2 + B[:,:,2]**2)
-        dmodB_dc = (B[:,:,0, None] * dB_dc[:,:,0,:] + B[:,:,1, None] * dB_dc[:,:,1,:] + B[:,:,2, None] * dB_dc[:,:,2,:])/modB[:,:,None]
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
         
-        num = np.mean(modB * dS, axis = 0)
-        denom = np.mean(dS, axis = 0)
-        dnum_dc = np.mean(dmodB_dc * dS[...,None] + modB[...,None] * dS_dc, axis = 0) 
-        ddenom_dc = np.mean(dS_dc, axis = 0)
-        B_QS_dc = (dnum_dc * denom[:,None] - ddenom_dc * num[:,None])/denom[:,None]**2
-        B_nonQS_dc = dmodB_dc - B_QS_dc[None,:]
+        num = np.mean(modB * dS, axis=0)
+        denom = np.mean(dS, axis=0)
+        dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=0) 
+        ddenom_dc = np.mean(dS_dc, axis=0)
+        B_QS_dc = (dnum_dc * denom[:, None] - ddenom_dc * num[:, None])/denom[:, None]**2
+        B_nonQS_dc = dmodB_dc - B_QS_dc[None, :]
         
-        dJ_by_dc = np.mean( 0.5 * dS_dc * B_nonQS[...,None]**2 + dS[...,None] * B_nonQS[...,None] * B_nonQS_dc , axis = (0,1) ) 
+        dJ_by_dc = np.mean(0.5 * dS_dc * B_nonQS[..., None]**2 + dS[..., None] * B_nonQS[..., None] * B_nonQS_dc, axis=(0, 1)) 
         return dJ_by_dc
+
 
 class Iotas(object):
     def __init__(self, boozer_surface):
@@ -645,7 +641,7 @@ class Iotas(object):
     def compute(self, compute_derivatives=0):
         self._J = self.boozer_surface.res['iota']
         
-        if compute_derivatives>0:
+        if compute_derivatives > 0:
             bs = self.biotsavart
             booz_surf = self.boozer_surface
             iota = booz_surf.res['iota']
@@ -659,23 +655,23 @@ class Iotas(object):
             adj = forward_backward(P, L, U, dJ_ds)
             
             adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
-            self._dJ_by_dcoefficients = [ - adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil ]
-            self._dJ_by_dcoilcurrents = [ - adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr ]
+            self._dJ_by_dcoefficients = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil]
+            self._dJ_by_dcoilcurrents = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr]
 
     def J(self, compute_derivatives=0):
-        assert compute_derivatives>=0
+        assert compute_derivatives >= 0
         if self._J is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._J
 
     def dJ_by_dcoefficients(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoefficients is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoefficients
 
     def dJ_by_dcoilcurrents(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoilcurrents is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoilcurrents
@@ -705,22 +701,22 @@ class MajorRadius(object):
 
         surface = self.surface
     
-        g  = surface.gamma()
+        g = surface.gamma()
         g1 = surface.gammadash1()
         g2 = surface.gammadash2()
         
-        x = g[:,:,0]
-        y = g[:,:,1]
+        x = g[:, :, 0]
+        y = g[:, :, 1]
         
         r = np.sqrt(x**2+y**2)
     
-        xvarphi = g1[:,:,0]
-        yvarphi = g1[:,:,1]
-        zvarphi = g1[:,:,2]
+        xvarphi = g1[:, :, 0]
+        yvarphi = g1[:, :, 1]
+        zvarphi = g1[:, :, 2]
     
-        xtheta = g2[:,:,0]
-        ytheta = g2[:,:,1]
-        ztheta = g2[:,:,2]
+        xtheta = g2[:, :, 0]
+        ytheta = g2[:, :, 1]
+        ztheta = g2[:, :, 2]
     
         mean_area = np.mean((ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta))/r)/(2*np.pi)
         R_major = surface.volume() / (2. * np.pi * mean_area)
@@ -741,10 +737,9 @@ class MajorRadius(object):
             adj = forward_backward(P, L, U, dJ_ds)
             
             adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
-            self._dJ_by_dcoefficients = [ - adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil ]
-            self._dJ_by_dcoilcurrents = [ - adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr ]
+            self._dJ_by_dcoefficients = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil]
+            self._dJ_by_dcoilcurrents = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr]
 
-   
     def dJ_dsurfacecoefficients(self):
         """
         Return the objective value
@@ -752,7 +747,7 @@ class MajorRadius(object):
     
         surface = self.surface
     
-        g  = surface.gamma()
+        g = surface.gamma()
         g1 = surface.gammadash1()
         g2 = surface.gammadash2()
     
@@ -760,52 +755,51 @@ class MajorRadius(object):
         dg1_ds = surface.dgammadash1_by_dcoeff()
         dg2_ds = surface.dgammadash2_by_dcoeff()
     
-        
-        x = g[:,:,0, None]
-        y = g[:,:,1, None]
+        x = g[:, :, 0, None]
+        y = g[:, :, 1, None]
     
-        dx_ds = dg_ds[:,:,0,:]
-        dy_ds = dg_ds[:,:,1,:]
+        dx_ds = dg_ds[:, :, 0, :]
+        dy_ds = dg_ds[:, :, 1, :]
     
         r = np.sqrt(x**2+y**2)
-        dr_ds =  (x*dx_ds+y*dy_ds)/r
+        dr_ds = (x*dx_ds+y*dy_ds)/r
     
-        xvarphi = g1[:,:,0, None]
-        yvarphi = g1[:,:,1, None]
-        zvarphi = g1[:,:,2, None]
+        xvarphi = g1[:, :, 0, None]
+        yvarphi = g1[:, :, 1, None]
+        zvarphi = g1[:, :, 2, None]
     
-        xtheta = g2[:,:,0, None]
-        ytheta = g2[:,:,1, None]
-        ztheta = g2[:,:,2, None]
+        xtheta = g2[:, :, 0, None]
+        ytheta = g2[:, :, 1, None]
+        ztheta = g2[:, :, 2, None]
     
-        dxvarphi_ds = dg1_ds[:,:,0,:]
-        dyvarphi_ds = dg1_ds[:,:,1,:]
-        dzvarphi_ds = dg1_ds[:,:,2,:]
+        dxvarphi_ds = dg1_ds[:, :, 0, :]
+        dyvarphi_ds = dg1_ds[:, :, 1, :]
+        dzvarphi_ds = dg1_ds[:, :, 2, :]
     
-        dxtheta_ds = dg2_ds[:,:,0,:]
-        dytheta_ds = dg2_ds[:,:,1,:]
-        dztheta_ds = dg2_ds[:,:,2,:]
+        dxtheta_ds = dg2_ds[:, :, 0, :]
+        dytheta_ds = dg2_ds[:, :, 1, :]
+        dztheta_ds = dg2_ds[:, :, 2, :]
     
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))
-        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta* dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi* dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis = (0,1) )
+        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
     
         dR_major_ds = (-surface.volume() * dmean_area_ds + surface.dvolume_by_dcoeff() * mean_area) / mean_area**2
         return dR_major_ds
 
     def J(self, compute_derivatives=0):
-        assert compute_derivatives>=0
+        assert compute_derivatives >= 0
         if self._J is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._J
 
     def dJ_by_dcoefficients(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoefficients is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoefficients
 
     def dJ_by_dcoilcurrents(self, compute_derivatives=1):
-        assert compute_derivatives>=1
+        assert compute_derivatives >= 1
         if self._dJ_by_dcoilcurrents is None:
             self.compute(compute_derivatives=compute_derivatives)
         return self._dJ_by_dcoilcurrents

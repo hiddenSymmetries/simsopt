@@ -225,6 +225,7 @@ class MinimumDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return res
 
+
 class UniformArclength():
 
     def __init__(self, curve, desired_length):

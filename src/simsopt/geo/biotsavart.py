@@ -53,8 +53,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         else:
             self._d3A_by_dXdXdcoilcurrents = []
 
-        gammas                 = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis        = [coil.gammadash() for coil in self.coils]
+        gammas = [coil.gamma() for coil in self.coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
 
         sopp.biot_savart_vector_potential(points, gammas, dgamma_by_dphis, self._dA_by_dcoilcurrents, self._d2A_by_dXdcoilcurrents, self._d3A_by_dXdXdcoilcurrents)
 
@@ -154,10 +154,10 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         return (res_B, res_dB)
 
     def A_vjp(self, v):
-        gammas                 = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis        = [coil.gammadash() for coil in self.coils]
+        gammas = [coil.gamma() for coil in self.coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
         currents = self.coil_currents
-        dgamma_by_dcoeffs      = [coil.dgamma_by_dcoeff() for coil in self.coils]
+        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in self.coils]
         d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in self.coils]
         n = len(self.coils)
         coils = self.coils
@@ -166,10 +166,10 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         return res_A
 
     def A_and_dA_vjp(self, v, vgrad):
-        gammas                 = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis        = [coil.gammadash() for coil in self.coils]
+        gammas = [coil.gamma() for coil in self.coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
         currents = self.coil_currents
-        dgamma_by_dcoeffs      = [coil.dgamma_by_dcoeff() for coil in self.coils]
+        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in self.coils]
         d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in self.coils]
         n = len(self.coils)
         coils = self.coils
