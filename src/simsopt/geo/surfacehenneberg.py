@@ -5,17 +5,23 @@ from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
 #import matplotlib.pyplot as plt
 
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
 
-class SurfaceHenneberg(Surface):
+class SurfaceHenneberg(sopp.Surface, Surface):
     r"""
     This class represents a toroidal surface using the
     parameterization in Henneberg, Helander, and Drevlak,
-    arXiv:2105.00768 (2021). Stellarator symmetry is assumed.
+    arXiv:2105.00768 (2021). The main benefit of this representation
+    is that there is no freedom in the poloidal angle,
+    i.e. :math:`\theta` is uniquely defined, in contrast to other
+    parameterizations like
+    :obj:`~.surfacerzfourier.SurfaceRZFourier`. Stellarator symmetry
+    is assumed.
 
     In this representation by Henneberg et al, the cylindrical
     coordinates :math:`(R,\phi,Z)` are written in terms of a unique
@@ -64,7 +70,13 @@ class SurfaceHenneberg(Surface):
     index corresponding to ``n=0``.
     """
 
-    def __init__(self, nfp: int, alpha_fac: int, mmax: int, nmax: int):
+    def __init__(self,
+                 nfp: int,
+                 alpha_fac: int,
+                 mmax: int,
+                 nmax: int,
+                 quadpoints_phi: int = 63,
+                 quadpoints_theta: int = 62):
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
 
@@ -74,16 +86,17 @@ class SurfaceHenneberg(Surface):
         self.nmax = nmax
         self.stellsym = True
         self.allocate()
-        # The recalculate attribute could be used in the future for
-        # cacheing, but it is not used for anything yet.
-        self.recalculate = True
+
+        Surface.__init__(self)
+        sopp.Surface.__init__(self,
+                              np.linspace(0, 1.0, quadpoints_phi, endpoint=False),
+                              np.linspace(0, 1.0, quadpoints_theta, endpoint=False))
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
-        Surface.__init__(self)
 
     def __repr__(self):
         return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
@@ -152,7 +165,7 @@ class SurfaceHenneberg(Surface):
         """
         self._validate_mn(m, n)
         self.rhomn[m, n + self.nmax] = val
-        self.recalculate = True
+        self.invalidate_cache()
 
     def get_dofs(self):
         """
@@ -162,23 +175,27 @@ class SurfaceHenneberg(Surface):
                                self.rhomn[0, self.nmax + 1:],
                                np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='C')))
 
-    def set_dofs(self, v):
+    def num_dofs(self):
+        """
+        Return the number of degrees of freedom.
+        """
+        ndofs = self.nmax + 1  # R0nH
+        ndofs += self.nmax  # Z0nH
+        ndofs += self.nmax + 1  # b0n
+        ndofs += self.nmax  # rhomn for m = 0
+        ndofs += self.mmax * (2 * self.nmax + 1)  # rhomn for m > 0
+
+        return ndofs
+
+    def set_dofs_impl(self, v):
         """
         Set the shape coefficients from a 1D list/array
         """
 
-        n = len(self.get_dofs())
+        n = self.num_dofs()
         if len(v) != n:
             raise ValueError('Input vector should have ' + str(n) + \
                              ' elements but instead has ' + str(len(v)))
-
-        # Check whether any elements actually change:
-        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
-            logger.info('set_dofs called, but no dofs actually changed')
-            return
-
-        logger.info('set_dofs called, and at least one dof changed')
-        self.recalculate = True
 
         index = 0
         nvals = self.nmax + 1
@@ -529,23 +546,145 @@ class SurfaceHenneberg(Surface):
 
         return surf_H
 
-    def area(self):
+    def gamma_impl(self, data, quadpoints_phi, quadpoints_theta):
         """
-        Return the area of the surface. In the future this could be
-        computed directly within the Henneberg representation rather
-        than via transformation to RZFourier, if an application arises
-        for which speed is critical.
+        Evaluate the position vector on the surface in Cartesian
+        coordinates.
         """
-        s = self.to_RZFourier()
-        return s.area()
+        # I prefer to work with angles that go up to 2pi rather than 1.
+        theta1D = quadpoints_theta * 2 * np.pi
+        phi1D = quadpoints_phi * 2 * np.pi
+        nphi = len(phi1D)
+        ntheta = len(theta1D)
+        R0H = np.zeros(nphi)
+        Z0H = np.zeros(nphi)
+        b = np.zeros(nphi)
+        rho = np.zeros((ntheta, nphi))
+        phi, theta = np.meshgrid(phi1D, theta1D)
+        alpha = 0.5 * self.nfp * self.alpha_fac
+        for n in range(self.nmax + 1):
+            cosangle = np.cos(self.nfp * n * phi1D)
+            R0H += self.R0nH[n] * cosangle
+            b += self.bn[n] * cosangle
+        for n in range(1, self.nmax + 1):
+            sinangle = np.sin(self.nfp * n * phi1D)
+            Z0H += self.Z0nH[n] * sinangle
+        for m in range(self.mmax + 1):
+            nmin = -self.nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, self.nmax + 1):
+                cosangle = np.cos(m * theta + self.nfp * n * phi - alpha * phi)
+                rho += self.get_rhomn(m, n) * cosangle
+        R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
+        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
+        b2D = np.kron(b, np.ones((ntheta, 1)))
+        zeta = b2D * np.sin(theta - alpha * phi)
+        sinaphi = np.sin(alpha * phi)
+        cosaphi = np.cos(alpha * phi)
+        R = R0H2D + rho * cosaphi - zeta * sinaphi
+        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
+        data[:, :, 0] = (R * np.cos(phi)).T
+        data[:, :, 1] = (R * np.sin(phi)).T
+        data[:, :, 2] = Z.T
 
-    def volume(self):
+    def gammadash1_impl(self, data):
         """
-        Return the volume of the surface. In the future this could be
-        computed directly within the Henneberg representation rather
-        than via transformation to RZFourier, if an application arises
-        for which speed is critical.
+        Evaluate the derivative of the position vector with respect to the
+        toroidal angle phi.
         """
-        s = self.to_RZFourier()
-        return s.volume()
+        # I prefer to work with angles that go up to 2pi rather than 1.
+        theta1D = self.quadpoints_theta * 2 * np.pi
+        phi1D = self.quadpoints_phi * 2 * np.pi
+        nphi = len(phi1D)
+        ntheta = len(theta1D)
+        nfp = self.nfp
+        R0H = np.zeros(nphi)
+        Z0H = np.zeros(nphi)
+        b = np.zeros(nphi)
+        rho = np.zeros((ntheta, nphi))
+        d_R0H_d_phi = np.zeros(nphi)
+        d_Z0H_d_phi = np.zeros(nphi)
+        d_b_d_phi = np.zeros(nphi)
+        d_rho_d_phi = np.zeros((ntheta, nphi))
+        phi, theta = np.meshgrid(phi1D, theta1D)
+        alpha = 0.5 * nfp * self.alpha_fac
+        for n in range(self.nmax + 1):
+            angle = nfp * n * phi1D
+            cosangle = np.cos(angle)
+            sinangle = np.sin(angle)
+            R0H += self.R0nH[n] * cosangle
+            b += self.bn[n] * cosangle
+            d_R0H_d_phi -= self.R0nH[n] * sinangle * nfp * n
+            d_b_d_phi -= self.bn[n] * sinangle * nfp * n
+            if n > 0:
+                Z0H += self.Z0nH[n] * sinangle
+                d_Z0H_d_phi += self.Z0nH[n] * cosangle * nfp * n
+        for m in range(self.mmax + 1):
+            nmin = -self.nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, self.nmax + 1):
+                angle = m * theta + nfp * n * phi - alpha * phi
+                cosangle = np.cos(angle)
+                sinangle = np.sin(angle)
+                rho += self.get_rhomn(m, n) * cosangle
+                d_rho_d_phi -= self.get_rhomn(m, n) * sinangle * (nfp * n - alpha)
+        R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
+        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
+        b2D = np.kron(b, np.ones((ntheta, 1)))
+        zeta = b2D * np.sin(theta - alpha * phi)
+        d_R0H2D_d_phi = np.kron(d_R0H_d_phi, np.ones((ntheta, 1)))
+        d_Z0H2D_d_phi = np.kron(d_Z0H_d_phi, np.ones((ntheta, 1)))
+        d_b2D_d_phi = np.kron(d_b_d_phi, np.ones((ntheta, 1)))
+        d_zeta_d_phi = d_b2D_d_phi * np.sin(theta - alpha * phi) \
+            + b2D * np.cos(theta - alpha * phi) * (-alpha)
+        sinaphi = np.sin(alpha * phi)
+        cosaphi = np.cos(alpha * phi)
+        R = R0H2D + rho * cosaphi - zeta * sinaphi
+        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
+        d_R_d_phi = d_R0H2D_d_phi + d_rho_d_phi * cosaphi + rho * (-alpha * sinaphi) \
+            - d_zeta_d_phi * sinaphi - zeta * (alpha * cosaphi)
+        d_Z_d_phi = d_Z0H2D_d_phi + d_rho_d_phi * sinaphi + rho * (alpha * cosaphi) \
+            + d_zeta_d_phi * cosaphi + zeta * (-alpha * sinaphi)
+        # Insert factors of 2pi since theta here is 2pi times the theta used for d/dtheta
+        data[:, :, 0] = 2 * np.pi * (d_R_d_phi * np.cos(phi) - R * np.sin(phi)).T
+        data[:, :, 1] = 2 * np.pi * (d_R_d_phi * np.sin(phi) + R * np.cos(phi)).T
+        data[:, :, 2] = 2 * np.pi * d_Z_d_phi.T
+
+    def gammadash2_impl(self, data):
+        """
+        Evaluate the derivative of the position vector with respect to
+        theta.
+        """
+        # I prefer to work with angles that go up to 2pi rather than 1.
+        theta1D = self.quadpoints_theta * 2 * np.pi
+        phi1D = self.quadpoints_phi * 2 * np.pi
+        nphi = len(phi1D)
+        ntheta = len(theta1D)
+        b = np.zeros(nphi)
+        d_rho_d_theta = np.zeros((ntheta, nphi))
+        phi, theta = np.meshgrid(phi1D, theta1D)
+        alpha = 0.5 * self.nfp * self.alpha_fac
+        for n in range(self.nmax + 1):
+            cosangle = np.cos(self.nfp * n * phi1D)
+            b += self.bn[n] * cosangle
+        for m in range(self.mmax + 1):
+            nmin = -self.nmax
+            if m == 0:
+                nmin = 1
+            for n in range(nmin, self.nmax + 1):
+                sinangle = np.sin(m * theta + self.nfp * n * phi - alpha * phi)
+                d_rho_d_theta -= self.get_rhomn(m, n) * m * sinangle
+        b2D = np.kron(b, np.ones((ntheta, 1)))
+        d_zeta_d_theta = b2D * np.cos(theta - alpha * phi)
+        sinaphi = np.sin(alpha * phi)
+        cosaphi = np.cos(alpha * phi)
+        d_R_d_theta = d_rho_d_theta * cosaphi - d_zeta_d_theta * sinaphi
+        d_Z_d_theta = d_rho_d_theta * sinaphi + d_zeta_d_theta * cosaphi
+        # Insert factors of 2pi since theta here is 2pi times the theta used for d/dtheta
+        data[:, :, 0] = (2 * np.pi * d_R_d_theta * np.cos(phi)).T
+        data[:, :, 1] = (2 * np.pi * d_R_d_theta * np.sin(phi)).T
+        data[:, :, 2] = 2 * np.pi * d_Z_d_theta.T
+
 

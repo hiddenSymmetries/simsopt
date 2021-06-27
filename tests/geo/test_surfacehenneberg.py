@@ -159,6 +159,7 @@ class SurfaceHennebergTests(unittest.TestCase):
                 for mmax in range(1, 3):
                     for nmax in range(3):
                         surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac, mmax=mmax, nmax=nmax)
+                        self.assertEqual(surfH.num_dofs(), len(surfH.get_dofs()))
                         surfH.R0nH[0] = R0
                         surfH.bn[0] = a
                         surfH.set_rhomn(1, 0, a)
@@ -193,7 +194,11 @@ class SurfaceHennebergTests(unittest.TestCase):
             vmec = Vmec(os.path.join(TEST_DIR, test_file))
             surf1 = vmec.boundary
             surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
+            self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
             surf3 = surf2.to_RZFourier()
+            np.testing.assert_allclose(surf2.gamma(), surf3.gamma(), atol=1e-13, rtol=1e-13)
+            np.testing.assert_allclose(surf2.gammadash2(), surf3.gammadash2(), atol=1e-12, rtol=1e-12)
+            np.testing.assert_allclose(surf2.gammadash1(), surf3.gammadash1(), atol=1e-11, rtol=1e-11)
             np.testing.assert_allclose(surf1.volume(), surf2.volume(), atol=0, rtol=1e-3)
             np.testing.assert_allclose(surf1.volume(), surf3.volume(), atol=0, rtol=1e-3)
             np.testing.assert_allclose(surf1.area(), surf2.area(), atol=0, rtol=1e-3)
