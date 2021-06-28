@@ -294,7 +294,7 @@ class QfmSurfaceTests(unittest.TestCase):
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9, maxiter=1000)
 
         assert res['success']
-        assert np.linalg.norm(res['gradient']) < 1e-3
+        assert np.linalg.norm(res['gradient']) < 1e-2
         assert res['fun'] < 1e-5
         assert np.abs(vol_target - vol.J()) < 1e-5
 
