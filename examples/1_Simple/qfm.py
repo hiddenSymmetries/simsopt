@@ -7,7 +7,7 @@ from simsopt.geo.coilcollection import CoilCollection
 import numpy as np
 import sys
 import os
-sys.path.append(os.path.join("..", "..", "tests", "geo"))
+sys.path.append(os.path.join("..", "tests", "geo"))
 from surface_test_helpers import get_ncsx_data
 
 """
