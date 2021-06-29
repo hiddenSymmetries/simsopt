@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 def compute_gc_radius(m, vperp, q, absb):
-
     """
     Computes the gyro radius of a particle in a field with strenght ``absb```,
     that is ``r=m*vperp/(abs(q)*absb)``.
@@ -20,7 +19,6 @@ def compute_gc_radius(m, vperp, q, absb):
 
 
 def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
-
     """
     Takes in guiding center positions ``xyz_inits`` as well as a tangential
     velocities ``vtangs`` and total velocities ``vtotal`` to compute orbit
@@ -50,7 +48,6 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
 
 
 def parallel_loop_bounds(comm, n):
-
     """
     Split up an array [0, 1, ..., n-1] across an mpi communicator.  Example: n
     = 8, comm with size=2 will return (0, 4) on core 0, (4, 8) on core 1,
@@ -71,7 +68,6 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     tangential_velocities: NDArray[Float], tmax=1e-4,
                     mass=1.6726219e-27, charge=1, Ekin=9000, tol=1e-9,
                     comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
-
     r"""
     Follow particles in a magnetic field.
 
