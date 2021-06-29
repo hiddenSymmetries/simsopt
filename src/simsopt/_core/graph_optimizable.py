@@ -1022,97 +1022,30 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return list(dict.fromkeys(ancestors))
 
 
-# TODO: Target class needs to be reimplemented to account for
-# TODO: reimplementation of  Optimizable class
-#class Target(Optimizable):
-#    """
-#    Given an attribute of an object, which typically would be a
-#    @property, form a callable function that can be used as a target
-#    for optimization.
-#    """
-#    def __init__(self, obj, attr):
-#        self.obj = obj
-#        self.attr = attr
-#        super().__init__()
-#
-#        # Attach a dJ function only if obj has one
-#        def dJ(self0):
-#            return getattr(self0.obj, 'd' + self0.attr)
-#
-#        if hasattr(obj, 'd' + attr):
-#            self.dJ = types.MethodType(dJ, self)
-#
-#    def f(self):
-#        # TODO: Implemnt the f to call self.obj.attr
-#        return getattr(self.obj, self.attr)
-#
-#    @deprecated(version='0.0.2', reason="Call the object directly. Don't assume"
-#                                        " J method will be present.")
-#    def J(self):
-#        return getattr(self.obj, self.attr)
-#
-#    #def dJ(self):
-#    #    return getattr(self.obj, 'd' + self.attr)
-#
-#    # Bharat's comment: The following two needs to be better defined
-#    def get_dofs(self):
-#        return np.array([])
-#
-#    def set_dofs(self, v):
-#        pass
-#
-#
-#def function_from_user(target):
-#    """
-#    Given a user-supplied "target" to be optimized, extract the
-#    associated callable function.
-#    """
-#    if callable(target):
-#        return target
-#    elif hasattr(target, 'J') and callable(target.J):
-#        return target.J
-#    else:
-#        raise TypeError('Unable to find a callable function associated '
-#                        'with the user-supplied target ' + str(target))
-#
-## TODO: make_optimizable function should be reimplemented to account for
-## TODO: reimplementation of Optimizable class
-#def make_optimizable(obj):
-#    """
-#    Given any object, add attributes like fixed, mins, and maxs. fixed
-#    = False by default. Also, add the other methods of Optimizable to
-#    the object.
-#    """
-#
-#    # If the object does not have a get_dofs() method, attach one,
-#    # assuming the object does not directly own any dofs.
-#    def get_dofs(self):
-#        return np.array([])
-#    def set_dofs(self, x):
-#        pass
-#    if not hasattr(obj, 'get_dofs'):
-#        obj.get_dofs = types.MethodType(get_dofs, obj)
-#    if not hasattr(obj, 'set_dofs'):
-#        obj.set_dofs = types.MethodType(set_dofs, obj)
-#
-#    n = len(obj.get_dofs())
-#    if not hasattr(obj, 'dof_fixed'):
-#        obj.dof_fixed = np.full(n, False)
-#    if not hasattr(obj, 'mins'):
-#        obj.mins = np.full(n, np.NINF)
-#    if not hasattr(obj, 'maxs'):
-#        obj.maxs = np.full(n, np.Inf)
-#
-#    # Add the following methods from the Optimizable class:
-#    #for method in ['index', 'get', 'set', 'get_fixed', 'set_fixed', 'all_fixed']:
-#    # See https://stackoverflow.com/questions/972/adding-a-method-to-an-existing-object-instance
-#    #setattr(obj, method, types.MethodType(getattr(Optimizable, method), obj))
-#
-#    # New compact implementation
-#    method_list = [f for f in dir(Optimizable) if \
-#            callable(getattr(Optimizable, f)) and not f.startswith("__")]
-#    for f in method_list:
-#        if not hasattr(obj, f) and f not in ('get_dofs', 'set_dofs'):
-#            setattr(obj, f, types.MethodType(getattr(Optimizable, f), obj))
-#
-#    return obj
+class CustomDofsOptimizable(Optimizable):
+    """
+    Subclasses graph based Optimizable where the dofs data is duplicated and
+    handled outside of the Dofs class. This enables the data to be stored
+    in C++ side
+    """
+    def __init__(self, dof_setter=None, dof_getter=None, **kwargs):
+
+        if dof_getter is not None:
+            kwargs['x0'] = dof_getter()
+
+        self.local_dof_setter = dof_setter
+        super().__init__(**kwargs)
+
+    def set_local_x(self, x: RealArray) -> None:
+        # if self.local_dof_size != len(x):
+        #    raise ValueError
+        # self._dofs.loc[self._dofs.free, '_x'] = x
+        # self.new_x = True
+        Optimizable.local_x.fset(self, x)
+        self.local_dof_setter(self.local_full_x)
+
+    local_x = property(
+        Optimizable.local_x.fget,
+        set_local_x,
+        "Customized local_x with setter function calling custom x setter after"
+        "populating DOFs object")
