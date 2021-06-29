@@ -24,7 +24,7 @@ else:
     Residue = None
     Boozer = None
     Quasisymmetry = None
-    logger.WARNING("mpi4py not installed. Not loading Vmec, Spec and other MHD modules.")
+    logger.warning("mpi4py not installed. Not loading Vmec, Spec and other MHD modules.")
 
 #try:
 #    import vmec
