@@ -187,15 +187,30 @@ class SurfaceHennebergTests(unittest.TestCase):
         the degrees of freedom should be unchanged from the earlier
         Henneberg representation.
         """
+        # Prepare some arbitrary points for testing gamma_lin:
+        nlist = 15
+        theta_list = np.linspace(-0.2, 0.8, nlist)
+        phi_list = theta_list ** 2 - 0.5
+
         # Try a QI, QA, and a QH:
         files = ['input.W7-X_standard_configuration', 'input.cfqs_2b40', 'input.NuhrenbergZille_1988_QHS']
         alpha_facs = [1, 1, -1]
+
         for test_file, alpha_fac in zip(files, alpha_facs):
             vmec = Vmec(os.path.join(TEST_DIR, test_file))
             surf1 = vmec.boundary
             surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
             self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
             surf3 = surf2.to_RZFourier()
+
+            # Test gamma_lin:
+            gamma2 = np.zeros((nlist, 3))
+            gamma3 = np.zeros((nlist, 3))
+            surf2.gamma_lin(gamma2, phi_list, theta_list)
+            surf3.gamma_lin(gamma3, phi_list, theta_list)
+            np.testing.assert_allclose(gamma2, gamma3, atol=1e-13, rtol=1e-13)
+
+            # Test other surface functions:
             np.testing.assert_allclose(surf2.gamma(), surf3.gamma(), atol=1e-13, rtol=1e-13)
             np.testing.assert_allclose(surf2.gammadash2(), surf3.gammadash2(), atol=1e-12, rtol=1e-12)
             np.testing.assert_allclose(surf2.gammadash1(), surf3.gammadash1(), atol=1e-11, rtol=1e-11)

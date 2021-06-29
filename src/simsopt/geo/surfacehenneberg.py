@@ -546,47 +546,59 @@ class SurfaceHenneberg(sopp.Surface, Surface):
 
         return surf_H
 
-    def gamma_impl(self, data, quadpoints_phi, quadpoints_theta):
+    def gamma_lin(self, data, quadpoints_phi, quadpoints_theta):
         """
         Evaluate the position vector on the surface in Cartesian
-        coordinates.
+        coordinates, for a list of (phi, theta) points.
         """
         # I prefer to work with angles that go up to 2pi rather than 1.
-        theta1D = quadpoints_theta * 2 * np.pi
-        phi1D = quadpoints_phi * 2 * np.pi
-        nphi = len(phi1D)
-        ntheta = len(theta1D)
-        R0H = np.zeros(nphi)
-        Z0H = np.zeros(nphi)
-        b = np.zeros(nphi)
-        rho = np.zeros((ntheta, nphi))
-        phi, theta = np.meshgrid(phi1D, theta1D)
-        alpha = 0.5 * self.nfp * self.alpha_fac
+        theta = quadpoints_theta * 2 * np.pi
+        phi = quadpoints_phi * 2 * np.pi
+        nfp = self.nfp
+        shape = phi.shape
+        R0H = np.zeros(shape)
+        Z0H = np.zeros(shape)
+        b = np.zeros(shape)
+        rho = np.zeros(shape)
+        alpha = 0.5 * nfp * self.alpha_fac
         for n in range(self.nmax + 1):
-            cosangle = np.cos(self.nfp * n * phi1D)
+            cosangle = np.cos(nfp * n * phi)
             R0H += self.R0nH[n] * cosangle
             b += self.bn[n] * cosangle
         for n in range(1, self.nmax + 1):
-            sinangle = np.sin(self.nfp * n * phi1D)
+            sinangle = np.sin(nfp * n * phi)
             Z0H += self.Z0nH[n] * sinangle
         for m in range(self.mmax + 1):
             nmin = -self.nmax
             if m == 0:
                 nmin = 1
             for n in range(nmin, self.nmax + 1):
-                cosangle = np.cos(m * theta + self.nfp * n * phi - alpha * phi)
+                cosangle = np.cos(m * theta + nfp * n * phi - alpha * phi)
                 rho += self.get_rhomn(m, n) * cosangle
-        R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
-        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
-        b2D = np.kron(b, np.ones((ntheta, 1)))
-        zeta = b2D * np.sin(theta - alpha * phi)
+        zeta = b * np.sin(theta - alpha * phi)
         sinaphi = np.sin(alpha * phi)
         cosaphi = np.cos(alpha * phi)
-        R = R0H2D + rho * cosaphi - zeta * sinaphi
-        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
-        data[:, :, 0] = (R * np.cos(phi)).T
-        data[:, :, 1] = (R * np.sin(phi)).T
-        data[:, :, 2] = Z.T
+        R = R0H + rho * cosaphi - zeta * sinaphi
+        Z = Z0H + rho * sinaphi + zeta * cosaphi
+        data[:, 0] = R * np.cos(phi)
+        data[:, 1] = R * np.sin(phi)
+        data[:, 2] = Z
+
+    def gamma_impl(self, data, quadpoints_phi, quadpoints_theta):
+        """
+        Evaluate the position vector on the surface in Cartesian
+        coordinates, for a tensor product grid of points in theta and
+        phi.
+        """
+        nphi = len(quadpoints_phi)
+        ntheta = len(quadpoints_theta)
+        phi2d, theta2d = np.meshgrid(quadpoints_phi, quadpoints_theta)
+        data1d = np.zeros((nphi * ntheta, 3))
+        self.gamma_lin(data1d,
+                       np.reshape(phi2d, (nphi * ntheta,)),
+                       np.reshape(theta2d, (nphi * ntheta,)))
+        for xyz in range(3):
+            data[:, :, xyz] = np.reshape(data1d[:, xyz], (ntheta, nphi)).T
 
     def gammadash1_impl(self, data):
         """
