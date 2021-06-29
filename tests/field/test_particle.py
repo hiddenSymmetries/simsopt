@@ -151,7 +151,7 @@ class ParticleTracingTesting(unittest.TestCase):
         nparticles = 4
         m = 1.67e-27
         tmax = 1e-5
-        Ekin = 9000
+        Ekin = 9000*1.6e-19
         np.random.seed(1)
 
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
@@ -195,7 +195,7 @@ class ParticleTracingTesting(unittest.TestCase):
                 vperp = np.linalg.norm(v_fo - np.sum(v_fo*Bunit)*Bunit)
                 energy_fo = np.append(energy_fo, np.sqrt(m/2*(v_fo[[0]]**2+v_fo[[1]]**2+v_fo[[2]]**2)))
                 energy_gc = np.append(energy_gc, np.sqrt(m/2*(v_gc**2+2*muInitial*AbsBs[j, 0]/m)))
-                mu_fo = np.append(mu_fo, m*vperp**2/2/AbsBs[j, 0])
+                mu_fo = np.append(mu_fo, vperp**2/(2*AbsBs[j, 0]))
                 mu_gc = np.append(mu_gc, Ekin/AbsBs[j, 0]-m*v_gc**2/2/AbsBs[j, 0])
             energy_fo_error = np.log10(np.abs(energy_fo-energy_fo[0]+1e-30)/energy_fo[0])
             energy_gc_error = np.log10(np.abs(energy_gc-energy_gc[0]+1e-30)/energy_gc[0])
@@ -210,6 +210,6 @@ class ParticleTracingTesting(unittest.TestCase):
         print("Max mu Error for full orbit         = ", max_mu_fo_error)
         print("Max mu Error for guiding center     = ", max_mu_gc_error)
         assert max(max_energy_fo_error) < -8
-        assert max(max_energy_gc_error) < -1
-        assert max(max_mu_fo_error) < 0
-        assert max(max_mu_gc_error) < -1
+        assert max(max_energy_gc_error) < -8
+        assert max(max_mu_fo_error) < -4
+        assert max(max_mu_gc_error) < -8
