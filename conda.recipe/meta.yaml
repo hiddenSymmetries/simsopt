@@ -35,4 +35,4 @@ test:
 
 about:
   summary: simplified framework for stellarator optimization
-  license_file: [COPYING, COPYING.LESSER]
+  license_file: ["COPYING", "COPYING.LESSER"]
