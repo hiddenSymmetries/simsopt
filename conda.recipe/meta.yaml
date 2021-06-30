@@ -9,7 +9,7 @@ source:
 
 build:
   include_recipe: False
-  skip: "true [win, py<37]"
+  skip: "true # [win, py<37]"
   number: 0
   script: python -m pip install . -vvv
 
