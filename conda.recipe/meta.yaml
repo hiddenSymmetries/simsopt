@@ -17,11 +17,12 @@ requirements:
     - cmake
     - ninja
     - numpy {{ numpy }}
-    # - python 
-
-  host:
-    - python
+    - python 
     - pip
+
+  # host:
+  #   - python
+  #   - pip
 
   run:
     - python
