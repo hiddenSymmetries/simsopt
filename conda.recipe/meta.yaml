@@ -45,7 +45,7 @@ test:
   source_files:
     - tests
   commands:
-    - ./run_tests 
+    - python -m unittest discover -s tests
 
 about:
   summary: simplified framework for stellarator optimization
