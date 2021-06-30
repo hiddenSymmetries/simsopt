@@ -87,10 +87,13 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
+        if isinstance(quadpoints_phi, int):
+            quadpoints_phi = np.linspace(0, 1.0, quadpoints_phi, endpoint=False)
+        if isinstance(quadpoints_theta, int):
+            quadpoints_theta = np.linspace(0, 1.0, quadpoints_theta, endpoint=False)
+
         Surface.__init__(self)
-        sopp.Surface.__init__(self,
-                              np.linspace(0, 1.0, quadpoints_phi, endpoint=False),
-                              np.linspace(0, 1.0, quadpoints_theta, endpoint=False))
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
