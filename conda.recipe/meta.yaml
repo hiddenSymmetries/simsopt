@@ -9,6 +9,7 @@ source:
 
 build:
   include_recipe: False
+  skip: true # [win, py<37]
   number: 0
   script: python -m pip install . -vvv
 
@@ -48,5 +49,16 @@ test:
     - python -m unittest discover -s tests
 
 about:
+  home: {{ data.get('url') }}
   summary: simplified framework for stellarator optimization
+  license: LGPL
   license_file: ["COPYING", "COPYING.LESSER"]
+  description:
+  doc_url: https://simsopt.readthedocs.io/
+  dev_url: {{ data.get('url') }}
+
+extra:
+  recipe-maintainers:
+    - mbkumar
+    - landreman
+    - florianwechsung
