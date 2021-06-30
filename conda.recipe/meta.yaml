@@ -16,6 +16,8 @@ requirements:
     - "{{ compiler('cxx') }}"
     - cmake
     - ninja
+    - numpy {{ numpy }}
+    # - python 
 
   host:
     - python
@@ -23,6 +25,7 @@ requirements:
 
   run:
     - python
+    - numpy {{ numpy }}
 
 
 test:
