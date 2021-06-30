@@ -12,9 +12,7 @@ scenarios collection
 <https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume>`_.
 You can also find the source code for this example in the `examples
 directory
-<https://github.com/hiddenSymmetries/simsopt/blob/master/examples/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume>`_,
-where there is also a `Jupyter notebook
-<https://github.com/hiddenSymmetries/simsopt/blob/master/examples/stellopt_scenarios_2DOF_vmecOnly_targetIotaAndVolume.ipynb>`_
+<https://github.com/hiddenSymmetries/simsopt/blob/master/examples/stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py>`_.
 
 For this problem the two independent variables are ``RBC(1,1)`` and
 ``ZBS(1,1)``, which control the shape of the plasma boundary::
