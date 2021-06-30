@@ -93,6 +93,9 @@ default location, add the ``--user`` flag to ``pip`` so the package
 can be installed for your user only::
 
     pip install --user -e .
+    
+.. warning::
+    Installation from local source creates a directory called **build**. If you are reinstalling simsopt from source after updating the code by making local changes or by git pull, remove the directory **build** before reinstalling.
 
 From docker container
 ---------------------
