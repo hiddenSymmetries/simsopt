@@ -8,6 +8,7 @@ source:
   path: ..
 
 build:
+  include_recipe: False
   number: 0
   script: python -m pip install . -vvv
 
@@ -16,17 +17,18 @@ requirements:
     - "{{ compiler('cxx') }}"
     - cmake
     - ninja
-    - numpy {{ numpy }}
-    - python 
-    - pip
+    # - numpy {{ numpy }}
+    # - python 
+    # - pip
 
-  # host:
-  #   - python
-  #   - pip
+  host:
+    - python
+    - pip
+    - numpy >=1.19
 
   run:
     - python
-    - numpy {{ numpy }}
+    - numpy >=1.19
 
 
 test:
