@@ -1,0 +1,38 @@
+{% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
+
+package:
+  name: simsopt
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python -m pip install . -vvv
+
+requirements:
+  build:
+    - "{{ compiler('cxx') }}"
+    - cmake
+    - ninja
+
+  host:
+    - python
+    - pip
+
+  run:
+    - python
+
+
+test:
+  imports:
+    - simsopt
+  source_files:
+    - tests
+  commands:
+    - ./run_tests 
+
+about:
+  summary: simplified framework for stellarator optimization
+  license_file: [COPYING, COPYING.LESSER]
