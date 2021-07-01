@@ -232,12 +232,12 @@ jobs:
       if: "contains(matrix.test-type, 'unit')"
       run: pip install coverage 
 
-    - name: Run tests using coverage
+    - name: Run tests on 1 MPI process using coverage
       if: "contains(matrix.test-type, 'unit')"
       run: | 
         coverage run --source=simsopt -m unittest discover -s tests
 
-    - name: Run tests using coverage
+    - name: Run MPI tests using coverage
       if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true)
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
