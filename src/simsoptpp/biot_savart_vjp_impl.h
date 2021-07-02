@@ -271,6 +271,7 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
 
     for (int i = num_points - num_points % simd_size; i < num_points; ++i) {
         auto point_i = Vec3d{pointsx[i], pointsy[i], pointsz[i]};
+        
         Vec3d v_i   = Vec3d::Zero();
         auto vgrad_i = vector<Vec3d>{
             Vec3d::Zero(), Vec3d::Zero(), Vec3d::Zero()
@@ -287,8 +288,8 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
         for (int j = 0; j < num_quad_points; ++j) {
             Vec3d diff = point_i - Vec3d{gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]};
             Vec3d dgamma_j_by_dphi = Vec3d{dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]};
-            auto norm_diff_2 = norm(diff);
-            auto norm_diff_inv = 1./norm_diff_2;
+            auto norm_diff = norm(diff);
+            auto norm_diff_inv = 1./norm_diff;
             auto norm_diff_inv_3 = norm_diff_inv * norm_diff_inv * norm_diff_inv;
 
             auto res_dgamma_by_dphi_add = v_i * norm_diff_inv;
@@ -301,11 +302,11 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
             res_gamma(j, 0) += res_gamma_add.coeff(0);
             res_gamma(j, 1) += res_gamma_add.coeff(1);
             res_gamma(j, 2) += res_gamma_add.coeff(2);
-        
+             
             MYIF(derivs>0) {
                 auto norm_diff_inv_5 = norm_diff_inv_3 * norm_diff_inv * norm_diff_inv;
-                auto res_grad_dgamma_by_dphi_add = Vec3d();
-                auto res_grad_gamma_add = Vec3d();
+                auto res_grad_dgamma_by_dphi_add = Vec3d{0.,0.,0.};
+                auto res_grad_gamma_add = Vec3d{0.,0.,0.};
 #pragma unroll
                 for(int k=0; k<3; k++){
                     res_grad_dgamma_by_dphi_add -= vgrad_i[k] * norm_diff_inv_3 * diff[k]  ;
