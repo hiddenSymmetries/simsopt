@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 import logging
 from simsopt.field.magneticfield import MagneticField
+from simsopt.geo.surface import signed_distance_from_surface
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from nptyping import NDArray, Float
 
