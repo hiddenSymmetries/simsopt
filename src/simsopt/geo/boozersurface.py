@@ -449,8 +449,7 @@ class BoozerSurface():
         res['s'] = s
         res['iota'] = iota
         return res
-   
-#    @profile
+    
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For
@@ -551,7 +550,7 @@ class BoozerSurface():
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-        norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])))
+        norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])), ord=np.inf)
         while i < maxiter and norm > tol:
             if s.stellsym:
                 J = np.vstack((
@@ -574,7 +573,7 @@ class BoozerSurface():
             G = x[-1]
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
-            norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])))
+            norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])), ord=np.inf)
 
         if s.stellsym:
             J = np.vstack((

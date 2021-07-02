@@ -10,6 +10,12 @@ def forward_backward(P, L, U, rhs):
     y = scipy.linalg.solve_triangular(U.T, rhs, lower=True) 
     z = scipy.linalg.solve_triangular(L.T, y, lower=False) 
     adj = P@z 
+   
+    #  iterative refinement
+    yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True) 
+    zp = scipy.linalg.solve_triangular(L.T, yp, lower=False) 
+    adj += P@zp 
+ 
     return adj
 
 

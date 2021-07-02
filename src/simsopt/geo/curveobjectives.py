@@ -245,3 +245,12 @@ class UniformArclength():
         for i in range(num_coeff):
             res[i] = np.mean(2 * (l-self.desired_arclength) * dl[:, i])
         return res
+
+
+class ThetaZero():
+    def __init__(self, curve):
+        self.curve = curve
+    def J(self):
+        return 0.5*self.curve.gamma()[0,2]**2
+    def dJ_dcoefficients(self):
+        return self.curve.gamma()[0,2] * self.curve.dgamma_by_dcoeff()[0, 2, :]
