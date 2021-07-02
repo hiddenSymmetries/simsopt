@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 import logging
 from simsopt.field.magneticfield import MagneticField
+from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from nptyping import NDArray, Float
 
 
@@ -18,12 +19,12 @@ def compute_gc_radius(m, vperp, q, absb):
     return m*vperp/(abs(q)*absb)
 
 
-def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
+def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q, eta=0):
     """
     Takes in guiding center positions ``xyz_inits`` as well as a tangential
     velocities ``vtangs`` and total velocities ``vtotal`` to compute orbit
     positions for a full orbit calculation that matches the given guiding
-    center.
+    center. The phase angle can be controll via the `eta` parameter
     """
 
     nparticles = xyz_inits.shape[0]
@@ -34,16 +35,22 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q):
     Bs = field.B()
     AbsBs = field.AbsB()
     eB = Bs/AbsBs
-    ez = np.asarray(nparticles*[[0., 0., -1.]])
-    ez -= eB * np.sum(eB*ez, axis=1)[:, None]
-    ez *= 1./np.linalg.norm(ez, axis=1)[:, None]
-    Bperp = np.cross(eB, ez, axis=1)
-    Bperp *= 1./np.linalg.norm(Bperp, axis=1)[:, None]
-    vperp2s = vtotal**2 - vtangs**2
     for i in range(nparticles):
-        rgs[i] = compute_gc_radius(m, sqrt(vperp2s[i]), q, AbsBs[i, 0])
-        xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * ez[i, :]
-        v_inits[i, :] = -sqrt(vperp2s[i]) * Bperp[i, :] + vtangs[i] * eB[i, :]
+        p1 = eB[i, :]
+        p2 = np.asarray([0, 0, 1])
+        p3 = -np.cross(p1, p2)
+        p3 *= 1./np.linalg.norm(p3)
+        q1 = p1
+        q2 = p2 - np.sum(q1*p2)*q1
+        q2 = q2/np.sum(q2**2)**0.5
+        q3 = p3 - np.sum(q1*p3)*q1 - np.sum(q2*p3)*q2
+        q3 = q3/np.sum(q3**2)**0.5
+        vperpmag = np.sqrt(vtotal**2 - vtangs[i]**2)
+        rgs[i] = compute_gc_radius(m, vperpmag, q, AbsBs[i, 0])
+
+        xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * np.sin(eta) * q2 + rgs[i] * np.cos(eta) * q3
+        vperp = -vperpmag * np.cos(eta) * q2 + vperpmag * np.sin(eta) * q3
+        v_inits[i, :] = vtangs[i] * q1 + vperp
     return xyz_inits_full, v_inits, rgs
 
 
@@ -66,8 +73,8 @@ def parallel_loop_bounds(comm, n):
 
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     tangential_velocities: NDArray[Float], tmax=1e-4,
-                    mass=1.6726219e-27, charge=1, Ekin=9000, tol=1e-9,
-                    comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
+                    mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
     r"""
     Follow particles in a magnetic field.
 
@@ -76,9 +83,9 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
         xyz_inits: A (nparticles, 3) array with the initial positions of the particles.
         tangential_velocities: A (nparticles, ) array containing the velocities in direction of the B field.
         tmax: integration time
-        mass: particle mass in kg, defaults to the mass of a proton
-        charge: charge in elementary charges, defaults to 1 (charge of a proton)
-        Ekin: kinetic energy in eV, defaults to 9000eV
+        mass: particle mass in kg, defaults to the mass of an alpha particle
+        charge: charge in Coulomb, defaults to the charge of an alpha particle
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         phis: list of angles in [0, 2pi] for which intersection with the plane
@@ -116,14 +123,11 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     vtangs = tangential_velocities
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'full']
-    e = 1.6e-19
-    Ekine = Ekin*e
     m = mass
-    q = charge*e
-    vtotal = sqrt(2*Ekine/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
     if mode == 'full':
-        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q)
+        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, charge)
     res_tys = []
     res_phi_hits = []
     loss_ctr = 0
@@ -154,8 +158,8 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 
 
 def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
-                                     mass=1.67e-27, charge=1, Ekin=9000, tol=1e-9,
-                                     comm=None, seed=1, umin=-1, umax=+1,
+                                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                                     tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
                                      phis=[], stopping_criteria=[], mode='gc_vac'):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
@@ -165,9 +169,9 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
         field: The magnetic field.
         nparticles: number of particles to follow.
         tmax: integration time
-        mass: particle mass in kg, defaults to the mass of a proton
-        charge: charge in elementary charges, defaults to 1 (charge of a proton)
-        Ekin: kinetic energy in eV, defaults to 9000eV
+        mass: particle mass in kg, defaults to the mass of an alpha particle
+        charge: charge in Coulomb, defaults to the charge of an alpha particle
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         seed: random seed
@@ -186,10 +190,8 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
-    e = 1.6e-19
-    Ekine = Ekin*e
     m = mass
-    vtotal = sqrt(2*Ekine/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
     vtangs = us*vtotal
@@ -263,32 +265,6 @@ def particles_to_vtk(res_tys, filename):
     ppl = np.asarray([xyz.shape[0] for xyz in res_tys])
     data = np.concatenate([i*np.ones((res_tys[i].shape[0], )) for i in range(len(res_tys))])
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
-
-
-def signed_distance_from_surface(xyz, surface):
-    """
-    Compute the signed distances from points ``xyz`` to a surface.  The sign is
-    positive for points inside the volume surrounded by the surface.
-    """
-    gammas = surface.gamma().reshape((-1, 3))
-    from scipy.spatial.distance import cdist
-    dists = cdist(xyz, gammas)
-    mins = np.argmin(dists, axis=1)
-    n = surface.unitnormal().reshape((-1, 3))
-    nmins = n[mins]
-    gammamins = gammas[mins]
-
-    # Now that we have found the closest node, we approximate the surface with
-    # a plane through that node with the appropriate normal and then compute
-    # the distance from the point to that plane
-    # https://stackoverflow.com/questions/55189333/how-to-get-distance-from-point-to-plane-in-3d
-    mindist = np.sum((xyz-gammamins) * nmins, axis=1)
-
-    a_point_in_the_surface = np.mean(surface.gamma()[0, :, :], axis=0)
-    sign_of_interiorpoint = np.sign(np.sum((a_point_in_the_surface-gammas[0, :])*n[0, :]))
-
-    signed_dists = mindist * sign_of_interiorpoint
-    return signed_dists
 
 
 class SurfaceClassifier():

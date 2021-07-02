@@ -2,9 +2,10 @@ from simsopt.geo.coilcollection import CoilCollection
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
-    particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius
+    particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import numpy as np
 import unittest
 import logging
@@ -68,20 +69,21 @@ class ParticleTracingTesting(unittest.TestCase):
         bsh = self.bsh
         ma = self.ma
         nparticles = 2
-        m = 1.67e-27
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
         np.random.seed(1)
         with self.assertRaises(RuntimeError):
             gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-                ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+                ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
                 Ekin=9000, umin=-0.1, umax=+0.1,
                 phis=[], mode='gc')
 
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+            ma.gamma(), bsh, nparticles, tmax=1e-6, seed=1, mass=m, charge=q,
             Ekin=9000, umin=-0.1, umax=+0.1,
             phis=[], mode='gc_vac')
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+            ma.gamma(), bsh, nparticles, tmax=1e-6, seed=1, mass=m, charge=q,
             Ekin=9000, umin=-0.1, umax=+0.1,
             phis=[], mode='full')
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
@@ -114,7 +116,8 @@ class ParticleTracingTesting(unittest.TestCase):
         bsh = self.bsh
         ma = self.ma
         nparticles = 2
-        m = 1.67e-27
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
         nphis = 10
         phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
         mpol = 5
@@ -132,13 +135,39 @@ class ParticleTracingTesting(unittest.TestCase):
         assert sc.evaluate(2*ma.gamma()[:1, :]) < 0
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=1,
+            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
             Ekin=9000, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
             stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
 
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
+
+    def test_gc_to_full(self):
+        N = 300
+        etas = np.linspace(0, 2*np.pi, N)
+        ma = self.ma
+        bsh = self.bsh
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        Ekin = 9000*ONE_EV
+        vtotal = np.sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+        xyz_gc = ma.gamma()[:10, :]
+        np.random.seed(1)
+        vtangs = np.random.uniform(size=(xyz_gc.shape[0], )) * vtotal
+        xyz, vxyz, _ = gc_to_fullorbit_initial_guesses(bsh, xyz_gc, vtangs, vtotal, m, q, eta=etas[0])
+        for eta in etas[1:]:
+            tmp = gc_to_fullorbit_initial_guesses(bsh, xyz_gc, vtangs, vtotal, m, q, eta=eta)
+            xyz += tmp[0]
+            vxyz += tmp[1]
+            radius = tmp[2]
+            assert np.allclose(np.abs(np.linalg.norm(xyz_gc-tmp[0], axis=1) - radius), 0)
+        xyz *= 1/N
+        vxyz *= 1/N
+        assert np.linalg.norm(xyz - xyz_gc) < 1e-3
+        B = bsh.set_points(xyz_gc).B()
+        B *= 1./bsh.AbsB()
+        assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-2
 
     def test_energy_conservation(self):
         # Test conservation of Energy = m v^2/2=m vparallel^2/2+mu B
