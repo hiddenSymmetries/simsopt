@@ -201,6 +201,34 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
 
 
 def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+    r"""
+    Compute magnetic field lines.
+    Args:
+        field: the magnetic field
+        R0: list of radial components of initial points
+        Z0: list of vertical components of initial points
+        tmax: for how long to trace. will do roughly |B|*tmax/(2*pi*r0) revolutions of the device
+        tol: tolerance for the adaptive ode solver
+        phis: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that phi should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+
+    Returns: 2 element tuple containing
+        - ``res_tys``:
+            A list of numpy arrays (one for each particle) describing the
+            solution over time. The numpy array is of shape (ntimesteps, 4).
+            Each row contains the time and
+            the position, i.e.`[t, x, y, z]`.
+        - ``res_phi_hits``:
+            A list of numpy arrays (one for each particle) containing
+            information on each time the particle hits one of the phi planes or
+            one of the stopping criteria. Each row of the array contains
+            `[time, idx, x, y, z]`, where `idx` tells us which of the `phis`
+            or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
+            was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+    """
     assert len(R0) == len(Z0)
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
@@ -246,7 +274,7 @@ def signed_distance_from_surface(xyz, surface):
     from scipy.spatial.distance import cdist
     dists = cdist(xyz, gammas)
     mins = np.argmin(dists, axis=1)
-    n = surface.normal().reshape((-1, 3))
+    n = surface.unitnormal().reshape((-1, 3))
     nmins = n[mins]
     gammamins = gammas[mins]
 
