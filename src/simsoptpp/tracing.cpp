@@ -277,9 +277,9 @@ particle_guiding_center_tracing(
     double mu = vperp2/(2*AbsB);
 
     array<double, 4> y = {xyz_init[0], xyz_init[1], xyz_init[2], vtang};
-
-    double dtmax = 0.01/vtotal; // can at most move 1cm per step
-    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+    double r0 = std::sqrt(xyz_init[0]*xyz_init[0] + xyz_init[1]*xyz_init[1]);
+    double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
+    double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
     if(vacuum){
         auto rhs_class = GuidingCenterVacuumRHS<T>(field, m, q, mu);
@@ -307,8 +307,9 @@ particle_fullorbit_tracing(
     array<double, 6> y = {xyz_init[0], xyz_init[1], xyz_init[2], v_init[0], v_init[1], v_init[2]};
 
     double vtotal = std::sqrt(std::pow(v_init[0], 2) + std::pow(v_init[1], 2) + std::pow(v_init[2], 2));
-    double dtmax = 0.01/vtotal; // can at most move 1cm per step
-    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+    double r0 = std::sqrt(xyz_init[0]*xyz_init[0] + xyz_init[1]*xyz_init[1]);
+    double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
+    double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
     return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
 }
@@ -325,8 +326,12 @@ fieldline_tracing(
     double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     auto rhs_class = FieldlineRHS<T>(field);
-    double dtmax = 0.1; // todo: better guess for dtmax (maybe bound so that one can't do more than half a rotation per step or so)
-    double dt = 0.001 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+    double r0 = std::sqrt(xyz_init[0]*xyz_init[0] + xyz_init[1]*xyz_init[1]);
+    typename MagneticField<T>::Tensor2 xyz({{xyz_init[0], xyz_init[1], xyz_init[2]}});
+    field->set_points(xyz);
+    double AbsB = field->AbsB_ref()(0);
+    double dtmax = r0*0.5*M_PI/AbsB; // can at most do quarter of a revolution per step
+    double dt = 1e-5 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
     return solve(rhs_class, xyz_init, tmax, dt, dtmax, tol, phis, stopping_criteria);
 }
 
