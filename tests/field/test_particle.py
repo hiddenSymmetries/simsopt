@@ -157,11 +157,11 @@ class ParticleTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=1,
             Ekin=Ekin, umin=-1, umax=+1,
-            phis=[], mode='gc_vac')
+            phis=[], mode='gc_vac', tol=1e-10)
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=1,
             Ekin=Ekin, umin=-1, umax=+1,
-            phis=[], mode='full')
+            phis=[], mode='full', tol=1e-10)
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
