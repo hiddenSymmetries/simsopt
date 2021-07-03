@@ -124,8 +124,8 @@ class Quasisymmetry1Tests(unittest.TestCase):
         B_scale = 1.6
 
         # Now scale the vmec configuration:
-        vmec.indata.rbc *= R_scale
-        vmec.indata.zbs *= R_scale
+        vmec.boundary.rc *= R_scale
+        vmec.boundary.zs *= R_scale
         vmec.indata.phiedge *= B_scale * R_scale * R_scale
         vmec.indata.pres_scale *= B_scale * B_scale
         vmec.indata.curtor *= B_scale * R_scale
@@ -135,7 +135,25 @@ class Quasisymmetry1Tests(unittest.TestCase):
         residuals2 = qs2.residuals()
 
         print('Max difference in residuals after scaling vmec:', np.max(np.abs(residuals1 - residuals2)))
-        # np.testing.assert_allclose(residuals1, residuals2)
+        np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
+
+    def test_profile(self):
+        """
+        Verify that the profile() function returns the same results as
+        objects that return the quasisymmetry error for just a single
+        surface.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+        surfs = [0, 0.4, 1]
+        weights = [0.2, 0.7, 1.3]
+        m = 1
+        n = 1
+        qs_profile = Quasisymmetry1(vmec, surfs, m=m, n=n, weights=weights)
+        profile = qs_profile.profile()
+        np.testing.assert_allclose(np.sum(profile), qs_profile.total())
+        for j in range(len(surfs)):
+            qs_single = Quasisymmetry1(vmec, [surfs[j]], m=m, n=n, weights=[weights[j]])
+            np.testing.assert_allclose(profile[j], qs_single.total())
 
 
 if __name__ == "__main__":

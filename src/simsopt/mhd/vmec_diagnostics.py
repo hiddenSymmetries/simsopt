@@ -163,3 +163,18 @@ class Quasisymmetry1(Optimizable):
         residuals1d = residuals.reshape((ns * ntheta * nphi,))
         logger.debug('Done evaluating quasisymmetry residuals')
         return residuals1d
+
+    def profile(self):
+        """
+        Return the quasisymmetry metric in terms of a 1D radial
+        profile. The residuals are squared and summed over theta and
+        phi, but not over s. The total quasisymmetry error returned by
+        the ``total()`` function is the sum of the values in the
+        profile returned by this function.
+        """
+        ns = len(self.s)
+        ntheta = self.ntheta
+        nphi = self.nphi
+        temp = self.residuals()
+        temp2 = temp.reshape((ns, ntheta, nphi))
+        return np.sum(temp2 * temp2, axis=(1, 2))
