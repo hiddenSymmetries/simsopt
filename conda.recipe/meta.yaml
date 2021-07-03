@@ -1,0 +1,64 @@
+{% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
+
+package:
+  name: simsopt
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+build:
+  include_recipe: False
+  # skip: "true # [win, py<37]"
+  number: 0
+  script: python -m pip install . -vvv
+
+requirements:
+  build:
+    - "{{ compiler('cxx') }}"
+    - cmake
+    - ninja
+    # - numpy {{ numpy }}
+    # - python 
+    # - pip
+
+  host:
+    - python
+    - pip
+    - numpy >=1.19
+
+  run:
+    - python
+    - numpy >=1.19
+    - jax >=0.2.4
+    - jaxlib >=0.1.56
+    - scipy >=1.5.4
+    - Deprecated >=1.2.10
+    - nptyping >=1.3.0
+    - pandas >=1.1.4
+    - monty >=2021.6.10 
+    - ruamel.yaml
+
+
+test:
+  imports:
+    - simsopt
+  source_files:
+    - tests
+  commands:
+    - python -m unittest discover -s tests
+
+about:
+  home: {{ data.get('url') }}
+  summary: simplified framework for stellarator optimization
+  license: LGPL
+  license_file: ["COPYING", "COPYING.LESSER"]
+  description:
+  doc_url: https://simsopt.readthedocs.io/
+  dev_url: {{ data.get('url') }}
+
+extra:
+  recipe-maintainers:
+    - mbkumar
+    - landreman
+    - florianwechsung
