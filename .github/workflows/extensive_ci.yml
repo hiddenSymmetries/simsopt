@@ -184,7 +184,7 @@ jobs:
       if: matrix.vmec == true
       run: |
         cd VMEC2000
-        cp python/machines/ubuntu.json cmake_config_file.json
+        cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
         pip install .
 
