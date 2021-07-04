@@ -17,13 +17,57 @@ logger = logging.getLogger(__name__)
 
 class QuasisymmetryRatioError(Optimizable):
     r"""
-    This class provides a measure of the deviation from quasisymmetry.
-    It is based on the fact that for quasisymmetry, the ratio
+    This class provides a measure of the deviation from quasisymmetry,
+    one that can be computed without Boozer coordinates.  This metric
+    is based on the fact that for quasisymmetry, the ratio
 
     .. math::
         (\vec{B}\times\nabla B \cdot\nabla\psi) / (\vec{B} \cdot\nabla B)
 
     is constant on flux surfaces.
+
+    Specifically, this class represents the objective function
+
+    .. math::
+        f = \sum_{s_j} w_j \left< \left[ \frac{1}{B^3} \left( (N - \iota M)\vec{B}\times\nabla B\cdot\nabla\psi - (MG+NI)\vec{B}\cdot\nabla B \right) \right]^2 \right>
+
+    where the sum is over a set of flux surfaces with normalized
+    toroidal flux :math:`s_j`, the coefficients :math:`w_j` are
+    user-supplied weights, :math:`\left< \ldots \right>` denotes a
+    flux surface average, :math:`G(s)` is :math:`\mu_0/(2\pi)` times
+    the poloidal current outside the surface, :math:`I(s)` is
+    :math:`\mu_0/(2\pi)` times the toroidal current inside the
+    surface, :math:`\mu_0` is the permeability of free space,
+    :math:`2\pi\psi` is the toroidal flux, and :math:`(M,N)` are
+    user-supplied integers that specify the desired helicity of
+    symmetry. If the magnetic field is quasisymmetric, so
+    :math:`B=B(\psi,\chi)` where :math:`\chi=M\vartheta - N\varphi`
+    where :math:`(\vartheta,\varphi)` are the poloidal and toroidal
+    Boozer angles, then :math:`\vec{B}\times\nabla B\cdot\nabla\psi
+    \to -(MG+NI)(\vec{B}\cdot\nabla\varphi)\partial B/\partial \chi`
+    and :math:`\vec{B}\cdot\nabla B \to (-N+\iota
+    M)(\vec{B}\cdot\nabla\varphi)\partial B/\partial \chi`, implying
+    the metric :math:`f` vanishes. The flux surface average is
+    discretized using a uniform grid in the VMEC poloidal and toroidal
+    angles :math:`(\theta,\phi)`. In this case :math:`f` can be
+    written as a finite sum of squares:
+
+    .. math::
+        f = \sum_{s_j, \theta_j, \phi_j} R(s_j, \theta_j, \phi_j)^2
+
+    where the :math:`\phi_j` grid covers a single field period and
+    each residual term is
+
+    .. math::
+        R(\theta, \phi) = \sqrt{w_j \frac{n_{fp} \Delta_{\theta} \Delta_{\phi}}{V'}|\sqrt{g}|}
+        \frac{1}{B^3} \left( (N-\iota M)\vec{B}\times\nabla B\cdot\nabla\psi - (MG+NI)\vec{B}\cdot\nabla B \right).
+
+    Here, :math:`n_{fp}` is the number of field periods,
+    :math:`\Delta_{\theta}` and :math:`\Delta_{\phi}` are the spacing
+    of grid points in the poloidal and toroidal angles,
+    :math:`\sqrt{g} = 1/(\nabla s\cdot\nabla\theta \times
+    \nabla\phi)` is the Jacobian of the :math:`(s,\theta,\phi)`
+    coordinates,
 
     Note that the supplied value of ``n`` will be multiplied by
     ``nfp``, so typically ``n`` should be +1 or -1 for quasi-helical
@@ -164,8 +208,8 @@ class QuasisymmetryRatioError(Optimizable):
         nn = self.n * nfp
         for js in range(ns):
             residuals[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
-                * (B_cross_grad_B_dot_grad_psi[js, :, :] \
-                   - B_dot_grad_B[js, :, :] * (self.m * G[js] + nn * I[js]) / (nn - iota[js] * self.m)) \
+                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.m) \
+                   - B_dot_grad_B[js, :, :] * (self.m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
 
         residuals1d = residuals.reshape((ns * ntheta * nphi,))

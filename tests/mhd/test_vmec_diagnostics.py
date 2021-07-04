@@ -96,7 +96,7 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
 
         qh = QuasisymmetryRatioError(vmec, 0.5, m=1, n=-1)
         print('QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240:', qh.total())
-        self.assertTrue(qh.total() < 5e-6)
+        self.assertTrue(qh.total() < 5e-5)
 
         qh2 = QuasisymmetryRatioError(vmec, 0.5, m=1, n=1)
         print('QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240:', qh2.total())
@@ -154,6 +154,16 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         for j in range(len(surfs)):
             qs_single = QuasisymmetryRatioError(vmec, [surfs[j]], m=m, n=n, weights=[weights[j]])
             np.testing.assert_allclose(profile[j], qs_single.total())
+
+    def test_iota_0(self):
+        """
+        Verify the metric works even when iota = 0, for a vacuum
+        axisymmetric configuration with circular cross-section.
+        """
+        vmec = Vmec()
+        qs = QuasisymmetryRatioError(vmec, 0.5)
+        print('QuasisymmetryRatioError for a vacuum axisymmetric config with iota = 0:', qs.total())
+        self.assertTrue(qs.total() < 1e-12)
 
 
 if __name__ == "__main__":
