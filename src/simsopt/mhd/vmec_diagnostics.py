@@ -15,8 +15,16 @@ from .vmec import Vmec
 logger = logging.getLogger(__name__)
 
 
-class Quasisymmetry1(Optimizable):
-    """
+class QuasisymmetryRatioError(Optimizable):
+    r"""
+    This class provides a measure of the deviation from quasisymmetry.
+    It is based on the fact that for quasisymmetry, the ratio
+
+    .. math::
+        (\vec{B}\times\nabla B \cdot\nabla\psi) / (\vec{B} \cdot\nabla B)
+
+    is constant on flux surfaces.
+
     Note that the supplied value of ``n`` will be multiplied by
     ``nfp``, so typically ``n`` should be +1 or -1 for quasi-helical
     symmetry.
