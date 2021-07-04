@@ -3,7 +3,7 @@ import numpy as np
 import os
 import logging
 
-from simsopt.mhd.vmec_diagnostics import Quasisymmetry1
+from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioError
 
 try:
     import vmec
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
-class Quasisymmetry1Tests(unittest.TestCase):
+class QuasisymmetryRatioErrorTests(unittest.TestCase):
     def test_axisymmetry(self):
         """
         For an axisymmetric field, the QA error should be 0, while the QH
@@ -34,16 +34,16 @@ class Quasisymmetry1Tests(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'input.circular_tokamak'))
 
         for s in [[0.5], [0.3, 0.6]]:
-            qa = Quasisymmetry1(vmec, s, m=1, n=0)
+            qa = QuasisymmetryRatioError(vmec, s, m=1, n=0)
             residuals = qa.residuals()
             print('max QA error:', np.max(np.abs(residuals)))
             np.testing.assert_allclose(residuals, np.zeros_like(residuals), atol=2e-6)
 
-            qh = Quasisymmetry1(vmec, s, m=1, n=1)
+            qh = QuasisymmetryRatioError(vmec, s, m=1, n=1)
             print('QH error:', qh.total())
             self.assertTrue(qh.total() > 0.01)
 
-            qp = Quasisymmetry1(vmec, s, m=0, n=1)
+            qp = QuasisymmetryRatioError(vmec, s, m=0, n=1)
             print('QP error:', qp.total())
             self.assertTrue(qp.total() > 0.01)
 
@@ -61,8 +61,8 @@ class Quasisymmetry1Tests(unittest.TestCase):
         for s, weights in zip(ss, weightss):
             print(f's={s} weights={weights}')
             for m, n in zip(ms, ns):
-                qs_ref = Quasisymmetry1(vmec, s, m=m, n=n, weights=weights)
-                qs = Quasisymmetry1(vmec, s, m=m, n=n, weights=weights, ntheta=65, nphi=57)
+                qs_ref = QuasisymmetryRatioError(vmec, s, m=m, n=n, weights=weights)
+                qs = QuasisymmetryRatioError(vmec, s, m=m, n=n, weights=weights, ntheta=65, nphi=57)
                 total_ref = qs_ref.total()
                 total = qs.total()
                 print(f'm={m} n={n} qs_ref={qs_ref.total()}, qs={qs.total()} diff={total_ref-total}')
@@ -74,16 +74,16 @@ class Quasisymmetry1Tests(unittest.TestCase):
         the QA error should have a low value. The QH and QP errors should be larger.
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.simsopt_nfp2_QA_20210328-01-020_000_000251'))
-        qa = Quasisymmetry1(vmec, 0.5, m=1, n=0)
+        qa = QuasisymmetryRatioError(vmec, 0.5, m=1, n=0)
         total = qa.total()
         print("QA error for simsopt_nfp2_QA_20210328-01-020_000_000251:", total)
         self.assertTrue(total < 2e-5)
 
-        qh = Quasisymmetry1(vmec, 0.5, m=1, n=1)
+        qh = QuasisymmetryRatioError(vmec, 0.5, m=1, n=1)
         print('QH error:', qh.total())
         self.assertTrue(qh.total() > 0.002)
 
-        qp = Quasisymmetry1(vmec, 0.5, m=0, n=1)
+        qp = QuasisymmetryRatioError(vmec, 0.5, m=0, n=1)
         print('QP error:', qp.total())
         self.assertTrue(qp.total() > 0.002)
 
@@ -94,20 +94,20 @@ class Quasisymmetry1Tests(unittest.TestCase):
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.20210406-01-002-nfp4_QH_000_000240'))
 
-        qh = Quasisymmetry1(vmec, 0.5, m=1, n=-1)
+        qh = QuasisymmetryRatioError(vmec, 0.5, m=1, n=-1)
         print('QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240:', qh.total())
         self.assertTrue(qh.total() < 5e-6)
 
-        qh2 = Quasisymmetry1(vmec, 0.5, m=1, n=1)
+        qh2 = QuasisymmetryRatioError(vmec, 0.5, m=1, n=1)
         print('QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240:', qh2.total())
         self.assertTrue(qh2.total() > 0.01)
 
-        qa = Quasisymmetry1(vmec, 0.5, m=1, n=0)
+        qa = QuasisymmetryRatioError(vmec, 0.5, m=1, n=0)
         total = qa.total()
         print("QA error for 20210406-01-002-nfp4_QH_000_000240:", total)
         self.assertTrue(total > 0.05)
 
-        qp = Quasisymmetry1(vmec, 0.5, m=0, n=1)
+        qp = QuasisymmetryRatioError(vmec, 0.5, m=0, n=1)
         print('QP error:', qp.total())
         self.assertTrue(qp.total() > 0.005)
 
@@ -117,7 +117,7 @@ class Quasisymmetry1Tests(unittest.TestCase):
         configuration in length and/or magnetic field strength.
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
-        qs1 = Quasisymmetry1(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
+        qs1 = QuasisymmetryRatioError(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
         residuals1 = qs1.residuals()
 
         R_scale = 2.7
@@ -131,7 +131,7 @@ class Quasisymmetry1Tests(unittest.TestCase):
         vmec.indata.curtor *= B_scale * R_scale
 
         vmec.need_to_run_code = True
-        qs2 = Quasisymmetry1(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
+        qs2 = QuasisymmetryRatioError(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
         residuals2 = qs2.residuals()
 
         print('Max difference in residuals after scaling vmec:', np.max(np.abs(residuals1 - residuals2)))
@@ -148,11 +148,11 @@ class Quasisymmetry1Tests(unittest.TestCase):
         weights = [0.2, 0.7, 1.3]
         m = 1
         n = 1
-        qs_profile = Quasisymmetry1(vmec, surfs, m=m, n=n, weights=weights)
+        qs_profile = QuasisymmetryRatioError(vmec, surfs, m=m, n=n, weights=weights)
         profile = qs_profile.profile()
         np.testing.assert_allclose(np.sum(profile), qs_profile.total())
         for j in range(len(surfs)):
-            qs_single = Quasisymmetry1(vmec, [surfs[j]], m=m, n=n, weights=[weights[j]])
+            qs_single = QuasisymmetryRatioError(vmec, [surfs[j]], m=m, n=n, weights=[weights[j]])
             np.testing.assert_allclose(profile[j], qs_single.total())
 
 
