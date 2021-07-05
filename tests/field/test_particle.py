@@ -58,7 +58,7 @@ class ParticleTracingTesting(unittest.TestCase):
         phirange = (0, 2*np.pi, n*6)
         zrange = (-0.3, 0.3, n)
         bsh = InterpolatedField(
-            bs, UniformInterpolationRule(4),
+            bs, UniformInterpolationRule(5),
             rrange, phirange, zrange, True
         )
         self.bsh = bsh
@@ -71,20 +71,24 @@ class ParticleTracingTesting(unittest.TestCase):
         nparticles = 2
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
+        Ekin = 1000*ONE_EV
         np.random.seed(1)
+        umin = 0.25
+        umax = 0.75
+        tmax = 2e-5
         with self.assertRaises(RuntimeError):
             gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-                ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
-                Ekin=9000, umin=-0.1, umax=+0.1,
+                ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+                Ekin=Ekin, umin=umin, umax=umax,
                 phis=[], mode='gc')
 
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-6, seed=1, mass=m, charge=q,
-            Ekin=9000, umin=-0.1, umax=+0.1,
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='gc_vac')
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-6, seed=1, mass=m, charge=q,
-            Ekin=9000, umin=-0.1, umax=+0.1,
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='full')
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         particles_to_vtk(fo_tys, '/tmp/particles_fo')
@@ -107,9 +111,9 @@ class ParticleTracingTesting(unittest.TestCase):
                 v = fo_ty[jdx, 4:]
                 Bunit = Bs[j, :]/AbsBs[j, 0]
                 vperp = np.linalg.norm(v - np.sum(v*Bunit)*Bunit)
-                r = compute_gc_radius(m, vperp, 1.6e-19, AbsBs[j, 0])
+                r = compute_gc_radius(m, vperp, q, AbsBs[j, 0])
                 dist = np.linalg.norm(gc_xyzs[j, :] - fo_ty[jdx, 1:4])
-                assert dist < 4*r
+                assert dist < 8*r
                 assert dist > 0.5*r
 
     def test_guidingcenterphihits(self):
@@ -118,6 +122,7 @@ class ParticleTracingTesting(unittest.TestCase):
         nparticles = 2
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
+        Ekin = 9000 * ONE_EV
         nphis = 10
         phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
         mpol = 5
@@ -136,8 +141,8 @@ class ParticleTracingTesting(unittest.TestCase):
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
             ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
-            Ekin=9000, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
-            stopping_criteria=[LevelsetStoppingCriterion(sc.dist)])
+            Ekin=Ekin, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
+            stopping_criteria=[LevelsetStoppingCriterion(sc)])
 
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
@@ -170,27 +175,28 @@ class ParticleTracingTesting(unittest.TestCase):
         assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-2
 
     def test_energy_conservation(self):
-        # Test conservation of Energy = m v^2/2=m vparallel^2/2+mu B
-        # where mu=m v_perp^2/(2B) is the adiabatic invariant. In the
+        # Test conservation of Energy = m v^2/2=(m/2) (vparallel^2+ 2muB)
+        # where mu=v_perp^2/(2B) is the adiabatic invariant. In the
         # the presence of a strong magnetic field, mu should also be
         # conserved. Energy is conserved regardless of the magnitude
         # of the magnetic field.
         bsh = self.bsh
         ma = self.ma
-        nparticles = 4
-        m = 1.67e-27
+        nparticles = 1
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
         tmax = 1e-5
-        Ekin = 9000*1.6e-19
+        Ekin = 100*ONE_EV
         np.random.seed(1)
 
         gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=1,
-            Ekin=Ekin, umin=-1, umax=+1,
-            phis=[], mode='gc_vac', tol=1e-10)
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.5, umax=-0.25,  # pitch angle so that we have both par and perp contribution
+            phis=[], mode='gc_vac', tol=1e-11)
         fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=1,
-            Ekin=Ekin, umin=-1, umax=+1,
-            phis=[], mode='full', tol=1e-10)
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.5, umax=-0.25,
+            phis=[], mode='full', tol=1e-11)
         particles_to_vtk(gc_tys, '/tmp/particles_gc')
         particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
@@ -208,24 +214,28 @@ class ParticleTracingTesting(unittest.TestCase):
             gc_ty = gc_tys[i]
             idxs = np.random.randint(0, gc_ty.shape[0], size=(N, ))
             gc_xyzs = gc_ty[idxs, 1:4]
+            fo_xyzs = fo_ty[idxs, 1:4]
             bsh.set_points(gc_xyzs)
-            Bs = bsh.B()
+            AbsBs_gc = bsh.AbsB()
+            bsh.set_points(fo_xyzs)
             AbsBs = bsh.AbsB()
+            Bs = bsh.B()
+
             energy_fo = np.array([])
             energy_gc = np.array([])
             mu_fo = np.array([])
             mu_gc = np.array([])
             vParInitial = gc_ty[0, 4]
-            muInitial = Ekin/AbsBs[0, 0]-m*vParInitial**2/2/AbsBs[0, 0]
+            muInitial = Ekin/(m*AbsBs_gc[0, 0])-vParInitial**2/(2*AbsBs_gc[0, 0])
             for j in range(N):
                 v_fo = fo_ty[idxs[j], 4:]
                 v_gc = gc_ty[idxs[j], 4]
                 Bunit = Bs[j, :]/AbsBs[j, 0]
                 vperp = np.linalg.norm(v_fo - np.sum(v_fo*Bunit)*Bunit)
-                energy_fo = np.append(energy_fo, np.sqrt(m/2*(v_fo[[0]]**2+v_fo[[1]]**2+v_fo[[2]]**2)))
-                energy_gc = np.append(energy_gc, np.sqrt(m/2*(v_gc**2+2*muInitial*AbsBs[j, 0]/m)))
+                energy_fo = np.append(energy_fo, (m/2)*(v_fo[[0]]**2+v_fo[[1]]**2+v_fo[[2]]**2))
+                energy_gc = np.append(energy_gc, (m/2)*(v_gc**2+2*muInitial*AbsBs_gc[j, 0]))
                 mu_fo = np.append(mu_fo, vperp**2/(2*AbsBs[j, 0]))
-                mu_gc = np.append(mu_gc, Ekin/AbsBs[j, 0]-m*v_gc**2/2/AbsBs[j, 0])
+                mu_gc = np.append(mu_gc, Ekin/(m*AbsBs_gc[j, 0])-v_gc**2/(2*AbsBs_gc[j, 0]))
             energy_fo_error = np.log10(np.abs(energy_fo-energy_fo[0]+1e-30)/energy_fo[0])
             energy_gc_error = np.log10(np.abs(energy_gc-energy_gc[0]+1e-30)/energy_gc[0])
             mu_fo_error = np.log10(np.abs(mu_fo-mu_fo[0]+1e-30)/mu_fo[0])
@@ -239,6 +249,6 @@ class ParticleTracingTesting(unittest.TestCase):
         print("Max mu Error for full orbit         = ", max_mu_fo_error)
         print("Max mu Error for guiding center     = ", max_mu_gc_error)
         assert max(max_energy_fo_error) < -8
-        assert max(max_energy_gc_error) < -8
-        assert max(max_mu_fo_error) < -4
-        assert max(max_mu_gc_error) < -8
+        assert max(max_energy_gc_error) < -3
+        assert max(max_mu_fo_error) < -3
+        assert max(max_mu_gc_error) < -6
