@@ -79,8 +79,25 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     r"""
     Follow particles in a magnetic field.
 
+    In the case of ``mod='full'`` we solve
+
+    .. math::
+
+        [\ddot x, \ddot y, \ddot z] = \frac{q}{m}  [\dot x, \dot y, \dot z] \times B
+
+    in the case of ``mod='gc_vac'`` we solve the guiding center equations under
+    the assumption :math:`\nabla p=0`, that is
+
+    .. math::
+
+        [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)\\
+        \dot v_{||}    &= -\mu  (B \cdot \nabla(|B|))
+
+    where :math:`v_\perp = 2\mu|B|`. See equations (12) and (13) of
+    [Guiding Center Motion, H.J. de Blank, https://doi.org/10.13182/FST04-A468].
+
     Args:
-        field: The magnetic field.
+        field: The magnetic field :math:`B`.
         xyz_inits: A (nparticles, 3) array with the initial positions of the particles.
         tangential_velocities: A (nparticles, ) array containing the velocities in direction of the B field.
         tmax: integration time
@@ -121,6 +138,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 
     nparticles = xyz_inits.shape[0]
     assert xyz_inits.shape[0] == len(tangential_velocities)
+    print("xyz_inits", xyz_inits)
     vtangs = tangential_velocities
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'full']
@@ -129,6 +147,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 
     if mode == 'full':
         xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, charge)
+        print("xyz_inits", xyz_inits)
     res_tys = []
     res_phi_hits = []
     loss_ctr = 0
@@ -137,12 +156,12 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
         if 'gc' in mode:
             res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
-                m, q, vtotal, vtangs[i], tmax, tol,
+                m, charge, vtotal, vtangs[i], tmax, tol,
                 vacuum=(mode == 'gc_vac'), phis=phis, stopping_criteria=stopping_criteria)
         else:
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
-                m, q, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+                m, charge, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
@@ -164,10 +183,11 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
                                      phis=[], stopping_criteria=[], mode='gc_vac'):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
+    See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
 
     Args:
         axis: The magnetic axis.
-        field: The magnetic field.
+        field: The magnetic field :math:`B`.
         nparticles: number of particles to follow.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
@@ -195,6 +215,7 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
     vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    us[:] = 0.5
     vtangs = us*vtotal
     xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
     return trace_particles(
@@ -205,9 +226,14 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
 
 def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
     r"""
-    Compute magnetic field lines.
+    Compute magnetic field lines by solving
+
+    .. math::
+
+        [\dot x, \dot y, \dot z] = B(x, y, z)
+
     Args:
-        field: the magnetic field
+        field: the magnetic field :math:`B`
         R0: list of radial components of initial points
         Z0: list of vertical components of initial points
         tmax: for how long to trace. will do roughly |B|*tmax/(2*pi*r0) revolutions of the device
@@ -333,4 +359,11 @@ class SurfaceClassifier():
 
 
 class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
-    pass
+
+    def __init__(self, classifier):
+        assert isinstance(classifier, SurfaceClassifier) \
+            or isinstance(classifier, sopp.RegularGridInterpolant3D)
+        if isinstance(classifier, SurfaceClassifier):
+            sopp.LevelsetStoppingCriterion.__init__(self, classifier.dist)
+        else:
+            sopp.LevelsetStoppingCriterion.__init__(self, classifier)

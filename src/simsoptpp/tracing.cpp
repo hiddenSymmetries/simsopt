@@ -29,6 +29,14 @@ using namespace boost::numeric::odeint;
 
 template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumRHS {
+    /*
+     * The state consists of :math:`[x, y, z, v_par]` with
+     *
+     *   [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)
+     *   \dot v_{||}              &= -\mu  (B \cdot \nabla(|B|))
+     *
+     * where v_perp = 2*mu*|B|
+     */
     private:
         std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
         typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
@@ -49,7 +57,7 @@ class GuidingCenterVacuumRHS {
             double x = ys[0];
             double y = ys[1];
             double z = ys[2];
-            double vtang = ys[3];
+            double v_par = ys[3];
 
             rphiz(0, 0) = std::sqrt(x*x+y*y);
             rphiz(0, 1) = std::atan2(y, x);
@@ -64,9 +72,9 @@ class GuidingCenterVacuumRHS {
             BcrossGradAbsB[0] = (B(0, 1) * GradAbsB(0, 2)) - (B(0, 2) * GradAbsB(0, 1));
             BcrossGradAbsB[1] = (B(0, 2) * GradAbsB(0, 0)) - (B(0, 0) * GradAbsB(0, 2));
             BcrossGradAbsB[2] = (B(0, 0) * GradAbsB(0, 1)) - (B(0, 1) * GradAbsB(0, 0));
-            double vperp2 = 2*mu*AbsB;
-            double fak1 = (vtang/AbsB);
-            double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*vperp2 + vtang*vtang);
+            double v_perp2 = 2*mu*AbsB;
+            double fak1 = (v_par/AbsB);
+            double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*v_perp2 + v_par*v_par);
             dydt[0] = fak1*B(0, 0) + fak2*BcrossGradAbsB[0];
             dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1];
             dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2];
