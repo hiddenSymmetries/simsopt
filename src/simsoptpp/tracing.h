@@ -22,7 +22,7 @@ class IterationStoppingCriterion : public StoppingCriterion{
     public:
         IterationStoppingCriterion(int max_iter) : max_iter(max_iter) { };
         bool operator()(int iter, double t, double x, double y, double z) override {
-            return iter>=max_iter;
+            return iter>max_iter;
         };
 };
 

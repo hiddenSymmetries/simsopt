@@ -365,3 +365,7 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
             sopp.LevelsetStoppingCriterion.__init__(self, classifier.dist)
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
+
+
+class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
+    pass

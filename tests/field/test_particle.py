@@ -2,7 +2,8 @@ from simsopt.geo.coilcollection import CoilCollection
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
-    particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses
+    particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
+    IterationStoppingCriterion
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
@@ -252,3 +253,39 @@ class ParticleTracingTesting(unittest.TestCase):
         assert max(max_energy_gc_error) < -3
         assert max(max_mu_fo_error) < -3
         assert max(max_mu_gc_error) < -6
+
+    def test_stopping_criteria(self):
+        bsh = self.bsh
+        ma = self.ma
+        nparticles = 1
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        tmax = 1e-3
+        Ekin = 9000*ONE_EV
+        np.random.seed(1)
+
+        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.80, umax=-0.70,
+            phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[IterationStoppingCriterion(10)])
+        assert len(gc_tys[0]) == 11
+
+        # consider a particle with mostly perpendicular velocity so that it get's lost
+        ntor = 1
+        mpol = 1
+        stellsym = True
+        nfp = 3
+        phis = np.linspace(0, 1, 50, endpoint=False)
+        thetas = np.linspace(0, 1, 50, endpoint=False)
+        s = SurfaceRZFourier(
+            mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.03, flip_theta=False)
+        sc = SurfaceClassifier(s, h=0.1, p=2)
+
+        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.01, umax=+0.01,
+            phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[LevelsetStoppingCriterion(sc)])
+        particles_to_vtk(gc_tys, '/tmp/particles_gc')
+        assert gc_phi_hits[0][-1][1] == -1
+        assert np.all(sc.evaluate(gc_tys[0][:, 1:4]) > 0)
