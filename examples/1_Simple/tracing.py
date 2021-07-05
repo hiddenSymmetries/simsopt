@@ -7,6 +7,7 @@ from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClass
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion
 from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
+from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 import simsoptpp as sopp
 try:
     from mpi4py import MPI
@@ -102,8 +103,8 @@ def trace_fieldlines(bfield, label):
 def trace_particles(bfield, label, mode='gc_vac'):
     t1 = time.time()
     gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-        ma.gamma(), bfield, nparticles, tmax=1e-4, seed=1, mass=4*1.67e-27, charge=2*1,
-        Ekin=3.5*1e6, umin=-0.1, umax=+0.1, comm=comm,
+        ma.gamma(), bfield, nparticles, tmax=1e-4, seed=1, mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
+        Ekin=FUSION_ALPHA_PARTICLE_ENERGY, umin=-0.1, umax=+0.1, comm=comm,
         phis=[2*np.pi/6 for i in range(6)],
         stopping_criteria=[LevelsetStoppingCriterion(sc_particle.dist)], mode=mode)
     t2 = time.time()
