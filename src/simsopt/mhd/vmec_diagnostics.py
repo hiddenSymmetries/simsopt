@@ -202,8 +202,16 @@ class QuasisymmetryRatioError(Optimizable):
 
         B_dot_grad_B = bsupu * d_B_d_theta + bsupv * d_B_d_phi
         B_cross_grad_B_dot_grad_psi = d_psi_d_s * (bsubu * d_B_d_phi - bsubv * d_B_d_theta) / sqrtg
-        G3d = G.reshape((ns, 1, 1))
-        weight_arg = np.kron(G3d, np.ones((1, ntheta, nphi))) * B_dot_grad_B / (modB ** 3)
+
+        dtheta = theta1d[1] - theta1d[0]
+        dphi = phi1d[1] - phi1d[0]
+        V_prime = nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))
+
+        denominator = np.sqrt((1 / V_prime) * nfp * dtheta * dphi * np.sum(sqrtg * B_dot_grad_B * B_dot_grad_B, axis=(1, 2)))
+        assert np.sum(np.abs(np.sqrt((1 / V_prime) * nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))) - 1)) < 1e-12
+        weight_arg = B_dot_grad_B / np.kron(denominator.reshape((ns, 1, 1)), np.ones((1, ntheta, nphi)))
+        #G3d = G.reshape((ns, 1, 1))
+        #weight_arg = np.kron(G3d, np.ones((1, ntheta, nphi))) * B_dot_grad_B / (modB ** 3)
         if self.weight_func == 'power':
             surface_weight = np.abs(weight_arg) ** -self.weight_fac
         elif self.weight_func == 'exp':
@@ -215,9 +223,6 @@ class QuasisymmetryRatioError(Optimizable):
         else:
             raise ValueError(f"Unrecognized weight_func: {self.weight_func}")
 
-        dtheta = theta1d[1] - theta1d[0]
-        dphi = phi1d[1] - phi1d[0]
-        V_prime = nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))
         nn = self.n * nfp
         for js in range(ns):
             residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
@@ -230,36 +235,15 @@ class QuasisymmetryRatioError(Optimizable):
         profile = np.sum(residuals3d * residuals3d, axis=(1, 2))
         total = np.sum(residuals1d * residuals1d)
 
+        # Form a structure with all the intermediate data as attributes:
         results = Struct()
-        results.ns = ns
-        results.ntheta = ntheta
-        results.nphi = nphi
-        results.theta1d = theta1d
-        results.phi1d = phi1d
-        results.theta2d = theta2d
-        results.phi2d = phi2d
-        results.theta3d = theta3d
-        results.phi3d = phi3d
-        results.d_psi_d_s = d_psi_d_s
-        results.B_dot_grad_B = B_dot_grad_B
-        results.B_cross_grad_B_dot_grad_psi = B_cross_grad_B_dot_grad_psi
-        results.modB = modB
-        results.d_B_d_theta = d_B_d_theta
-        results.d_B_d_phi = d_B_d_phi
-        results.sqrtg = sqrtg
-        results.bsubu = bsubu
-        results.bsubv = bsubv
-        results.bsupu = bsupu
-        results.bsupv = bsupv
-        results.G = G
-        results.I = I
-        results.iota = iota
-        results.weight_arg = weight_arg
-        results.surface_weight = surface_weight
-        results.residuals3d = residuals3d
-        results.residuals1d = residuals1d
-        results.profile = profile
-        results.total = total
+        variables = ['ns', 'ntheta', 'nphi', 'dtheta', 'dphi', 'nfp', 'V_prime', 'theta1d', 'phi1d',
+                     'theta2d', 'phi2d', 'theta3d', 'phi3d', 'd_psi_d_s', 'B_dot_grad_B',
+                     'B_cross_grad_B_dot_grad_psi', 'modB', 'd_B_d_theta', 'd_B_d_phi', 'sqrtg',
+                     'bsubu', 'bsubv', 'bsupu', 'bsupv', 'G', 'I', 'iota', 'weight_arg', 'surface_weight',
+                     'residuals3d', 'residuals1d', 'profile', 'total']
+        for v in variables:
+            results.__setattr__(v, eval(v))
 
         logger.debug('Done evaluating quasisymmetry residuals')
         return results
