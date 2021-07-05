@@ -7,6 +7,15 @@ THIS_DIR = (Path(__file__).parent).resolve()
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
+    """
+    Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included).
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
     filename = THIS_DIR / 'NCSX.dat'
     coils = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
