@@ -29,6 +29,7 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nfieldlines = 3 if ci else 80
 tmax_fl = 10000 if ci else 40000
 nparticles = 3 if ci else 40
+degree = 2 if ci else 4
 
 
 """
@@ -116,7 +117,7 @@ rrange = (scale*1.0, scale*2.0, n)
 phirange = (0, 2*np.pi, n*6)
 zrange = (scale*-0.7, scale*0.7, n)
 bsh = InterpolatedField(
-    bs, UniformInterpolationRule(4),
+    bs, UniformInterpolationRule(degree),
     rrange, phirange, zrange, True
 )
 print('Error in B', bsh.estimate_error_B(1000), flush=True)
