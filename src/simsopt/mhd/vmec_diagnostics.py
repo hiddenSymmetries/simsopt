@@ -11,7 +11,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from .._core.optimizable import Optimizable
 from .vmec import Vmec
-
+from .._core.util import Struct
 logger = logging.getLogger(__name__)
 
 
@@ -81,7 +81,9 @@ class QuasisymmetryRatioError(Optimizable):
                  n=0,
                  weights=None,
                  ntheta: int = 31,
-                 nphi: int = 32) -> None:
+                 nphi: int = 32,
+                 weight_func: str = 'none',
+                 weight_fac: float = 0.0) -> None:
 
         self.vmec = vmec
         self.depends_on = ["vmec"]
@@ -89,6 +91,8 @@ class QuasisymmetryRatioError(Optimizable):
         self.nphi = nphi
         self.m = m
         self.n = n
+        self.weight_func = weight_func
+        self.weight_fac = weight_fac
 
         # Make sure s is a list:
         try:
@@ -108,18 +112,14 @@ class QuasisymmetryRatioError(Optimizable):
     def set_dofs(self, x):
         self.need_to_run_code = True
 
-    def total(self):
+    def compute(self):
         """
-        Evaluate the quasisymmetry metric in terms of a scalar total.
-        """
-        residuals = self.residuals()
-        return np.sum(residuals * residuals)
-
-    def residuals(self):
-        """
-        Evaluate the quasisymmetry metric in terms of a 1D numpy vector of
-        residuals. This is the function to use when forming a least-squares
-        objective function.
+        Compute the quasisymmetry metric. This function returns an object
+        that contains (as attributes) all the intermediate quantities
+        for the calculation. Users do not need to call this function
+        for optimization; instead the ``residuals()`` function can be
+        used. However, this function can be useful if users wish to
+        inspect the quantities going into the calculation.
         """
         self.vmec.run()
         if self.vmec.wout.lasym:
@@ -177,7 +177,7 @@ class QuasisymmetryRatioError(Optimizable):
         bsubv = np.zeros(myshape)
         bsupu = np.zeros(myshape)
         bsupv = np.zeros(myshape)
-        residuals = np.zeros(myshape)
+        residuals3d = np.zeros(myshape)
         for jmn in range(len(self.vmec.wout.xm_nyq)):
             m = self.vmec.wout.xm_nyq[jmn]
             n = self.vmec.wout.xn_nyq[jmn]
@@ -202,19 +202,72 @@ class QuasisymmetryRatioError(Optimizable):
 
         B_dot_grad_B = bsupu * d_B_d_theta + bsupv * d_B_d_phi
         B_cross_grad_B_dot_grad_psi = d_psi_d_s * (bsubu * d_B_d_phi - bsubv * d_B_d_theta) / sqrtg
+        G3d = G.reshape((ns, 1, 1))
+        weight_arg = np.kron(G3d, np.ones((1, ntheta, nphi))) * B_dot_grad_B / (modB ** 3)
+        if self.weight_func == 'power':
+            surface_weight = np.abs(weight_arg) ** -self.weight_fac
+        elif self.weight_func == 'exp':
+            surface_weight = np.exp(-(self.weight_fac * weight_arg) ** 2)
+        elif self.weight_func == 'lorentzian':
+            surface_weight = 1.0 / (1.0 + (self.weight_fac * weight_arg) ** 2)
+        elif self.weight_func == 'none':
+            surface_weight = np.ones_like(weight_arg)
+        else:
+            raise ValueError(f"Unrecognized weight_func: {self.weight_func}")
+
         dtheta = theta1d[1] - theta1d[0]
         dphi = phi1d[1] - phi1d[0]
         V_prime = nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))
         nn = self.n * nfp
         for js in range(ns):
-            residuals[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
+            residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
+                * surface_weight[js, :, :] \
                 * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.m) \
                    - B_dot_grad_B[js, :, :] * (self.m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
 
-        residuals1d = residuals.reshape((ns * ntheta * nphi,))
+        residuals1d = residuals3d.reshape((ns * ntheta * nphi,))
+        profile = np.sum(residuals3d * residuals3d, axis=(1, 2))
+        total = np.sum(residuals1d * residuals1d)
+
+        results = Struct()
+        results.theta1d = theta1d
+        results.phi1d = phi1d
+        results.theta2d = theta2d
+        results.phi2d = phi2d
+        results.theta3d = theta3d
+        results.phi3d = phi3d
+        results.B_dot_grad_B = B_dot_grad_B
+        results.B_cross_grad_B_dot_grad_psi = B_cross_grad_B_dot_grad_psi
+        results.modB = modB
+        results.d_B_d_theta = d_B_d_theta
+        results.d_B_d_phi = d_B_d_phi
+        results.sqrtg = sqrtg
+        results.bsubu = bsubu
+        results.bsubv = bsubv
+        results.bsupu = bsupu
+        results.bsupv = bsupv
+        results.G = G
+        results.I = I
+        results.iota = iota
+        results.weight_arg = weight_arg
+        results.surface_weight = surface_weight
+        results.residuals3d = residuals3d
+        results.residuals1d = residuals1d
+        results.profile = profile
+        results.total = total
+
         logger.debug('Done evaluating quasisymmetry residuals')
-        return residuals1d
+        return results
+
+    def residuals(self):
+        """
+        Evaluate the quasisymmetry metric in terms of a 1D numpy vector of
+        residuals. This is the function to use when forming a least-squares
+        objective function.
+        """
+        results = self.compute()
+        return results.residuals1d
 
     def profile(self):
         """
@@ -224,9 +277,13 @@ class QuasisymmetryRatioError(Optimizable):
         the ``total()`` function is the sum of the values in the
         profile returned by this function.
         """
-        ns = len(self.s)
-        ntheta = self.ntheta
-        nphi = self.nphi
-        temp = self.residuals()
-        temp2 = temp.reshape((ns, ntheta, nphi))
-        return np.sum(temp2 * temp2, axis=(1, 2))
+        results = self.compute()
+        return results.profile
+
+    def total(self):
+        """
+        Evaluate the quasisymmetry metric in terms of a scalar total.
+        """
+        results = self.compute()
+        return results.total
+
