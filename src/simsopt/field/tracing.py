@@ -20,10 +20,10 @@ def compute_gc_radius(m, vperp, q, absb):
     return m*vperp/(abs(q)*absb)
 
 
-def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q, eta=0):
+def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m, q, eta=0):
     """
-    Takes in guiding center positions ``xyz_inits`` as well as a tangential
-    velocities ``vtangs`` and total velocities ``vtotal`` to compute orbit
+    Takes in guiding center positions ``xyz_inits`` as well as a parallel
+    speeds ``speed_pars`` and total velocities ``speed_total`` to compute orbit
     positions for a full orbit calculation that matches the given guiding
     center. The phase angle can be controll via the `eta` parameter
     """
@@ -46,12 +46,12 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, q, eta=
         q2 = q2/np.sum(q2**2)**0.5
         q3 = p3 - np.sum(q1*p3)*q1 - np.sum(q2*p3)*q2
         q3 = q3/np.sum(q3**2)**0.5
-        vperpmag = np.sqrt(vtotal**2 - vtangs[i]**2)
-        rgs[i] = compute_gc_radius(m, vperpmag, q, AbsBs[i, 0])
+        speed_perp = np.sqrt(speed_total**2 - speed_pars[i]**2)
+        rgs[i] = compute_gc_radius(m, speed_perp, q, AbsBs[i, 0])
 
         xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * np.sin(eta) * q2 + rgs[i] * np.cos(eta) * q3
-        vperp = -vperpmag * np.cos(eta) * q2 + vperpmag * np.sin(eta) * q3
-        v_inits[i, :] = vtangs[i] * q1 + vperp
+        vperp = -speed_perp * np.cos(eta) * q2 + speed_perp * np.sin(eta) * q3
+        v_inits[i, :] = speed_pars[i] * q1 + vperp
     return xyz_inits_full, v_inits, rgs
 
 
@@ -73,7 +73,7 @@ def parallel_loop_bounds(comm, n):
 
 
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
-                    tangential_velocities: NDArray[Float], tmax=1e-4,
+                    parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
     r"""
@@ -99,7 +99,8 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     Args:
         field: The magnetic field :math:`B`.
         xyz_inits: A (nparticles, 3) array with the initial positions of the particles.
-        tangential_velocities: A (nparticles, ) array containing the velocities in direction of the B field.
+        parallel_speeds: A (nparticles, ) array containing the speed in direction of the B field
+                         for each particle.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -137,15 +138,15 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     """
 
     nparticles = xyz_inits.shape[0]
-    assert xyz_inits.shape[0] == len(tangential_velocities)
-    vtangs = tangential_velocities
+    assert xyz_inits.shape[0] == len(parallel_speeds)
+    speed_par = parallel_speeds
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'full']
     m = mass
-    vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
     if mode == 'full':
-        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, charge)
+        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_par, speed_total, m, charge)
     res_tys = []
     res_phi_hits = []
     loss_ctr = 0
@@ -154,7 +155,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
         if 'gc' in mode:
             res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
-                m, charge, vtotal, vtangs[i], tmax, tol,
+                m, charge, speed_total, speed_par[i], tmax, tol,
                 vacuum=(mode == 'gc_vac'), phis=phis, stopping_criteria=stopping_criteria)
         else:
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
@@ -194,7 +195,7 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         seed: random seed
-        umin: the tangential velocity is defined as  ``v_tang = u * vtotal``
+        umin: the tangential velocity is defined as  ``v_tang = u * speed_total``
             where  ``u`` is drawn uniformly in ``[umin, umax]``
         umax: see ``umin``
         phis: list of angles in [0, 2pi] for which intersection with the plane
@@ -210,14 +211,14 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
     m = mass
-    vtotal = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
     us[:] = 0.5
-    vtangs = us*vtotal
+    speed_par = us*speed_total
     xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
     return trace_particles(
-        field, xyz_inits, vtangs, tmax=tmax, mass=mass, charge=charge,
+        field, xyz_inits, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode)
 
