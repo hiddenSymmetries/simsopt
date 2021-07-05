@@ -66,9 +66,13 @@ class ParticleTracingTesting(unittest.TestCase):
         phirange = (0, 2*np.pi, n*6)
         zrange = (-0.3, 0.3, n)
         bsh = InterpolatedField(
-            bs, UniformInterpolationRule(4),
+            bs, UniformInterpolationRule(5),
             rrange, phirange, zrange, True
         )
+        bsh.estimate_error_GradAbsB(1000)
+        bsh.estimate_error_B(1000)
+        # trick to clear the cache in the biot savart class to reduce memory usage
+        bs.set_points(np.asarray([[0., 0., 0.]])).GradAbsB()
         self.bsh = bsh
         self.ma = ma
         if with_evtk:
