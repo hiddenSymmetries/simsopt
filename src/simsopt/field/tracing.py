@@ -390,3 +390,36 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     Stop the iteration once the maximum number of iterations is reached.
     """
     pass
+
+
+def plot_poincare_data(fieldlines_phi_hits, phis, filename):
+    """
+    Create a poincare plot. Usage:
+
+    .. code-block::
+
+        phis = np.linspace(0, 2*np.pi/nfp, nphis, endpoint=False)
+        res_tys, res_phi_hits = compute_fieldlines(
+            bsh, R0, Z0, tmax=1000, phis=phis, stopping_criteria=[])
+        plot_poincare_data(res_phi_hits, phis, '/tmp/fieldlines.png')
+
+    Requires matplotlib to be installed.
+
+    """
+    import matplotlib.pyplot as plt
+    from math import ceil, sqrt
+    nrowcol = ceil(sqrt(len(phis)))
+    fig, axs = plt.subplots(nrowcol, nrowcol)
+    for i in range(len(phis)):
+        row = i//nrowcol
+        col = i % nrowcol
+        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$")
+        for j in range(len(fieldlines_phi_hits)):
+            data_this_phi = fieldlines_phi_hits[j][np.where(fieldlines_phi_hits[j][:, 1] == i)[0], :]
+            if data_this_phi.size == 0:
+                continue
+            r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=600)
+    plt.close()
