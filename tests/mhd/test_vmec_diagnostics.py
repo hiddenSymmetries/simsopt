@@ -59,7 +59,7 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         ms = [1, 1, 1, 0]
         ns = [0, 1, -1, 1]
         weight_funcs = [None, 'exp', 'lorentzian']
-        weight_facs = [0, 10.0, 10.0]
+        weight_facs = [0, 0.7, 0.8]
         for weight_func, weight_fac in zip(weight_funcs, weight_facs):
             for s, weights in zip(ss, weightss):
                 print(f's={s} weights={weights}')
@@ -123,7 +123,7 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         configuration in length and/or magnetic field strength.
         """
         weight_funcs = [None, 'power', 'exp', 'lorentzian']
-        weight_facs = [0, 100, 100.0, 30.0]
+        weight_facs = [0, 1, 1.1, 0.9]
         for weight_func, weight_fac in zip(weight_funcs, weight_facs):
             vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
             qs1 = QuasisymmetryRatioError(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
@@ -215,9 +215,11 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
                                    r.d_psi_d_s * (r.bsubu * r.d_B_d_phi - r.bsubv * r.d_B_d_theta) / r.sqrtg)
 
         weight_arg = np.zeros((r.ns, r.ntheta, r.nphi))
+        flux_surface_avg = (1 / r.V_prime) * r.nfp * r.dtheta * r.dphi \
+            * np.sum(r.sqrtg * r.B_dot_grad_B * r.B_dot_grad_B, axis=(1, 2))
         for js in range(r.ns):
-            weight_arg[js, :, :] = r.G[js] * r.B_dot_grad_B[js, :, :] / (r.modB[js, :, :] ** 3)
-        surface_weight = 1.0 / (1.0 + (weight_fac * weight_arg) ** 2)
+            weight_arg[js, :, :] = r.B_dot_grad_B[js, :, :] / np.sqrt(flux_surface_avg[js])
+        surface_weight = 1.0 / (1.0 + (weight_fac * weight_arg) ** 2)  # For weight_func = 'lorentzian'
         np.testing.assert_allclose(weight_arg, r.weight_arg)
         np.testing.assert_allclose(surface_weight, r.surface_weight)
 
