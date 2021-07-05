@@ -30,7 +30,7 @@ RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 
 RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
     cd /src/VMEC && \
-    cp python/machines/ubuntu.json cmake_config_file.json && \
+    cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install  .
 
 ENV CI=True
