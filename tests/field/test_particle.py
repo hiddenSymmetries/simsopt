@@ -58,7 +58,7 @@ class ParticleTracingTesting(unittest.TestCase):
         phirange = (0, 2*np.pi, n*6)
         zrange = (-0.3, 0.3, n)
         bsh = InterpolatedField(
-            bs, UniformInterpolationRule(5),
+            bs, UniformInterpolationRule(4),
             rrange, phirange, zrange, True
         )
         self.bsh = bsh
