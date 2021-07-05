@@ -80,9 +80,9 @@ class QuasisymmetryRatioError(Optimizable):
                  m=1,
                  n=0,
                  weights=None,
-                 ntheta: int = 31,
-                 nphi: int = 32,
-                 weight_func: str = 'none',
+                 ntheta: int = 63,
+                 nphi: int = 64,
+                 weight_func: str = None,
                  weight_fac: float = 0.0) -> None:
 
         self.vmec = vmec
@@ -210,7 +210,7 @@ class QuasisymmetryRatioError(Optimizable):
             surface_weight = np.exp(-(self.weight_fac * weight_arg) ** 2)
         elif self.weight_func == 'lorentzian':
             surface_weight = 1.0 / (1.0 + (self.weight_fac * weight_arg) ** 2)
-        elif self.weight_func == 'none':
+        elif self.weight_func is None:
             surface_weight = np.ones_like(weight_arg)
         else:
             raise ValueError(f"Unrecognized weight_func: {self.weight_func}")
@@ -231,12 +231,16 @@ class QuasisymmetryRatioError(Optimizable):
         total = np.sum(residuals1d * residuals1d)
 
         results = Struct()
+        results.ns = ns
+        results.ntheta = ntheta
+        results.nphi = nphi
         results.theta1d = theta1d
         results.phi1d = phi1d
         results.theta2d = theta2d
         results.phi2d = phi2d
         results.theta3d = theta3d
         results.phi3d = phi3d
+        results.d_psi_d_s = d_psi_d_s
         results.B_dot_grad_B = B_dot_grad_B
         results.B_cross_grad_B_dot_grad_psi = B_cross_grad_B_dot_grad_psi
         results.modB = modB
