@@ -7,6 +7,7 @@ from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClass
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion
 from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
+import simsoptpp as sopp
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
@@ -19,6 +20,9 @@ import time
 import os
 import logging
 import sys
+if not sopp.with_boost():
+    print("Please compile with boost to run this example.")
+    sys.exit(0)
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
