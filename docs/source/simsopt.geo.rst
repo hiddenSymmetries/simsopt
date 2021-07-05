@@ -112,6 +112,15 @@ simsopt.geo.surfacegarabedian module
    :show-inheritance:
    :private-members:
 
+simsopt.geo.surfacehenneberg module
+------------------------------------
+
+.. automodule:: simsopt.geo.surfacehenneberg
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.geo.surfaceobjectives module
 ------------------------------------
 

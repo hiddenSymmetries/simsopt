@@ -168,7 +168,7 @@ jobs:
     - name: Configure and install VMEC2000 module
       run: |
         cd VMEC2000
-        cp python/machines/ubuntu.json cmake_config_file.json
+        cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
         pip install .
 
@@ -192,12 +192,12 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       run: pip install coverage
 
-    - name: Run tests using coverage
+    - name: Run tests on 1 process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         coverage run --source=simsopt -m unittest discover -s tests
 
-    - name: Run tests using coverage
+    - name: Run MPI tests using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests

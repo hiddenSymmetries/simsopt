@@ -1,0 +1,66 @@
+! This configuration was produced using the coefficients in the caption of figure 1 from Nuhrenberg & Zille, 1988.
+
+&INDATA
+  LWOUTTXT=T
+  MGRID_FILE = 'NONE                                                        '
+  LOPTIM =  F
+  LSPECTRUM_DUMP =  F
+  DELT =  0.9
+  TCON0 =  2.
+  NFP =  6
+  NCURR =  1
+!  MPOL =  9  NTOR =  5
+!  NS_ARRAY =    16   51
+!  NITER =  2500
+
+mpol=9
+ntor=9
+ns_array   =   11,    25,    49,    75,   101,   151,   201
+niter_array= 1000,  1000,  1500,  2000,  2500,  2500, 10000
+ftol_array = 1e-7, 1e-30, 1e-30, 1e-30, 1e-30, 1e-30, 1e-12
+
+  NSTEP =  200
+  NVACSKIP =  3
+  GAMMA =   0.00000000E+00
+  FTOL_ARRAY =   1.00000000E-06  1.00000000E-11
+  PHIEDGE =   0.514386
+  CURTOR =  -1.7425E+05
+  SPRES_PED =   1.0000E+00
+ AM=0
+!  AM =   7.3408E+04 -5.4830E+03 -3.8712E+04 -5.0786E+05  1.9155E+06 -3.4429E+06  2.8810E+06 -8.7493E+05  0.0000E+00  0.0000E+00  0.0000E+00
+  AI =  11*0.0
+!  AC =
+!  8183.956999999995,  1436035.600000001,  -10740714.,
+!   74438920.,  -322215650.,  881050800.,
+! -1493896600.,  1527468000.,  -867901590.
+!  210351200.,  0.E+0
+AC=0
+
+RAXIS=11.0 0.553 0.027
+ZAXIS= 0.0 0.395 0.027
+
+! For VMEC RBC/ZBS, first index is n, second index is m.
+RBC( 0,0)=11.0   ! R_0
+RBC( 1,0)=0.553  ! R_{0,1}
+RBC( 2,0)=0.027  ! R_{2,0}
+RBC( 0,1)=0.942  ! 1 - Delta_{1,0}
+RBC(-1,1)=-0.5   ! -Delta_{1,-1}
+RBC(-2,1)=-0.046 ! -Delta_{1,-2}
+RBC( 1,1)=0.023  ! Delta_{1,1}
+RBC( 2,1)=-0.003 ! Delta_{1,2}
+RBC( 0,2)=0.068  ! Delta_{2,0}
+RBC(-1,2)=0.248  ! Delta_{2,-1}
+RBC(-2,2)=0.038  ! Delta_{2,-2}
+
+ZBS( 1,0)=0.395  ! Z_{0,1}
+ZBS( 2,0)=0.027  ! Same as RBC(2,0)
+ZBS( 0,1)=1.058  ! 1 + Delta_{1,0}
+ZBS(-1,1)=0.5    ! Delta_{1,-1}
+ZBS(-2,1)=0.046  ! Delta_{1,-2}
+ZBS( 1,1)=0.023  ! Delta_{1,1}
+ZBS( 2,1)=-0.003 ! Delta_{1,2}
+ZBS( 0,2)=0.068  ! Delta_{2,0}
+ZBS(-1,2)=0.248  ! Delta_{2,-1}
+ZBS(-2,2)=-0.038 ! -Delta_{2,-2}
+
+/
