@@ -293,8 +293,19 @@ def particles_to_vtk(res_tys, filename):
 
 
 class SurfaceClassifier():
+    r"""
+    Takes in a toroidal surface and constructs an interpolant of the signed distance function
+    :math:`f:R^3\to R` that is positive inside the volume contained by the surface,
+    (approximately) zero on the surface, and negative outisde the volume contained by the surface.
+    """
 
     def __init__(self, surface, p=1, h=0.05):
+        """
+        Args:
+            surface: the surface to contruct the distance from.
+            p: degree of the interpolant
+            h: grid resolution of the interpolant
+        """
         gammas = surface.gamma()
         r = np.linalg.norm(gammas[:, :, :2], axis=2)
         z = gammas[:, :, 2]
@@ -357,6 +368,12 @@ class SurfaceClassifier():
 
 
 class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
+    r"""
+    Based on a scalar function :math:`f:R^3\to R`, this criterion checks whether
+    :math:`f(x, y, z) < 0` and stops the iteration once this is true.
+
+    The idea is to use this for example with signed distance functions to a surface.
+    """
 
     def __init__(self, classifier):
         assert isinstance(classifier, SurfaceClassifier) \
@@ -368,4 +385,7 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
 
 
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of iterations is reached.
+    """
     pass
