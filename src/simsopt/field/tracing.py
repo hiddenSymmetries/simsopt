@@ -138,7 +138,6 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 
     nparticles = xyz_inits.shape[0]
     assert xyz_inits.shape[0] == len(tangential_velocities)
-    print("xyz_inits", xyz_inits)
     vtangs = tangential_velocities
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'full']
@@ -147,7 +146,6 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 
     if mode == 'full':
         xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, vtangs, vtotal, m, charge)
-        print("xyz_inits", xyz_inits)
     res_tys = []
     res_phi_hits = []
     loss_ctr = 0
