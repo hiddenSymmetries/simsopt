@@ -1,9 +1,16 @@
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk
+import simsoptpp as sopp
 import unittest
 import numpy as np
 import logging
 logging.basicConfig()
+try:
+    import pyevtk
+    with_evtk = True
+except ImportError:
+    with_evtk = False
+with_boost = sopp.with_boost()
 
 
 def validate_phi_hits(phi_hits, nphis):
@@ -21,6 +28,7 @@ def validate_phi_hits(phi_hits, nphis):
 
 class FieldlineTesting(unittest.TestCase):
 
+    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare(self):
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
@@ -39,4 +47,5 @@ class FieldlineTesting(unittest.TestCase):
             assert np.allclose(res_tys[i][:, 3], 0.)
             assert np.allclose(np.linalg.norm(res_tys[i][:, 1:3], axis=1), R0[i])
             assert validate_phi_hits(res_phi_hits[i], nphis)
-        particles_to_vtk(res_tys, '/tmp/fieldlines')
+        if with_evtk:
+            particles_to_vtk(res_tys, '/tmp/fieldlines')
