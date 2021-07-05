@@ -123,8 +123,8 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
             solution over time. The numpy array is of shape (ntimesteps, M)
             with M depending on the ``mode``.  Each row contains the time and
             the state.  So for `mode='gc'` and `mode='gc_vac'` the state
-            consists of the xyz position and the tangential velocity, hence
-            each row contains `[t, x, y, z, v_tang]`.  For `mode='full'`, the
+            consists of the xyz position and the parallel speed, hence
+            each row contains `[t, x, y, z, v_par]`.  For `mode='full'`, the
             state consists of position and velocity vector, i.e. each row
             contains `[t, x, y, z, vx, vy, vz]`.
 
@@ -195,7 +195,7 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         seed: random seed
-        umin: the tangential velocity is defined as  ``v_tang = u * speed_total``
+        umin: the parallel speed is defined as  ``v_par = u * speed_total``
             where  ``u`` is drawn uniformly in ``[umin, umax]``
         umax: see ``umin``
         phis: list of angles in [0, 2pi] for which intersection with the plane
