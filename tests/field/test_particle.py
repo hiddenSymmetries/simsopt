@@ -7,10 +7,17 @@ from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClass
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
+import simsoptpp as sopp
 import numpy as np
 import unittest
 import logging
 logging.basicConfig()
+try:
+    import pyevtk
+    with_evtk = True
+except ImportError:
+    with_evtk = False
+with_boost = sopp.with_boost()
 
 
 def validate_phi_hits(phi_hits, bfield, nphis):
@@ -64,8 +71,10 @@ class ParticleTracingTesting(unittest.TestCase):
         )
         self.bsh = bsh
         self.ma = ma
-        bsh.to_vtk('/tmp/bfield')
+        if with_evtk:
+            bsh.to_vtk('/tmp/bfield')
 
+    @unittest.skipIf(not with_boost, "boost not found")
     def test_guidingcenter_vs_fullorbit(self):
         bsh = self.bsh
         ma = self.ma
@@ -91,8 +100,9 @@ class ParticleTracingTesting(unittest.TestCase):
             ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='full')
-        particles_to_vtk(gc_tys, '/tmp/particles_gc')
-        particles_to_vtk(fo_tys, '/tmp/particles_fo')
+        if with_evtk:
+            particles_to_vtk(gc_tys, '/tmp/particles_gc')
+            particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
         # pick 100 random points on each trace, and ensure that the guiding
         # center and the full orbit simulation are close to each other
@@ -117,6 +127,7 @@ class ParticleTracingTesting(unittest.TestCase):
                 print("dist", dist)
                 assert dist < 8*r
 
+    @unittest.skipIf(not with_boost, "boost not found")
     def test_guidingcenterphihits(self):
         bsh = self.bsh
         ma = self.ma
@@ -135,7 +146,8 @@ class ParticleTracingTesting(unittest.TestCase):
             quadpoints_theta=np.linspace(0, 1, 2*mpol+1, endpoint=False))
         s.fit_to_curve(ma, 0.10, flip_theta=False)
         sc = SurfaceClassifier(s, h=0.1, p=2)
-        sc.to_vtk('/tmp/classifier')
+        if with_evtk:
+            sc.to_vtk('/tmp/classifier')
         # check that the axis is classified as inside the domain
         assert sc.evaluate(ma.gamma()[:1, :]) > 0
         assert sc.evaluate(2*ma.gamma()[:1, :]) < 0
@@ -145,7 +157,8 @@ class ParticleTracingTesting(unittest.TestCase):
             Ekin=Ekin, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
             stopping_criteria=[LevelsetStoppingCriterion(sc)])
 
-        particles_to_vtk(gc_tys, '/tmp/particles_gc')
+        if with_evtk:
+            particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
 
@@ -175,6 +188,7 @@ class ParticleTracingTesting(unittest.TestCase):
         B *= 1./bsh.AbsB()
         assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-2
 
+    @unittest.skipIf(not with_boost, "boost not found")
     def test_energy_conservation(self):
         # Test conservation of Energy = m v^2/2=(m/2) (vparallel^2+ 2muB)
         # where mu=v_perp^2/(2B) is the adiabatic invariant. In the
@@ -198,8 +212,9 @@ class ParticleTracingTesting(unittest.TestCase):
             ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,
             phis=[], mode='full', tol=1e-11)
-        particles_to_vtk(gc_tys, '/tmp/particles_gc')
-        particles_to_vtk(fo_tys, '/tmp/particles_fo')
+        if with_evtk:
+            particles_to_vtk(gc_tys, '/tmp/particles_gc')
+            particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
         # pick 100 random points on each trace, and ensure that
         # the energy is being conserved both in the guiding center
@@ -254,6 +269,7 @@ class ParticleTracingTesting(unittest.TestCase):
         assert max(max_mu_fo_error) < -3
         assert max(max_mu_gc_error) < -6
 
+    @unittest.skipIf(not with_boost, "boost not found")
     def test_stopping_criteria(self):
         bsh = self.bsh
         ma = self.ma
@@ -286,6 +302,7 @@ class ParticleTracingTesting(unittest.TestCase):
             ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.01, umax=+0.01,
             phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[LevelsetStoppingCriterion(sc)])
-        particles_to_vtk(gc_tys, '/tmp/particles_gc')
+        if with_evtk:
+            particles_to_vtk(gc_tys, '/tmp/particles_gc')
         assert gc_phi_hits[0][-1][1] == -1
         assert np.all(sc.evaluate(gc_tys[0][:, 1:4]) > 0)

@@ -54,4 +54,10 @@ void init_tracing(py::module_ &m){
             py::arg("tol"),
             py::arg("phis")=vector<double>{},
             py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
+
+#if WITH_BOOST
+    m.def("with_boost", []() { return true; });
+#else
+    m.def("with_boost", []() { return false; });
+#endif
 }
