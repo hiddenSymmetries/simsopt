@@ -33,7 +33,7 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("d2B_by_dXdX_ref", py::overload_cast<>(&T::d2B_by_dXdX_ref), "As `d2B_by_dXdX`, but returns a reference to the array (this array should be read only).")
      .def("AbsB_ref", py::overload_cast<>(&T::AbsB_ref), "As `AbsB`, but returns a reference to the array (this array should be read only).")
      .def("GradAbsB_ref", py::overload_cast<>(&T::GradAbsB_ref), "As `GradAbsB`, but returns a reference to the array (this array should be read only).")
-     .def("B_cyl", py::overload_cast<>(&T::B_cyl), "Return a `(npoints, 3)` array containing the magnetic field (in cylindrical coordinates).")
+     .def("B_cyl", py::overload_cast<>(&T::B_cyl), "Return a `(npoints, 3)` array containing the magnetic field (in cylindrical coordinates) (the order is :math:`(B_r, B_\\phi, B_z)`).")
      .def("B_cyl_ref", py::overload_cast<>(&T::B_cyl_ref), "As `B_cyl`, but returns a reference to the array (this array should be read only).")
      .def("A", py::overload_cast<>(&T::A), "Returns a `(npoints, 3)` array containing the magnetic potential (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `A_l(x_i)`.")
      .def("dA_by_dX", py::overload_cast<>(&T::dA_by_dX), "Returns a `(npoints, 3, 3)` array containing the gradient of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j` and `l`, the result contains  `\\partial_j A_l(x_i)`.")
@@ -43,11 +43,11 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("d2A_by_dXdX_ref", py::overload_cast<>(&T::d2A_by_dXdX_ref), "As `d2A_by_dXdX`, but returns a reference to the array (this array should be read only).")
      .def("invalidate_cache", &T::invalidate_cache, "Clear the cache. Called automatically after each call to `set_points[...]`.")
      .def("get_points_cart", &T::get_points_cart, "Get the point where the field should be evaluated in cartesian coordinates.")
-     .def("get_points_cyl", &T::get_points_cyl, "Get the point where the field should be evaluated in cylindrical coordinates.")
+     .def("get_points_cyl", &T::get_points_cyl, "Get the point where the field should be evaluated in cylindrical coordinates (the order is :math:`(r, \\phi, z)`).")
      .def("get_points_cart_ref", &T::get_points_cart_ref, "As `get_points_cart`, but returns a reference to the array (this array should be read only).")
      .def("get_points_cyl_ref", &T::get_points_cyl_ref, "As `get_points_cyl`, but returns a reference to the array (this array should be read only).")
      .def("set_points_cart", &T::set_points_cart, "Set the points where to evaluate the magnetic fields, in cartesian coordinates.")
-     .def("set_points_cyl", &T::set_points_cyl, "Set the points where to evaluate the magnetic fields, in cylindrical coordinates.")
+     .def("set_points_cyl", &T::set_points_cyl, "Set the points where to evaluate the magnetic fields, in cylindrical coordinates (the order is :math:`(r, \\phi, z)`).")
      .def("set_points", &T::set_points, "Shorthand for `set_points_cart`.");
 }
 
