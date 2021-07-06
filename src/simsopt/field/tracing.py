@@ -214,7 +214,6 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
-    us[:] = 0.5
     speed_par = us*speed_total
     xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
     return trace_particles(
