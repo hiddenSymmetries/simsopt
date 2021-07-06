@@ -115,7 +115,7 @@ class Surface(Optimizable):
 
         # sample the surface at the varphi and theta points
         gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
-        self.gamma_impl(gamma, varphi, theta)
+        self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
 
         # compute the cylindrical phi coordinate of each sampled point on the surface
         cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])
