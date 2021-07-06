@@ -76,7 +76,7 @@ for step in range(3):
     # Preserve the output file from the last iteration, so it is not
     # deleted when vmec runs again:
     vmec.files_to_delete = []
-    
+
     if mpi.proc0_world:
         print("Done optimization with max_mode =", max_mode, \
               ". Final vmec iteration = ", vmec.iter)
