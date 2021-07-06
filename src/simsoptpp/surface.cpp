@@ -1,4 +1,40 @@
 #include "surface.h"
+#include <Eigen/Dense>
+
+template<class Array>
+Array surface_vjp_contraction(const Array& mat, const Array& v){
+    if(mat.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("mat needs to be in row-major storage order");
+    if(v.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("v needs to be in row-major storage order");
+    int numquadpoints_phi = mat.shape(0);
+    int numquadpoints_theta = mat.shape(1);
+    int numdofs = mat.shape(3);
+    Array res = xt::zeros<double>({numdofs});
+
+    // we have to compute the contraction below:
+    //for (int j = 0; j < numquadpoints_phi; ++j) {
+    //    for (int jj = 0; jj < numquadpoints_theta; ++jj) {
+    //        for (int k = 0; k < 3; ++k) {
+    //            for (int i = 0; i < numdofs; ++i) {
+    //                res(i) += mat(j, jj, k, i) * v(j, jj, k);
+    //            }
+    //        }
+    //    }
+    //}
+    // instead of worrying how to do this efficiently, we map to a eigen
+    // matrix, and then write this as a matrix vector product.
+
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(mat.data()), numquadpoints_phi*numquadpoints_theta*3, numdofs);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(v.data()), 1, numquadpoints_phi*numquadpoints_theta*3);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(res.data()), 1, numdofs);
+    eigen_res = eigen_v*eigen_mat;
+    //Eigen::MatrixXd eigen_res = eigen_v*eigen_mat;
+    //for (int i = 0; i < numdofs; ++i) {
+    //    res(i) = eigen_res(0, i);
+    //}
+    return res;
+}
 
 template<class Array>
 void Surface<Array>::least_squares_fit(Array& target_values) {
@@ -172,19 +208,65 @@ double Surface<Array>::area() {
 
 template<class Array>
 void Surface<Array>::darea_by_dcoeff_impl(Array& data) {
-    data *= 0.;
     auto n = this->normal();
-    auto dn_dc = this->dnormal_by_dcoeff();
     int ndofs = num_dofs();
+
+    //auto dn_dc = this->dnormal_by_dcoeff();
+    //data *= 0.;
+    //for (int i = 0; i < numquadpoints_phi; ++i) {
+    //    for (int j = 0; j < numquadpoints_theta; ++j) {
+    //        double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+    //        for (int m = 0; m < ndofs; ++m) {
+    //            data(m) += (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / norm;
+    //        }
+    //    }
+    //}
+    //data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    //return;
+
+
+    Array darea_by_dn = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m) {
-                data(m) += (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+            double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+            darea_by_dn(i, j, 0) = n(i, j, 0)/norm;
+            darea_by_dn(i, j, 1) = n(i, j, 1)/norm;
+            darea_by_dn(i, j, 2) = n(i, j, 2)/norm;
+        }
+    }
+    darea_by_dn *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    Array temp = dnormal_by_dcoeff_vjp(darea_by_dn);
+    for (int m = 0; m < ndofs; ++m) {
+        data(m) = temp(m);
+    }
+}
+
+template<class Array>
+Array Surface<Array>::dnormal_by_dcoeff_vjp(Array& v) {
+    auto dg1 = this->gammadash1();
+    auto dg2 = this->gammadash2();
+    Array res_dgammadash1 = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array res_dgammadash2 = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            for (int d = 0; d < 3; ++d) {
+                double ed[3] = {0., 0., 0.};
+                ed[d] = 1.0;
+                double temp[3] = {0., 0., 0.};
+                temp[0] = ed[1]*dg2(i, j, 2) - ed[2]*dg2(i, j, 1);
+                temp[1] = ed[2]*dg2(i, j, 0) - ed[0]*dg2(i, j, 2);
+                temp[2] = ed[0]*dg2(i, j, 1) - ed[1]*dg2(i, j, 0);
+                res_dgammadash1(i, j, d) = temp[0] * v(i, j, 0) + temp[1] * v(i, j, 1) + temp[2] * v(i, j, 2);
+                temp[0] = dg1(i, j, 1)*ed[2] - dg1(i, j, 2)*ed[1];
+                temp[1] = dg1(i, j, 2)*ed[0] - dg1(i, j, 0)*ed[2];
+                temp[2] = dg1(i, j, 0)*ed[1] - dg1(i, j, 1)*ed[0];
+                res_dgammadash2(i, j, d) = temp[0] * v(i, j, 0) + temp[1] * v(i, j, 1) + temp[2] * v(i, j, 2);
             }
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    return dgammadash1_by_dcoeff_vjp(res_dgammadash1) + dgammadash2_by_dcoeff_vjp(res_dgammadash2);
 }
+
 template<class Array>
 void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     data *= 0.;
@@ -222,31 +304,52 @@ double Surface<Array>::volume() {
     double volume = 0.;
     auto n = this->normal();
     auto xyz = this->gamma();
+
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             volume += (1./3) * (xyz(i, j, 0)*n(i,j,0)+xyz(i,j,1)*n(i,j,1)+xyz(i,j,2)*n(i,j,2));
         }
     }
     return volume/(numquadpoints_phi*numquadpoints_theta);
+
 }
 
 template<class Array>
 void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
-    data *= 0.;
     auto n = this->normal();
-    auto dn_dc = this->dnormal_by_dcoeff();
     auto xyz = this->gamma();
-    auto dxyz_dc = this->dgamma_by_dcoeff();
     int ndofs = num_dofs();
+    //data *= 0.;
+    //auto dn_dc = this->dnormal_by_dcoeff();
+    //auto dxyz_dc = this->dgamma_by_dcoeff();
+    //for (int i = 0; i < numquadpoints_phi; ++i) {
+    //    for (int j = 0; j < numquadpoints_theta; ++j) {
+    //        for (int m = 0; m < ndofs; ++m) {
+    //            data(m) += (1./3) * (dxyz_dc(i,j,0,m)*n(i,j,0)+dxyz_dc(i,j,1,m)*n(i,j,1)+dxyz_dc(i,j,2,m)*n(i,j,2));
+    //            data(m) += (1./3) * (xyz(i,j,0)*dn_dc(i,j,0,m)+xyz(i,j,1)*dn_dc(i,j,1,m)+xyz(i,j,2)*dn_dc(i,j,2,m));
+    //        }
+    //    }
+    //}
+    //data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+
+    Array dvolume_by_dn = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array dvolume_by_dx = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m) {
-                data(m) += (1./3) * (dxyz_dc(i,j,0,m)*n(i,j,0)+dxyz_dc(i,j,1,m)*n(i,j,1)+dxyz_dc(i,j,2,m)*n(i,j,2));
-                data(m) += (1./3) * (xyz(i,j,0)*dn_dc(i,j,0,m)+xyz(i,j,1)*dn_dc(i,j,1,m)+xyz(i,j,2)*dn_dc(i,j,2,m));
-            }
+            dvolume_by_dn(i, j, 0) = (1./3) * xyz(i, j, 0);
+            dvolume_by_dn(i, j, 1) = (1./3) * xyz(i, j, 1);
+            dvolume_by_dn(i, j, 2) = (1./3) * xyz(i, j, 2);
+            dvolume_by_dx(i, j, 0) = (1./3) * n(i, j, 0);
+            dvolume_by_dx(i, j, 1) = (1./3) * n(i, j, 1);
+            dvolume_by_dx(i, j, 2) = (1./3) * n(i, j, 2);
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dn *= 1./(numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dx *= 1./(numquadpoints_phi*numquadpoints_theta);
+    Array temp = dnormal_by_dcoeff_vjp(dvolume_by_dn) + dgamma_by_dcoeff_vjp(dvolume_by_dx);
+    for (int m = 0; m < ndofs; ++m) {
+        data(m) = temp(m);
+    }
 }
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
