@@ -15,6 +15,7 @@ from abc import ABCMeta
 import numpy as np
 
 from ..util.types import RealArray
+from simsoptpp import Curve
 
 
 def isbool(val):
@@ -138,6 +139,12 @@ class RegisterMeta(type):
 class OptimizableMeta(InstanceCounterMeta, ABCMeta):
     """
     Meta class for Optimizable class
+    """
+    pass
+
+class OptimizableCPPMeta(OptimizableMeta, type(Cuve)):
+    """
+    Meta class for Optimizable class that works with pybind11
     """
     pass
 

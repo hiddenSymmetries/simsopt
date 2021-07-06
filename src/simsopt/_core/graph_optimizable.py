@@ -22,7 +22,7 @@ import pandas as pd
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
-from .util import ImmutableId, OptimizableMeta
+from .util import ImmutableId, OptimizableMeta, OptimizableMeta
 
 
 class DOFs(pd.DataFrame):
@@ -1022,7 +1022,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return list(dict.fromkeys(ancestors))
 
 
-class CustomDofsOptimizable(Optimizable):
+class CPPOptimizable(Optimizable, metaclass=OptimizableCPPMeta):
     """
     Subclasses graph based Optimizable where the dofs data is duplicated and
     handled outside of the Dofs class. This enables the data to be stored
