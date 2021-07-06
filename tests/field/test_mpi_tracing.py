@@ -7,6 +7,7 @@ from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import simsoptpp as sopp
 import numpy as np
 import unittest
+import os
 import logging
 logging.basicConfig()
 try:
@@ -15,6 +16,8 @@ try:
 except ImportError:
     with_mpi = False
 with_boost = sopp.with_boost()
+# OMP results in potentially slightly different results on each mpi rank
+os.environ["OMP_NUM_THREADS"] = "1"
 
 
 class MPITracingTesting(unittest.TestCase):
