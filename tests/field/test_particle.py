@@ -167,8 +167,8 @@ class ParticleTracingTesting(unittest.TestCase):
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
 
     def test_gc_to_full(self):
-        N = 300
-        etas = np.linspace(0, 2*np.pi, N)
+        N = 100
+        etas = np.linspace(0, 2*np.pi, N, endpoint=False)
         ma = self.ma
         bsh = self.bsh
         m = PROTON_MASS
@@ -185,12 +185,13 @@ class ParticleTracingTesting(unittest.TestCase):
             vxyz += tmp[1]
             radius = tmp[2]
             assert np.allclose(np.abs(np.linalg.norm(xyz_gc-tmp[0], axis=1) - radius), 0)
+            assert np.all(np.abs(np.linalg.norm(tmp[1], axis=1) - vtotal)/vtotal < 1e-10)
         xyz *= 1/N
         vxyz *= 1/N
-        assert np.linalg.norm(xyz - xyz_gc) < 1e-3
+        assert np.linalg.norm(xyz - xyz_gc) < 1e-5
         B = bsh.set_points(xyz_gc).B()
         B *= 1./bsh.AbsB()
-        assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-2
+        assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-5
 
     @unittest.skipIf(not with_boost, "boost not found")
     def test_energy_conservation(self):
