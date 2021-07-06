@@ -22,7 +22,7 @@ import pandas as pd
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
-from .util import ImmutableId, OptimizableMeta, OptimizableMeta
+from .util import ImmutableId, OptimizableMeta, OptimizableCPPMeta
 
 
 class DOFs(pd.DataFrame):

@@ -142,6 +142,7 @@ class OptimizableMeta(InstanceCounterMeta, ABCMeta):
     """
     pass
 
+
 class OptimizableCPPMeta(OptimizableMeta, type(Curve)):
     """
     Meta class for Optimizable class that works with pybind11
