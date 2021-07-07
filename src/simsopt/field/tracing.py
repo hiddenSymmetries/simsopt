@@ -75,7 +75,7 @@ def parallel_loop_bounds(comm, n):
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac'):
+                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
     Follow particles in a magnetic field.
 
@@ -116,6 +116,8 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
             `gc`: general guiding center equations,
             `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
             `full`: full orbit calculation (slow!)
+        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
+                           is of interest and one wants to reduce memory usage.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -161,7 +163,10 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
                 m, charge, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
-        res_tys.append(np.asarray(res_ty))
+        if not forget_exact_path:
+            res_tys.append(np.asarray(res_ty))
+        else:
+            res_tys.append([])
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
@@ -179,7 +184,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
                                      mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                                      tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
-                                     phis=[], stopping_criteria=[], mode='gc_vac'):
+                                     phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
     See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
@@ -207,6 +212,8 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
             `gc`: general guiding center equations,
             `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
             `full`: full orbit calculation (slow!)
+        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
+                           is of interest and one wants to reduce memory usage.
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
@@ -219,7 +226,7 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
     return trace_particles(
         field, xyz_inits, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
-        stopping_criteria=stopping_criteria, mode=mode)
+        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path)
 
 
 def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
@@ -391,7 +398,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False):
     """
     Create a poincare plot. Usage:
 
@@ -409,16 +416,22 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename):
     from math import ceil, sqrt
     nrowcol = ceil(sqrt(len(phis)))
     fig, axs = plt.subplots(nrowcol, nrowcol)
+    color = None
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
         axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$")
+        axs[row, col].set_xlabel("$r$")
+        axs[row, col].set_ylabel("$z$")
         for j in range(len(fieldlines_phi_hits)):
+            lost = fieldlines_phi_hits[j][-1, 1] < 0
+            if mark_lost:
+                color = 'r' if lost else 'g'
             data_this_phi = fieldlines_phi_hits[j][np.where(fieldlines_phi_hits[j][:, 1] == i)[0], :]
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0, c=color)
     plt.tight_layout()
     plt.savefig(filename, dpi=600)
     plt.close()
