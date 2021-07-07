@@ -1,4 +1,5 @@
 import numpy as np
+import simsoptpp as sopp
 
 
 class Area(object):
@@ -165,7 +166,8 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     B = biotsavart.B().reshape((nphi, ntheta, 3))
 
     tang = xphi + iota * xtheta
-    residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
+    B2 = np.sum(B**2, axis=2)
+    residual = G*B - B2[..., None] * tang
 
     residual_flattened = residual.reshape((nphi*ntheta*3, ))
     r = residual_flattened
@@ -180,10 +182,9 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     dB_by_dX = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
     dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc)
 
-    dresidual_dc = G*dB_dc \
-        - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] \
-        - np.sum(B**2, axis=2)[..., None, None] * (dxphi_dc + iota * dxtheta_dc)
-    dresidual_diota = -np.sum(B**2, axis=2)[..., None] * xtheta
+    # dresidual_dc = G*dB_dc - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] - B2[..., None, None] * (dxphi_dc + iota * dxtheta_dc)
+    dresidual_dc = sopp.boozer_dresidual_dc(G, dB_dc, B, tang, B2, dxphi_dc, iota, dxtheta_dc)
+    dresidual_diota = -B2[..., None] * xtheta
 
     dresidual_dc_flattened = dresidual_dc.reshape((nphi*ntheta*3, nsurfdofs))
     dresidual_diota_flattened = dresidual_diota.reshape((nphi*ntheta*3, 1))
@@ -198,7 +199,6 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         return r, J
 
     d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
-    B2 = np.sum(B**2, axis=-1)
     d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
     dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc)
 
