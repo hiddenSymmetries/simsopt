@@ -46,7 +46,7 @@ test:
   source_files:
     - tests
   commands:
-    - python -m unittest discover -s tests
+    - python -m unittest discover -s tests -v
 
 about:
   home: {{ data.get('url') }}
