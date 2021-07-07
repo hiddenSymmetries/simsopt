@@ -69,12 +69,15 @@ class MPITracingTesting(unittest.TestCase):
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
         Ekin = 1000*ONE_EV
-        np.random.seed(1)
         umin = 0.25
         umax = 0.75
         tmax = 1e-5
-
+        np.set_printoptions(precision=20)
         comm = MPI.COMM_WORLD
+        print(comm.rank, self.bsh.set_points(self.ma.gamma()[:2, :]).B(), flush=True)
+        comm.barrier()
+        print(comm.rank, self.bsh.set_points(self.ma.gamma()[:2, :]).GradAbsB(), flush=True)
+
         print('comm.size', comm.size)
         gc_tys_mpi, gc_phi_hits_mpi = trace_particles_starting_on_axis(
             self.ma.gamma(), self.bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
