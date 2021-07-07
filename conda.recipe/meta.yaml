@@ -18,7 +18,7 @@ requirements:
     - "{{ compiler('cxx') }}"
     - cmake
     - ninja
-    - boost
+    - boost {{ boost }}
     # - numpy {{ numpy }}
     # - python 
     # - pip
