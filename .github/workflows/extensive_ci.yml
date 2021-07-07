@@ -202,11 +202,11 @@ jobs:
       run: pip install -v .[MPI,SPEC]
 
     - name: Install simsopt package
-      if: matrix.spec == false && matrix.vmec == false
+      if: matrix.spec == false && matrix.vmec == false && matrix.boost == false
       run: pip install -v .
 
     - name: Install simsopt package
-      if: matrix.spec == false && matrix.vmec == true
+      if: matrix.spec == false && ( matrix.vmec == true || matrix.boost == true )
       run: pip install -v .[MPI]
 
     - name: Run serial examples as part of integrated tests
@@ -249,7 +249,7 @@ jobs:
         coverage run --source=simsopt -m unittest discover -s tests
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true)
+      if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true || matrix.boost == true)
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
