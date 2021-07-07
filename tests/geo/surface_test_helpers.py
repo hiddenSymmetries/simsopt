@@ -12,8 +12,8 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     nfp = 3
     ntor = 5
     mpol = 5
-    nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
-    ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
+    nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 12
+    ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 12
 
     if phis is None:
         phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
