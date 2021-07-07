@@ -159,13 +159,26 @@ void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
+            double* data_0_ptr = &(data(i, j, 0, 0));
+            double* data_1_ptr = &(data(i, j, 1, 0));
+            double* data_2_ptr = &(data(i, j, 2, 0));
+            double* dg1_0_dc_ptr = &(dg1_dc(i, j, 0, 0));
+            double* dg1_1_dc_ptr = &(dg1_dc(i, j, 1, 0));
+            double* dg1_2_dc_ptr = &(dg1_dc(i, j, 2, 0));
+            double* dg2_0_dc_ptr = &(dg2_dc(i, j, 0, 0));
+            double* dg2_1_dc_ptr = &(dg2_dc(i, j, 1, 0));
+            double* dg2_2_dc_ptr = &(dg2_dc(i, j, 2, 0));
             for (int m = 0; m < ndofs; ++m ) {
-                data(i, j, 0, m) =  dg1_dc(i, j, 1, m)*dg2(i, j, 2) - dg1_dc(i, j, 2, m)*dg2(i, j, 1);
-                data(i, j, 0, m) += dg1(i, j, 1)*dg2_dc(i, j, 2, m) - dg1(i, j, 2)*dg2_dc(i, j, 1, m);
-                data(i, j, 1, m) =  dg1_dc(i, j, 2, m)*dg2(i, j, 0) - dg1_dc(i, j, 0, m)*dg2(i, j, 2);
-                data(i, j, 1, m) += dg1(i, j, 2)*dg2_dc(i, j, 0, m) - dg1(i, j, 0)*dg2_dc(i, j, 2, m);
-                data(i, j, 2, m) =  dg1_dc(i, j, 0, m)*dg2(i, j, 1) - dg1_dc(i, j, 1, m)*dg2(i, j, 0);
-                data(i, j, 2, m) += dg1(i, j, 0)*dg2_dc(i, j, 1, m) - dg1(i, j, 1)*dg2_dc(i, j, 0, m);
+                data_0_ptr[m] =  dg1_1_dc_ptr[m]*dg2(i, j, 2) - dg1_2_dc_ptr[m]*dg2(i, j, 1);
+                data_0_ptr[m] += dg1(i, j, 1)*dg2_2_dc_ptr[m] - dg1(i, j, 2)*dg2_1_dc_ptr[m];
+            }
+            for (int m = 0; m < ndofs; ++m ) {
+                data_1_ptr[m] =  dg1_2_dc_ptr[m]*dg2(i, j, 0) - dg1_0_dc_ptr[m]*dg2(i, j, 2);
+                data_1_ptr[m] += dg1(i, j, 2)*dg2_0_dc_ptr[m] - dg1(i, j, 0)*dg2_2_dc_ptr[m];
+            }
+            for (int m = 0; m < ndofs; ++m ) {
+                data_2_ptr[m] =  dg1_0_dc_ptr[m]*dg2(i, j, 1) - dg1_1_dc_ptr[m]*dg2(i, j, 0);
+                data_2_ptr[m] += dg1(i, j, 0)*dg2_1_dc_ptr[m] - dg1(i, j, 1)*dg2_0_dc_ptr[m];
             }
         }
     }
