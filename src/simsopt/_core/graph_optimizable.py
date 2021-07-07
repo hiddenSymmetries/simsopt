@@ -1025,8 +1025,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 class CPPOptimizable(Optimizable, metaclass=OptimizableCPPMeta):
     """
     Subclasses graph based Optimizable where the dofs data is duplicated and
-    handled outside of the Dofs class. This enables the data to be stored
-    in C++ side
+    handled outside of the Dofs class. The class also uses OptimizableCPPMeta
+    as its meta class (which has pybindd11_type as one of its parent classes).
+    This enables the data to be stored in C++ side and also enables any
+    derived class to use a pybindd11 class as one of its parent classes.
     """
     def __init__(self, dof_setter=None, dof_getter=None, **kwargs):
 

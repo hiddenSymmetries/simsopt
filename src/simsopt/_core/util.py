@@ -15,7 +15,7 @@ from abc import ABCMeta
 import numpy as np
 
 from ..util.types import RealArray
-from simsoptpp import Curve
+from simsoptpp import Curve   # To obtain pybind11 metaclass
 
 
 def isbool(val):
@@ -145,7 +145,9 @@ class OptimizableMeta(InstanceCounterMeta, ABCMeta):
 
 class OptimizableCPPMeta(OptimizableMeta, type(Curve)):
     """
-    Meta class for Optimizable class that works with pybind11
+    Meta class for Optimizable class that works with pybind11. Here
+    type(simsoptpp.Curve) is used to obtain the pybind11_type, which can
+    be a parent class from py37
     """
     pass
 
