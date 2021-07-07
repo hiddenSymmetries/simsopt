@@ -128,7 +128,6 @@ class ParticleTracingTesting(unittest.TestCase):
                 vperp = np.linalg.norm(v - np.sum(v*Bunit)*Bunit)
                 r = compute_gc_radius(m, vperp, q, AbsBs[j, 0])
                 dist = np.linalg.norm(gc_xyzs[j, :] - fo_ty[jdx, 1:4])
-                print("dist", dist)
                 assert dist < 8*r
 
     @unittest.skipIf(not with_boost, "boost not found")
