@@ -20,7 +20,6 @@ try:
 except ImportError as e:
     MPI = None 
     logger.warning(str(e))
-print(f"Is MPI None? {MPI is None}")
 
 # booz_xform_found = True
 try:
