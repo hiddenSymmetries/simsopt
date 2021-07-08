@@ -1,14 +1,9 @@
-from math import pi
 import numpy as np
-from simsopt.geo.coilcollection import CoilCollection
-from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.curverzfourier import CurveRZFourier 
-from simsopt.geo.curvexyzfourier import CurveXYZFourier 
-from simsopt.geo.surfaceobjectives import ToroidalFlux 
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -46,8 +41,8 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     nfp = 3
     ntor = 5
     mpol = 5
-    nphi = 11
-    ntheta = 11
+    nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
+    ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
 
     if phis is None:
         phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
@@ -55,18 +50,19 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
         if surfacetype == "SurfaceXYZTensorFourier":
             thetas = np.linspace(0, 1, ntheta, endpoint=False)
         else:
-            thetas = np.linspace(0, 1/(1. + (stellsym == True)), ntheta, endpoint=False)
+            thetas = np.linspace(0, 1/(1. + int(stellsym)), ntheta, endpoint=False)
 
     if surfacetype == "SurfaceXYZFourier":
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surfacetype == "SurfaceRZFourier":
-        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                             quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surfacetype == "SurfaceXYZTensorFourier":
-        s = SurfaceXYZTensorFourier(
-            mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-            clamped_dims=[False, False, False],
-            quadpoints_phi=phis, quadpoints_theta=thetas
-        )
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                                    clamped_dims=[False, False, False],
+                                    quadpoints_phi=phis, quadpoints_theta=thetas
+                                    )
     else:
         raise Exception("surface type not implemented")
     return s
@@ -90,7 +86,8 @@ def get_exact_surface():
 
     phis = np.linspace(0, 1, nphi, endpoint=False)
     thetas = np.linspace(0, 1, ntheta, endpoint=False)
-    s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+    s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                          quadpoints_phi=phis, quadpoints_theta=thetas)
     s.least_squares_fit(xyz)
 
     return s

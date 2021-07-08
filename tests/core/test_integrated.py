@@ -3,19 +3,27 @@ import logging
 
 import numpy as np
 
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.util.mpi import MpiPartition
 from simsopt import LeastSquaresProblem
 from simsopt import least_squares_serial_solve
-from simsopt.solve.mpi import least_squares_mpi_solve
+if MPI is not None:
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.solve.mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [least_squares_serial_solve, mpi_solve_1group]
+solvers = [least_squares_serial_solve]
+if MPI is not None:
+    solvers.append(mpi_solve_1group)
 
 #logging.basicConfig(level=logging.DEBUG)
 
