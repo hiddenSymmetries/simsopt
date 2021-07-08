@@ -40,15 +40,6 @@ requirements:
     - monty >=2021.6.10 
     - ruamel.yaml
 
-
-test:
-  imports:
-    - simsopt
-  source_files:
-    - tests
-  commands:
-    - ./run_tests
-
 about:
   home: {{ data.get('url') }}
   summary: simplified framework for stellarator optimization
