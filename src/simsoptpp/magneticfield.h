@@ -81,7 +81,7 @@ class MagneticField {
             Tensor2& B = this->B_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                AbsB(i) = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
+                AbsB(i, 0) = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
             }
         }
 
@@ -227,7 +227,7 @@ class MagneticField {
         }
 
         Tensor2& AbsB_ref() {
-            return data_AbsB.get_or_create_and_fill({npoints}, [this](Tensor2& AbsB) { return _AbsB_impl(AbsB);});
+            return data_AbsB.get_or_create_and_fill({npoints, 1}, [this](Tensor2& AbsB) { return _AbsB_impl(AbsB);});
         }
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 import simsoptpp as sopp
-from simsopt.geo.magneticfield import MagneticField
+from simsopt.field.magneticfield import MagneticField
 from simsopt.geo.curve import Curve
 
 
@@ -158,7 +158,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
     def B_and_dB_vjp(self, v, vgrad):
         r"""
-        Same as :obj:`simsopt.geo.biotsavart.BiotSavart.B_vjp` but returns the vector Jacobian product for :math:`B` and :math:`\nabla B`, i.e. it returns
+        Same as :obj:`simsopt.field.biotsavart.BiotSavart.B_vjp` but returns the vector Jacobian product for :math:`B` and :math:`\nabla B`, i.e. it returns
 
         .. math::
 

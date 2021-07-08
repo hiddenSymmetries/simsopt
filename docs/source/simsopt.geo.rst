@@ -4,15 +4,6 @@ simsopt.geo package
 Submodules
 ----------
 
-simsopt.geo.biotsavart module
------------------------------
-
-.. automodule:: simsopt.geo.biotsavart
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-
 simsopt.geo.boozersurface module
 --------------------------------
 
@@ -102,24 +93,6 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
    :private-members:
-
-simsopt.geo.magneticfield module
---------------------------------
-
-.. automodule:: simsopt.geo.magneticfield
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-
-simsopt.geo.magneticfieldclasses module
----------------------------------------
-
-.. automodule:: simsopt.geo.magneticfieldclasses
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
 
 simsopt.geo.surface module
 --------------------------

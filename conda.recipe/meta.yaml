@@ -39,15 +39,6 @@ requirements:
     - monty >=2021.6.10 
     - ruamel.yaml
 
-
-test:
-  imports:
-    - simsopt
-  source_files:
-    - tests
-  commands:
-    - python -m unittest discover -s tests
-
 about:
   home: {{ data.get('url') }}
   summary: simplified framework for stellarator optimization

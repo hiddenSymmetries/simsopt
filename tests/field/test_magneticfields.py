@@ -1,13 +1,13 @@
-from simsopt.geo.magneticfieldclasses import ToroidalField, \
+from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
     Reiman, sympy_found, InterpolatedField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.magneticfield import MagneticFieldSum
+from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.coilcollection import CoilCollection
-from .surface_test_helpers import get_ncsx_data
+from simsopt.util.zoo import get_ncsx_data
 
 import numpy as np
 import unittest
