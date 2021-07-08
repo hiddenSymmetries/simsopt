@@ -38,7 +38,7 @@ handlers:
         encoding: utf8
 
     mpi_file_handler:
-        class: mpilogger.MPILogHandler
+        class: simsopt.util.mpi_logger.MPILogHandler
         level: DEBUG            
         formatter: mpi
         logfile: debug.log

@@ -1,0 +1,9 @@
+[run]
+parallel = true
+source = simsopt
+
+[paths]
+sources = 
+    /opt/hostedtoolcache/Python/3.8.10/x64/lib/python3.8/site-packages
+    /opt/hostedtoolcache/Python/3.7.10/x64/lib/python3.7/site-packages
+    /opt/hostedtoolcache/Python/3.9.5/x64/lib/python3.9/site-packages

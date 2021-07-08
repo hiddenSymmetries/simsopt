@@ -13,32 +13,50 @@ import traceback
 
 import numpy as np
 
-spec_found = True
+logger = logging.getLogger(__name__)
+
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None 
+    logger.warning(str(e))
+
+# spec_found = True
 try:
     import spec
 except ImportError as e:
-    spec_found = False
+    spec = None
+    logger.warning(str(e))
+    # spec_found = False
 
-py_spec_found = True
+# py_spec_found = True
 try:
     import py_spec
 except ImportError as e:
-    py_spec_found = False
+    py_spec = None
+    logger.warning(str(e))
+    # py_spec_found = False
 
-pyoculus_found = True
+# pyoculus_found = True
 try:
     import pyoculus
 except ImportError as e:
-    pyoculus_found = False
+    pyoculus = None
+    logger.warning(str(e))
+    # pyoculus_found = False
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
-from ..util.mpi import MpiPartition
+from ..util.dev import SimsoptRequires
+if MPI is not None:
+    from ..util.mpi import MpiPartition
+else:
+    MpiPartition = None
+#from ..util.mpi import MpiPartition
 
-logger = logging.getLogger(__name__)
 
-
+@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running SPEC")
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.
@@ -51,6 +69,13 @@ class Spec(Optimizable):
     object to before Spec is run. Therefore, you may sometimes need to
     manually change the mpol and ntor values for the Spec object.
 
+    The default behavior is that all  output files will be
+    deleted except for the first and most recent iteration on worker
+    group 0. If you wish to keep all the output files, you can set
+    ``keep_all_files = True``. If you want to save the output files
+    for a certain intermediate iteration, you can set the
+    ``files_to_delete`` attribute to ``[]`` after that run of SPEC.
+
     Args:
         filename: SPEC input file to use for initialization. It should end
           in ``.sp``. Or, if None, default values will be used.
@@ -58,18 +83,24 @@ class Spec(Optimizable):
           the worker groups will be used for SPEC calculations. If ``None``,
           each MPI process will run SPEC independently.
         verbose: Whether to print SPEC output to stdout.
+        keep_all_files: If ``False``, all output files will be deleted
+          except for the first and most recent ones from worker group 0. If 
+          ``True``, all output files will be kept.
     """
 
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
-                 verbose: bool = True):
+                 verbose: bool = True,
+                 keep_all_files: bool = False):
 
-        if not spec_found:
+        #if not spec_found:
+        if spec is None:
             raise RuntimeError(
                 "Using Spec requires spec python wrapper to be installed.")
 
-        if not py_spec_found:
+        #if not py_spec_found:
+        if py_spec is None:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
 
@@ -113,6 +144,8 @@ class Spec(Optimizable):
 
         self.init(filename)
         self.extension = filename[:-3]
+        self.keep_all_files = keep_all_files
+        self.files_to_delete = []
 
         # Create a surface object for the boundary:
         si = spec.inputlist  # Shorthand
@@ -135,7 +168,7 @@ class Spec(Optimizable):
 
         self.depends_on = ["boundary"]
         self.need_to_run_code = True
-        self.counter = 0
+        self.counter = -1
 
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
@@ -182,6 +215,7 @@ class Spec(Optimizable):
             logger.info("run() called but no need to re-run SPEC.")
             return
         logger.info("Preparing to run SPEC.")
+        self.counter += 1
 
         si = self.inputlist  # Shorthand
 
@@ -278,8 +312,26 @@ class Spec(Optimizable):
             raise ObjectiveFailure("Unable to read results following SPEC execution")
 
         logger.info("Successfully loaded SPEC results.")
-        self.counter += 1
         self.need_to_run_code = False
+
+        # Group leaders handle deletion of files:
+        if self.mpi.proc0_groups:
+
+            # If the worker group is not 0, delete all wout files, unless
+            # keep_all_files is True:
+            if (not self.keep_all_files) and (self.mpi.group > 0):
+                os.remove(filename + '.sp.h5')
+                os.remove(filename + '.sp.end')
+
+            # Delete the previous output file, if desired:
+            for file_to_delete in self.files_to_delete:
+                os.remove(file_to_delete)
+            self.files_to_delete = []
+
+            # Record the latest output file to delete if we run again:
+            if (self.mpi.group == 0) and (self.counter > 0) and (not self.keep_all_files):
+                self.files_to_delete.append(filename + '.sp.h5')
+                self.files_to_delete.append(filename + '.sp.end')
 
     def volume(self):
         """
@@ -313,10 +365,12 @@ class Residue(Optimizable):
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
         """
-        if not spec_found:
+        # if not spec_found:
+        if spec is None:
             raise RuntimeError(
                 "Residue requires py_spec package to be installed.")
-        if not pyoculus_found:
+        # if not pyoculus_found:
+        if pyoculus is None:
             raise RuntimeError(
                 "Residue requires pyoculus package to be installed.")
 

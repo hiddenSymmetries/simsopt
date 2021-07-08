@@ -3,8 +3,24 @@ import numpy as np
 import os
 import logging
 from scipy.io import netcdf
-from simsopt.mhd.boozer import Boozer, Quasisymmetry, booz_xform_found
-from simsopt.mhd.vmec import Vmec, vmec_found
+try:
+    import booz_xform
+except ImportError as e:
+    booz_xform = None 
+
+try:
+    import vmec
+except ImportError as e:
+    vmec = None 
+
+try:
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None
+
+if MPI is not None:
+    from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
+    from simsopt.mhd.vmec import Vmec  # , vmec_found
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
@@ -37,7 +53,7 @@ class MockBoozXform():
         self.bmnc_b = np.stack((arr1, arr2)).transpose()
         print('bmnc_b:')
         print(self.bmnc_b)
-        print('booz_xform_found:', booz_xform_found)
+        # print('booz_xform_found:', booz_xform_found)
 
 
 class MockBoozer():
@@ -59,6 +75,7 @@ class MockBoozer():
         pass
 
 
+@unittest.skipIf(MPI is None, "mpi4py python package is not found")
 class QuasisymmetryTests(unittest.TestCase):
     def test_quasisymmetry_residuals(self):
         """
@@ -92,7 +109,7 @@ class QuasisymmetryTests(unittest.TestCase):
         q = Quasisymmetry(b, s, 1, -1, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
 
-    @unittest.skipIf(not booz_xform_found, "booz_xform python package not found")
+    @unittest.skipIf(booz_xform is None, "booz_xform python package not found")
     def test_boozer_register(self):
         b1 = Boozer(None)
         self.assertEqual(b1.s, set())
@@ -116,7 +133,7 @@ class QuasisymmetryTests(unittest.TestCase):
     #               "vmec until a low-level issue with VMEC is fixed to allow"
     #               "multiple readins.")
 
-    @unittest.skipIf((not booz_xform_found) or (not vmec_found),
+    @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
     def test_boozer_circular_tokamak(self):
         v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
