@@ -92,4 +92,3 @@ print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
 
 if "DISPLAY" in os.environ:
     s.plot()
-s.to_vtk('/tmp/qfm')
