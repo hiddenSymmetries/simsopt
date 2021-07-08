@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 import logging
 from simsopt.field.magneticfield import MagneticField
+from simsopt.field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from simsopt.geo.surface import signed_distance_from_surface
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from nptyping import NDArray, Float
@@ -181,16 +182,19 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     return res_tys, res_phi_hits
 
 
-def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
-                                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                     tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
-                                     phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
+                                      mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
+                                      Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                                      tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                      phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
     See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
 
     Args:
-        axis: The magnetic axis.
+        curve: The :mod:`simsopt.geo.curve.Curve` to spawn the particles on. Uses rejection sampling
+               to sample points on the curve. *Warning*: assumes that the underlying
+               quadrature points on the Curve are uniformly distributed.
         field: The magnetic field :math:`B`.
         nparticles: number of particles to follow.
         tmax: integration time
@@ -222,9 +226,61 @@ def trace_particles_starting_on_axis(axis, field, nparticles, tmax=1e-4,
     np.random.seed(seed)
     us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
     speed_par = us*speed_total
-    xyz_inits = axis[np.random.randint(0, axis.shape[0], size=(nparticles, )), :]
+    xyz, _ = draw_uniform_on_curve(curve, nparticles, safetyfactor=10)
     return trace_particles(
-        field, xyz_inits, speed_par, tmax=tmax, mass=mass, charge=charge,
+        field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
+        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path)
+
+
+def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
+                                        mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
+                                        Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                                        tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                        phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+    r"""
+    Follows particles spawned at random locations on the magnetic axis with random pitch angle.
+    See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
+
+    Args:
+        surface: The :mod:`simsopt.geo.surface.Surface` to spawn the particles
+                 on. Uses rejection sampling to sample points on the curve. *Warning*:
+                 assumes that the underlying quadrature points on the Curve as uniformly
+                 distributed.
+        field: The magnetic field :math:`B`.
+        nparticles: number of particles to follow.
+        tmax: integration time
+        mass: particle mass in kg, defaults to the mass of an alpha particle
+        charge: charge in Coulomb, defaults to the charge of an alpha particle
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV
+        tol: tolerance for the adaptive ode solver
+        comm: MPI communicator to parallelize over
+        seed: random seed
+        umin: the parallel speed is defined as  ``v_par = u * speed_total``
+            where  ``u`` is drawn uniformly in ``[umin, umax]``
+        umax: see ``umin``
+        phis: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that phi should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. options are
+            `gc`: general guiding center equations,
+            `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
+            `full`: full orbit calculation (slow!)
+        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
+                           is of interest and one wants to reduce memory usage.
+
+    Returns: see :mod:`simsopt.field.tracing.trace_particles`
+    """
+    m = mass
+    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    np.random.seed(seed)
+    us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    speed_par = us*speed_total
+    xyz, _ = draw_uniform_on_surface(surface, nparticles, safetyfactor=10)
+    return trace_particles(
+        field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path)
 
