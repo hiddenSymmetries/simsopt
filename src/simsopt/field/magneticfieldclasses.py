@@ -104,6 +104,97 @@ class ToroidalField(MagneticField):
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
 
+class PoloidalField(MagneticField):
+    ''' Magnetic field purely in the poloidal direction, that is, in the theta direction of a poloidal-toroidal coordinate system.
+       Its modulus is given by B = B0*r/(R0*q) so that, together with the toroidal field, it creates a safety factor equals to q
+    Args:
+        B0: modulus of the magnetic field at R0
+        R0: major radius of the magnetic axis
+        q:  safety factor/pitch angle of the magnetic field lines
+    '''
+
+    def __init__(self, R0, B0, q):
+        MagneticField.__init__(self)
+        self.R0 = R0
+        self.B0 = B0
+        self.q = q
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+
+        phi = np.arctan2(y, x)
+        theta = np.arctan2(z, np.sqrt(x**2+y**2)-self.R0)
+        r = np.sqrt((np.sqrt(x**2+y**2)-self.R0)**2+z**2)
+        thetaUnitVectorOver_times_r = np.vstack((-np.multiply(np.sin(theta), r)*np.cos(phi), -np.multiply(np.sin(theta), r)*np.sin(phi), np.multiply(np.cos(theta), r))).T
+        B[:] = self.B0/self.R0/self.q*thetaUnitVectorOver_times_r
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+
+        phi = np.arctan2(y, x)
+        theta = np.arctan2(z, np.sqrt(x**2+y**2)-self.R0)
+        r = np.sqrt((np.sqrt(x**2+y**2)-self.R0)**2+z**2)
+
+        dtheta_by_dX1 = -((x*z)/(np.sqrt(x**2+y**2)*(x**2+y**2+z**2-2*np.sqrt(x**2+y**2)*self.R0+(self.R0)**2)))
+        dtheta_by_dX2 = -((y*z)/(np.sqrt(x**2+y**2)*(x**2+y**2+z**2-2*np.sqrt(x**2+y**2)*self.R0+(self.R0)**2)))
+        dtheta_by_dX3 = 1/((-self.R0+np.sqrt(x**2+y**2))*(1+z**2/(self.R0-np.sqrt(x**2+y**2))**2))
+
+        dphi_by_dX1 = -(y/(x**2 + y**2))
+        dphi_by_dX2 = x/(x**2 + y**2)
+        dphi_by_dX3 = 0.*z
+
+        dthetaunitvector_by_dX1 = np.vstack((
+            -np.cos(theta)*np.cos(phi)*dtheta_by_dX1+np.sin(theta)*np.sin(phi)*dphi_by_dX1,
+            -np.cos(theta)*np.sin(phi)*dtheta_by_dX1-np.sin(theta)*np.cos(phi)*dphi_by_dX1,
+            -np.sin(theta)*dtheta_by_dX1
+        )).T
+        dthetaunitvector_by_dX2 = np.vstack((
+            -np.cos(theta)*np.cos(phi)*dtheta_by_dX2+np.sin(theta)*np.sin(phi)*dphi_by_dX2,
+            -np.cos(theta)*np.sin(phi)*dtheta_by_dX2-np.sin(theta)*np.cos(phi)*dphi_by_dX2,
+            -np.sin(theta)*dtheta_by_dX2
+        )).T
+        dthetaunitvector_by_dX3 = np.vstack((
+            -np.cos(theta)*np.cos(phi)*dtheta_by_dX3+np.sin(theta)*np.sin(phi)*dphi_by_dX3,
+            -np.cos(theta)*np.sin(phi)*dtheta_by_dX3-np.sin(theta)*np.cos(phi)*dphi_by_dX3,
+            -np.sin(theta)*dtheta_by_dX3
+        )).T
+
+        dB_by_dX1_term1 = np.multiply(dthetaunitvector_by_dX1.T, r)
+        dB_by_dX2_term1 = np.multiply(dthetaunitvector_by_dX2.T, r)
+        dB_by_dX3_term1 = np.multiply(dthetaunitvector_by_dX3.T, r)
+
+        thetaUnitVector_1 = -np.sin(theta)*np.cos(phi)
+        thetaUnitVector_2 = -np.sin(theta)*np.sin(phi)
+        thetaUnitVector_3 = np.cos(theta)
+
+        dr_by_dX1 = (x*(-self.R0+np.sqrt(x**2+y**2)))/(np.sqrt(x**2+y**2)*np.sqrt((self.R0-np.sqrt(x**2+y**2))**2+z**2))
+        dr_by_dX2 = (y*(-self.R0+np.sqrt(x**2+y**2)))/(np.sqrt(x**2+y**2)*np.sqrt((self.R0-np.sqrt(x**2+y**2))**2+z**2))
+        dr_by_dX3 = z/np.sqrt((self.R0-np.sqrt(x**2+y**2))**2+z**2)
+
+        dB_by_dX1_term2 = np.vstack((
+            thetaUnitVector_1*dr_by_dX1,
+            thetaUnitVector_2*dr_by_dX1,
+            thetaUnitVector_3*dr_by_dX1))
+        dB_by_dX2_term2 = np.vstack((
+            thetaUnitVector_1*dr_by_dX2,
+            thetaUnitVector_2*dr_by_dX2,
+            thetaUnitVector_3*dr_by_dX2))
+        dB_by_dX3_term2 = np.vstack((
+            thetaUnitVector_1*dr_by_dX3,
+            thetaUnitVector_2*dr_by_dX3,
+            thetaUnitVector_3*dr_by_dX3))
+
+        dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
+
+
 class ScalarPotentialRZMagneticField(MagneticField):
     """
     Vacuum magnetic field as a solution of B = grad(Phi) where Phi is the
