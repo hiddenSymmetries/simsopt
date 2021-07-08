@@ -26,14 +26,14 @@ currents = stellarator.currents
 bs = BiotSavart(coils, currents)
 bs_tf = BiotSavart(coils, currents)
 
-mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
-ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+mpol = 5
+ntor = 5
 stellsym = True
 nfp = 3
 constraint_weight = 1e0
 
-phis = np.linspace(0, 1/nfp, 50, endpoint=False)
-thetas = np.linspace(0, 1, 50, endpoint=False)
+phis = np.linspace(0, 1/nfp, 25, endpoint=False)
+thetas = np.linspace(0, 1, 25, endpoint=False)
 s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
     quadpoints_theta=thetas)
@@ -92,3 +92,4 @@ print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
 
 if "DISPLAY" in os.environ:
     s.plot()
+s.to_vtk('/tmp/qfm')
