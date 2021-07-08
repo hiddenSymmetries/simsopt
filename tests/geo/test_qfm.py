@@ -270,11 +270,12 @@ class QfmSurfaceTests(unittest.TestCase):
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
         nfp = 3
-        phis = np.linspace(0, 1/nfp, 50, endpoint=False)
-        thetas = np.linspace(0, 1, 50, endpoint=False)
+        phis = np.linspace(0, 1/nfp, 25, endpoint=False)
+        thetas = np.linspace(0, 1, 25, endpoint=False)
+        constraint_weight = 1e0
 
         s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
-        s.fit_to_curve(ma, 0.1)
+        s.fit_to_curve(ma, 0.2)
 
         vol = Volume(s)
         vol_target = vol.J()
@@ -282,19 +283,20 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-9, maxiter=1000, constraint_weight=1e4)
+            tol=1e-10, maxiter=1000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-2
         assert res['fun'] < 1e-5
-        assert np.abs(vol_target - vol.J()) < 1e-5
+        assert np.abs(vol_target - vol.J()) < 1e-4
 
         # As a second step, optimize with SLSQP
 
-        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9, maxiter=1000)
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+            maxiter=1000)
 
         assert res['success']
-        assert np.linalg.norm(res['gradient']) < 1e-2
+        assert np.linalg.norm(res['gradient']) < 1e-3
         assert res['fun'] < 1e-5
         assert np.abs(vol_target - vol.J()) < 1e-5
 
@@ -307,18 +309,19 @@ class QfmSurfaceTests(unittest.TestCase):
         qfm_surface = QfmSurface(bs, s, ar, ar_target)
 
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-9, maxiter=1000, constraint_weight=1e4)
+            tol=1e-10, maxiter=1000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert res['fun'] < 1e-5
         assert np.linalg.norm(res['gradient']) < 1e-2
-        assert np.abs(ar_target - ar.J()) < 1e-7
+        assert np.abs(ar_target - ar.J()) < 1e-5
 
-        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9, maxiter=1000)
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+            maxiter=1000)
 
         assert res['success']
         assert res['fun'] < 1e-5
-        assert np.linalg.norm(res['gradient']) < 1e-2
+        assert np.linalg.norm(res['gradient']) < 1e-3
         assert np.abs(ar_target - ar.J()) < 1e-4
 
         vol_opt2 = vol.J()
