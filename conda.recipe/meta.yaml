@@ -18,19 +18,17 @@ requirements:
     - "{{ compiler('cxx') }}"
     - cmake
     - ninja
-    - boost
     # - numpy {{ numpy }}
     # - python 
     # - pip
 
   host:
-    - python >=3.6
+    - python
     - pip
     - numpy >=1.19
-    - boost
 
   run:
-    - python >=3.6
+    - python
     - numpy >=1.19
     - jax >=0.2.4
     - jaxlib >=0.1.56
@@ -40,7 +38,6 @@ requirements:
     - pandas >=1.1.4
     - monty >=2021.6.10 
     - ruamel.yaml
-    - boost
 
 about:
   home: {{ data.get('url') }}
