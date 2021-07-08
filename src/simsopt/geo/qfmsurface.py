@@ -42,7 +42,7 @@ class QfmSurface():
         """
         Returns the residual
 
-        0.5 * f(x)^2
+        f(x)
 
         and optionally the gradient wrt surface params where f(x) is the QFM
         residual defined in surfaceobjectives.py.
@@ -59,22 +59,17 @@ class QfmSurface():
 
         r = qfm.J()
 
-        l = self.label.J()
-        rl = l-self.targetlabel
-
-        val = 0.5 * r**2
         if derivatives == 0:
-            return val
+            return r
         else:
             dr = qfm.dJ_by_dsurfacecoefficients()
-            dval = r*dr
-            return val, dval
+            return r, dr
 
     def qfm_penalty_constraints(self, x, derivatives=0, constraint_weight=1.):
         """
         Returns the residual
 
-        0.5 * f(x)^2 + 0.5 * constraint_weight * (label - labeltarget)^2
+        f(x) + 0.5 * constraint_weight * (label - labeltarget)^2
 
         and optionally the gradient and Hessian wrt surface params where f(x)
         is the QFM residual defined in surfaceobjectives.py.
@@ -95,7 +90,7 @@ class QfmSurface():
         l = self.label.J()
         rl = l-self.targetlabel
 
-        val = 0.5 * (r**2 + constraint_weight * rl**2)
+        val = r + 0.5 * constraint_weight * rl**2
         if derivatives == 0:
             return val
 
@@ -103,13 +98,13 @@ class QfmSurface():
 
         dl = self.label.dJ_by_dsurfacecoefficients()
 
-        dval = r*dr + constraint_weight*rl*dl
+        dval = dr + constraint_weight*rl*dl
         if derivatives == 1:
             return val, dval
 
         d2r = qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
         d2l = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        d2val = r*d2r + dr[:, None]*dr[None, :] \
+        d2val = d2r  \
             + constraint_weight*rl*d2l + constraint_weight*dl[:, None]*dl[None, :]
 
         return val, dval, d2val
@@ -119,7 +114,7 @@ class QfmSurface():
         """
         This function tries to find the surface that approximately solves
 
-        min 0.5 * f(x)^2 + 0.5 * constraint_weight * (label - labeltarget)^2
+        min f(x) + 0.5 * constraint_weight * (label - labeltarget)^2
 
         where f(x) is the QFM residual defined in surfaceobjectives.py. This is
         done using LBFGS.
@@ -147,7 +142,7 @@ class QfmSurface():
         """
         This function tries to find the surface that approximately solves
 
-        min 0.5 * f(x)^2
+        min f(x)
 
         subject to
 
