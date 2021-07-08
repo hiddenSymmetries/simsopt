@@ -1,9 +1,9 @@
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
+from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
-    IterationStoppingCriterion
+    IterationStoppingCriterion, trace_particles_starting_on_surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
@@ -91,17 +91,17 @@ class ParticleTracingTesting(unittest.TestCase):
         umax = 0.75
         tmax = 2e-5
         with self.assertRaises(RuntimeError):
-            gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-                ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+                ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
                 Ekin=Ekin, umin=umin, umax=umax,
                 phis=[], mode='gc')
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='gc_vac')
-        fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        fo_tys, fo_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='full')
         if with_evtk:
@@ -155,8 +155,8 @@ class ParticleTracingTesting(unittest.TestCase):
         assert sc.evaluate(ma.gamma()[:1, :]) > 0
         assert sc.evaluate(2*ma.gamma()[:1, :]) < 0
         np.random.seed(1)
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
             stopping_criteria=[LevelsetStoppingCriterion(sc)])
 
@@ -208,12 +208,12 @@ class ParticleTracingTesting(unittest.TestCase):
         Ekin = 100*ONE_EV
         np.random.seed(1)
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,  # pitch angle so that we have both par and perp contribution
             phis=[], mode='gc_vac', tol=1e-11)
-        fo_tys, fo_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        fo_tys, fo_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,
             phis=[], mode='full', tol=1e-11)
         if with_evtk:
@@ -284,8 +284,8 @@ class ParticleTracingTesting(unittest.TestCase):
         Ekin = 9000*ONE_EV
         np.random.seed(1)
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.80, umax=-0.70,
             phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[IterationStoppingCriterion(10)])
         assert len(gc_tys[0]) == 11
@@ -302,11 +302,38 @@ class ParticleTracingTesting(unittest.TestCase):
         s.fit_to_curve(ma, 0.03, flip_theta=False)
         sc = SurfaceClassifier(s, h=0.1, p=2)
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.01, umax=+0.01,
             phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[LevelsetStoppingCriterion(sc)])
         if with_evtk:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
         assert gc_phi_hits[0][-1][1] == -1
         assert np.all(sc.evaluate(gc_tys[0][:, 1:4]) > 0)
+
+    @unittest.skipIf(not with_boost, "boost not found")
+    def test_tracing_on_surface_runs(self):
+        bsh = self.bsh
+        ma = self.ma
+        nparticles = 1
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        tmax = 1e-3
+        Ekin = 9000*ONE_EV
+        np.random.seed(1)
+
+        ntor = 1
+        mpol = 1
+        stellsym = True
+        nfp = 3
+        phis = np.linspace(0, 1, 50, endpoint=False)
+        thetas = np.linspace(0, 1, 50, endpoint=False)
+        s = SurfaceRZFourier(
+            mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.03, flip_theta=False)
+
+        gc_tys, gc_phi_hits = trace_particles_starting_on_surface(
+            s, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.80, umax=-0.70,
+            phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[IterationStoppingCriterion(10)])
+        assert len(gc_tys[0]) == 11

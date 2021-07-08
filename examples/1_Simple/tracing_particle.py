@@ -3,7 +3,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
 from simsopt.geo.coilcollection import CoilCollection
-from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
+from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, plot_poincare_data
 from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
@@ -77,8 +77,8 @@ bsh = InterpolatedField(
 def trace_particles(bfield, label, mode='gc_vac'):
     t1 = time.time()
     phis = [(i/4)*(2*np.pi/nfp) for i in range(4)]
-    gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-        ma.gamma(), bfield, nparticles, tmax=1e-2, seed=1, mass=PROTON_MASS, charge=ELEMENTARY_CHARGE,
+    gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+        ma, bfield, nparticles, tmax=1e-2, seed=1, mass=PROTON_MASS, charge=ELEMENTARY_CHARGE,
         Ekin=5000*ONE_EV, umin=-1, umax=+1, comm=comm,
         phis=phis, tol=1e-9,
         stopping_criteria=[LevelsetStoppingCriterion(sc_particle.dist)], mode=mode,

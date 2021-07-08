@@ -1,7 +1,7 @@
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.field.tracing import trace_particles_starting_on_axis, compute_fieldlines
+from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import simsoptpp as sopp
@@ -72,13 +72,13 @@ class MPITracingTesting(unittest.TestCase):
         comm = MPI.COMM_WORLD
 
         print('comm.size', comm.size)
-        gc_tys_mpi, gc_phi_hits_mpi = trace_particles_starting_on_axis(
-            self.ma.gamma(), self.bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys_mpi, gc_phi_hits_mpi = trace_particles_starting_on_curve(
+            self.ma, self.bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='gc_vac', comm=comm)
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            self.ma.gamma(), self.bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            self.ma, self.bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='gc_vac', comm=None)
         for i in range(nparticles):
