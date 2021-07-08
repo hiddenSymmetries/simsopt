@@ -43,3 +43,6 @@ jobs:
 
       - name: Install
         run: conda install -c ${CONDA_PREFIX}/conda-bld/ simsopt
+
+      - name: Test
+        run: ./run_tests
