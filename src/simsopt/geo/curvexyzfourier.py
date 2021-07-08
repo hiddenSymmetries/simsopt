@@ -6,22 +6,24 @@ import jax.numpy as jnp
 
 from .curve import JaxCurve
 from .curve import Curve
-import simsgeopp as sgpp
+import simsoptpp as sopp
 
 
-class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
+class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     r"""
-       CurveXYZFourier is a curve that is represented in cartesian
+       CurveXYZFourier is a curve that is represented in Cartesian
        coordinates using the following Fourier series:
 
-           x(phi) = \sum_{m=0}^{order} x_{c,m}cos(m*phi) + \sum_{m=1}^order x_{s,m}sin(m*phi)
-           y(phi) = \sum_{m=0}^{order} y_{c,m}cos(m*phi) + \sum_{m=1}^order y_{s,m}sin(m*phi)
-           z(phi) = \sum_{m=0}^{order} z_{c,m}cos(m*phi) + \sum_{m=1}^order z_{s,m}sin(m*phi)
+        .. math::
+           x(\phi) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(m\phi) \\
+           y(\phi) &= \sum_{m=0}^{\text{order}} y_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} y_{s,m}\sin(m\phi) \\
+           z(\phi) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(m\phi)
 
        The dofs are stored in the order
 
-           [x_{c,0},...,x_{c,order},x_{s,1},...,x_{s,order},y_{c,0},....]
+        .. math::
+           [x_{c,0}, x_{c,1}, \cdots, x_{c,\text{order}}, x_{s,1}, \cdots, x_{s,\text{order}}, y_{c,0}, \cdots]
     """
 
     def __init__(self, quadpoints, order):
@@ -29,14 +31,20 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        sgpp.CurveXYZFourier.__init__(self, quadpoints, order)
+        sopp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self)
 
     def get_dofs(self):
-        return np.asarray(sgpp.CurveXYZFourier.get_dofs(self))
+        """
+        This function returns the dofs associated to this object.
+        """
+        return np.asarray(sopp.CurveXYZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
-        sgpp.CurveXYZFourier.set_dofs(self, dofs)
+        """
+        This function sets the dofs associated to this object.
+        """
+        sopp.CurveXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 
@@ -44,7 +52,7 @@ class CurveXYZFourier(sgpp.CurveXYZFourier, Curve):
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
         """
         This function loads a file containing Fourier coefficients for several coils.
-        The file is expected to have 6 * num_coils many columns, and order+1 many rows.
+        The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
         The columns are in the following order,
 
             sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
@@ -91,9 +99,9 @@ class JaxCurveXYZFourier(JaxCurve):
     """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
     actually no reason why one should use this over the C++ implementation in
-    simsgeopp, but the point of this class is to illustrate how jax can be used
+    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
-    with respect to dofs and with respect to the angle phi) automatically.
+    with respect to dofs and with respect to the angle :math:`\phi`) automatically.
     """
 
     def __init__(self, quadpoints, order):
@@ -105,12 +113,21 @@ class JaxCurveXYZFourier(JaxCurve):
         super().__init__(quadpoints, pure)
 
     def num_dofs(self):
+        """
+        This function returns the number of dofs associated to this object.
+        """
         return 3*(2*self.order+1)
 
     def get_dofs(self):
+        """
+        This function returns the dofs associated to this object.
+        """
         return np.concatenate(self.coefficients)
 
     def set_dofs_impl(self, dofs):
+        """
+        This function sets the dofs associated to this object.
+        """
         counter = 0
         for i in range(3):
             self.coefficients[i][0] = dofs[counter]
