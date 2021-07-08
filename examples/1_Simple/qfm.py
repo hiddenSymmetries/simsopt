@@ -30,6 +30,7 @@ mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
 ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
 stellsym = True
 nfp = 3
+constraint_weight = 1e0
 
 phis = np.linspace(0, 1/nfp, 50, endpoint=False)
 thetas = np.linspace(0, 1, 50, endpoint=False)
@@ -49,7 +50,7 @@ vol_target = vol.J()
 qfm_surface = QfmSurface(bs, s, vol, vol_target)
 
 res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                         constraint_weight=1e1)
+                                                         constraint_weight=constraint_weight)
 print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
 res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
@@ -63,7 +64,7 @@ tf_target = tf.J()
 qfm_surface = QfmSurface(bs, s, tf, tf_target)
 
 res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                         constraint_weight=1e1)
+                                                         constraint_weight=constraint_weight)
 print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
 res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
@@ -80,7 +81,7 @@ ar_target = ar.J()
 qfm_surface = QfmSurface(bs, s, ar, ar_target)
 
 res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                         constraint_weight=1e1)
+                                                         constraint_weight=constraint_weight)
 print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
 res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
