@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# This script runs simple MPI examples. This script is used by the Github
+# Actions continuous integration. 
+set -ex
+
+# In the next line, ${GITHUB_ACTIONS:+--oversubscribe} evaluates to
+# --oversubscribe if the environment variable GITHUB_ACTIONS is set,
+# and evaluates to nothing if the variable is not set.  The motivation
+# is that Github Actions only gives you 2 processors, so we have to
+# "oversubscribe" to test on >2 mpi processes. But we don't want to
+# set --oversubscribe when outside Github Actions, since other
+# versions of mpi like mpich do not have this flag.
+
+MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
+echo MPI_OPTIONS=$MPI_OPTIONS
+mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldline.py
+mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_particle.py

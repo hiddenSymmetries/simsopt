@@ -193,6 +193,19 @@ void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
     }
 };
 
+template<class Array>
+void Surface<Array>::unitnormal_impl(Array& data)  { 
+    auto n = this->normal();
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            double normn = std::sqrt(n(i, j, 0)*n(i, j, 0) + n(i, j, 1)*n(i, j, 1) + n(i, j, 2)*n(i, j, 2));
+            data(i, j, 0) = n(i, j, 0)/normn;
+            data(i, j, 1) = n(i, j, 1)/normn;
+            data(i, j, 2) = n(i, j, 2)/normn;
+        }
+    }
+};
+
 
 template<class Array>
 double Surface<Array>::area() {

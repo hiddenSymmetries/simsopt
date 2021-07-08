@@ -31,6 +31,7 @@ jobs:
         test-type: [unit, integrated]
         spec: [true, false]
         vmec: [true, false]
+        boost: [true, false]
 
     steps:
     # First print out lots of information. We do this in separate 
@@ -56,6 +57,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev
+    
+    - name: install boost if required
+      if: matrix.boost == true
+      run: sudo apt-get install -y libboost-all-dev
 
     - uses: actions/checkout@v2
       # If we want submodules downloaded, uncomment the next 2 lines:
@@ -92,7 +97,7 @@ jobs:
     - name: Install python dependencies
       run: |
         #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
@@ -197,11 +202,11 @@ jobs:
       run: pip install -v .[MPI,SPEC]
 
     - name: Install simsopt package
-      if: matrix.spec == false && matrix.vmec == false
+      if: matrix.spec == false && matrix.vmec == false && matrix.boost == false
       run: pip install -v .
 
     - name: Install simsopt package
-      if: matrix.spec == false && matrix.vmec == true
+      if: matrix.spec == false && ( matrix.vmec == true || matrix.boost == true )
       run: pip install -v .[MPI]
 
     - name: Run serial examples as part of integrated tests
@@ -209,6 +214,12 @@ jobs:
       run: |
         cd examples
         ./run_serial_examples
+
+    - name: Run simple parallel examples as part of integrated tests
+      if: contains(matrix.test-type, 'integrated')
+      run: |
+        cd examples
+        ./run_parallel_examples
 
     - name: Run spec examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && matrix.spec == true 
@@ -235,14 +246,14 @@ jobs:
     - name: Run tests on 1 MPI process using coverage
       if: "contains(matrix.test-type, 'unit')"
       run: | 
-        coverage run --source=simsopt -m unittest discover -s tests
+        coverage run --source=simsopt -m unittest discover -s tests -v
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true)
+      if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true || matrix.boost == true)
       run: | 
-        mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests
-        mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests
-        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests
+        mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
+        mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
+        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests -v
 
     - name: Upload uncombined coverage to github
       if: "contains(matrix.test-type, 'unit')"

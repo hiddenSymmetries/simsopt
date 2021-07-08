@@ -271,3 +271,29 @@ class Surface(Optimizable):
 
         AR = R_major/R_minor
         return AR
+
+
+def signed_distance_from_surface(xyz, surface):
+    """
+    Compute the signed distances from points ``xyz`` to a surface.  The sign is
+    positive for points inside the volume surrounded by the surface.
+    """
+    gammas = surface.gamma().reshape((-1, 3))
+    from scipy.spatial.distance import cdist
+    dists = cdist(xyz, gammas)
+    mins = np.argmin(dists, axis=1)
+    n = surface.unitnormal().reshape((-1, 3))
+    nmins = n[mins]
+    gammamins = gammas[mins]
+
+    # Now that we have found the closest node, we approximate the surface with
+    # a plane through that node with the appropriate normal and then compute
+    # the distance from the point to that plane
+    # https://stackoverflow.com/questions/55189333/how-to-get-distance-from-point-to-plane-in-3d
+    mindist = np.sum((xyz-gammamins) * nmins, axis=1)
+
+    a_point_in_the_surface = np.mean(surface.gamma()[0, :, :], axis=0)
+    sign_of_interiorpoint = np.sign(np.sum((a_point_in_the_surface-gammas[0, :])*n[0, :]))
+
+    signed_dists = mindist * sign_of_interiorpoint
+    return signed_dists
