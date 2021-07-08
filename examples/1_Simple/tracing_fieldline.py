@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# import matplotlib; matplotlib.use('agg')  # noqa
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
@@ -31,10 +32,9 @@ logger.setLevel(1)
 
 # check whether we're in CI, in that case we make the run a bit cheaper
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-nfieldlines = 3 if ci else 80
+nfieldlines = 3 if ci else 30
 tmax_fl = 10000 if ci else 40000
-nparticles = 3 if ci else 400
-degree = 2 if ci else 3
+degree = 2 if ci else 4
 
 
 """
@@ -69,7 +69,7 @@ sc_fieldline.to_vtk('/tmp/levelset', h=0.02)
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
-    R0 = [ma.gamma()[0, 0] + i*0.002 for i in range(nfieldlines)]
+    R0 = np.linspace(ma.gamma()[0, 0], ma.gamma()[0, 0] + 0.14, nfieldlines)
     Z0 = [ma.gamma()[0, 2] for i in range(nfieldlines)]
     phis = [(i/4)*(2*np.pi/nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
@@ -79,7 +79,7 @@ def trace_fieldlines(bfield, label):
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     if comm is None or comm.rank == 0:
         particles_to_vtk(fieldlines_tys, f'/tmp/fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, f'/tmp/poincare_fieldline_{label}.png')
+        plot_poincare_data(fieldlines_phi_hits, phis, f'/tmp/poincare_fieldline_{label}.png', dpi=150)
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)

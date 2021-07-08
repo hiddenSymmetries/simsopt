@@ -398,7 +398,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='auto', dpi=300):
     """
     Create a poincare plot. Usage:
 
@@ -415,14 +415,16 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False):
     import matplotlib.pyplot as plt
     from math import ceil, sqrt
     nrowcol = ceil(sqrt(len(phis)))
-    fig, axs = plt.subplots(nrowcol, nrowcol)
+    fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(16, 10))
     color = None
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$")
+        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$ ", loc='right', y=0.0)
         axs[row, col].set_xlabel("$r$")
         axs[row, col].set_ylabel("$z$")
+        axs[row, col].set_aspect(aspect)
+        axs[row, col].tick_params(direction="in")
         for j in range(len(fieldlines_phi_hits)):
             lost = fieldlines_phi_hits[j][-1, 1] < 0
             if mark_lost:
@@ -433,5 +435,5 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False):
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
             axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0, c=color)
     plt.tight_layout()
-    plt.savefig(filename, dpi=600)
+    plt.savefig(filename, dpi=dpi)
     plt.close()
