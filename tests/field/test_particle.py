@@ -1,11 +1,12 @@
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_axis, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
     IterationStoppingCriterion
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import simsoptpp as sopp
 import numpy as np
@@ -272,6 +273,66 @@ class ParticleTracingTesting(unittest.TestCase):
         assert max(max_energy_gc_error) < -3
         assert max(max_mu_fo_error) < -3
         assert max(max_mu_gc_error) < -6
+
+    @unittest.skipIf(not with_boost, "boost not found")
+    def test_angularmomentum_conservation(self):
+        # Test conservation of canonical angular momentum
+        # in an axisymmetric geometry
+        R0test = 1.0
+        B0test = 2.0
+        qtest = 3.1
+        bs = ToroidalField(R0test, B0test)+PoloidalField(R0test, B0test, qtest)
+        n = 10
+        rrange = (1.05, 1.3, n)
+        phirange = (0, 2*np.pi, n*6)
+        zrange = (-0.3, 0.3, n)
+        bsh = InterpolatedField(
+            bs, UniformInterpolationRule(5),
+            rrange, phirange, zrange, True
+        )
+        ma = CurveXYZFourier(300, 1)
+        ma.set_dofs([0, 0, R0test, 0, R0test, 0., 0, 0., 0.])
+
+        nparticles = 1
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        tmax = 1e-7
+        Ekin = 100*ONE_EV
+        np.random.seed(1)
+
+        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
+            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+            Ekin=Ekin, umin=-0.5, umax=-0.25,  # pitch angle so that we have both par and perp contribution
+            phis=[], mode='gc_vac', tol=1e-11)
+        if with_evtk:
+            particles_to_vtk(gc_tys, '/tmp/particles_gc')
+
+        # pick 10 random points on each trace
+
+        N = 10
+        max_pphi_gc_error = np.array([])
+        for i in range(nparticles):
+            gc_ty = gc_tys[i]
+            idxs = np.random.randint(0, gc_ty.shape[0], size=(N, ))
+            gc_xyzs = gc_ty[idxs, 1:4]
+            bsh.set_points(gc_xyzs)
+            AbsBs = bsh.AbsB()
+
+            pphi1_gc = np.array([])
+            pphi2_gc = np.array([])
+            for j in range(N):
+                v_gc = gc_ty[idxs[j], 4]
+                r_squared = (np.sqrt(gc_xyzs[j][0]**2+gc_xyzs[j][1]**2)-R0test)**2+gc_xyzs[j][2]**2
+                psi_poloidal = np.pi*B0test*r_squared/qtest
+                p_phi1 = -q*psi_poloidal
+                p_phi2 = m*v_gc*B0test*R0test/AbsBs[j]
+                pphi1_gc = np.append(pphi1_gc, p_phi1)
+                pphi2_gc = np.append(pphi2_gc, p_phi2)
+            pphi_gc = pphi1_gc+pphi2_gc
+            pphi_error = np.log10(np.abs(pphi_gc-pphi_gc[0]+1e-30)/np.abs(pphi_gc[0]))
+            max_pphi_gc_error = np.append(max_pphi_gc_error, max(pphi_error[3::]))
+            print("Max Canonical Angular Momentum Error = ", max_pphi_gc_error)
+            assert max(max_pphi_gc_error) < -4
 
     @unittest.skipIf(not with_boost, "boost not found")
     def test_stopping_criteria(self):
