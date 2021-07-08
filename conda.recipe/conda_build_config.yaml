@@ -1,7 +1,2 @@
 numpy:
   - 1.19
-boost: 1.60
-pin_run_as_build:
-    boost:
-      max_pin: x.x
-
