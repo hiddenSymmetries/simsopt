@@ -48,7 +48,6 @@ class SamplingTesting(unittest.TestCase):
         dofs[0] = 1
         dofs[1] = 0.8
         surface.set_dofs(dofs)
-        surface.to_vtk("/tmp/surf")
         n = np.linalg.norm(surface.normal(), axis=2)
         print(np.min(n), np.max(n))
 
