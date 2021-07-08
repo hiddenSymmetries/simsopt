@@ -293,7 +293,7 @@ class QfmSurfaceTests(unittest.TestCase):
         # As a second step, optimize with SLSQP
 
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
-            maxiter=1000)
+                                                               maxiter=1000)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-3
@@ -317,7 +317,7 @@ class QfmSurfaceTests(unittest.TestCase):
         assert np.abs(ar_target - ar.J()) < 1e-5
 
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
-            maxiter=1000)
+                                                               maxiter=1000)
 
         assert res['success']
         assert res['fun'] < 1e-5
