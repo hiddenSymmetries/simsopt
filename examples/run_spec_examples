@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# This script runs most of the examples. This script is used by the Github
+# Actions continuous integration. Examples that can use MPI are run
+# for various numbers of processes.
+
+set -ex
+
+# In the next line, ${GITHUB_ACTIONS:+--oversubscribe} evaluates to
+# --oversubscribe if the environment variable GITHUB_ACTIONS is set,
+# and evaluates to nothing if the variable is not set.  The motivation
+# is that Github Actions only gives you 2 processors, so we have to
+# "oversubscribe" to test on >2 mpi processes. But we don't want to
+# set --oversubscribe when outside Github Actions, since other
+# versions of mpi like mpich do not have this flag.
+MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
+echo MPI_OPTIONS=$MPI_OPTIONS
+
+./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_spec.py
+
+./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_spec.py
+
+./stellarator_benchmarks/2DOF_specOnly_targetIotaAndVolume.py
+
+./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands.py
+mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands.py

@@ -4,9 +4,12 @@ from .._core.optimizable import Optimizable
 
 
 class Surface(Optimizable):
-    """
-    Surface is a base class for various representations of toroidal
+    r"""
+    ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
+
+    A ``Surface`` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
+
     """
 
     def __init__(self):
@@ -15,6 +18,18 @@ class Surface(Optimizable):
         self.fixed = np.full(len(self.get_dofs()), False)
 
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+        """
+        Plot the surface using mayavi. 
+        Note: the `ax` and `show` parameter can be used to plot more than one surface:
+
+        .. code-block::
+
+            ax = surface1.plot(show=False)
+            ax = surface2.plot(ax=ax, show=False)
+            surface3.plot(ax=ax, show=True)
+
+
+        """
         gamma = self.gamma()
 
         from mayavi import mlab
@@ -33,12 +48,30 @@ class Surface(Optimizable):
         if show:
             mlab.show()
 
+    def to_vtk(self, filename):
+        from pyevtk.hl import gridToVTK
+        g = self.gamma()
+        ntor = g.shape[0]
+        npol = g.shape[1]
+        x = self.gamma()[:, :, 0].reshape((1, ntor, npol)).copy()
+        y = self.gamma()[:, :, 1].reshape((1, ntor, npol)).copy()
+        z = self.gamma()[:, :, 2].reshape((1, ntor, npol)).copy()
+        n = self.normal().reshape((1, ntor, npol, 3))
+        dphi = self.gammadash1().reshape((1, ntor, npol, 3))
+        dtheta = self.gammadash2().reshape((1, ntor, npol, 3))
+        contig = np.ascontiguousarray
+        gridToVTK(filename, x, y, z, pointData={
+            "dphi x dtheta": (contig(n[..., 0]), contig(n[..., 1]), contig(n[..., 2])),
+            "dphi": (contig(dphi[..., 0]), contig(dphi[..., 1]), contig(dphi[..., 2])),
+            "dtheta": (contig(dtheta[..., 0]), contig(dtheta[..., 1]), contig(dtheta[..., 2])),
+        })
+
     def __repr__(self):
         return "Surface " + str(hex(id(self)))
 
     def to_RZFourier(self):
         """
-        Return a SurfaceRZFourier instance corresponding to the shape of this
+        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance corresponding to the shape of this
         surface.  All subclasses should implement this abstract
         method.
         """
@@ -82,7 +115,7 @@ class Surface(Optimizable):
 
         # sample the surface at the varphi and theta points
         gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
-        self.gamma_impl(gamma, varphi, theta)
+        self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
 
         # compute the cylindrical phi coordinate of each sampled point on the surface
         cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])

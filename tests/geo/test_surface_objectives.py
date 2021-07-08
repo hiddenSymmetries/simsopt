@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
-from .surface_test_helpers import CoilCollection, get_ncsx_data, get_surface, get_exact_surface
+from simsopt.geo.coilcollection import CoilCollection
+from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
@@ -20,10 +21,11 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
     err_old = 1e9
     for eps in epsilons:
         fpluseps = f(x + eps * direction)
-        dfest = (fpluseps-f0)/eps
+        fminuseps = f(x - eps * direction)
+        dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
-        print(err/err_old)
-        assert err < 0.55 * err_old
+        print(err, err/err_old)
+        assert err < 1e-9 or err < 0.3 * err_old
         err_old = err
     print("################################################################################")
 
