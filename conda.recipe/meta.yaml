@@ -26,7 +26,6 @@ requirements:
     - python
     - pip
     - numpy >=1.19
-    - boost-cpp
 
   run:
     - python
