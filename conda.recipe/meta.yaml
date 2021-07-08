@@ -24,12 +24,12 @@ requirements:
     # - pip
 
   host:
-    - python
+    - python >=3.6
     - pip
     - numpy >=1.19
 
   run:
-    - python
+    - python >=3.6
     - numpy >=1.19
     - jax >=0.2.4
     - jaxlib >=0.1.56
