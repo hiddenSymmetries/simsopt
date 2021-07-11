@@ -564,8 +564,9 @@ class JaxCurve(sopp.Curve, Curve):
 
 class RotatedCurve(sopp.Curve, Curve):
     """
-    RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
-    optionally completes a reflection when ``flip=True``.
+    RotatedCurve inherits from the Curve base class.  It takes an input
+    a Curve, rotates it by ``theta``, and optionally completes a
+    reflection when ``flip=True``.
     """
 
     def __init__(self, curve, theta, flip):
