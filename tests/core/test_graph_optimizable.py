@@ -799,5 +799,44 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(ancestors), 4)
 
 
+class OptClassExternalDofs(Optimizable):
+    def __init__(self):
+        self.vals = [1, 2]
+        super().__init__(dof_setter=self.set_dofs, x0=self.get_dofs())
+
+    def get_dofs(self):
+        return self.vals
+
+    def set_dofs(self, x):
+        self.vals = x
+
+
+class OptimizableTestsExternalDofs(unittest.TestCase):
+    def setUp(self) -> None:
+        self.opt = OptClassExternalDofs()
+
+    def tearDown(self) -> None:
+        self.opt = None
+
+    def test_get_dofs(self):
+        vals = self.opt.get_dofs()
+        self.assertTrue((vals == np.array([1, 2])).all())
+
+    def test_set_dofs(self):
+        self.opt.set_dofs([3, 4])
+        vals = self.opt.get_dofs()
+        self.assertTrue((vals == np.array([3, 4])).all())
+
+    def test_set_x(self):
+        self.opt.x = [3, 4]
+        vals = self.opt.get_dofs()
+        self.assertTrue((vals == np.array([3, 4])).all())
+
+    def test_set_local_x(self):
+        self.opt.local_x = [3, 4]
+        vals = self.opt.get_dofs()
+        self.assertTrue((vals == np.array([3, 4])).all())
+
+
 if __name__ == "__main__":
     unittest.main()
