@@ -379,7 +379,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                  dof_setter: Callable[..., None] = None,
                  opts_in: Sequence[Optimizable] = None,
                  opt_return_fns: Sequence[Sequence[str]] = None,
-                 funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None):
+                 funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None,
+                 **kwargs):
         """
         Args:
             x0: Initial state (or initial values of DOFs)
@@ -453,6 +454,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         self.new_x = True   # Set this True for dof setter and set it to False
         # after evaluation of function if True
+
+        super().__init__(**kwargs)
 
     def __str__(self):
         return self.name
