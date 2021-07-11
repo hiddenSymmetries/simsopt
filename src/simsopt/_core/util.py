@@ -136,14 +136,7 @@ class RegisterMeta(type):
 
 
 #class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
-class OptimizableMeta(InstanceCounterMeta, ABCMeta):
-    """
-    Meta class for Optimizable class
-    """
-    pass
-
-
-class OptimizableCPPMeta(OptimizableMeta, type(Curve)):
+class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
     """
     Meta class for Optimizable class that works with pybind11. Here
     type(simsoptpp.Curve) is used to obtain the pybind11_type, which can

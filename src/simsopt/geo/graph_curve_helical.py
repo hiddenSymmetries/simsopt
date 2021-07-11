@@ -47,7 +47,7 @@ class CurveHelical(JaxCurve):
         self.R0 = R0
         self.r0 = r0
         self.coefficients = [np.zeros((order,)), np.zeros((order,))]
-        super().__init__(quadpoints, pure, dof_getter=self.get_dofs)
+        super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients))
 
     def num_dofs(self):
         return 2*self.order

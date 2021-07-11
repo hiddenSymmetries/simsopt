@@ -18,7 +18,7 @@ except ImportError:
     mlab = None
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import CPPOptimizable
+from .._core.graph_optimizable import Optimizable
 
 
 @jit
@@ -62,7 +62,7 @@ torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_p
 torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
 
-class Curve(CPPOptimizable):
+class Curve(Optimizable):
     """
     Curve  is a base class for various representations of curves in SIMSOPT
     using the graph based Optimizable framework with external handling of DOFS
@@ -368,8 +368,9 @@ class JaxCurve(sopp.Curve, Curve):
         sopp.Curve.__init__(self, quadpoints)
         if "dof_setter" not in kwargs:
             kwargs["dof_setter"] = sopp.Curve.set_dofs
-        if "dof_getter" not in kwargs:
-            kwargs["dof_getter"] = sopp.Curve.get_dofs
+        if x0 not in kwargs:
+            if "dof_getter" not in kwargs:
+                kwargs["x0"] = sopp.Curve.get_dofs()
         Curve.__init__(self, **kwargs)
         self.gamma_pure = gamma_pure
         points = np.asarray(self.quadpoints)

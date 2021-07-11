@@ -31,7 +31,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
-        Curve.__init__(self, dof_getter=self.get_dofs, dof_setter=self.set_dofs)
+        Curve.__init__(self, x0=self.get_dofs(), dof_setter=self.set_dofs)
 
     def get_dofs(self):
         """
@@ -112,7 +112,7 @@ class JaxCurveXYZFourier(JaxCurve):
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
-        super().__init__(quadpoints, pure, dof_getter=self.get_dofs)
+        super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients))
 
     def num_dofs(self):
         """
