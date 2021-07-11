@@ -73,7 +73,7 @@ class Curve(Optimizable):
         # Optimizable.__init__(self)
         # self.dependencies = []
         # fixed = np.full(len(self.get_dofs()), False)
-        CPPOptimizable.__init__(self, **kwargs)
+        Optimizable.__init__(self, **kwargs)
 
     @requires(plt is not None, "Install matplotlib to plot Curve object")
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True,
