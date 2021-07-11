@@ -376,6 +376,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                  fixed: BoolArray = None,
                  lower_bounds: RealArray = None,
                  upper_bounds: RealArray = None,
+                 dof_setter: Callable[..., None] = None,
                  opts_in: Sequence[Optimizable] = None,
                  opt_return_fns: Sequence[Sequence[str]] = None,
                  funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None):
@@ -412,6 +413,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                           np.logical_not(fixed) if fixed is not None else None,
                           lower_bounds,
                           upper_bounds)
+        self.local_dof_setter = dof_setter
 
         # Generate unique and immutable representation for different
         # instances of same class
@@ -813,7 +815,19 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.loc[self._dofs.free, '_x'] = x
+        if self.local_dof_setter:
+            self.local_dof_setter(self.local_full_x)
         self.new_x = True
+
+    def recompute_bell(self):
+        """
+        Function to be called whenever new DOFs input is given or if the
+        parent Optimizable's data changed, so the output from the current
+        Optimizable object is invalid.
+
+        Reimplmented by classes that implement cached output mechanism.
+        """
+        pass
 
     @property
     def local_full_x(self):
@@ -1020,34 +1034,3 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             ancestors += parent.ancestors
         ancestors += self.parents
         return list(dict.fromkeys(ancestors))
-
-
-class CPPOptimizable(Optimizable, metaclass=OptimizableCPPMeta):
-    """
-    Subclasses graph based Optimizable where the dofs data is duplicated and
-    handled outside of the Dofs class. The class also uses OptimizableCPPMeta
-    as its meta class (which has pybindd11_type as one of its parent classes).
-    This enables the data to be stored in C++ side and also enables any
-    derived class to use a pybindd11 class as one of its parent classes.
-    """
-    def __init__(self, dof_setter=None, dof_getter=None, **kwargs):
-
-        if dof_getter is not None:
-            kwargs['x0'] = dof_getter()
-
-        self.local_dof_setter = dof_setter
-        super().__init__(**kwargs)
-
-    def set_local_x(self, x: RealArray) -> None:
-        # if self.local_dof_size != len(x):
-        #    raise ValueError
-        # self._dofs.loc[self._dofs.free, '_x'] = x
-        # self.new_x = True
-        Optimizable.local_x.fset(self, x)
-        self.local_dof_setter(self.local_full_x)
-
-    local_x = property(
-        Optimizable.local_x.fget,
-        set_local_x,
-        "Customized local_x with setter function calling custom x setter after"
-        "populating DOFs object")
