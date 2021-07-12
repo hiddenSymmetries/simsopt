@@ -61,16 +61,17 @@ class ParticleTracingTesting(unittest.TestCase):
         currents = [3 * c for c in currents]
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
-        n = 10
+        n = 16
+
         rrange = (1.1, 1.8, n)
-        phirange = (0, 2*np.pi, n*6)
-        zrange = (-0.3, 0.3, n)
+        phirange = (0, 2*np.pi/3, n*2)
+        zrange = (0, 0.3, n//2)
         bsh = InterpolatedField(
             bs, UniformInterpolationRule(5),
-            rrange, phirange, zrange, True
+            rrange, phirange, zrange, True, nfp=3, stellsym=True
         )
-        bsh.estimate_error_GradAbsB(1000)
-        bsh.estimate_error_B(1000)
+        print(bsh.estimate_error_B(1000))
+        print(bsh.estimate_error_GradAbsB(1000))
         # trick to clear the cache in the biot savart class to reduce memory usage
         bs.set_points(np.asarray([[0., 0., 0.]])).GradAbsB()
         self.bsh = bsh
