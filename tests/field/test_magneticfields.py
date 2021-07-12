@@ -388,7 +388,6 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, nfp, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         btotal = bs + B0
-        btotal = bs
         n = 12
         rmin = 1.5
         rmax = 1.7
@@ -431,7 +430,6 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         btotal = bs + B0
-        btotal = bs
         n = 10
         rmin = 1.5
         rmax = 1.7
