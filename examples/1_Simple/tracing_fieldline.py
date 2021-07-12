@@ -88,11 +88,11 @@ n = 16
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2*np.pi, n*6)
-zrange = (np.min(zs), np.max(zs), n)
+phirange = (0, 2*np.pi/3, n*2)
+zrange = (0, np.max(zs), n//2)
 bsh = InterpolatedField(
     bs, UniformInterpolationRule(degree),
-    rrange, phirange, zrange, True
+    rrange, phirange, zrange, True, nfp=3, stellsym=True
 )
 # print('Error in B', bsh.estimate_error_B(1000), flush=True)
 trace_fieldlines(bsh, 'bsh')

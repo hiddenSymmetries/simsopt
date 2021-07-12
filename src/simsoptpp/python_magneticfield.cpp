@@ -28,6 +28,7 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("d2B_by_dXdX", py::overload_cast<>(&T::d2B_by_dXdX), "Returns a `(npoints, 3, 3, 3)` array containing the hessian of magnetic field (in cartesian coordinates). Denoting the indices by `i`, `j`, `k` and `l`, the result contains  `\\partial_k\\partial_j B_l(x_i)`.")
      .def("AbsB", py::overload_cast<>(&T::AbsB), "Returns a `(npoints, 1)` array containing the absolute value of the magnetic field (in cartesian coordinates).")
      .def("GradAbsB", py::overload_cast<>(&T::GradAbsB), "Returns a `(npoints, 3)` array containing the gradient of the absolute value of the magnetic field (in cartesian coordinates).")
+     .def("GradAbsB_cyl", py::overload_cast<>(&T::GradAbsB_cyl))
      .def("B_ref", py::overload_cast<>(&T::B_ref), "As `B`, but returns a reference to the array (this array should be read only).")
      .def("dB_by_dX_ref", py::overload_cast<>(&T::dB_by_dX_ref), "As `dB_by_dX`, but returns a reference to the array (this array should be read only).")
      .def("d2B_by_dXdX_ref", py::overload_cast<>(&T::d2B_by_dXdX_ref), "As `d2B_by_dXdX`, but returns a reference to the array (this array should be read only).")
@@ -100,8 +101,8 @@ void init_magneticfields(py::module_ &m){
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, py_shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool>())
-        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)

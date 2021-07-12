@@ -378,7 +378,51 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
-    def test_interpolated_field_close(self):
+    def test_interpolated_field_close_with_symmetries(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        coils, currents, _ = get_ncsx_data(Nt_coils=10, Nt_ma=10, ppp=5)
+        nfp = 3
+        stellarator = CoilCollection(coils, currents, nfp, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        btotal = bs + B0
+        btotal = bs
+        n = 12
+        rmin = 1.5
+        rmax = 1.7
+        rsteps = n
+        phimin = 0
+        phimax = 2*np.pi/nfp
+        phisteps = n*32//nfp
+        zmin = 0.
+        zmax = 0.1
+        zsteps = n//2
+        bsh = InterpolatedField(
+            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
+            True, nfp=nfp, stellsym=True)
+        N = 1000
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(nfp*phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(2*zmax) - zmax
+        btotal.set_points_cyl(points)
+        dB = btotal.GradAbsB()
+        B = btotal.B()
+        dBc = btotal.GradAbsB_cyl()
+        Bc = btotal.B_cyl()
+        bsh.set_points_cyl(points)
+        Bh = bsh.B()
+        dBh = bsh.GradAbsB()
+        Bhc = bsh.B_cyl()
+        dBhc = bsh.GradAbsB_cyl()
+        assert np.allclose(B, Bh, rtol=1e-3)
+        assert np.allclose(dB, dBh, rtol=1e-3)
+        assert np.allclose(Bc, Bhc, rtol=1e-3)
+        assert np.allclose(dBc, dBhc, rtol=1e-3)
+
+    def test_interpolated_field_close_no_sym(self):
         R0test = 1.5
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
@@ -387,6 +431,7 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         btotal = bs + B0
+        btotal = bs
         n = 10
         rmin = 1.5
         rmax = 1.7
@@ -397,24 +442,28 @@ class Testing(unittest.TestCase):
         zmin = -0.1
         zmax = 0.1
         zsteps = n
-        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
-        N = 10
+        bsh = InterpolatedField(
+            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
+            True)
+        N = 100
         points = np.random.uniform(size=(N, 3))
         points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
         points[:, 1] = points[:, 1]*(phimax-phimin) + phimin
         points[:, 2] = points[:, 2]*(zmax-zmin) + zmin
-        bsh.set_points_cyl(points)
         btotal.set_points_cyl(points)
-        B = btotal.B()
-        Bh = bsh.B()
         dB = btotal.GradAbsB()
+        B = btotal.B()
+        dBc = btotal.GradAbsB_cyl()
+        Bc = btotal.B_cyl()
+        bsh.set_points_cyl(points)
+        Bh = bsh.B()
         dBh = bsh.GradAbsB()
-        print("btotal.B()", B)
-        print("bsh.B()", Bh)
-        print("btotal.GradAbsB(()", dB)
-        print("bsh.GradAbsB()", dBh)
+        Bhc = bsh.B_cyl()
+        dBhc = bsh.GradAbsB_cyl()
         assert np.allclose(B, Bh, rtol=1e-3)
         assert np.allclose(dB, dBh, rtol=1e-3)
+        assert np.allclose(Bc, Bhc, rtol=1e-3)
+        assert np.allclose(dBc, dBhc, rtol=1e-3)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5
