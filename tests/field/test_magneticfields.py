@@ -476,12 +476,12 @@ class Testing(unittest.TestCase):
         btotal = bs + B0
 
         for n in [4, 8, 16]:
-            rmin = 1.3
+            rmin = 1.5
             rmax = 1.7
             rsteps = n
             phimin = 0
             phimax = 2*np.pi
-            phisteps = n*32
+            phisteps = n*16
             zmin = -0.1
             zmax = 0.1
             zsteps = n
