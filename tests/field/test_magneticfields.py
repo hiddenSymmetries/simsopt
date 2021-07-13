@@ -430,13 +430,13 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         btotal = bs + B0
-        n = 10
+        n = 8
         rmin = 1.5
         rmax = 1.7
         rsteps = n
         phimin = 0
         phimax = 2*np.pi
-        phisteps = n*32
+        phisteps = n*16
         zmin = -0.1
         zmax = 0.1
         zsteps = n
@@ -458,10 +458,10 @@ class Testing(unittest.TestCase):
         dBh = bsh.GradAbsB()
         Bhc = bsh.B_cyl()
         dBhc = bsh.GradAbsB_cyl()
-        assert np.allclose(B, Bh, rtol=1e-3)
-        assert np.allclose(dB, dBh, rtol=1e-3)
-        assert np.allclose(Bc, Bhc, rtol=1e-3)
-        assert np.allclose(dBc, dBhc, rtol=1e-3)
+        assert np.allclose(B, Bh, rtol=1e-2)
+        assert np.allclose(dB, dBh, rtol=1e-2)
+        assert np.allclose(Bc, Bhc, rtol=1e-2)
+        assert np.allclose(dBc, dBhc, rtol=1e-2)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5

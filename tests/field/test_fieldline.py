@@ -63,11 +63,11 @@ class FieldlineTesting(unittest.TestCase):
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         n = 10
         rrange = (1.0, 1.9, n)
-        phirange = (0, 2*np.pi, n*6)
-        zrange = (-0.4, 0.4, n)
+        phirange = (0, 2*np.pi/nfp, n*2)
+        zrange = (0, 0.4, n)
         bsh = InterpolatedField(
             bs, UniformInterpolationRule(2),
-            rrange, phirange, zrange, True
+            rrange, phirange, zrange, True, nfp=3, stellsym=True
         )
         nlines = 4
         r0 = np.linalg.norm(ma.gamma()[0, :2])
