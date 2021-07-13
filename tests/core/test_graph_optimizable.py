@@ -802,13 +802,17 @@ class OptimizableTests(unittest.TestCase):
 class OptClassExternalDofs(Optimizable):
     def __init__(self):
         self.vals = [1, 2]
-        super().__init__(dof_setter=self.set_dofs, x0=self.get_dofs())
+        super().__init__(dof_setter=OptClassExternalDofs.set_dofs,
+                         x0=self.get_dofs())
 
     def get_dofs(self):
         return self.vals
 
     def set_dofs(self, x):
         self.vals = x
+
+    def recompute_bell(self, parent=None):
+        pass
 
 
 class OptimizableTestsExternalDofs(unittest.TestCase):
