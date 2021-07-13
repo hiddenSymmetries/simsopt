@@ -366,11 +366,11 @@ class JaxCurve(sopp.Curve, Curve):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.Curve.__init__(self, quadpoints)
-        if "dof_setter" not in kwargs:
-            kwargs["dof_setter"] = sopp.Curve.set_dofs
-        if x0 not in kwargs:
-            if "dof_getter" not in kwargs:
-                kwargs["x0"] = sopp.Curve.get_dofs()
+        # if "dof_setter" not in kwargs:
+        #     kwargs["dof_setter"] = sopp.Curve.set_dofs
+        # if "x0" not in kwargs:
+        #     if "dof_getter" not in kwargs:
+        #         kwargs["x0"] = sopp.Curve.get_dofs()
         Curve.__init__(self, **kwargs)
         self.gamma_pure = gamma_pure
         points = np.asarray(self.quadpoints)
@@ -582,6 +582,27 @@ class RotatedCurve(sopp.Curve, Curve):
             self.rotmat = self.rotmat @ np.asarray([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         self.rotmatT = self.rotmat.T
         # curve.dependencies.append(self)
+
+    def get_dofs(self):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function returns null array
+        """
+        # return self.curve.get_dofs()
+        return np.array([])
+
+    def set_dofs_impl(self, d):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function does nothing.
+        """
+        pass
+
+    def num_dofs(self):
+        """
+        This function returns the number of dofs associated to the curve.
+        """
+        return self.curve.num_dofs()
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
