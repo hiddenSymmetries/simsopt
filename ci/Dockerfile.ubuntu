@@ -4,7 +4,7 @@ FROM ubuntu:20.04 as intermediate
 
 COPY github_key .
 
-RUN apt update && DEBIAN_FRONTEND=noninteractive  apt-get install -y  python3-dev python3-pip python3-virtualenv build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libscalapack-openmpi-dev  libhdf5-openmpi-dev git m4 libfftw3-dev
+RUN apt update && DEBIAN_FRONTEND=noninteractive  apt-get install -y  python3-dev python3-pip python3-virtualenv build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libscalapack-openmpi-dev  libhdf5-openmpi-dev git m4 libfftw3-dev libboost-all-dev
 
 RUN mkdir -p /src
 # Use in conjuction with spec_checkout secret in ci
@@ -47,7 +47,7 @@ LABEL maintainer.name="Bharat Medasani" \
       version="0.06" \
       description="Docker file for simsopt container based on ubuntu image" 
 
-RUN apt update && DEBIAN_FRONTEND=noninteractive  apt-get install -y  python3-dev python3-virtualenv  openmpi-bin  libnetcdf-dev libnetcdff-dev libopenblas-dev libscalapack-openmpi-dev  libhdf5-openmpi-dev m4 libfftw3-dev vim emacs nano git libboost-all-dev
+RUN apt update && DEBIAN_FRONTEND=noninteractive  apt-get install -y  python3-dev python3-virtualenv  openmpi-bin  libnetcdf-dev libnetcdff-dev libopenblas-dev libscalapack-openmpi-dev  libhdf5-openmpi-dev m4 libfftw3-dev vim emacs nano git
 
 COPY --from=intermediate /venv /venv
 #COPY --from=intermediate /src/SPEC/xspec /usr/bin
