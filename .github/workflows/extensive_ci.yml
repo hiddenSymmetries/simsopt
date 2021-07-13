@@ -31,7 +31,17 @@ jobs:
         test-type: [unit, integrated]
         spec: [true, false]
         vmec: [true, false]
-        boost: [true, false]
+        include:
+            - python-version: 3.9.5
+              test-type: unit
+              spec: false
+              vmec: false
+              boost: true
+            - python-version: 3.9.5
+              test-type: integrated
+              spec: false
+              vmec: false
+              boost: true
 
     steps:
     # First print out lots of information. We do this in separate 
