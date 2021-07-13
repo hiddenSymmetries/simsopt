@@ -24,15 +24,16 @@ class MPITracingTesting(unittest.TestCase):
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
         coils, currents, ma = get_ncsx_data(Nt_coils=6)
-        stellarator = CoilCollection(coils, currents, 3, True)
+        nfp = 3
+        stellarator = CoilCollection(coils, currents, nfp, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         n = 10
         rrange = (1.1, 1.8, n)
-        phirange = (0, 2*np.pi, n*6)
-        zrange = (-0.3, 0.3, n)
+        phirange = (0, 2*np.pi/nfp, n*2)
+        zrange = (0, 0.3, n//2)
         bsh = InterpolatedField(
             bs, UniformInterpolationRule(3),
-            rrange, phirange, zrange, True
+            rrange, phirange, zrange, True, nfp=3, stellsym=True
         )
         bsh.estimate_error_GradAbsB(1000)
         bsh.estimate_error_B(1000)
