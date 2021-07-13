@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 try:
     from mpi4py import MPI
 except ImportError as e:
-    MPI = None 
+    MPI = None
     logger.warning(str(e))
 
 # vmec_found = True
@@ -39,6 +39,7 @@ if MPI is not None:
 else:
     MpiPartition = None
 
+print('in vmec')
 
 # Flags used by runvmec():
 restart_flag = 1
@@ -53,7 +54,7 @@ reset_jacdt_flag = 32
 #value flag-name         calls routines to...
 #----- ---------         ---------------------
 #  1   restart_flag      reset internal run-control parameters
-#                        (for example, if jacobian was bad, to try a smaller 
+#                        (for example, if jacobian was bad, to try a smaller
 #                        time-step)
 #  2   readin_flag       read in data from input_file and initialize parameters
 #                        or arrays which do not dependent on radial grid size
@@ -142,13 +143,13 @@ class Vmec(Optimizable):
     ``files_to_delete`` attribute to ``[]`` after that run of VMEC.
 
     Args:
-        filename: Name of a VMEC input file to use for loading the 
+        filename: Name of a VMEC input file to use for loading the
           initial parameters. If ``None``, default parameters will be used.
-        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
-          except for the first and most recent ones from worker group 0. If 
+          except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
 
     Attributes:
@@ -589,3 +590,139 @@ class Vmec(Optimizable):
 
         well = (dVds_s0 - dVds_s1) / dVds_s0
         return well
+
+    def iota_weighted(self,weight_function):
+        """
+        Computed a weighted average of the rotational transform defined by
+        the prescribed weight_function, f.
+
+        \int ds \, iota * weight_function(s) / \int ds \, weight_function(s)
+
+        Args:
+            weight_function : function handle which takes a single argument, s,
+                the normalized toroidal flux
+        """
+        self.run()
+
+        return np.sum(weight_function(self.s_half_grid) * self.wout.iotas[1:]) \
+            / np.sum(weight_function(self.s_half_grid))
+
+    def iota_target(self,iota_target):
+        """
+        Computes a metric quantifying the deviation of iota from a prescribed
+        target value.
+
+        0.5 * \int ds \, (iota - iota_target)**2
+
+        Args:
+            iota_target : function handle which takes a single argument, s,
+                the normalized toroidal flux, and returns the target rotational
+                transform.
+        """
+        self.run()
+
+        return 0.5 * np.sum((self.wout.iotas[1::]
+            - iota_target(self.s_half_grid))**2) * self.ds
+
+    def d_iota_target(self,iota_target,delta):
+        if self.indata.ncurr != 1:
+            raise RuntimeError('''d_iota_target cannot be computed without
+                running vmec with ncurr = 1''')
+
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / (4*np.pi*1e-7)
+        ac_aux_f_prev = self.indata.ac_aux_f
+        ac_aux_s_prev = self.indata.ac_aux_s
+        pcurr_type_prev = self.indata.pcurr_type
+
+        perturbation = (self.wout.iotas[1::]-iota_target(self.s_half_grid)) \
+            /(self.wout.phi[-1]*self.wout.signgs/(2*np.pi))
+
+        # Perturbed toroidal current profile
+        It_new = It_half + delta*perturbation
+        self.indata.ac_aux_f = 0*self.indata.ac_aux_f
+        self.indata.ac_aux_2 = 0*self.indata.ac_aux_s
+        self.indata.ac_aux_f[0:self.wout.ns-1] = It_new
+        self.indata.ac_aux_s[0:self.wout.ns-1] = self.s_half_grid
+        self.indata.pcurr_type = "line_segment_I"
+        self.need_to_run_code = True
+
+        self.run()
+
+        # Reset input values
+        self.indata.ac_aux_f = ac_aux_f_prev
+        self.indata.ac_aux_s = ac_aux_s_prev
+        self.indata.pcurr_type = pcurr_type_prev
+        self.need_to_run_code = True
+
+    def B_on_arclength_grid(self):
+        """
+        Computes vector components of magnetic field on boundary on grid in
+            toroidal angle and arclength poloidal angle. This is required to
+            compute the adjoint-based shape gradient.
+
+        Returns:
+            Bx_end (float array): x component of magnetic field on zeta
+                and theta arclength grid
+            By_end (float array): y component of magnetic field on zeta
+                and theta arclength grid
+            Bz_end (float array): z component of magnetic field on zeta
+                and theta arclength grid
+            theta_arclength (float array): theta arclength grid on grid of
+                original VMEC angles
+        """
+        # Extrapolate to last full mesh grid point
+        bsupumnc_end = 1.5*self.wout.bsupumnc[-1,:] - 0.5*self.wout.bsupumnc[-2,:]
+        bsupvmnc_end = 1.5*self.wout.bsupvmnc[-1,:] - 0.5*self.wout.bsupvmnc[-2,:]
+        rmnc_end = self.wout.rmnc[:,-1]
+        zmns_end = self.wout.zmns[:,-1]
+
+        dgamma1 = self.boundary.gammadash1()
+        dgamma2 = self.boundary.gammadash2()
+
+        bsupumnc = 1.5 * self.wout.bsupumnc[:,-1] - 0.5 * self.bsupumnc[:,-2]
+        bsupvmnc = 1.5 * self.wout.bsupvmnc[:,-1] - 0.5 * self.bsupvmnc[:,-2]
+        angle = self.wout.xm_nyq[:,None,None] * theta[None,:,:] \
+            - self.wout.xn_nyq[:,None,None] * zeta[None,:,:]
+        Bsupu =
+
+        [Bsupu_end, Bsupv_end] = self.B_contravariant(full=True,theta=self.thetas_2d,\
+                                                     zeta=self.zetas_2d,isurf=-1)
+        [x, y, z_end, R_end] = self.position(theta=self.thetas_2d,\
+                                                     zeta=self.zetas_2d,isurf=-1)
+
+        Bx_end = Bsupu_end * dxdu_end + Bsupv_end * dxdv_end
+        By_end = Bsupu_end * dydu_end + Bsupv_end * dydv_end
+        Bz_end = Bsupu_end * dzdu_end + Bsupv_end * dzdv_end
+
+        theta_arclength = np.zeros(np.shape(self.zetas_2d))
+        for izeta in range(self.nzeta):
+            for itheta in range(1, self.ntheta):
+                dr = np.sqrt((R_end[izeta, itheta] - R_end[izeta, itheta-1])**2 \
+                             + (z_end[izeta, itheta] - z_end[izeta, itheta-1])**2)
+                theta_arclength[izeta, itheta] = \
+                            theta_arclength[izeta, itheta-1] + dr
+
+        return Bx_end, By_end, Bz_end, theta_arclength
+
+    def well_weighted(self,weight_function1,weight_function2):
+        """
+        Computed a weighted average of the vacuum magnetic well defined by
+        the prescribed weight_functions:
+
+        f = \int ds \, V'(s) * (weight_function1(s) - weight_function2(s))
+            / \int ds \, V'(s) (weight_function1(s) + weight_function2(s))
+
+        For example, weight_function1 could be peaked on the edge while
+        weight_function2 could be peaked on the axis such that f < 0 corresonds
+        to V''(s) < 0.
+
+        Args:
+            weight_function1 : function handle which takes a single argument, s,
+                the normalized toroidal flux
+            weight_function2 : function handle which takes a single argument, s,
+                the normalized toroidal flux
+        """
+        self.run()
+        print(self.boundary.parameter_derivatives(np.ones_like(self.boundary.gamma()[:,:,0])))
+        return np.sum((weight_function1(self.s_half_grid)-weight_function2(self.s_half_grid)) * self.wout.vp[1:]) \
+            / np.sum((weight_function1(self.s_half_grid)+weight_function2(self.s_half_grid)) * self.wout.vp[1:])

@@ -19,7 +19,7 @@ class Surface(Optimizable):
 
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
         """
-        Plot the surface using mayavi. 
+        Plot the surface using mayavi.
         Note: the `ax` and `show` parameter can be used to plot more than one surface:
 
         .. code-block::
@@ -95,7 +95,7 @@ class Surface(Optimizable):
         if phi < -np.pi:
             phi = phi + 2. * np.pi
 
-        # varphi are the search intervals on which we look for the cross section in 
+        # varphi are the search intervals on which we look for the cross section in
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
         varphi = np.asarray([0., 0.5, 1.0])
@@ -143,7 +143,7 @@ class Surface(Optimizable):
         # if idx_right == 0, then the subinterval must be idx_left = 0 and idx_right = 1
         idx_right = np.argmax(phi <= cyl_phi, axis=0)
         idx_right = np.where(idx_right == 0, 1, idx_right)
-        idx_left = idx_right-1 
+        idx_left = idx_right-1
 
         varphi_left = varphigrid[idx_left, np.arange(idx_left.size)]
         varphi_right = varphigrid[idx_right, np.arange(idx_right.size)]
@@ -156,7 +156,7 @@ class Surface(Optimizable):
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, theta)
             phi = np.arctan2(gamma[:, 1], gamma[:, 0])
-            pinc = (phi < left_bound).astype(int) 
+            pinc = (phi < left_bound).astype(int)
             minc = (phi > right_bound).astype(int)
             phi = phi + 2.*np.pi * (pinc - minc)
             return phi
@@ -176,11 +176,11 @@ class Surface(Optimizable):
                 c = np.where(flag, b, c)
                 err = np.max(np.abs(a-c))
             b = (a + c)/2.
-            return b          
+            return b
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
         cross_section = np.zeros((sol.size, 3))
-        self.gamma_lin(cross_section, sol, theta) 
+        self.gamma_lin(cross_section, sol, theta)
         return cross_section
 
     def aspect_ratio(self):
@@ -193,11 +193,11 @@ class Surface(Optimizable):
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
 
-        where 
+        where
 
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
-            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
+            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
 
         and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
         average cross sectional area.
@@ -208,18 +208,18 @@ class Surface(Optimizable):
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
 
         where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
-        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral 
+        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
 
         .. math::
-            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
-            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
+            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\
+            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
         where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
 
-        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
-        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
-        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi, 
+        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta),
+        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section
+        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
         Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
 
         .. math::
@@ -241,7 +241,7 @@ class Surface(Optimizable):
         After the change of variables, the integral becomes:
 
         .. math::
-            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
+            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi}
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
@@ -264,10 +264,35 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi) 
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
 
         R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
         R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
 
         AR = R_major/R_minor
         return AR
+
+    def parameter_derivatives(self,shape_gradient):
+        """
+        Converts the shape gradient of a given figure of merit, f, to derivatives
+        with respect to parameters defining a surface. Here the shape gradient
+        is defined as S, where the perturbation to the objective function
+        corresponding to the perturbation of the surface, \delta x is,
+
+        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n.
+
+        Given S, the parameter derivatives are then computed as,
+
+        df_by_dcoeff = \int d^2 x \, S dx_by_dcoeff \cdot n.
+
+        Args:
+            shape_gradient: array-like with same dimensions as angles on the surface,
+                (nphi,ntheta)
+
+        """
+        N = self.normal()
+        dx_by_dc = self.dgamma_by_dcoeff()
+        N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl',N,dx_by_dc)
+        nphi = self.gamma().shape[0]
+        ntheta = self.gamma().shape[1]
+        return np.einsum('ijk,ij->k',N_dot_dx_by_dc,shape_gradient) * self.nfp / (ntheta * nphi)
