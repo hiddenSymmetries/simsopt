@@ -15,7 +15,8 @@ build:
 
 requirements:
   build:
-    - "{{ compiler('cxx') }}"
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
     - cmake
     - ninja
     # - numpy {{ numpy }}
@@ -25,6 +26,8 @@ requirements:
   host:
     - python
     - pip
+    - wheel
+    - setuptools
     - numpy {{ numpy }}
     - boost {{ boost }}
 
