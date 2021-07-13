@@ -355,7 +355,6 @@ def particles_to_vtk(res_tys, filename):
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
 
-
 class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
     r"""
     Based on a scalar function :math:`f:R^3\to R`, this criterion checks whether
