@@ -2,12 +2,15 @@ import numpy as np
 from scipy.special import ellipk, ellipe
 from simsopt.field.magneticfield import MagneticField
 import simsoptpp as sopp
+import logging
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
     sympy_found = True
 except ImportError:
     sympy_found = False
+
+logger = logging.getLogger(__name__)
 
 
 class ToroidalField(MagneticField):
@@ -365,15 +368,38 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
     This resulting interpolant can then be evaluated very quickly.
     """
 
-    def __init__(self, *args, nfp=1, stellsym=False):
+    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False):
+        r"""
+        Args:
+            field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated.
+            degree: the degree of the piecewise polynomial interpolant.
+            rrange: a 3-tuple of the form ``(rmin, rmax, nr)``. This mean that the interval :math:`[rmin, rmax]` is
+                    split into ``nr`` many subintervals.
+            phirange: a 3-tuple of the form ``(phimin, phimax, nphi)``.
+            zrange: a 3-tuple of the form ``(zmin, zmax, nz)``.
+            extrapolate: whether to extrapolate the field when evaluate outside
+                         the integration domain or to throw an error.
+            nfp: Whether to exploit rotational symmetry. In this case any angle
+                 is always mapped into the interval :math:`[0, 2\pi/\mathrm{nfp})`,
+                 hence it makes sense to use ``phimin=0`` and
+                 ``phimax=2*np.pi/nfp``.
+            stellsym: Whether to exploit stellarator symmetry. In this case
+                      ``z`` is always mapped to be positive, hence it makes sense to use
+                      ``zmin=0``.
+        """
         MagneticField.__init__(self)
-        sopp.InterpolatedField.__init__(self, *args, nfp, stellsym)
+        if stellsym and zrange[0] != 0:
+            logger.warning(fr"Sure about zrange[0]={zrange[0]}? When exploiting stellarator symmetry, the interpolant is never evaluated for z<0.")
+        if nfp > 1 and abs(phirange[1] - 2*np.pi/nfp) > 1e-14:
+            logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
+
+        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
 
     def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         degree = self.rule.degree
         MagneticField.to_vtk(
-            self, filename, 
+            self, filename,
             nr=self.r_range[2]*degree+1,
             nphi=self.phi_range[2]*degree+1,
             nz=self.z_range[2]*degree+1,

@@ -77,8 +77,7 @@ rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2*np.pi/3, n*2)
 zrange = (0, np.max(zs), n//2)
 bsh = InterpolatedField(
-    bs, UniformInterpolationRule(degree),
-    rrange, phirange, zrange, True, nfp=3, stellsym=True
+    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True
 )
 
 
