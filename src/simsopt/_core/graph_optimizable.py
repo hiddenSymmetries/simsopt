@@ -452,8 +452,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
 
-        self.new_x = True   # Set this True for dof setter and set it to False
+        self._set_new_x()
+        # self.new_x = True   # Set this True for dof setter and set it to False
         # after evaluation of function if True
+        # if self.local_dof_setter is not None:
+        #     self.recompute_bell()
 
         super().__init__(**kwargs)
 
@@ -481,7 +484,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     def __call__(self, x: RealArray = None, *args, child=None, **kwargs):
         if x is not None:
             self.x = x
-            self.new_x = True
 
         return_fn_map = self.__class__.return_fn_map
         if self.new_x:
@@ -639,7 +641,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
-            self.new_x = True
+            # self.new_x = True
+            # if self.local_dof_setter is not None:
+            #     self.recompute_bell()
+            self._set_new_x()
         else:
             print("The given Optimizable object is already a parent")
 
@@ -656,7 +661,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
-            self.new_x = True
+            # self.new_x = True
+            # if self.local_dof_setter is not None:
+            #     self.recompute_bell()
+            self._set_new_x()
         else:
             print("The given Optimizable object is already a parent")
 
@@ -675,7 +683,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
-        self.new_x = True
+        self._set_new_x()
+        # self.new_x = True
+        # if self.local_dof_setter is not None:
+        #     self.recompute_bell()
 
         return discarded_parent
 
@@ -691,7 +702,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
-        self.new_x = True
+        self._set_new_x()
+        # self.new_x = True
+        # if self.local_dof_setter is not None:
+        #     self.recompute_bell()
 
     @property
     def full_dof_size(self) -> Integral:
@@ -818,19 +832,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.loc[self._dofs.free, '_x'] = x
-        if self.local_dof_setter:
-            self.local_dof_setter(self.local_full_x)
+        if self.local_dof_setter is not None:
+            self.local_dof_setter(self, list(self.local_full_x))
+            self.recompute_bell()
         self.new_x = True
-
-    def recompute_bell(self):
-        """
-        Function to be called whenever new DOFs input is given or if the
-        parent Optimizable's data changed, so the output from the current
-        Optimizable object is invalid.
-
-        Reimplmented by classes that implement cached output mechanism.
-        """
-        pass
 
     @property
     def local_full_x(self):
@@ -839,10 +844,24 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         return self._dofs.full_x
 
-    def _set_new_x(self):
+    def _set_new_x(self, parent=None):
         self.new_x = True
+        if self.local_dof_setter is not None:
+            self.recompute_bell(parent=parent)
+
         for child in self._children:
-            child._set_new_x()
+            child._set_new_x(parent=self)
+
+    def recompute_bell(self, parent=None):
+        """
+        Function to be called whenever new DOFs input is given or if the
+        parent Optimizable's data changed, so the output from the current
+        Optimizable object is invalid.
+
+        Need to be implemented by classes that provide a dof_setter for
+        external handling of DOFs.
+        """
+        raise NotImplementedError
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -941,6 +960,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self._dofs.loc[key, '_x'] = new_val
         else:
             self._dofs.iloc[key, 0] = new_val
+        if self.local_dof_setter:
+            self.local_dof_setter(self, list(self.local_full_x))
+            self.recompute_bell()
 
     @property
     def dofs_free_status(self) -> BoolArray:
