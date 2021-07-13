@@ -4,6 +4,25 @@ from simsopt.geo.surfaceobjectives import QfmResidual
 
 
 class QfmSurface():
+    """
+    QfmSurface is used to compute a quadratic-flux minimizing surface, defined
+    as the minimum of the objective function,
+
+        f = \int d^2 x (B \cdot n)^2/ \int d^2 x \, B^2
+
+    subject to a constraint on the surface label, such as the area, volume,
+    or toroidal flux. This objective, f, is computed in QfmResidual
+    (see surfaceobjectives.py). If magnetic surfaces exists, f will be zero.
+    If not, QFM surfaces approximate flux surfaces.
+
+    The label constraint can be enforced with a penalty formulation, defined
+    in qfm_penalty_constraints, and whose minimium is computed with LBFGS-B
+    by minimize_qfm_penalty_constraints_LBFGS().
+
+    Alternatively, the label constraint can be enforced with a constrained
+    optimization algorithm. This constrained optimization problem is
+    solved with the SLSQP algorithm by minimize_qfm_exact_constraints_SLSQP().
+    """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
         self.bs = biotsavart
