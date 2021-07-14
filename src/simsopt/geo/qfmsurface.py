@@ -217,10 +217,10 @@ class QfmSurface():
         is not used, and the constrained optimization problem is solved.
         """
         if method == 'SLSQP':
-            return self.minimize_qfm_exact_constraints_SLSQP(self, tol=tol,
+            return self.minimize_qfm_exact_constraints_SLSQP(tol=tol,
                                                              maxiter=maxiter)
         elif method == 'LBFGS':
-            return self.minimize_qfm_penalty_constraints_LBFGS(self, tol=tol,
+            return self.minimize_qfm_penalty_constraints_LBFGS(tol=tol,
                                                                maxiter=maxiter, constraint_weight=constraint_weight)
         else:
             raise InputError
