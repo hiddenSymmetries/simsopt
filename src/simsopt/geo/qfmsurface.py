@@ -223,4 +223,4 @@ class QfmSurface():
             return self.minimize_qfm_penalty_constraints_LBFGS(tol=tol,
                                                                maxiter=maxiter, constraint_weight=constraint_weight)
         else:
-            raise InputError
+            raise ValueError
