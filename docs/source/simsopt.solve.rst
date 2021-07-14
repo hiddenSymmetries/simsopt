@@ -11,6 +11,7 @@ simsopt.solve.graph\_mpi module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.solve.graph\_serial module
 ----------------------------------
@@ -19,6 +20,7 @@ simsopt.solve.graph\_serial module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.solve.mpi module
 ------------------------
@@ -27,6 +29,7 @@ simsopt.solve.mpi module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 simsopt.solve.serial module
 ---------------------------
@@ -35,6 +38,7 @@ simsopt.solve.serial module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
 
 Module contents
 ---------------
@@ -43,3 +47,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
