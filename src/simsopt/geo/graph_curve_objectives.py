@@ -67,7 +67,6 @@ class LpCurveCurvature(Optimizable):
 
     def __init__(self, curve, p, desired_length=None):
         self.curve = curve
-        # self.depends_on = ["curve"]
         super().__init__(opts_in=[curve])
         if desired_length is None:
             self.desired_kappa = 0
@@ -118,7 +117,6 @@ class LpCurveTorsion(Optimizable):
 
     def __init__(self, curve, p):
         self.curve = curve
-        # self.depends_on = ["curve"]
 
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
@@ -171,7 +169,6 @@ class MinimumDistance(Optimizable):
 
     def __init__(self, curves, minimum_distance):
         self.curves = curves
-        # self.depends_on = ["curves"]
         self.minimum_distance = minimum_distance
 
         self.J_jax = jit(lambda gamma1, l1, gamma2, l2: distance_pure(gamma1, l1, gamma2, l2, minimum_distance))
