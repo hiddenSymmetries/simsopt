@@ -27,7 +27,9 @@ class InterpolatedField : public MagneticField<T> {
             if(!interp_B)
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_B) {
+                Tensor2 old_points = this->field->get_points_cart();
                 interp_B->interpolate_batch(fbatch_B);
+                this->field->set_points_cart(old_points);
                 status_B = true;
             }
             if(nfp > 1 || stellsym){
@@ -45,7 +47,9 @@ class InterpolatedField : public MagneticField<T> {
             if(!interp_GradAbsB)
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_GradAbsB) {
+                Tensor2 old_points = this->field->get_points_cart();
                 interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
+                this->field->set_points_cart(old_points);
                 status_GradAbsB = true;
             }
             if(nfp > 1 || stellsym){
@@ -185,9 +189,9 @@ class InterpolatedField : public MagneticField<T> {
             if(!interp_B)
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_B) {
-                //Tensor2 old_points = this->field->get_points_cart();
+                Tensor2 old_points = this->field->get_points_cart();
                 interp_B->interpolate_batch(fbatch_B);
-                //this->field->set_points_cart(old_points);
+                this->field->set_points_cart(old_points);
                 status_B = true;
             }
             return interp_B->estimate_error(this->fbatch_B, samples);
@@ -196,9 +200,9 @@ class InterpolatedField : public MagneticField<T> {
             if(!interp_GradAbsB)
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_GradAbsB) {
-                //Tensor2 old_points = this->field->get_points_cart();
+                Tensor2 old_points = this->field->get_points_cart();
                 interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
-                //this->field->set_points_cart(old_points);
+                this->field->set_points_cart(old_points);
                 status_GradAbsB = true;
             }
             return interp_GradAbsB->estimate_error(this->fbatch_GradAbsB, samples);
