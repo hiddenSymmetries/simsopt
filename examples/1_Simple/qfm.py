@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume

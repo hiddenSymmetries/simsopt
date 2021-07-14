@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.geo.qfmsurface import QfmSurface
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
