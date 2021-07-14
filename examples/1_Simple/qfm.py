@@ -4,11 +4,8 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
 from simsopt.geo.coilcollection import CoilCollection
+from simsopt.util.zoo import get_ncsx_data
 import numpy as np
-import sys
-import os
-sys.path.append(os.path.join("..", "tests", "geo"))
-from surface_test_helpers import get_ncsx_data
 
 """
 This example demonstrate how to compute a quadratic flux minimizing surfaces
