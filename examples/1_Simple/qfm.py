@@ -6,6 +6,7 @@ from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volum
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.util.zoo import get_ncsx_data
 import numpy as np
+import os
 
 """
 This example demonstrate how to compute a quadratic flux minimizing surfaces
