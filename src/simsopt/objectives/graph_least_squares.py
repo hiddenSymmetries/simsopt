@@ -146,7 +146,7 @@ class LeastSquaresProblem(Optimizable):
         outputs = []
         for i, opt in enumerate(self.parents):
             out = opt(child=self, *args, **kwargs)
-            output = np.array([out]) if np.isscalar(out) else np.array(out)
+            output = np.array([out]) if not np.ndim(out) else np.array(out)
             outputs += [output]
 
         return np.concatenate(outputs) - self.goals
