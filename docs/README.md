@@ -33,5 +33,5 @@ Whenever the code is updated, repopulate the code tree and run either step-1  or
 
 ```bash
 cd docs
-sphinx-apidoc -o source ../src/simsopt 
+sphinx-apidoc -f -o source ../src/simsopt 
 ```
