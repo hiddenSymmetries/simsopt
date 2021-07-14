@@ -70,10 +70,15 @@ class Curve(Optimizable):
     """
 
     def __init__(self, **kwargs):
-        # Optimizable.__init__(self)
-        # self.dependencies = []
-        # fixed = np.full(len(self.get_dofs()), False)
         Optimizable.__init__(self, **kwargs)
+
+    def recompute_bell(self, parent=None):
+        """
+        For derivative classes of Curve, all of which also subclass
+        from C++ Curve class, call invalidate_cache which is implemented
+        in C++ side.
+        """
+        self.invalidate_cache()
 
     @requires(plt is not None, "Install matplotlib to plot Curve object")
     def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True,
@@ -366,11 +371,9 @@ class JaxCurve(sopp.Curve, Curve):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.Curve.__init__(self, quadpoints)
-        # if "dof_setter" not in kwargs:
-        #     kwargs["dof_setter"] = sopp.Curve.set_dofs
-        # if "x0" not in kwargs:
-        #     if "dof_getter" not in kwargs:
-        #         kwargs["x0"] = sopp.Curve.get_dofs()
+        if "external_dof_setter" not in kwargs:
+            kwargs["external_dof_setter"] = sopp.Curve.set_dofs
+        # We are not doing the same search for x0
         Curve.__init__(self, **kwargs)
         self.gamma_pure = gamma_pure
         points = np.asarray(self.quadpoints)
@@ -572,23 +575,24 @@ class RotatedCurve(sopp.Curve, Curve):
     def __init__(self, curve, theta, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, opts_in=[curve])
-        self.rotmat = np.asarray([
-            [cos(theta), -sin(theta), 0],
-            [sin(theta), cos(theta), 0],
-            [0, 0, 1]
-        ]).T
+        Curve.__init__(self, opts_in=[curve],
+                       external_dof_setter=sopp.Curve.set_dofs)
+        self.rotmat = np.asarray(
+            [[cos(theta), -sin(theta), 0],
+             [sin(theta), cos(theta), 0],
+             [0, 0, 1]]).T
         if flip:
-            self.rotmat = self.rotmat @ np.asarray([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+            self.rotmat = self.rotmat @ np.asarray(
+                [[1, 0, 0],
+                 [0, -1, 0],
+                 [0, 0, -1]])
         self.rotmatT = self.rotmat.T
-        # curve.dependencies.append(self)
 
     def get_dofs(self):
         """
         RotatedCurve does not have any dofs of its own.
         This function returns null array
         """
-        # return self.curve.get_dofs()
         return np.array([])
 
     def set_dofs_impl(self, d):

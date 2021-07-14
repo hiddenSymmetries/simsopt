@@ -31,7 +31,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
-        Curve.__init__(self, x0=self.get_dofs(), dof_setter=CurveXYZFourier.set_dofs)
+        Curve.__init__(self, x0=self.get_dofs(),
+                       external_dof_setter=CurveXYZFourier.set_dofs)
 
     def get_dofs(self):
         """
@@ -44,8 +45,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         This function sets the dofs associated to this object.
         """
         sopp.CurveXYZFourier.set_dofs(self, dofs)
-        # for d in self.dependencies:
-        #     d.invalidate_cache()
 
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
