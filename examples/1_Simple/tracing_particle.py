@@ -65,13 +65,6 @@ sc_particle = SurfaceClassifier(s, h=0.1, p=2)
 n = 16
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
-# rrange = (np.min(rs), np.max(rs), n)
-# phirange = (0, 2*np.pi, n*6)
-# zrange = (np.min(zs), np.max(zs), n)
-# bsh = InterpolatedField(
-#     bs, UniformInterpolationRule(degree),
-#     rrange, phirange, zrange, True,
-# )
 
 rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2*np.pi/3, n*2)
