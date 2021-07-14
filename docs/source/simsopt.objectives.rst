@@ -11,7 +11,6 @@ simsopt.objectives.functions module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.objectives.graph\_functions module
 ------------------------------------------
@@ -20,7 +19,6 @@ simsopt.objectives.graph\_functions module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.objectives.graph\_least\_squares module
 -----------------------------------------------
@@ -29,7 +27,6 @@ simsopt.objectives.graph\_least\_squares module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.objectives.least\_squares module
 ----------------------------------------
@@ -38,7 +35,6 @@ simsopt.objectives.least\_squares module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 Module contents
 ---------------
@@ -47,4 +43,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
