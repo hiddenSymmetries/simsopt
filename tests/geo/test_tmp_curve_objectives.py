@@ -3,10 +3,10 @@ import unittest
 import numpy as np
 
 from simsopt.geo import parameters
-from simsopt.geo.graph_curve import RotatedCurve
-from simsopt.geo.graph_curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.graph_curve_rzfourier import CurveRZFourier
-from simsopt.geo.graph_curve_objectives import CurveLength, LpCurveCurvature, \
+from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curve_rzfourier import CurveRZFourier
+from simsopt.geo.curve_objectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False
