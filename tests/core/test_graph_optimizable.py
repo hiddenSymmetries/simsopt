@@ -802,7 +802,7 @@ class OptimizableTests(unittest.TestCase):
 class OptClassExternalDofs(Optimizable):
     def __init__(self):
         self.vals = [1, 2]
-        super().__init__(dof_setter=OptClassExternalDofs.set_dofs,
+        super().__init__(external_dof_setter=OptClassExternalDofs.set_dofs,
                          x0=self.get_dofs())
 
     def get_dofs(self):
