@@ -73,7 +73,7 @@ class DOFs(pd.DataFrame):
         else:
             x = np.array(x, dtype=np.double)
         if names is None:
-            names = ["x{}".format(i) for i in range(len(x))]
+            names = [f"x{i}" for i in range(len(x))]
 
         if free is not None:
             free = np.array(free, dtype=np.bool_)
@@ -458,13 +458,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         # Compute the indices of all the DOFs
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
-
+        # Inform the object that it doesn't have valid cache
         self._set_new_x()
-        # self.new_x = True   # Set this True for dof setter and set it to False
-        # after evaluation of function if True
-        # if self.local_dof_setter is not None:
-        #     self.recompute_bell()
-
         super().__init__(**kwargs)
 
     def __str__(self):
@@ -484,8 +479,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Returns: True only if both are the same objects.
 
         """
-        #return (self.__class__ == other.__class__ and
-        #        self._id.id == other._id.id)
         return self.name == other.name
 
     def __call__(self, x: RealArray = None, *args, child=None, **kwargs):
@@ -647,9 +640,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
-            # self.new_x = True
-            # if self.local_dof_setter is not None:
-            #     self.recompute_bell()
             self._set_new_x()
         else:
             print("The given Optimizable object is already a parent")
@@ -667,9 +657,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self.ancestors = self._get_ancestors()
             self._update_free_dof_size_indices()
             self._update_full_dof_size_indices()
-            # self.new_x = True
-            # if self.local_dof_setter is not None:
-            #     self.recompute_bell()
             self._set_new_x()
         else:
             print("The given Optimizable object is already a parent")
@@ -690,9 +677,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
         self._set_new_x()
-        # self.new_x = True
-        # if self.local_dof_setter is not None:
-        #     self.recompute_bell()
 
         return discarded_parent
 
@@ -709,9 +693,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._update_free_dof_size_indices()
         self._update_full_dof_size_indices()
         self._set_new_x()
-        # self.new_x = True
-        # if self.local_dof_setter is not None:
-        #     self.recompute_bell()
 
     @property
     def full_dof_size(self) -> Integral:
