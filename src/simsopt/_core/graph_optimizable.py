@@ -376,7 +376,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                  fixed: BoolArray = None,
                  lower_bounds: RealArray = None,
                  upper_bounds: RealArray = None,
-                 dof_setter: Callable[..., None] = None,
+                 external_dof_setter: Callable[..., None] = None,
                  opts_in: Sequence[Optimizable] = None,
                  opt_return_fns: Sequence[Sequence[str]] = None,
                  funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None,
@@ -388,6 +388,13 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             fixed: Array describing whether the DOFs are free or fixed
             lower_bounds: Lower bounds for the DOFs
             upper_bounds: Upper bounds for the DOFs
+            external_dof_setter: Function used by derivative classes to
+                handle DOFs outside of the _dofs (pandas.DataFrame) object.
+                Mainly used when the DOFs are primarily handled by C++ code.
+                In that case, for all intents and purposes, the _dofs is a
+                duplication of the DOFs stored elsewhere. In such cases, _dofs
+                is used to handle the dof partitioning, but external dofs are
+                used for computation of the objective function.
             opts_in: Sequence of Optimizable objects to define the optimization
                 problem in conjuction with the DOFs. If the optimizable problem
                 can be thought of as a direct acyclic graph based on
@@ -414,7 +421,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                           np.logical_not(fixed) if fixed is not None else None,
                           lower_bounds,
                           upper_bounds)
-        self.local_dof_setter = dof_setter
+        self.local_dof_setter = external_dof_setter
 
         # Generate unique and immutable representation for different
         # instances of same class
@@ -484,7 +491,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     def __call__(self, x: RealArray = None, *args, child=None, **kwargs):
         if x is not None:
             self.x = x
-
         return_fn_map = self.__class__.return_fn_map
         if self.new_x:
             result = []
@@ -807,7 +813,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if list(self.dof_indices.values())[-1][-1] != len(x):
             raise ValueError
         for opt, indices in self.dof_indices.items():
-            opt.local_x = x[indices[0]:indices[1]]
+            opt._set_local_x(x[indices[0]:indices[1]])
+            opt.new_x = True
+            opt.recompute_bell()
         self._set_new_x()
 
     @property
@@ -829,13 +837,18 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @local_x.setter
     def local_x(self, x: RealArray) -> None:
+        """
+        Setter for local dofs.
+        """
+        self._set_local_x(x)
+        self._set_new_x()
+        
+    def _set_local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.loc[self._dofs.free, '_x'] = x
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
-            self.recompute_bell()
-        self.new_x = True
 
     @property
     def local_full_x(self):
@@ -846,8 +859,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def _set_new_x(self, parent=None):
         self.new_x = True
-        if self.local_dof_setter is not None:
-            self.recompute_bell(parent=parent)
+        #if self.local_dof_setter is not None:
+        self.recompute_bell(parent=parent)
 
         for child in self._children:
             child._set_new_x(parent=self)
@@ -861,7 +874,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Need to be implemented by classes that provide a dof_setter for
         external handling of DOFs.
         """
-        raise NotImplementedError
+        pass
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -960,9 +973,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self._dofs.loc[key, '_x'] = new_val
         else:
             self._dofs.iloc[key, 0] = new_val
-        if self.local_dof_setter:
-            self.local_dof_setter(self, list(self.local_full_x))
-            self.recompute_bell()
+        self._set_new_x()
 
     @property
     def dofs_free_status(self) -> BoolArray:
