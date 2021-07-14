@@ -2,7 +2,7 @@ from jax.ops import index, index_add
 import jax.numpy as jnp
 from math import pi
 import numpy as np
-from .graph_curve import JaxCurve
+from .curve import JaxCurve
 
 
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):

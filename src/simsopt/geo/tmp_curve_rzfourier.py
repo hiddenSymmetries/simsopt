@@ -1,7 +1,7 @@
 import numpy as np
 
 import simsoptpp as sopp
-from .graph_curve import Curve
+from .curve import Curve
 
 
 class CurveRZFourier(sopp.CurveRZFourier, Curve):

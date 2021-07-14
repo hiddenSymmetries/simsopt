@@ -1,10 +1,10 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.graph_curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.graph_curve_rzfourier import CurveRZFourier
-from simsopt.geo.graph_curve_helical import CurveHelical
-from simsopt.geo.graph_curve import RotatedCurve, curves_to_vtk
+from simsopt.geo.curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curve_rzfourier import CurveRZFourier
+from simsopt.geo.curve_helical import CurveHelical
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 
 try:
@@ -60,7 +60,6 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     else:
         assert False
-    # dofs = np.zeros((curve.num_dofs(), ))
     dofs = np.zeros((curve.dof_size, ))
     if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
         dofs[1] = 1.
@@ -74,11 +73,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[0] = np.pi/2
     else:
         assert False
-    curve.x = dofs
 
-    # dofs = np.asarray(curve.get_dofs())
-    # curve.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
-    dofs = curve.x
     curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
     if rotated:
         curve = RotatedCurve(curve, 0.5, flip=False)

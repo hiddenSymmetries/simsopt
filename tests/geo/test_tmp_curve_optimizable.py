@@ -1,12 +1,11 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.graph_curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.graph_curve_rzfourier import CurveRZFourier
-from simsopt.geo.graph_curve import RotatedCurve
+from simsopt.geo.curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curve_rzfourier import CurveRZFourier
+from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
-from simsopt.geo.graph_curve_objectives import CurveLength
-# from simsopt._core.optimizable import make_optimizable
+from simsopt.geo.curve_objectives import CurveLength
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve
 
@@ -29,8 +28,6 @@ class Testing(unittest.TestCase):
 
         # Tell the curve object that the first Fourier mode is fixed, whereas
         # all the other dofs are not.
-        # curve.all_fixed(False)
-        # curve.fixed[0] = True
         curve.fix(0)
 
         if rotated:
@@ -42,7 +39,6 @@ class Testing(unittest.TestCase):
 
         # For now, we need to add this attribute to CurveLength. Eventually
         # this would hopefully be done in simsgeo, but for now I'll put it here.
-        # obj.depends_on = ['curve']
 
         print('Initial curve length: ', obj.J())
 

@@ -4,7 +4,7 @@ import numpy as np
 from jax.ops import index, index_add
 import jax.numpy as jnp
 
-from .graph_curve import Curve, JaxCurve
+from .curve import Curve, JaxCurve
 import simsoptpp as sopp
 
 
