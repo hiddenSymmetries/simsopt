@@ -275,7 +275,7 @@ class QfmSurfaceTests(unittest.TestCase):
         constraint_weight = 1e0
 
         s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
-            mpol=3)
+                        mpol=3)
         s.fit_to_curve(ma, 0.2)
 
         vol = Volume(s)
