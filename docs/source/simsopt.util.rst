@@ -4,6 +4,14 @@ simsopt.util package
 Submodules
 ----------
 
+simsopt.util.dev module
+-----------------------
+
+.. automodule:: simsopt.util.dev
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.util.logging module
 ---------------------------
 
@@ -11,7 +19,6 @@ simsopt.util.logging module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.util.mpi module
 -----------------------
@@ -20,7 +27,14 @@ simsopt.util.mpi module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
+
+simsopt.util.mpi\_logger module
+-------------------------------
+
+.. automodule:: simsopt.util.mpi_logger
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 simsopt.util.types module
 -------------------------
@@ -29,7 +43,6 @@ simsopt.util.types module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 Module contents
 ---------------
@@ -38,4 +51,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
