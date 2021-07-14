@@ -270,11 +270,12 @@ class QfmSurfaceTests(unittest.TestCase):
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
         nfp = 3
-        phis = np.linspace(0, 1/nfp, 25, endpoint=False)
-        thetas = np.linspace(0, 1, 25, endpoint=False)
+        phis = np.linspace(0, 1/nfp, 30, endpoint=False)
+        thetas = np.linspace(0, 1, 30, endpoint=False)
         constraint_weight = 1e0
 
-        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+            mpol=3)
         s.fit_to_curve(ma, 0.2)
 
         vol = Volume(s)
@@ -283,7 +284,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=1000, constraint_weight=constraint_weight)
+            tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-2
