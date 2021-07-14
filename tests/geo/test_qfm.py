@@ -353,7 +353,8 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         For each configuration, test to verify that minimize_qfm() yields same
         result as minimize_qfm_exact_constraints_SLSQP or
-        minimize_qfm_penalty_constraints_LBFGS separately.
+        minimize_qfm_penalty_constraints_LBFGS separately. Test that InputError
+        is raised if 'LBFGS' or 'SLSQP' is passed.
         """
         coils, currents, ma = get_ncsx_data()
 
@@ -441,6 +442,11 @@ class QfmSurfaceTests(unittest.TestCase):
         np.allclose(grad1, grad2)
         np.allclose(fun1, fun2)
         np.allclose(vol1, vol2)
+
+        # Test that InputError raised
+        with self.assertRaises(ValueError):
+            res = qfm_surface.minimize_qfm(method='SLSQPP',
+                                           tol=1e-11, maxiter=1000)
 
 
 if __name__ == "__main__":
