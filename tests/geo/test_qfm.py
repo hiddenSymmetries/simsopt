@@ -328,7 +328,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Check that volume after second opt does not change
 
-        assert np.abs(vol_opt2 - vol_opt1) < 1e-4
+        assert np.abs(vol_opt2 - vol_opt1) < 1e-3
 
 
 if __name__ == "__main__":
