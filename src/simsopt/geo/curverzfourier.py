@@ -45,5 +45,5 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
-        self.x = dofs
+        self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
