@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from simsopt.geo.curve_rzfourier import CurveRZFourier
-from simsopt.geo.curve_objectives import CurveLength
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curveobjectives import CurveLength
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve
 

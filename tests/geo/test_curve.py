@@ -1,9 +1,9 @@
 import numpy as np
 import unittest
 
-from simsopt.geo.curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curve_rzfourier import CurveRZFourier
-from simsopt.geo.curve_helical import CurveHelical
+from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 

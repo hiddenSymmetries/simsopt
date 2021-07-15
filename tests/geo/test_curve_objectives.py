@@ -4,9 +4,9 @@ import numpy as np
 
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.curve_xyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curve_rzfourier import CurveRZFourier
-from simsopt.geo.curve_objectives import CurveLength, LpCurveCurvature, \
+from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False

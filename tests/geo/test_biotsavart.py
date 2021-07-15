@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from simsopt.geo.curve_xyzfourier import CurveXYZFourier
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.biotsavart import BiotSavart
 
 
