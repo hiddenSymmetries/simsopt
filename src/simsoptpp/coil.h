@@ -9,7 +9,7 @@ template<class Array>
 class Coil {
     public:
         const shared_ptr<Curve<Array>> curve;
-        const shared_ptr<Current<Array>> current;
-        Coil(shared_ptr<Curve<Array>> curve, shared_ptr<Current<Array>> current) :
+        const shared_ptr<CurrentBase<Array>> current;
+        Coil(shared_ptr<Curve<Array>> curve, shared_ptr<CurrentBase<Array>> current) :
             curve(curve), current(current) { }
 };

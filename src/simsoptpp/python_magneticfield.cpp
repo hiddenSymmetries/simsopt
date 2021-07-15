@@ -73,16 +73,20 @@ void init_magneticfields(py::module_ &m){
         .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
 
-    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
+    py::class_<CurrentBase<PyArray>, shared_ptr<CurrentBase<PyArray>>>(m, "CurrentCase");
+    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>, CurrentBase<PyArray>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
         .def(py::init<double>())
         .def("set_dofs", &Current<PyArray>::set_dofs, "Set the current.")
         .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
-        .def("set_value", &Current<PyArray>::set_value, "Set the current.")
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
+
+    py::class_<FlippedCurrent<PyArray>, shared_ptr<FlippedCurrent<PyArray>>, CurrentBase<PyArray>>(m, "FlippedCurrent", "Flips the sign of a current object.")
+        .def(py::init<shared_ptr<Current<PyArray>>>())
+        .def("get_value", &FlippedCurrent<PyArray>::get_value, "Get the current.");
         
 
     py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
-        .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<Current<PyArray>>>())
+        .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<CurrentBase<PyArray>>>())
         .def_readonly("curve", &Coil<PyArray>::curve, "Get the underlying curve.")
         .def_readonly("current", &Coil<PyArray>::current, "Get the underlying current.");
 

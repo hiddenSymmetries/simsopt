@@ -1,5 +1,7 @@
 from math import pi
 from simsopt.geo.curve import RotatedCurve
+from .biotsavart import Coil, FlippedCurrent
+
 
 
 class CoilCollection():
@@ -33,3 +35,19 @@ class CoilCollection():
         for i in range(1, len(self._base_coils)):
             dof_ranges.append((dof_ranges[-1][1], dof_ranges[-1][1] + len(self._base_coils[i].get_dofs())))
         self.dof_ranges = dof_ranges
+
+
+def coils_via_symmetries(curves, currents, nfp, stellsym):
+    assert len(curves) == len(currents)
+    flip_list = [False, True] if stellsym else [False]
+    coils = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(curves)):
+                if k == 0 and not flip:
+                    coils.append(Coil(curves[i], currents[i]))
+                else:
+                    rotcurve = RotatedCurve(curves[i], 2*pi*k/nfp, flip)
+                    current = FlippedCurrent(currents[i]) if flip else currents[i]
+                    coils.append(Coil(rotcurve, current))
+    return coils
