@@ -19,6 +19,7 @@ except ImportError:
 
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
+from simsopt._core.derivative import Derivative
 
 
 @jit
@@ -362,6 +363,14 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
+    def dgamma_by_dcoeff_vjp_graph(self, v):
+        return Derivative({self: self.dgamma_by_dcoeff_vjp(v)})
+
+    def dgammadash_by_dcoeff_vjp_graph(self, v):
+        return Derivative({self: self.dgammadash_by_dcoeff_vjp(v)})
+
+
+
 
 class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure, **kwargs):
@@ -572,8 +581,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def __init__(self, curve, theta, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, opts_in=[curve],
-                       external_dof_setter=sopp.Curve.set_dofs)
+        Curve.__init__(self, opts_in=[curve])
         self.rotmat = np.asarray(
             [[cos(theta), -sin(theta), 0],
              [sin(theta), cos(theta), 0],
@@ -752,6 +760,12 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+    def dgamma_by_dcoeff_vjp_graph(self, v):
+        return self.curve.dgamma_by_dcoeff_vjp_graph(v @ self.rotmat.T)
+
+    def dgammadash_by_dcoeff_vjp_graph(self, v):
+        return self.curve.dgammadash_by_dcoeff_vjp_graph(v @ self.rotmat.T)
 
 
 def curves_to_vtk(curves, filename):

@@ -40,6 +40,15 @@ class CurveLength(Optimizable):
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
+
+    def dJ_graph(self):
+        # TODO: should probably return Derivative({self: self.dJ()})
+        # return self.curve.dincremental_arclength_by_dcoeff_vjp_graph(
+        #     self.thisgrad(self.curve.incremental_arclength()))
+        # needs Curve.dincremental_arclength_by_dcoeff_vjp_graph to be added
+
+        return Derivative({self.curve: self.dJ()})
+
     return_fn_map = {'J': J, 'dJ': dJ}
 
 

@@ -2,9 +2,50 @@ import numpy as np
 import simsoptpp as sopp
 from simsopt.geo.magneticfield import MagneticField
 from simsopt.geo.curve import Curve
+from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.derivative import Derivative
 
 
-class BiotSavart(sopp.BiotSavart, MagneticField):
+class Coil(sopp.Coil, Optimizable):
+
+    def __init__(self, curve, current):
+        self.__curve = curve
+        self.__current = current
+        sopp.Coil.__init__(self, curve, current)
+        Optimizable.__init__(self, x0=np.asarray([]), opts_in=[curve, current])
+
+    def vjp_graph(self, v_gamma, v_gammadash, v_current):
+        return self.curve.dgamma_by_dcoeff_vjp_graph(v_gamma) \
+            + self.curve.dgammadash_by_dcoeff_vjp_graph(v_gammadash) \
+            + self.current.vjp_graph(v_current)
+
+
+class Current(sopp.Current, Optimizable):
+
+    def __init__(self, current):
+        sopp.Current.__init__(self, current)
+        Optimizable.__init__(self, external_dof_setter=Current.set_dofs,
+                       x0=self.get_dofs())
+
+    def set_dofs(self, dofs):
+        sopp.Current.set_dofs(self, dofs)
+
+    def vjp_graph(self, v_current):
+        return Derivative({self: v_current})
+
+
+class FlippedCurrent(sopp.FlippedCurrent, Optimizable):
+
+    def __init__(self, basecurrent):
+        self.__basecurrent = basecurrent
+        sopp.FlippedCurrent.__init__(self, basecurrent)
+        Optimizable.__init__(self, x0=np.asarray([]), opts_in=[basecurrent])
+
+    def vjp_graph(self, v_current):
+        return self.__basecurrent.vjp_graph(-v_current)
+
+
+class BiotSavart(sopp.BiotSavart, MagneticField, Optimizable):
     r"""
     Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
     The field is given by
@@ -17,16 +58,23 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
     """
 
-    def __init__(self, coils, coil_currents):
-        assert len(coils) == len(coil_currents)
-        assert all(isinstance(item, Curve) for item in coils)
-        assert all(isinstance(item, float) for item in coil_currents)
-        self.currents_optim = [sopp.Current(c) for c in coil_currents]
-        self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
-        self.coils = coils
-        self.coil_currents = coil_currents
+    # def __init__(self, coils, coil_currents):
+    #     assert len(coils) == len(coil_currents)
+    #     assert all(isinstance(item, Curve) for item in coils)
+    #     assert all(isinstance(item, float) for item in coil_currents)
+    #     self.currents_optim = [sopp.Current(c) for c in coil_currents]
+    #     self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
+    #     self.coils = coils
+    #     self.coil_currents = coil_currents
+    #     MagneticField.__init__(self)
+    #     sopp.BiotSavart.__init__(self, self.coils_optim)
+
+    def __init__(self, coils):
+        self.__coils = coils
+        sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self)
-        sopp.BiotSavart.__init__(self, self.coils_optim)
+        Optimizable.__init__(self, x0=np.asarray([]), opts_in=coils)
+
 
     def compute_A(self, compute_derivatives=0):
         r"""
@@ -42,7 +90,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.coils)
+        coil = self.__coils
+        ncoils = len(coils)
 
         self._dA_by_dcoilcurrents = [self.fieldcache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
         if compute_derivatives >= 1:
@@ -50,10 +99,10 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         if compute_derivatives >= 2:
             self._d3A_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
 
-        gammas = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
+        gammas = [coil.gamma() for coil in coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in coils]
         for l in range(ncoils):
-            coil = self.coils[l]
+            coil = coils[l]
             current = self.coil_currents[l]
             gamma = gammas[l]
             dgamma_by_dphi = dgamma_by_dphis[l] 
@@ -105,7 +154,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.coils)
+        ncoils = len(self.__coils)
         if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
@@ -115,7 +164,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.coils)
+        ncoils = len(self.__coils)
         if any([not self.fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
@@ -125,7 +174,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.coils)
+        ncoils = len(self.__coils)
         if any([not self.fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
@@ -145,13 +194,14 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         """
 
-        gammas = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
+        coils = self.__coils
+        gammas = [coil.gamma() for coil in coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in coils]
         currents = self.coil_currents
-        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in self.coils]
-        d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in self.coils]
-        n = len(self.coils)
-        coils = self.coils
+        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in coils]
+        d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in coils]
+        n = len(coils)
+        coils = coils
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         sopp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, [], dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, [])
         return res_B
@@ -165,14 +215,29 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{grad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \mathbf{B}_i \}_k.
         """
 
-        gammas = [coil.gamma() for coil in self.coils]
-        dgamma_by_dphis = [coil.gammadash() for coil in self.coils]
+        coils = self.__coils
+        gammas = [coil.gamma() for coil in coils]
+        dgamma_by_dphis = [coil.gammadash() for coil in coils]
         currents = self.coil_currents
-        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in self.coils]
-        d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in self.coils]
-        n = len(self.coils)
-        coils = self.coils
+        dgamma_by_dcoeffs = [coil.dgamma_by_dcoeff() for coil in coils]
+        d2gamma_by_dphidcoeffs = [coil.dgammadash_by_dcoeff() for coil in coils]
+        n = len(coils)
         res_B = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         res_dB = [np.zeros((coils[i].num_dofs(), )) for i in range(n)]
         sopp.biot_savart_vjp(self.get_points_cart_ref(), gammas, dgamma_by_dphis, currents, v, vgrad, dgamma_by_dcoeffs, d2gamma_by_dphidcoeffs, res_B, res_dB)
         return (res_B, res_dB)
+
+    def B_vjp_graph(self, v):
+        coils = self.__coils
+        gammas = [coil.curve.gamma() for coil in coils]
+        gammadashs = [coil.curve.gammadash() for coil in coils]
+        currents = [coil.current.get_value() for coil in coils]
+        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+
+        points = self.get_points_cart_ref()
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, [], [], [])
+        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        return sum([coils[i].vjp_graph(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))], start=Derivative({}))
