@@ -33,7 +33,7 @@ requirements:
 
   run:
     - python
-    - numpy {{ pin_compatible('numpy') }}
+    - numpy {{ numpy }}
     - boost {{ boost }}
     - jax >=0.2.4
     - jaxlib >=0.1.56
