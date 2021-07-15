@@ -98,6 +98,9 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+get_target_property(simsopt_inc_dirs ${PROJECT_NAME} INCLUDE_DIRECTORIES)
+message(STATUS "simsopt_inc_dirs: ${simsopt_inc_dirs}")
+
 #get_cmake_property(_variableNames VARIABLES)
 #list (SORT _variableNames)
 #foreach (_variableName ${_variableNames})
