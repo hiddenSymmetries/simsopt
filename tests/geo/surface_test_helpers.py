@@ -2,8 +2,8 @@ import numpy as np
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.geo.curve_rzfourier import CurveRZFourier
+from simsopt.geo.curve_xyzfourier import CurveXYZFourier
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
