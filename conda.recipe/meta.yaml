@@ -28,13 +28,13 @@ requirements:
     - pip
     - wheel
     - setuptools
-    - numpy {{ numpy }}
-    - boost {{ boost }}
+    - numpy {{ numpy }}.*
+    - boost {{ boost }}.*
 
   run:
     - python
-    - numpy {{ numpy }}
-    - boost {{ boost }}
+    - numpy {{ numpy }}.*
+    - boost {{ boost }}.*
     - jax >=0.2.4
     - jaxlib >=0.1.56
     - scipy >=1.5.4
