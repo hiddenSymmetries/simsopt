@@ -32,7 +32,7 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
-        Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs,
+        Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
                        x0=self.get_dofs())
 
     def get_dofs(self):
@@ -45,4 +45,5 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
+        self.x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)

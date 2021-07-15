@@ -369,7 +369,7 @@ class JaxCurve(sopp.Curve, Curve):
             quadpoints = list(quadpoints)
         sopp.Curve.__init__(self, quadpoints)
         if "external_dof_setter" not in kwargs:
-            kwargs["external_dof_setter"] = sopp.Curve.set_dofs
+            kwargs["external_dof_setter"] = sopp.Curve.set_dofs_impl
         # We are not doing the same search for x0
         Curve.__init__(self, **kwargs)
         self.gamma_pure = gamma_pure
@@ -399,6 +399,10 @@ class JaxCurve(sopp.Curve, Curve):
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
 
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
+
+    def set_dofs(self, dofs):
+        self.x = dofs
+        sopp.Curve.set_dofs(self, dofs)
 
     def gamma_impl(self, gamma, quadpoints):
         r"""

@@ -32,7 +32,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self, x0=self.get_dofs(),
-                       external_dof_setter=CurveXYZFourier.set_dofs)
+                       external_dof_setter=CurveXYZFourier.set_dofs_impl)
 
     def get_dofs(self):
         """
@@ -44,6 +44,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
+        self.x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
     @staticmethod
