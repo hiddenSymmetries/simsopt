@@ -1,4 +1,4 @@
-from simsopt.geo.curve_xyzfourier import CurveXYZFourier
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import Curve
 from simsopt.geo.biotsavart import Current, Coil
 from simsopt._core.graph_optimizable import Optimizable
