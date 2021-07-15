@@ -410,7 +410,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def set_dofs(self, dofs):
-        self.x = dofs
+        self.local_x = dofs
         sopp.Curve.set_dofs(self, dofs)
 
     def gamma_impl(self, gamma, quadpoints):
