@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from .jit import jit
 
 from .._core.graph_optimizable import Optimizable
+from .._core.derivative import Derivative
 
 
 @jit
