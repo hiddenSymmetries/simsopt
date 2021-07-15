@@ -11,7 +11,7 @@ build:
   include_recipe: False
   # skip: "true # [win, py<37]"
   number: 0
-  script: python -m pip install . -vvv
+  script: python setup.py install
 
 requirements:
   build:
