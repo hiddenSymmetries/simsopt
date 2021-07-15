@@ -44,7 +44,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
-        self.x = dofs
+        self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
     @staticmethod
