@@ -149,12 +149,6 @@ class Testing(unittest.TestCase):
             assert err < 0.55 * err_old
             err_old = err
 
-    def test_coil_dof_numbering(self):
-        for curvetype in self.curvetypes:
-            for rotated in [True, False]:
-                with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_coil_dof_numbering(curvetype, rotated)
-
     def subtest_coil_coefficient_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
         coeffs = cfc.x
