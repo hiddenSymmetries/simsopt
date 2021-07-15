@@ -102,7 +102,7 @@ class Curve {
             }
         }
 
-        void set_dofs(const vector<double>& _dofs) {
+        virtual void set_dofs(const vector<double>& _dofs) {
             this->set_dofs_impl(_dofs);
             this->invalidate_cache();
         }
