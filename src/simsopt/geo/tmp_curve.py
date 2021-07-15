@@ -1,12 +1,24 @@
 from math import sin, cos
+from abc import abstractmethod
 
 import numpy as np
 from jax import vjp, jacfwd, jvp
 from .jit import jit
 import jax.numpy as jnp
+from monty.dev import requires
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+try:
+    from myavi import mlab
+except ImportError:
+    mlab = None
 
 import simsoptpp as sopp
-from .._core.optimizable import Optimizable
+from .._core.graph_optimizable import Optimizable
 
 
 @jit
@@ -51,24 +63,31 @@ torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_p
 
 
 class Curve(Optimizable):
-
     """
-    Curve  is a base class for various representations of curves in SIMSOPT.
+    Curve  is a base class for various representations of curves in SIMSOPT
+    using the graph based Optimizable framework with external handling of DOFS
+    as well.
     """
 
-    def __init__(self):
-        Optimizable.__init__(self)
-        self.dependencies = []
-        self.fixed = np.full(len(self.get_dofs()), False)
+    def __init__(self, **kwargs):
+        Optimizable.__init__(self, **kwargs)
 
-    def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True, color=None, linestyle=None):
+    def recompute_bell(self, parent=None):
+        """
+        For derivative classes of Curve, all of which also subclass
+        from C++ Curve class, call invalidate_cache which is implemented
+        in C++ side.
+        """
+        self.invalidate_cache()
+
+    @requires(plt is not None, "Install matplotlib to plot Curve object")
+    def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True,
+             color=None, linestyle=None):
         """
         Plot the curve using :mod:`matplotlib.pyplot`, along with optionally its tangent when ``plot_derivative=True``. 
         When ``close_loop=False`` the first and final point on the surface will not be connected, and
         when it is ``True``, they will be connected by a line segment and a closed curve will be plotted.
         """
-
-        import matplotlib.pyplot as plt
 
         gamma = self.gamma()
         gammadash = self.gammadash()
@@ -90,12 +109,12 @@ class Curve(Optimizable):
             plt.show()
         return ax
 
+    @requires(mlab is not None, "plot_mayavi requires mayavi")
     def plot_mayavi(self, show=True):
         """
         Plot the curve using :mod:`mayavi.mlab` rather than :mod:`matplotlib.pyplot`.
         """
 
-        from mayavi import mlab
         g = self.gamma()
         mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
         if show:
@@ -112,13 +131,15 @@ class Curve(Optimizable):
         to the curve and :math:`\mathbf{c}` are the curve dofs.
         """
 
-        return self.dgammadash_by_dcoeff_vjp(incremental_arclength_vjp(self.gammadash(), v))
+        return self.dgammadash_by_dcoeff_vjp(
+            incremental_arclength_vjp(self.gammadash(), v))
 
     def kappa_impl(self, kappa):
         r"""
         This function implements the curvature, :math:`\kappa(\varphi)`.
         """
-        kappa[:] = np.asarray(kappa_pure(self.gammadash(), self.gammadashdash()))
+        kappa[:] = np.asarray(kappa_pure(
+            self.gammadash(), self.gammadashdash()))
 
     def dkappa_by_dcoeff_impl(self, dkappa_by_dcoeff):
         r"""
@@ -149,7 +170,8 @@ class Curve(Optimizable):
         r"""
         This function returns the torsion, :math:`\tau`, of a curve.
         """
-        torsion[:] = torsion_pure(self.gammadash(), self.gammadashdash(), self.gammadashdashdash())
+        torsion[:] = torsion_pure(self.gammadash(), self.gammadashdash(),
+                                  self.gammadashdashdash())
 
     def dtorsion_by_dcoeff_impl(self, dtorsion_by_dcoeff):
         r"""
@@ -342,11 +364,14 @@ class Curve(Optimizable):
 
 
 class JaxCurve(sopp.Curve, Curve):
-    def __init__(self, quadpoints, gamma_pure):
+    def __init__(self, quadpoints, gamma_pure, **kwargs):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.Curve.__init__(self, quadpoints)
-        Curve.__init__(self)
+        if "external_dof_setter" not in kwargs:
+            kwargs["external_dof_setter"] = sopp.Curve.set_dofs
+        # We are not doing the same search for x0
+        Curve.__init__(self, **kwargs)
         self.gamma_pure = gamma_pure
         points = np.asarray(self.quadpoints)
         ones = jnp.ones_like(points)
@@ -539,43 +564,45 @@ class JaxCurve(sopp.Curve, Curve):
 
 class RotatedCurve(sopp.Curve, Curve):
     """
-    RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
-    optionally completes a reflection when ``flip=True``.
+    RotatedCurve inherits from the Curve base class.  It takes an input
+    a Curve, rotates it by ``theta``, and optionally completes a
+    reflection when ``flip=True``.
     """
 
     def __init__(self, curve, theta, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self)
-        self.rotmat = np.asarray([
-            [cos(theta), -sin(theta), 0],
-            [sin(theta), cos(theta), 0],
-            [0, 0, 1]
-        ]).T
+        Curve.__init__(self, opts_in=[curve],
+                       external_dof_setter=sopp.Curve.set_dofs)
+        self.rotmat = np.asarray(
+            [[cos(theta), -sin(theta), 0],
+             [sin(theta), cos(theta), 0],
+             [0, 0, 1]]).T
         if flip:
-            self.rotmat = self.rotmat @ np.asarray([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+            self.rotmat = self.rotmat @ np.asarray(
+                [[1, 0, 0],
+                 [0, -1, 0],
+                 [0, 0, -1]])
         self.rotmatT = self.rotmat.T
-        curve.dependencies.append(self)
 
     def get_dofs(self):
         """
-        This function returns the curve dofs.
+        RotatedCurve does not have any dofs of its own.
+        This function returns null array
         """
-
-        return self.curve.get_dofs()
+        return np.array([])
 
     def set_dofs_impl(self, d):
         """
-        This function sets the curve dofs.
+        RotatedCurve does not have any dofs of its own.
+        This function does nothing.
         """
-
-        return self.curve.set_dofs(d)
+        pass
 
     def num_dofs(self):
         """
         This function returns the number of dofs associated to the curve.
         """
-
         return self.curve.num_dofs()
 
     def gamma_impl(self, gamma, quadpoints):
