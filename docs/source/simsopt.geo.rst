@@ -4,6 +4,15 @@ simsopt.geo package
 Submodules
 ----------
 
+simsopt.geo.biotsavart module
+-----------------------------
+
+.. automodule:: simsopt.geo.biotsavart
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.geo.boozersurface module
 --------------------------------
 
@@ -94,6 +103,33 @@ simsopt.geo.jit module
    :show-inheritance:
    :private-members:
 
+simsopt.geo.magneticfield module
+--------------------------------
+
+.. automodule:: simsopt.geo.magneticfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.geo.magneticfieldclasses module
+---------------------------------------
+
+.. automodule:: simsopt.geo.magneticfieldclasses
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.geo.qfmsurface module
+-----------------------------
+
+.. automodule:: simsopt.geo.qfmsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.geo.surface module
 --------------------------
 
@@ -113,7 +149,7 @@ simsopt.geo.surfacegarabedian module
    :private-members:
 
 simsopt.geo.surfacehenneberg module
-------------------------------------
+-----------------------------------
 
 .. automodule:: simsopt.geo.surfacehenneberg
    :members:
@@ -165,4 +201,3 @@ Module contents
    :undoc-members:
    :show-inheritance:
    :private-members:
-

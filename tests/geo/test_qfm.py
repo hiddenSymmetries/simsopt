@@ -271,11 +271,12 @@ class QfmSurfaceTests(unittest.TestCase):
         bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
         nfp = 3
-        phis = np.linspace(0, 1/nfp, 25, endpoint=False)
-        thetas = np.linspace(0, 1, 25, endpoint=False)
+        phis = np.linspace(0, 1/nfp, 30, endpoint=False)
+        thetas = np.linspace(0, 1, 30, endpoint=False)
         constraint_weight = 1e0
 
-        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+                        mpol=3)
         s.fit_to_curve(ma, 0.2)
 
         vol = Volume(s)
@@ -284,7 +285,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=1000, constraint_weight=constraint_weight)
+            tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-2
@@ -329,7 +330,124 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Check that volume after second opt does not change
 
-        assert np.abs(vol_opt2 - vol_opt1) < 1e-4
+        assert np.abs(vol_opt2 - vol_opt1) < 1e-3
+
+    def test_minimize_qfm(self):
+        """
+        Test to verify that minimize_qfm() yields same result as
+        minimize_qfm_exact_constraints_SLSQP or
+        minimize_qfm_penalty_constraints_LBFGS separately.
+        """
+
+        configs = [
+            ("SurfaceXYZTensorFourier", False),
+            ("SurfaceXYZTensorFourier", True),
+            ("SurfaceXYZFourier", True),
+            ("SurfaceXYZFourier", False)
+        ]
+        for surfacetype, stellsym in configs:
+            with self.subTest(
+                    surfacetype=surfacetype, stellsym=stellsym):
+                self.subtest_minimize_qfm(surfacetype, stellsym)
+
+    def subtest_minimize_qfm(self, surfacetype, stellsym):
+        """
+        For each configuration, test to verify that minimize_qfm() yields same
+        result as minimize_qfm_exact_constraints_SLSQP or
+        minimize_qfm_penalty_constraints_LBFGS separately. Test that InputError
+        is raised if 'LBFGS' or 'SLSQP' is passed.
+        """
+        coils, currents, ma = get_ncsx_data()
+
+        if stellsym:
+            stellarator = CoilCollection(coils, currents, 3, True)
+        else:
+            # Create a stellarator that still has rotational symmetry but
+            # doesn't have stellarator symmetry. We do this by first applying
+            # stellarator symmetry, then breaking this slightly, and then
+            # applying rotational symmetry
+            from simsopt.geo.curve import RotatedCurve
+            coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
+            currents_flipped = [-cur for cur in currents]
+            for c in coils_flipped:
+                c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
+                                                    size=c.rotmat.shape)
+                c.rotmatT = c.rotmat.T
+            stellarator = CoilCollection(coils + coils_flipped,
+                                         currents + currents_flipped, 3, False)
+
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+
+        nfp = 3
+        phis = np.linspace(0, 1/nfp, 30, endpoint=False)
+        thetas = np.linspace(0, 1, 30, endpoint=False)
+        constraint_weight = 1e0
+
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+                        mpol=3)
+        s.fit_to_curve(ma, 0.2)
+
+        vol = Volume(s)
+        vol_target = vol.J()
+        qfm_surface = QfmSurface(bs, s, vol, vol_target)
+
+        # Compute surface first using LBFGS and a volume constraint
+        res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
+            tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
+
+        grad1 = np.linalg.norm(res['gradient'])
+        fun1 = res['fun']
+        vol1 = vol.J()
+
+        # Perform same calculation by calling qfm_minimize
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+                        mpol=3)
+        s.fit_to_curve(ma, 0.2)
+
+        res = qfm_surface.minimize_qfm(method='LBFGS',
+                                       tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
+
+        grad2 = np.linalg.norm(res['gradient'])
+        fun2 = res['fun']
+        vol2 = vol.J()
+
+        # Test for preservation of results
+        np.allclose(grad1, grad2)
+        np.allclose(fun1, fun2)
+        np.allclose(vol1, vol2)
+
+        # Perform calculation with SLSQP
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+                        mpol=3)
+        s.fit_to_curve(ma, 0.2)
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+                                                               maxiter=1000)
+
+        grad1 = np.linalg.norm(res['gradient'])
+        fun1 = res['fun']
+        vol1 = vol.J()
+
+        # Perform same calculation by calling qfm_minimize
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
+                        mpol=3)
+        s.fit_to_curve(ma, 0.2)
+        res = qfm_surface.minimize_qfm(method='SLSQP',
+                                       tol=1e-11, maxiter=1000)
+
+        grad2 = np.linalg.norm(res['gradient'])
+        fun2 = res['fun']
+        vol2 = vol.J()
+
+        # Test for preservation of results
+        np.allclose(grad1, grad2)
+        np.allclose(fun1, fun2)
+        np.allclose(vol1, vol2)
+
+        # Test that InputError raised
+        with self.assertRaises(ValueError):
+            res = qfm_surface.minimize_qfm(method='SLSQPP',
+                                           tol=1e-11, maxiter=1000)
 
 
 if __name__ == "__main__":
