@@ -276,27 +276,20 @@ class ParticleTracingTesting(unittest.TestCase):
 
     @unittest.skipIf(not with_boost, "boost not found")
     def test_angularmomentum_conservation(self):
-        # Test conservation of canonical angular momentum
-        # in an axisymmetric geometry
+        # Test conservation of canonical angular momentum pphi
+        # in an axisymmetric geometry where
+        # pphi=q*poloidal_magnetic_flux+m*v_parallel*G/B
         R0test = 1.0
         B0test = 2.0
         qtest = 3.1
-        bs = ToroidalField(R0test, B0test)+PoloidalField(R0test, B0test, qtest)
-        n = 10
-        rrange = (1.05, 1.3, n)
-        phirange = (0, 2*np.pi, n*6)
-        zrange = (-0.3, 0.3, n)
-        bsh = InterpolatedField(
-            bs, UniformInterpolationRule(5),
-            rrange, phirange, zrange, True
-        )
+        bsh = ToroidalField(R0test, B0test)+PoloidalField(R0test, B0test, qtest)
         ma = CurveXYZFourier(300, 1)
-        ma.set_dofs([0, 0, R0test, 0, R0test, 0., 0, 0., 0.])
+        ma.set_dofs([0, 0, R0test+0.01, 0, R0test+0.01, 0., 0, 0., 0.])
 
-        nparticles = 1
+        nparticles = 4
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
-        tmax = 1e-7
+        tmax = 1e-4
         Ekin = 100*ONE_EV
         np.random.seed(1)
 
@@ -307,9 +300,11 @@ class ParticleTracingTesting(unittest.TestCase):
         if with_evtk:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
 
-        # pick 10 random points on each trace
+        # pick 100 random points on each trace
 
-        N = 10
+        N = 100
+        max_pphi1_gc_error = np.array([])
+        max_pphi2_gc_error = np.array([])
         max_pphi_gc_error = np.array([])
         for i in range(nparticles):
             gc_ty = gc_tys[i]
@@ -323,16 +318,22 @@ class ParticleTracingTesting(unittest.TestCase):
             for j in range(N):
                 v_gc = gc_ty[idxs[j], 4]
                 r_squared = (np.sqrt(gc_xyzs[j][0]**2+gc_xyzs[j][1]**2)-R0test)**2+gc_xyzs[j][2]**2
-                psi_poloidal = np.pi*B0test*r_squared/qtest
-                p_phi1 = -q*psi_poloidal
+                psi_poloidal = B0test*r_squared/qtest/2
+                p_phi1 = q*psi_poloidal
                 p_phi2 = m*v_gc*B0test*R0test/AbsBs[j]
                 pphi1_gc = np.append(pphi1_gc, p_phi1)
                 pphi2_gc = np.append(pphi2_gc, p_phi2)
             pphi_gc = pphi1_gc+pphi2_gc
+            pphi1_error = np.log10(np.abs(pphi1_gc-pphi1_gc[0]+1e-30)/np.abs(pphi1_gc[0]))
+            pphi2_error = np.log10(np.abs(pphi2_gc-pphi2_gc[0]+1e-30)/np.abs(pphi2_gc[0]))
             pphi_error = np.log10(np.abs(pphi_gc-pphi_gc[0]+1e-30)/np.abs(pphi_gc[0]))
+            max_pphi1_gc_error = np.append(max_pphi1_gc_error, max(pphi1_error[3::]))
+            max_pphi2_gc_error = np.append(max_pphi2_gc_error, max(pphi2_error[3::]))
             max_pphi_gc_error = np.append(max_pphi_gc_error, max(pphi_error[3::]))
-            print("Max Canonical Angular Momentum Error = ", max_pphi_gc_error)
-            assert max(max_pphi_gc_error) < -4
+        print("Max log10 variation of pphi1_gc = ", max_pphi1_gc_error)
+        print("Max log10 variation of pphi2_gc = ", max_pphi2_gc_error)
+        print("Max log10 variation of pphi1_gc + pphi2_gc = ", max_pphi_gc_error)
+        assert max(max_pphi_gc_error) < -3
 
     @unittest.skipIf(not with_boost, "boost not found")
     def test_stopping_criteria(self):
