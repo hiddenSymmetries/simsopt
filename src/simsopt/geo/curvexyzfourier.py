@@ -23,7 +23,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
        The dofs are stored in the order
 
         .. math::
-           [x_{c,0}, x_{c,1}, \cdots, x_{c,\text{order}}, x_{s,1}, \cdots, x_{s,\text{order}}, y_{c,0}, \cdots]
+           [x_{c,0}, x_{s,1}, x_{c,1},\cdots x_{s,\text{order}}, x_{c,\text{order}},y_{c,0},y_{s,1},y_{c,1},\cdots]
+
     """
 
     def __init__(self, quadpoints, order):
