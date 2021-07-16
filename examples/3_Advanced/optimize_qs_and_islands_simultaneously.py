@@ -13,6 +13,11 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 In this example, we simultaneously optimize for quasisymmetry and
 the elimination of magnetic islands, with both VMEC and SPEC called in
 the objective function.
+
+Below, the argument max_nfev=1 in least_squares_mpi_solve causes the
+optimization to stop after only a single iteration, so this example
+does not take too long to run. For a real optimization, that argument
+should be removed.
 """
 
 log()
@@ -68,7 +73,8 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 if ci:
     obj = prob.objective()
 else:
-    least_squares_mpi_solve(prob, mpi=mpi, grad=True)
+    # Remove the max_nfev=1 in the next line to do a serious optimization:
+    least_squares_mpi_solve(prob, mpi=mpi, grad=True, max_nfev=1)
 
 if mpi.group == 0:
     r1 = residue1.J()
