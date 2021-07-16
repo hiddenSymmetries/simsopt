@@ -68,10 +68,10 @@ template <typename T, typename S> void register_common_curve_methods(S &c) {
      .def("dgammadashdash_by_dcoeff", &T::dgammadashdash_by_dcoeff)
      .def("dgammadashdashdash_by_dcoeff", &T::dgammadashdashdash_by_dcoeff)
 
-     .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
-     .def("dgammadash_by_dcoeff_vjp", &T::dgammadash_by_dcoeff_vjp)
-     .def("dgammadashdash_by_dcoeff_vjp", &T::dgammadashdash_by_dcoeff_vjp)
-     .def("dgammadashdashdash_by_dcoeff_vjp", &T::dgammadashdashdash_by_dcoeff_vjp)
+     .def("dgamma_by_dcoeff_vjp_impl", &T::dgamma_by_dcoeff_vjp_impl)
+     .def("dgammadash_by_dcoeff_vjp_impl", &T::dgammadash_by_dcoeff_vjp_impl)
+     .def("dgammadashdash_by_dcoeff_vjp_impl", &T::dgammadashdash_by_dcoeff_vjp_impl)
+     .def("dgammadashdashdash_by_dcoeff_vjp_impl", &T::dgammadashdashdash_by_dcoeff_vjp_impl)
 
      .def("incremental_arclength", &T::incremental_arclength)
      .def("dincremental_arclength_by_dcoeff", &T::dincremental_arclength_by_dcoeff)

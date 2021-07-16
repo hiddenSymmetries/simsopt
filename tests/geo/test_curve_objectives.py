@@ -53,7 +53,7 @@ class Testing(unittest.TestCase):
         J0 = J.J()
         curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
-        dJ = J.dJ()
+        dJ = J.dJ()(curve.curve if isinstance(curve, RotatedCurve) else curve)
         deriv = np.sum(dJ * h)
         err = 1e6
         for i in range(5, 15):
@@ -78,7 +78,7 @@ class Testing(unittest.TestCase):
         J0 = J.J()
         curve_dofs = curve.x
         h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
-        dJ = J.dJ()
+        dJ = J.dJ()(curve.curve if isinstance(curve, RotatedCurve) else curve)
         deriv = np.sum(dJ * h)
         assert np.abs(deriv) > 1e-10
         err = 1e6
@@ -104,7 +104,7 @@ class Testing(unittest.TestCase):
         J0 = J.J()
         curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
-        dJ = J.dJ()
+        dJ = J.dJ()(curve.curve if isinstance(curve, RotatedCurve) else curve)
         deriv = np.sum(dJ * h)
         assert np.abs(deriv) > 1e-10
         err = 1e6
@@ -134,7 +134,7 @@ class Testing(unittest.TestCase):
             curve_dofs = curves[k].x
             h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
             J0 = J.J()
-            dJ = J.dJ()[k]
+            dJ = J.dJ()(curves[k].curve if isinstance(curves[k], RotatedCurve) else curves[k])
             deriv = np.sum(dJ * h)
             assert np.abs(deriv) > 1e-10
             err = 1e6

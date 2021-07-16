@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.geo.coilcollection import coils_via_symmetries
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
@@ -22,10 +22,10 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
 
         s = get_exact_surface()
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, 3, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
         weight = 1.
         tf = ToroidalFlux(s, bs_tf)
@@ -69,11 +69,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym, optimize_G=False):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, 3, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -88,7 +88,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+            x = np.concatenate((x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
         f0, J0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
 
@@ -110,11 +110,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym, optimize_G=False):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, 3, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -127,7 +127,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+            x = np.concatenate((x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
         f0, J0, H0 = boozer_surface.boozer_penalty_constraints(x, derivatives=2, optimize_G=optimize_G)
 
         h1 = np.random.uniform(size=x.shape)-0.5
@@ -158,11 +158,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def subtest_boozer_constrained_jacobian(self, surfacetype, stellsym, optimize_G=False):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, 3, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -176,7 +176,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         lm = [0., 0.]
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+            x = np.concatenate((x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
         xl = np.concatenate((x, lm))
         res0, dres0 = boozer_surface.boozer_exact_constraints(xl, derivatives=1, optimize_G=optimize_G)
 
@@ -215,24 +215,25 @@ class BoozerSurfaceTests(unittest.TestCase):
                 self.subtest_boozer_surface_optimisation_convergence(surfacetype, stellsym, optimize_G, second_stage)
 
     def subtest_boozer_surface_optimisation_convergence(self, surfacetype, stellsym, optimize_G, second_stage):
-        coils, currents, ma = get_ncsx_data()
+        curves, currents, ma = get_ncsx_data()
 
         if stellsym:
-            stellarator = CoilCollection(coils, currents, 3, True)
+            coils = coils_via_symmetries(curves, currents, 3, True)
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
             currents_flipped = [-cur for cur in currents]
-            for c in coils_flipped:
+            for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1., size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
-            stellarator = CoilCollection(coils + coils_flipped, currents + currents_flipped, 3, False)
+            coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, 3, False)
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
 
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        bs = BiotSavart(coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -243,7 +244,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface = BoozerSurface(bs, s, ar, ar_target)
 
         if optimize_G:
-            G = 2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))
+            G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         else:
             G = None
 

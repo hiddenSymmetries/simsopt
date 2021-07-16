@@ -42,14 +42,6 @@ class CurveLength(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def dJ_graph(self):
-        # TODO: should probably return Derivative({self: self.dJ()})
-        # return self.curve.dincremental_arclength_by_dcoeff_vjp_graph(
-        #     self.thisgrad(self.curve.incremental_arclength()))
-        # needs Curve.dincremental_arclength_by_dcoeff_vjp_graph to be added
-
-        return Derivative({self.curve: self.dJ()})
-
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -239,6 +231,6 @@ class MinimumDistance(Optimizable):
                     dgammadash_by_dcoeff_vjp_vecs[j] += temp
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
-        return res
+        return sum(res, start=Derivative({}))
 
     return_fn_map = {'J': J, 'dJ': dJ}

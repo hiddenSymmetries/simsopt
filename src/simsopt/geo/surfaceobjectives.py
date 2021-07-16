@@ -150,7 +150,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     user_provided_G = G is not None
     if not user_provided_G:
-        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        G = 2. * np.pi * np.sum([np.abs(c.current.get_value()) for c in biotsavart.coils]) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
     x = surface.gamma()
     xphi = surface.gammadash1()
