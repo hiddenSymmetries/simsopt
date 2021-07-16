@@ -1,8 +1,10 @@
 import numpy as np
 import simsoptpp as sopp
+from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.derivative import Derivative
 
 
-class MagneticField(sopp.MagneticField):
+class MagneticField(sopp.MagneticField, Optimizable):
 
     '''
     Generic class that represents any magnetic field from which each magnetic
@@ -22,12 +24,17 @@ class MagneticField(sopp.MagneticField):
 
     '''
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         sopp.MagneticField.__init__(self)
+        Optimizable.__init__(self, **kwargs)
 
     def clear_cached_properties(self):
         """Clear the cache."""
         sopp.MagneticField.invalidate_cache(self)
+
+    def recompute_bell(self, parent=None):
+        if np.any(self.dofs_free_status):
+            self.invalidate_cache()
 
     def __add__(self, other):
         """Add two magnetic fields."""
@@ -107,7 +114,7 @@ class MagneticFieldSum(MagneticField):
     """
 
     def __init__(self, Bfields):
-        MagneticField.__init__(self)
+        MagneticField.__init__(self, opts_in=Bfields)
         self.Bfields = Bfields
 
     def _set_points_cb(self):
@@ -131,3 +138,6 @@ class MagneticFieldSum(MagneticField):
 
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
+
+    def B_vjp(self, v):
+        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)], start=Derivative({}))

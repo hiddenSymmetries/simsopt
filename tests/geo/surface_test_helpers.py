@@ -4,6 +4,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.geo.biotsavart import Current
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -12,7 +13,7 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     filename = TEST_DIR / 'NCSX_test_data' / 'NCSX_coil_coeffs.dat'
     coils = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
-    currents = [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]
+    currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
     cR = [
         1.471415400740515, 0.1205306261840785, 0.008016125223436036, -0.000508473952304439,
         -0.0003025251710853062, -0.0001587936004797397, 3.223984137937924e-06, 3.524618949869718e-05,

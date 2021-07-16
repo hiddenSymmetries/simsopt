@@ -1,3 +1,4 @@
+import numpy as np
 from .graph_optimizable import Optimizable
 
 
@@ -47,8 +48,13 @@ class Derivative():
             x[k] *= other
         return Derivative(x)
 
-    def __call__(self, key: Optimizable):
+    def __call__(self, optim: Optimizable):
         """
-        Get the derivative with respect to the Optimizable object key
+        Get the derivative with respect to the Optimizable object `optim`.
         """
-        return self.data[key]
+        deps = optim.ancestors + [optim]
+        derivs = []
+        for k in deps:
+            if k in self.data.keys() and np.any(k.dofs_free_status):
+                derivs.append(self.data[k][k.dofs_free_status])
+        return np.concatenate(derivs)

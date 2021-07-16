@@ -110,6 +110,18 @@ class Curve(Optimizable):
             plt.show()
         return ax
 
+    def dgamma_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgamma_by_dcoeff_vjp_impl(v)})
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadash_by_dcoeff_vjp_impl(v)})
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadashdash_by_dcoeff_vjp_impl(v)})
+
+    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v)})
+
     @requires(mlab is not None, "plot_mayavi requires mayavi")
     def plot_mayavi(self, show=True):
         """
@@ -363,12 +375,6 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
-    def dgamma_by_dcoeff_vjp_graph(self, v):
-        return Derivative({self: self.dgamma_by_dcoeff_vjp(v)})
-
-    def dgammadash_by_dcoeff_vjp_graph(self, v):
-        return Derivative({self: self.dgammadash_by_dcoeff_vjp(v)})
-
 
 
 
@@ -432,7 +438,7 @@ class JaxCurve(sopp.Curve, Curve):
         """
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
-    def dgamma_by_dcoeff_vjp(self, v):
+    def dgamma_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -466,7 +472,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadash_by_dcoeff[:, :, :] = self.dgammadash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadash_by_dcoeff_vjp(self, v):
+    def dgammadash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns 
 
@@ -500,7 +506,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadashdash_by_dcoeff[:, :, :] = self.dgammadashdash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadashdash_by_dcoeff_vjp(self, v):
+    def dgammadashdash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -535,7 +541,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadashdashdash_by_dcoeff[:, :, :] = self.dgammadashdashdash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+    def dgammadashdashdash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -559,7 +565,7 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs and :math:`\kappa` is the curvature.
 
         """
-        return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
+        return Derivative({self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
     def dtorsion_by_dcoeff_vjp(self, v):
         r"""
@@ -572,7 +578,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         """
 
-        return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
+        return Derivative({self: self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
 
 class RotatedCurve(sopp.Curve, Curve):
@@ -721,7 +727,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadash_by_dcoeff_vjp(self, v):
         r"""
@@ -735,7 +741,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -749,7 +755,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -763,13 +769,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
-
-    def dgamma_by_dcoeff_vjp_graph(self, v):
-        return self.curve.dgamma_by_dcoeff_vjp_graph(v @ self.rotmat.T)
-
-    def dgammadash_by_dcoeff_vjp_graph(self, v):
-        return self.curve.dgammadash_by_dcoeff_vjp_graph(v @ self.rotmat.T)
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmatT)
 
 
 def curves_to_vtk(curves, filename):
