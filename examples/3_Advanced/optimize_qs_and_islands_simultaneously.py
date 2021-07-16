@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import numpy as np
 
 from simsopt.util.mpi import log, MpiPartition
@@ -12,16 +13,23 @@ from simsopt.solve.mpi import least_squares_mpi_solve
 In this example, we simultaneously optimize for quasisymmetry and
 the elimination of magnetic islands, with both VMEC and SPEC called in
 the objective function.
+
+Below, the argument max_nfev=1 in least_squares_mpi_solve causes the
+optimization to stop after only a single iteration, so this example
+does not take too long to run. For a real optimization, that argument
+should be removed.
 """
 
 log()
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA_iota0.4_withIslands'), mpi=mpi)
+vmec_filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA_iota0.4_withIslands')
+vmec = Vmec(vmec_filename, mpi=mpi)
 surf = vmec.boundary
 
-spec = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'nfp2_QA_iota0.4_withIslands.sp'), mpi=mpi)
+spec_filename = os.path.join(os.path.dirname(__file__), 'inputs', 'nfp2_QA_iota0.4_withIslands.sp')
+spec = Spec(spec_filename, mpi=mpi)
 
 # This next line is where the boundary surface objects of VMEC and
 # SPEC are linked:
@@ -59,7 +67,14 @@ prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
                             (residue1, 0, 2),
                             (residue2, 0, 2)])
 
-least_squares_mpi_solve(prob, mpi=mpi, grad=True)
+# Check whether we're in the CI. If so, just do a single function
+# evaluation rather than a real optimization.
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    obj = prob.objective()
+else:
+    # Remove the max_nfev=1 in the next line to do a serious optimization:
+    least_squares_mpi_solve(prob, mpi=mpi, grad=True, max_nfev=1)
 
 if mpi.group == 0:
     r1 = residue1.J()
