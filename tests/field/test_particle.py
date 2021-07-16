@@ -294,8 +294,8 @@ class ParticleTracingTesting(unittest.TestCase):
         Ekin = 100*ONE_EV
         np.random.seed(1)
 
-        gc_tys, gc_phi_hits = trace_particles_starting_on_axis(
-            ma.gamma(), bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+            ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,  # pitch angle so that we have both par and perp contribution
             phis=[], mode='gc_vac', tol=1e-11)
         if with_evtk:
