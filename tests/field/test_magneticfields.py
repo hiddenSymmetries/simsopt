@@ -1,6 +1,6 @@
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    Reiman, sympy_found, InterpolatedField
+    Reiman, sympy_found, InterpolatedField, PoloidalField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -520,6 +520,36 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs.to_vtk('/tmp/bfield')
+
+    def test_poloidal_field(self):
+        B0 = 1.1
+        R0 = 1.2
+        q = 1.3
+        # point locations
+        points = [
+            [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
+            [0.1231, 2.4123, 0.002341],
+        ]
+        # Bfield from class
+        Bfield = PoloidalField(R0=R0, B0=B0, q=q)
+        Bfield.set_points(points)
+        B1 = Bfield.B()
+        dB1 = Bfield.dB_by_dX()
+        print(dB1)
+        B1_analytical = [
+            [-3.48663e-7, 0.000221744, -0.211538],
+            [-0.0000841262, -0.00164856, 0.85704]
+        ]
+        dB1_analytical = [
+            [[0.000246381, 3.87403e-7, 0.00110872],
+             [3.87403e-7, 6.0914e-10, -0.705127],
+             [-0.00110872, 0.705127, 0]],
+            [[-0.000681623, 0.0000347833, -0.035936],
+             [0.0000347833, -1.775e-6, -0.704212],
+             [0.035936, 0.704212, 0]]
+        ]
+        assert np.allclose(B1, B1_analytical)
+        assert np.allclose(dB1, dB1_analytical)
 
 
 if __name__ == "__main__":

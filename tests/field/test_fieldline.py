@@ -1,4 +1,4 @@
-from simsopt.field.magneticfieldclasses import ToroidalField, InterpolatedField, UniformInterpolationRule
+from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, InterpolatedField, UniformInterpolationRule
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
@@ -54,6 +54,26 @@ class FieldlineTesting(unittest.TestCase):
             assert validate_phi_hits(res_phi_hits[i], nphis)
         if with_evtk:
             particles_to_vtk(res_tys, '/tmp/fieldlines')
+
+    @unittest.skipIf(not with_boost, "boost not found")
+    def test_poincare_tokamak(self):
+        # Test a simple circular tokamak geometry that
+        # consists of a superposition of a purely toroidal
+        # and a purely poloidal magnetic field
+        R0test = 1.0
+        B0test = 1.0
+        qtest = 3.2
+        Bfield = ToroidalField(R0test, B0test)+PoloidalField(R0test, B0test, qtest)
+        nlines = 4
+        R0 = [1.05 + i*0.02 for i in range(nlines)]
+        Z0 = [0 for i in range(nlines)]
+        nphis = 4
+        phis = np.linspace(0, 2*np.pi, nphis, endpoint=False)
+        res_tys, res_phi_hits = compute_fieldlines(
+            Bfield, R0, Z0, tmax=10, phis=phis, stopping_criteria=[])
+        # Check that Poincare plot is a circle in the R,Z plane with R centered at R0
+        rtest = [[np.sqrt((np.sqrt(res_tys[i][j][1]**2+res_tys[i][j][2]**2)-R0test)**2+res_tys[i][j][3]**2)-R0[i]+R0test for j in range(len(res_tys[i]))] for i in range(len(res_tys))]
+        assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
     @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_plot(self):

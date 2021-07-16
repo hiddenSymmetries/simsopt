@@ -379,7 +379,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='auto', dpi=300):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
     """
     Create a poincare plot. Usage:
 
