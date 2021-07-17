@@ -813,3 +813,135 @@ class MajorRadius(object):
 
 
 
+class AreaElement(object): 
+    def __init__(self, boozer_surface, target_area=None):
+        self.boozer_surface = boozer_surface
+        self.biotsavart = boozer_surface.bs
+        self.surface = boozer_surface.surface
+        
+        if target_area is None:
+            N = np.linalg.norm(self.surface.normal(), axis=2)
+            self.target_area = np.mean(N)
+        else:
+            self.target_area = target_area
+
+        self.clear_cached_properties()
+
+    def clear_cached_properties(self):
+        self._J = None
+        self._dJ_by_dcoefficients = None
+        self._dJ_by_dcoilcurrents = None
+ 
+    def dJ_dsurfacecoefficients(self):
+        surface = self.surface
+        nor = surface.normal()
+        dnor_dc = surface.dnormal_by_dcoeff()
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+        dS_dc = (nor[:, :, 0, None]*dnor_dc[:, :, 0, :] + nor[:, :, 1, None]*dnor_dc[:, :, 1, :] + nor[:, :, 2, None]*dnor_dc[:, :, 2, :])/dS[:, :, None]
+        dJ_ds = -np.mean( np.maximum(self.target_area - dS, 0.)[:, :, None] * dS_dc, axis=(0,1))/self.target_area**2
+        return dJ_ds
+
+    def compute(self, compute_derivatives=0):
+        N = np.linalg.norm(self.surface.normal(), axis=2)
+        self._J = 0.5* np.mean( np.maximum(self.target_area - N, 0.)**2. )/self.target_area**2
+        
+        if compute_derivatives > 0:
+            bs = self.biotsavart
+            booz_surf = self.boozer_surface
+            iota = booz_surf.res['iota']
+            G = booz_surf.res['G']
+            P, L, U = booz_surf.res['PLU']
+            dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
+            
+            # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
+            dJ_ds = np.zeros(L.shape[0])
+            dj_ds = self.dJ_dsurfacecoefficients()
+            dJ_ds[:dj_ds.size] = dj_ds
+            adj = forward_backward(P, L, U, dJ_ds)
+            
+            adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
+            self._dJ_by_dcoefficients = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil]
+            self._dJ_by_dcoilcurrents = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr]
+
+    def J(self, compute_derivatives=0):
+        assert compute_derivatives >= 0
+        if self._J is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._J
+
+    def dJ_by_dcoefficients(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoefficients is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoefficients
+
+    def dJ_by_dcoilcurrents(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoilcurrents is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoilcurrents
+
+
+class AreaPenalty(object): 
+    def __init__(self, boozer_surface, max_area=None):
+        self.boozer_surface = boozer_surface
+        self.biotsavart = boozer_surface.bs
+        self.surface = boozer_surface.surface
+        
+        if max_area is None:
+            self.max_area = self.surface.area()
+        else:
+            self.max_area = max_area
+
+        self.clear_cached_properties()
+
+    def clear_cached_properties(self):
+        self._J = None
+        self._dJ_by_dcoefficients = None
+        self._dJ_by_dcoilcurrents = None
+ 
+    def dJ_dsurfacecoefficients(self):
+        surface = self.surface
+        dJ_ds = np.max([self.surface.area() - self.max_area, 0.]) * surface.darea_by_dcoeff() / self.max_area**2
+        return dJ_ds
+
+    def compute(self, compute_derivatives=0):
+        self._J = 0.5*np.max([self.surface.area() - self.max_area, 0.])**2 / self.max_area**2
+        
+        if compute_derivatives > 0:
+            bs = self.biotsavart
+            booz_surf = self.boozer_surface
+            iota = booz_surf.res['iota']
+            G = booz_surf.res['G']
+            P, L, U = booz_surf.res['PLU']
+            dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
+            
+            # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
+            dJ_ds = np.zeros(L.shape[0])
+            dj_ds = self.dJ_dsurfacecoefficients()
+            dJ_ds[:dj_ds.size] = dj_ds
+            adj = forward_backward(P, L, U, dJ_ds)
+            
+            adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
+            self._dJ_by_dcoefficients = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcoil]
+            self._dJ_by_dcoilcurrents = [- adj_dg_dc for adj_dg_dc in adj_times_dg_dcurr]
+
+    def J(self, compute_derivatives=0):
+        assert compute_derivatives >= 0
+        if self._J is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._J
+
+    def dJ_by_dcoefficients(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoefficients is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoefficients
+
+    def dJ_by_dcoilcurrents(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoilcurrents is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoilcurrents
+
+
