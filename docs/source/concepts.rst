@@ -241,6 +241,18 @@ Magnetic Field Classes
 
 Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter.
 
+BiotSavart
+~~~~~~
+
+The :obj:`simsopt.field.biotsavart.BiotSavart` class initializes a magnetic field vector induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`. The field is given by
+
+.. math::
+
+  B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{(\Gamma_k(\phi)-\mathbf{x})\times \Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|^3} d\phi
+
+where :math:`\mu_0=4\pi 10^{-7}` is the vacuum permitivity.
+As input, it takes an of closed curves and the corresponding currents.
+
 ToroidalField
 ~~~~~~
 
