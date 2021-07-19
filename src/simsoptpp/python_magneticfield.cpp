@@ -80,9 +80,10 @@ void init_magneticfields(py::module_ &m){
         .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
 
-    py::class_<FlippedCurrent<PyArray>, shared_ptr<FlippedCurrent<PyArray>>, CurrentBase<PyArray>>(m, "FlippedCurrent", "Flips the sign of a current object.")
-        .def(py::init<shared_ptr<Current<PyArray>>>())
-        .def("get_value", &FlippedCurrent<PyArray>::get_value, "Get the current.");
+    py::class_<ScaledCurrent<PyArray>, shared_ptr<ScaledCurrent<PyArray>>, CurrentBase<PyArray>>(m, "ScaledCurrent", "Multiply a current object with a scalar (e.g. to flip its sign).")
+        .def(py::init<shared_ptr<Current<PyArray>>, double>())
+        .def("get_value", &ScaledCurrent<PyArray>::get_value, "Get the current.")
+        .def_readonly("scale", &ScaledCurrent<PyArray>::scale, "Get the scaling factor.");
         
 
     py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")

@@ -19,11 +19,12 @@ class Current : public CurrentBase<Array>{
 };
 
 template<class Array>
-class FlippedCurrent : public CurrentBase<Array> {
+class ScaledCurrent : public CurrentBase<Array> {
     private:
-        std::shared_ptr<CurrentBase<Array>> current;
+        const std::shared_ptr<CurrentBase<Array>> current;
 
     public:
-        FlippedCurrent(std::shared_ptr<CurrentBase<Array>> current) : current(current) {}
-        double get_value() override { return -(current->get_value()); }
+        const double scale;
+        ScaledCurrent(std::shared_ptr<CurrentBase<Array>> current, double scale) : current(current), scale(scale) {}
+        double get_value() override { return scale * (current->get_value()); }
 };

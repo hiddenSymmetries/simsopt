@@ -1,6 +1,6 @@
 from math import pi
 from simsopt.geo.curve import RotatedCurve
-from .biotsavart import Coil, FlippedCurrent
+from .biotsavart import Coil, ScaledCurrent
 
 
 
@@ -48,6 +48,6 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
                     coils.append(Coil(curves[i], currents[i]))
                 else:
                     rotcurve = RotatedCurve(curves[i], 2*pi*k/nfp, flip)
-                    current = FlippedCurrent(currents[i]) if flip else currents[i]
+                    current = ScaledCurrent(currents[i], -1.) if flip else currents[i]
                     coils.append(Coil(rotcurve, current))
     return coils
