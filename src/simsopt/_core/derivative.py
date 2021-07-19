@@ -42,7 +42,7 @@ class Derivative():
         return Derivative(x)
 
     def __rmul__(self, other):
-        assert isinstance(other, float)
+        assert isinstance(other, float) or isinstance(other, int)
         x = self.data.copy()
         for k in x.keys():
             x[k] *= other

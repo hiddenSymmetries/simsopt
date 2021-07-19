@@ -20,7 +20,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     ``MagneticField`` has a cache to avoid repeated calculations.
     To clear this cache, call the `clear_cached_properties()` function.
-    The cache is automatically cleard when ``set_points`` is called.
+    The cache is automatically cleared when ``set_points`` is called.
 
     '''
 
@@ -35,6 +35,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
     def recompute_bell(self, parent=None):
         if np.any(self.dofs_free_status):
             self.invalidate_cache()
+            # print("recompute_bell", self)
 
     def __add__(self, other):
         """Add two magnetic fields."""

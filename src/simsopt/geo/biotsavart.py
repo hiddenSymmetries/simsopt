@@ -34,21 +34,21 @@ class Current(sopp.Current, Optimizable):
         return Derivative({self: v_current})
 
     def __neg__(self):
-        return FlippedCurrent(self)
+        return ScaledCurrent(self, -1.)
 
 
-class FlippedCurrent(sopp.FlippedCurrent, Optimizable):
+class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
 
-    def __init__(self, basecurrent):
+    def __init__(self, basecurrent, scale):
         self.__basecurrent = basecurrent
-        sopp.FlippedCurrent.__init__(self, basecurrent)
+        sopp.ScaledCurrent.__init__(self, basecurrent, scale)
         Optimizable.__init__(self, x0=np.asarray([]), opts_in=[basecurrent])
 
     def vjp(self, v_current):
-        return self.__basecurrent.vjp(-v_current)
+        return self.__basecurrent.vjp(self.scale * v_current)
 
     def __neg__(self):
-        return FlippedCurrent(self)
+        return ScaledCurrent(self, -1.)
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
