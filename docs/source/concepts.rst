@@ -304,3 +304,64 @@ InterpolatedField
 
 The :obj:`simsopt.field.magneticfieldclasses.InterpolatedField` function takes an existing field and interpolates it on a regular grid in :math:`r,\phi,z`. This resulting interpolant can then be evaluated very quickly.
 As input arguments, it takes field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated, degree: the degree of the piecewise polynomial interpolant, rrange: a 3-tuple of the form ``(rmin, rmax, nr)``, phirange: a 3-tuple of the form ``(phimin, phimax, nphi)``, zrange: a 3-tuple of the form ``(zmin, zmax, nz)``, extrapolate: whether to extrapolate the field when evaluate outside the integration domain or to throw an error, nfp: Whether to exploit rotational symmetry, stellsym: Whether to exploit stellarator symmetry. 
+
+
+Particle Tracer
+-----------------
+
+Simsopt is able to follow particles in a magnetic field. The main function to use in this case is ``trace_particles`` and it is able to use two different sets of equations depending on the input parameter ``mode``:
+
+- In the case of ``mode='full'`` it solves
+
+.. math::
+
+  [\ddot x, \ddot y, \ddot z] = \frac{q}{m}  [\dot x, \dot y, \dot z] \times \mathbf B
+
+- In the case of ``mode='gc_vac'`` it solves the guiding center equations under
+    the assumption :math:`\nabla p=0`, that is
+
+.. math::
+
+  [\dot x, \dot y, \dot z] &= v_{||}\frac{\mathbf B}{B} + \frac{m}{q|B|^3}  \left(\frac{v_\perp^2}{2} + v_{||}^2\right)  \mathbf B\times \nabla B\\
+  \dot v_{||}    &= -\mu  \mathbf B \cdot \nabla B
+
+where :math:`v_\perp^2 = 2\mu B`.
+See equations (12) and (13) of `Guiding Center Motion, H.J. de Blank <https://doi.org/10.13182/FST04-A468>`_.
+
+The ``trace_particles`` function, takes as arguments
+
+- ``field``: The magnetic field :math:`B`.
+- ``xyz_inits``: A (nparticles, 3) array with the initial positions of the particles.
+- ``parallel_speeds``: A (nparticles, ) array containing the speed in direction of the B field for each particle.
+- ``tmax``: integration time
+- ``mass``: particle mass in kg, defaults to the mass of an alpha particle
+- ``charge``: charge in Coulomb, defaults to the charge of an alpha particle
+- ``Ekin``: kinetic energy in Joule, defaults to 3.52MeV
+- ``tol``: tolerance for the adaptive ode solver
+- ``comm``: MPI communicator to parallelize over
+- ``phis``: list of angles in [0, 2pi] for which intersection with the plane corresponding to that phi should be computed
+- ``stopping_criteria``: list of stopping criteria, mostly used in combination with the ``LevelsetStoppingCriterion`` accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+- mode: how to trace the particles. options are
+   `gc`: general guiding center equations,
+   `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
+   `full`: full orbit calculation (slow!)
+- ``forget_exact_path``: return an empty list for the ``res_tys``. To be used when only res_phi_hits is of interest and one wants to reduce memory usage.
+
+As output, it returns 2 elements:
+- ``res_tys``:
+   A list of numpy arrays (one for each particle) describing the
+   solution over time. The numpy array is of shape (ntimesteps, M)
+   with M depending on the ``mode``.  Each row contains the time and
+   the state.  So for `mode='gc'` and `mode='gc_vac'` the state
+   consists of the xyz position and the parallel speed, hence
+   each row contains `[t, x, y, z, v_par]`.  For `mode='full'`, the
+   state consists of position and velocity vector, i.e. each row
+   contains `[t, x, y, z, vx, vy, vz]`.
+
+- ``res_phi_hits``:
+   A list of numpy arrays (one for each particle) containing
+   information on each time the particle hits one of the phi planes or
+   one of the stopping criteria. Each row of the array contains
+   `[time] + [idx] + state`, where `idx` tells us which of the `phis`
+   or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
+   was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
