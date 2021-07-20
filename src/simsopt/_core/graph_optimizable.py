@@ -357,7 +357,7 @@ class DOFs:
 
         if names is None:
             names = [f"x{i}" for i in range(len(x))]
-        assert(len(np.unique(names)) == len(names)) # DOF names should be unique
+        assert(len(np.unique(names)) == len(names))  # DOF names should be unique
 
         if free is not None:
             free = np.array(free, dtype=np.bool_)
