@@ -607,7 +607,7 @@ class OptimizableTests(unittest.TestCase):
         test_obj = OptClassWithParents(20, opts_in=[iden, adder])
 
         adder_status = [False, True, True]
-        self.assertTrue( np.equal(adder.dofs_free_status, adder_status).all())
+        self.assertTrue(np.equal(adder.dofs_free_status, adder_status).all())
         self.assertTrue(np.equal(iden.dofs_free_status, [False]).all())
         obj_status = [False, False, True, True, True]
         self.assertTrue(np.equal(test_obj.dofs_free_status, obj_status).all())
