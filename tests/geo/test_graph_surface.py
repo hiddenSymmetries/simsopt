@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 import numpy as np
-from simsopt.geo.graph_surface import Surface, SurfaceRZFourier, SurfaceGarabedian
+# from simsopt.geo.graph_surface import Surface, SurfaceRZFourier, SurfaceGarabedian
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"  # ) #.resolve()
 
