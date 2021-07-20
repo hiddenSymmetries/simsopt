@@ -410,6 +410,28 @@ class DOFs:
         else:
             self._free[key] = True
 
+    def all_free(self) -> bool:
+        """
+        Checks if all DOFs are allowed to be varied
+
+        Returns:
+            True if all DOFs are free to changed
+        """
+        return self._free.all()
+
+    def all_fixed(self) -> bool:
+        """
+        Checks if all the DOFs are fixed
+
+        Returns:
+            True if all DOFs are fixed
+        """
+        return not self._free.any()
+
+    @property
+    def status(self) -> BoolArray:
+        return self._free
+
     def get(self, key: Key) -> Real:
         """
         Get the value of specified DOF. Even fixed DOFs can
@@ -482,24 +504,6 @@ class DOFs:
             True if any fixed DOF is found, else False
         """
         return not self._free.all()
-
-    def all_free(self) -> bool:
-        """
-        Checks if all DOFs are allowed to be varied
-
-        Returns:
-            True if all DOFs are free to changed
-        """
-        return self._free.all()
-
-    def all_fixed(self) -> bool:
-        """
-        Checks if all the DOFs are fixed
-
-        Returns:
-            True if all DOFs are fixed
-        """
-        return not self._free.any()
 
     @property
     def x(self) -> RealArray:
@@ -1309,8 +1313,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Boolean array denoting whether the DOFs associated with the
         current and ancestors Optimizable objects are free or not
         """
-        opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.free.to_numpy() for opt in opts])
+        return np.concatenate(
+            [opt._dofs.status for opt in self.ancestors + [self]])
 
     @property
     def local_dofs_free_status(self) -> BoolArray:
@@ -1318,7 +1322,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Boolean array denoting whether the DOFs associated with the
         current Optimizable object are free or not
         """
-        return self._dofs.free.to_numpy()
+        return self._dofs.status
 
     def is_fixed(self, key: Key) -> bool:
         """
