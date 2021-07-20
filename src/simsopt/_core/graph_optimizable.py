@@ -25,7 +25,7 @@ from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta
 
 
-class DOFs(pd.DataFrame):
+class PandasDOFs(pd.DataFrame):
     """
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
 
@@ -305,6 +305,355 @@ class DOFs(pd.DataFrame):
             string identifiers of the DOFs
         """
         return self.index.values
+
+
+class DOFs:
+    """
+    Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
+
+    This class holds data related to the degrees of freedom
+    associated with an Optimizable object. The class subclasses
+    pandas.DataFrame. To access the data stored in the DOFs class as a
+    pandas dataframe, use the labels under internal column shown in the
+    table below.
+
+    DOFs Dataframe column index table
+
+    =====   =============  ===============
+    Index   External name  Internal column
+    =====   =============  ===============
+    0       x              _x
+    1       free           free
+    2       lower_bounds   _lb
+    3       upper_bounds   _ub
+    =====   =============  ===============
+
+    The class implements the external name column properties in the above
+    table as properties. Additional methods to update bounds, fix/unfix DOFs,
+    etc. are also defined.
+    """
+
+    def __init__(self,
+                 x: RealArray = None,  # To enable empty DOFs object
+                 names: StrArray = None,
+                 free: BoolArray = None,
+                 lower_bounds: RealArray = None,
+                 upper_bounds: RealArray = None) -> None:
+        """
+        Args:
+            x: Numeric values of the DOFs
+            names: Names of the dofs
+            free: Array of boolean values denoting if the DOFs is are free.
+                  False values implies the corresponding DOFs are fixed
+            lower_bounds: Lower bounds for the DOFs. Meaningful only if
+                DOF is not fixed. Default is np.NINF
+            upper_bounds: Upper bounds for the DOFs. Meaningful only if
+                DOF is not fixed. Default is np.inf
+        """
+        if x is None:
+            x = np.array([])
+        else:
+            x = np.array(x, dtype=np.double)
+
+        if names is None:
+            names = [f"x{i}" for i in range(len(x))]
+        assert(len(np.unique(names)) == len(names)) # DOF names should be unique
+
+        if free is not None:
+            free = np.array(free, dtype=np.bool_)
+        else:
+            free = np.full(len(x), True)
+
+        if lower_bounds is not None:
+            lb = np.array(lower_bounds, np.double)
+        else:
+            lb = np.full(len(x), np.NINF)
+
+        if upper_bounds is not None:
+            ub = np.array(upper_bounds, np.double)
+        else:
+            ub = np.full(len(x), np.inf)
+
+        assert(len(x) == len(free) == len(lb) == len(ub) == len(names))
+        self._x = x
+        self._free = free
+        self._lb = lb
+        self._ub = ub
+        self._names = list(names)
+
+    def __len__(self):
+        return len(self._free)
+
+    def fix(self, key: Key) -> None:
+        """
+        Fixes the specified DOF
+
+        Args:
+            key: Key to identify the DOF
+        """
+        if isinstance(key, str):
+            i = self._names.index(key)
+            self._free[i] = False
+        else:
+            self._free[key] = False
+
+    def unfix(self, key: Key) -> None:
+        """
+        Unfixes the specified DOF
+
+        Args:
+            key: Key to identify the DOF
+        """
+        if isinstance(key, str):
+            i = self._names.index(key)
+            self._free[i] = True
+        else:
+            self._free[key] = True
+
+    def get(self, key: Key) -> Real:
+        """
+        Get the value of specified DOF. Even fixed DOFs can
+        be obtained with this method
+
+        Args:
+        key: Key to identify the DOF
+        Returns:
+            Value of the DOF
+        """
+        if isinstance(key, str):
+            key = self._names.index(key)
+        return self._x[key]
+
+    def set(self, key: Key, val: Real):
+        """
+        Modify the value of specified DOF. Even fixed DOFs can
+        modified with this method
+
+        Args:
+        key: Key to identify the DOF
+        val: Valeu of the DOF
+        """
+        if isinstance(key, str):
+            key = self._names.index(key)
+        # if not self._free[key]:
+        #     raise IndexError("The DOF is fixed")
+        self._x[key] = val
+
+    def is_free(self, key: Key) -> bool:
+        """
+        Get the status of the specified DOF.
+
+        Args:
+        key: Key to identify the DOF
+        Returns:
+            Status of the DOF
+        """
+        if isinstance(key, str):
+            key = self._names.index(key)
+        return self._free[key]
+
+    def fix_all(self) -> None:
+        """
+        Fixes all the DOFs
+        """
+        self._free.fill(False)
+
+    def unfix_all(self) -> None:
+        """
+        Makes all DOFs variable
+        Caution: Make sure the bounds are well defined
+        """
+        self._free.fill(True)
+
+    def any_free(self) -> bool:
+        """
+        Checks for any free DOFs
+
+        Returns:
+            True if any free DOF is found, else False
+        """
+        return self._free.any()
+
+    def any_fixed(self) -> bool:
+        """
+        Checks for any free DOFs
+
+        Returns:
+            True if any fixed DOF is found, else False
+        """
+        return not self._free.all()
+
+    def all_free(self) -> bool:
+        """
+        Checks if all DOFs are allowed to be varied
+
+        Returns:
+            True if all DOFs are free to changed
+        """
+        return self._free.all()
+
+    def all_fixed(self) -> bool:
+        """
+        Checks if all the DOFs are fixed
+
+        Returns:
+            True if all DOFs are fixed
+        """
+        return not self._free.any()
+
+    @property
+    def x(self) -> RealArray:
+        """
+
+        Returns:
+            The values of the free DOFs.
+        """
+        return self._x[self._free]
+
+    @x.setter
+    def x(self, x: RealArray) -> None:
+        """
+        Update the values of the free DOFs with the supplied values
+
+        Args:
+            x: Array of new DOF values
+               (word of caution: This setter blindly broadcasts a single value.
+               So don't supply a single value unless you really desire.)
+        """
+        if len(self._free[self._free]) != len(x):
+            # To prevent fully fixed DOFs from not raising Error
+            # And to prevent broadcasting of a single DOF
+            raise ValueError
+        self._x[self._free] = x
+
+    @property
+    def full_x(self) -> RealArray:
+        """
+        Return all x even the fixed ones
+
+        Returns:
+            The values of full DOFs without any restrictions
+        """
+        return self._x
+
+    @property
+    def reduced_len(self) -> Integral:
+        """
+        The number of free DOFs.
+
+        The standard len function returns the full length of DOFs.
+
+        Returns:
+            The number of free DOFs
+        """
+        return len(self._free[self._free])
+
+    @property
+    def lower_bounds(self) -> RealArray:
+        """
+        Lower bounds of the DOFs
+
+        Returns:
+            Lower bounds of the DOFs
+        """
+        return self._lb[self._free]
+
+    @lower_bounds.setter
+    def lower_bounds(self, lower_bounds: RealArray) -> None:
+        """
+
+        Args:
+            lower_bounds: Lower bounds of the DOFs
+        """
+        if len(self._free[self._free]) != len(lower_bounds):
+            # To prevent fully fixed DOFs from not raising Error
+            # And to prevent broadcasting of a single DOF
+            raise ValueError
+        self._lb[self._free] = lower_bounds
+
+    @property
+    def upper_bounds(self) -> RealArray:
+        """
+
+        Returns:
+            Upper bounds of the DOFs
+        """
+        return self._ub[self._free]
+
+    @upper_bounds.setter
+    def upper_bounds(self, upper_bounds: RealArray) -> None:
+        """
+
+        Args:
+            upper_bounds: Upper bounds of the DOFs
+        """
+        if len(self._free[self._free]) != len(upper_bounds):
+            # To prevent fully fixed DOFs from not raising Error
+            # And to prevent broadcasting of a single DOF
+            raise ValueError
+        self._ub[self._free] = upper_bounds
+
+    @property
+    def bounds(self) -> Tuple[RealArray, RealArray]:
+        """
+
+        Returns:
+            (Lower bounds list, Upper bounds list)
+        """
+        return (self.lower_bounds, self.upper_bounds)
+
+    def update_lower_bound(self, key: Key, val: Real) -> None:
+        """
+        Updates the lower bound of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: Numeric lower bound of the DOF
+        """
+        if isinstance(key, str):
+            i = self._names.index(key)
+            self._lb[i] = val
+        else:
+            self._lb[key] = val
+
+    def update_upper_bound(self, key: Key, val: Real) -> None:
+        """
+        Updates the upper bound of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: Numeric upper bound of the DOF
+        """
+        if isinstance(key, str):
+            i = self._names.index(key)
+            self._ub[i] = val
+        else:
+            self._ub[key] = val
+
+    def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
+        """
+        Updates the bounds of the specified DOF to the given value
+
+        Args:
+            key: DOF identifier
+            val: (lower, upper) bounds of the DOF
+        """
+        if isinstance(key, str):
+            i = self._names.index(key)
+            self._lb[i] = val[0]
+            self._ub[i] = val[1]
+        else:
+            self._lb[key] = val[0]
+            self._ub[key] = val[1]
+
+    @property
+    def names(self):
+        """
+
+        Returns:
+            string identifiers of the DOFs
+        """
+        return self._names
 
 
 class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
@@ -827,7 +1176,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     def _set_local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
-        self._dofs.loc[self._dofs.free, '_x'] = x
+        self._dofs.x = x
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
 
@@ -936,10 +1285,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             key: DOF identifier
         """
-        if isinstance(key, str):
-            return self._dofs.loc[key, '_x']
-        else:
-            return self._dofs.iloc[key, 0]
+        return self._dofs.get(key)
 
     def set(self, key: Key, new_val: Real) -> None:
         """
@@ -950,10 +1296,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             key: DOF identifier
             new_val: New value of the DOF
         """
-        if isinstance(key, str):
-            self._dofs.loc[key, '_x'] = new_val
-        else:
-            self._dofs.iloc[key, 0] = new_val
+        # if isinstance(key, str):
+        #     self._dofs.loc[key, '_x'] = new_val
+        # else:
+        #     self._dofs.iloc[key, 0] = new_val
+        self._dofs.set(key, new_val)
         self._set_new_x()
 
     @property
@@ -989,10 +1336,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             key: DOF identifier
         """
-        if isinstance(key, str):
-            return self._dofs.loc[key, 'free']
-        else:
-            return self._dofs.iloc[key, 1]
+        return self._dofs.is_free(key)
 
     def fix(self, key: Key) -> None:
         """
