@@ -5,6 +5,7 @@ from simsopt.geo.graph_surface import Surface, SurfaceRZFourier, SurfaceGarabedi
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"  # ) #.resolve()
 
+
 @unittest.skip
 class SurfaceTests(unittest.TestCase):
     def test_init(self):
