@@ -11,7 +11,7 @@ simsopt.geo.biotsavart module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
+   :private-members:
 
 simsopt.geo.boozersurface module
 --------------------------------
@@ -110,7 +110,7 @@ simsopt.geo.magneticfield module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
+   :private-members:
 
 simsopt.geo.magneticfieldclasses module
 ---------------------------------------
@@ -119,7 +119,16 @@ simsopt.geo.magneticfieldclasses module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
+   :private-members:
+
+simsopt.geo.qfmsurface module
+-----------------------------
+
+.. automodule:: simsopt.geo.qfmsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
 
 simsopt.geo.surface module
 --------------------------
@@ -140,7 +149,7 @@ simsopt.geo.surfacegarabedian module
    :private-members:
 
 simsopt.geo.surfacehenneberg module
-------------------------------------
+-----------------------------------
 
 .. automodule:: simsopt.geo.surfacehenneberg
    :members:
@@ -192,4 +201,3 @@ Module contents
    :undoc-members:
    :show-inheritance:
    :private-members:
-
