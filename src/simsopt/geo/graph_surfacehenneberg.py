@@ -1,13 +1,14 @@
 import logging
 from typing import Union
+
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
 #import matplotlib.pyplot as plt
 
 import simsoptpp as sopp
-from .surface import Surface
-from .surfacerzfourier import SurfaceRZFourier
+from .graph_surface import Surface
+from .graph_surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +93,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         if isinstance(quadpoints_theta, int):
             quadpoints_theta = np.linspace(0, 1.0, quadpoints_theta, endpoint=False)
 
-        Surface.__init__(self)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
@@ -101,6 +103,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
+    # TODO: Reimplement
     def __repr__(self):
         return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
             str(self.nfp) + ", alpha_fac=" + str(self.alpha_fac) \

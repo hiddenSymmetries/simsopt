@@ -1,8 +1,8 @@
 import numpy as np
 import logging
 
-from .surface import Surface
-from .surfacerzfourier import SurfaceRZFourier
+from .graph_surface import Surface
+from .graph_surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,10 @@ class SurfaceGarabedian(Surface):
         # minor radius 0.1m
         self.set_Delta(1, 0, 1.0)
         self.set_Delta(0, 0, 0.1)
-        Surface.__init__(self)
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceGarabedian.set_dofs)
 
+    # TODO: Reimplement
     def __repr__(self):
         return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
             str(self.nfp) + ", mmin=" + str(self.mmin) + ", mmax=" + str(self.mmax) \
@@ -92,7 +94,7 @@ class SurfaceGarabedian(Surface):
         Set the shape coefficients from a 1D list/array
         """
 
-        n = len(self.get_dofs())
+        n = self.dof_size
         if len(v) != n:
             raise ValueError('Input vector should have ' + str(n) + \
                              ' elements but instead has ' + str(len(v)))
@@ -106,11 +108,16 @@ class SurfaceGarabedian(Surface):
         self.recalculate = True
         self.recalculate_derivs = True
 
-        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
+        dof_shape = (self.mmax - self.mmin + 1, self.nmax - self.nmin + 1)
+        self.Delta = v.reshape(dof_shape, order='F')
 
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+    def recompute_bell(self, parent=None):
+        self.recalculate = True
+        self.recalculate_derivs = True
+
+    def fix_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
-        Set the 'fixed' property for a range of m and n values.
+        Fix the DOFs for a range of m and n values.
 
         All modes with m in the interval [mmin, mmax] and n in the
         interval [nmin, nmax] will have their fixed property set to
