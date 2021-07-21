@@ -137,11 +137,12 @@ class Surface {
             return surface_vjp_contraction<Array>(dgammadash2_by_dcoeff(), v);
         };
 
-
         void normal_impl(Array& data);
         void dnormal_by_dcoeff_impl(Array& data);
         void d2normal_by_dcoeffdcoeff_impl(Array& data);
         Array dnormal_by_dcoeff_vjp(Array& v);
+
+        void unitnormal_impl(Array& data);
 
         double area();
         void darea_by_dcoeff_impl(Array& data);
@@ -178,6 +179,9 @@ class Surface {
         }
         Array& d2normal_by_dcoeffdcoeff() {
             return check_the_cache("d2normal_by_dcoeffdcoeff", {numquadpoints_phi, numquadpoints_theta,3, num_dofs(), num_dofs() }, [this](Array& A) { return d2normal_by_dcoeffdcoeff_impl(A);});
+        }
+        Array& unitnormal() {
+            return check_the_cache("unitnormal", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return unitnormal_impl(A);});
         }
         Array& darea_by_dcoeff() {
             return check_the_cache("darea_by_dcoeff", {num_dofs()}, [this](Array& A) { return darea_by_dcoeff_impl(A);});
