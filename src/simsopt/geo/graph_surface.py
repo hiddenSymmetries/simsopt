@@ -1,6 +1,19 @@
-import numpy as np
+import abc
 
-from .._core.optimizable import Optimizable
+import numpy as np
+from monty.dev import requires
+
+try:
+    from mayavi import mlab
+except ImportError:
+    mlab = None
+
+try:
+    from pyevtk.hl import gridToVTK
+except ImportError:
+    gridToVTK = None
+
+from .._core.graph_optimizable import Optimizable
 
 
 class Surface(Optimizable):
@@ -8,16 +21,17 @@ class Surface(Optimizable):
     ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
 
-    A ``Surface`` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
-
+    A ``Surface`` is modelled as a function
+    :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at
+    quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
     """
 
-    def __init__(self):
-        Optimizable.__init__(self)
-        self.dependencies = []
-        self.fixed = np.full(len(self.get_dofs()), False)
+    def __init__(self, **kwargs):
+        Optimizable.__init__(self, x0=self.get_dofs(), **kwargs)
 
-    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+    @requires(mlab is not None, "Install mayavi to generate surface plot")
+    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False,
+             scalars=None, wireframe=True):
         """
         Plot the surface using mayavi. 
         Note: the `ax` and `show` parameter can be used to plot more than one surface:
@@ -27,12 +41,9 @@ class Surface(Optimizable):
             ax = surface1.plot(show=False)
             ax = surface2.plot(ax=ax, show=False)
             surface3.plot(ax=ax, show=True)
-
-
         """
         gamma = self.gamma()
 
-        from mayavi import mlab
         mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
         if wireframe:
             mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
@@ -48,8 +59,8 @@ class Surface(Optimizable):
         if show:
             mlab.show()
 
+    @requires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def to_vtk(self, filename):
-        from pyevtk.hl import gridToVTK
         g = self.gamma()
         ntor = g.shape[0]
         npol = g.shape[1]
@@ -66,22 +77,24 @@ class Surface(Optimizable):
             "dtheta": (contig(dtheta[..., 0]), contig(dtheta[..., 1]), contig(dtheta[..., 2])),
         })
 
-    def __repr__(self):
-        return "Surface " + str(hex(id(self)))
+    # Representation is handled by Optimizable object itself
+    # def __repr__(self):
+    #     return "Surface " + str(hex(id(self)))
 
+    @abc.abstractmethod
     def to_RZFourier(self):
         """
-        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance corresponding to the shape of this
-        surface.  All subclasses should implement this abstract
-        method.
+        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance
+        corresponding to the shape of this surface. All subclasses should
+        implement this abstract method.
         """
         raise NotImplementedError
 
     def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle :math:`\phi` and returns the cross
-        section of the surface in that plane evaluated at `thetas`. This is
-        done using the method of bisection.
+        This function takes in a cylindrical angle :math:`\phi` and returns
+        the cross section of the surface in that plane evaluated at `thetas`.
+        This is done using the method of bisection.
 
         This function assumes that the surface intersection with the plane is a
         single curve.
@@ -185,10 +198,11 @@ class Surface(Optimizable):
 
     def aspect_ratio(self):
         r"""
-        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where :math:`\phi \in [-\pi,\pi)`
-        and the angles that parametrize the surface are :math:`(\varphi, \theta) \in [0,1)^2`
-        For a given surface, this function computes its aspect ratio using the VMEC
-        definition:
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where
+        :math:`\phi \in [-\pi,\pi)` and the angles that parametrize the
+        surface are :math:`(\varphi, \theta) \in [0,1)^2`
+        For a given surface, this function computes its aspect ratio using
+        the VMEC definition:
 
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
@@ -199,41 +213,47 @@ class Surface(Optimizable):
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
             R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
 
-        and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
-        average cross sectional area.
-        The main difficult part of this calculation is the mean cross sectional
-        area.  This is given by the integral
+        and :math:`V` is the volume enclosed by the surface, and
+        :math:`\overline{A}` is the average cross sectional area.
+        The main difficult part of this calculation is the mean cross
+        sectional area.  This is given by the integral
 
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
 
-        where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
-        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral 
+        where :math:`S_\phi` is the cross section of the surface at the
+        cylindrical angle :math:`\phi`.
+        Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
 
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
             &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
-        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
+        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]`
+        is the outward pointing normal.
 
-        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta), 
-        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section 
-        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi, 
-        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
+        Consider the surface in cylindrical coordinates terms of its angles
+        :math:`[R(\varphi,\theta), \phi(\varphi,\theta), Z(\varphi,\theta)]`.
+        The boundary of the cross section :math:`\partial S_\phi` is given
+        by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
+        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`. The cross
+        sectional area of :math:`S_\phi` becomes
 
         .. math::
             \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
             \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
 
-        Now, substituting this into the formula for the mean cross sectional area, we have
+        Now, substituting this into the formula for the mean cross sectional
+        area, we have
 
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
                 \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
 
-        Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
-        integrate over :math:`\varphi` using the mapping:
+        Instead of integrating over cylindrical :math:`\phi`, let's complete
+        the change of variables and integrate over :math:`\varphi` using the
+        mapping:
 
         .. math::
             [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
