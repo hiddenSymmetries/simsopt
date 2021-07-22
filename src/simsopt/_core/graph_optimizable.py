@@ -865,10 +865,13 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if list(self.dof_indices.values())[-1][-1] != len(x):
             raise ValueError
         for opt, indices in self.dof_indices.items():
-            opt._set_local_x(x[indices[0]:indices[1]])
-            opt.new_x = True
-            opt.recompute_bell()
-        self._set_new_x()
+            if opt != self:
+                opt._set_local_x(x[indices[0]:indices[1]])
+                opt.new_x = True
+                opt.recompute_bell()
+            else:
+                opt.local_x = x[indices[0]:indices[1]]
+                # self._set_new_x()
 
     @property
     def full_x(self) -> RealArray:
