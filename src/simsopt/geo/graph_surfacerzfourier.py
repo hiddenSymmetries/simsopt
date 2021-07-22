@@ -34,8 +34,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self, external_dof_setter=SurfaceRZFourier.set_dofs,
-                         names=self.make_names())
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceRZFourier.set_dofs,
+                         names=self._make_names())
         # self.make_names()
 
     def get_dofs(self):
@@ -44,16 +45,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
 
-    def make_names(self):
+    def _make_names(self):
         """
         Form a list of names of the `rc`, `zs`, `rs`, or `zc` array elements.
         """
-        names = self.make_names_helper('rc', True) + self.make_names_helper('zs', False)
+        names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
         if not self.stellsym:
-            names += self.make_names_helper('rs', False) + self.make_names_helper('zc', True)
+            names += self._make_names_helper('rs', False) + self._make_names_helper('zc', True)
         return names
 
-    def make_names_helper(self, prefix, include0):
+    def _make_names_helper(self, prefix, include0):
         if include0:
             names = [prefix + "(0,0)"]
         else:
@@ -140,7 +141,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not self.stellsym:
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
-        self.make_names()
+        self._make_names()
 
     def to_RZFourier(self):
         """
@@ -148,12 +149,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return self
 
-    # TODO: Needs reimplementation
     def __repr__(self):
-        return "SurfaceRZFourier " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", stellsym=" + str(self.stellsym) + \
-            ", mpol=" + str(self.mpol) + ", ntor=" + str(self.ntor) \
-            + ")"
+        return self.name + f" (nfp={self.nfp}, stellsym={self.stellsym}, " + \
+            f"mpol={self.mpol}, ntor={self.ntor})"
 
     def _validate_mn(self, m, n):
         """
@@ -267,6 +265,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     if m > 0 or n != 0:
                         self.set_fixed('rs({},{})'.format(m, n), fixed)
 
+    # TODO: Reimplement by passing all Delta values once
     def to_Garabedian(self):
         """
         Return a `SurfaceGarabedian` object with the identical shape.
