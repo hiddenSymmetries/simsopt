@@ -1,15 +1,14 @@
 import unittest
 from pathlib import Path
+
 import numpy as np
 
-from simsopt._core.dofs import Dofs
-from simsopt._core.optimizable import make_optimizable
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.graph_surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.graph_surfacegarabedian import SurfaceGarabedian
+from simsopt.geo.graph_surfacexyzfourier import SurfaceXYZFourier
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
-TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 stellsym_list = [True, False]
 
@@ -23,17 +22,19 @@ except ImportError:
 class SurfaceXYZFourierTests(unittest.TestCase):
     def test_toRZFourier_perfect_torus(self):
         """
-        This test checks that a perfect torus can be converted from SurfaceXYZFourier to SurfaceRZFourier
-        completely losslessly.
+        This test checks that a perfect torus can be converted from
+        SurfaceXYZFourier to SurfaceRZFourier completely losslessly.
         """
         for stellsym in stellsym_list:
             with self.subTest(stellsym=stellsym):
-                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier", stellsym)
+                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier",
+                                                       stellsym)
 
     def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
         """
-        The test obtains a perfect torus as a SurfaceXYZFourier, then converts it to a SurfaceRZFourier.  Next,
-        it computes the cross section of both surfaces at a random angle and compares the pointwise values.
+        The test obtains a perfect torus as a SurfaceXYZFourier, then converts
+        it to a SurfaceRZFourier.  Next, it computes the cross section of both
+        surfaces at a random angle and compares the pointwise values.
         """
         s = get_surface(surfacetype, stellsym)
         sRZ = s.to_RZFourier()
@@ -437,6 +438,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
+    @unittest.skip
     def test_derivatives(self):
         """
         Check the automatic differentiation for area and volume.
@@ -501,7 +503,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
         Check that the default surface is what we expect, and that the
         'names' array is correctly aligned.
         """
-        s = make_optimizable(SurfaceGarabedian(nmin=-1, nmax=2, mmin=-2, mmax=5))
+        s = SurfaceGarabedian(nmin=-1, nmax=2, mmin=-2, mmax=5)
         self.assertAlmostEqual(s.Delta[2, 1], 0.1)
         self.assertAlmostEqual(s.Delta[3, 1], 1.0)
         self.assertAlmostEqual(s.get('Delta(0,0)'), 0.1)
