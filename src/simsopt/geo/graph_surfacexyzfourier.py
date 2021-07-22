@@ -46,7 +46,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self, x0=self.set_dofs(),
+        Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceXYZFourier.set_dofs)
 
     def get_dofs(self):
