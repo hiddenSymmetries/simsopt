@@ -27,7 +27,7 @@ class Surface(Optimizable):
     """
 
     def __init__(self, **kwargs):
-        Optimizable.__init__(self, x0=self.get_dofs(), **kwargs)
+        Optimizable.__init__(self, **kwargs)
 
     @requires(mlab is not None, "Install mayavi to generate surface plot")
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False,
