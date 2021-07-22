@@ -44,8 +44,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip 
+
       - name: Install wheel builder packages 
-        run: python -m pip install --upgrade pip setuptools wheel delocate
+        run: python -m pip install setuptools wheel delocate
 
       - name: Build and repair wheels
         run: |
