@@ -540,6 +540,21 @@ class DOFs:
         """
         return self._x
 
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        """
+        Update the values of the all DOFs with the supplied values
+
+        Args:
+            x: Array of new DOF values
+        .. warning::
+               Even fixed DOFs are assinged
+        """
+        if len(self._x) != len(x):
+            # To prevent broadcasting of a single DOF
+            raise ValueError
+        self._x = x
+
     @property
     def reduced_len(self) -> Integral:
         """
@@ -1191,6 +1206,18 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         return self._dofs.full_x
 
+    @local_full_x.setter
+    def local_full_x(self, x: RealArray) -> None:
+        """
+        For those cases, where one wants to assign all DOFs including fixed
+
+        .. warning:: Even fixed DOFs are assigned.
+        """
+        self._dofs.full_x = x
+        if self.local_dof_setter is not None:
+            self.local_dof_setter(self, list(self.local_full_x))
+        self._set_new_x()
+
     def _set_new_x(self, parent=None):
         self.new_x = True
         #if self.local_dof_setter is not None:
@@ -1198,6 +1225,34 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         for child in self._children:
             child._set_new_x(parent=self)
+
+    def get(self, key: Key) -> Real:
+        """
+        Get the value of specified DOF
+        Even fixed dofs can be obtained individually.
+
+        Args:
+            key: DOF identifier
+        """
+        return self._dofs.get(key)
+
+    def set(self, key: Key, new_val: Real) -> None:
+        """
+        Update the value held the specified DOF.
+        Even fixed dofs can be set this way
+
+        Args:
+            key: DOF identifier
+            new_val: New value of the DOF
+        """
+        # if isinstance(key, str):
+        #     self._dofs.loc[key, '_x'] = new_val
+        # else:
+        #     self._dofs.iloc[key, 0] = new_val
+        self._dofs.set(key, new_val)
+        if self.local_dof_setter is not None:
+            self.local_dof_setter(self, list(self.local_full_x))
+        self._set_new_x()
 
     def recompute_bell(self, parent=None):
         """
@@ -1280,32 +1335,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         object
         """
         return self._dofs.names
-
-    def get(self, key: Key) -> Real:
-        """
-        Get the value of specified DOF
-        Even fixed dofs can be obtained individually.
-
-        Args:
-            key: DOF identifier
-        """
-        return self._dofs.get(key)
-
-    def set(self, key: Key, new_val: Real) -> None:
-        """
-        Update the value held the specified DOF.
-        Even fixed dofs can be set this way
-
-        Args:
-            key: DOF identifier
-            new_val: New value of the DOF
-        """
-        # if isinstance(key, str):
-        #     self._dofs.loc[key, '_x'] = new_val
-        # else:
-        #     self._dofs.iloc[key, 0] = new_val
-        self._dofs.set(key, new_val)
-        self._set_new_x()
 
     @property
     def dofs_free_status(self) -> BoolArray:
