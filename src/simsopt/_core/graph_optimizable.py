@@ -926,6 +926,14 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         parent Optimizable's data changed, so the output from the current
         Optimizable object is invalid.
 
+        This method gets called by various DOF setters. If only the local
+        DOFs of an object are being set, the recompute_bell method is called
+        in that object and also in the descendent objects that have a dependency
+        on the object, whose local DOFs are being changed. If gloabl DOFs
+        of an object are being set, the recompute_bell method is called in
+        the object, ancestors of the object, as well as the descendents of
+        the object.
+
         Need to be implemented by classes that provide a dof_setter for
         external handling of DOFs.
         """
