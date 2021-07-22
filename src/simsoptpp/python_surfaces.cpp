@@ -122,6 +122,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("normal", &T::normal)
      .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
      .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
+     .def("unitnormal", &T::unitnormal)
      .def("area", &T::area)
      .def("darea_by_dcoeff", &T::darea_by_dcoeff)
      .def("darea", &T::darea_by_dcoeff) // shorthand

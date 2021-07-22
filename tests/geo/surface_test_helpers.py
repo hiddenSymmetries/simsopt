@@ -37,10 +37,8 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     return (coils, currents, ma)
 
 
-def get_surface(surfacetype, stellsym, phis=None, thetas=None):
+def get_surface(surfacetype, stellsym, phis=None, thetas=None, ntor=5, mpol=5):
     nfp = 3
-    ntor = 5
-    mpol = 5
     nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
     ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
 

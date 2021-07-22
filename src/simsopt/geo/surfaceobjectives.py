@@ -247,14 +247,16 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
 
 class QfmResidual(object):
-    """
-    For a given surface with points x on it, this function computes the residual
+    r"""
+    For a given surface :math:`S`, this class computes the residual
 
-        \int d^2 x \, (B \cdot n)^2 / \int d^2 x \, ||B||^2
+    .. math::
+        f(S) = \frac{\int_{S} d^2 x \, (\textbf{B} \cdot \hat{\textbf{n}})^2}{\int_{S} d^2 x \, B^2}
 
-    where B is the magnetic field from biotsavart, n is the unit normal on
-    a given surface, and the integration is performed over the surface.
-    Derivatives are computed wrt the surface dofs.
+    where :math:`\textbf{B}` is the magnetic field from :mod:`biotsavart`,
+    :math:`\hat{\textbf{n}}` is the unit normal on a given surface, and the
+    integration is performed over the surface. Derivatives are computed wrt the
+    surface dofs.
     """
 
     def __init__(self, surface, biotsavart):
