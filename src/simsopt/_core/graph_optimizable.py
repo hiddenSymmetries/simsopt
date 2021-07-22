@@ -1191,7 +1191,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         self._set_local_x(x)
         self._set_new_x()
-        
+
     def _set_local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
