@@ -61,8 +61,8 @@ class SurfaceGarabedian(Surface):
 
     def __repr__(self):
         return self.name + f" (nfp={self.nfp}, " + \
-               f"mmin={self.mmin}, mmax={self.mmax}" + \
-               f", nmin={self.nmin}, nmax={self.nmax})"
+            f"mmin={self.mmin}, mmax={self.mmax}" + \
+            f", nmin={self.nmin}, nmax={self.nmax})"
 
     @property
     def Delta(self):
