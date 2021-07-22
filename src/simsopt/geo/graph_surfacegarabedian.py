@@ -44,7 +44,7 @@ class SurfaceGarabedian(Surface):
         self.recalculate_derivs = True
 
         Delta = np.zeros(self.shape)
-        Surface.__init__(self, Delta.flatten(),
+        Surface.__init__(self, x0=Delta.ravel(),
                          names=self._make_dof_names())
 
         # Initialize to an axisymmetric torus with major radius 1m and
