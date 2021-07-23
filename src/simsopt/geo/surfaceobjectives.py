@@ -65,7 +65,7 @@ class ToroidalFlux(object):
        &= \int_{S_{\varphi}} \text{curl} \mathbf{A} \cdot \mathbf{n} ~ds, \\
        &= \int_{\partial S_{\varphi}} \mathbf{A} \cdot \mathbf{t}~dl,
 
-    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`, and :math:`\mathbf A` 
+    where :math:`S_{\varphi}` is a surface of constant :math:`\varphi`, and :math:`\mathbf A`
     is the magnetic vector potential.
     """
 
@@ -82,7 +82,7 @@ class ToroidalFlux(object):
 
     def J(self):
         r"""
-        Compute the toroidal flux on the surface where 
+        Compute the toroidal flux on the surface where
         :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`.
         """
         xtheta = self.surface.gammadash2()[self.idx]
@@ -244,3 +244,29 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
 
     return r, J, H
+
+def parameter_derivatives(surface,shape_gradient):
+    """
+    Converts the shape gradient of a given figure of merit, f, to derivatives
+    with respect to parameters defining a surface. Here the shape gradient
+    is defined as S, where the perturbation to the objective function
+    corresponding to the perturbation of the surface, \delta x is,
+
+    \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n.
+
+    Given S, the parameter derivatives are then computed as,
+
+    df_by_dcoeff = \int d^2 x \, S dx_by_dcoeff \cdot n.
+
+    Args:
+        shape_gradient: array-like with same dimensions as angles on the surface,
+            (nphi,ntheta)
+
+    """
+    N = surface.normal()
+    norm_N = np.linalg.norm(N,axis=2)
+    dx_by_dc = surface.dgamma_by_dcoeff()
+    N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl', N, dx_by_dc)
+    nphi = surface.gamma().shape[0]
+    ntheta = surface.gamma().shape[1]
+    return np.einsum('ijk,ij->k',N_dot_dx_by_dc,shape_gradient) / (ntheta * nphi)

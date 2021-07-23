@@ -33,13 +33,12 @@ except ImportError as e:
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
+from ..geo.surfaceobjectives import parameter_derivatives
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
-
-print('in vmec')
 
 # Flags used by runvmec():
 restart_flag = 1
@@ -167,7 +166,9 @@ class Vmec(Optimizable):
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
-                 keep_all_files: bool = False):
+                 keep_all_files: bool = False,
+                 ntheta=50,
+                 nphi=50):
         if MPI is None:
             raise RuntimeError("mpi4py needs to be installed for running VMEC")
         if vmec is None:
@@ -229,10 +230,14 @@ class Vmec(Optimizable):
         # object, but the mpol/ntor values of either the vmec object
         # or the boundary surface object can be changed independently
         # by the user.
+        quadpoints_theta = np.linspace(0,1.,ntheta,endpoint=False)
+        quadpoints_phi = np.linspace(0,1.,nphi,endpoint=False)
         self.boundary = SurfaceRZFourier(nfp=vi.nfp,
                                          stellsym=not vi.lasym,
                                          mpol=vi.mpol,
-                                         ntor=vi.ntor)
+                                         ntor=vi.ntor,
+                                         quadpoints_theta=quadpoints_theta,
+                                         quadpoints_phi=quadpoints_phi)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:
@@ -607,7 +612,7 @@ class Vmec(Optimizable):
         return np.sum(weight_function(self.s_half_grid) * self.wout.iotas[1:]) \
             / np.sum(weight_function(self.s_half_grid))
 
-    def iota_target(self,iota_target):
+    def iota_target_metric(self,iota_target):
         """
         Computes a metric quantifying the deviation of iota from a prescribed
         target value.
@@ -620,89 +625,131 @@ class Vmec(Optimizable):
                 transform.
         """
         self.run()
-
         return 0.5 * np.sum((self.wout.iotas[1::]
             - iota_target(self.s_half_grid))**2) * self.ds
 
-    def d_iota_target(self,iota_target,delta):
+    def d_iota_target_metric(self,iota_target,delta=1.):
+        """
+        Computes derivatives of iota_target_metric wrt surface parameters using
+        an adjoint method. The parameter delta sets the amplitude of the toroidal
+        current perturbation required for the adjoint solve.
+        """
         if self.indata.ncurr != 1:
-            raise RuntimeError('''d_iota_target cannot be computed without
+            raise RuntimeError('''d_iota_target_metric cannot be computed without
                 running vmec with ncurr = 1''')
 
-        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / (4*np.pi*1e-7)
-        ac_aux_f_prev = self.indata.ac_aux_f
-        ac_aux_s_prev = self.indata.ac_aux_s
-        pcurr_type_prev = self.indata.pcurr_type
+        shape_gradient = self.iota_target_metric_shape_gradient(iota_target,delta)
+
+        return parameter_derivatives(self.boundary,shape_gradient)
+
+    def iota_target_metric_shape_gradient(self,iota_target,delta):
+        """
+        Computes shape gradient of iota_target_metric, defined as S where,
+
+        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n,
+
+        is the perturbation to the objective function corresponding to the
+        perturbation of the surface, \delta x.
+        """
+        self.run()
+
+        Bx0, By0, Bz0, theta_arclength0 = self.B_on_arclength_grid()
+
+        mu0 = 4*np.pi*1e-7
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / mu0
+        ac_aux_f_prev = np.copy(self.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(self.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(self.indata.pcurr_type)
+        curtor_prev = np.copy(self.indata.curtor)
 
         perturbation = (self.wout.iotas[1::]-iota_target(self.s_half_grid)) \
             /(self.wout.phi[-1]*self.wout.signgs/(2*np.pi))
 
         # Perturbed toroidal current profile
         It_new = It_half + delta*perturbation
-        self.indata.ac_aux_f = 0*self.indata.ac_aux_f
-        self.indata.ac_aux_2 = 0*self.indata.ac_aux_s
+        curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
+        self.indata.ac_aux_f = -1.*np.ones_like(self.indata.ac_aux_f)
+        self.indata.ac_aux_s = -1.*np.ones_like(self.indata.ac_aux_s)
         self.indata.ac_aux_f[0:self.wout.ns-1] = It_new
         self.indata.ac_aux_s[0:self.wout.ns-1] = self.s_half_grid
-        self.indata.pcurr_type = "line_segment_I"
+        self.indata.curtor = curtor
+        self.indata.pcurr_type = b'line_segment_I'
         self.need_to_run_code = True
 
         self.run()
+
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / mu0
+
+        Bx, By, Bz, theta_arclength = self.B_on_arclength_grid(theta_evaluate=theta_arclength0)
 
         # Reset input values
         self.indata.ac_aux_f = ac_aux_f_prev
         self.indata.ac_aux_s = ac_aux_s_prev
         self.indata.pcurr_type = pcurr_type_prev
+        self.indata.curtor = curtor_prev
         self.need_to_run_code = True
 
-    def B_on_arclength_grid(self):
+        deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/delta
+
+        return deltaB_dot_B/(2*np.pi*mu0)
+
+    def B_on_arclength_grid(self,theta_evaluate=None):
         """
         Computes vector components of magnetic field on boundary on grid in
-            toroidal angle and arclength poloidal angle. This is required to
-            compute the adjoint-based shape gradient.
-
-        Returns:
-            Bx_end (float array): x component of magnetic field on zeta
-                and theta arclength grid
-            By_end (float array): y component of magnetic field on zeta
-                and theta arclength grid
-            Bz_end (float array): z component of magnetic field on zeta
-                and theta arclength grid
-            theta_arclength (float array): theta arclength grid on grid of
-                original VMEC angles
+        toroidal angle and arclength poloidal angle. This is required to
+        compute the adjoint-based shape gradient. If theta_evaluate is
+        provided, the field is interpolated onto the theta_evaluate
+        grid of poloidal angle.
         """
-        # Extrapolate to last full mesh grid point
-        bsupumnc_end = 1.5*self.wout.bsupumnc[-1,:] - 0.5*self.wout.bsupumnc[-2,:]
-        bsupvmnc_end = 1.5*self.wout.bsupvmnc[-1,:] - 0.5*self.wout.bsupvmnc[-2,:]
-        rmnc_end = self.wout.rmnc[:,-1]
-        zmns_end = self.wout.zmns[:,-1]
+        from scipy import interpolate
 
         dgamma1 = self.boundary.gammadash1()
         dgamma2 = self.boundary.gammadash2()
+        gamma = self.boundary.gamma()
+        X = gamma[:,:,0]
+        Y = gamma[:,:,1]
+        Z = gamma[:,:,2]
+        R = np.sqrt(X**2 + Y**2)
 
-        bsupumnc = 1.5 * self.wout.bsupumnc[:,-1] - 0.5 * self.bsupumnc[:,-2]
-        bsupvmnc = 1.5 * self.wout.bsupvmnc[:,-1] - 0.5 * self.bsupvmnc[:,-2]
+        theta1D = self.boundary.quadpoints_theta * 2 * np.pi
+        phi1D = self.boundary.quadpoints_phi * 2 * np.pi
+        nphi = len(phi1D)
+        ntheta = len(theta1D)
+        theta, phi = np.meshgrid(theta1D, phi1D)
+
+        bsupumnc = 1.5 * self.wout.bsupumnc[:,-1] - 0.5 * self.wout.bsupumnc[:,-2]
+        bsupvmnc = 1.5 * self.wout.bsupvmnc[:,-1] - 0.5 * self.wout.bsupvmnc[:,-2]
         angle = self.wout.xm_nyq[:,None,None] * theta[None,:,:] \
-            - self.wout.xn_nyq[:,None,None] * zeta[None,:,:]
-        Bsupu =
+            - self.wout.xn_nyq[:,None,None] * phi[None,:,:]
+        Bsupu = np.sum(bsupumnc[:,None,None] * np.cos(angle), axis=0)
+        Bsupv = np.sum(bsupvmnc[:,None,None] * np.cos(angle), axis=0)
 
-        [Bsupu_end, Bsupv_end] = self.B_contravariant(full=True,theta=self.thetas_2d,\
-                                                     zeta=self.zetas_2d,isurf=-1)
-        [x, y, z_end, R_end] = self.position(theta=self.thetas_2d,\
-                                                     zeta=self.zetas_2d,isurf=-1)
+        Bx = (Bsupv * dgamma1[:,:,0] + Bsupu * dgamma2[:,:,0])/(2*np.pi)
+        By = (Bsupv * dgamma1[:,:,1] + Bsupu * dgamma2[:,:,1])/(2*np.pi)
+        Bz = (Bsupv * dgamma1[:,:,2] + Bsupu * dgamma2[:,:,2])/(2*np.pi)
 
-        Bx_end = Bsupu_end * dxdu_end + Bsupv_end * dxdv_end
-        By_end = Bsupu_end * dydu_end + Bsupv_end * dydv_end
-        Bz_end = Bsupu_end * dzdu_end + Bsupv_end * dzdv_end
+        theta_arclength = np.zeros_like(phi)
+        for iphi in range(nphi):
+            for itheta in range(1, ntheta):
+                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
+                             + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
+                theta_arclength[iphi, itheta] = \
+                    theta_arclength[iphi, itheta-1] + dr
 
-        theta_arclength = np.zeros(np.shape(self.zetas_2d))
-        for izeta in range(self.nzeta):
-            for itheta in range(1, self.ntheta):
-                dr = np.sqrt((R_end[izeta, itheta] - R_end[izeta, itheta-1])**2 \
-                             + (z_end[izeta, itheta] - z_end[izeta, itheta-1])**2)
-                theta_arclength[izeta, itheta] = \
-                            theta_arclength[izeta, itheta-1] + dr
+        # If required, interpolate B onto a user-specified theta grid
+        if theta_evaluate is not None:
+            for iphi in range(nphi):
+                f = interpolate.InterpolatedUnivariateSpline(
+                            theta_arclength[iphi,:],Bx[iphi,:])
+                Bx[iphi,:] = f(theta_evaluate[iphi,:])
+                f = interpolate.InterpolatedUnivariateSpline(
+                            theta_arclength[iphi,:],By[iphi,:])
+                By[iphi,:] = f(theta_evaluate[iphi,:])
+                f = interpolate.InterpolatedUnivariateSpline(
+                            theta_arclength[iphi,:],Bz[iphi,:])
+                Bz[iphi,:] = f(theta_evaluate[iphi,:])
 
-        return Bx_end, By_end, Bz_end, theta_arclength
+        return Bx, By, Bz, theta_arclength
 
     def well_weighted(self,weight_function1,weight_function2):
         """

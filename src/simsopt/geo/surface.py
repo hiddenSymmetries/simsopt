@@ -271,28 +271,3 @@ class Surface(Optimizable):
 
         AR = R_major/R_minor
         return AR
-
-    def parameter_derivatives(self,shape_gradient):
-        """
-        Converts the shape gradient of a given figure of merit, f, to derivatives
-        with respect to parameters defining a surface. Here the shape gradient
-        is defined as S, where the perturbation to the objective function
-        corresponding to the perturbation of the surface, \delta x is,
-
-        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n.
-
-        Given S, the parameter derivatives are then computed as,
-
-        df_by_dcoeff = \int d^2 x \, S dx_by_dcoeff \cdot n.
-
-        Args:
-            shape_gradient: array-like with same dimensions as angles on the surface,
-                (nphi,ntheta)
-
-        """
-        N = self.normal()
-        dx_by_dc = self.dgamma_by_dcoeff()
-        N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl',N,dx_by_dc)
-        nphi = self.gamma().shape[0]
-        ntheta = self.gamma().shape[1]
-        return np.einsum('ijk,ij->k',N_dot_dx_by_dc,shape_gradient) * self.nfp / (ntheta * nphi)

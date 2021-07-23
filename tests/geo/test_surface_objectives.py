@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from simsopt.geo.biotsavart import BiotSavart
-from simsopt.geo.surfaceobjectives import ToroidalFlux
+from simsopt.geo.surfaceobjectives import ToroidalFlux, parameter_derivatives, Volume
 from simsopt.geo.coilcollection import CoilCollection
 from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
 
@@ -131,10 +131,32 @@ class ToroidalFluxTests(unittest.TestCase):
 
         def df(dofs):
             s.set_dofs(dofs)
-            return tf.dJ_by_dsurfacecoefficients() 
+            return tf.dJ_by_dsurfacecoefficients()
 
         def d2f(dofs):
             s.set_dofs(dofs)
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs)
+
+class ParameterDerivativesTest(unittest.TestCase):
+    def test_parameter_derivatives_volume(self):
+        """
+        Test that parameter derivatives of volume (shape_gradient = 1) match
+        parameter derivatives computed from Volume class.
+        """
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_volume(surfacetype, stellsym)
+
+    def subtest_volume(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym, mpol=10, ntor=10, ntheta=100,
+            nphi=100,full=True)
+        dofs = s.get_dofs()
+
+        vol = Volume(s)
+        dvol_sg = parameter_derivatives(s,np.ones_like(s.gamma()[:,:,0]))
+        dvol = vol.dJ_by_dsurfacecoefficients()
+        for i in range(len(dofs)):
+            self.assertAlmostEqual(dvol_sg[i],dvol[i],places=10)
