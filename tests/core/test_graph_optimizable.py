@@ -600,6 +600,27 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(adder.full_x[1], 20)
         self.assertAlmostEqual(iden.full_x[0], 20)
 
+    def test_dofs_free_status(self):
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=True)
+        test_obj = OptClassWithParents(20, opts_in=[iden, adder])
+
+        adder_status = [False, True, True]
+        self.assertTrue(np.equal(adder.dofs_free_status, adder_status).all())
+        self.assertTrue(np.equal(iden.dofs_free_status, [False]).all())
+        obj_status = [False, False, True, True, True]
+        self.assertTrue(np.equal(test_obj.dofs_free_status, obj_status).all())
+
+    def test_local_dofs_free_status(self):
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=True)
+
+        self.assertTrue(
+            np.equal(adder.local_dofs_free_status, [False, True, True]).all())
+        self.assertTrue(np.equal(iden.local_dofs_free_status, [False]).all())
+
     def test_call(self):
         # Test for leaf nodes
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
