@@ -8,7 +8,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     coordinates using the following Fourier series:
 
     .. math::
-           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}} \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
+           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}}
+               \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
                r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
                + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
 
@@ -17,11 +18,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
     is any poloidal angle.
 
-    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
-    for the sin terms.
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms,
+    and the :math:`n \leq 0` for the sin terms.
 
-    In addition, in the ``stellsym=True`` case, we skip the sin terms for :math:`r`, and
-    the cos terms for :math:`z`.
+    In addition, in the ``stellsym=True`` case, we skip the sin terms for
+    :math:`r`, and the cos terms for :math:`z`.
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63,
@@ -44,6 +45,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Return the dofs associated to this surface.
         """
         return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
+
+    def set_dofs(self, dofs):
+        sopp.SurfaceRZFourier.set_dofs(self, dofs)
 
     def _make_names(self):
         """
@@ -158,13 +162,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Check whether `m` and `n` are in the allowed range.
         """
         if m < 0:
-            raise ValueError('m must be >= 0')
+            raise IndexError('m must be >= 0')
         if m > self.mpol:
-            raise ValueError('m must be <= mpol')
+            raise IndexError('m must be <= mpol')
         if n > self.ntor:
-            raise ValueError('n must be <= ntor')
+            raise IndexError('n must be <= ntor')
         if n < -self.ntor:
-            raise ValueError('n must be >= -ntor')
+            raise IndexError('n must be >= -ntor')
 
     def get_rc(self, m, n):
         """
@@ -294,11 +298,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
-
-    def set_dofs(self, dofs):
-        sopp.SurfaceRZFourier.set_dofs(self, dofs)
-        # for d in self.dependencies:
-        #     d.invalidate_cache()
 
     def darea(self):
         """
