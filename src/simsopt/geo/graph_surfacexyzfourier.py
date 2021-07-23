@@ -55,6 +55,15 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         """
         return np.asarray(sopp.SurfaceXYZFourier.get_dofs(self))
 
+    def set_dofs(self, dofs):
+        """
+        Set the dofs associated to this surface.
+        """
+        sopp.SurfaceXYZFourier.set_dofs(self, dofs)
+
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
+
     def to_RZFourier(self):
         """
         Return a SurfaceRZFourier instance corresponding to the shape of this
@@ -75,12 +84,3 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
 
         surf.least_squares_fit(gamma)
         return surf
-
-    def recompute_bell(self, parent=None):
-        self.invalidate_cache()
-
-    def set_dofs(self, dofs):
-        """
-        Set the dofs associated to this surface.
-        """
-        sopp.SurfaceXYZFourier.set_dofs(self, dofs)
