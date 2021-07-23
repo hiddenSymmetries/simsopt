@@ -1,14 +1,17 @@
 import numpy as np
+
+from .._core.graph_optimizable import Optimizable
 import simsoptpp as sopp
 
 
-class Area(object):
+class Area(Optimizable):
     """
     Wrapper class for surface area label.
     """
 
     def __init__(self, surface):
         self.surface = surface
+        super().__init__(opts_in=[surface])
 
     def J(self):
         """
@@ -29,13 +32,14 @@ class Area(object):
         return self.surface.d2area_by_dcoeffdcoeff()
 
 
-class Volume(object):
+class Volume(Optimizable):
     """
     Wrapper class for volume label.
     """
 
     def __init__(self, surface):
         self.surface = surface
+        super().__init__(opts_in=[surface])
 
     def J(self):
         """
@@ -56,7 +60,7 @@ class Volume(object):
         return self.surface.d2volume_by_dcoeffdcoeff()
 
 
-class ToroidalFlux(object):
+class ToroidalFlux(Optimizable):
     r"""
     Given a surface and Biot Savart kernel, this objective calculates
 
@@ -73,7 +77,11 @@ class ToroidalFlux(object):
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
-        self.surface.dependencies.append(self)
+        # self.surface.dependencies.append(self)
+        # self.invalidate_cache()
+        super().__init__(opts_in=[surface, biotsavart])
+
+    def recompute_bell(self, parent=None):
         self.invalidate_cache()
 
     def invalidate_cache(self):
@@ -246,7 +254,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     return r, J, H
 
 
-class QfmResidual(object):
+class QfmResidual(Optimizable):
     """
     For a given surface with points x on it, this function computes the residual
 
@@ -260,7 +268,11 @@ class QfmResidual(object):
     def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
-        self.surface.dependencies.append(self)
+        # self.surface.dependencies.append(self)
+        # self.invalidate_cache()
+        super().__init__(opts_in=[surface, biotsavart])
+
+    def recompute_bell(self, parent=None):
         self.invalidate_cache()
 
     def invalidate_cache(self):
