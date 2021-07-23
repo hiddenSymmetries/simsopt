@@ -1,11 +1,12 @@
 import numpy as np
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.geo.graph_surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.graph_surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.graph_surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from pathlib import Path
-TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+
+TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
