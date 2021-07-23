@@ -353,32 +353,33 @@ class DOFs:
         if x is None:
             x = np.array([])
         else:
-            x = np.array(x, dtype=np.double)
+            x = np.asarray(x, dtype=np.double)
 
         if names is None:
             names = [f"x{i}" for i in range(len(x))]
         assert(len(np.unique(names)) == len(names))  # DOF names should be unique
 
-        if free is not None:
-            free = np.array(free, dtype=np.bool_)
-        else:
+        if free is None:
             free = np.full(len(x), True)
-
-        if lower_bounds is not None:
-            lb = np.array(lower_bounds, np.double)
         else:
-            lb = np.full(len(x), np.NINF)
+            free = np.asarray(free, dtype=np.bool_)
 
-        if upper_bounds is not None:
-            ub = np.array(upper_bounds, np.double)
+        if lower_bounds is None:
+            lower_bounds = np.full(len(x), np.NINF)
         else:
-            ub = np.full(len(x), np.inf)
+            lower_bounds = np.asarray(lower_bounds, np.double)
 
-        assert(len(x) == len(free) == len(lb) == len(ub) == len(names))
+        if upper_bounds is None:
+            upper_bounds = np.full(len(x), np.inf)
+        else:
+            upper_bounds = np.asarray(upper_bounds, np.double)
+
+        assert(len(x) == len(free) == len(lower_bounds) == len(upper_bounds) \
+               == len(names))
         self._x = x
         self._free = free
-        self._lb = lb
-        self._ub = ub
+        self._lb = lower_bounds
+        self._ub = upper_bounds
         self._names = list(names)
 
     def __len__(self):
@@ -392,10 +393,8 @@ class DOFs:
             key: Key to identify the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._free[i] = False
-        else:
-            self._free[key] = False
+            key = self._names.index(key)
+        self._free[key] = False
 
     def unfix(self, key: Key) -> None:
         """
@@ -405,10 +404,8 @@ class DOFs:
             key: Key to identify the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._free[i] = True
-        else:
-            self._free[key] = True
+            key = self._names.index(key)
+        self._free[key] = True
 
     def all_free(self) -> bool:
         """
@@ -457,8 +454,6 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        # if not self._free[key]:
-        #     raise IndexError("The DOF is fixed")
         self._x[key] = val
 
     def is_free(self, key: Key) -> bool:
@@ -524,11 +519,11 @@ class DOFs:
                (word of caution: This setter blindly broadcasts a single value.
                So don't supply a single value unless you really desire.)
         """
-        if len(self._free[self._free]) != len(x):
+        if self.reduced_len != len(x):
             # To prevent fully fixed DOFs from not raising Error
             # And to prevent broadcasting of a single DOF
             raise ValueError
-        self._x[self._free] = x
+        self._x[self._free] = np.asarray(x, dtype=np.double)
 
     @property
     def full_x(self) -> RealArray:
@@ -553,7 +548,7 @@ class DOFs:
         if len(self._x) != len(x):
             # To prevent broadcasting of a single DOF
             raise ValueError
-        self._x = x
+        self._x = np.asarray(x, dtype=np.double)
 
     @property
     def reduced_len(self) -> Integral:
@@ -584,11 +579,11 @@ class DOFs:
         Args:
             lower_bounds: Lower bounds of the DOFs
         """
-        if len(self._free[self._free]) != len(lower_bounds):
+        if self.reduced_len != len(lower_bounds):
             # To prevent fully fixed DOFs from not raising Error
             # And to prevent broadcasting of a single DOF
             raise ValueError
-        self._lb[self._free] = lower_bounds
+        self._lb[self._free] = np.asarray(lower_bounds, dtype=np.double)
 
     @property
     def upper_bounds(self) -> RealArray:
@@ -606,11 +601,11 @@ class DOFs:
         Args:
             upper_bounds: Upper bounds of the DOFs
         """
-        if len(self._free[self._free]) != len(upper_bounds):
+        if self.reduced_len != len(upper_bounds):
             # To prevent fully fixed DOFs from not raising Error
             # And to prevent broadcasting of a single DOF
             raise ValueError
-        self._ub[self._free] = upper_bounds
+        self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -630,10 +625,8 @@ class DOFs:
             val: Numeric lower bound of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._lb[i] = val
-        else:
-            self._lb[key] = val
+            key = self._names.index(key)
+        self._lb[key] = val
 
     def update_upper_bound(self, key: Key, val: Real) -> None:
         """
@@ -644,10 +637,8 @@ class DOFs:
             val: Numeric upper bound of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._ub[i] = val
-        else:
-            self._ub[key] = val
+            key = self._names.index(key)
+        self._ub[key] = val
 
     def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
         """
@@ -658,12 +649,9 @@ class DOFs:
             val: (lower, upper) bounds of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._lb[i] = val[0]
-            self._ub[i] = val[1]
-        else:
-            self._lb[key] = val[0]
-            self._ub[key] = val[1]
+            key = self._names.index(key)
+        self._lb[key] = val[0]
+        self._ub[key] = val[1]
 
     @property
     def names(self):
