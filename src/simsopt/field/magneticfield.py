@@ -67,9 +67,9 @@ class MagneticField(sopp.MagneticField, Optimizable):
         RPhiZ[:, 2] = Z.flatten()
 
         self.set_points_cyl(RPhiZ)
-        vals = self.B()
+        vals = self.B().reshape((R.shape[0], R.shape[1], R.shape[2], 3))
         contig = np.ascontiguousarray
-        gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[:, 0]), contig(vals[:, 1]), contig(vals[:, 2]))})
+        gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
 
 class MagneticFieldMultiply(MagneticField):

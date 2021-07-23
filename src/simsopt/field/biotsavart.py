@@ -1,6 +1,6 @@
 import numpy as np
 import simsoptpp as sopp
-from simsopt.geo.magneticfield import MagneticField
+from simsopt.field.magneticfield import MagneticField
 from simsopt.geo.curve import Curve
 from simsopt._core.graph_optimizable import Optimizable
 from simsopt._core.derivative import Derivative
