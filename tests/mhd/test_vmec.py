@@ -193,6 +193,37 @@ class VmecTests(unittest.TestCase):
         self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
         self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
 
+    def test_d_iota_target_metric(self):
+        """
+        Compare d_iota_target_metric with finite differences.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        vmec = Vmec(filename,ntheta=50,nphi=50)
+
+        target_function = lambda s : 0.68
+        epsilon = 1.e-4 # FD step size
+        adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
+
+        # Compute random direction for surface perturbation
+        surf = vmec.boundary
+        dofs = np.copy(vmec.boundary.get_dofs())
+        vec = np.random.standard_normal(dofs.shape)
+        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+
+        def iota_fun(epsilon):
+            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+            vmec.need_to_run_code = True
+            return vmec.iota_target_metric(target_function)
+
+        d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
+
+        vmec.boundary.set_dofs(dofs)
+        vmec.need_to_run_code = True
+        d_iota_adjoint = np.dot(vmec.d_iota_target_metric(target_function,adjoint_epsilon),unitvec)
+
+        relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
+        self.assertTrue(relative_error < 5e-2)
+
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -248,7 +279,7 @@ class VmecTests(unittest.TestCase):
         np.testing.assert_allclose(prob.x, [1.0])
         self.assertEqual(prob.all_owners, [equil, surf])
         self.assertEqual(prob.dof_owners, [surf])
-            
+
         # Solve the minimization problem:
         prob.solve()
 
