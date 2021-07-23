@@ -17,10 +17,18 @@ except ImportError:
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
+
+    # TODO: Unit test for cross section and make it consistent for all
+    # TODO: surface classes
+    def test_cross_section(self):
+        self.fail("Test Not Implemented")
+
+    # TODO: Make test_aspect_ratio consistent for all surface classes
     def test_aspect_ratio(self):
         """
-        Test that the aspect ratio of a torus with random minor and major radius 0.1 <= minor_R <= major_R
-        is properly computed to be major_R/minor_R.
+        Test that the aspect ratio of a torus with random minor and major
+        radius 0.1 <= minor_R <= major_R is properly computed to be
+        major_R/minor_R.
         """
 
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=2)
@@ -49,19 +57,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.rs.shape, (2, 7))
         self.assertEqual(s.zc.shape, (2, 7))
 
-    def test_area_volume(self):
-        """
-        Test the calculation of area and volume for an axisymmetric surface
-        """
-        s = SurfaceRZFourier()
-        s.rc[0, 0] = 1.3
-        s.rc[1, 0] = 0.4
-        s.zs[1, 0] = 0.2
-
-        true_area = 15.827322032265993
-        true_volume = 2.0528777154265874
-        self.assertAlmostEqual(s.area(), true_area, places=4)
-        self.assertAlmostEqual(s.volume(), true_volume, places=3)
+        # Expand the test by checking DOF names
 
     def test_get_dofs(self):
         """
@@ -82,8 +78,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Now try a nonaxisymmetric shape:
         s = SurfaceRZFourier(mpol=3, ntor=1)
-        s.rc[:, :] = [[100, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]] 
-        s.zs[:, :] = [[101, 102, 13], [14, 15, 16], [17, 18, 19], [20, 21, 22]] 
+        s.rc[:, :] = [[100, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
+        s.zs[:, :] = [[101, 102, 13], [14, 15, 16], [17, 18, 19], [20, 21, 22]]
         dofs = s.get_dofs()
         self.assertEqual(dofs.shape, (21,))
         for j in range(21):
@@ -163,28 +159,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
-    @unittest.skip
-    def test_derivatives(self):
-        """
-        Check the automatic differentiation for area and volume.
-        """
-        for mpol in range(1, 3):
-            for ntor in range(2):
-                for nfp in range(1, 4):
-                    s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
-                    x0 = s.get_dofs()
-                    x = np.random.rand(len(x0)) - 0.5
-                    x[0] = np.random.rand() + 2
-                    # This surface will probably self-intersect, but I
-                    # don't think this actually matters here.
-                    s.set_dofs(x)
-
-                    dofs = Dofs([s.area, s.volume])
-                    jac = dofs.jac()
-                    fd_jac = dofs.fd_jac()
-                    print('difference for surface test_derivatives:', jac - fd_jac)
-                    np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
-
     def test_change_resolution(self):
         """
         Check that we can change mpol and ntor.
@@ -221,6 +195,83 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
+    # TODO: Implement the tests
+    def test_to_RZFOurier(self):
+        self.fail("Test Not Implemented")
+
+    def test_repr(self):
+        self.fail("Test Not Implemented")
+
+    def test_get_rc(self):
+        self.fail("Test Not Implemented")
+
+    def test_get_rs(self):
+        self.fail("Test Not Implemented")
+
+    def test_get_zc(self):
+        self.fail("Test Not Implemented")
+
+    def test_get_zs(self):
+        self.fail("Test Not Implemented")
+
+    def test_set_rc(self):
+        self.fail("Test Not Implemented")
+
+    def test_set_rs(self):
+        self.fail("Test Not Implemented")
+
+    def test_set_zc(self):
+        self.fail("Test Not Implemented")
+
+    def test_set_zs(self):
+        self.fail("Test Not Implemented")
+
+    def test_fixed_range(self):
+        self.fail("Test Not Implemented")
+
+    def test_to_Garabedian(self):
+        self.fail("Test Not Implemented")
+
+    def recompute_bell(self):
+        self.fail("Test Not Implemented")
+
+    def test_area_volume(self):
+        """
+        Test the calculation of area and volume for an axisymmetric surface
+        """
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+
+        true_area = 15.827322032265993
+        true_volume = 2.0528777154265874
+        self.assertAlmostEqual(s.area(), true_area, places=4)
+        self.assertAlmostEqual(s.volume(), true_volume, places=3)
+
+    @unittest.skip
+    def test_derivatives(self):
+        """
+        Check the automatic differentiation for area and volume.
+        """
+        for mpol in range(1, 3):
+            for ntor in range(2):
+                for nfp in range(1, 4):
+                    s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+                    x0 = s.get_dofs()
+                    x = np.random.rand(len(x0)) - 0.5
+                    x[0] = np.random.rand() + 2
+                    # This surface will probably self-intersect, but I
+                    # don't think this actually matters here.
+                    s.set_dofs(x)
+
+                    dofs = Dofs([s.area, s.volume])
+                    jac = dofs.jac()
+                    fd_jac = dofs.fd_jac()
+                    print('difference for surface test_derivatives:', jac - fd_jac)
+                    np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
+
+    # TODO: Test the SurfaceRZFourier class w.r.t. graph optimizable framework
 
 if __name__ == "__main__":
     unittest.main()
