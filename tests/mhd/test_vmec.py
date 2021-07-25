@@ -274,15 +274,22 @@ class VmecTests(unittest.TestCase):
 
     def test_d_iota_target_metric(self):
         """
+        Assert that RuntimeRror is raised if ncurr = 0.
         Compare d_iota_target_metric with finite differences for a surface
         perturbation in a random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+
+        # Check that assert raised if ncurr = 0
+        vmec.indata.ncurr = 0
+        with self.assertRaises(RuntimeError):
+            vmec.d_iota_target_metric(target_function)
+        vmec.indata.ncurr = 1
 
         # Compute random direction for surface perturbation
         surf = vmec.boundary
@@ -312,7 +319,7 @@ class VmecTests(unittest.TestCase):
         random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
@@ -346,7 +353,7 @@ class VmecTests(unittest.TestCase):
         one surface coefficient matches finite-differences.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
