@@ -139,6 +139,7 @@ class ToroidalFluxTests(unittest.TestCase):
 
         taylor_test2(f, df, d2f, coeffs)
 
+
 class ParameterDerivativesTest(unittest.TestCase):
     def test_parameter_derivatives_volume(self):
         """
@@ -152,11 +153,11 @@ class ParameterDerivativesTest(unittest.TestCase):
 
     def subtest_volume(self, surfacetype, stellsym):
         s = get_surface(surfacetype, stellsym, mpol=10, ntor=10, ntheta=100,
-            nphi=100,full=True)
+                        nphi=100, full=True)
         dofs = s.get_dofs()
 
         vol = Volume(s)
-        dvol_sg = parameter_derivatives(s,np.ones_like(s.gamma()[:,:,0]))
+        dvol_sg = parameter_derivatives(s, np.ones_like(s.gamma()[:, :, 0]))
         dvol = vol.dJ_by_dsurfacecoefficients()
         for i in range(len(dofs)):
-            self.assertAlmostEqual(dvol_sg[i],dvol[i],places=10)
+            self.assertAlmostEqual(dvol_sg[i], dvol[i], places=10)
