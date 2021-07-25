@@ -200,16 +200,16 @@ class VmecTests(unittest.TestCase):
         yields approximately same result.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        target_function = lambda s : np.cos(s)
+        target_function = lambda s: np.cos(s)
         metric1 = vmec.iota_target_metric(target_function)
         stencil = np.ones_like(vmec.s_full_grid)
         stencil[0] = 0.5
         stencil[-1] = 0.5
         metric2 = 0.5 * np.sum((vmec.wout.iotaf - target_function(vmec.s_full_grid))**2 * stencil) * vmec.ds
 
-        self.assertAlmostEqual(metric1,metric2,places=3)
+        self.assertAlmostEqual(metric1, metric2, places=3)
 
     def test_iota_weighted(self):
         """
@@ -217,13 +217,13 @@ class VmecTests(unittest.TestCase):
         approximately the value of iota at center of weight function.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
         vmec.run()
         iota_center = vmec.wout.iotas[50]
         s_center = vmec.s_half_grid[50]
-        target_function = lambda s : np.exp(-(s-s_center)**2/0.01**2)
-        self.assertAlmostEqual(vmec.iota_weighted(target_function),iota_center,places=2)
+        target_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
+        self.assertAlmostEqual(vmec.iota_weighted(target_function), iota_center, places=2)
 
     def test_well_weighted(self):
         """
@@ -231,7 +231,7 @@ class VmecTests(unittest.TestCase):
         and edge matches well metric computed with V'(0) and V'(1).
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
         vmec.run()
         vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
@@ -239,8 +239,8 @@ class VmecTests(unittest.TestCase):
         well1 = (vp_l-vp_r)/(vp_l+vp_r)
         weight1 = lambda s: np.exp(-s**2/0.01**2)
         weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
-        well2 = vmec.well_weighted(weight1,weight2)
-        self.assertAlmostEqual(well1,well2,places=2)
+        well2 = vmec.well_weighted(weight1, weight2)
+        self.assertAlmostEqual(well1, well2, places=2)
 
     def test_B_on_arclength_grid(self):
         """
@@ -248,7 +248,7 @@ class VmecTests(unittest.TestCase):
         Check that B is unchanged when evaluated on arclength grid from first run.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
         Bx, By, Bz, arclength0 = vmec.B_on_arclength_grid()
         B2 = Bx*Bx + By*By + Bz*Bz
@@ -259,18 +259,18 @@ class VmecTests(unittest.TestCase):
         ntheta = len(theta1D)
         theta, phi = np.meshgrid(theta1D, phi1D)
 
-        bmnc = 1.5 * vmec.wout.bmnc[:,-1] - 0.5 * vmec.wout.bmnc[:,-2]
+        bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
         xm = vmec.wout.xm_nyq
         xn = vmec.wout.xn_nyq
-        angle = vmec.wout.xm_nyq[:,None,None] * theta[None,:,:] \
-            - vmec.wout.xn_nyq[:,None,None] * phi[None,:,:]
-        B = np.sum(bmnc[:,None,None] * np.cos(angle), axis=0)
-        self.assertTrue(np.max(np.abs(B**2-B2))<1.e-4)
+        angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
+            - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
+        B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
+        self.assertTrue(np.max(np.abs(B**2-B2)) < 1.e-4)
 
         Bx, By, Bz, arclength = vmec.B_on_arclength_grid()
-        self.assertTrue(np.max(np.abs(Bx-Bx))<1.0e-4)
-        self.assertTrue(np.max(np.abs(By-By))<1.0e-4)
-        self.assertTrue(np.max(np.abs(Bz-Bz))<1.0e-4)
+        self.assertTrue(np.max(np.abs(Bx-Bx)) < 1.0e-4)
+        self.assertTrue(np.max(np.abs(By-By)) < 1.0e-4)
+        self.assertTrue(np.max(np.abs(Bz-Bz)) < 1.0e-4)
 
     def test_d_iota_target_metric(self):
         """
@@ -278,11 +278,11 @@ class VmecTests(unittest.TestCase):
         perturbation in a random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        target_function = lambda s : 0.68
-        epsilon = 1.e-4 # FD step size
-        adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
+        target_function = lambda s: 0.68
+        epsilon = 1.e-4  # FD step size
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
         # Compute random direction for surface perturbation
         surf = vmec.boundary
@@ -299,11 +299,11 @@ class VmecTests(unittest.TestCase):
 
         vmec.boundary.set_dofs(dofs)
         vmec.need_to_run_code = True
-        d_iota_adjoint = np.dot(vmec.d_iota_target_metric(target_function,adjoint_epsilon),unitvec)
+        d_iota_adjoint = np.dot(vmec.d_iota_target_metric(target_function, adjoint_epsilon), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
         logger.info('adjoint jac:', d_iota_adjoint, '  fd jac:', d_iota_fd)
-        logger.info('relative error: ',relative_error)
+        logger.info('relative error: ', relative_error)
         self.assertTrue(relative_error < 5.e-2)
 
     def test_IotaTargetMetric(self):
@@ -312,13 +312,13 @@ class VmecTests(unittest.TestCase):
         random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        target_function = lambda s : 0.68
-        epsilon = 1.e-4 # FD step size
-        adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
+        target_function = lambda s: 0.68
+        epsilon = 1.e-4  # FD step size
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
-        obj = IotaTargetMetric(vmec,target_function,adjoint_epsilon)
+        obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
         # Compute random direction for surface perturbation
         dofs = np.copy(vmec.boundary.get_dofs())
@@ -333,11 +333,11 @@ class VmecTests(unittest.TestCase):
 
         vmec.boundary.set_dofs(dofs)
         vmec.need_to_run_code = True
-        d_iota_adjoint = np.dot(obj.dJ(),unitvec)
+        d_iota_adjoint = np.dot(obj.dJ(), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
         logger.info('adjoint jac:', d_iota_adjoint, '  fd jac:', d_iota_fd)
-        logger.info('relative error: ',relative_error)
+        logger.info('relative error: ', relative_error)
         self.assertTrue(relative_error < 5.e-2)
 
     def test_IotaTargetMetric_LeastSquaresProblem(self):
@@ -346,18 +346,18 @@ class VmecTests(unittest.TestCase):
         one surface coefficient matches finite-differences.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename,ntheta=50,nphi=50)
+        vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        target_function = lambda s : 0.68
-        epsilon = 1.e-4 # FD step size
-        adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
+        target_function = lambda s: 0.68
+        epsilon = 1.e-4  # FD step size
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
         # Compute random direction for surface perturbation
         surf = vmec.boundary
         surf.all_fixed()
-        surf.set_fixed("rc(0,0)",False)  # Major radius
+        surf.set_fixed("rc(0,0)", False)  # Major radius
 
-        obj = IotaTargetMetric(vmec,target_function,adjoint_epsilon)
+        obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
         prob = LeastSquaresProblem([(obj, 0, 1)])
 
@@ -366,7 +366,7 @@ class VmecTests(unittest.TestCase):
 
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info('adjoint jac:', jac, '  fd jac:', fd_jac)
-        logger.info('relative error: ',relative_error)
+        logger.info('relative error: ', relative_error)
         self.assertTrue(relative_error < 1.e-2)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):

@@ -17,9 +17,9 @@ modes in the optimization space is slowly increased from |m|,|n| <= 2 to 5. At
 the end, the initial and final profiles are plotted.
 """
 
-target_function = lambda s : 0.381966 # target value of rotational transform
-epsilon = 1.e-4 # FD step size
-adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
+target_function = lambda s: 0.381966  # target value of rotational transform
+epsilon = 1.e-4  # FD step size
+adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
 # Compute random direction for surface perturbation
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse'), ntheta=100, nphi=100)
@@ -27,13 +27,13 @@ vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_el
 vmec.run()
 iotas_init = vmec.wout.iotas
 
-obj = IotaTargetMetric(vmec,target_function,adjoint_epsilon)
+obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 prob = LeastSquaresProblem([(obj, 0, 1)])
 
 surf = vmec.boundary
 surf.all_fixed(True)
 # Slowly increase range of modes in optimization space
-for max_mode in range(2,6):
+for max_mode in range(2, 6):
     print(max_mode)
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
@@ -48,10 +48,10 @@ for max_mode in range(2,6):
 iotas_final = vmec.wout.iotas
 
 plt.figure()
-plt.plot(vmec.s_half_grid,iotas_init[1::],color='green')
-plt.plot(vmec.s_half_grid,iotas_final[1::],color='red')
-plt.plot(vmec.s_half_grid,target_function(vmec.s_half_grid),color='blue')
-plt.legend(['Initial','Final','Target'])
+plt.plot(vmec.s_half_grid, iotas_init[1::], color='green')
+plt.plot(vmec.s_half_grid, iotas_final[1::], color='red')
+plt.plot(vmec.s_half_grid, target_function(vmec.s_half_grid), color='blue')
+plt.legend(['Initial', 'Final', 'Target'])
 plt.xlabel(r'$s$')
 plt.ylabel(r'$\iota$')
 plt.show()

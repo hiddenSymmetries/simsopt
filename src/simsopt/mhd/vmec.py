@@ -230,8 +230,8 @@ class Vmec(Optimizable):
         # object, but the mpol/ntor values of either the vmec object
         # or the boundary surface object can be changed independently
         # by the user.
-        quadpoints_theta = np.linspace(0,1.,ntheta,endpoint=False)
-        quadpoints_phi = np.linspace(0,1.,nphi,endpoint=False)
+        quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
+        quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
         self.boundary = SurfaceRZFourier(nfp=vi.nfp,
                                          stellsym=not vi.lasym,
                                          mpol=vi.mpol,
@@ -596,7 +596,7 @@ class Vmec(Optimizable):
         well = (dVds_s0 - dVds_s1) / dVds_s0
         return well
 
-    def iota_weighted(self,weight_function):
+    def iota_weighted(self, weight_function):
         """
         Computed a weighted average of the rotational transform defined by
         the prescribed weight_function, f.
@@ -612,7 +612,7 @@ class Vmec(Optimizable):
         return np.sum(weight_function(self.s_half_grid) * self.wout.iotas[1:]) \
             / np.sum(weight_function(self.s_half_grid))
 
-    def iota_target_metric(self,iota_target):
+    def iota_target_metric(self, iota_target):
         """
         Computes a metric quantifying the deviation of iota from a prescribed
         target value.
@@ -626,9 +626,9 @@ class Vmec(Optimizable):
         """
         self.run()
         return 0.5 * np.sum((self.wout.iotas[1::]
-            - iota_target(self.s_half_grid))**2) * self.ds
+                             - iota_target(self.s_half_grid))**2) * self.ds
 
-    def d_iota_target_metric(self,iota_target,delta=1.):
+    def d_iota_target_metric(self, iota_target, delta=1.):
         """
         Computes derivatives of iota_target_metric wrt surface parameters using
         an adjoint method. The parameter delta sets the amplitude of the toroidal
@@ -638,11 +638,11 @@ class Vmec(Optimizable):
             raise RuntimeError('''d_iota_target_metric cannot be computed without
                 running vmec with ncurr = 1''')
 
-        shape_gradient = self.iota_target_metric_shape_gradient(iota_target,delta)
+        shape_gradient = self.iota_target_metric_shape_gradient(iota_target, delta)
 
-        return parameter_derivatives(self.boundary,shape_gradient)
+        return parameter_derivatives(self.boundary, shape_gradient)
 
-    def iota_target_metric_shape_gradient(self,iota_target,delta):
+    def iota_target_metric_shape_gradient(self, iota_target, delta):
         """
         Computes shape gradient of iota_target_metric, defined as S where,
 
@@ -656,14 +656,14 @@ class Vmec(Optimizable):
         Bx0, By0, Bz0, theta_arclength0 = self.B_on_arclength_grid()
 
         mu0 = 4*np.pi*1e-7
-        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / mu0
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
         ac_aux_f_prev = np.copy(self.indata.ac_aux_f)
         ac_aux_s_prev = np.copy(self.indata.ac_aux_s)
         pcurr_type_prev = np.copy(self.indata.pcurr_type)
         curtor_prev = np.copy(self.indata.curtor)
 
         perturbation = (self.wout.iotas[1::]-iota_target(self.s_half_grid)) \
-            /(self.wout.phi[-1]*self.wout.signgs/(2*np.pi))
+            / (self.wout.phi[-1]*self.wout.signgs/(2*np.pi))
 
         # Perturbed toroidal current profile
         It_new = It_half + delta*perturbation
@@ -678,7 +678,7 @@ class Vmec(Optimizable):
 
         self.run()
 
-        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0,1::] / mu0
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
 
         Bx, By, Bz, theta_arclength = self.B_on_arclength_grid(theta_evaluate=theta_arclength0)
 
@@ -693,7 +693,7 @@ class Vmec(Optimizable):
 
         return deltaB_dot_B/(2*np.pi*mu0)
 
-    def B_on_arclength_grid(self,theta_evaluate=None):
+    def B_on_arclength_grid(self, theta_evaluate=None):
         """
         Computes vector components of magnetic field on boundary on grid in
         toroidal angle and arclength poloidal angle. This is required to
@@ -706,9 +706,9 @@ class Vmec(Optimizable):
         dgamma1 = self.boundary.gammadash1()
         dgamma2 = self.boundary.gammadash2()
         gamma = self.boundary.gamma()
-        X = gamma[:,:,0]
-        Y = gamma[:,:,1]
-        Z = gamma[:,:,2]
+        X = gamma[:, :, 0]
+        Y = gamma[:, :, 1]
+        Z = gamma[:, :, 2]
         R = np.sqrt(X**2 + Y**2)
 
         theta1D = self.boundary.quadpoints_theta * 2 * np.pi
@@ -718,16 +718,16 @@ class Vmec(Optimizable):
         theta, phi = np.meshgrid(theta1D, phi1D)
 
         self.run()
-        bsupumnc = 1.5 * self.wout.bsupumnc[:,-1] - 0.5 * self.wout.bsupumnc[:,-2]
-        bsupvmnc = 1.5 * self.wout.bsupvmnc[:,-1] - 0.5 * self.wout.bsupvmnc[:,-2]
-        angle = self.wout.xm_nyq[:,None,None] * theta[None,:,:] \
-            - self.wout.xn_nyq[:,None,None] * phi[None,:,:]
-        Bsupu = np.sum(bsupumnc[:,None,None] * np.cos(angle), axis=0)
-        Bsupv = np.sum(bsupvmnc[:,None,None] * np.cos(angle), axis=0)
+        bsupumnc = 1.5 * self.wout.bsupumnc[:, -1] - 0.5 * self.wout.bsupumnc[:, -2]
+        bsupvmnc = 1.5 * self.wout.bsupvmnc[:, -1] - 0.5 * self.wout.bsupvmnc[:, -2]
+        angle = self.wout.xm_nyq[:, None, None] * theta[None, :, :] \
+            - self.wout.xn_nyq[:, None, None] * phi[None, :, :]
+        Bsupu = np.sum(bsupumnc[:, None, None] * np.cos(angle), axis=0)
+        Bsupv = np.sum(bsupvmnc[:, None, None] * np.cos(angle), axis=0)
 
-        Bx = (Bsupv * dgamma1[:,:,0] + Bsupu * dgamma2[:,:,0])/(2*np.pi)
-        By = (Bsupv * dgamma1[:,:,1] + Bsupu * dgamma2[:,:,1])/(2*np.pi)
-        Bz = (Bsupv * dgamma1[:,:,2] + Bsupu * dgamma2[:,:,2])/(2*np.pi)
+        Bx = (Bsupv * dgamma1[:, :, 0] + Bsupu * dgamma2[:, :, 0])/(2*np.pi)
+        By = (Bsupv * dgamma1[:, :, 1] + Bsupu * dgamma2[:, :, 1])/(2*np.pi)
+        Bz = (Bsupv * dgamma1[:, :, 2] + Bsupu * dgamma2[:, :, 2])/(2*np.pi)
 
         theta_arclength = np.zeros_like(phi)
         for iphi in range(nphi):
@@ -741,18 +741,18 @@ class Vmec(Optimizable):
         if theta_evaluate is not None:
             for iphi in range(nphi):
                 f = interpolate.InterpolatedUnivariateSpline(
-                            theta_arclength[iphi,:],Bx[iphi,:])
-                Bx[iphi,:] = f(theta_evaluate[iphi,:])
+                    theta_arclength[iphi, :], Bx[iphi, :])
+                Bx[iphi, :] = f(theta_evaluate[iphi, :])
                 f = interpolate.InterpolatedUnivariateSpline(
-                            theta_arclength[iphi,:],By[iphi,:])
-                By[iphi,:] = f(theta_evaluate[iphi,:])
+                    theta_arclength[iphi, :], By[iphi, :])
+                By[iphi, :] = f(theta_evaluate[iphi, :])
                 f = interpolate.InterpolatedUnivariateSpline(
-                            theta_arclength[iphi,:],Bz[iphi,:])
-                Bz[iphi,:] = f(theta_evaluate[iphi,:])
+                    theta_arclength[iphi, :], Bz[iphi, :])
+                Bz[iphi, :] = f(theta_evaluate[iphi, :])
 
         return Bx, By, Bz, theta_arclength
 
-    def well_weighted(self,weight_function1,weight_function2):
+    def well_weighted(self, weight_function1, weight_function2):
         """
         Computed a weighted average of the vacuum magnetic well defined by
         the prescribed weight_functions:
@@ -774,12 +774,14 @@ class Vmec(Optimizable):
         return np.sum((weight_function1(self.s_half_grid)-weight_function2(self.s_half_grid)) * self.wout.vp[1:]) \
             / np.sum((weight_function1(self.s_half_grid)+weight_function2(self.s_half_grid)) * self.wout.vp[1:])
 
+
 class IotaTargetMetric(Optimizable):
     """
     IotaTargetMetric is a class that computes iota_target_metric from a
     vmec equilibrium. Its derivatives can also be computed with an adjoint
     method.
     """
+
     def __init__(self, vmec, iota_target, adjoint_epsilon=1.e-1):
         self.vmec = vmec
         self.boundary = vmec.boundary
@@ -793,5 +795,5 @@ class IotaTargetMetric(Optimizable):
 
     def dJ(self):
         self.vmec.need_to_run_code = True
-        grad = self.vmec.d_iota_target_metric(self.iota_target,self.adjoint_epsilon)
+        grad = self.vmec.d_iota_target_metric(self.iota_target, self.adjoint_epsilon)
         return grad

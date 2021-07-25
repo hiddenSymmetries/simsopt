@@ -245,7 +245,8 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     return r, J, H
 
-def parameter_derivatives(surface,shape_gradient):
+
+def parameter_derivatives(surface, shape_gradient):
     """
     Converts the shape gradient of a given figure of merit, f, to derivatives
     with respect to parameters defining a surface. Here the shape gradient
@@ -264,9 +265,9 @@ def parameter_derivatives(surface,shape_gradient):
 
     """
     N = surface.normal()
-    norm_N = np.linalg.norm(N,axis=2)
+    norm_N = np.linalg.norm(N, axis=2)
     dx_by_dc = surface.dgamma_by_dcoeff()
     N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl', N, dx_by_dc)
     nphi = surface.gamma().shape[0]
     ntheta = surface.gamma().shape[1]
-    return np.einsum('ijk,ij->k',N_dot_dx_by_dc,shape_gradient) / (ntheta * nphi)
+    return np.einsum('ijk,ij->k', N_dot_dx_by_dc, shape_gradient) / (ntheta * nphi)
