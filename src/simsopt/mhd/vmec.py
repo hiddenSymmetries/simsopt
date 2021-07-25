@@ -717,6 +717,7 @@ class Vmec(Optimizable):
         ntheta = len(theta1D)
         theta, phi = np.meshgrid(theta1D, phi1D)
 
+        self.run()
         bsupumnc = 1.5 * self.wout.bsupumnc[:,-1] - 0.5 * self.wout.bsupumnc[:,-2]
         bsupvmnc = 1.5 * self.wout.bsupvmnc[:,-1] - 0.5 * self.wout.bsupvmnc[:,-2]
         angle = self.wout.xm_nyq[:,None,None] * theta[None,:,:] \
@@ -770,6 +771,27 @@ class Vmec(Optimizable):
                 the normalized toroidal flux
         """
         self.run()
-        print(self.boundary.parameter_derivatives(np.ones_like(self.boundary.gamma()[:,:,0])))
         return np.sum((weight_function1(self.s_half_grid)-weight_function2(self.s_half_grid)) * self.wout.vp[1:]) \
             / np.sum((weight_function1(self.s_half_grid)+weight_function2(self.s_half_grid)) * self.wout.vp[1:])
+
+class IotaTargetMetric(Optimizable):
+    """
+    IotaTargetMetric is a class that computes iota_target_metric from a
+    vmec equilibrium. Its derivatives can also be computed with an adjoint
+    method.
+    """
+    def __init__(self, vmec, iota_target, adjoint_epsilon=1.e-1):
+        self.vmec = vmec
+        self.boundary = vmec.boundary
+        self.iota_target = iota_target
+        self.adjoint_epsilon = adjoint_epsilon
+        self.depends_on = ["boundary"]
+
+    def J(self):
+        self.vmec.need_to_run_code = True
+        return self.vmec.iota_target_metric(self.iota_target)
+
+    def dJ(self):
+        self.vmec.need_to_run_code = True
+        grad = self.vmec.d_iota_target_metric(self.iota_target,self.adjoint_epsilon)
+        return grad

@@ -1,31 +1,57 @@
 #!/usr/bin/env python
-from simsopt.util.mpi import MpiPartition
-from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+import vmec
+from simsopt.mhd import Vmec
+from simsopt.mhd.vmec import IotaTargetMetric
 import os
 import numpy as np
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
+import matplotlib.pyplot as plt
 
 """
-Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
+Here, we perform an optimization begining with a 3 field period rotating ellipse
+boundary to obtain iota = 0.381966. The derivatives are obtained with an adjoint
+method. This is based on a published result in
+Paul, Landreman, and Antonsen, Journal of Plasma Physics (2021). The number of
+modes in the optimization space is slowly increased from |m|,|n| <= 2 to 5. At
+the end, the initial and final profiles are plotted.
 """
 
-# This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
-# concurrent function evaluations for 1-sided finite difference
-# gradients.
-mpi = MpiPartition(25)
+target_function = lambda s : 0.381966 # target value of rotational transform
+epsilon = 1.e-4 # FD step size
+adjoint_epsilon = 1.e-1 # perturbation amplitude for adjoint solve
 
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start'), mpi=mpi)
+# Compute random direction for surface perturbation
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse'), ntheta=100, nphi=100)
 
-weight_function2 = lambda s: np.exp(-s**2/0.1**2)
-print(vmec.iota_weighted(weight_function2))
-print(vmec.iota_axis())
-weight_function1 = lambda s: np.exp(-(s-1)**2/0.1**2)
-print(vmec.iota_weighted(weight_function1))
-print(vmec.iota_edge())
-target_function = lambda s: 0.68
-print(vmec.iota_target(target_function))
-target_function = lambda s: 0.68*s
-print(vmec.iota_target(target_function))
-print(vmec.well_weighted(weight_function1,weight_function2))
-vmec.d_iota_target(target_function,1e-2)
+vmec.run()
+iotas_init = vmec.wout.iotas
+
+obj = IotaTargetMetric(vmec,target_function,adjoint_epsilon)
+prob = LeastSquaresProblem([(obj, 0, 1)])
+
+surf = vmec.boundary
+surf.all_fixed(True)
+# Slowly increase range of modes in optimization space
+for max_mode in range(2,6):
+    print(max_mode)
+    surf.fixed_range(mmin=0, mmax=max_mode,
+                     nmin=-max_mode, nmax=max_mode, fixed=False)
+
+    least_squares_serial_solve(prob, grad=True, ftol=1e-12, gtol=1e-12)
+
+    # Preserve the output file from the last iteration, so it is not
+    # deleted when vmec runs again:
+    vmec.files_to_delete = []
+
+# Plot result
+iotas_final = vmec.wout.iotas
+
+plt.figure()
+plt.plot(vmec.s_half_grid,iotas_init[1::],color='green')
+plt.plot(vmec.s_half_grid,iotas_final[1::],color='red')
+plt.plot(vmec.s_half_grid,target_function(vmec.s_half_grid),color='blue')
+plt.legend(['Initial','Final','Target'])
+plt.xlabel(r'$s$')
+plt.ylabel(r'$\iota$')
+plt.show()
