@@ -274,7 +274,7 @@ class VmecTests(unittest.TestCase):
 
     def test_d_iota_target_metric(self):
         """
-        Assert that RuntimeRror is raised if ncurr = 0.
+        Assert that RuntimeError is raised if ncurr = 0.
         Compare d_iota_target_metric with finite differences for a surface
         perturbation in a random direction.
         """
@@ -283,7 +283,7 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
         # Check that assert raised if ncurr = 0
         vmec.indata.ncurr = 0
@@ -323,7 +323,7 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
         obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
@@ -357,7 +357,7 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
         # Compute random direction for surface perturbation
         surf = vmec.boundary
