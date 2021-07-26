@@ -33,12 +33,12 @@ prob = LeastSquaresProblem([(obj, 0, 1)])
 surf = vmec.boundary
 surf.all_fixed(True)
 # Slowly increase range of modes in optimization space
-for max_mode in range(2, 6):
+for max_mode in range(3, 6):
     print(max_mode)
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
-    least_squares_serial_solve(prob, grad=True, ftol=1e-12, gtol=1e-12)
+    least_squares_serial_solve(prob, grad=True, ftol=1e-12, gtol=1e-12, xtol=1e-12)
 
     # Preserve the output file from the last iteration, so it is not
     # deleted when vmec runs again:
@@ -50,7 +50,7 @@ iotas_final = vmec.wout.iotas
 plt.figure()
 plt.plot(vmec.s_half_grid, iotas_init[1::], color='green')
 plt.plot(vmec.s_half_grid, iotas_final[1::], color='red')
-plt.plot(vmec.s_half_grid, target_function(vmec.s_half_grid), color='blue')
+plt.axhline(0.381966,color='blue')
 plt.legend(['Initial', 'Final', 'Target'])
 plt.xlabel(r'$s$')
 plt.ylabel(r'$\iota$')
