@@ -21,15 +21,12 @@ except ImportError as e:
     MPI = None 
     logger.warning(str(e))
 
-# booz_xform_found = True
 try:
     import booz_xform
 except ImportError as e:
     # booz_xform_found = False
     booz_xform = None
     logger.warning(str(e))
-
-from .._core.optimizable import Optimizable
 
 #try:
 if MPI is not None:
@@ -38,10 +35,9 @@ if MPI is not None:
     #Vmec = None
     #logger.warning(str(e))
 
+from .._core.graph_optimizable import Optimizable
 
-#@requires(booz_xform is not None,
-#          "To use a Boozer object, the booz_xform package "
-#          "must be installed. Run 'pip install -v booz_xform'")
+
 @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
 class Boozer(Optimizable):
     """
@@ -84,10 +80,9 @@ class Boozer(Optimizable):
         if equil is not None:
             self.mpi = equil.mpi
 
-    def get_dofs(self):
-        return np.array([])
+        super().__init__(opts_in=[equil])
 
-    def set_dofs(self, x):
+    def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
     def register(self, s: Union[float, Iterable[float]]) -> None:
