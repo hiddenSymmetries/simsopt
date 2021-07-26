@@ -50,7 +50,7 @@ iotas_final = vmec.wout.iotas
 plt.figure()
 plt.plot(vmec.s_half_grid, iotas_init[1::], color='green')
 plt.plot(vmec.s_half_grid, iotas_final[1::], color='red')
-plt.axhline(0.381966,color='blue')
+plt.axhline(0.381966, color='blue')
 plt.legend(['Initial', 'Final', 'Target'])
 plt.xlabel(r'$s$')
 plt.ylabel(r'$\iota$')
