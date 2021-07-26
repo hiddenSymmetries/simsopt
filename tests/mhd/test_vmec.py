@@ -23,7 +23,7 @@ if (MPI is not None) and vmec_found:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -283,7 +283,7 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
         # Check that assert raised if ncurr = 0
         vmec.indata.ncurr = 0
@@ -309,8 +309,8 @@ class VmecTests(unittest.TestCase):
         d_iota_adjoint = np.dot(vmec.d_iota_target_metric(target_function, adjoint_epsilon), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
-        logger.info('adjoint jac:', d_iota_adjoint, '  fd jac:', d_iota_fd)
-        logger.info('relative error: ', relative_error)
+        logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
+        logger.info(f"relative error: {relative_error}")
         self.assertTrue(relative_error < 5.e-2)
 
     def test_IotaTargetMetric(self):
@@ -323,7 +323,7 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
         obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
@@ -343,8 +343,8 @@ class VmecTests(unittest.TestCase):
         d_iota_adjoint = np.dot(obj.dJ(), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
-        logger.info('adjoint jac:', d_iota_adjoint, '  fd jac:', d_iota_fd)
-        logger.info('relative error: ', relative_error)
+        logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
+        logger.info(f"relative error: {relative_error}")
         self.assertTrue(relative_error < 5.e-2)
 
     def test_IotaTargetMetric_LeastSquaresProblem(self):
@@ -372,8 +372,8 @@ class VmecTests(unittest.TestCase):
         fd_jac = prob.dofs.fd_jac()
 
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
-        logger.info('adjoint jac:', jac, '  fd jac:', fd_jac)
-        logger.info('relative error: ', relative_error)
+        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
+        logger.info(f"relative error: {relative_error}")
         self.assertTrue(relative_error < 1.e-2)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
