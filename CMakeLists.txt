@@ -42,13 +42,43 @@ else()
 endif()
 
 find_package(OpenMP)
-find_package(Boost)
+find_package(Boost 1.70.0)
 if(Boost_FOUND)
-    message(STATUS "Boost version" ${Boost_VERSION_STRING})
-    message(STATUS "Boost include" ${Boost_INCLUDE_DIRS})
+    message(STATUS "Boost version is ${Boost_VERSION_STRING}")
+    message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
     add_compile_definitions(WITH_BOOST)
 else()
-    message(STATUS "Compiling without boost.")
+    message(STATUS "Downloading and installing boost.")
+    # For some external project macros
+    include(ExternalProject)
+
+    # Download boost from git and build the headers
+    set( boost_DIR ${CMAKE_CURRENT_BINARY_DIR}/thirdparty/boost )
+    set( boost_target boost)
+
+    ExternalProject_Add(
+        ${boost_target}
+        PREFIX ${boost_DIR}
+        GIT_REPOSITORY https://github.com/boostorg/boost.git
+        GIT_TAG boost-1.76.0
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+        GIT_SUBMODULES tools/build tools/boost_install libs/config libs/numeric
+            libs/math libs/type_traits libs/predef libs/assert libs/static_assert
+            libs/throw_exception libs/core libs/serialization libs/preprocessor libs/mpl
+            libs/utility libs/typeof libs/array libs/units libs/integer libs/fusion
+            libs/range libs/iterator libs/concept_check libs/detail libs/function_types
+            libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
+            libs/functional libs/function libs/type_index libs/container_hash libs/bind
+        CONFIGURE_COMMAND ./bootstrap.sh --prefix=<PREFIX>
+        BUILD_COMMAND ./b2 headers --prefix=${boost_DIR}
+        BUILD_IN_SOURCE 1
+        INSTALL_COMMAND ""
+    )
+
+    set(Boost_INCLUDE_DIRS ${boost_DIR}/src/${boost_target})
+    message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
+    add_compile_definitions(WITH_BOOST)
 endif()
 
 add_subdirectory(thirdparty/pybind11)
@@ -75,7 +105,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" 
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 if(Boost_FOUND)
     target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
+    # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
+else()
+    add_dependencies(${PROJECT_NAME} ${boost_target})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 endif()
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
