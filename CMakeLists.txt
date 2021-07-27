@@ -42,7 +42,7 @@ else()
 endif()
 
 find_package(OpenMP)
-find_package(Boost 1.70.0)
+find_package(Boost 1.65.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
