@@ -58,3 +58,5 @@ docs/build/
 # IDE related
 .idea
 compile_commands.json
+*.vtu
+*.npy

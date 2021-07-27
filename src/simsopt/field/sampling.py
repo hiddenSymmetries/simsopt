@@ -18,7 +18,8 @@ def draw_uniform_on_curve(curve, nsamples, safetyfactor=10):
     idxs = np.random.randint(0, alen.shape[0], size=(nattempts, ))
     accept = np.where(np.random.uniform(low=0, high=1, size=(nattempts, )) < alen[idxs]/M)[0]
     assert len(accept) > nsamples
-    idxs = np.sort(idxs[accept[:nsamples]])
+    # idxs = np.sort(idxs[accept[:nsamples]])
+    idxs = idxs[accept[:nsamples]]
     xyz = curve.gamma()[idxs, :]
     return xyz, idxs
 
