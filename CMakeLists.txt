@@ -97,18 +97,23 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
     src/simsoptpp/magneticfield_biotsavart.cpp
     )
+
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
+
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
-if(Boost_FOUND)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-    # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
-else()
+
+if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
-    target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+# target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
@@ -120,9 +125,6 @@ target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thir
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
-endif()
 
 #get_cmake_property(_variableNames VARIABLES)
 #list (SORT _variableNames)
