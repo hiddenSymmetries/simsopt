@@ -24,16 +24,15 @@ except ImportError as e:
 try:
     import booz_xform
 except ImportError as e:
-    # booz_xform_found = False
     booz_xform = None
     logger.warning(str(e))
 
-#try:
 if MPI is not None:
-    from .vmec import Vmec
-#except ImportError as e:
-    #Vmec = None
-    #logger.warning(str(e))
+    try:
+        from .vmec import Vmec
+    except ImportError as e:
+        Vmec = None
+        logger.warning(str(e))
 
 from .._core.graph_optimizable import Optimizable
 
