@@ -1,11 +1,11 @@
 import unittest
 import numpy as np
 from simsopt.geo.coilcollection import CoilCollection
-from simsopt.geo.boozersurface import BoozerSurface
-from simsopt.geo.biotsavart import BiotSavart
-from simsopt.geo.surfaceobjectives import ToroidalFlux
-from simsopt.geo.surfaceobjectives import Area
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
+from simsopt.geo.graph_boozersurface import BoozerSurface
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo.graph_surfaceobjectives import ToroidalFlux, Area
+from simsopt.util.zoo import get_ncsx_data
+from .surface_test_helpers import get_surface, get_exact_surface
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -15,10 +15,10 @@ stellsym_list = [True, False]
 class BoozerSurfaceTests(unittest.TestCase):
     def test_residual(self):
         """
-        This test loads a SurfaceXYZFourier that interpolates the xyz coordinates
-        of a surface in the NCSX configuration that was computed on a previous
-        branch of pyplasmaopt.  Here, we verify that the  Boozer residual at these 
-        interpolation points is small.
+        This test loads a SurfaceXYZFourier that interpolates the xyz
+        coordinates of a surface in the NCSX configuration that was computed
+        on a previous branch of pyplasmaopt. Here, we verify that the Boozer
+        residual at these interpolation points is small.
         """
 
         s = get_exact_surface()
@@ -37,7 +37,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
         x = np.concatenate((s.get_dofs(), [iota]))
         r0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=weight, optimize_G=False, scalarize=False)
+            x, derivatives=0, constraint_weight=weight, optimize_G=False,
+            scalarize=False)
         # the residual should be close to zero for all entries apart from the y
         # and z coordinate at phi=0 and theta=0 (and the corresponding rotations)
         ignores_idxs = np.zeros_like(r0)
@@ -47,27 +48,34 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def test_boozer_penalty_constraints_gradient(self):
         """
-        Taylor test to verify the gradient of the scalarized constrained optimization problem's
-        objective.
+        Taylor test to verify the gradient of the scalarized constrained
+        optimization problem's objective.
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
-                        self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G)
+                    with self.subTest(surfacetype=surfacetype,
+                                      stellsym=stellsym,
+                                      optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_gradient(
+                            surfacetype, stellsym, optimize_G)
 
     def test_boozer_penalty_constraints_hessian(self):
         """
-        Taylor test to verify the Hessian of the scalarized constrained optimization problem's
-        objective.
+        Taylor test to verify the Hessian of the scalarized constrained
+        optimization problem's objective.
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
-                        self.subtest_boozer_penalty_constraints_hessian(surfacetype, stellsym, optimize_G)
+                    with self.subTest(surfacetype=surfacetype,
+                                      stellsym=stellsym,
+                                      optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_hessian(
+                            surfacetype, stellsym, optimize_G)
 
-    def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym, optimize_G=False):
+    def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym,
+                                                    optimize_G=False):
         np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -88,7 +96,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+            x = np.concatenate((
+                x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
         f0, J0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
 
@@ -97,18 +106,20 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = boozer_surface.boozer_penalty_constraints(
-                x + eps*h, derivatives=0, constraint_weight=weight, optimize_G=optimize_G)
+                x + eps*h, derivatives=0, constraint_weight=weight,
+                optimize_G=optimize_G)
             Jfd = (f1-f0)/eps
             err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
             print(err/err_old, f0, f1)
             assert err < err_old * 0.55
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
-    def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym, optimize_G=False):
+    def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym,
+                                                   optimize_G=False):
         np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -127,8 +138,10 @@ class BoozerSurfaceTests(unittest.TestCase):
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        f0, J0, H0 = boozer_surface.boozer_penalty_constraints(x, derivatives=2, optimize_G=optimize_G)
+            x = np.concatenate(
+                (x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+        f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
+            x, derivatives=2, optimize_G=optimize_G)
 
         h1 = np.random.uniform(size=x.shape)-0.5
         h2 = np.random.uniform(size=x.shape)-0.5
@@ -136,9 +149,10 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(10, 20)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
-            fp, Jp = boozer_surface.boozer_penalty_constraints(x + eps*h1, derivatives=1, optimize_G=optimize_G)
+            fp, Jp = boozer_surface.boozer_penalty_constraints(
+                x + eps*h1, derivatives=1, optimize_G=optimize_G)
             d2f_fd = (Jp@h2-J0@h2)/eps
             err = np.abs(d2f_fd-d2f)/np.abs(d2f)
             print(err/err_old)
@@ -147,16 +161,20 @@ class BoozerSurfaceTests(unittest.TestCase):
 
     def test_boozer_constrained_jacobian(self):
         """
-        Taylor test to verify the Jacobian of the first order optimality conditions of the exactly
-        constrained optimization problem.
+        Taylor test to verify the Jacobian of the first order optimality
+        conditions of the exactly constrained optimization problem.
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, optimize_G=optimize_G):
-                        self.subtest_boozer_constrained_jacobian(surfacetype, stellsym, optimize_G)
+                    with self.subTest(surfacetype=surfacetype,
+                                      stellsym=stellsym,
+                                      optimize_G=optimize_G):
+                        self.subtest_boozer_constrained_jacobian(
+                            surfacetype, stellsym, optimize_G)
 
-    def subtest_boozer_constrained_jacobian(self, surfacetype, stellsym, optimize_G=False):
+    def subtest_boozer_constrained_jacobian(self, surfacetype, stellsym,
+                                            optimize_G=False):
         np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
         stellarator = CoilCollection(coils, currents, 3, True)
@@ -176,24 +194,27 @@ class BoozerSurfaceTests(unittest.TestCase):
         lm = [0., 0.]
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
+            x = np.concatenate(
+                (x, [2.*np.pi*np.sum(np.abs(bs.coil_currents))*(4*np.pi*10**(-7)/(2 * np.pi))]))
         xl = np.concatenate((x, lm))
-        res0, dres0 = boozer_surface.boozer_exact_constraints(xl, derivatives=1, optimize_G=optimize_G)
+        res0, dres0 = boozer_surface.boozer_exact_constraints(
+            xl, derivatives=1, optimize_G=optimize_G)
 
         h = np.random.uniform(size=xl.shape)-0.5
         dres_exact = dres0@h
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
-            res1 = boozer_surface.boozer_exact_constraints(xl + eps*h, derivatives=0, optimize_G=optimize_G)
+            res1 = boozer_surface.boozer_exact_constraints(
+                xl + eps*h, derivatives=0, optimize_G=optimize_G)
             dres_fd = (res1-res0)/eps
             err = np.linalg.norm(dres_fd-dres_exact)
             print(err/err_old)
             assert err < err_old * 0.55
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_boozer_surface_optimisation_convergence(self):
         """
@@ -212,9 +233,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             with self.subTest(
                 surfacetype=surfacetype, stellsym=stellsym,
                     optimize_G=optimize_G, second_stage=second_stage):
-                self.subtest_boozer_surface_optimisation_convergence(surfacetype, stellsym, optimize_G, second_stage)
+                self.subtest_boozer_surface_optimisation_convergence(
+                    surfacetype, stellsym, optimize_G, second_stage)
 
-    def subtest_boozer_surface_optimisation_convergence(self, surfacetype, stellsym, optimize_G, second_stage):
+    def subtest_boozer_surface_optimisation_convergence(self, surfacetype,
+                                                        stellsym, optimize_G,
+                                                        second_stage):
         coils, currents, ma = get_ncsx_data()
 
         if stellsym:
@@ -228,9 +252,11 @@ class BoozerSurfaceTests(unittest.TestCase):
             coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
             currents_flipped = [-cur for cur in currents]
             for c in coils_flipped:
-                c.rotmat += 0.001*np.random.uniform(low=-1., high=1., size=c.rotmat.shape)
+                c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
+                                                    size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
-            stellarator = CoilCollection(coils + coils_flipped, currents + currents_flipped, 3, False)
+            stellarator = CoilCollection(coils + coils_flipped,
+                                         currents + currents_flipped, 3, False)
 
         bs = BiotSavart(stellarator.coils, stellarator.currents)
 
@@ -253,10 +279,12 @@ class BoozerSurfaceTests(unittest.TestCase):
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-11, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
+                tol=1e-11, maxiter=100, constraint_weight=100.,
+                iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-9, maxiter=10, constraint_weight=100., iota=res['iota'], G=res['G'], stab=1e-4)
+                tol=1e-9, maxiter=10, constraint_weight=100.,
+                iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
                 tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
