@@ -62,7 +62,6 @@ class Boozer(Optimizable):
                 "must be installed. Run 'pip install -v booz_xform'")
 
         self.equil = equil
-        self.depends_on = ["equil"]
         self.mpol = mpol
         self.ntor = ntor
         self.bx = booz_xform.Booz_xform()
@@ -277,7 +276,6 @@ class Quasisymmetry(Optimizable):
         self.n = n
         self.normalization = normalization
         self.weight = weight
-        self.depends_on = ['boozer']
 
         # If s is not already iterable, make it so:
         try:
@@ -286,11 +284,9 @@ class Quasisymmetry(Optimizable):
             s = [s]
         self.s = s
         boozer.register(s)
+        super().__init__(opts_in=[boozer])
 
-    def get_dofs(self):
-        return np.array([])
-
-    def set_dofs(self, x):
+    def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
     def J(self) -> np.ndarray:
