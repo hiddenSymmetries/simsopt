@@ -46,7 +46,6 @@ find_package(Boost 1.60.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
-    add_compile_definitions(WITH_BOOST)
 else()
     message(STATUS "Downloading and installing boost.")
     # For some external project macros
@@ -78,7 +77,6 @@ else()
 
     set(Boost_INCLUDE_DIRS ${boost_DIR}/src/${boost_target})
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
-    add_compile_definitions(WITH_BOOST)
 endif()
 
 add_subdirectory(thirdparty/pybind11)
