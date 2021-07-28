@@ -15,7 +15,8 @@ build:
 
 requirements:
   build:
-    - "{{ compiler('cxx') }}"
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
     - cmake
     - ninja
     # - numpy {{ numpy }}
@@ -25,11 +26,15 @@ requirements:
   host:
     - python
     - pip
-    - numpy  {{ numpy }}
+    - wheel
+    - setuptools
+    - numpy {{ numpy }}
+    - boost {{ boost }}
 
   run:
     - python
-    - numpy  {{ numpy }}
+    - numpy {{ numpy }}
+    - boost {{ boost }}
     - jax >=0.2.4
     - jaxlib >=0.1.56
     - scipy >=1.5.4
@@ -38,15 +43,6 @@ requirements:
     - pandas >=1.1.4
     - monty >=2021.6.10 
     - ruamel.yaml
-
-
-test:
-  imports:
-    - simsopt
-  source_files:
-    - tests
-  commands:
-    - python -m unittest discover -s tests
 
 about:
   home: {{ data.get('url') }}
