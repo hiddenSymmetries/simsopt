@@ -81,7 +81,7 @@ class MagneticField {
             Tensor2& B = this->B_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                AbsB(i) = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
+                AbsB(i, 0) = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
             }
         }
 
@@ -109,6 +109,18 @@ class MagneticField {
             }
         }
 
+        virtual void _GradAbsB_cyl_impl(Tensor2& GradAbsB_cyl) {
+            Tensor2& GradAbsB = this->GradAbsB_ref();
+            Tensor2& rphiz = this->get_points_cyl_ref();
+            int npoints = GradAbsB.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                double phi = rphiz(i, 1);
+                GradAbsB_cyl(i, 0) = std::cos(phi)*GradAbsB(i, 0) + std::sin(phi)*GradAbsB(i, 1);
+                GradAbsB_cyl(i, 1) = std::cos(phi)*GradAbsB(i, 1) - std::sin(phi)*GradAbsB(i, 0);
+                GradAbsB_cyl(i, 2) = GradAbsB(i, 2);
+            }
+        }
+
         virtual void _B_impl(Tensor2& B) { throw logic_error("_B_impl was not implemented"); }
         virtual void _dB_by_dX_impl(Tensor3& dB_by_dX) { throw logic_error("_dB_by_dX_impl was not implemented"); }
         virtual void _d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) { throw logic_error("_d2B_by_dXdX_impl was not implemented"); }
@@ -118,7 +130,7 @@ class MagneticField {
 
         CachedTensor<T, 2> points_cart;
         CachedTensor<T, 2> points_cyl;
-        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl;
+        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_GradAbsBcyl;
         CachedTensor<T, 3> data_dB, data_dA;
         CachedTensor<T, 4> data_ddB, data_ddA;
         int npoints;
@@ -139,6 +151,7 @@ class MagneticField {
             data_AbsB.invalidate_cache();
             data_GradAbsB.invalidate_cache();
             data_Bcyl.invalidate_cache();
+            data_GradAbsBcyl.invalidate_cache();
         }
 
         MagneticField& set_points_cyl(Tensor2& p) {
@@ -227,7 +240,7 @@ class MagneticField {
         }
 
         Tensor2& AbsB_ref() {
-            return data_AbsB.get_or_create_and_fill({npoints}, [this](Tensor2& AbsB) { return _AbsB_impl(AbsB);});
+            return data_AbsB.get_or_create_and_fill({npoints, 1}, [this](Tensor2& AbsB) { return _AbsB_impl(AbsB);});
         }
 
 
@@ -236,7 +249,15 @@ class MagneticField {
         }
 
         Tensor2& GradAbsB_ref() {
-            return data_GradAbsB.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return _GradAbsB_impl(B);});
+            return data_GradAbsB.get_or_create_and_fill({npoints, 3}, [this](Tensor2& GradAbsB) { return _GradAbsB_impl(GradAbsB);});
+        }
+
+        Tensor2 GradAbsB_cyl() {
+            return GradAbsB_cyl_ref();
+        }
+
+        Tensor2& GradAbsB_cyl_ref() {
+            return data_GradAbsBcyl.get_or_create_and_fill({npoints, 3}, [this](Tensor2& GradAbsB_cyl) { return _GradAbsB_cyl_impl(GradAbsB_cyl);});
         }
 
 };
