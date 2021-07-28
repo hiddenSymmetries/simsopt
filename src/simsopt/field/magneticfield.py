@@ -1,5 +1,20 @@
 import numpy as np
+
 import simsoptpp as sopp
+from .._core.graph_optimizable import Optimizable
+
+
+class Current(sopp.Current, Optimizable):
+    def __init__(self, current):
+        sopp.Current.__init__(self, current)
+        Optimizable.__init__(self, x0=self.get_dofs(),
+                             external_dof_setter=sopp.Current.set_dofs)
+
+
+class Coil(sopp.Coil, Optimizable):
+    def __init__(self, curve, current):
+        sopp.Coil.__init__(self, curve, current)
+        Optimizable.__init__(self, opts_in=[curve, current])
 
 
 class MagneticField(sopp.MagneticField):
