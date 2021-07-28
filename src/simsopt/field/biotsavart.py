@@ -1,10 +1,12 @@
 import numpy as np
+
 import simsoptpp as sopp
-from simsopt.field.magneticfield import MagneticField
-from simsopt.geo.curve import Curve
+from ..geo.curve import Curve
+from .._core.graph_optimizable import Optimizable
+from .magneticfield import Current, Coil, MagneticField
 
 
-class BiotSavart(sopp.BiotSavart, MagneticField):
+class BiotSavart(sopp.BiotSavart, MagneticField, Optimizable):
     r"""
     Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
     The field is given by
@@ -21,12 +23,16 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         assert len(coils) == len(coil_currents)
         assert all(isinstance(item, Curve) for item in coils)
         assert all(isinstance(item, float) for item in coil_currents)
-        self.currents_optim = [sopp.Current(c) for c in coil_currents]
-        self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
+        self.currents_optim = [Current(c) for c in coil_currents]
+        self.coils_optim = [Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
         self.coils = coils
         self.coil_currents = coil_currents
         MagneticField.__init__(self)
         sopp.BiotSavart.__init__(self, self.coils_optim)
+        Optimizable.__init__(self, opts_in=self.coils_optim)
+
+    def recompute_bell(self, parent=None):
+        self.clear_cached_properties()
 
     def compute_A(self, compute_derivatives=0):
         r"""
