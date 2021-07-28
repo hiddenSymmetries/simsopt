@@ -14,7 +14,7 @@ class CurveXYZFourier : public Curve<Array> {
 
        The dofs are stored in the order 
 
-           [x_{c,0},...,x_{c,order},x_{s,1},...,x_{s,order},y_{c,0},....]
+           [x_{c,0},x_{s,1},x_{c,1},...,x_{s,order},x_{c,order},y_{c,0},y_{s,1},y_{c,1},...]
 
        */
     private:
