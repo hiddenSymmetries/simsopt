@@ -18,7 +18,6 @@ try:
     with_evtk = True
 except ImportError:
     with_evtk = False
-with_boost = sopp.with_boost()
 
 
 def validate_phi_hits(phi_hits, bfield, nphis):
@@ -80,7 +79,6 @@ class ParticleTracingTesting(unittest.TestCase):
         if with_evtk:
             bsh.to_vtk('/tmp/bfield')
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_guidingcenter_vs_fullorbit(self):
         bsh = self.bsh
         ma = self.ma
@@ -132,7 +130,6 @@ class ParticleTracingTesting(unittest.TestCase):
                 dist = np.linalg.norm(gc_xyzs[j, :] - fo_ty[jdx, 1:4])
                 assert dist < 8*r
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_guidingcenterphihits(self):
         bsh = self.bsh
         ma = self.ma
@@ -194,7 +191,6 @@ class ParticleTracingTesting(unittest.TestCase):
         B *= 1./bsh.AbsB()
         assert np.linalg.norm((vxyz - B * vtangs[:, None])/vtotal) < 1e-5
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_energy_conservation(self):
         # Test conservation of Energy = m v^2/2=(m/2) (vparallel^2+ 2muB)
         # where mu=v_perp^2/(2B) is the adiabatic invariant. In the
@@ -275,7 +271,6 @@ class ParticleTracingTesting(unittest.TestCase):
         assert max(max_mu_fo_error) < -3
         assert max(max_mu_gc_error) < -6
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_angularmomentum_conservation(self):
         # Test conservation of canonical angular momentum pphi
         # in an axisymmetric geometry where
@@ -336,7 +331,6 @@ class ParticleTracingTesting(unittest.TestCase):
         print("Max log10 variation of pphi1_gc + pphi2_gc = ", max_pphi_gc_error)
         assert max(max_pphi_gc_error) < -3
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_stopping_criteria(self):
         bsh = self.bsh
         ma = self.ma
@@ -374,7 +368,6 @@ class ParticleTracingTesting(unittest.TestCase):
         assert gc_phi_hits[0][-1][1] == -1
         assert np.all(sc.evaluate(gc_tys[0][:, 1:4]) > 0)
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_tracing_on_surface_runs(self):
         bsh = self.bsh
         ma = self.ma

@@ -17,15 +17,11 @@ typedef xt::pyarray<double> Array;
 
 
 
-
-#if WITH_BOOST
 #include <boost/math/tools/roots.hpp>
 #include <boost/numeric/odeint.hpp>
 //#include <boost/numeric/odeint/stepper/bulirsch_stoer_dense_out.hpp>
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
-#else
-#endif
 
 template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumRHS {
@@ -197,7 +193,6 @@ template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
 solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
-#if WITH_BOOST
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_phi_hits = {};
     typedef typename RHS::State State;
@@ -265,9 +260,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         res.push_back(join<1, RHS::Size>({tmax}, y));
     }
     return std::make_tuple(res, res_phi_hits);
-#else
-    throw std::runtime_error("ODE solving not available without boost.");
-#endif
 }
 
 
