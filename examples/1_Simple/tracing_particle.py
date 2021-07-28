@@ -20,9 +20,6 @@ import time
 import os
 import logging
 import sys
-if not sopp.with_boost():
-    print("Please compile with boost to run this example.")
-    sys.exit(0)
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
