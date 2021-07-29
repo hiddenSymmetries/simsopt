@@ -41,8 +41,6 @@ class SurfaceGarabedian(Surface):
         self.ndim = self.nmax - self.nmin + 1
         self.shape = (self.mdim, self.ndim)
 
-        self.recalculate_derivs = True
-
         Delta = np.zeros(self.shape)
         Surface.__init__(self, x0=Delta.ravel(),
                          names=self._make_dof_names())
@@ -85,9 +83,6 @@ class SurfaceGarabedian(Surface):
         """
         i = self.ndim * (m - self.mmin) + n - self.nmin
         self.set(i, val)
-        # self.Delta[m - self.mmin, n - self.nmin] = val
-        # self.recalculate = True
-        self.recalculate_derivs = True
 
     def get_dofs(self):
         """
@@ -95,12 +90,12 @@ class SurfaceGarabedian(Surface):
         """
         self.local_full_x
 
-    def set_dofs(self, v):
+    def set_dofs(self, x):
         """
         Set the shape coefficients from a 1D list/array
         """
         # Check whether any elements actually change:
-        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
+        if np.all(np.abs(self.get_dofs() - np.array(x)) == 0):
             logger.info('set_dofs called, but no dofs actually changed')
             return
 
@@ -109,12 +104,6 @@ class SurfaceGarabedian(Surface):
         # dof_shape = (self.mmax - self.mmin + 1, self.nmax - self.nmin + 1)
         # self.Delta = v.reshape(dof_shape, order='F')
         self.local_full_x = x
-        # self.recalculate = True
-        self.recalculate_derivs = True
-
-    def recompute_bell(self, parent=None):
-        # self.recalculate = True
-        self.recalculate_derivs = True
 
     def fix_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
