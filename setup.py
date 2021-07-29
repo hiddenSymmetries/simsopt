@@ -105,6 +105,7 @@ class CMakeBuild(build_ext):
 
 
 setup(
+    use_scm_version=True,
     ext_modules=[CMakeExtension("simsoptpp")],
     cmdclass={"build_ext": CMakeBuild}
 )
