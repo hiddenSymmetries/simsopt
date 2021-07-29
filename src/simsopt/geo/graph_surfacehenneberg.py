@@ -94,20 +94,18 @@ class SurfaceHenneberg(sopp.Surface, Surface):
             quadpoints_theta = np.linspace(0, 1.0, quadpoints_theta, endpoint=False)
 
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
-        Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
-
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
-    # TODO: Reimplement
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+
     def __repr__(self):
-        return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", alpha_fac=" + str(self.alpha_fac) \
-            + ", mmax=" + str(self.mmax) + ", nmax=" + str(self.nmax) + ")"
+        return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \
+            + f"mmax={self.mmax}, nmax={self.nmax})"
 
     def allocate(self):
         """
@@ -359,7 +357,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
               If ``None``, the value ``3 * nphi`` will be used.
         """
         if not surf.stellsym:
-            raise RuntimeError('SurfaceHenneberg.from_RZFourier() only works for stellarator symmetric surfaces')
+            raise RuntimeError('SurfaceHenneberg.from_RZFourier method only '
+                               'works for stellarator symmetric surfaces')
         if mmax is None:
             mmax = surf.mpol
         if nmax is None:
