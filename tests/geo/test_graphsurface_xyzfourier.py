@@ -18,9 +18,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_cross_section_torus(self):
         """
-        Test that the cross sectional area at a certain number of cross sections of a torus
-        is what it should be.  The cross sectional angles are chosen to test any degenerate
-        cases of the bisection algorithm.
+        Test that the cross sectional area at a certain number of cross sections
+        of a torus is what it should be. The cross sectional angles are chosen
+        to test any degenerate cases of the bisection algorithm.
 
         Additionally, this test checks that the cross sectional angle is correct.
         """
@@ -33,7 +33,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         np.random.seed(0)
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -107,7 +108,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         thetas = np.linspace(0, 1, 31, endpoint=False)
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -128,8 +130,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_aspect_ratio_compare_with_cross_sectional_computation(self):
         """
-        This test validates the VMEC aspect ratio computation in the Surface class by
-        comparing with an approximation based on cross section computations.
+        This test validates the VMEC aspect ratio computation in the Surface
+        class by comparing with an approximation based on cross section
+        computations.
         """
         s = get_exact_surface()
         vpr = s.quadpoints_phi.size + 20
@@ -208,9 +211,10 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_toRZFourier_lossless_at_quadraturepoints(self):
         """
-        This test obtains a more complex surface (not a perfect torus) as a SurfaceXYZFourier, then
-        converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
-        surface representations coincide at the points where the least squares fit was completed,
+        This test obtains a more complex surface (not a perfect torus) as a
+        SurfaceXYZFourier, then converts that surface to the SurfaceRZFourier
+        representation. Then, the test checks that both surface representations
+        coincide at the points where the least squares fit was completed,
         i.e., the conversion is lossless at the quadrature points.
 
         Additionally, this test checks that the cross sectional angle is correct.
