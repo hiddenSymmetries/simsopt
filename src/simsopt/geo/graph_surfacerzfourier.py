@@ -1,6 +1,8 @@
 import numpy as np
+
 import simsoptpp as sopp
 from .graph_surface import Surface
+from .._core.graph_optimizable import DOFs, Optimizable
 
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
@@ -115,7 +117,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         return surf
 
-    # TODO: Needs reimplementation
     def change_resolution(self, mpol, ntor):
         """
         Change the values of `mpol` and `ntor`. Any new Fourier amplitudes
@@ -145,7 +146,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not self.stellsym:
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
-        self._make_names()
+
+        # Update the dofs object
+        self._dofs = DOFs(self.get_dofs(), self._make_names())
+        # The following methods of graph Optimizable framework need to be called
+        Optimizable._update_free_dof_size_indices(self)
+        Optimizable._update_full_dof_size_indices(self)
+        Optimizable._set_new_x(self)
 
     def to_RZFourier(self):
         """
@@ -210,8 +217,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_rs(self, m, n, val):
         """
@@ -222,8 +228,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_zc(self, m, n, val):
         """
@@ -234,8 +239,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_zs(self, m, n, val):
         """
@@ -243,8 +247,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
@@ -256,18 +259,21 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         are included (unlike the upper bound in python's range(min,
         max).)
         """
+        # TODO: This will be slow because free dof indices are evaluated all
+        # TODO: the time in the loop
+        fn = self.fix if fixed else self.unfix
         for m in range(mmin, mmax + 1):
             this_nmin = nmin
             if m == 0 and nmin < 0:
                 this_nmin = 0
             for n in range(this_nmin, nmax + 1):
-                self.set_fixed('rc({},{})'.format(m, n), fixed)
+                fn(f'rc({m},{n})')
                 if m > 0 or n != 0:
-                    self.set_fixed('zs({},{})'.format(m, n), fixed)
+                    fn(f'zs({m},{n})')
                 if not self.stellsym:
-                    self.set_fixed('zc({},{})'.format(m, n), fixed)
+                    fn(f'zc({m},{n})')
                     if m > 0 or n != 0:
-                        self.set_fixed('rs({},{})'.format(m, n), fixed)
+                        fn(f'rs({m},{n})')
 
     # TODO: Reimplement by passing all Delta values once
     def to_Garabedian(self):
