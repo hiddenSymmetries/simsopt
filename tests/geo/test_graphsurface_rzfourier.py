@@ -200,10 +200,19 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.fail("Test Not Implemented")
 
     def test_repr(self):
-        self.fail("Test Not Implemented")
+        s = SurfaceRZFourier(nfp=2, mpol=3, ntor=5)
+        s_str = repr(s)
+        self.assertIn("SurfaceRZFourier", s_str)
+        self.assertIn("nfp=2", s_str)
+        self.assertIn("stellsym=True", s_str)
+        self.assertIn("mpol=3", s_str)
+        self.assertIn("ntor=5", s_str)
 
     def test_get_rc(self):
-        self.fail("Test Not Implemented")
+        s = SurfaceRZFourier()
+        s.x = [2.9, -1.1, 0.7]
+        self.assertAlmostEqual(s.get_rc(0, 0), 2.9)
+        self.assertAlmostEqual(s.get_rc(1, 0), -1.1)
 
     def test_get_rs(self):
         self.fail("Test Not Implemented")
@@ -212,10 +221,27 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.fail("Test Not Implemented")
 
     def test_get_zs(self):
-        self.fail("Test Not Implemented")
+        s = SurfaceRZFourier(mpol=3, ntor=1)
+        s.x = np.array(list(range(21))) + 1
+
+        self.assertAlmostEqual(s.get_zs(0, -1), 0)
+        self.assertAlmostEqual(s.get_zs(0, 0), 0)
+        self.assertAlmostEqual(s.get_zs(0, 1), 12)
+        self.assertAlmostEqual(s.get_zs(1, -1), 13)
+        self.assertAlmostEqual(s.get_zs(1, 0), 14)
+        self.assertAlmostEqual(s.get_zs(1, 1), 15)
+        self.assertAlmostEqual(s.get_zs(2, -1), 16)
+        self.assertAlmostEqual(s.get_zs(2, 0), 17)
+        self.assertAlmostEqual(s.get_zs(2, 1), 18)
+        self.assertAlmostEqual(s.get_zs(3, -1), 19)
+        self.assertAlmostEqual(s.get_zs(3, 0), 20)
+        self.assertAlmostEqual(s.get_zs(3, 1), 21)
 
     def test_set_rc(self):
-        self.fail("Test Not Implemented")
+        s = SurfaceRZFourier()
+        s.x = [2.9, -1.1, 0.7]
+        s.set_rc(0, 0, 3.1)
+        self.assertAlmostEqual(s.x[0], 3.1)
 
     def test_set_rs(self):
         self.fail("Test Not Implemented")
@@ -224,7 +250,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.fail("Test Not Implemented")
 
     def test_set_zs(self):
-        self.fail("Test Not Implemented")
+        s = SurfaceRZFourier()
+        s.x = [2.9, -1.1, 0.7]
+        s.set_zs(1, 0, 1.4)
+        self.assertAlmostEqual(s.x[2], 1.4)
 
     def test_fixed_range(self):
         self.fail("Test Not Implemented")
