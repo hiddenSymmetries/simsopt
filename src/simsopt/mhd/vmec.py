@@ -680,7 +680,7 @@ class Vmec(Optimizable):
 
         It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz, theta_arclength = self.B_on_arclength_grid(theta_evaluate=theta_arclength0)
+        Bx, By, Bz, theta_arclength = self.B_on_arclength_grid()
 
         # Reset input values
         self.indata.ac_aux_f = ac_aux_f_prev
@@ -693,23 +693,14 @@ class Vmec(Optimizable):
 
         return deltaB_dot_B/(2*np.pi*mu0)
 
-    def B_on_arclength_grid(self, theta_evaluate=None):
+    def B_cartesian(self):
         """
-        Computes vector components of magnetic field on boundary on grid in
+        Computes cartesian vector components of magnetic field on boundary on grid in
         toroidal angle and arclength poloidal angle. This is required to
-        compute the adjoint-based shape gradient. If theta_evaluate is
-        provided, the field is interpolated onto the theta_evaluate
-        grid of poloidal angle.
+        compute the adjoint-based shape gradient.
         """
-        from scipy import interpolate
-
         dgamma1 = self.boundary.gammadash1()
         dgamma2 = self.boundary.gammadash2()
-        gamma = self.boundary.gamma()
-        X = gamma[:, :, 0]
-        Y = gamma[:, :, 1]
-        Z = gamma[:, :, 2]
-        R = np.sqrt(X**2 + Y**2)
 
         theta1D = self.boundary.quadpoints_theta * 2 * np.pi
         phi1D = self.boundary.quadpoints_phi * 2 * np.pi
@@ -729,28 +720,47 @@ class Vmec(Optimizable):
         By = (Bsupv * dgamma1[:, :, 1] + Bsupu * dgamma2[:, :, 1])/(2*np.pi)
         Bz = (Bsupv * dgamma1[:, :, 2] + Bsupu * dgamma2[:, :, 2])/(2*np.pi)
 
-        theta_arclength = np.zeros_like(phi)
+        return Bx, By, Bz
+
+    def arclength_poloidal_angle(self):
+        """
+        Computes poloidal angle based on arclenth along magnetic surface at
+        constant phi. This is required for evaluating the adjoint shape gradient
+        for free-boundary calculations.
+        """
+        gamma = self.boundary.gamma()
+        X = gamma[:, :, 0]
+        Y = gamma[:, :, 1]
+        Z = gamma[:, :, 2]
+        R = np.sqrt(X**2 + Y**2)
+
+        theta_arclength = np.zeros_like(gamma[:,:,0])
+        nphi = len(theta_arclength[:,0])
+        ntheta = len(theta_arclength[0,:])
         for iphi in range(nphi):
             for itheta in range(1, ntheta):
                 dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
                              + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
                 theta_arclength[iphi, itheta] = \
                     theta_arclength[iphi, itheta-1] + dr
+        return theta_arclength
 
-        # If required, interpolate B onto a user-specified theta grid
-        if theta_evaluate is not None:
-            for iphi in range(nphi):
-                f = interpolate.InterpolatedUnivariateSpline(
-                    theta_arclength[iphi, :], Bx[iphi, :])
-                Bx[iphi, :] = f(theta_evaluate[iphi, :])
-                f = interpolate.InterpolatedUnivariateSpline(
-                    theta_arclength[iphi, :], By[iphi, :])
-                By[iphi, :] = f(theta_evaluate[iphi, :])
-                f = interpolate.InterpolatedUnivariateSpline(
-                    theta_arclength[iphi, :], Bz[iphi, :])
-                Bz[iphi, :] = f(theta_evaluate[iphi, :])
+    def interpolate_on_arclength_grid(self, function, theta_evaluate):
+        """
+        Interpolate function onto the theta_evaluate grid in the arclength
+        poloidal angle.
+        """
+        from scipy import interpolate
 
-        return Bx, By, Bz, theta_arclength
+        theta_arclength = self.arclength_poloidal_angle()
+        function_interpolated = np.zeros_like(function)
+        nphi = len(theta_arclength[:,0])
+        for iphi in range(nphi):
+            f = interpolate.InterpolatedUnivariateSpline(
+                theta_arclength[iphi, :], function[iphi, :])
+            function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
+
+        return function_interpolated
 
     def well_weighted(self, weight_function1, weight_function2):
         """
