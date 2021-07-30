@@ -348,6 +348,41 @@ class VmecTests(unittest.TestCase):
         logger.info(f"relative error: {relative_error}")
         self.assertTrue(relative_error < 5.e-2)
 
+    def test_d_well_weighted(self):
+        """
+        Compare d_well_weighted_metric with finite differences for a surface
+        perturbation in a random direction.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse_refined')
+        vmec = Vmec(filename, ntheta=100, nphi=100)
+
+        epsilon = 1.e-2  # FD step size
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        weight1 = lambda s: np.exp(-s**2/0.2**2)
+        weight2 = lambda s: np.exp(-(1-s)**2/0.2**2)
+
+        # Compute random direction for surface perturbation
+        surf = vmec.boundary
+        dofs = np.copy(vmec.boundary.get_dofs())
+        vec = np.random.standard_normal(dofs.shape)
+        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+
+        def well_fun(epsilon):
+            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+            vmec.need_to_run_code = True
+            return vmec.well_weighted(weight1, weight2)
+
+        d_well_fd = (well_fun(epsilon)-well_fun(-epsilon))/(2*epsilon)
+
+        vmec.boundary.set_dofs(dofs)
+        vmec.need_to_run_code = True
+        d_well_adjoint = np.dot(vmec.d_well_weighted(weight1, weight2, adjoint_epsilon), unitvec)
+
+        relative_error = np.abs(d_well_fd-d_well_adjoint)/np.abs(d_well_fd)
+        logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
+        logger.info(f"relative error: {relative_error}")
+        self.assertTrue(relative_error < 5.e-2)
+
     def test_IotaTargetMetric(self):
         """
         Compare dJ() with finite differences for a surface perturbation in a
