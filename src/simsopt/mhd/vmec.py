@@ -653,7 +653,7 @@ class Vmec(Optimizable):
         """
         self.run()
 
-        Bx0, By0, Bz0, theta_arclength0 = self.B_on_arclength_grid()
+        Bx0, By0, Bz0 = self.B_cartesian()
 
         mu0 = 4*np.pi*1e-7
         It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
@@ -680,7 +680,7 @@ class Vmec(Optimizable):
 
         It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz, theta_arclength = self.B_on_arclength_grid()
+        Bx, By, Bz = self.B_cartesian()
 
         # Reset input values
         self.indata.ac_aux_f = ac_aux_f_prev
@@ -692,6 +692,118 @@ class Vmec(Optimizable):
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/delta
 
         return deltaB_dot_B/(2*np.pi*mu0)
+
+    def iota_weighted_shape_gradient(self, weight_function, delta):
+        """
+        Computes shape gradient of iota_weighted, defined as S where,
+
+        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n,
+
+        is the perturbation to the objective function corresponding to the
+        perturbation of the surface, \delta x.
+        """
+        self.run()
+
+        Bx0, By0, Bz0 = self.B_cartesian()
+
+        mu0 = 4*np.pi*1e-7
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(self.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(self.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(self.indata.pcurr_type)
+        curtor_prev = np.copy(self.indata.curtor)
+
+        perturbation = (self.wout.iotas[1::]-iota_target(self.s_half_grid)) \
+            / (self.wout.phi[-1]*self.wout.signgs/(2*np.pi))
+
+        # Perturbed toroidal current profile
+        It_new = It_half + delta*perturbation
+        curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
+        self.indata.ac_aux_f = -1.*np.ones_like(self.indata.ac_aux_f)
+        self.indata.ac_aux_s = -1.*np.ones_like(self.indata.ac_aux_s)
+        self.indata.ac_aux_f[0:self.wout.ns-1] = It_new
+        self.indata.ac_aux_s[0:self.wout.ns-1] = self.s_half_grid
+        self.indata.curtor = curtor
+        self.indata.pcurr_type = b'line_segment_I'
+        self.need_to_run_code = True
+
+        self.run()
+
+        It_half = self.wout.signgs * 2*np.pi * self.wout.bsubumnc[0, 1::] / mu0
+
+        Bx, By, Bz = self.B_cartesian()
+
+        # Reset input values
+        self.indata.ac_aux_f = ac_aux_f_prev
+        self.indata.ac_aux_s = ac_aux_s_prev
+        self.indata.pcurr_type = pcurr_type_prev
+        self.indata.curtor = curtor_prev
+        self.need_to_run_code = True
+
+        deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/delta
+
+        return deltaB_dot_B/(2*np.pi*mu0)
+
+    def d_well_weighted(self, weight_function1, weight_function2, delta=1.):
+        """
+        Computes derivatives of iota_target_metric wrt surface parameters using
+        an adjoint method. The parameter delta sets the amplitude of the toroidal
+        current perturbation required for the adjoint solve.
+        """
+
+        shape_gradient = self.well_weighted_shape_gradient(weight_function1, weight_function2, delta=1.)
+
+        return parameter_derivatives(self.boundary, shape_gradient)
+
+    def well_weighted_shape_gradient(self, weight_function1, weight_function2, delta=1.):
+        """
+        Computes shape gradient of well_weighted_metric, defined as S where,
+
+        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n,
+
+        is the perturbation to the objective function corresponding to the
+        perturbation of the surface, \delta x.
+        """
+        self.run()
+
+        Bx0, By0, Bz0 = self.B_cartesian()
+
+        mu0 = 4*np.pi*1e-7
+        am_aux_f_prev = np.copy(self.indata.am_aux_f)
+        am_aux_s_prev = np.copy(self.indata.am_aux_s)
+        pmass_type_prev = np.copy(self.indata.pmass_type)
+
+        pres = self.wout.pres[1::]
+        weight1 = weight_function1(self.s_half_grid) - weight_function2(self.s_half_grid)
+        weight2 = weight_function1(self.s_half_grid) + weight_function2(self.s_half_grid)
+        numerator = np.sum(weight1 * self.wout.vp[1::])
+        denominator = np.sum(weight2 * self.wout.vp[1::])
+        fW = numerator/denominator
+        perturbation = (weight1 - fW * weight2) / (denominator * self.ds * 4 * np.pi * np.pi)
+
+        # Perturbed pressure profile
+        pres_new = pres + delta*perturbation
+
+        self.indata.am_aux_f = -1.*np.ones_like(self.indata.am_aux_f)
+        self.indata.am_aux_s = -1.*np.ones_like(self.indata.am_aux_s)
+        self.indata.am_aux_f[0:self.wout.ns-1] = pres_new
+        self.indata.am_aux_s[0:self.wout.ns-1] = self.s_half_grid
+        self.indata.pmass_type = b'cubic_spline'
+        self.need_to_run_code = True
+
+        self.run()
+
+        Bx, By, Bz = self.B_cartesian()
+
+        # Reset input values
+        self.indata.am_aux_f = am_aux_f_prev
+        self.indata.am_aux_s = am_aux_s_prev
+        self.indata.pmass_type = pmass_type_prev
+        self.need_to_run_code = True
+
+        deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/delta
+
+        return deltaB_dot_B/(mu0) + perturbation[-1]
 
     def B_cartesian(self):
         """
