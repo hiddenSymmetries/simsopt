@@ -2,10 +2,8 @@ name: docker container
 
 on: 
   push:
-    branches:
-      - *
-    tags:
-      - v*
+    branches: *
+    tags: v*
   pull_request:
     branches:
       - master
