@@ -2,9 +2,9 @@ name: docker container
 
 on: 
   push:
-    branches:
+    branches: 
       - '**'
-    tags:
+    tags: 
       - v*
   pull_request:
     branches:
