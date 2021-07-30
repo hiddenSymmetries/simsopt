@@ -1,12 +1,11 @@
-include CMakeLists.txt COPYING* requirements.txt pyproject.toml README.md run* .coveragerc tox.ini
-
-recursive-include src/profiling *
-recursive-include src/simsoptpp *
-
 recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
-recursive-include thirdparty *
-
-recursive-include examples *
+recursive-exclude .git
+recursive-exclude .github * .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
+recursive-exclude docs *
+recursive-exclude dist *
+recursive-exclude ci *
+recursive-exclude conda.recipe *
 recursive-exclude examples wout*.nc mercier* jxbout* spec*.sp spec*.sp.* .gitignore
+recursive-excule tests .gitignore
 
-recursive-include tests *
+exclude .gitignore *readthedocs.yaml MANIFEST* run_autopep .gitmodules 
