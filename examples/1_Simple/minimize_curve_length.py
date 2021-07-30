@@ -14,7 +14,7 @@ The result should be a circle.
 # Create a curve:
 nquadrature = 100
 nfourier = 4
-nfp = 5
+nfp = 5 # exploit rotational symmetry and only consider a fifth of the curve
 curve = CurveRZFourier(nquadrature, nfourier, nfp, True)
 
 # Initialize the Fourier amplitudes to some random values
