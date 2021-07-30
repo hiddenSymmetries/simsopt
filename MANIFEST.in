@@ -6,6 +6,6 @@ recursive-exclude dist *
 recursive-exclude ci *
 recursive-exclude conda.recipe *
 recursive-exclude examples wout*.nc mercier* jxbout* spec*.sp spec*.sp.* .gitignore
-recursive-excule tests .gitignore
+recursive-exclude tests .gitignore
 
 exclude .gitignore *readthedocs.yaml MANIFEST* run_autopep .gitmodules 
