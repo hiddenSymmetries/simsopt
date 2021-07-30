@@ -79,6 +79,10 @@ class Curve(Optimizable):
             color: color of the curve, passed to the ``color=`` kwarg of pyplot
             linestyle: linestyle of the curve, passed to the ``linestyle=`` kwarg of pyplot
             axis_equal: whether all three dimensions should be scaled equally.
+                        this is actually broken in matplotlib, so we add a workaround that
+                        at least does the right think for a single curve. For
+                        multiple curves in the same plot, this will not give
+                        perfectly equal scaling.
 
         Returns: a axis which could be passed to a further call to
                  ``Curve.plot`` so that multiple curve are shown together.
