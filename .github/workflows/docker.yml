@@ -3,8 +3,7 @@ name: docker container
 on: 
   push:
     branches:
-      - master
-      - docker
+      - *
     tags:
       - v*
   pull_request:
@@ -43,7 +42,7 @@ jobs:
       
       - name: Build and push
         uses: docker/build-push-action@v2
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ startsWith(github.ref, 'refs/heads') && github.ref == 'refs/heads/master' }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
@@ -52,7 +51,7 @@ jobs:
 
       - name: Build  for branches
         uses: docker/build-push-action@v2
-        if: ${{ github.ref != 'refs/heads/docker' }}
+        if: ${{ startsWith(github.ref, 'refs/heads') && github.ref != 'refs/heads/master' }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
