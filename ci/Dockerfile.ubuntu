@@ -36,7 +36,7 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
 ENV CI=True
 RUN git clone https://github.com/hiddenSymmetries/simsopt.git /src/simsopt && \
     cd /src/simsopt && \
-    git fetch --tags --all --prune --unshallow && \
+    git fetch --tags --all && \
     /venv/bin/pip install  -v .
 # RUN /venv/bin/pip install -v "git+https://github.com/hiddenSymmetries/simsopt"
 
