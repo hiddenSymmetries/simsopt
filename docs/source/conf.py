@@ -22,7 +22,11 @@ copyright = '2020, Simsopt Development Team'
 author = 'Simsopt Development Team'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.3'
+from importlib.metadata import version
+release = version('simsopt')
+# for example take major/minor
+version = '.'.join(release.split('.')[:2])
+# release = '0.0.3'
 
 
 # -- General configuration ---------------------------------------------------
