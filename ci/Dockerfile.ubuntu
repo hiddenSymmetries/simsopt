@@ -24,8 +24,10 @@ RUN mkdir -p /src
 RUN python3 -m pip install wheel "pybind11[global]"  # cmake scikit-build ninja 
 RUN virtualenv /venv/
 
-RUN /venv/bin/pip install numpy scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy "pybind11[global]"  cmake scikit-build ninja 
+RUN /venv/bin/pip install numpy==1.19.0 scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy "pybind11[global]"  cmake scikit-build ninja 
 #RUN /venv/bin/pip install h5py pyoculus py_spec 
+RUN /venv/bin/pip install vtk==9.0.1 pyqt5 matplotlib
+RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 
 RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
