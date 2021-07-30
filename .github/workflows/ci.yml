@@ -55,13 +55,13 @@ jobs:
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev
 
     - uses: actions/checkout@v2
-      # If we want submodules downloaded, uncomment the next 2 lines:
-      #with:
-      #  submodules: true
+
+    - name: Fetch all history for all tags
+      run: git fetch --all --tags --prune --unshallow
 
     # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
-      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
+      run: git clone --depth=1 https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
@@ -235,65 +235,3 @@ jobs:
         #path_to_write_report: ./coverage/codecov_report.gz
         verbose: true
 
-#    - name: Upload uncombined coverage to github
-#      if: contains(matrix.test-type, 'unit')
-#      uses: actions/upload-artifact@v2
-#      with:
-#        name: gh-actions-parallel-coverage
-#        path: .coverage.*
-#        if-no-files-found: error
-#
-#  coverage:
-#    runs-on: ubuntu-18.04
-#    needs: [ test ]
-#    steps:
-#
-#    - name: Set up Python 
-#      uses: actions/setup-python@v2
-#      with:
-#        python-version: 3.8.10
-#
-#    - name: Install coverage
-#      run: pip install coverage
-#
-#    - name: Checkout simsopt 
-#      uses: actions/checkout@v2
-#
-#    - name: Install simsopt before running coverage
-#      run: pip install .
-#
-#    - name: Download artifact
-#      uses: actions/download-artifact@v2
-#      with:
-#        name: gh-actions-parallel-coverage
-#        path: ./
-#
-#    - name: Display coverage files before combine 
-#      run: ls -a
-#
-#    - name: Combine coverage reports
-#      run: | 
-#        coverage combine
-#        coverage report
-#        coverage xml
-#
-#    - name: Upload coverage to github
-#      uses: actions/upload-artifact@v2
-#      with:
-#        name: tox-gh-actions-coverage
-#        path: coverage.xml
-#        if-no-files-found: error
-#
-#    - name: Upload coverage to Codecov
-#      uses: codecov/codecov-action@v1
-#      with:
-#        token: ${{ secrets.CODECOV_TOKEN }}
-#        file: ./coverage.xml
-#        #files: ./coverage1.xml,./coverage2.xml
-#        #directory: ./coverage/reports/
-#        flags: unittests
-#        env_vars: PYTHON
-#        name: codecov-umbrella
-#        fail_ci_if_error: true
-#        #path_to_write_report: ./coverage/codecov_report.gz
-#        verbose: true
