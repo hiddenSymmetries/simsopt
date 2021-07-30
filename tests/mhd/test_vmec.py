@@ -242,15 +242,14 @@ class VmecTests(unittest.TestCase):
         well2 = vmec.well_weighted(weight1, weight2)
         self.assertAlmostEqual(well1, well2, places=2)
 
-    def test_B_on_arclength_grid(self):
+    def test_B_cartesian(self):
         """
         Check that B^2 matches bmnc from wout file.
-        Check that B is unchanged when evaluated on arclength grid from first run.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        Bx, By, Bz, arclength0 = vmec.B_on_arclength_grid()
+        Bx, By, Bz = vmec.B_cartesian()
         B2 = Bx*Bx + By*By + Bz*Bz
 
         theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
@@ -267,10 +266,46 @@ class VmecTests(unittest.TestCase):
         B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
         self.assertTrue(np.max(np.abs(B**2-B2)) < 1.e-4)
 
-        Bx, By, Bz, arclength = vmec.B_on_arclength_grid()
-        self.assertTrue(np.max(np.abs(Bx-Bx)) < 1.0e-4)
-        self.assertTrue(np.max(np.abs(By-By)) < 1.0e-4)
-        self.assertTrue(np.max(np.abs(Bz-Bz)) < 1.0e-4)
+    def test_arclength_poloidal_angle(self):
+        """
+        Compute arclength poloidal angle from circular cross-section tokamak.
+        Check that this matches parameterization angle.
+        """
+        filename = os.path.join(TEST_DIR, 'input.tok')
+        vmec = Vmec(filename, ntheta=500, nphi=5)
+        theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
+
+        arclength = vmec.arclength_poloidal_angle()
+        nphi = len(arclength[:,0])
+        for iphi in range(nphi):
+            self.assertTrue(np.max(np.abs(arclength[iphi,:]-theta1D))<1e-3)
+
+    def test_interpolate_on_arclength_grid(self):
+        """
+        Check that line integral of B^2 at constant phi is unchanged when
+        evaluated on parameterization or arclength poloidal angle grid.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        ntheta = 500
+        nphi = 10
+        vmec = Vmec(filename, ntheta=ntheta, nphi=nphi)
+
+        Bx, By, Bz = vmec.B_cartesian()
+        B2 = Bx*Bx + By*By + Bz*Bz
+        dgamma2 = vmec.boundary.gammadash2()
+
+        theta1D = vmec.boundary.quadpoints_theta
+        phi1D = vmec.boundary.quadpoints_phi
+        theta, phi = np.meshgrid(theta1D, phi1D)
+
+        norm_drdtheta = np.linalg.norm(dgamma2,axis=2)
+        length = np.sum(norm_drdtheta,axis=1) / ntheta
+        theta_interp = theta * length[:,None]
+        B2_arclength = vmec.interpolate_on_arclength_grid(B2, theta_interp)
+        for iphi in range(nphi):
+            integral_1 = np.sum(B2[iphi,:] * norm_drdtheta[iphi,:]) / np.sum(norm_drdtheta[iphi,:])
+            integral_2 = np.sum(B2_arclength[iphi,:]) / np.sum(np.ones_like(norm_drdtheta[iphi,:]))
+            self.assertAlmostEqual(integral_1,integral_2,places=3)
 
     def test_d_iota_target_metric(self):
         """
@@ -278,7 +313,7 @@ class VmecTests(unittest.TestCase):
         Compare d_iota_target_metric with finite differences for a surface
         perturbation in a random direction.
         """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse_refined')
         vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
@@ -357,8 +392,10 @@ class VmecTests(unittest.TestCase):
 
         target_function = lambda s: 0.68
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
+        vmec.indata.mpol = 11
+        vmec.indata.ntor = 11
         # Compute random direction for surface perturbation
         surf = vmec.boundary
         surf.all_fixed()
