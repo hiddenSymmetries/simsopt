@@ -276,9 +276,9 @@ class VmecTests(unittest.TestCase):
         theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
 
         arclength = vmec.arclength_poloidal_angle()
-        nphi = len(arclength[:,0])
+        nphi = len(arclength[:, 0])
         for iphi in range(nphi):
-            self.assertTrue(np.max(np.abs(arclength[iphi,:]-theta1D))<1e-3)
+            self.assertTrue(np.max(np.abs(arclength[iphi, :]-theta1D)) < 1e-3)
 
     def test_interpolate_on_arclength_grid(self):
         """
@@ -298,14 +298,14 @@ class VmecTests(unittest.TestCase):
         phi1D = vmec.boundary.quadpoints_phi
         theta, phi = np.meshgrid(theta1D, phi1D)
 
-        norm_drdtheta = np.linalg.norm(dgamma2,axis=2)
-        length = np.sum(norm_drdtheta,axis=1) / ntheta
-        theta_interp = theta * length[:,None]
+        norm_drdtheta = np.linalg.norm(dgamma2, axis=2)
+        length = np.sum(norm_drdtheta, axis=1) / ntheta
+        theta_interp = theta * length[:, None]
         B2_arclength = vmec.interpolate_on_arclength_grid(B2, theta_interp)
         for iphi in range(nphi):
-            integral_1 = np.sum(B2[iphi,:] * norm_drdtheta[iphi,:]) / np.sum(norm_drdtheta[iphi,:])
-            integral_2 = np.sum(B2_arclength[iphi,:]) / np.sum(np.ones_like(norm_drdtheta[iphi,:]))
-            self.assertAlmostEqual(integral_1,integral_2,places=3)
+            integral_1 = np.sum(B2[iphi, :] * norm_drdtheta[iphi, :]) / np.sum(norm_drdtheta[iphi, :])
+            integral_2 = np.sum(B2_arclength[iphi, :]) / np.sum(np.ones_like(norm_drdtheta[iphi, :]))
+            self.assertAlmostEqual(integral_1, integral_2, places=3)
 
     def test_d_iota_target_metric(self):
         """
@@ -494,10 +494,9 @@ class VmecTests(unittest.TestCase):
         vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
-        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        epsilon = 1.e-3  # FD step size
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
-        vmec.indata.mpol = 11
-        vmec.indata.ntor = 11
         # Compute random direction for surface perturbation
         surf = vmec.boundary
         surf.all_fixed()
@@ -507,6 +506,7 @@ class VmecTests(unittest.TestCase):
 
         prob = LeastSquaresProblem([(obj, 0, 1)])
 
+        prob.dofs.abs_step = epsilon
         jac = prob.dofs.jac()
         fd_jac = prob.dofs.fd_jac()
 
