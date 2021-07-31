@@ -340,7 +340,7 @@ As input arguments, it takes field: the underlying :mod:`simsopt.field.magneticf
 Particle Tracer
 -----------------
 
-Simsopt is able to follow particles in a magnetic field. The main function to use in this case is ``trace_particles`` and it is able to use two different sets of equations depending on the input parameter ``mode``:
+Simsopt is able to follow particles in a magnetic field. The main function to use in this case is :obj:`simsopt.field.tracing.trace_particles` (click the link for more information on the input and output parameters) and it is able to use two different sets of equations depending on the input parameter ``mode``:
 
 - In the case of ``mode='full'`` it solves
 
@@ -359,40 +359,27 @@ Simsopt is able to follow particles in a magnetic field. The main function to us
 where :math:`v_\perp^2 = 2\mu B`.
 See equations (12) and (13) of `Guiding Center Motion, H.J. de Blank <https://doi.org/10.13182/FST04-A468>`_.
 
-The ``trace_particles`` function, takes as arguments
+Below is an example of the vertical drift experienced by two particles in a simple toroidal magnetic field.
 
-- ``field``: The magnetic field :math:`B`.
-- ``xyz_inits``: A (nparticles, 3) array with the initial positions of the particles.
-- ``parallel_speeds``: A (nparticles, ) array containing the speed in direction of the B field for each particle.
-- ``tmax``: integration time
-- ``mass``: particle mass in kg, defaults to the mass of an alpha particle
-- ``charge``: charge in Coulomb, defaults to the charge of an alpha particle
-- ``Ekin``: kinetic energy in Joule, defaults to 3.52MeV
-- ``tol``: tolerance for the adaptive ode solver
-- ``comm``: MPI communicator to parallelize over
-- ``phis``: list of angles in [0, 2pi] for which intersection with the plane corresponding to that phi should be computed
-- ``stopping_criteria``: list of stopping criteria, mostly used in combination with the ``LevelsetStoppingCriterion`` accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-- mode: how to trace the particles. options are
-   `gc`: general guiding center equations,
-   `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
-   `full`: full orbit calculation (slow!)
-- ``forget_exact_path``: return an empty list for the ``res_tys``. To be used when only res_phi_hits is of interest and one wants to reduce memory usage.
+.. code-block::
 
-As output, it returns 2 elements:
-- ``res_tys``:
-   A list of numpy arrays (one for each particle) describing the
-   solution over time. The numpy array is of shape (ntimesteps, M)
-   with M depending on the ``mode``.  Each row contains the time and
-   the state.  So for `mode='gc'` and `mode='gc_vac'` the state
-   consists of the xyz position and the parallel speed, hence
-   each row contains `[t, x, y, z, v_par]`.  For `mode='full'`, the
-   state consists of position and velocity vector, i.e. each row
-   contains `[t, x, y, z, vx, vy, vz]`.
+    from simsopt.field.magneticfieldclasses import ToroidalField
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier
+    from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
+    from simsopt.field.tracing import trace_particles_starting_on_curve
 
-- ``res_phi_hits``:
-   A list of numpy arrays (one for each particle) containing
-   information on each time the particle hits one of the phi planes or
-   one of the stopping criteria. Each row of the array contains
-   `[time] + [idx] + state`, where `idx` tells us which of the `phis`
-   or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
-   was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+    bfield = ToroidalField(B0=1., R0=1.)
+    start_curve = CurveXYZFourier(300, 1)
+    start_curve.set_dofs([0, 0, 1.01, 0, 1.01, 0., 0, 0., 0.])
+    nparticles = 2
+    m = PROTON_MASS
+    q = ELEMENTARY_CHARGE
+    tmax = 1e-6
+    Ekin = 100*ONE_EV
+    gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
+        start_curve, bfield, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
+        Ekin=Ekin, umin=0.2, umax=0.5, phis=[], mode='gc_vac', tol=1e-11)
+    z_particle_1 = gc_tys[0][:][2]
+    z_particle_2 = gc_tys[1][:][2]
+    print(z_particle_1)
+    print(z_particle_2)
