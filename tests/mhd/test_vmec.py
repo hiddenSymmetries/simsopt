@@ -2,7 +2,7 @@ import unittest
 import logging
 import os
 import numpy as np
-from simsopt.mhd.vmec import IotaTargetMetric
+from simsopt.mhd.vmec import IotaTargetMetric, WellWeighted
 
 try:
     from mpi4py import MPI
@@ -383,6 +383,74 @@ class VmecTests(unittest.TestCase):
         logger.info(f"relative error: {relative_error}")
         self.assertTrue(relative_error < 5.e-2)
 
+    def test_WellWeighted(self):
+        """
+        Compare dJ() with finite differences for a surface perturbation in a
+        random direction.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        vmec = Vmec(filename, ntheta=100, nphi=100)
+
+        epsilon = 1.e-2  # FD step size
+        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+
+        weight1 = lambda s: np.exp(-s**2/0.2**2)
+        weight2 = lambda s: np.exp(-(1-s)**2/0.2**2)
+
+        obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
+
+        # Compute random direction for surface perturbation
+        dofs = np.copy(vmec.boundary.get_dofs())
+        vec = np.random.standard_normal(dofs.shape)
+        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+
+        def well_fun(epsilon):
+            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+            return obj.J()
+
+        d_well_fd = (well_fun(epsilon)-well_fun(-epsilon))/(2*epsilon)
+
+        vmec.boundary.set_dofs(dofs)
+        vmec.need_to_run_code = True
+        d_well_adjoint = np.dot(obj.dJ(), unitvec)
+
+        relative_error = np.abs(d_well_fd-d_well_adjoint)/np.abs(d_well_fd)
+        logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
+        logger.info(f"relative error: {relative_error}")
+        self.assertTrue(relative_error < 5.e-2)
+
+    def test_WellWeighted_LeastSquaresProblem(self):
+        """
+        Compare jacobian for least-squares problem with supplied gradient wrt
+        one surface coefficient matches finite-differences.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        vmec = Vmec(filename, ntheta=100, nphi=100)
+
+        epsilon = 1.e-2  # FD step size
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
+
+        weight1 = lambda s: np.exp(-s**2/0.4**2)
+        weight2 = lambda s: np.exp(-(1-s)**2/0.4**2)
+
+        # Compute random direction for surface perturbation
+        surf = vmec.boundary
+        surf.all_fixed()
+        surf.set_fixed("rc(0,0)", False)  # Major radius
+
+        obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
+
+        prob = LeastSquaresProblem([(obj, 0, 1)])
+        prob.dofs.abs_step = epsilon
+
+        jac = prob.dofs.jac()
+        fd_jac = prob.dofs.fd_jac()
+
+        relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
+        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
+        logger.info(f"relative error: {relative_error}")
+        self.assertTrue(relative_error < 1.5e-2)
+
     def test_IotaTargetMetric(self):
         """
         Compare dJ() with finite differences for a surface perturbation in a
@@ -426,7 +494,6 @@ class VmecTests(unittest.TestCase):
         vmec = Vmec(filename, ntheta=100, nphi=100)
 
         target_function = lambda s: 0.68
-        epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
         vmec.indata.mpol = 11

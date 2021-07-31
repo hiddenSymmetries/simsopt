@@ -751,7 +751,7 @@ class Vmec(Optimizable):
         current perturbation required for the adjoint solve.
         """
 
-        shape_gradient = self.well_weighted_shape_gradient(weight_function1, weight_function2, delta=1.)
+        shape_gradient = self.well_weighted_shape_gradient(weight_function1, weight_function2, delta)
 
         return parameter_derivatives(self.boundary, shape_gradient)
 
@@ -846,9 +846,9 @@ class Vmec(Optimizable):
         Z = gamma[:, :, 2]
         R = np.sqrt(X**2 + Y**2)
 
-        theta_arclength = np.zeros_like(gamma[:,:,0])
-        nphi = len(theta_arclength[:,0])
-        ntheta = len(theta_arclength[0,:])
+        theta_arclength = np.zeros_like(gamma[:, :, 0])
+        nphi = len(theta_arclength[:, 0])
+        ntheta = len(theta_arclength[0, :])
         for iphi in range(nphi):
             for itheta in range(1, ntheta):
                 dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
@@ -866,7 +866,7 @@ class Vmec(Optimizable):
 
         theta_arclength = self.arclength_poloidal_angle()
         function_interpolated = np.zeros_like(function)
-        nphi = len(theta_arclength[:,0])
+        nphi = len(theta_arclength[:, 0])
         for iphi in range(nphi):
             f = interpolate.InterpolatedUnivariateSpline(
                 theta_arclength[iphi, :], function[iphi, :])
@@ -918,4 +918,29 @@ class IotaTargetMetric(Optimizable):
     def dJ(self):
         self.vmec.need_to_run_code = True
         grad = self.vmec.d_iota_target_metric(self.iota_target, self.adjoint_epsilon)
+        return grad
+
+
+class WellWeighted(Optimizable):
+    """
+    WellWeightedMetric is a class that computes well_weighted from a
+    vmec equilibrium. Its derivatives can also be computed with an adjoint
+    method.
+    """
+
+    def __init__(self, vmec, weight_function1, weight_function2, adjoint_epsilon=1.e-1):
+        self.vmec = vmec
+        self.boundary = vmec.boundary
+        self.weight_function1 = weight_function1
+        self.weight_function2 = weight_function2
+        self.adjoint_epsilon = adjoint_epsilon
+        self.depends_on = ["boundary"]
+
+    def J(self):
+        self.vmec.need_to_run_code = True
+        return self.vmec.well_weighted(self.weight_function1, self.weight_function2)
+
+    def dJ(self):
+        self.vmec.need_to_run_code = True
+        grad = self.vmec.d_well_weighted(self.weight_function1, self.weight_function2, self.adjoint_epsilon)
         return grad
