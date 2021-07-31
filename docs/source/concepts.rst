@@ -239,7 +239,38 @@ This function is called everytime ``Curve.set_dofs()`` is called (and the shape 
 Magnetic Field Classes
 -----------------
 
-Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter.
+Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter. To get the magnetic field (or its derivatives) at a set of points, first, an instance of that particular magnetic field is created, then all its properties are evaluated internally for at those points and, finally, those properties can be outputed. Below is an example that prints the components of a magnetic field and its derivatives of a sum of a circular coil in the xy-plane with current I=1.e7 and a radius r0=1 and a toroidal field with a magnetic field B0=1 at major radius R0=1. This field is evaluated at the set of points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]].
+
+.. code-block::
+
+   from simsopt.field.magneticfieldclasses import ToroidalField, CircularCoil
+   
+   Bfield1 = CircularCoil(I=1.e7, r0=1.)
+   Bfield2 = ToroidalField(R0=1., B0=1.)
+   Bfield = Bfield1 + Bfield2
+   points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]]
+   Bfield.set_points(points)
+   print(Bfield.B())
+   print(Bfield.dB_by_dX())
+
+Below is a similar example where, instead of calculating the magnetic field using analytical functions from the circular coil class, it is calculated using the BiotSavart class
+
+.. code-block::
+
+   from simsopt.field.magneticfieldclasses import ToroidalField
+   from simsopt.field.biotsavart import BiotSavart
+   from simsopt.geo.curvexyzfourier import CurveXYZFourier
+
+   coils = [CurveXYZFourier(300, 1)]
+   coils[0].set_dofs([0, 0, 1., 0., 1., 0., 0., 0., 0.])
+   Bfield1 = BiotSavart(coils, [1.e7])
+   Bfield2 = ToroidalField(R0=1., B0=1.)
+   Bfield = Bfield1 + Bfield2
+   points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]]
+   Bfield.set_points(points)
+   print(Bfield.B())
+   print(Bfield.dB_by_dX())
+
 
 BiotSavart
 ~~~~~~
