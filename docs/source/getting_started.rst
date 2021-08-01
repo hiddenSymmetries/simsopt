@@ -55,7 +55,7 @@ This is the easiest and preferred method.
     pip install simsopt
 
 Running the above command will install simsopt and all of its mandatory dependencies. To install
-optional depdencies related to SPEC and MPI, run the following command:
+optional dependencies related to SPEC and MPI, run the following command:
 
 .. code-block::
 
@@ -96,6 +96,17 @@ can be installed for your user only::
     
 .. warning::
     Installation from local source creates a directory called **build**. If you are reinstalling simsopt from source after updating the code by making local changes or by git pull, remove the directory **build** before reinstalling.
+
+If you want to build SIMSOPT locally with the optional dependencies,
+you can run
+
+    pip install --user -e .[MPI,SPEC]
+
+However, if you're using a zsh terminal (example: latest Macbook versions),
+you'll need to run instead
+
+    pip install --user -e .\[MPI,SPEC]\
+
 
 From docker container
 ---------------------
