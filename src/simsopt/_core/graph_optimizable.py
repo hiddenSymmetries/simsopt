@@ -110,10 +110,8 @@ class DOFs:
             key: Key to identify the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._free[i] = False
-        else:
-            self._free[key] = False
+            key = self._names.index(key)
+        self._free[key] = False
 
     def unfix(self, key: Key) -> None:
         """
@@ -123,10 +121,8 @@ class DOFs:
             key: Key to identify the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._free[i] = True
-        else:
-            self._free[key] = True
+            key = self._names.index(key)
+        self._free[key] = True
 
     def all_free(self) -> bool:
         """
@@ -333,10 +329,8 @@ class DOFs:
             val: Numeric lower bound of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._lb[i] = val
-        else:
-            self._lb[key] = val
+            key = self._names.index(key)
+        self._lb[key] = val
 
     def update_upper_bound(self, key: Key, val: Real) -> None:
         """
@@ -347,10 +341,8 @@ class DOFs:
             val: Numeric upper bound of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._ub[i] = val
-        else:
-            self._ub[key] = val
+            key = self._names.index(key)
+        self._ub[key] = val
 
     def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
         """
@@ -361,12 +353,9 @@ class DOFs:
             val: (lower, upper) bounds of the DOF
         """
         if isinstance(key, str):
-            i = self._names.index(key)
-            self._lb[i] = val[0]
-            self._ub[i] = val[1]
-        else:
-            self._lb[key] = val[0]
-            self._ub[key] = val[1]
+            key = self._names.index(key)
+        self._lb[key] = val[0]
+        self._ub[key] = val[1]
 
     @property
     def names(self):
@@ -1029,10 +1018,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             key: DOF identifier
             new_val: New value of the DOF
         """
-        # if isinstance(key, str):
-        #     self._dofs.loc[key, '_x'] = new_val
-        # else:
-        #     self._dofs.iloc[key, 0] = new_val
         self._dofs.set(key, new_val)
         self._set_new_x()
 
