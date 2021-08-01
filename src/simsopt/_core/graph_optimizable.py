@@ -376,12 +376,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     problem.
 
     1. Optimizable and its subclasses define the optimization problem. The
-       optimization problem can be thought of a directed acycling graph (DAG),
-       which each instance of Optimizable being a vertex (node) in the DAG.
+       optimization problem can be thought of as a directed acycling graph (DAG),
+       with each instance of Optimizable being a vertex (node) in the DAG.
        Each Optimizable object can take other Optimizable objects as inputs and
        through this container logic, the edges of the DAG are defined.
 
-       Alternatively, the input Optimizable objects can be thought as parents
+       Alternatively, the input Optimizable objects can be thought of as parents
        to the current Optimizable object. In this approach, the last grand-child
        defines the optimization problem by embodying all the elements of the
        parents and grand-parents.
@@ -399,7 +399,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
        case, it should be removed as an argument to the call-back
        function from the final Optimizable node.
 
-    3. The class implements callable hook that provides minimal caching.
+    3. The class implements a callable hook that provides minimal caching.
        All derived classes have to register methods that return objective function
        type values. This is done by implementing the following class attribute
        in the class definition:
