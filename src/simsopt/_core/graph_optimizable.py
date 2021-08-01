@@ -632,7 +632,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             List of methods that return a value when the current Optimizable
             object is called from the children.
         """
-        # TODO: There could be a bug here
         return list(self.return_fns.values())
 
     def get_parent_return_fns_list(self) -> List[List[Callable]]:
