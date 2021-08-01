@@ -239,7 +239,7 @@ This function is called everytime ``Curve.set_dofs()`` is called (and the shape 
 Magnetic Field Classes
 -----------------
 
-Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter. To get the magnetic field (or its derivatives) at a set of points, first, an instance of that particular magnetic field is created, then all its properties are evaluated internally for at those points and, finally, those properties can be outputed. Below is an example that prints the components of a magnetic field and its derivatives of a sum of a circular coil in the xy-plane with current I=1.e7 and a radius r0=1 and a toroidal field with a magnetic field B0=1 at major radius R0=1. This field is evaluated at the set of points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]].
+Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter. To get the magnetic field (or its derivatives) at a set of points, first, an instance of that particular magnetic field is created, then all its properties are evaluated internally at those points and, finally, those properties can be outputed. Below is an example that prints the components of a magnetic field and its derivatives of a sum of a circular coil in the xy-plane with current I=1.e7 and a radius r0=1 and a toroidal field with a magnetic field B0=1 at major radius R0=1. This field is evaluated at the set of points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]].
 
 .. code-block::
 
