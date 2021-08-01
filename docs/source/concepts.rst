@@ -239,7 +239,7 @@ This function is called everytime ``Curve.set_dofs()`` is called (and the shape 
 Magnetic Field Classes
 -----------------
 
-Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter. To get the magnetic field (or its derivatives) at a set of points, first, an instance of that particular magnetic field is created, then all its properties are evaluated internally at those points and, finally, those properties can be outputed. Below is an example that prints the components of a magnetic field and its derivatives of a sum of a circular coil in the xy-plane with current I=1.e7 and a radius r0=1 and a toroidal field with a magnetic field B0=1 at major radius R0=1. This field is evaluated at the set of points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]].
+Simsopt contains several magnetic field classes available to be called directly. Any field can be summed with any other field and/or multiplied by a constant parameter. To get the magnetic field (or its derivatives) at a set of points, first, an instance of that particular magnetic field is created, then all its properties are evaluated internally at those points and, finally, those properties can be outputed. Below is an example that prints the components of a magnetic field and its derivatives of a sum of a circular coil in the xy-plane with current ``I=1.e7`` and a radius ``r0=1`` and a toroidal field with a magnetic field ``B0=1`` at major radius ``R0=1``. This field is evaluated at the set of ``points=[[0.5, 0.5, 0.1],[0.1, 0.1, -0.3]]``.
 
 .. code-block::
 
@@ -248,7 +248,7 @@ Simsopt contains several magnetic field classes available to be called directly.
    Bfield1 = CircularCoil(I=1.e7, r0=1.)
    Bfield2 = ToroidalField(R0=1., B0=1.)
    Bfield = Bfield1 + Bfield2
-   points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]]
+   points=[[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]]
    Bfield.set_points(points)
    print(Bfield.B())
    print(Bfield.dB_by_dX())
@@ -261,12 +261,12 @@ Below is a similar example where, instead of calculating the magnetic field usin
    from simsopt.field.biotsavart import BiotSavart
    from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
-   coils = [CurveXYZFourier(300, 1)]
-   coils[0].set_dofs([0, 0, 1., 0., 1., 0., 0., 0., 0.])
-   Bfield1 = BiotSavart(coils, [1.e7])
+   coil = CurveXYZFourier(300, 1)
+   coil.set_dofs([0, 0, 1., 0., 1., 0., 0., 0., 0.])
+   Bfield1 = BiotSavart([coil], [1.e7])
    Bfield2 = ToroidalField(R0=1., B0=1.)
    Bfield = Bfield1 + Bfield2
-   points=[[0.5,0.5,0.1],[0.1,0.1,-0.3]]
+   points=[[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]]
    Bfield.set_points(points)
    print(Bfield.B())
    print(Bfield.dB_by_dX())
@@ -282,7 +282,7 @@ The :obj:`simsopt.field.biotsavart.BiotSavart` class initializes a magnetic fiel
   B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{n_\mathrm{coils}} I_k \int_0^1 \frac{(\Gamma_k(\phi)-\mathbf{x})\times \Gamma_k'(\phi)}{\|\Gamma_k(\phi)-\mathbf{x}\|^3} d\phi
 
 where :math:`\mu_0=4\pi 10^{-7}` is the vacuum permitivity.
-As input, it takes an of closed curves and the corresponding currents.
+As input, it takes a list of closed curves and the corresponding currents.
 
 ToroidalField
 ~~~~~~
@@ -298,8 +298,11 @@ ScalarPotentialRZMagneticField
 ~~~~~~
 
 The :obj:`simsopt.field.magneticfieldclasses.ScalarPotentialRZMagneticField` class initializes a vacuum magnetic field :math:`\mathbf B = \nabla \Phi` defined via a scalar potential :math:`\Phi` in cylindrical coordinates :math:`(R,Z,\phi)`. The field :math:`\Phi` is given as an analytical expression and ``simsopt`` performed the necessary partial derivatives in order find :math:`\mathbf B` and its derivatives. Example: the function 
+
 .. code-block::
+
    ScalarPotentialRZMagneticField("2*phi")
+
 initializes a toroidal magnetic field :math:`\mathbf B = \nabla (2\phi)=2/R \mathbf e_\phi`.
 Note: this functions needs the library ``sympy`` for the analytical derivatives.
 
