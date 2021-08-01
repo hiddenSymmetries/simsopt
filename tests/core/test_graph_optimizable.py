@@ -96,8 +96,8 @@ class OptimizableTestsWithParentsReturnFns(unittest.TestCase):
     def test_eq(self):
         self.assertNotEqual(self.opt, OptClassWithParentsReturnFns(10))
 
-    def test_print_return_fn_names(self):
-        ret_fn_names = self.opt.print_return_fn_names()
+    def test_get_return_fn_names(self):
+        ret_fn_names = self.opt.get_return_fn_names()
         self.assertEqual(ret_fn_names[0], 'f1')
         self.assertEqual(ret_fn_names[1], 'f2')
 
@@ -168,8 +168,8 @@ class OptimizableTestsWithDirectParentFnCalls(unittest.TestCase):
     def test_eq(self):
         self.assertNotEqual(self.opt, OptClassWithDirectParentFnCalls(10))
 
-    def test_print_return_fn_names(self):
-        ret_fn_names = self.opt.print_return_fn_names()
+    def test_get_return_fn_names(self):
+        ret_fn_names = self.opt.get_return_fn_names()
         self.assertEqual(ret_fn_names[0], 'f')
 
     @unittest.skip
@@ -241,8 +241,8 @@ class OptimizableTestsWithDirectRegisterParentFns(unittest.TestCase):
     def test_eq(self):
         self.assertNotEqual(self.opt, OptClassWithDirectRegisterParentFn(10))
 
-    def test_print_return_fn_names(self):
-        ret_fn_names = self.opt.print_return_fn_names()
+    def test_get_return_fn_names(self):
+        ret_fn_names = self.opt.get_return_fn_names()
         self.assertEqual(ret_fn_names[0], 'f1')
         self.assertEqual(ret_fn_names[1], 'f2')
 
