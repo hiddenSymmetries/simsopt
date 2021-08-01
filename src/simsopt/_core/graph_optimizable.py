@@ -1064,8 +1064,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             key: DOF identifier
         """
         # TODO: Question: Should we use ifix similar to pandas' loc and iloc?
-        # TODO: If key (str) is not found, it is silently ignored. Instead
-        # TODO: raise a warning
 
         self._dofs.fix(key)
         self._update_free_dof_size_indices()
@@ -1077,8 +1075,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             key: DOF identifier
         """
-        # TODO: If key (str) is not found, it is silently ignored. Instead
-        # TODO: raise a warning
         self._dofs.unfix(key)
         self._update_free_dof_size_indices()
 
