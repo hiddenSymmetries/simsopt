@@ -76,7 +76,8 @@ def parallel_loop_bounds(comm, n):
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                    phase_angle=0):
     r"""
     Follow particles in a magnetic field.
 
@@ -117,8 +118,10 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
             `gc`: general guiding center equations,
             `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
             `full`: full orbit calculation (slow!)
-        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
-                           is of interest and one wants to reduce memory usage.
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           interest or one wants to reduce memory usage.
+        phase_angle: the phase angle to use in the case of full orbit calculations
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -149,7 +152,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
 
     if mode == 'full':
-        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_par, speed_total, m, charge)
+        xyz_inits, v_inits, _ = gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_par, speed_total, m, charge, eta=phase_angle)
     res_tys = []
     res_phi_hits = []
     loss_ctr = 0
@@ -167,7 +170,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
-            res_tys.append([])
+            res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
@@ -186,7 +189,8 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
                                       mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                       Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                                       tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
-                                      phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+                                      phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                                      phase_angle=0):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
     See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
@@ -216,8 +220,10 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
             `gc`: general guiding center equations,
             `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
             `full`: full orbit calculation (slow!)
-        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
-                           is of interest and one wants to reduce memory usage.
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           interest or one wants to reduce memory usage.
+        phase_angle: the phase angle to use in the case of full orbit calculations
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
@@ -230,14 +236,16 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
-        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path)
+        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
+        phase_angle=phase_angle)
 
 
 def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
                                         mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                         Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                                         tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
-                                        phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+                                        phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                                        phase_angle=0):
     r"""
     Follows particles spawned at random locations on the magnetic axis with random pitch angle.
     See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
@@ -268,8 +276,10 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
             `gc`: general guiding center equations,
             `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
             `full`: full orbit calculation (slow!)
-        forget_exact_path: return an empty list for the ``res_tys``. To be used when only res_phi_hits
-                           is of interest and one wants to reduce memory usage.
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           interest or one wants to reduce memory usage.
+        phase_angle: the phase angle to use in the case of full orbit calculations
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
@@ -282,7 +292,8 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
-        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path)
+        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
+        phase_angle=phase_angle)
 
 
 def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
