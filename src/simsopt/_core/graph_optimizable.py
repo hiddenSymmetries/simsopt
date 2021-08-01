@@ -478,7 +478,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 computed by different functions defined in the Optimizable
                 object. The return values are selected by choosing the
                 functions. To know the various return values, use the
-                Optimizable.print_return_fn_names function. If the list is
+                Optimizable.get_return_fn_names function. If the list is
                 empty, default return value is used. If the Optimizable
                 object can return multiple values, the default is the array
                 of all possible return values.
@@ -594,9 +594,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     #    """
 
-    def print_return_fn_names(self) -> List[str]:
+    def get_return_fn_names(self) -> List[str]:
         """
-        Prints the names of the functions that could be used as objective
+        Return the names of the functions that could be used as objective
         functions.
 
         Returns:

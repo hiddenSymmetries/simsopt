@@ -20,7 +20,7 @@ surf = SurfaceRZFourier()
 # from the space of independent variables by setting their 'fixed'
 # property to True.
 surf.fix('rc(0,0)')
-surf.print_return_fn_names()
+surf.get_return_fn_names()
 
 # Approach 1
 
