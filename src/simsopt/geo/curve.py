@@ -575,7 +575,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def __init__(self, curve, theta, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, opts_in=[curve],
+        Curve.__init__(self, depends_on=[curve],
                        external_dof_setter=sopp.Curve.set_dofs)
         self.rotmat = np.asarray(
             [[cos(theta), -sin(theta), 0],
