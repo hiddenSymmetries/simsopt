@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Fetch all history for all tags
+        run: git fetch --all --tags --prune --unshallow
+
       - name: Build wheels
         uses: joerick/cibuildwheel@v1.9.0
         # to supply options, put them in 'env', like:
@@ -39,6 +42,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Fetch all history for all tags
+        run: git fetch --all --tags --prune --unshallow
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -62,6 +68,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Fetch all history for all tags
+        run: git fetch --all --tags --prune --unshallow
 
       - uses: actions/setup-python@v2
         name: Install Python
