@@ -437,7 +437,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                  lower_bounds: RealArray = None,
                  upper_bounds: RealArray = None,
                  external_dof_setter: Callable[..., None] = None,
-                 opts_in: Sequence[Optimizable] = None,
+                 depends_on: Sequence[Optimizable] = None,
                  opt_return_fns: Sequence[Sequence[str]] = None,
                  funcs_in: Sequence[Callable[..., Union[RealArray, Real]]] = None,
                  **kwargs):
@@ -455,11 +455,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 duplication of the DOFs stored elsewhere. In such cases, _dofs
                 is used to handle the dof partitioning, but external dofs are
                 used for computation of the objective function.
-            opts_in: Sequence of Optimizable objects to define the optimization
+            depends_on: Sequence of Optimizable objects on which the current
+                Optimizable object depends on to define the optimization
                 problem in conjuction with the DOFs. If the optimizable problem
                 can be thought of as a direct acyclic graph based on
                 dependencies, the optimizable objects
-                supplied with opts_in act as parent nodes to the current
+                supplied with depends_on act as parent nodes to the current
                 Optimizable object in such an optimization graph
             opt_return_fns: Specifies the return value for each of the
                 Optimizable object. Used in the case, where Optimizable object
@@ -471,7 +472,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 empty, default return value is used. If the Optimizable
                 object can return multiple values, the default is the array
                 of all possible return values.
-            funcs_in: Instead of specifying opts_in and opt_return_fns, specify
+            funcs_in: Instead of specifying depends_on and opt_return_fns, specify
                 the methods of the Optimizable objects directly. The parent
                 objects are identified automatically. Doesn't work with
                 funcs_in with a property decorator
@@ -492,23 +493,23 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.return_fns = defaultdict(list)  # Store return fn's required by each child
 
         # Assign self as child to parents
-        self.parents = opts_in if opts_in is not None else []
+        self.parents = depends_on if depends_on is not None else []
         for i, parent in enumerate(self.parents):
             parent._add_child(self)
             return_fns = opt_return_fns[i] if opt_return_fns else []
             for fn in return_fns:
                 parent.add_return_fn(self, fn)
 
-        # Process funcs_in (Assumes opts_in is empty)
-        if opts_in is None or not len(opts_in):
-            opts_in = []
+        # Process funcs_in (Assumes depends_on is empty)
+        if depends_on is None or not len(depends_on):
+            depends_on = []
             funcs_in = funcs_in if funcs_in is not None else []
             for fn in funcs_in:
                 opt_in = fn.__self__
-                opts_in.append(opt_in)
+                depends_on.append(opt_in)
                 opt_in.add_return_fn(self, fn.__func__)
-            opts_in = list(dict.fromkeys(opts_in))
-            self.parents = list(opts_in) if opts_in is not None else []
+            depends_on = list(dict.fromkeys(depends_on))
+            self.parents = list(depends_on) if depends_on is not None else []
             for i, parent in enumerate(self.parents):
                 parent._add_child(self)
 
