@@ -24,7 +24,7 @@ surf.get_return_fn_names()
 
 # Approach 1
 
-prob1 = LeastSquaresProblem(opts_in=surf,
+prob1 = LeastSquaresProblem(depends_on=surf,
                             goals=[desired_area, desired_volume],
                             weights=[1, 1])
 least_squares_serial_solve(prob1)
@@ -42,7 +42,7 @@ print(" -------------------------\n\n")
 
 surf2 = SurfaceRZFourier()
 surf2.fix('rc(0,0)')
-prob2 = LeastSquaresProblem(opts_in=surf2,
+prob2 = LeastSquaresProblem(depends_on=surf2,
                             opt_return_fns=['area', 'volume'],
                             goals=[desired_area, desired_volume],
                             weights=[1, 1])
