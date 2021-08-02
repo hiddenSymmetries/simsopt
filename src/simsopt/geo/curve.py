@@ -1,5 +1,4 @@
 from math import sin, cos
-from abc import abstractmethod
 
 import numpy as np
 from jax import vjp, jacfwd, jvp
