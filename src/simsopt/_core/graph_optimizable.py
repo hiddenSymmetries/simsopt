@@ -167,7 +167,7 @@ class DOFs:
 
         Args:
         key: Key to identify the DOF
-        val: Valeu of the DOF
+        val: Value of the DOF
         """
         if isinstance(key, str):
             key = self._names.index(key)
@@ -449,7 +449,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             lower_bounds: Lower bounds for the DOFs
             upper_bounds: Upper bounds for the DOFs
             external_dof_setter: Function used by derivative classes to
-                handle DOFs outside of the _dofs (pandas.DataFrame) object.
+                handle DOFs outside of the _dofs object.
                 Mainly used when the DOFs are primarily handled by C++ code.
                 In that case, for all intents and purposes, the _dofs is a
                 duplication of the DOFs stored elsewhere. In such cases, _dofs
@@ -886,7 +886,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         self._set_local_x(x)
         self._set_new_x()
-        
+
     def _set_local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
