@@ -22,10 +22,10 @@ class Adder(Optimizable):
 
 
 class OptClassWithParents(Optimizable):
-    def __init__(self, val, opts_in=None):
-        if opts_in is None:
-            opts_in = [Adder(3), Adder(2)]
-        super().__init__(x0=[val], names=['val'], opts_in=opts_in)
+    def __init__(self, val, depends_on=None):
+        if depends_on is None:
+            depends_on = [Adder(3), Adder(2)]
+        super().__init__(x0=[val], names=['val'], depends_on=depends_on)
 
     def f(self):
         return (self.local_full_x[0] + 2 * self.parents[0](child=self)) \
@@ -59,7 +59,7 @@ class OptClassWithParentsReturnFns(Optimizable):
         self.opt1 = N_No(3, x0=[2, 3, 4])  # Computes to [9, 24]
         self.opt2 = N_No(2, x0=[1, 2])    # Computes to [3, 2]
         super().__init__(x0=[val], names=['val'],
-                         opts_in=[self.opt1, self.opt2],
+                         depends_on=[self.opt1, self.opt2],
                          opt_return_fns=[['sum'], ['sum', 'prod']])
 
     # Pay attention to the arguments passed in f1 and f2
@@ -136,7 +136,7 @@ class OptClassWithDirectParentFnCalls(Optimizable):
         self.opt1 = N_No(3, x0=[2, 3, 4])
         self.opt2 = N_No(2, x0=[1, 2])
         super().__init__(x0=[val], names=['val'],
-                         opts_in=[self.opt1, self.opt2])
+                         depends_on=[self.opt1, self.opt2])
 
     # The value returned by f3 should be identical to f1
     def f(self):
@@ -281,7 +281,7 @@ class OptClassWith2LevelParents(Optimizable):
         x = [val1, val2]
         names = ['v1', 'v2']
         opts = [OptClassWithParents(0.0), Adder(2)]
-        super().__init__(x0=x, names=names, opts_in=opts)
+        super().__init__(x0=x, names=names, depends_on=opts)
 
     def f(self):
         x = self.local_full_x
@@ -321,7 +321,7 @@ class OptimizableTests(unittest.TestCase):
     def test_add_parent(self):
         opt1 = Adder(3, x0=[2, 3, 4])
         opt2 = Adder(2, x0=[1, 2])
-        opt_with_parents = OptClassWithParents(10, opts_in=[opt1])
+        opt_with_parents = OptClassWithParents(10, depends_on=[opt1])
 
         with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
@@ -332,7 +332,7 @@ class OptimizableTests(unittest.TestCase):
     def test_append_parent(self):
         opt1 = Adder(3, x0=[2, 3, 4])
         opt2 = Adder(2, x0=[1, 2])
-        opt_with_parents = OptClassWithParents(10, opts_in=[opt1])
+        opt_with_parents = OptClassWithParents(10, depends_on=[opt1])
 
         with self.assertRaises(IndexError):  # Missing second parent
             opt_with_parents()
@@ -343,7 +343,7 @@ class OptimizableTests(unittest.TestCase):
     def test_pop_parent(self):
         opt1 = Adder(3, x0=[2, 3, 4])
         opt2 = Adder(2, x0=[1, 2])
-        opt_with_parents = OptClassWithParents(10, opts_in=[opt1, opt2])
+        opt_with_parents = OptClassWithParents(10, depends_on=[opt1, opt2])
 
         self.assertEqual(len(opt_with_parents.parents), 2)
         self.assertAlmostEqual(opt_with_parents(), 28.0/13.0)
@@ -355,7 +355,7 @@ class OptimizableTests(unittest.TestCase):
     def test_remove_parent(self):
         opt1 = Adder(3, x0=[2, 3, 4])
         opt2 = Adder(2, x0=[1, 2])
-        opt_with_parents = OptClassWithParents(10, opts_in=[opt1, opt2])
+        opt_with_parents = OptClassWithParents(10, depends_on=[opt1, opt2])
 
         self.assertEqual(len(opt_with_parents.parents), 2)
         self.assertAlmostEqual(opt_with_parents(), 28.0/13.0)
@@ -386,7 +386,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(test_obj.dof_size, 6)
 
         test_obj1 = OptClassWithParents(10,
-                                        opts_in=[Identity(x=10, dof_fixed=True),
+                                        depends_on=[Identity(x=10, dof_fixed=True),
                                                  Adder(n=3, x0=[1, 2, 3])])
         self.assertEqual(test_obj1.dof_size, 4)
 
@@ -412,7 +412,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(test_obj.full_dof_size, 6)
 
         test_obj1 = OptClassWithParents(10,
-                                        opts_in=[Identity(x=10, dof_fixed=True),
+                                        depends_on=[Identity(x=10, dof_fixed=True),
                                                  Adder(3)])
         self.assertEqual(test_obj1.full_dof_size, 5)
 
@@ -437,7 +437,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(test_obj.local_dof_size, 1)
 
         test_obj1 = OptClassWithParents(10,
-                                        opts_in=[Identity(x=10, dof_fixed=True),
+                                        depends_on=[Identity(x=10, dof_fixed=True),
                                                  Adder(3)])
         self.assertEqual(test_obj1.local_dof_size, 1)
 
@@ -462,7 +462,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(test_obj.local_full_dof_size, 1)
 
         test_obj1 = OptClassWithParents(10,
-                                        opts_in=[Identity(x=10, dof_fixed=True),
+                                        depends_on=[Identity(x=10, dof_fixed=True),
                                                  Adder(3)])
         self.assertEqual(test_obj1.local_full_dof_size, 1)
 
@@ -488,7 +488,7 @@ class OptimizableTests(unittest.TestCase):
         # Check with Optimizable objects containing parents
         adder2 = Adder(3)
         iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
+        test_obj1 = OptClassWithParents(10, depends_on=[iden2, adder2])
         with self.assertRaises(ValueError):
             test_obj1.x = np.array([20])
 
@@ -500,7 +500,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(test_obj1.local_x[0], 25)
 
         adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
+        test_obj2 = OptClassWithParents(10, depends_on=[iden, adder3])
         with self.assertRaises(ValueError):
             test_obj2.x = np.array([20, 4, 5, 6, 25])
 
@@ -530,11 +530,11 @@ class OptimizableTests(unittest.TestCase):
         # Check with Optimizable objects containing parents
         adder2 = Adder(3)
         iden2 = Identity(x=10)
-        test_obj1 = OptClassWithParents(10, opts_in=[iden2, adder2])
+        test_obj1 = OptClassWithParents(10, depends_on=[iden2, adder2])
         test_obj1.local_x = np.array([25])
 
         adder3 = Adder(3)
-        test_obj2 = OptClassWithParents(10, opts_in=[iden, adder3])
+        test_obj2 = OptClassWithParents(10, depends_on=[iden, adder3])
 
         test_obj2.local_x = np.array([25])
 
@@ -550,7 +550,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(iden.full_x[0], 10)
 
         # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
+        test_obj1 = OptClassWithParents(20, depends_on=[iden, adder])
         full_x = test_obj1.full_x
         self.assertTrue(np.allclose(full_x, np.array([10, 1, 2, 3, 20])))
 
@@ -571,7 +571,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(iden.local_full_x[0], 10)
 
         # Check with Optimizable objects containing parents
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
+        test_obj1 = OptClassWithParents(20, depends_on=[iden, adder])
         local_full_x = test_obj1.local_full_x
         self.assertTrue(np.allclose(local_full_x, np.array([20])))
 
@@ -604,7 +604,7 @@ class OptimizableTests(unittest.TestCase):
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
         iden = Identity(x=10, dof_fixed=True)
-        test_obj = OptClassWithParents(20, opts_in=[iden, adder])
+        test_obj = OptClassWithParents(20, depends_on=[iden, adder])
 
         adder_status = [False, True, True]
         self.assertTrue(np.equal(adder.dofs_free_status, adder_status).all())
@@ -662,7 +662,7 @@ class OptimizableTests(unittest.TestCase):
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
         iden = Identity(x=10, dof_fixed=True)
-        test_obj1 = OptClassWithParents(20, opts_in=[iden, adder])
+        test_obj1 = OptClassWithParents(20, depends_on=[iden, adder])
         # Value returned by test_obj1 is (val + 2*iden())/(10.0 + adder())
         self.assertAlmostEqual(test_obj1(), 2.5)
 
@@ -773,7 +773,7 @@ class OptimizableTests(unittest.TestCase):
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
         iden = Identity(x=10, dof_fixed=True)
-        test_obj = OptClassWithParents(10, opts_in=[iden, adder])
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
 
         with self.assertRaises(ValueError):
             test_obj.x = np.array([20, 4, 5, 6, 25])
@@ -800,7 +800,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(iden._get_ancestors()), 0)
         self.assertEqual(len(adder._get_ancestors()), 0)
 
-        test_obj = OptClassWithParents(10, opts_in=[iden, adder])
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
         ancestors = test_obj._get_ancestors()
         self.assertEqual(len(ancestors), 2)
         self.assertIn(iden, ancestors)
@@ -814,7 +814,7 @@ class OptimizableTests(unittest.TestCase):
 class OptClassExternalDofs(Optimizable):
     def __init__(self):
         self.vals = [1, 2]
-        super().__init__(external_dof_setter=OptClassExternalDofs.set_dofs,
+        Optimizable.__init__(self, external_dof_setter=OptClassExternalDofs.set_dofs,
                          x0=self.get_dofs())
 
     def get_dofs(self):
