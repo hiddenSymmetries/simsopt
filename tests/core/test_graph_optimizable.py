@@ -387,7 +387,7 @@ class OptimizableTests(unittest.TestCase):
 
         test_obj1 = OptClassWithParents(10,
                                         depends_on=[Identity(x=10, dof_fixed=True),
-                                                 Adder(n=3, x0=[1, 2, 3])])
+                                                    Adder(n=3, x0=[1, 2, 3])])
         self.assertEqual(test_obj1.dof_size, 4)
 
     def test_full_dof_size(self):
@@ -413,7 +413,7 @@ class OptimizableTests(unittest.TestCase):
 
         test_obj1 = OptClassWithParents(10,
                                         depends_on=[Identity(x=10, dof_fixed=True),
-                                                 Adder(3)])
+                                                    Adder(3)])
         self.assertEqual(test_obj1.full_dof_size, 5)
 
     def test_local_dof_size(self):
@@ -438,7 +438,7 @@ class OptimizableTests(unittest.TestCase):
 
         test_obj1 = OptClassWithParents(10,
                                         depends_on=[Identity(x=10, dof_fixed=True),
-                                                 Adder(3)])
+                                                    Adder(3)])
         self.assertEqual(test_obj1.local_dof_size, 1)
 
     def test_local_full_dof_size(self):
@@ -463,7 +463,7 @@ class OptimizableTests(unittest.TestCase):
 
         test_obj1 = OptClassWithParents(10,
                                         depends_on=[Identity(x=10, dof_fixed=True),
-                                                 Adder(3)])
+                                                    Adder(3)])
         self.assertEqual(test_obj1.local_full_dof_size, 1)
 
     def test_x(self):
@@ -815,7 +815,7 @@ class OptClassExternalDofs(Optimizable):
     def __init__(self):
         self.vals = [1, 2]
         Optimizable.__init__(self, external_dof_setter=OptClassExternalDofs.set_dofs,
-                         x0=self.get_dofs())
+                             x0=self.get_dofs())
 
     def get_dofs(self):
         return self.vals
