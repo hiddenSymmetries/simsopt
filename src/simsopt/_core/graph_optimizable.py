@@ -143,7 +143,7 @@ class DOFs:
         return not self._free.any()
 
     @property
-    def status(self) -> BoolArray:
+    def free_status(self) -> BoolArray:
         return self._free
 
     def get(self, key: Key) -> Real:
@@ -1027,7 +1027,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         current and ancestors Optimizable objects are free or not
         """
         return np.concatenate(
-            [opt._dofs.status for opt in self.ancestors + [self]])
+            [opt._dofs.free_status for opt in self.ancestors + [self]])
 
     @property
     def local_dofs_free_status(self) -> BoolArray:
@@ -1035,7 +1035,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Boolean array denoting whether the DOFs associated with the
         current Optimizable object are free or not
         """
-        return self._dofs.status
+        return self._dofs.free_status
 
     def is_fixed(self, key: Key) -> bool:
         """
