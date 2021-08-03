@@ -33,8 +33,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
-        print(len(self.get_dofs()))
-        print(len(self._make_names(order)))
         Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order),
                        external_dof_setter=CurveXYZFourier.set_dofs_impl)
 
