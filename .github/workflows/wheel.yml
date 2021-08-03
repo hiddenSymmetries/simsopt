@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Fetch all history for all tags
+        run: git fetch --prune --unshallow
+
       - name: Build wheels
         uses: joerick/cibuildwheel@v1.9.0
         # to supply options, put them in 'env', like:
@@ -22,7 +25,7 @@ jobs:
           #CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_SKIP: cp27-*
           CIBW_DEPENDENCY_VERSIONS: latest
-          CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy cmake ninja
+          CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy cmake ninja setuptools_scm[toml]
 
       - uses: actions/upload-artifact@v2
         with:
@@ -38,6 +41,9 @@ jobs:
         python: [3.7, 3.8, 3.9]
     steps:
       - uses: actions/checkout@v2
+
+      - name: Fetch all history for all tags
+        run: git fetch --prune --unshallow
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -65,6 +71,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Fetch all history for all tags
+        run: git fetch --prune --unshallow
 
       - uses: actions/setup-python@v2
         name: Install Python

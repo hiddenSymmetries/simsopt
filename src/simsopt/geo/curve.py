@@ -1,5 +1,4 @@
 from math import sin, cos
-from abc import abstractmethod
 
 import numpy as np
 from jax import vjp, jacfwd, jvp
@@ -7,10 +6,7 @@ from .jit import jit
 import jax.numpy as jnp
 from monty.dev import requires
 
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    plt = None
+import matplotlib.pyplot as plt
 
 try:
     from myavi import mlab
@@ -80,13 +76,31 @@ class Curve(Optimizable):
         """
         self.invalidate_cache()
 
-    @requires(plt is not None, "Install matplotlib to plot Curve object")
-    def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=True,
-             color=None, linestyle=None):
+    def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=False, color=None, linestyle=None, axis_equal=True):
         """
-        Plot the curve using :mod:`matplotlib.pyplot`, along with optionally its tangent when ``plot_derivative=True``. 
-        When ``close_loop=False`` the first and final point on the surface will not be connected, and
-        when it is ``True``, they will be connected by a line segment and a closed curve will be plotted.
+        Plot the curve using :mod:`matplotlib.pyplot`
+
+        Args:
+            ax: the axis object to plot this one. useful when plotting multiple
+                curves in the same plot. defaults to ``None`` and creates a new
+                axis.
+            show: whether to call ``plt.show()`` at the end. should be set to
+                  false if more objects are plotted on top.
+            plot_derivative: whether to plot the tangent of the curve too
+            closed_loop: whether to connect the first and last point on the
+                         curve. can lead to surprising results when only quadrature points
+                         on a part of the curve are considered, e.g. when exploting
+                         rotational symmetry.
+            color: color of the curve, passed to the ``color=`` kwarg of pyplot
+            linestyle: linestyle of the curve, passed to the ``linestyle=`` kwarg of pyplot
+            axis_equal: whether all three dimensions should be scaled equally.
+                        this is actually broken in matplotlib, so we add a workaround that
+                        at least does the right think for a single curve. For
+                        multiple curves in the same plot, this will not give
+                        perfectly equal scaling.
+
+        Returns: a axis which could be passed to a further call to
+                 ``Curve.plot`` so that multiple curve are shown together.
         """
 
         gamma = self.gamma()
@@ -100,11 +114,25 @@ class Curve(Optimizable):
                 return np.concatenate((data, [data[0]]))
             else:
                 return data
-        ax.plot(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(
-            gamma[:, 2]), color=color, linestyle=linestyle)
+        X = rep(gamma[:, 0])
+        Y = rep(gamma[:, 1])
+        Z = rep(gamma[:, 2])
+        ax.plot(X, Y, Z, color=color, linestyle=linestyle)
         if plot_derivative:
             ax.quiver(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(gamma[:, 2]), 0.1 * rep(gammadash[:, 0]),
                       0.1 * rep(gammadash[:, 1]), 0.1 * rep(gammadash[:, 2]), arrow_length_ratio=0.1, color="r")
+        if axis_equal:  # trick from
+            # https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
+            # to force the axis to be equal, since set_aspect('equal') doesn't work in 3d.
+
+            # Create cubic bounding box to simulate equal aspect ratio
+            max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+            Xb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+            Yb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+            Zb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+            # Comment or uncomment following both lines to test the fake bounding box:
+            for xb, yb, zb in zip(Xb, Yb, Zb):
+                ax.plot([xb], [yb], [zb], 'w')
         if show:
             plt.show()
         return ax
@@ -576,7 +604,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def __init__(self, curve, theta, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, opts_in=[curve],
+        Curve.__init__(self, depends_on=[curve],
                        external_dof_setter=sopp.Curve.set_dofs)
         self.rotmat = np.asarray(
             [[cos(theta), -sin(theta), 0],
