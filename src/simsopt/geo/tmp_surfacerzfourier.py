@@ -1,6 +1,8 @@
 import numpy as np
+
 import simsoptpp as sopp
 from .surface import Surface
+from .._core.graph_optimizable import DOFs, Optimizable
 
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
@@ -8,7 +10,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     coordinates using the following Fourier series:
 
     .. math::
-           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}} \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
+           r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}}
+               \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
                r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
                + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
 
@@ -17,23 +20,26 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
     is any poloidal angle.
 
-    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
-    for the sin terms.
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms,
+    and the :math:`n \leq 0` for the sin terms.
 
-    In addition, in the ``stellsym=True`` case, we skip the sin terms for :math:`r`, and
-    the cos terms for :math:`z`.
+    In addition, in the ``stellsym=True`` case, we skip the sin terms for
+    :math:`r`, and the cos terms for :math:`z`.
     """
 
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63, quadpoints_theta=62):
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63,
+                 quadpoints_theta=62):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
+                                       quadpoints_phi, quadpoints_theta)
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self)
-        self.make_names()
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceRZFourier.set_dofs,
+                         names=self._make_names())
 
     def get_dofs(self):
         """
@@ -41,15 +47,19 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
 
-    def make_names(self):
+    def set_dofs(self, dofs):
+        sopp.SurfaceRZFourier.set_dofs(self, dofs)
+
+    def _make_names(self):
         """
         Form a list of names of the `rc`, `zs`, `rs`, or `zc` array elements.
         """
-        self.names = self.make_names_helper('rc', True) + self.make_names_helper('zs', False)
+        names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
         if not self.stellsym:
-            self.names += self.make_names_helper('rs', False) + self.make_names_helper('zc', True)
+            names += self._make_names_helper('rs', False) + self._make_names_helper('zc', True)
+        return names
 
-    def make_names_helper(self, prefix, include0):
+    def _make_names_helper(self, prefix, include0):
         if include0:
             names = [prefix + "(0,0)"]
         else:
@@ -65,9 +75,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         Read in a surface from a FOCUS-format file.
         """
-        f = open(filename, 'r')
-        lines = f.readlines()
-        f.close()
+        with open(filename, 'r') as f:
+            lines = f.readlines()
 
         # Read the line containing Nfou and nfp:
         splitline = lines[1].split()
@@ -96,7 +105,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=nphi, quadpoints_theta=ntheta)
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   quadpoints_phi=nphi, quadpoints_theta=ntheta)
         for j in range(Nfou):
             surf.rc[m[j], n[j] + ntor] = rc[j]
             surf.zs[m[j], n[j] + ntor] = zs[j]
@@ -135,7 +145,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not self.stellsym:
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
-        self.make_names()
+
+        # Update the dofs object
+        self._dofs = DOFs(self.get_dofs(), self._make_names())
+        # The following methods of graph Optimizable framework need to be called
+        Optimizable._update_free_dof_size_indices(self)
+        Optimizable._update_full_dof_size_indices(self)
+        Optimizable._set_new_x(self)
 
     def to_RZFourier(self):
         """
@@ -144,23 +160,21 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return self
 
     def __repr__(self):
-        return "SurfaceRZFourier " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", stellsym=" + str(self.stellsym) + \
-            ", mpol=" + str(self.mpol) + ", ntor=" + str(self.ntor) \
-            + ")"
+        return self.name + f" (nfp={self.nfp}, stellsym={self.stellsym}, " + \
+            f"mpol={self.mpol}, ntor={self.ntor})"
 
     def _validate_mn(self, m, n):
         """
         Check whether `m` and `n` are in the allowed range.
         """
         if m < 0:
-            raise ValueError('m must be >= 0')
+            raise IndexError('m must be >= 0')
         if m > self.mpol:
-            raise ValueError('m must be <= mpol')
+            raise IndexError('m must be <= mpol')
         if n > self.ntor:
-            raise ValueError('n must be <= ntor')
+            raise IndexError('n must be <= ntor')
         if n < -self.ntor:
-            raise ValueError('n must be >= -ntor')
+            raise IndexError('n must be >= -ntor')
 
     def get_rc(self, m, n):
         """
@@ -202,8 +216,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_rs(self, m, n, val):
         """
@@ -214,8 +227,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 'rs does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_zc(self, m, n, val):
         """
@@ -226,8 +238,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 'zc does not exist for this stellarator-symmetric surface.')
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def set_zs(self, m, n, val):
         """
@@ -235,8 +246,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        self.local_full_x = self.get_dofs()
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
@@ -248,19 +258,23 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         are included (unlike the upper bound in python's range(min,
         max).)
         """
+        # TODO: This will be slow because free dof indices are evaluated all
+        # TODO: the time in the loop
+        fn = self.fix if fixed else self.unfix
         for m in range(mmin, mmax + 1):
             this_nmin = nmin
             if m == 0 and nmin < 0:
                 this_nmin = 0
             for n in range(this_nmin, nmax + 1):
-                self.set_fixed('rc({},{})'.format(m, n), fixed)
+                fn(f'rc({m},{n})')
                 if m > 0 or n != 0:
-                    self.set_fixed('zs({},{})'.format(m, n), fixed)
+                    fn(f'zs({m},{n})')
                 if not self.stellsym:
-                    self.set_fixed('zc({},{})'.format(m, n), fixed)
+                    fn(f'zc({m},{n})')
                     if m > 0 or n != 0:
-                        self.set_fixed('rs({},{})'.format(m, n), fixed)
+                        fn(f'rs({m},{n})')
 
+    # TODO: Reimplement by passing all Delta values once
     def to_Garabedian(self):
         """
         Return a `SurfaceGarabedian` object with the identical shape.
@@ -269,11 +283,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         if not self.stellsym:
-            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian objects have not been implemented')
+            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian '
+                               'objects have not been implemented')
         from simsopt.geo.surfacegarabedian import SurfaceGarabedian
         mmax = self.mpol + 1
         mmin = np.min((0, 1 - self.mpol))
-        s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax, nmin=-self.ntor, nmax=self.ntor)
+        s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax,
+                              nmin=-self.ntor, nmax=self.ntor)
         for n in range(-self.ntor, self.ntor + 1):
             for m in range(mmin, mmax + 1):
                 Delta = 0
@@ -285,10 +301,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         return s
 
-    def set_dofs(self, dofs):
-        sopp.SurfaceRZFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
 
     def darea(self):
         """

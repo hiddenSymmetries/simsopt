@@ -1,4 +1,5 @@
 import unittest
+
 import numpy as np
 
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -130,9 +131,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_cross_section_torus(self):
         """
-        Test that the cross sectional area at a certain number of cross sections of a torus
-        is what it should be.  The cross sectional angles are chosen to test any degenerate 
-        cases of the bisection algorithm.
+        Test that the cross sectional area at a certain number of cross sections
+        of a torus is what it should be. The cross sectional angles are chosen
+        to test any degenerate cases of the bisection algorithm.
 
         Additionally, this test checks that the cross sectional angle is correct.
         """
@@ -145,7 +146,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         np.random.seed(0)
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -219,7 +221,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         thetas = np.linspace(0, 1, 31, endpoint=False)
 
         stellsym = False
-        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
         s.xc = s.xc * 0
         s.xs = s.xs * 0
         s.ys = s.ys * 0
@@ -240,8 +243,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
     def test_aspect_ratio_compare_with_cross_sectional_computation(self):
         """
-        This test validates the VMEC aspect ratio computation in the Surface class by 
-        comparing with an approximation based on cross section computations.
+        This test validates the VMEC aspect ratio computation in the Surface
+        class by comparing with an approximation based on cross section
+        computations.
         """
         s = get_exact_surface()
         vpr = s.quadpoints_phi.size + 20
@@ -256,7 +260,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
             Z = cs[:, 2]
             Rp = fftpack.diff(R, period=1.)
             Zp = fftpack.diff(Z, period=1.)
-            ar = np.mean(Z*Rp) 
+            ar = np.mean(Z*Rp)
             cs_area[idx] = ar
 
         mean_cross_sectional_area = np.mean(cs_area)
@@ -269,6 +273,12 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print(AR, AR_cs)
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
+
+    def test_get_dofs(self):
+        self.fail("Test Not Implemented")
+
+    def test_set_dofs(self):
+        self.fail("Test Not Implemented")
 
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
