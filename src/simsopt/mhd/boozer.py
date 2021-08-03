@@ -78,7 +78,7 @@ class Boozer(Optimizable):
         if equil is not None:
             self.mpi = equil.mpi
 
-        super().__init__(opts_in=[equil])
+        super().__init__(depends_on=[equil])
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -284,7 +284,7 @@ class Quasisymmetry(Optimizable):
             s = [s]
         self.s = s
         boozer.register(s)
-        super().__init__(opts_in=[boozer])
+        super().__init__(depends_on=[boozer])
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True

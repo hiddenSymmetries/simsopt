@@ -245,7 +245,7 @@ class Vmec(Optimizable):
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         opts_in=[self.boundary],
+                         depends_on=[self.boundary],
                          external_dof_setter=Vmec.set_dofs)
 
     @property

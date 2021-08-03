@@ -11,7 +11,7 @@ class Area(Optimizable):
 
     def __init__(self, surface):
         self.surface = surface
-        super().__init__(opts_in=[surface])
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -39,7 +39,7 @@ class Volume(Optimizable):
 
     def __init__(self, surface):
         self.surface = surface
-        super().__init__(opts_in=[surface])
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -79,7 +79,7 @@ class ToroidalFlux(Optimizable):
         self.idx = idx
         # self.surface.dependencies.append(self)
         # self.invalidate_cache()
-        super().__init__(opts_in=[surface, biotsavart])
+        super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
@@ -270,7 +270,7 @@ class QfmResidual(Optimizable):
         self.biotsavart = biotsavart
         # self.surface.dependencies.append(self)
         # self.invalidate_cache()
-        super().__init__(opts_in=[surface, biotsavart])
+        super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()

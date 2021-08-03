@@ -29,7 +29,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField, Optimizable):
         self.coil_currents = coil_currents
         MagneticField.__init__(self)
         sopp.BiotSavart.__init__(self, self.coils_optim)
-        Optimizable.__init__(self, opts_in=self.coils_optim)
+        Optimizable.__init__(self, depends_on=self.coils_optim)
 
     def recompute_bell(self, parent=None):
         self.clear_cached_properties()
