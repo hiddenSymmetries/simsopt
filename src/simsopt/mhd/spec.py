@@ -165,7 +165,7 @@ class Spec(Optimizable):
         fixed = np.full(len(x0), True)
         names = ['phiedge', 'curtor']
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         opts_in=self._boundary,
+                         depends_on=self._boundary,
                          external_dof_setter=Spec.set_dofs)
 
     @property
@@ -401,7 +401,7 @@ class Residue(Optimizable):
         # to, but for now we'll use the same MpiPartition for
         # simplicity.
         self.mpi = spec.mpi
-        super().__init__(opts_in=[spec])
+        super().__init__(depends_on=[spec])
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True

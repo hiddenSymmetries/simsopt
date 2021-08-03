@@ -14,7 +14,7 @@ class Current(sopp.Current, Optimizable):
 class Coil(sopp.Coil, Optimizable):
     def __init__(self, curve, current):
         sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, opts_in=[curve, current])
+        Optimizable.__init__(self, depends_on=[curve, current])
 
 
 class MagneticField(sopp.MagneticField):
