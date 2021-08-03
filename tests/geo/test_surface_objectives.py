@@ -7,7 +7,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curverzfourier import CurveRZFourier 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier 
-from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponent, ToroidalFlux, Area, MajorRadius
+from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricComponent, ToroidalFlux, Area, MajorRadius, Volume
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.geo.boozersurface import BoozerSurface
@@ -444,6 +444,188 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
             return dJ_by_dcoils
         taylor_test1(f, df, coeffs)
 
+
+    def test_objective_exact_constrained_gradient(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        coils = stellarator.coils
+        currents = stellarator.currents
+        
+        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+        
+        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Volume(s, stellarator)
+        label_target = label.J()
+
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_surface = BoozerSurface(bs, s, label, label_target)
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300,iota=iota,G=G0)
+        iota0 = res['iota']
+        print(f"iota={res['iota']:.3f}, label={label.J():.3f}, area={s.area():.3f}, |label error|={np.abs(label.J()-label_target):.3e}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+        
+        problem = NonQuasiAxisymmetricComponent(boozer_surface) 
+        current_fak = 1./(4 * np.pi * 1e-7)
+        coeffs_curr = stellarator.get_currents()/current_fak
+        coeffs_coil = stellarator.get_dofs()
+        coeffs = np.concatenate([coeffs_curr, coeffs_coil])
+        idx_curr = (0,len(stellarator.get_currents()))
+        idx_coil = (idx_curr[1], idx_curr[1] + len(stellarator.get_dofs()))
+        
+        def f(dofs):
+            stellarator.set_currents(dofs[idx_curr[0]:idx_curr[1]]*current_fak)
+            stellarator.set_dofs(dofs[idx_coil[0]:idx_coil[1]])
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+            for coil, curr in zip(boozer_surface.bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+            bs.clear_cached_properties()
+            problem.clear_cached_properties()
+            res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+            if not res['success']:
+                raise Exception('Did not converge')
+            J = problem.J()
+            return J
+
+        def df(dofs):
+            stellarator.set_currents(dofs[idx_curr[0]:idx_curr[1]]*current_fak)
+            stellarator.set_dofs(dofs[idx_coil[0]:idx_coil[1]])
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+            for coil, curr in zip(boozer_surface.bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+
+
+            bs.clear_cached_properties()
+            problem.clear_cached_properties()
+            res = boozer_surface.solve_residual_equation_exactly_newton( tol=1e-10, maxiter=10, iota=iota0, G=G0)
+            if not res['success']:
+                raise Exception('Did not converge')
+            
+            drescurr = stellarator.reduce_current_derivatives(problem.dJ_by_dcoilcurrents()) * current_fak
+            drescoil = stellarator.reduce_coefficient_derivatives(problem.dJ_by_dcoefficients())
+
+            dres = np.concatenate([drescurr, drescoil])
+            return dres
+        
+        np.random.seed(1)
+        h = np.random.rand(*(coeffs.shape))-0.5
+        taylor_test1(f, df, coeffs, direction=h)
+
+    def test_objective_penalty_constrained_gradient(self):
+        coils, currents, ma = get_ncsx_data()
+        stellarator = CoilCollection(coils, currents, 3, True)
+        coils = stellarator.coils
+        currents = stellarator.currents
+        
+        mpol = 8  # try increasing this to 8 or 10 for smoother surfaces
+        ntor = 8  # try increasing this to 8 or 10 for smoother surfaces
+        stellsym = True
+        nfp = 3
+
+        nquadphi = ntor + 1 + 5
+        nquadtheta = 2*mpol + 1 + 5
+        phis = np.linspace(0, 1/(2*nfp), nquadphi, endpoint=False)
+        thetas = np.linspace(0, 1, nquadtheta, endpoint=False)
+    
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.fit_to_curve(ma, 0.10, flip_theta=True)
+        iota0 = -0.4
+        
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        label = Volume(s, stellarator)
+        label_target = label.J()
+ 
+        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        boozer_surface = BoozerSurface(bs, s, label, label_target)
+        res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=30, constraint_weight=100., iota=iota0, G=G0, method='manual')
+        print(f"iota={res['iota']:.16f}, vol={s.volume():.3f}, |label error|={np.abs(label.J()-label_target):.3e}, ||residual||_2={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}, ||grad||_inf = {np.linalg.norm(res['gradient'], ord=np.inf):.3e}")
+        
+        iota0 = res['iota']
+        problem = NonQuasiAxisymmetricComponent(boozer_surface) 
+        current_fak = 1./(4 * np.pi * 1e-7)
+        coeffs_curr = stellarator.get_currents()/current_fak
+        coeffs_coil = stellarator.get_dofs()
+        coeffs = np.concatenate([coeffs_curr, coeffs_coil])
+        idx_curr = (0,len(stellarator.get_currents()))
+        idx_coil = (idx_curr[1], idx_curr[1] + len(stellarator.get_dofs()))
+        
+        def f(dofs):
+            stellarator.set_currents(dofs[idx_curr[0]:idx_curr[1]]*current_fak)
+            stellarator.set_dofs(dofs[idx_coil[0]:idx_coil[1]])
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+            for coil, curr in zip(boozer_surface.bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+            bs.clear_cached_properties()
+            problem.clear_cached_properties()
+            res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=30, constraint_weight=100., iota=iota0, G=G0, method='manual')
+            if not res['success']:
+                raise Exception('Did not converge')
+            J = problem.J()
+            return J
+
+        def df(dofs):
+            stellarator.set_currents(dofs[idx_curr[0]:idx_curr[1]]*current_fak)
+            stellarator.set_dofs(dofs[idx_coil[0]:idx_coil[1]])
+            for coil, curr in zip(bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+            for coil, curr in zip(boozer_surface.bs.coils_optim, stellarator.currents):
+                coil.current.set_value(curr) 
+
+            bs.clear_cached_properties()
+            problem.clear_cached_properties()
+            res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-9, maxiter=30, constraint_weight=100., iota=iota0, G=G0, method='manual')
+            if not res['success']:
+                raise Exception('Did not converge')
+            
+            drescurr = stellarator.reduce_current_derivatives(problem.dJ_by_dcoilcurrents()) * current_fak
+            drescoil = stellarator.reduce_coefficient_derivatives(problem.dJ_by_dcoefficients())
+
+            dres = np.concatenate([drescurr, drescoil])
+            return dres
+         
+        np.random.seed(1)
+        h = np.random.rand(*(coeffs.shape))-0.5
+        taylor_test1(f, df, coeffs, direction=h)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #    def test_NonQuasiSymmetricComponentPenalty_exact(self):
 #        """
 #        This test verifies that the non-QS penalty term returns what we expect it to when
@@ -520,45 +702,51 @@ class NonQuasiAxiSymmetricComponentTests(unittest.TestCase):
 #        assert np.abs(non_qs.J()) < 1e-14
 
 
-class MajorRadiusTests(unittest.TestCase):
-    def test_first_derivative(self):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
 
-        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
-        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
-        stellsym = True
-        nfp = 3
-        
-        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
-        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.fit_to_curve(ma, 0.10, flip_theta=True)
-        iota = -0.4
-        
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        label = Area(s, stellarator)
-        label_target = label.J()
- 
-        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
-        boozer_s = BoozerSurface(bs, s, label, label_target)
-        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
 
-        if res['success'] == False:
-            raise Exception('Surface computation did not converge')
+#
+#class MajorRadiusTests(unittest.TestCase):
+#    def test_first_derivative(self):
+#        coils, currents, ma = get_ncsx_data()
+#        stellarator = CoilCollection(coils, currents, 3, True)
+#        bs = BiotSavart(stellarator.coils, stellarator.currents)
+#
+#        mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
+#        ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
+#        stellsym = True
+#        nfp = 3
+#        
+#        phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+#        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+#        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+#        s.fit_to_curve(ma, 0.10, flip_theta=True)
+#        iota = -0.4
+#        
+#        bs = BiotSavart(stellarator.coils, stellarator.currents)
+#        label = Area(s, stellarator)
+#        label_target = label.J()
+# 
+#        G0 = 2. * np.pi * np.sum(np.abs(bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+#        boozer_s = BoozerSurface(bs, s, label, label_target)
+#        res = boozer_s.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=300, iota=iota, G=G0)
+#
+#        if res['success'] == False:
+#            raise Exception('Surface computation did not converge')
+#
+#        mr = MajorRadius(boozer_s)
+#
+#        coeffs = s.get_dofs()
+#
+#        def f(dofs):
+#            s.set_dofs(dofs)
+#            mr.clear_cached_properties()
+#            return mr.J()
+#
+#        def df(dofs):
+#            s.set_dofs(dofs)
+#            mr.clear_cached_properties()
+#            return mr.dJ_dsurfacecoefficients() 
+#        taylor_test1(f, df, coeffs)
 
-        mr = MajorRadius(boozer_s)
 
-        coeffs = s.get_dofs()
 
-        def f(dofs):
-            s.set_dofs(dofs)
-            mr.clear_cached_properties()
-            return mr.J()
-
-        def df(dofs):
-            s.set_dofs(dofs)
-            mr.clear_cached_properties()
-            return mr.dJ_dsurfacecoefficients() 
-        taylor_test1(f, df, coeffs)

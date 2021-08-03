@@ -219,7 +219,8 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dresidual_dcoils:
 
-    lm^T dresidual_dcoils = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcoils
+    lm^T dresidual_dcoils    = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcoils
+    lm^T dresidual_dcurrents = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcurrents
     
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
@@ -369,16 +370,17 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     """
     For a given surface with points x on it, this function computes the
-    vector-Jacobian product of \lm^T * dlsqgrad_dcoils:
+    vector-Jacobian product of \lm^T * dlsqgrad_dcoils, \lm^T * dlsqgrad_dcurrents:
 
-    lm^T dresidual_dcoils = lm^T [dr_dsurface]^T[dr_dcoils] + sum r_i lm^T d2ri_dsdc
+    lm^T dresidual_dcoils    = lm^T [dr_dsurface]^T[dr_dcoils]    + sum r_i lm^T d2ri_dsdc
+    lm^T dresidual_dcurrents = lm^T [dr_dsurface]^T[dr_dcurrents] + sum r_i lm^T d2ri_dsdcurrents
     
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
     """
 
+    #lm_label = lm[-1]
     surface = booz_surf.surface
-    #import ipdb;ipdb.set_trace()
     # r, dr_dB, J, d2residual_dsurfacedB, d2residual_dsurfacedgradB
     boozer = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=1)
     r = boozer[0]
@@ -386,13 +388,20 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, biotsavart):
     dr_ds = boozer[2]
     d2r_dsdB = boozer[3]
     d2r_dsdgradB = boozer[4]
-    
+
     v1 = np.sum(np.sum(lm[:, None]*dr_ds.T, axis=0).reshape((-1, 3, 1)) * dr_dB, axis=1)
     v2 = np.sum(r.reshape((-1, 3, 1))*np.sum(lm[None, None, :]*d2r_dsdB, axis=-1).reshape((-1, 3, 3)), axis=1)
     v3 = np.sum(r.reshape((-1, 3, 1, 1))*np.sum(lm[None, None, None, :]*d2r_dsdgradB, axis=-1).reshape((-1, 3, 3, 3)), axis=1)
-    vjp = biotsavart.B_and_dB_vjp(v1+v2, v3)
-    vjp = [a + b for a, b in zip(vjp[0], vjp[1])]
-    return vjp
+    dres_dcoils = biotsavart.B_and_dB_vjp(v1+v2, v3)
+    dres_dcoils = [a + b for a, b in zip(dres_dcoils[0], dres_dcoils[1])]
+
+    lm_times_dres_dB = v1 + v2
+    lm_times_dres_dgradB = v3
+    dB_by_dcoilcurrents = biotsavart.dB_by_dcoilcurrents()
+    d2B_by_dXdcoilcurrents = biotsavart.d2B_by_dXdcoilcurrents()
+    dres_dcurrents = [np.sum(lm_times_dres_dB*dB_dcurr) + np.sum(lm_times_dres_dgradB * dgradB_dcurr) for dB_dcurr, dgradB_dcurr in zip(dB_by_dcoilcurrents, d2B_by_dXdcoilcurrents)]
+
+    return dres_dcoils, dres_dcurrents
 
 
 def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
