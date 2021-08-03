@@ -17,7 +17,7 @@ from numbers import Real
 
 import numpy as np
 
-from .._core.graph_optimizable import DOFs, Optimizable
+from .._core.graph_optimizable import Optimizable
 from ..util.types import RealArray, IntArray, BoolArray
 
 
@@ -43,9 +43,9 @@ class LeastSquaresProblem(Optimizable):
         weights: Weight associated with each of the residual
         funcs_in: Input functions (Generally one of the output functions of
                   the Optimizable instances
-        opts_in: (Alternative initialization) Instead of specifying funcs_in,
+        depends_on: (Alternative initialization) Instead of specifying funcs_in,
                 one could specify the Optimizable objects
-        opt_return_fns:  (Alternative initialization) If using *opts_in*,
+        opt_return_fns:  (Alternative initialization) If using *depends_on*,
                 specify the return functions associated with each Optimizable
                 object
     """
@@ -54,7 +54,7 @@ class LeastSquaresProblem(Optimizable):
                  goals: Union[Real, RealArray],
                  weights: Union[Real, RealArray],
                  funcs_in: Sequence[Callable] = None,
-                 opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
+                 depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
                  opt_return_fns: StrSeq = None):
 
         if isinstance(goals, Real):
@@ -66,15 +66,15 @@ class LeastSquaresProblem(Optimizable):
         self.goals = np.array(goals)
         self.weights = np.array(weights)
 
-        if opts_in is not None:
-            if not isinstance(opts_in, ABC_Sequence):
-                opts_in = [opts_in]
+        if depends_on is not None:
+            if not isinstance(depends_on, ABC_Sequence):
+                depends_on = [depends_on]
                 #goals = [goals]
                 #weights = [weights]
                 if opt_return_fns is not None:
                     opt_return_fns = [opt_return_fns]
 
-        super().__init__(opts_in=opts_in, opt_return_fns=opt_return_fns,
+        super().__init__(depends_on=depends_on, opt_return_fns=opt_return_fns,
                          funcs_in=funcs_in)
 
     @classmethod
@@ -82,7 +82,7 @@ class LeastSquaresProblem(Optimizable):
                    goals: Union[Real, RealArray],
                    sigma: Union[Real, RealArray],
                    funcs_in: Sequence[Callable] = None,
-                   opts_in: Union[Optimizable, Sequence[Optimizable]] = None,
+                   depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
                    opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
         r"""
         Define the LeastSquaresProblem with
@@ -97,9 +97,9 @@ class LeastSquaresProblem(Optimizable):
                 of the residual
             funcs_in: Input functions (Generally one of the output functions of
                 the Optimizable instances
-            opts_in: (Alternative initialization) Instead of specifying
+            depends_on: (Alternative initialization) Instead of specifying
                 funcs_in, one could specify the Optimizable objects
-            opt_return_fns: (Alternative initialization) If using *opts_in*,
+            opt_return_fns: (Alternative initialization) If using *depends_on*,
                 specify the return functions associated with each Optimizable
                 object
         """
@@ -109,7 +109,7 @@ class LeastSquaresProblem(Optimizable):
             sigma = np.array(sigma)
 
         return cls(goals, 1.0 / (sigma * sigma),
-                   opts_in=opts_in,
+                   depends_on=depends_on,
                    opt_return_fns=opt_return_fns,
                    funcs_in=funcs_in)
 
@@ -146,7 +146,7 @@ class LeastSquaresProblem(Optimizable):
         outputs = []
         for i, opt in enumerate(self.parents):
             out = opt(child=self, *args, **kwargs)
-            output = np.array([out]) if np.isscalar(out) else np.array(out)
+            output = np.array([out]) if not np.ndim(out) else np.array(out)
             outputs += [output]
 
         return np.concatenate(outputs) - self.goals
@@ -225,7 +225,7 @@ class LeastSquaresProblem(Optimizable):
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
             np.concatenate([self.weights, other.weights]),
-            opts_in=(self.parents + other.parents),
+            depends_on=(self.parents + other.parents),
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),
         )
