@@ -25,8 +25,8 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         x &= \hat x \cos(\phi) - \hat y \sin(\phi)\\
         y &= \hat x \sin(\phi) + \hat y \cos(\phi)
 
-    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos terms, and the :math:`n \leq 0`
-    for the sin terms.
+    Note that for :math:`m=0` we skip the :math:`n<0` term for the cos
+    terms, and the :math:`n \leq 0` for the sin terms.
 
     When enforcing stellarator symmetry, we set the
 
@@ -36,21 +36,33 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     terms to zero.
     """
 
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=32, quadpoints_theta=32):
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=32,
+                 quadpoints_theta=32):
         if isinstance(quadpoints_phi, np.ndarray):
             quadpoints_phi = list(quadpoints_phi)
             quadpoints_theta = list(quadpoints_theta)
-        sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym, quadpoints_phi, quadpoints_theta)
+        sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym,
+                                        quadpoints_phi, quadpoints_theta)
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self)
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceXYZFourier.set_dofs)
 
     def get_dofs(self):
         """
         Return the dofs associated to this surface.
         """
         return np.asarray(sopp.SurfaceXYZFourier.get_dofs(self))
+
+    def set_dofs(self, dofs):
+        """
+        Set the dofs associated to this surface.
+        """
+        sopp.SurfaceXYZFourier.set_dofs(self, dofs)
+
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
 
     def to_RZFourier(self):
         """
@@ -72,11 +84,3 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
 
         surf.least_squares_fit(gamma)
         return surf
-
-    def set_dofs(self, dofs):
-        """
-        Set the dofs associated to this surface.
-        """
-        sopp.SurfaceXYZFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()

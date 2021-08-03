@@ -1,6 +1,11 @@
-import numpy as np
 import unittest
+
+import numpy as np
 from simsopt.geo import parameters
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+
 parameters['jit'] = False
 
 
@@ -12,7 +17,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
     dfx = df(x)@direction
     if epsilons is None:
         epsilons = np.power(2., -np.asarray(range(8, 20)))
-    print("################################################################################")
+    print("###################################################################")
     err_old = 1e9
     counter = 0
     for eps in epsilons:
@@ -27,7 +32,8 @@ def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
             fplus2eps = f(x + 2*eps * direction)
             fminus2eps = f(x - 2*eps * direction)
             fak = 0.13
-            dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps - (1/12)*fplus2eps)/eps
+            dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps
+                     - (1/12)*fplus2eps)/eps
         else:
             raise NotImplementedError
         err = np.linalg.norm(dfest - dfx)
@@ -39,7 +45,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
         err_old = err
     if err > 1e-10:
         assert counter > 2
-    print("################################################################################")
+    print("###################################################################")
 
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None):
@@ -50,15 +56,15 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     phis = phis if phis is not None else np.linspace(0, 1, 31, endpoint=False)
     thetas = thetas if thetas is not None else np.linspace(0, 1, 31, endpoint=False)
     if surfacetype == "SurfaceRZFourier":
-        from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-        s = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
+                             quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(s.get_dofs()*0.)
         s.rc[0, ntor + 0] = 1
         s.rc[1, ntor + 0] = 0.3
         s.zs[1, ntor + 0] = 0.3
     elif surfacetype == "SurfaceXYZFourier":
-        from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-        s = SurfaceXYZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s = SurfaceXYZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(s.get_dofs()*0.)
         s.xc[0, ntor + 1] = 1.
         s.xc[1, ntor + 1] = 0.1
@@ -66,7 +72,6 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
         s.ys[1, ntor + 1] = 0.1
         s.zs[1, ntor] = 0.1
     elif surfacetype == "SurfaceXYZTensorFourier":
-        from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
         s = SurfaceXYZTensorFourier(
             nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
             clamped_dims=[False, not stellsym, True],
@@ -85,7 +90,8 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     return s
 
 
-def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None):
+def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
+                 direction2=None):
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
@@ -97,7 +103,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
     d2fval = direction2.T @ d2f(x) @ direction1
     if epsilons is None:
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-    print("################################################################################")
+    print("###################################################################")
     err_old = 1e9
     for eps in epsilons:
         fpluseps = df(x + eps * direction2) @ direction1
@@ -107,12 +113,13 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
         print(err/err_old)
         assert err < 0.6 * err_old
         err_old = err
-    print("################################################################################")
+    print("###################################################################")
 
 
 class SurfaceTaylorTests(unittest.TestCase):
 
-    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
+    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                    "SurfaceXYZTensorFourier"]
 
     def subtest_surface_coefficient_derivative(self, s):
         coeffs = s.get_dofs()
@@ -187,12 +194,13 @@ class SurfaceTaylorTests(unittest.TestCase):
         def df(dofs):
             s.set_dofs(dofs)
             return s.darea_by_dcoeff()[None, :].copy()
-        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(11, 20))), order=4)
+        taylor_test(f, df, coeffs,
+                    epsilons=np.power(2., -np.asarray(range(11, 20))), order=4)
 
     def test_surface_area_coefficient_derivative(self):
         """
-        Taylor test to verify the first derivative of the surface area with respect
-        to the surface dofs
+        Taylor test to verify the first derivative of the surface area with
+        respect to the surface dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -202,8 +210,8 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_area_coefficient_second_derivative(self):
         """
-        Taylor test to verify the second derivative of the surface area with respect
-        to the surface dofs
+        Taylor test to verify the second derivative of the surface area with
+        respect to the surface dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -226,7 +234,8 @@ class SurfaceTaylorTests(unittest.TestCase):
         def d2f(dofs):
             s.set_dofs(dofs)
             return s.d2area_by_dcoeffdcoeff()
-        taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
+        taylor_test2(f, df, d2f, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_volume_coefficient_second_derivative(self):
         """
@@ -254,7 +263,8 @@ class SurfaceTaylorTests(unittest.TestCase):
         def d2f(dofs):
             s.set_dofs(dofs)
             return s.d2volume_by_dcoeffdcoeff()
-        taylor_test2(f, df, d2f, coeffs, epsilons=np.power(2., -np.asarray(range(13, 20))))
+        taylor_test2(f, df, d2f, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def subtest_surface_volume_coefficient_derivative(self, s):
         coeffs = s.get_dofs()

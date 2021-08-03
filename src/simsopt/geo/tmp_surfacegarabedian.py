@@ -36,35 +36,40 @@ class SurfaceGarabedian(Surface):
         self.nmax = nmax
         self.nfp = nfp
         self.stellsym = True
-        self.allocate()
-        self.recalculate = True
-        self.recalculate_derivs = True
+
+        self.mdim = self.mmax - self.mmin + 1
+        self.ndim = self.nmax - self.nmin + 1
+        self.shape = (self.mdim, self.ndim)
+
+        Delta = np.zeros(self.shape)
+        Surface.__init__(self, x0=Delta.ravel(),
+                         names=self._make_dof_names())
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.set_Delta(1, 0, 1.0)
         self.set_Delta(0, 0, 0.1)
-        Surface.__init__(self)
+
+    def _make_dof_names(self):
+        names = []
+        for m in range(self.mmin, self.mmax + 1):
+            for n in range(self.nmin, self.nmax + 1):
+                names.append(f'Delta({m},{n})')
+        return names
 
     def __repr__(self):
-        return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", mmin=" + str(self.mmin) + ", mmax=" + str(self.mmax) \
-            + ", nmin=" + str(self.nmin) + ", nmax=" + str(self.nmax) \
-            + ")"
+        return self.name + f" (nfp={self.nfp}, " + \
+            f"mmin={self.mmin}, mmax={self.mmax}" + \
+            f", nmin={self.nmin}, nmax={self.nmax})"
 
-    def allocate(self):
-        """
-        Create the array for the :math:`\Delta_{m,n}` coefficients.
-        """
-        logger.info("Allocating SurfaceGarabedian")
-        self.mdim = self.mmax - self.mmin + 1
-        self.ndim = self.nmax - self.nmin + 1
-        myshape = (self.mdim, self.ndim)
-        self.Delta = np.zeros(myshape)
-        self.names = []
-        for n in range(self.nmin, self.nmax + 1):
-            for m in range(self.mmin, self.mmax + 1):
-                self.names.append('Delta(' + str(m) + ',' + str(n) + ')')
+    @property
+    def Delta(self):
+        return self.local_full_x.reshape(self.shape)
+
+    @Delta.setter
+    def Delta(self, Delta):
+        assert(self.shape == Delta.shape)
+        self.local_full_x = Delta.flatten()
 
     def get_Delta(self, m, n):
         """
@@ -76,41 +81,31 @@ class SurfaceGarabedian(Surface):
         """
         Set a particular :math:`\Delta_{m,n}` coefficient.
         """
-        self.Delta[m - self.mmin, n - self.nmin] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        i = self.ndim * (m - self.mmin) + n - self.nmin
+        self.set(i, val)
 
     def get_dofs(self):
         """
         Return a 1D numpy array with all the degrees of freedom.
         """
-        num_dofs = (self.mmax - self.mmin + 1) * (self.nmax - self.nmin + 1)
-        return np.reshape(self.Delta, (num_dofs,), order='F')
+        self.local_full_x
 
-    def set_dofs(self, v):
+    def set_dofs(self, x):
         """
         Set the shape coefficients from a 1D list/array
         """
-
-        n = len(self.get_dofs())
-        if len(v) != n:
-            raise ValueError('Input vector should have ' + str(n) + \
-                             ' elements but instead has ' + str(len(v)))
-
         # Check whether any elements actually change:
-        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
+        if np.all(np.abs(self.get_dofs() - np.array(x)) == 0):
             logger.info('set_dofs called, but no dofs actually changed')
             return
 
         logger.info('set_dofs called, and at least one dof changed')
-        self.recalculate = True
-        self.recalculate_derivs = True
 
-        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
+        self.local_full_x = x
 
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+    def fix_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
-        Set the 'fixed' property for a range of m and n values.
+        Fix the DOFs for a range of m and n values.
 
         All modes with m in the interval [mmin, mmax] and n in the
         interval [nmin, nmax] will have their fixed property set to
@@ -120,7 +115,7 @@ class SurfaceGarabedian(Surface):
         """
         for m in range(mmin, mmax + 1):
             for n in range(nmin, nmax + 1):
-                self.set_fixed('Delta({},{})'.format(m, n), fixed)
+                self.set_fixed(f'Delta({m},{n})', fixed)
 
     def to_RZFourier(self):
         """
@@ -153,13 +148,13 @@ class SurfaceGarabedian(Surface):
         """
         Compute the surface area and the volume enclosed by the surface.
         """
-        if self.recalculate:
+        if self.new_x:
             logger.info('Running calculation of area and volume')
         else:
             logger.info('area_volume called, but no need to recalculate')
             return
 
-        self.recalculate = False
+        self.new_x = False
 
         # Delegate to the area and volume calculations of SurfaceRZFourier():
         s = self.to_RZFourier()
@@ -179,4 +174,3 @@ class SurfaceGarabedian(Surface):
         """
         self.area_volume()
         return self._volume
-

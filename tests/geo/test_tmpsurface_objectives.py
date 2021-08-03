@@ -6,7 +6,9 @@ from simsopt.geo.coilcollection import CoilCollection
 from simsopt.util.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
-surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier", "SurfaceXYZTensorFourier"]
+
+surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier",
+                     "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
 
 
@@ -18,7 +20,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
     dfx = df(x)@direction
     if epsilons is None:
         epsilons = np.power(2., -np.asarray(range(10, 20)))
-    print("################################################################################")
+    print("###################################################################")
     err_old = 1e9
     for eps in epsilons:
         fpluseps = f(x + eps * direction)
@@ -28,7 +30,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         print(err, err/err_old)
         assert err < 1e-9 or err < 0.3 * err_old
         err_old = err
-    print("################################################################################")
+    print("###################################################################")
 
 
 def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None):
@@ -43,7 +45,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
     d2fval = direction2.T @ d2f(x) @ direction1
     if epsilons is None:
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-    print("################################################################################")
+    print("###################################################################")
     err_old = 1e9
     for eps in epsilons:
         fpluseps = df(x + eps * direction2) @ direction1
@@ -53,7 +55,17 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
         print(err/err_old)
         assert err < 0.6 * err_old
         err_old = err
-    print("################################################################################")
+    print("###################################################################")
+
+
+class AreaTests(unittest.TestCase):
+    def test_placeholder(self):
+        self.fail("Tests for Area not implemented")
+
+
+class VolumeTests(unittest.TestCase):
+    def test_placeholder(self):
+        self.fail("Tests for Volume not implemented")
 
 
 class ToroidalFluxTests(unittest.TestCase):
@@ -106,14 +118,14 @@ class ToroidalFluxTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
-        coeffs = s.get_dofs()
+        coeffs = s.x
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return tf.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return tf.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs)
 
@@ -124,18 +136,18 @@ class ToroidalFluxTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs)
-        coeffs = s.get_dofs()
+        coeffs = s.x
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return tf.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return tf.dJ_by_dsurfacecoefficients()
 
         def d2f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs)
@@ -157,15 +169,15 @@ class QfmTests(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         s = get_surface(surfacetype, stellsym)
-        coeffs = s.get_dofs()
+        coeffs = s.x
         qfm = QfmResidual(s, bs)
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))
@@ -177,18 +189,18 @@ class QfmTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
 
         qfm = QfmResidual(s, bs)
-        coeffs = s.get_dofs()
+        coeffs = s.x
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.dJ_by_dsurfacecoefficients()
 
         def d2f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs,
