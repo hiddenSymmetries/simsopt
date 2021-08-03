@@ -59,11 +59,11 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     else:
         assert False
-    dofs = np.zeros((curve.num_dofs(), ))
+    dofs = np.zeros((curve.dof_size, ))
     if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
         dofs[1] = 1.
-        dofs[2*order+3] = 1.
-        dofs[4*order+3] = 1.
+        dofs[2*order + 3] = 1.
+        dofs[4*order + 3] = 1.
     elif curvetype in ["CurveRZFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
@@ -72,10 +72,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[0] = np.pi/2
     else:
         assert False
-    curve.set_dofs(dofs)
 
-    dofs = np.asarray(curve.get_dofs())
-    curve.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
+    curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
     if rotated:
         curve = RotatedCurve(curve, 0.5, flip=False)
     return curve
@@ -88,12 +86,12 @@ class Testing(unittest.TestCase):
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
-        curve1.set_dofs([np.pi/2, 0, 0, 0])
+        curve1.x = [np.pi/2, 0, 0, 0]
         curve2 = CurveXYZFourier(x, 7)
-        curve2.set_dofs(
+        curve2.x = \
             [0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0,
              0, 0, 0, 1, 0, 0, -0.15, 0, 0, 0, 0, 0, 0, 0, 0.15,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0, 0])
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0, 0]
         assert np.allclose(curve1.gamma(), curve2.gamma())
         assert np.allclose(curve1.gammadash(), curve2.gammadash())
 
@@ -151,56 +149,44 @@ class Testing(unittest.TestCase):
             assert err < 0.55 * err_old
             err_old = err
 
-    def subtest_coil_dof_numbering(self, curvetype, rotated):
-        cfc = get_curve(curvetype, rotated)
-        coeffs = cfc.get_dofs()
-        cfc.set_dofs(coeffs)
-        assert(np.allclose(coeffs, cfc.get_dofs()))
-
-    def test_coil_dof_numbering(self):
-        for curvetype in self.curvetypes:
-            for rotated in [True, False]:
-                with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_coil_dof_numbering(curvetype, rotated)
-
     def subtest_coil_coefficient_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
-        coeffs = cfc.get_dofs()
+        coeffs = cfc.x
         cfc.invalidate_cache()
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.gamma().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dgamma_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.gammadash().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dgammadash_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.gammadashdash().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dgammadashdash_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.gammadashdashdash().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dgammadashdashdash_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
@@ -214,14 +200,14 @@ class Testing(unittest.TestCase):
         # This implicitly also tests the higher order derivatives of gamma as these
         # are needed to compute the derivative of the curvature.
         cfc = get_curve(curvetype, rotated)
-        coeffs = cfc.get_dofs()
+        coeffs = cfc.x
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.kappa().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dkappa_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
@@ -256,14 +242,14 @@ class Testing(unittest.TestCase):
         # This implicitly also tests the higher order derivatives of gamma as these
         # are needed to compute the derivative of the curvature.
         ma = get_curve(curvetype, rotated)
-        coeffs = ma.get_dofs()
+        coeffs = ma.x
 
         def f(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.incremental_arclength().copy()
 
         def df(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.dincremental_arclength_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
@@ -275,14 +261,14 @@ class Testing(unittest.TestCase):
 
     def subtest_curve_kappa_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
-        coeffs = cfc.get_dofs()
+        coeffs = cfc.x
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.kappa().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dkappa_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
@@ -294,14 +280,14 @@ class Testing(unittest.TestCase):
 
     def subtest_curve_torsion_derivative(self, curvetype, rotated):
         cfc = get_curve(curvetype, rotated)
-        coeffs = cfc.get_dofs()
+        coeffs = cfc.x
 
         def f(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.torsion().copy()
 
         def df(dofs):
-            cfc.set_dofs(dofs)
+            cfc.x = dofs
             return cfc.dtorsion_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 
@@ -329,32 +315,32 @@ class Testing(unittest.TestCase):
 
     def subtest_curve_frenet_frame_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
-        coeffs = ma.get_dofs()
+        coeffs = ma.x
 
         def f(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.frenet_frame()[0].copy()
 
         def df(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.dfrenet_frame_by_dcoeff()[0].copy()
         taylor_test(f, df, coeffs)
 
         def f(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.frenet_frame()[1].copy()
 
         def df(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.dfrenet_frame_by_dcoeff()[1].copy()
         taylor_test(f, df, coeffs)
 
         def f(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.frenet_frame()[2].copy()
 
         def df(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.dfrenet_frame_by_dcoeff()[2].copy()
         taylor_test(f, df, coeffs)
 
@@ -366,14 +352,14 @@ class Testing(unittest.TestCase):
 
     def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated):
         ma = get_curve(curvetype, rotated)
-        coeffs = ma.get_dofs()
+        coeffs = ma.x
 
         def f(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.kappadash().copy()
 
         def df(dofs):
-            ma.set_dofs(dofs)
+            ma.x = dofs
             return ma.dkappadash_by_dcoeff().copy()
         taylor_test(f, df, coeffs)
 

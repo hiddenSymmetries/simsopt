@@ -83,6 +83,7 @@ template <typename T, typename S> void register_common_curve_methods(S &c) {
      .def("least_squares_fit", &T::least_squares_fit)
 
      .def("set_dofs", &T::set_dofs)
+     .def("set_dofs_impl", &T::set_dofs_impl)
      .def("get_dofs", &T::get_dofs)
      .def("num_dofs", &T::num_dofs)
      .def_readonly("quadpoints", &T::quadpoints);

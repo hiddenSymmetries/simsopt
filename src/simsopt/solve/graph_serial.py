@@ -62,7 +62,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             residuals = prob.residuals(x)
         except:
             logger.info("Exception caught during function evaluation")
-            residuals = np.full(prob.get_parent_return_fns_no(), 1.0e12)
+            residuals = np.full(prob.parent_return_fns_no, 1.0e12)
             #success = False
 
         objective_val = prob.objective()
