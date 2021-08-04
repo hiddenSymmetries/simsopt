@@ -228,9 +228,9 @@ class Vmec(Optimizable):
         # or the boundary surface object can be changed independently
         # by the user.
         self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                         stellsym=not vi.lasym,
-                                         mpol=vi.mpol,
-                                         ntor=vi.ntor)
+                                          stellsym=not vi.lasym,
+                                          mpol=vi.mpol,
+                                          ntor=vi.ntor)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:
