@@ -11,6 +11,7 @@ _skbuild/
 build/
 build-cmake/
 dist/
+.eggs/
 pip-wheel-metadata/
 *simsopt.egg-info/
 .DS_Store
