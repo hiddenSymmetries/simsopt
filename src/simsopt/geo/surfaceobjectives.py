@@ -253,8 +253,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
 
 class QfmResidual(Optimizable):
-
-        r"""
+    r"""
     For a given surface :math:`S`, this class computes the residual
 
     .. math::
@@ -265,7 +264,6 @@ class QfmResidual(Optimizable):
     integration is performed over the surface. Derivatives are computed wrt the
     surface dofs.
     """
-
     def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
