@@ -4,7 +4,7 @@ import numpy as np
 
 # from simsopt._core.dofs import Dofs
 # from simsopt._core.optimizable import make_optimizable
-from simsopt.geo.graph_surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 # from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 # from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surface import signed_distance_from_surface
