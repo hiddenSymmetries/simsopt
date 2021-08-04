@@ -84,3 +84,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
 
         surf.least_squares_fit(gamma)
         return surf
+
+    return_fn_map = {'area': sopp.SurfaceXYZFourier.area,
+                     'volume': sopp.SurfaceXYZFourier.volume,
+                     'aspect-ratio': Surface.aspect_ratio}

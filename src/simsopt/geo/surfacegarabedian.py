@@ -174,3 +174,7 @@ class SurfaceGarabedian(Surface):
         """
         self.area_volume()
         return self._volume
+
+    return_fn_map = {'area': area,
+                     'volume': volume,
+                     'aspect-ratio': Surface.aspect_ratio}
