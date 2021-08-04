@@ -58,16 +58,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
     print("###################################################################")
 
 
-class AreaTests(unittest.TestCase):
-    def test_placeholder(self):
-        self.fail("Tests for Area not implemented")
-
-
-class VolumeTests(unittest.TestCase):
-    def test_placeholder(self):
-        self.fail("Tests for Volume not implemented")
-
-
 class ToroidalFluxTests(unittest.TestCase):
     def test_toroidal_flux_is_constant(self):
         """
