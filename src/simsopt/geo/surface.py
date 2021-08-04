@@ -1,5 +1,6 @@
 import abc
 
+import numpy as np
 from monty.dev import requires
 
 try:
