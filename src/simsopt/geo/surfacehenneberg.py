@@ -100,7 +100,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
-        Surface.__init__(self, x0=self.get_dofs(),
+        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
                          external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
     def __repr__(self):
@@ -126,20 +126,22 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         myshape = (self.mmax + 1, self.ndim)
         self.rhomn = np.zeros(myshape)
 
-        self.names = []
+    def _make_names(self):
+        names = []
         for n in range(self.nmax + 1):
-            self.names.append('R0nH(' + str(n) + ')')
+            names.append('R0nH(' + str(n) + ')')
         for n in range(1, self.nmax + 1):
-            self.names.append('Z0nH(' + str(n) + ')')
+            names.append('Z0nH(' + str(n) + ')')
         for n in range(self.nmax + 1):
-            self.names.append('bn(' + str(n) + ')')
+            names.append('bn(' + str(n) + ')')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            self.names.append('rhomn(0,' + str(n) + ')')
+            names.append('rhomn(0,' + str(n) + ')')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                self.names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+        return names
 
     def _validate_mn(self, m, n):
         r"""
