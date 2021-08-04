@@ -18,11 +18,6 @@ except ImportError:
 
 class SurfaceRZFourierTests(unittest.TestCase):
 
-    # TODO: Unit test for cross section and make it consistent for all
-    # TODO: surface classes
-    def test_cross_section(self):
-        self.fail("Test Not Implemented")
-
     # TODO: Make test_aspect_ratio consistent for all surface classes
     def test_aspect_ratio(self):
         """
@@ -228,10 +223,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
-    # TODO: Implement the tests
-    def test_to_RZFOurier(self):
-        self.fail("Test Not Implemented")
-
     def test_repr(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=5)
         s_str = repr(s)
@@ -246,12 +237,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.x = [2.9, -1.1, 0.7]
         self.assertAlmostEqual(s.get_rc(0, 0), 2.9)
         self.assertAlmostEqual(s.get_rc(1, 0), -1.1)
-
-    def test_get_rs(self):
-        self.fail("Test Not Implemented")
-
-    def test_get_zc(self):
-        self.fail("Test Not Implemented")
 
     def test_get_zs(self):
         s = SurfaceRZFourier(mpol=3, ntor=1)
@@ -276,26 +261,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.set_rc(0, 0, 3.1)
         self.assertAlmostEqual(s.x[0], 3.1)
 
-    def test_set_rs(self):
-        self.fail("Test Not Implemented")
-
-    def test_set_zc(self):
-        self.fail("Test Not Implemented")
-
     def test_set_zs(self):
         s = SurfaceRZFourier()
         s.x = [2.9, -1.1, 0.7]
         s.set_zs(1, 0, 1.4)
         self.assertAlmostEqual(s.x[2], 1.4)
-
-    def test_fixed_range(self):
-        self.fail("Test Not Implemented")
-
-    def test_to_Garabedian(self):
-        self.fail("Test Not Implemented")
-
-    def recompute_bell(self):
-        self.fail("Test Not Implemented")
 
     def test_area_volume(self):
         """
@@ -333,7 +303,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
 
-    # TODO: Test the SurfaceRZFourier class w.r.t. graph optimizable framework
 
 if __name__ == "__main__":
     unittest.main()

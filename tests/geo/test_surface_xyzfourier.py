@@ -274,12 +274,6 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
 
-    def test_get_dofs(self):
-        self.fail("Test Not Implemented")
-
-    def test_set_dofs(self):
-        self.fail("Test Not Implemented")
-
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
         mpol = 4
