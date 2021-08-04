@@ -141,9 +141,9 @@ class Spec(Optimizable):
         stellsym = bool(si.istellsym)
         print(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
         self._boundary = SurfaceRZFourier(nfp=si.nfp,
-                                         stellsym=stellsym,
-                                         mpol=si.mpol,
-                                         ntor=si.ntor)
+                                          stellsym=stellsym,
+                                          mpol=si.mpol,
+                                          ntor=si.ntor)
 
         # Transfer the boundary shape from fortran to the boundary
         # surface object:

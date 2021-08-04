@@ -21,6 +21,7 @@ try:
 except ImportError:
     pyevtk_found = False
 
+
 @unittest.skip
 class SurfaceXYZFourierTests(unittest.TestCase):
     def test_toRZFourier_perfect_torus(self):

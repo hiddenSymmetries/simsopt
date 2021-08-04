@@ -264,6 +264,7 @@ class QfmResidual(Optimizable):
     integration is performed over the surface. Derivatives are computed wrt the
     surface dofs.
     """
+
     def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
