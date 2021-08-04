@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from simsopt.geo.graph_surface import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve
 """
@@ -24,22 +24,6 @@ surf.get_return_fn_names()
 
 # Approach 1
 
-prob1 = LeastSquaresProblem(depends_on=surf,
-                            goals=[desired_area, desired_volume],
-                            weights=[1, 1])
-least_squares_serial_solve(prob1)
-
-print("At the optimum using approach 1,")
-print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))
-print(" zs(m=1,n=0) = ", surf.get_zs(1, 0))
-print(" volume = ", surf.volume())
-print(" area = ", surf.area())
-print(" objective function = ", prob1.objective())
-print(" -------------------------\n\n")
-
-
-# Approach 2
-
 surf2 = SurfaceRZFourier()
 surf2.fix('rc(0,0)')
 prob2 = LeastSquaresProblem(depends_on=surf2,
@@ -56,7 +40,7 @@ print(" objective function = ", prob2.objective())
 print(" -------------------------\n\n")
 
 
-# Approach 3
+# Approach 2
 surf3 = SurfaceRZFourier()
 surf3.fix('rc(0,0)')
 prob3 = LeastSquaresProblem(funcs_in=[surf3.area, surf3.volume],
@@ -71,7 +55,7 @@ print(" area = ", surf3.area())
 print(" objective function = ", prob3.objective())
 print(" -------------------------\n\n")
 
-# Approach 4
+# Approach 3
 surf4 = SurfaceRZFourier()
 surf4.fix('rc(0,0)')
 prob4 = LeastSquaresProblem.from_tuples([(surf4.area, desired_area, 1),
