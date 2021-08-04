@@ -315,3 +315,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
+
+    return_fn_map = {'area': sopp.SurfaceRZFourier.area,
+                     'volume': sopp.SurfaceRZFourier.volume,
+                     'aspect-ratio': Surface.aspect_ratio}
