@@ -246,20 +246,22 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         if nmax > self.nmax:
             nmax = self.nmax
 
+        fn = self.fix if fixed else self.unfix
+
         for n in range(nmax + 1):
-            self.set_fixed(f'R0nH({n})', fixed)
+            fn(f'R0nH({n})')
         for n in range(1, nmax + 1):
-            self.set_fixed(f'Z0nH({n})', fixed)
+            fn(f'Z0nH({n})')
         if mmax > 0:
             for n in range(nmax + 1):
-                self.set_fixed(f'bn({n})', fixed)
+                fn(f'bn({n})')
 
         for m in range(mmax + 1):
             nmin_to_use = -nmax
             if m == 0:
                 nmin_to_use = 1
             for n in range(nmin_to_use, nmax + 1):
-                self.set_fixed(f'rhomn({m},{n})', fixed)
+                fn(f'rhomn({m},{n})')
 
     def to_RZFourier(self):
         """
