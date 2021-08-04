@@ -560,13 +560,13 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if x is not None:
             self.x = x
         return_fn_map = self.__class__.return_fn_map
-        if self.new_x:
-            result = []
-            for fn in return_fn_map.values():
-                result.append(
-                    fn(self, *args, **kwargs))
-            self._val = result
-            self.new_x = False
+        # if self.new_x:
+        #     result = []
+        #     for fn in return_fn_map.values():
+        #         result.append(
+        #             fn(self, *args, **kwargs))
+        #     self._val = result
+        #     self.new_x = False
 
         if child:
             return_fns = self.return_fns[child] if self.return_fns[child] else \
@@ -574,12 +574,13 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         else:
             return_fns = return_fn_map.values()
 
-        return_result = []
+        result = []
         for fn in return_fns:
-            i = list(return_fn_map.values()).index(fn)
-            return_result.append(self._val[i])
+            # i = list(return_fn_map.values()).index(fn)
+            # return_result.append(self._val[i])
+            result.append(fn(self, *args, **kwargs))
 
-        return return_result if len(return_result) > 1 else return_result[0]
+        return result if len(result) > 1 else result[0]
 
     #@abc.abstractmethod
     #def f(self, *args, **kwargs):
