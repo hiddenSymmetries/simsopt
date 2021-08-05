@@ -41,20 +41,14 @@ class QfmSurface():
         and optionally the gradient wrt surface params.
         """
         assert derivatives in [0, 1]
-
-        s = self.surface
-        sdofs = x
-        nsurfdofs = x.size
-        bs = self.bs
-
-        s.set_dofs(sdofs)
+        self.surface.x = x
         l = self.label.J()
-        rl = l-self.targetlabel
+        rl = l - self.targetlabel
         val = 0.5 * rl ** 2
 
         if derivatives:
             dl = self.label.dJ_by_dsurfacecoefficients()
-            dval = rl*dl
+            dval = rl * dl
             return val, dval
         else:
             return val
@@ -69,25 +63,20 @@ class QfmSurface():
         and optionally the gradient wrt surface params where :math:`f(S)`` is
         the QFM residual defined in surfaceobjectives.py.
         """
+
         assert derivatives in [0, 1]
-
-        s = self.surface
-        sdofs = x
-        nsurfdofs = x.size
-        bs = self.bs
-
-        s.set_dofs(sdofs)
-        qfm = QfmResidual(s, bs)
+        self.surface.x = x
+        qfm = QfmResidual(self.surface, self.bs)
 
         r = qfm.J()
 
-        if derivatives == 0:
+        if not derivatives:
             return r
         else:
             dr = qfm.dJ_by_dsurfacecoefficients()
             return r, dr
 
-    def qfm_penalty_constraints(self, x, derivatives=0, constraint_weight=1.):
+    def qfm_penalty_constraints(self, x, derivatives=0, constraint_weight=1):
         r"""
         Returns the residual
 
@@ -99,19 +88,16 @@ class QfmSurface():
         """
 
         assert derivatives in [0, 1, 2]
+
         s = self.surface
-        sdofs = x
-        nsurfdofs = x.size
         bs = self.bs
-
-        s.set_dofs(sdofs)
-
+        s.x = x
         qfm = QfmResidual(s, bs)
 
         r = qfm.J()
 
         l = self.label.J()
-        rl = l-self.targetlabel
+        rl = l - self.targetlabel
 
         val = r + 0.5 * constraint_weight * rl**2
         if derivatives == 0:
@@ -145,11 +131,11 @@ class QfmSurface():
         """
 
         s = self.surface
-        x = s.get_dofs()
-        fun = lambda x: self.qfm_penalty_constraints(
+        x = s.x
+        fn = lambda x: self.qfm_penalty_constraints(
             x, derivatives=1, constraint_weight=constraint_weight)
         res = minimize(
-            fun, x, jac=True, method='L-BFGS-B',
+            fn, x, jac=True, method='L-BFGS-B',
             options={'maxiter': maxiter, 'ftol': tol, 'gtol': tol,
                      'maxcor': 200})
 
@@ -157,7 +143,7 @@ class QfmSurface():
             "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res,
             "success": res.success,
         }
-        s.set_dofs(res.x)
+        s.x = res.x
         resdict['s'] = s
 
         return resdict
@@ -177,7 +163,7 @@ class QfmSurface():
         where :math:`f(S)` is the QFM residual. This is done using SLSQP.
         """
         s = self.surface
-        x = s.get_dofs()
+        x = s.x
 
         fun = lambda x: self.qfm_objective(x, derivatives=1)
         con = lambda x: self.qfm_label_constraint(x, derivatives=1)[0]
@@ -193,7 +179,7 @@ class QfmSurface():
             "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res,
             "success": res.success,
         }
-        s.set_dofs(res.x)
+        s.x = res.x
         resdict['s'] = s
 
         return resdict
