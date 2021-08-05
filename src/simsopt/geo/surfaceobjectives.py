@@ -268,6 +268,7 @@ class QfmResidual(Optimizable):
     def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
+        self.biotsavart.append_parent(self.surface)
         super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
