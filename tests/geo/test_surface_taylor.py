@@ -58,14 +58,14 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     if surfacetype == "SurfaceRZFourier":
         s = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
                              quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.set_dofs(s.get_dofs()*0.)
+        s.x = s.x * 0.
         s.rc[0, ntor + 0] = 1
         s.rc[1, ntor + 0] = 0.3
         s.zs[1, ntor + 0] = 0.3
     elif surfacetype == "SurfaceXYZFourier":
         s = SurfaceXYZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
                               quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.set_dofs(s.get_dofs()*0.)
+        s.x = s.x * 0.
         s.xc[0, ntor + 1] = 1.
         s.xc[1, ntor + 1] = 0.1
         s.ys[0, ntor + 1] = 1.
@@ -76,17 +76,17 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
             nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
             clamped_dims=[False, not stellsym, True],
             quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.set_dofs(s.get_dofs()*0.)
-        s.x[0, 0] = 1.0
-        s.x[1, 0] = 0.1
-        s.z[mpol+1, 0] = 0.1
+        s.x = s.x * 0.
+        s.xcs[0, 0] = 1.0
+        s.xcs[1, 0] = 0.1
+        s.zcs[mpol+1, 0] = 0.1
     else:
         assert False
 
-    dofs = np.asarray(s.get_dofs())
+    dofs = s.x
     np.random.seed(2)
     rand_scale = 0.01
-    s.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
+    s.x = dofs + rand_scale * np.random.rand(len(dofs)) # .reshape(dofs.shape)
     return s
 
 
@@ -122,7 +122,7 @@ class SurfaceTaylorTests(unittest.TestCase):
                     "SurfaceXYZTensorFourier"]
 
     def subtest_surface_coefficient_derivative(self, s):
-        coeffs = s.get_dofs()
+        coeffs = s.x
         s.invalidate_cache()
 
         def f(dofs):
@@ -174,8 +174,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_normal_coefficient_derivative(self):
         """
-        Taylor test to verify the first derivative of the surface normal
-        with respect to the surface dofs
+        Taylor test for the first derivative of the surface normal w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -199,8 +198,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_area_coefficient_derivative(self):
         """
-        Taylor test to verify the first derivative of the surface area with
-        respect to the surface dofs
+        Taylor test for the first derivative of the surface area w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -210,8 +208,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_area_coefficient_second_derivative(self):
         """
-        Taylor test to verify the second derivative of the surface area with
-        respect to the surface dofs
+        Taylor test for second derivative of the surface area w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -239,7 +236,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_volume_coefficient_second_derivative(self):
         """
-        Taylor test to verify the second derivative of the volume with respect to the surface dofs
+        Taylor test for the second derivative of the volume w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -280,8 +277,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_volume_coefficient_derivative(self):
         """
-        Taylor test to verify the first derivative of the volume with respect
-        to the surface dofs
+        Taylor test to verify the first derivative of the volume with respect to the surface dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
