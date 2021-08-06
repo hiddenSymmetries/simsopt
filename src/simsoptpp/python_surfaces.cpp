@@ -122,6 +122,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("normal", &T::normal)
      .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
      .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
+     .def("unitnormal", &T::unitnormal)
      .def("area", &T::area)
      .def("darea_by_dcoeff", &T::darea_by_dcoeff)
      .def("darea", &T::darea_by_dcoeff) // shorthand
@@ -181,6 +182,7 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
         .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)

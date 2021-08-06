@@ -4,26 +4,26 @@ template<class Array>
 void SurfaceXYZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints_phi = quadpoints_phi.size();
     int numquadpoints_theta = quadpoints_theta.size();
-
-
-    data *= 0.;
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
             double theta  = 2*M_PI*quadpoints_theta[k2];
+            double x = 0;
+            double y = 0;
+            double z = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                     double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
                     double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
-                    double x = xhat * cos(phi) - yhat * sin(phi);
-                    double y = xhat * sin(phi) + yhat * cos(phi);
-                    double z = get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
-                    data(k1, k2, 0) += x;
-                    data(k1, k2, 1) += y;
-                    data(k1, k2, 2) += z;
+                    x += xhat * cos(phi) - yhat * sin(phi);
+                    y += xhat * sin(phi) + yhat * cos(phi);
+                    z += get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
                 }
             }
+            data(k1, k2, 0) = x;
+            data(k1, k2, 1) = y;
+            data(k1, k2, 2) = z;
         }
     }
 }
@@ -35,19 +35,22 @@ void SurfaceXYZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arr
     for (int k1 = 0; k1 < numquadpoints; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         double theta  = 2*M_PI*quadpoints_theta[k1];
+        double x = 0;
+        double y = 0;
+        double z = 0;
         for (int m = 0; m <= mpol; ++m) {
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
                 double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
                 double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
-                double x = xhat * cos(phi) - yhat * sin(phi);
-                double y = xhat * sin(phi) + yhat * cos(phi);
-                double z = get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
-                data(k1, 0) += x;
-                data(k1, 1) += y;
-                data(k1, 2) += z;
+                x += xhat * cos(phi) - yhat * sin(phi);
+                y += xhat * sin(phi) + yhat * cos(phi);
+                z += get_coeff(2, true , m, i) * cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * sin(m*theta-n*nfp*phi);
             }
         }
+        data(k1, 0) = x;
+        data(k1, 1) = y;
+        data(k1, 2) = z;
     }
 }
 
@@ -59,6 +62,9 @@ void SurfaceXYZFourier<Array>::gammadash1_impl(Array& data) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
             double theta  = 2*M_PI*quadpoints_theta[k2];
+            double xdash = 0;
+            double ydash = 0;
+            double zdash = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
@@ -66,14 +72,14 @@ void SurfaceXYZFourier<Array>::gammadash1_impl(Array& data) {
                     double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
                     double xhatdash = get_coeff(0, true, m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                     double yhatdash = get_coeff(1, true, m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
-                    double xdash = xhatdash * cos(phi) - yhatdash * sin(phi) - xhat * sin(phi) - yhat * cos(phi);
-                    double ydash = xhatdash * sin(phi) + yhatdash * cos(phi) + xhat * cos(phi) - yhat * sin(phi);
-                    double zdash = get_coeff(2, true , m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
-                    data(k1, k2, 0) += 2*M_PI*xdash;
-                    data(k1, k2, 1) += 2*M_PI*ydash;
-                    data(k1, k2, 2) += 2*M_PI*zdash;
+                    xdash += xhatdash * cos(phi) - yhatdash * sin(phi) - xhat * sin(phi) - yhat * cos(phi);
+                    ydash += xhatdash * sin(phi) + yhatdash * cos(phi) + xhat * cos(phi) - yhat * sin(phi);
+                    zdash += get_coeff(2, true , m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                 }
             }
+            data(k1, k2, 0) = 2*M_PI*xdash;
+            data(k1, k2, 1) = 2*M_PI*ydash;
+            data(k1, k2, 2) = 2*M_PI*zdash;
         }
     }
 }
@@ -85,20 +91,22 @@ void SurfaceXYZFourier<Array>::gammadash2_impl(Array& data) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
             double theta  = 2*M_PI*quadpoints_theta[k2];
+            double xdash = 0;
+            double ydash = 0;
+            double zdash = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                     double xhatdash = get_coeff(0, true, m, i) * (-m)* sin(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * m * cos(m*theta-n*nfp*phi);
                     double yhatdash = get_coeff(1, true, m, i) * (-m)* sin(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * m * cos(m*theta-n*nfp*phi);
-                    double xdash = xhatdash * cos(phi) - yhatdash * sin(phi);
-                    double ydash = xhatdash * sin(phi) + yhatdash * cos(phi);
-                    double zdash = get_coeff(2, true , m, i) * (-m) * sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * m * cos(m*theta-n*nfp*phi);
-                    data(k1, k2, 0) += 2*M_PI*xdash;
-                    data(k1, k2, 1) += 2*M_PI*ydash;
-                    data(k1, k2, 2) += 2*M_PI*zdash;
-
+                    xdash += xhatdash * cos(phi) - yhatdash * sin(phi);
+                    ydash += xhatdash * sin(phi) + yhatdash * cos(phi);
+                    zdash += get_coeff(2, true , m, i) * (-m) * sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * m * cos(m*theta-n*nfp*phi);
                 }
             }
+            data(k1, k2, 0) = 2*M_PI*xdash;
+            data(k1, k2, 1) = 2*M_PI*ydash;
+            data(k1, k2, 2) = 2*M_PI*zdash;
         }
     }
 }

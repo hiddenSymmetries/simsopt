@@ -7,7 +7,9 @@ from simsopt._core.optimizable import make_optimizable
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
+from simsopt.geo.surface import signed_distance_from_surface
+from simsopt.geo.curverzfourier import CurveRZFourier
+from .surface_test_helpers import get_surface, get_exact_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -556,6 +558,22 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     sf2 = sg.to_RZFourier()
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
+
+
+class SurfaceDistanceTests(unittest.TestCase):
+    def test_distance(self):
+        c = CurveRZFourier(100, 1, 1, False)
+        dofs = c.get_dofs()
+        dofs[0] = 1.
+        c.set_dofs(dofs)
+        s = SurfaceRZFourier(mpol=1, ntor=1)
+        s.fit_to_curve(c, 0.2, flip_theta=True)
+        xyz = np.asarray([[0, 0, 0], [1., 0, 0], [2., 0., 0]])
+        d = signed_distance_from_surface(xyz, s)
+        assert np.allclose(d, [-0.8, 0.2, -0.8])
+        s.fit_to_curve(c, 0.2, flip_theta=False)
+        d = signed_distance_from_surface(xyz, s)
+        assert np.allclose(d, [-0.8, 0.2, -0.8])
 
 
 if __name__ == "__main__":

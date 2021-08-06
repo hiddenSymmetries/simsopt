@@ -6,7 +6,8 @@ from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion, MinimumDistance
+from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
+    LpCurveTorsion, MinimumDistance
 
 parameters['jit'] = False
 
@@ -30,7 +31,7 @@ class Testing(unittest.TestCase):
         else:
             # print('Could not find' + curvetype)
             assert False
-        dofs = np.zeros((coil.num_dofs(), ))
+        dofs = np.zeros((coil.dof_size, ))
         if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
             dofs[1] = 1.
             dofs[2*order+3] = 1.
@@ -41,10 +42,8 @@ class Testing(unittest.TestCase):
             dofs[order+1] = 0.1
         else:
             assert False
-        coil.set_dofs(dofs)
 
-        dofs = np.asarray(coil.get_dofs())
-        coil.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
+        coil.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
         if rotated:
             coil = RotatedCurve(coil, 0.5, flip=False)
         return coil
@@ -52,14 +51,14 @@ class Testing(unittest.TestCase):
     def subtest_curve_length_taylor_test(self, curve):
         J = CurveLength(curve)
         J0 = J.J()
-        curve_dofs = np.asarray(curve.get_dofs())
+        curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
         err = 1e6
         for i in range(5, 15):
             eps = 0.5**i
-            curve.set_dofs(curve_dofs + eps * h)
+            curve.x = curve_dofs + eps * h
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
@@ -77,7 +76,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_curvature_taylor_test(self, curve):
         J = LpCurveCurvature(curve, p=2)
         J0 = J.J()
-        curve_dofs = np.asarray(curve.get_dofs())
+        curve_dofs = curve.x
         h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
@@ -85,7 +84,7 @@ class Testing(unittest.TestCase):
         err = 1e6
         for i in range(5, 15):
             eps = 0.5**i
-            curve.set_dofs(curve_dofs + eps * h)
+            curve.x = curve_dofs + eps * h
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
@@ -103,7 +102,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_torsion_taylor_test(self, curve):
         J = LpCurveTorsion(curve, p=2)
         J0 = J.J()
-        curve_dofs = np.asarray(curve.get_dofs())
+        curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
@@ -111,7 +110,7 @@ class Testing(unittest.TestCase):
         err = 1e6
         for i in range(10, 20):
             eps = 0.5**i
-            curve.set_dofs(curve_dofs + eps * h)
+            curve.x = curve_dofs + eps * h
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
@@ -132,7 +131,7 @@ class Testing(unittest.TestCase):
         curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
         J = MinimumDistance(curves, 0.2)
         for k in range(ncurves):
-            curve_dofs = np.asarray(curves[k].get_dofs())
+            curve_dofs = curves[k].x
             h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
             J0 = J.J()
             dJ = J.dJ()[k]
@@ -141,7 +140,7 @@ class Testing(unittest.TestCase):
             err = 1e6
             for i in range(5, 15):
                 eps = 0.5**i
-                curves[k].set_dofs(curve_dofs + eps * h)
+                curves[k].x = curve_dofs + eps * h
                 Jh = J.J()
                 deriv_est = (Jh-J0)/eps
                 err_new = np.linalg.norm(deriv_est-deriv)

@@ -2,10 +2,11 @@ import unittest
 import numpy as np
 from simsopt.geo.coilcollection import CoilCollection
 from simsopt.geo.boozersurface import BoozerSurface
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area
-from .surface_test_helpers import get_ncsx_data, get_surface, get_exact_surface
+from simsopt.util.zoo import get_ncsx_data
+from .surface_test_helpers import get_surface, get_exact_surface
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -202,11 +203,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
 
         configs = [
-            ("SurfaceXYZTensorFourier", False, True, 'ls'),
-            ("SurfaceXYZTensorFourier", True, True, 'newton'),
-            ("SurfaceXYZTensorFourier", True, True, 'newton_exact'),
-            ("SurfaceXYZTensorFourier", True, True, 'ls'),
-            ("SurfaceXYZFourier", True, False, 'ls'),
+            ("SurfaceXYZTensorFourier", True, True, 'residual_exact'),  # noqa
+            ("SurfaceXYZTensorFourier", True, True, 'newton_exact'),  # noqa
+            ("SurfaceXYZTensorFourier", True, True, 'newton'),  # noqa
+            ("SurfaceXYZTensorFourier", False, True, 'ls'),  # noqa
+            ("SurfaceXYZFourier", True, False, 'ls'),  # noqa
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             with self.subTest(
@@ -250,18 +251,21 @@ class BoozerSurfaceTests(unittest.TestCase):
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
-        print('Squared residual after LBFGS', res['fun'])
+        print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-9, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
+                tol=1e-11, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
                 tol=1e-9, maxiter=10, constraint_weight=100., iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
                 tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
+        elif second_stage == 'residual_exact':
+            res = boozer_surface.solve_residual_equation_exactly_newton(
+                tol=1e-12, maxiter=10, iota=res['iota'], G=res['G'])
 
-        print('Residual after second stage', np.linalg.norm(res['residual']))
+        print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
@@ -275,8 +279,12 @@ class BoozerSurfaceTests(unittest.TestCase):
         if surfacetype == 'SurfaceXYZTensorFourier':
             assert np.linalg.norm(res['residual']) < 1e-9
 
-        if second_stage == 'newton_exact' or surfacetype == 'SurfaceXYZTensorFourier':
+        print(ar_target, ar.J())
+        print(res['residual'][-10:])
+        if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
             assert np.abs(ar_target - ar.J()) < 1e-9
+        else:
+            assert np.abs(ar_target - ar.J()) < 1e-4
 
 
 if __name__ == "__main__":
