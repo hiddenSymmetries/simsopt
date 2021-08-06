@@ -76,7 +76,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_objective(
                 x + eps*h, derivatives=0)
@@ -85,7 +85,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_qfm_label_constraint_gradient(self):
         """
@@ -120,7 +120,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 17)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_label_constraint(
                 x + eps*h, derivatives=0)
@@ -129,7 +129,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_qfm_penalty_constraints_gradient(self):
         """
@@ -178,7 +178,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(9, 17)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_penalty_constraints(
                 x + eps*h, derivatives=0, constraint_weight=weight)
@@ -187,7 +187,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def subtest_qfm_penalty_constraints_hessian(self, surfacetype, stellsym):
         np.random.seed(1)
@@ -214,7 +214,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(11, 18)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             fp, Jp = qfm_surface.qfm_penalty_constraints(x + eps*h1, derivatives=1)
             d2f_fd = (Jp@h2-J0@h2)/eps
@@ -249,6 +249,7 @@ class QfmSurfaceTests(unittest.TestCase):
         both steps for fixed area. Check that volume is preserved.
         """
         coils, currents, ma = get_ncsx_data()
+        np.random.seed(1)
 
         if stellsym:
             stellarator = CoilCollection(coils, currents, 3, True)
@@ -268,7 +269,6 @@ class QfmSurfaceTests(unittest.TestCase):
                                          currents + currents_flipped, 3, False)
 
         bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
 
         nfp = 3
         phis = np.linspace(0, 1/nfp, 30, endpoint=False)
