@@ -7,11 +7,13 @@ This module contains functions that can postprocess VMEC output.
 """
 
 import logging
+from typing import Union
 import numpy as np
 from scipy.interpolate import interp1d
 from .._core.optimizable import Optimizable
 from .vmec import Vmec
 from .._core.util import Struct
+from ..util.types import RealArray
 logger = logging.getLogger(__name__)
 
 
@@ -53,10 +55,10 @@ class QuasisymmetryRatioError(Optimizable):
     written as a finite sum of squares:
 
     .. math::
-        f = \sum_{s_j, \theta_j, \phi_j} R(s_j, \theta_j, \phi_j)^2
+        f = \sum_{s_j, \theta_j, \phi_j} R(s_j, \theta_k, \phi_{\ell})^2
 
-    where the :math:`\phi_j` grid covers a single field period and
-    each residual term is
+    where the :math:`\phi_{\ell}` grid covers a single field period.
+    Here, each residual term is
 
     .. math::
         R(\theta, \phi) = \sqrt{w_j \frac{n_{fp} \Delta_{\theta} \Delta_{\phi}}{V'}|\sqrt{g}|}
@@ -67,19 +69,43 @@ class QuasisymmetryRatioError(Optimizable):
     of grid points in the poloidal and toroidal angles,
     :math:`\sqrt{g} = 1/(\nabla s\cdot\nabla\theta \times
     \nabla\phi)` is the Jacobian of the :math:`(s,\theta,\phi)`
-    coordinates,
+    coordinates, and :math:`V' = \int_0^{2\pi} d\theta \int_0^{2\pi}d\phi |\sqrt{g}| = dV/d\psi`
+    where :math:`V` is the volume enclosed by a flux surface.
 
-    Note that the supplied value of ``n`` will be multiplied by
-    ``nfp``, so typically ``n`` should be +1 or -1 for quasi-helical
-    symmetry.
+    Args:
+        vmec: A :obj:`simsopt.mhd.vmec.Vmec` object from which the
+          quasisymmetry error will be calculated.
+        s: Value of normalized toroidal flux at which you want the
+          quasisymmetry error evaluated, or a list of values. Each
+          value must be in the interval [0, 1], with 0 corresponding
+          to the magnetic axis and 1 to the VMEC plasma boundary.
+          This parameter corresponds to :math:`s_j` above.
+        m: Desired poloidal mode number :math:`M` in the magnetic field
+          strength :math:`B`, so
+          :math:`B = B(s, M \vartheta - n_{fp} \hat{N} \varphi)`
+          where :math:`\vartheta` and :math:`\varphi` are Boozer angles.
+        n: Desired toroidal mode number :math:`\hat{N} = N / n_{fp}` in the magnetic field
+          strength :math:`B`, so
+          :math:`B = B(s, M \vartheta - n_{fp} \hat{N} \varphi)`
+          where :math:`\vartheta` and :math:`\varphi` are Boozer angles.
+          Note that the supplied value of ``n`` will be multiplied by
+          the number of field periods :math:`n_{fp}`, so typically
+          ``n`` should be +1 or -1 for quasi-helical symmetry.
+        weights: The list of weights :math:`w_j` for each flux surface.
+          If ``None``, a weight of :math:`w_j=1` will be used for
+          all surfaces.
+        ntheta: Number of grid points in :math:`\theta` used to
+          discretize the flux surface average.
+        nphi: Number of grid points per field period in :math:`\phi` used to
+          discretize the flux surface average.
     """
 
     def __init__(self,
                  vmec: Vmec,
-                 s,
-                 m=1,
-                 n=0,
-                 weights=None,
+                 s: Union[float, RealArray],
+                 m: int = 1,
+                 n: int = 0,
+                 weights: RealArray = None,
                  ntheta: int = 63,
                  nphi: int = 64) -> None:
 
@@ -113,7 +139,7 @@ class QuasisymmetryRatioError(Optimizable):
         Compute the quasisymmetry metric. This function returns an object
         that contains (as attributes) all the intermediate quantities
         for the calculation. Users do not need to call this function
-        for optimization; instead the ``residuals()`` function can be
+        for optimization; instead the :func:`residuals()` function can be
         used. However, this function can be useful if users wish to
         inspect the quantities going into the calculation.
         """
@@ -180,13 +206,6 @@ class QuasisymmetryRatioError(Optimizable):
             angle = m * theta3d - n * phi3d
             cosangle = np.cos(angle)
             sinangle = np.sin(angle)
-            #print('bmnc.shape:', bmnc.shape)
-            temp = bmnc[jmn, :]
-            #print('temp.shape:', temp.shape)
-            #print('cosangle.shape:', cosangle.shape)
-            #temp2 = np.outer(bmnc[jmn, :], cosangle)
-            #temp2 = np.kron(bmnc[jmn, :].reshape((ns, 1, 1)), cosangle)
-            #print('temp2.shape:', temp2.shape)
             modB += np.kron(bmnc[jmn, :].reshape((ns, 1, 1)), cosangle)
             d_B_d_theta += np.kron(bmnc[jmn, :].reshape((ns, 1, 1)), -m * sinangle)
             d_B_d_phi += np.kron(bmnc[jmn, :].reshape((ns, 1, 1)), n * sinangle)
@@ -232,8 +251,9 @@ class QuasisymmetryRatioError(Optimizable):
     def residuals(self):
         """
         Evaluate the quasisymmetry metric in terms of a 1D numpy vector of
-        residuals. This is the function to use when forming a least-squares
-        objective function.
+        residuals, corresponding to :math:`R` in the documentation
+        for this class. This is the function to use when forming a
+        least-squares objective function.
         """
         results = self.compute()
         return results.residuals1d
@@ -241,17 +261,18 @@ class QuasisymmetryRatioError(Optimizable):
     def profile(self):
         """
         Return the quasisymmetry metric in terms of a 1D radial
-        profile. The residuals are squared and summed over theta and
-        phi, but not over s. The total quasisymmetry error returned by
-        the ``total()`` function is the sum of the values in the
-        profile returned by this function.
+        profile. The residuals :math:`R` are squared and summed over
+        theta and phi, but not over s. The total quasisymmetry error
+        :math:`f` returned by the :func:`total()` function is the sum
+        of the values in the profile returned by this function.
         """
         results = self.compute()
         return results.profile
 
     def total(self):
         """
-        Evaluate the quasisymmetry metric in terms of a scalar total.
+        Evaluate the quasisymmetry metric in terms of the scalar total
+        :math:`f`.
         """
         results = self.compute()
         return results.total

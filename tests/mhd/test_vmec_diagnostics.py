@@ -20,7 +20,7 @@ if MPI is not None:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.INFO)
 
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
@@ -36,15 +36,15 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         for s in [[0.5], [0.3, 0.6]]:
             qa = QuasisymmetryRatioError(vmec, s, m=1, n=0)
             residuals = qa.residuals()
-            logger.info('max QA error:', np.max(np.abs(residuals)))
+            logger.info(f'max QA error: {np.max(np.abs(residuals))}')
             np.testing.assert_allclose(residuals, np.zeros_like(residuals), atol=2e-6)
 
             qh = QuasisymmetryRatioError(vmec, s, m=1, n=1)
-            logger.info('QH error:', qh.total())
+            logger.info(f'QH error: {qh.total()}')
             self.assertTrue(qh.total() > 0.01)
 
             qp = QuasisymmetryRatioError(vmec, s, m=0, n=1)
-            logger.info('QP error:', qp.total())
+            logger.info(f'QP error: {qp.total()}')
             self.assertTrue(qp.total() > 0.01)
 
     def test_independent_of_resolution(self):
@@ -77,15 +77,15 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'input.simsopt_nfp2_QA_20210328-01-020_000_000251'))
         qa = QuasisymmetryRatioError(vmec, 0.5, m=1, n=0)
         total = qa.total()
-        logger.info("QA error for simsopt_nfp2_QA_20210328-01-020_000_000251:", total)
+        logger.info(f"QA error for simsopt_nfp2_QA_20210328-01-020_000_000251: {total}")
         self.assertTrue(total < 2e-5)
 
         qh = QuasisymmetryRatioError(vmec, 0.5, m=1, n=1)
-        logger.info('QH error:', qh.total())
+        logger.info(f'QH error: {qh.total()}')
         self.assertTrue(qh.total() > 0.002)
 
         qp = QuasisymmetryRatioError(vmec, 0.5, m=0, n=1)
-        logger.info('QP error:', qp.total())
+        logger.info(f'QP error: {qp.total()}')
         self.assertTrue(qp.total() > 0.002)
 
     def test_good_qh(self):
@@ -96,20 +96,20 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'input.20210406-01-002-nfp4_QH_000_000240'))
 
         qh = QuasisymmetryRatioError(vmec, 0.5, m=1, n=-1)
-        logger.info('QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240:', qh.total())
+        logger.info(f'QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240: {qh.total()}')
         self.assertTrue(qh.total() < 5e-5)
 
         qh2 = QuasisymmetryRatioError(vmec, 0.5, m=1, n=1)
-        logger.info('QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240:', qh2.total())
+        logger.info(f'QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240: {qh2.total()}')
         self.assertTrue(qh2.total() > 0.01)
 
         qa = QuasisymmetryRatioError(vmec, 0.5, m=1, n=0)
         total = qa.total()
-        logger.info("QA error for 20210406-01-002-nfp4_QH_000_000240:", total)
+        logger.info(f'QA error for 20210406-01-002-nfp4_QH_000_000240: {total}')
         self.assertTrue(total > 0.05)
 
         qp = QuasisymmetryRatioError(vmec, 0.5, m=0, n=1)
-        logger.info('QP error:', qp.total())
+        logger.info(f'QP error: {qp.total()}')
         self.assertTrue(qp.total() > 0.005)
 
     def test_independent_of_scaling(self):
@@ -137,7 +137,8 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         results2 = qs2.compute()
         residuals2 = qs2.residuals()
 
-        logger.info('Max difference in residuals after scaling vmec:', np.max(np.abs(residuals1 - residuals2)))
+        logger.info('Max difference in residuals after scaling vmec:' \
+                    + str(np.max(np.abs(residuals1 - residuals2))))
         np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(results1.profile, results2.profile, rtol=1e-10, atol=1e-10)
@@ -167,7 +168,7 @@ class QuasisymmetryRatioErrorTests(unittest.TestCase):
         """
         vmec = Vmec()
         qs = QuasisymmetryRatioError(vmec, 0.5)
-        logger.info('QuasisymmetryRatioError for a vacuum axisymmetric config with iota = 0:', qs.total())
+        logger.info(f'QuasisymmetryRatioError for a vacuum axisymmetric config with iota = 0: {qs.total()}')
         self.assertTrue(qs.total() < 1e-12)
 
     def test_compute(self):
