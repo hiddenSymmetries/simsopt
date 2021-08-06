@@ -301,3 +301,35 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
+
+    def write(self, filename: str = 'boundary'):
+        """
+        Writes an ASCII file containing the RBC/RBS/ZBS/ZBS coefficients,
+        in the form used in VMEC and SPEC input namelists.
+
+        Args:
+            filename: Name of the file to write.
+        """
+        with open(filename, 'w') as f:
+            if self.stellsym:
+                f.write('LASYM = .FALSE.\n')
+            else:
+                f.write('LASYM = .TRUE.\n')
+            f.write('NFP = ' + str(self.nfp) + '\n')
+
+            for m in range(self.mpol + 1):
+                nmin = -self.ntor
+                if m == 0:
+                    nmin = 0
+                for n in range(nmin, self.ntor + 1):
+                    rc = self.get_rc(m, n)
+                    zs = self.get_zs(m, n)
+                    if np.abs(rc) > 0 or np.abs(zs) > 0:
+                        f.write("RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
+                              .format(n, m, rc, n, m, zs))
+                    if (not self.stellsym):
+                        rs = self.get_rs(m, n)
+                        zc = self.get_zc(m, n)
+                        if np.abs(rs) > 0 or np.abs(zc) > 0:
+                            f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
+                                  .format(n, m, rs, n, m, zc))
