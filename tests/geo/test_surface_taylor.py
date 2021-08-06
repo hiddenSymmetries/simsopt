@@ -86,7 +86,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     dofs = s.get_dofs()
     np.random.seed(2)
     rand_scale = 0.01
-    s.x = dofs + rand_scale * np.random.rand(len(dofs)) # .reshape(dofs.shape)
+    s.x = dofs + rand_scale * np.random.rand(len(dofs))  # .reshape(dofs.shape)
     return s
 
 
