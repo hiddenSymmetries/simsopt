@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, ToroidalFlux, Area
 from simsopt.geo.coilcollection import CoilCollection
+from simsopt.util.zoo import get_ncsx_data
 import numpy as np
-import sys
 import os
-sys.path.append(os.path.join("..", "tests", "geo"))
-from surface_test_helpers import get_ncsx_data
 
 """
 This example demonstrate how to compute surfaces in Boozer coordinates for a
@@ -49,21 +47,22 @@ boozer_surface = BoozerSurface(bs, s, ar, ar_target)
 
 # compute surface first using LBFGS, this will just be a rough initial guess
 res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxiter=300, constraint_weight=100., iota=iota, G=G0)
-print(f"iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+print(f"After LBFGS:   iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
 # now drive the residual down using a specialised least squares algorithm
 res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'], method='manual')
-print(f"iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+print(f"After Lev-Mar: iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
 
 
 # change the label of the surface to toroidal flux and aim for a surface with triple the flux
+print('Now aim for a larger surface')
 tf_target = 3 * tf.J()
 boozer_surface = BoozerSurface(bs, s, tf, tf_target)
 
 res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'], method='manual')
-print(f"iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+print(f"After Lev-Mar: iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
