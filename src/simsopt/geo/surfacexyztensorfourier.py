@@ -50,7 +50,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
         Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceXYZTensorFourier.set_dofs)
+                         external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
     def get_dofs(self):
         """
@@ -62,7 +62,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         """
         Set the dofs associated to this surface.
         """
-        sopp.SurfaceXYZTensorFourier.set_dofs(self, dofs)
+        self.local_full_x = dofs
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()

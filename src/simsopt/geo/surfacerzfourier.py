@@ -38,7 +38,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
         Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceRZFourier.set_dofs,
+                         external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
 
     def get_dofs(self):
@@ -48,7 +48,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return np.asarray(sopp.SurfaceRZFourier.get_dofs(self))
 
     def set_dofs(self, dofs):
-        sopp.SurfaceRZFourier.set_dofs(self, dofs)
+        self.local_full_x = dofs
 
     def _make_names(self):
         """
