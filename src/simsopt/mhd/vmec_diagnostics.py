@@ -81,9 +81,7 @@ class QuasisymmetryRatioError(Optimizable):
                  n=0,
                  weights=None,
                  ntheta: int = 63,
-                 nphi: int = 64,
-                 weight_func: str = None,
-                 weight_fac: float = 0.0) -> None:
+                 nphi: int = 64) -> None:
 
         self.vmec = vmec
         self.depends_on = ["vmec"]
@@ -91,8 +89,6 @@ class QuasisymmetryRatioError(Optimizable):
         self.nphi = nphi
         self.m = m
         self.n = n
-        self.weight_func = weight_func
-        self.weight_fac = weight_fac
 
         # Make sure s is a list:
         try:
@@ -206,27 +202,12 @@ class QuasisymmetryRatioError(Optimizable):
         dtheta = theta1d[1] - theta1d[0]
         dphi = phi1d[1] - phi1d[0]
         V_prime = nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))
-
-        denominator = np.sqrt((1 / V_prime) * nfp * dtheta * dphi * np.sum(sqrtg * B_dot_grad_B * B_dot_grad_B, axis=(1, 2)))
+        # Check that we can evaluate the flux surface average <1> and the result is 1:
         assert np.sum(np.abs(np.sqrt((1 / V_prime) * nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))) - 1)) < 1e-12
-        weight_arg = B_dot_grad_B / np.kron(denominator.reshape((ns, 1, 1)), np.ones((1, ntheta, nphi)))
-        #G3d = G.reshape((ns, 1, 1))
-        #weight_arg = np.kron(G3d, np.ones((1, ntheta, nphi))) * B_dot_grad_B / (modB ** 3)
-        if self.weight_func == 'power':
-            surface_weight = np.abs(weight_arg) ** -self.weight_fac
-        elif self.weight_func == 'exp':
-            surface_weight = np.exp(-(self.weight_fac * weight_arg) ** 2)
-        elif self.weight_func == 'lorentzian':
-            surface_weight = 1.0 / (1.0 + (self.weight_fac * weight_arg) ** 2)
-        elif self.weight_func is None:
-            surface_weight = np.ones_like(weight_arg)
-        else:
-            raise ValueError(f"Unrecognized weight_func: {self.weight_func}")
 
         nn = self.n * nfp
         for js in range(ns):
             residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
-                * surface_weight[js, :, :] \
                 * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.m) \
                    - B_dot_grad_B[js, :, :] * (self.m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
@@ -240,7 +221,7 @@ class QuasisymmetryRatioError(Optimizable):
         variables = ['ns', 'ntheta', 'nphi', 'dtheta', 'dphi', 'nfp', 'V_prime', 'theta1d', 'phi1d',
                      'theta2d', 'phi2d', 'theta3d', 'phi3d', 'd_psi_d_s', 'B_dot_grad_B',
                      'B_cross_grad_B_dot_grad_psi', 'modB', 'd_B_d_theta', 'd_B_d_phi', 'sqrtg',
-                     'bsubu', 'bsubv', 'bsupu', 'bsupv', 'G', 'I', 'iota', 'weight_arg', 'surface_weight',
+                     'bsubu', 'bsubv', 'bsupu', 'bsupv', 'G', 'I', 'iota',
                      'residuals3d', 'residuals1d', 'profile', 'total']
         for v in variables:
             results.__setattr__(v, eval(v))
