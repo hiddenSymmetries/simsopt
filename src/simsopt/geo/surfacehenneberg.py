@@ -181,6 +181,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                                self.rhomn[0, self.nmax + 1:],
                                np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='C')))
 
+    def set_dofs(self, dofs):
+        self.local_x = dofs
+
     def num_dofs(self):
         """
         Return the number of degrees of freedom.
