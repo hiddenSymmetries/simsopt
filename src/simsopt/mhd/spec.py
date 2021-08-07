@@ -41,7 +41,7 @@ except ImportError as e:
 
 from .._core.graph_optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from ..geo.graph_surfacerzfourier import SurfaceRZFourier
+from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..util.dev import SimsoptRequires
 if MPI is not None:
     from ..util.mpi import MpiPartition

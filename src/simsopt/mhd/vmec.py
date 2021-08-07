@@ -32,7 +32,7 @@ except ImportError as e:
 
 from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
-from ..geo.graph_surfacerzfourier import SurfaceRZFourier
+from ..geo.surfacerzfourier import SurfaceRZFourier
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
