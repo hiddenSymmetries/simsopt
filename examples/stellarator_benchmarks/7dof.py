@@ -39,7 +39,7 @@ qs = Quasisymmetry(boozer,
 
 # Objective function is 100 * (iota - (-0.41))^2 + 1 * (qs - 0)^2
 prob = LeastSquaresProblem.from_tuples([(vmec.iota_axis, -0.41, 100),
-                            (qs, 0, 1)])
+                                        (qs, 0, 1)])
 
 # residuals = prob.f()
 # vals = prob.dofs.f()
@@ -55,7 +55,7 @@ if mpi.proc0_world:
     print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
-least_squares_mpi_solve(prob, mpi) # , grad=True)
+least_squares_mpi_solve(prob, mpi)  # , grad=True)
 
 # residuals = prob.f()
 # vals = prob.dofs.f()

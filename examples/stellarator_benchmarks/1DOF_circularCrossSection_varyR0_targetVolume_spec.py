@@ -65,7 +65,7 @@ prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
-least_squares_serial_solve(prob) # , grad=True)
+least_squares_serial_solve(prob)  # , grad=True)
 
 print("At the optimum,")
 print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))

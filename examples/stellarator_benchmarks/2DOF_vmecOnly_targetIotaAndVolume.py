@@ -60,7 +60,7 @@ term2 = (equil.iota_axis, desired_iota, iota_weight)
 prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
-least_squares_mpi_solve(prob, mpi) # , grad=True)
+least_squares_mpi_solve(prob, mpi)  # , grad=True)
 
 objective = prob.objective()
 if mpi.proc0_world:
