@@ -4,8 +4,8 @@ import logging
 import numpy as np
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -32,9 +32,9 @@ s.boundary.change_resolution(6, s.boundary.ntor)
 # To make this example run relatively quickly, we will optimize in a
 # small parameter space. Here we pick out just 2 Fourier modes to vary
 # in the optimization:
-s.boundary.all_fixed()
-s.boundary.set_fixed('zs(6,1)', False)
-s.boundary.set_fixed('zs(6,2)', False)
+s.boundary.fix_all()
+s.boundary.unfix('zs(6,1)')
+s.boundary.unfix('zs(6,2)')
 
 # The main resonant surface is iota = p / q:
 p = -8
