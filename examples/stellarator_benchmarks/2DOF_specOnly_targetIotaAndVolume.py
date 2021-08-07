@@ -59,7 +59,7 @@ term2 = (equil.iota, desired_iota, iota_weight)
 prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
-least_squares_serial_solve(prob) # , grad=True)
+least_squares_serial_solve(prob)  # , grad=True)
 
 print("At the optimum,")
 print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
