@@ -3,10 +3,10 @@
 import numpy as np
 from mpi4py import MPI
 
-from simsopt import LeastSquaresProblem
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.mhd import Vmec
 from simsopt.util.mpi import MpiPartition, log
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -50,14 +50,14 @@ surf.set_zs(1, 0, 0.1)
 # VMEC parameters are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(0,0)', False)
+surf.fix_all()
+surf.unfix('rc(0,0)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
 # combined to form a nonlinear-least-squares problem.
 desired_volume = 0.15
-prob = LeastSquaresProblem([(equil.volume, desired_volume, 1)])
+prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.

@@ -5,8 +5,8 @@ import numpy as np
 
 from simsopt.mhd import Spec
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -54,8 +54,8 @@ print('zs:', surf.zs)
 
 # Surface parameters are all non-fixed by default.  You can choose
 # which parameters are optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(0,0)', False)
+surf.fix_all()
+surf.unfix('rc(0,0)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
