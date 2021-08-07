@@ -2,8 +2,8 @@
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -63,10 +63,10 @@ for step in range(3):
               ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
-    surf.all_fixed()
+    surf.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, 
                      nmin=-max_mode, nmax=max_mode, fixed=False)
-    surf.set_fixed("rc(0,0)")  # Major radius
+    surf.fix("rc(0,0)")  # Major radius
 
     # For the test to run quickly, we stop after the first function
     # evaluation, by passing max_nfev=1 to scipy.optimize. For a

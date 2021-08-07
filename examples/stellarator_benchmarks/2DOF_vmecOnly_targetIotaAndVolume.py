@@ -3,9 +3,9 @@
 import numpy as np
 
 from simsopt.mhd import Vmec
-from simsopt import LeastSquaresProblem
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.util.mpi import MpiPartition, log
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -42,9 +42,9 @@ surf = equil.boundary
 # VMEC parameters are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(1,1)', False)
-surf.set_fixed('zs(1,1)', False)
+surf.fix_all()
+surf.unfix('rc(1,1)')
+surf.unfix('zs(1,1)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
@@ -57,7 +57,7 @@ desired_iota = 0.41
 iota_weight = 1
 term2 = (equil.iota_axis, desired_iota, iota_weight)
 
-prob = LeastSquaresProblem([term1, term2])
+prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
 least_squares_mpi_solve(prob, mpi, grad=True)

@@ -2,8 +2,8 @@
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -24,10 +24,10 @@ surf = vmec.boundary.to_Garabedian()
 vmec.boundary = surf
 
 # Define parameter space:
-surf.all_fixed()
+surf.fix_all()
 surf.fixed_range(mmin=0, mmax=2, nmin=-1, nmax=1, fixed=False)
-surf.set_fixed("Delta(1,0)")  # toroidally-averaged major radius
-surf.set_fixed("Delta(0,0)")  # toroidally-averaged minor radius
+surf.fix("Delta(1,0)")  # toroidally-averaged major radius
+surf.fix("Delta(0,0)")  # toroidally-averaged minor radius
 
 # Define objective function:
 boozer = Boozer(vmec, mpol=32, ntor=16)
@@ -41,15 +41,15 @@ qs = Quasisymmetry(boozer,
 prob = LeastSquaresProblem([(vmec.iota_axis, -0.41, 100),
                             (qs, 0, 1)])
 
-residuals = prob.f()
-vals = prob.dofs.f()
+# residuals = prob.f()
+# vals = prob.dofs.f()
 if mpi.proc0_world:
-    print("Initial values before shifting and scaling:  ", vals[:10])
-    print("Initial residuals after shifting and scaling:", residuals[:10])
-    print("size of residuals:", len(residuals))
+    # print("Initial values before shifting and scaling:  ", vals[:10])
+    # print("Initial residuals after shifting and scaling:", residuals[:10])
+    # print("size of residuals:", len(residuals))
     print("Initial objective function:", prob.objective())
     print("Parameter space:")
-    for name in prob.dofs.names:
+    for name in prob.names:
         print(name)
     print("Initial state vector:", prob.x)
     print("Initial iota on axis:", vmec.iota_axis())
@@ -57,11 +57,11 @@ if mpi.proc0_world:
 
 least_squares_mpi_solve(prob, mpi, grad=True)
 
-residuals = prob.f()
-vals = prob.dofs.f()
+# residuals = prob.f()
+# vals = prob.dofs.f()
 if mpi.proc0_world:
-    print("Final values before shifting and scaling:  ", vals[:10])
-    print("Final residuals after shifting and scaling:", residuals[:10])
+    # print("Final values before shifting and scaling:  ", vals[:10])
+    # print("Final residuals after shifting and scaling:", residuals[:10])
     print("Final objective function:", prob.objective())
     print("Final state vector:", prob.x)
     print("Final iota on axis:", vmec.iota_axis())
