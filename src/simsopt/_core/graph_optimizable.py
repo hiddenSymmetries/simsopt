@@ -18,7 +18,6 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
 
 import numpy as np
-import pandas as pd
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
