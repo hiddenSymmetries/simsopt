@@ -165,7 +165,7 @@ class Spec(Optimizable):
         fixed = np.full(len(x0), True)
         names = ['phiedge', 'curtor']
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=self._boundary,
+                         depends_on=[self._boundary],
                          external_dof_setter=Spec.set_dofs)
 
     @property
