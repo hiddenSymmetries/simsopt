@@ -61,7 +61,7 @@ surf.unfix('rc(0,0)')
 # term in a least-squares objective function.  A list of terms are
 # combined to form a nonlinear-least-squares problem.
 desired_volume = 0.15
-prob = LeastSquaresProblem([(equil.volume, desired_volume, 1)])
+prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
