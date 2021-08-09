@@ -18,7 +18,6 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
 
 import numpy as np
-import pandas as pd
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
@@ -30,21 +29,17 @@ class DOFs:
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
 
     This class holds data related to the degrees of freedom
-    associated with an Optimizable object. The class subclasses
-    pandas.DataFrame. To access the data stored in the DOFs class as a
-    pandas dataframe, use the labels under internal column shown in the
-    table below.
+    associated with an Optimizable object.
 
-    DOFs Dataframe column index table
-
-    =====   =============  ===============
-    Index   External name  Internal column
-    =====   =============  ===============
-    0       x              _x
-    1       free           free
-    2       lower_bounds   _lb
-    3       upper_bounds   _ub
-    =====   =============  ===============
+    =============  =============
+    External name  Internal name
+    =============  =============
+    x              _x
+    free           _free
+    lower_bounds   _lb
+    upper_bounds   _ub
+    names          _names
+    =============  =============
 
     The class implements the external name column properties in the above
     table as properties. Additional methods to update bounds, fix/unfix DOFs,
