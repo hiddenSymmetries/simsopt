@@ -439,6 +439,31 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
+    def test_from_wout(self):
+        """
+        Test reading in surfaces from a VMEC wout file.
+        """
+
+        # First try a stellarator-symmetric example:
+        filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
+        s = SurfaceRZFourier.from_wout(filename)
+        self.assertAlmostEqual(s.volume(), 2.98138727016329, places=12)
+        # If you ask for the s=0 surface, which is just the magnetic
+        # axis, the volume and area should be 0.
+        s = SurfaceRZFourier.from_wout(filename, 0)
+        self.assertTrue(np.abs(s.volume()) < 1.0e-13)
+        self.assertTrue(np.abs(s.area()) < 1.0e-13)
+
+        # Now try a non-stellarator-symmetric example:
+        filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
+        s = SurfaceRZFourier.from_wout(filename)
+        self.assertAlmostEqual(s.volume(), 0.199228326859097, places=12)
+        # If you ask for the s=0 surface, which is just the magnetic
+        # axis, the volume and area should be 0.
+        s = SurfaceRZFourier.from_wout(filename, 0)
+        self.assertTrue(np.abs(s.volume()) < 1.0e-13)
+        self.assertTrue(np.abs(s.area()) < 1.0e-13)
+
     def test_derivatives(self):
         """
         Check the automatic differentiation for area and volume.

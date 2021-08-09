@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.io import netcdf
+from scipy.interpolate import interp1d
 import simsoptpp as sopp
 from .surface import Surface
 
@@ -61,7 +63,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return names
 
     @classmethod
-    def from_focus(cls, filename, nphi=32, ntheta=32):
+    def from_focus(cls, filename, quadpoints_phi=32, quadpoints_theta=32):
         """
         Read in a surface from a FOCUS-format file.
         """
@@ -96,13 +98,85 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=nphi, quadpoints_theta=ntheta)
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         for j in range(Nfou):
             surf.rc[m[j], n[j] + ntor] = rc[j]
             surf.zs[m[j], n[j] + ntor] = zs[j]
             if not stellsym:
                 surf.rs[m[j], n[j] + ntor] = rs[j]
                 surf.zc[m[j], n[j] + ntor] = zc[j]
+
+        return surf
+
+    @classmethod
+    def from_wout(cls,
+                  filename: str,
+                  s: float = 1.0,
+                  quadpoints_phi: float = 32,
+                  quadpoints_theta: float = 32,
+                  interp_kind: str = 'linear'):
+        """
+        Read in a surface from a VMEC wout output file.
+
+        Args:
+            filename: Name of the wout_*.nc file to read.
+            s: Value of normalized toroidal flux to use for the surface.
+              The default value of 1.0 corresponds to the VMEC plasma boundary.
+              Must lie in the interval [0, 1].
+            quadpoints_phi: Grid of points in the toroidal angle to use for the surface.
+            quadpoints_theta: Grid of points in the poloidal angle to use for the surface.
+            interp_kind: Interpolation method in s. The available options correspond to
+              the ``kind`` argument of
+              `scipy.interpolate.interp1d <https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html#scipy-interpolate-interp1d>`_.
+        """
+
+        if s < 0 or s > 1:
+            raise ValueError('s must lie in the interval [0, 1]')
+
+        f = netcdf.netcdf_file(filename, mmap=False)
+        nfp = f.variables['nfp'][()]
+        ns = f.variables['ns'][()]
+        xm = f.variables['xm'][()]
+        xn = f.variables['xn'][()]
+        rmnc = f.variables['rmnc'][()]
+        zmns = f.variables['zmns'][()]
+        lasym = bool(f.variables['lasym__logical__'][()])
+        stellsym = not lasym
+        if lasym:
+            rmns = f.variables['rmns'][()]
+            zmnc = f.variables['zmnc'][()]
+        f.close()
+
+        # Interpolate in s:
+        s_full_grid = np.linspace(0.0, 1.0, ns)
+
+        interp = interp1d(s_full_grid, rmnc, kind=interp_kind, axis=0)
+        rbc = interp(s)
+
+        interp = interp1d(s_full_grid, zmns, kind=interp_kind, axis=0)
+        zbs = interp(s)
+
+        if lasym:
+            interp = interp1d(s_full_grid, rmns, kind=interp_kind, axis=0)
+            rbs = interp(s)
+
+            interp = interp1d(s_full_grid, zmnc, kind=interp_kind, axis=0)
+            zbc = interp(s)
+
+        mpol = int(np.max(xm))
+        ntor = int(np.max(np.abs(xn)))
+
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        for j in range(len(xm)):
+            m = int(xm[j])
+            n = int(xn[j] / nfp)
+            surf.rc[m, n + ntor] = rbc[j]
+            surf.zs[m, n + ntor] = zbs[j]
+            if not stellsym:
+                surf.rs[m, n + ntor] = rbs[j]
+                surf.zc[m, n + ntor] = zbc[j]
 
         return surf
 
@@ -326,10 +400,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     zs = self.get_zs(m, n)
                     if np.abs(rc) > 0 or np.abs(zs) > 0:
                         f.write("RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
-                              .format(n, m, rc, n, m, zs))
+                                .format(n, m, rc, n, m, zs))
                     if (not self.stellsym):
                         rs = self.get_rs(m, n)
                         zc = self.get_zc(m, n)
                         if np.abs(rs) > 0 or np.abs(zc) > 0:
                             f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
-                                  .format(n, m, rs, n, m, zc))
+                                    .format(n, m, rs, n, m, zc))
