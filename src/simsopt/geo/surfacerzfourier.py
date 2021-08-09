@@ -63,53 +63,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return names
 
     @classmethod
-    def from_focus(cls, filename, quadpoints_phi=32, quadpoints_theta=32):
-        """
-        Read in a surface from a FOCUS-format file.
-        """
-        f = open(filename, 'r')
-        lines = f.readlines()
-        f.close()
-
-        # Read the line containing Nfou and nfp:
-        splitline = lines[1].split()
-        errmsg = "This does not appear to be a FOCUS-format file."
-        assert len(splitline) == 3, errmsg
-        Nfou = int(splitline[0])
-        nfp = int(splitline[1])
-
-        # Now read the Fourier amplitudes:
-        n = np.full(Nfou, 0)
-        m = np.full(Nfou, 0)
-        rc = np.zeros(Nfou)
-        rs = np.zeros(Nfou)
-        zc = np.zeros(Nfou)
-        zs = np.zeros(Nfou)
-        for j in range(Nfou):
-            splitline = lines[j + 4].split()
-            n[j] = int(splitline[0])
-            m[j] = int(splitline[1])
-            rc[j] = float(splitline[2])
-            rs[j] = float(splitline[3])
-            zc[j] = float(splitline[4])
-            zs[j] = float(splitline[5])
-        assert np.min(m) == 0
-        stellsym = np.max(np.abs(rs)) == 0 and np.max(np.abs(zc)) == 0
-        mpol = int(np.max(m))
-        ntor = int(np.max(np.abs(n)))
-
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-                   quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        for j in range(Nfou):
-            surf.rc[m[j], n[j] + ntor] = rc[j]
-            surf.zs[m[j], n[j] + ntor] = zs[j]
-            if not stellsym:
-                surf.rs[m[j], n[j] + ntor] = rs[j]
-                surf.zc[m[j], n[j] + ntor] = zc[j]
-
-        return surf
-
-    @classmethod
     def from_wout(cls,
                   filename: str,
                   s: float = 1.0,
@@ -165,7 +118,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             zbc = interp(s)
 
         mpol = int(np.max(xm))
-        ntor = int(np.max(np.abs(xn)))
+        ntor = int(np.max(np.abs(xn)) / nfp)
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -177,6 +130,53 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             if not stellsym:
                 surf.rs[m, n + ntor] = rbs[j]
                 surf.zc[m, n + ntor] = zbc[j]
+
+        return surf
+
+    @classmethod
+    def from_focus(cls, filename, quadpoints_phi=32, quadpoints_theta=32):
+        """
+        Read in a surface from a FOCUS-format file.
+        """
+        f = open(filename, 'r')
+        lines = f.readlines()
+        f.close()
+
+        # Read the line containing Nfou and nfp:
+        splitline = lines[1].split()
+        errmsg = "This does not appear to be a FOCUS-format file."
+        assert len(splitline) == 3, errmsg
+        Nfou = int(splitline[0])
+        nfp = int(splitline[1])
+
+        # Now read the Fourier amplitudes:
+        n = np.full(Nfou, 0)
+        m = np.full(Nfou, 0)
+        rc = np.zeros(Nfou)
+        rs = np.zeros(Nfou)
+        zc = np.zeros(Nfou)
+        zs = np.zeros(Nfou)
+        for j in range(Nfou):
+            splitline = lines[j + 4].split()
+            n[j] = int(splitline[0])
+            m[j] = int(splitline[1])
+            rc[j] = float(splitline[2])
+            rs[j] = float(splitline[3])
+            zc[j] = float(splitline[4])
+            zs[j] = float(splitline[5])
+        assert np.min(m) == 0
+        stellsym = np.max(np.abs(rs)) == 0 and np.max(np.abs(zc)) == 0
+        mpol = int(np.max(m))
+        ntor = int(np.max(np.abs(n)))
+
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        for j in range(Nfou):
+            surf.rc[m[j], n[j] + ntor] = rc[j]
+            surf.zs[m[j], n[j] + ntor] = zs[j]
+            if not stellsym:
+                surf.rs[m[j], n[j] + ntor] = rs[j]
+                surf.zc[m[j], n[j] + ntor] = zc[j]
 
         return surf
 
