@@ -70,7 +70,7 @@ class LeastSquaresProblemTests(unittest.TestCase):
         for solver in solvers:
             #for grad in [True, False]:
             r = Rosenbrock()
-            prob = LeastSquaresProblem(0, 1, opts_in=r)
+            prob = LeastSquaresProblem(0, 1, depends_on=r)
             solver(prob)  # , grad=grad)
             self.assertAlmostEqual(prob.objective(), 0)
             #v = r.full_x

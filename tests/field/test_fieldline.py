@@ -15,7 +15,6 @@ try:
     with_evtk = True
 except ImportError:
     with_evtk = False
-with_boost = sopp.with_boost()
 
 
 def validate_phi_hits(phi_hits, nphis):
@@ -33,7 +32,6 @@ def validate_phi_hits(phi_hits, nphis):
 
 class FieldlineTesting(unittest.TestCase):
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_toroidal(self):
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
@@ -55,7 +53,6 @@ class FieldlineTesting(unittest.TestCase):
         if with_evtk:
             particles_to_vtk(res_tys, '/tmp/fieldlines')
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_tokamak(self):
         # Test a simple circular tokamak geometry that
         # consists of a superposition of a purely toroidal
@@ -75,7 +72,6 @@ class FieldlineTesting(unittest.TestCase):
         rtest = [[np.sqrt((np.sqrt(res_tys[i][j][1]**2+res_tys[i][j][2]**2)-R0test)**2+res_tys[i][j][3]**2)-R0[i]+R0test for j in range(len(res_tys[i]))] for i in range(len(res_tys))]
         assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_plot(self):
         coils, currents, ma = get_ncsx_data(Nt_coils=15)
         nfp = 3
@@ -104,7 +100,6 @@ class FieldlineTesting(unittest.TestCase):
         except ImportError:
             pass
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_ncsx_known(self):
         coils, currents, ma = get_ncsx_data(Nt_coils=25)
         nfp = 3
@@ -119,7 +114,6 @@ class FieldlineTesting(unittest.TestCase):
         for i in range(len(phis)-1):
             assert np.linalg.norm(ma.gamma()[i+1, :] - res_phi_hits[0][i, 2:5]) < 1e-4
 
-    @unittest.skipIf(not with_boost, "boost not found")
     def test_poincare_caryhanson(self):
         # Test with a known magnetic field - optimized Cary&Hanson configuration
         # with a magnetic axis at R=0.9413. Field created using the Biot-Savart
