@@ -1,7 +1,7 @@
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
-from simsopt.field.biotsavart import BiotSavart, Current, Coil
+from simsopt.field.biotsavart import BiotSavart, Current
 from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 import numpy as np
