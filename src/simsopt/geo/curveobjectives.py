@@ -180,6 +180,12 @@ class MinimumDistance(Optimizable):
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
         super().__init__(depends_on=curves)
 
+    def recompute_bell(self, parent=None):
+        from scipy.spatial import KDTree
+        self.trees = []
+        for i in range(len(self.curves)):
+            self.trees.append(KDTree(self.curves[i].gamma()))
+
     def J(self):
         """
         This returns the value of the quantity.
@@ -188,7 +194,15 @@ class MinimumDistance(Optimizable):
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
+            tree1 = self.trees[i]
             for j in range(i):
+                tree2 = self.trees[j]
+                # check whether there are any points that are actually closer
+                # than minimum_distance
+                dists = tree1.sparse_distance_matrix(tree2, self.minimum_distance)
+                if len(dists) == 0:
+                    continue
+
                 gamma2 = self.curves[j].gamma()
                 l2 = self.curves[j].gammadash()
                 res += self.J_jax(gamma1, l1, gamma2, l2)
@@ -203,7 +217,14 @@ class MinimumDistance(Optimizable):
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
+            tree1 = self.trees[i]
             for j in range(i):
+                tree2 = self.trees[j]
+                dists = tree1.sparse_distance_matrix(tree2, self.minimum_distance)
+                # check whether there are any points that are actually closer
+                # than minimum_distance
+                if len(dists) == 0:
+                    continue
                 gamma2 = self.curves[j].gamma()
                 l2 = self.curves[j].gammadash()
 
