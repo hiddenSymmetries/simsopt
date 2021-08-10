@@ -64,6 +64,15 @@ class Derivative():
             inB: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
         }
 
+    This `Derivative` can then be used to obtain partial derivatives or the full gradient of `J`, via
+
+    .. code-block::
+
+        dJ = obj.dJ()
+        dJ_by_dinA = dJ(inA) # derivative of Objective w.r.t. to OptimA
+        dJ_by_dinB = dJ(inB) # derivative of Objective w.r.t. to OptimB
+        gradJ = dJ(obj) # gradient of Objective
+
     
     """
 
