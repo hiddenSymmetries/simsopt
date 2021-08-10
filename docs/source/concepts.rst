@@ -179,7 +179,7 @@ Curves
 ~~~~~~
 
 A :obj:`simsopt.geo.curve.Curve` is modelled as a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.
-A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\} \subset [0, 1]` and return all information about the curve, at these quadrature points.
+A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\} \subset [0, 1]` and returns all information about the curve, at these quadrature points.
 
 - ``Curve.gamma()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns a list of XYZ coordinates along the curve.
 - ``Curve.gammadash()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma'(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns the tangent along the curve.

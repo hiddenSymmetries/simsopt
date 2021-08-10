@@ -1,11 +1,11 @@
 from math import pi
+from itertools import chain
 
 import numpy as np
 from jax.ops import index, index_add
 import jax.numpy as jnp
 
-from .curve import JaxCurve
-from .curve import Curve
+from .curve import Curve, JaxCurve
 import simsoptpp as sopp
 
 
@@ -33,7 +33,24 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
-        Curve.__init__(self)
+        Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order),
+                       external_dof_setter=CurveXYZFourier.set_dofs_impl)
+
+    def _make_names(self, order):
+        x_names = ['xc(0)']
+        x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
+        x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
+        x_names += list(chain.from_iterable(zip(x_cos_names, x_sin_names)))
+        y_names = ['yc(0)']
+        y_cos_names = [f'yc({i})' for i in range(1, order + 1)]
+        y_sin_names = [f'ys({i})' for i in range(1, order + 1)]
+        y_names += list(chain.from_iterable(zip(y_cos_names, y_sin_names)))
+        z_names = ['zc(0)']
+        z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
+        z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
+        z_names += list(chain.from_iterable(zip(z_cos_names, z_sin_names)))
+
+        return x_names + y_names + z_names
 
     def get_dofs(self):
         """
@@ -45,9 +62,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
+        self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()
 
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
@@ -78,7 +94,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
                 dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
                 dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
-            coils[ic].set_dofs(np.concatenate(dofs))
+            coils[ic].local_x = np.concatenate(dofs)
         return coils
 
 
@@ -90,8 +106,10 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
     for i in range(3):
         gamma = index_add(gamma, index[:, i], coeffs[i][0])
         for j in range(1, order+1):
-            gamma = index_add(gamma, index[:, i], coeffs[i][2*j-1] * jnp.sin(2*pi*j*points))
-            gamma = index_add(gamma, index[:, i], coeffs[i][2*j] * jnp.cos(2*pi*j*points))
+            gamma = index_add(gamma, index[:, i],
+                              coeffs[i][2*j-1] * jnp.sin(2*pi*j*points))
+            gamma = index_add(gamma, index[:, i],
+                              coeffs[i][2*j] * jnp.cos(2*pi*j*points))
     return gamma
 
 
@@ -111,7 +129,7 @@ class JaxCurveXYZFourier(JaxCurve):
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
-        super().__init__(quadpoints, pure)
+        super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients))
 
     def num_dofs(self):
         """
