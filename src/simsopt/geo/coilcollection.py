@@ -48,7 +48,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         d[1] = R1
         d[2*(2*order+1)+2] = R1
         curve.x = d
-        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncoils)
+        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
         curve = RotatedCurve(curve, angle, False)
         curves.append(curve)
     return curves
