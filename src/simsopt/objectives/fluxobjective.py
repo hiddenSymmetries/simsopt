@@ -16,7 +16,7 @@ class SquaredFlux(Optimizable):
         xyz = self.surface.gamma()
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:,:,None]
+        unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(xyz.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
         if self.target is not None:

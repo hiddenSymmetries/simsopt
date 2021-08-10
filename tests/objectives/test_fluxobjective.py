@@ -31,6 +31,7 @@ def check_taylor_test(J):
         # print("err/err_old", err/err_old)
         err_old = err
 
+
 class FluxObjectiveTests(unittest.TestCase):
 
     def test_flux(self):
@@ -58,7 +59,6 @@ class FluxObjectiveTests(unittest.TestCase):
         target = np.zeros(s.gamma().shape[0:2])
         Jf3 = SquaredFlux(s, bs, target)
         check_taylor_test(Jf3)
-
 
         Jls = [CurveLength(c) for c in base_curves]
         JF = FOCUSObjective(Jf, Jls, ALPHA)

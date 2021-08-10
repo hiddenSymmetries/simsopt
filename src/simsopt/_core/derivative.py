@@ -21,14 +21,14 @@ class Derivative():
         obj = Objective(inter1, inter2)
 
     Then ``obj.dJ()`` will return a ``Derivative`` object containing a dictionary
-    
+
     .. code-block::
 
         {
             inA : dobj/dinA,
             inB : dobj/dinB,
         }
-            
+
     with
 
     .. code-block::
@@ -73,7 +73,7 @@ class Derivative():
         dJ_by_dinB = dJ(inB) # derivative of Objective w.r.t. to OptimB
         gradJ = dJ(obj) # gradient of Objective
 
-    
+
     """
 
     def __init__(self, data={}):
