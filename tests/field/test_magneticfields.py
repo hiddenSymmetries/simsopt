@@ -5,8 +5,8 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.field.biotsavart import BiotSavart, Coil, Current
+from simsopt.geo.coilcollection import coils_via_symmetries
 from simsopt.util.zoo import get_ncsx_data
 
 import numpy as np
@@ -70,11 +70,13 @@ class Testing(unittest.TestCase):
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         # Set up helical field
-        coils = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
-        coils[0].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
-        coils[1].set_dofs(np.concatenate(([0, 0], [0, 0])))
+        curves = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
+        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0])))
         currents = [-2.1e5, 2.1e5]
-        Bhelical = BiotSavart(coils, currents)
+        Bhelical = BiotSavart([
+            Coil(curves[0], Current(currents[0])),
+            Coil(curves[1], Current(currents[1]))])
         # Set up toroidal fields
         Btoroidal1 = ToroidalField(1., 1.)
         Btoroidal2 = ToroidalField(1.2, 0.1)
@@ -148,9 +150,9 @@ class Testing(unittest.TestCase):
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         ## verify with a x^2+z^2=radius^2 circular coil
         normal = [np.pi/2, 0]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
-        Bcircular = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -162,9 +164,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX, transpGradB1)
         # use normal = [0, 1, 0]
         normal = [0, 1, 0]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
-        Bcircular = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -176,9 +178,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX, transpGradB1)
         ## verify with a y^2+z^2=radius^2 circular coil
         normal = [np.pi/2, np.pi/2]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -193,9 +195,9 @@ class Testing(unittest.TestCase):
         assert np.allclose(Afield, [[0, 5.15786, -2.643056]])
         # use normal=[1,0,0]
         normal = [1, 0, 0]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -208,12 +210,12 @@ class Testing(unittest.TestCase):
         ## verify with a x^2+y^2=radius^2 circular coil
         center = [0, 0, 0]
         normal = [0, 0]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
-        Bcircular = BiotSavart(coils, [current])
-        coils2 = [CurveRZFourier(300, 1, 1, True)]
-        coils2[0].set_dofs([radius, 0, 0])
-        Bcircular2 = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve2, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -229,12 +231,12 @@ class Testing(unittest.TestCase):
         # use normal = [0, 0, 1]
         center = [0, 0, 0]
         normal = [0, 0, 1]
-        coils = [CurveXYZFourier(300, 1)]
-        coils[0].set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
-        Bcircular = BiotSavart(coils, [current])
-        coils2 = [CurveRZFourier(300, 1, 1, True)]
-        coils2[0].set_dofs([radius, 0, 0])
-        Bcircular2 = BiotSavart(coils, [current])
+        curve = CurveXYZFourier(300, 1)
+        curve.set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -252,11 +254,13 @@ class Testing(unittest.TestCase):
         point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
         field = [[-0.00101961, 0.20767292, -0.00224908]]
         derivative = [[[0.47545098, 0.01847397, 1.10223595], [0.01847426, -2.66700072, 0.01849548], [1.10237535, 0.01847085, 2.19154973]]]
-        coils = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
-        coils[0].set_dofs(np.concatenate(([0, 0], [0, 0])))
-        coils[1].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
+        curves = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].set_dofs(np.concatenate(([0, 0], [0, 0])))
+        curves[1].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
         currents = [-3.07e5, 3.07e5]
-        Bhelical = BiotSavart(coils, currents)
+        Bhelical = BiotSavart([
+            Coil(curves[0], Current(currents[0])),
+            Coil(curves[1], Current(currents[1]))])
         Bhelical.set_points(point)
         assert np.allclose(Bhelical.B(), field)
         assert np.allclose(Bhelical.dB_by_dX(), derivative)
@@ -383,10 +387,10 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        coils, currents, _ = get_ncsx_data(Nt_coils=10, Nt_ma=10, ppp=5)
+        curves, currents, ma = get_ncsx_data()
         nfp = 3
-        stellarator = CoilCollection(coils, currents, nfp, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         btotal = bs + B0
         n = 12
         rmin = 1.5
@@ -426,9 +430,10 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         btotal = bs + B0
         n = 8
         rmin = 1.5
@@ -468,9 +473,10 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         old_err_1 = 1e6
         old_err_2 = 1e6
         btotal = bs + B0
@@ -495,9 +501,10 @@ class Testing(unittest.TestCase):
             old_err_2 = err_2
 
     def test_get_set_points_cyl_cart(self):
-        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
 
         points_xyz = np.asarray([[0.5, 0.6, 0.7]])
         points_rphiz = np.zeros_like(points_xyz)
@@ -516,9 +523,10 @@ class Testing(unittest.TestCase):
 
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
-        coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
     def test_poloidal_field(self):

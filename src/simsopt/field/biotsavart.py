@@ -12,7 +12,7 @@ class Coil(sopp.Coil, Optimizable):
         self.__curve = curve
         self.__current = current
         sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, x0=np.asarray([]), opts_in=[curve, current])
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
@@ -42,7 +42,7 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
     def __init__(self, basecurrent, scale):
         self.__basecurrent = basecurrent
         sopp.ScaledCurrent.__init__(self, basecurrent, scale)
-        Optimizable.__init__(self, x0=np.asarray([]), opts_in=[basecurrent])
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[basecurrent])
 
     def vjp(self, v_current):
         return self.__basecurrent.vjp(self.scale * v_current)
@@ -67,7 +67,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def __init__(self, coils):
         self.__coils = coils
         sopp.BiotSavart.__init__(self, coils)
-        MagneticField.__init__(self, opts_in=coils)
+        MagneticField.__init__(self, depends_on=coils)
 
 
     def compute_A(self, compute_derivatives=0):
