@@ -1,9 +1,11 @@
-include CMakeLists.txt COPYING* requirements.txt pyproject.toml
-include examples/* 
-exclude examples/wout*.nc examples/mercier* examples/jxbout* examples/spec*.sp examples/spec*.sp.* examples/.gitignore
-
-recursive-include thirdparty *
-recursive-include profiling *
-recursive-include src/simsgeopp *
 recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
+recursive-exclude .git
+recursive-exclude .github * .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
+recursive-exclude docs *
+recursive-exclude dist *
+recursive-exclude ci *
+recursive-exclude conda.recipe *
+recursive-exclude examples wout*.nc mercier* jxbout* spec*.sp spec*.sp.* .gitignore
+recursive-exclude tests .gitignore
 
+exclude .gitignore *readthedocs.yaml MANIFEST* run_autopep .gitmodules 

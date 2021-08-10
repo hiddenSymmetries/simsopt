@@ -14,7 +14,6 @@ try:
     with_mpi = True
 except ImportError:
     with_mpi = False
-with_boost = sopp.with_boost()
 
 
 class MPITracingTesting(unittest.TestCase):
@@ -42,7 +41,7 @@ class MPITracingTesting(unittest.TestCase):
         self.bsh = bsh
         self.ma = ma
 
-    @unittest.skipIf(not (with_boost and with_mpi), "boost or mpi not found")
+    @unittest.skipIf(not with_mpi, "mpi not found")
     def test_parallel_fieldline(self):
         nlines = 4
         r0 = np.linalg.norm(self.ma.gamma()[0, :2])
@@ -60,7 +59,7 @@ class MPITracingTesting(unittest.TestCase):
         for i in range(nlines):
             assert np.allclose(res_phi_hits_mpi[i], res_phi_hits[i], atol=1e-9, rtol=1e-9)
 
-    @unittest.skipIf(not (with_boost and with_mpi), "boost or mpi not found")
+    @unittest.skipIf(not with_mpi, "mpi not found")
     def test_parallel_guiding_center(self):
         nparticles = 4
         m = PROTON_MASS
