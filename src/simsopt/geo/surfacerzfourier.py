@@ -491,15 +491,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return self.dvolume_by_dcoeff()
 
-    def write(self, filename: str = 'boundary'):
+    def write_nml(self, filename: str = 'boundary'):
         """
-        Writes an ASCII file containing the RBC/RBS/ZBS/ZBS coefficients,
-        in the form used in VMEC and SPEC input namelists.
+        Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
+        coefficients, in the form used in VMEC and SPEC input files.
 
         Args:
             filename: Name of the file to write.
         """
         with open(filename, 'w') as f:
+            f.write('&INDATA\n')
             if self.stellsym:
                 f.write('LASYM = .FALSE.\n')
             else:
@@ -522,3 +523,4 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                         if np.abs(rs) > 0 or np.abs(zc) > 0:
                             f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
                                     .format(n, m, rs, n, m, zc))
+            f.write('/\n')

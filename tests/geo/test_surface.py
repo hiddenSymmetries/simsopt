@@ -532,6 +532,48 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
                 self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
+    def test_write_nml(self):
+        """
+        Test the write_nml() function. To do this, we read in a VMEC input
+        namelist, call write_nml(), read in the resulting namelist as
+        a new surface, and compare the data to the original surface.
+        """
+        # Try a stellarator-symmetric case
+        filename = TEST_DIR / 'input.li383_low_res'
+        s1 = SurfaceRZFourier.from_vmec_input(filename)
+        new_filename = 'boundary.li383_low_res'
+        s1.write_nml(new_filename)
+        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        self.assertEqual(s1.nfp, s2.nfp)
+        self.assertEqual(s1.stellsym, s2.stellsym)
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+
+        # Try a non-stellarator-symmetric case
+        filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
+        s1 = SurfaceRZFourier.from_vmec_input(filename)
+        s1.write_nml()
+        new_filename = 'boundary'
+        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        self.assertEqual(s1.nfp, s2.nfp)
+        self.assertEqual(s1.stellsym, s2.stellsym)
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+
     def test_from_focus(self):
         """
         Try reading in a focus-format file.
