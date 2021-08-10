@@ -28,14 +28,14 @@ class SquaredFlux(Optimizable):
     def dJ(self):
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:,:,None]
+        unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
         if self.target is not None:
             B_n = (Bcoil_n - self.target)
         else:
             B_n = Bcoil_n
-        dJdB = (B_n[...,None] * unitn * absn[...,None])/absn.size
+        dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
@@ -56,7 +56,7 @@ class FOCUSObjective(Optimizable):
             res += self.alpha * sum([J.J() for J in self.Jcls])
         if self.beta > 0:
             res += self.beta * self.Jdist.J()
-        return  res
+        return res
 
     def dJ(self):
         res = self.Jflux.dJ()
