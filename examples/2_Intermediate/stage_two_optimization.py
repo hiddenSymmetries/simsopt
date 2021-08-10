@@ -10,6 +10,8 @@ from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
 
+import os
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
 """
 In this example we solve a FOCUS like Stage II coil optimisation problem: the
@@ -37,9 +39,10 @@ R0 = 1.5
 R1 = 0.8
 order = 6
 PPP = 15
-ALPHA = 1e-6
+ALPHA = 1e-5
 MIN_DIST = 0.2
 BETA = 10
+MAXITER = 50 if ci else 400
 
 base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, PPP=PPP)
 base_currents = []
@@ -79,8 +82,10 @@ def fun(dofs):
     grad = dJ(JF)
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
-    print(f"J={J:.3e}, Jflux={Jf.J():.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(Jf.J())/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
+    jf = sum(J.J() for J in JF.Jfluxs)/len(JF.Jfluxs)
+    print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
     return J, grad
+
 
 print("""
 ################################################################################
@@ -104,7 +109,7 @@ print("""
 ################################################################################
 """)
 from scipy.optimize import minimize
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': 400, 'maxcor': 400}, tol=1e-15)
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
 curves_to_vtk(curves, "/tmp/curves_opt")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk("/tmp/surf_opt", extra_data=pointData)
