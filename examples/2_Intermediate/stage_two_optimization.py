@@ -32,11 +32,14 @@ for i in range(ncoils):
     base_currents.append(curr)
 
 coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+bs = BiotSavart(coils)
+bs.set_points(s.gamma().reshape((-1, 3)))
+
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, "/tmp/curves_init")
-s.to_vtk("/tmp/surf")
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk("/tmp/surf_init", extra_data=pointData)
 
-bs = BiotSavart(coils)
 
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
@@ -75,9 +78,11 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
 
 print("""    
 ################################################################################
-### Run some optimisation ######################################################
+### Run the optimisation #######################################################
 ################################################################################
 """)
 from scipy.optimize import minimize
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': 400, 'maxcor': 400}, tol=1e-15)
 curves_to_vtk(curves, "/tmp/curves_opt")
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk("/tmp/surf_opt", extra_data=pointData)
