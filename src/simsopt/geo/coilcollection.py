@@ -3,7 +3,6 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.field.biotsavart import Coil, ScaledCurrent
 
 
-
 class CoilCollection():
     """
     This class represents a collection of coils and currents.

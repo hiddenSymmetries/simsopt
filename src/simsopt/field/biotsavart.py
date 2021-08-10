@@ -25,7 +25,7 @@ class Current(sopp.Current, Optimizable):
     def __init__(self, current):
         sopp.Current.__init__(self, current)
         Optimizable.__init__(self, external_dof_setter=Current.set_dofs,
-                       x0=self.get_dofs())
+                             x0=self.get_dofs())
 
     def set_dofs(self, dofs):
         sopp.Current.set_dofs(self, dofs)
@@ -68,7 +68,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         self.__coils = coils
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
-
 
     def compute_A(self, compute_derivatives=0):
         r"""

@@ -404,8 +404,6 @@ class Curve(Optimizable):
         return dkappadash_by_dcoeff
 
 
-
-
 class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure, **kwargs):
         if isinstance(quadpoints, np.ndarray):
