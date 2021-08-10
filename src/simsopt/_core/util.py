@@ -215,3 +215,22 @@ def finite_difference_steps(x: RealArray,
                          'Increase abs_step.')
 
     return steps
+
+
+def nested_lists_to_array(ll):
+    """
+    Convert a ragged list of lists to a 2D numpy array.  Any entries
+    that are None are replaced by 0. This routine is useful for
+    parsing fortran namelists that include 2D arrays using f90nml.
+
+    Args:
+        ll: A list of lists to convert.
+    """
+    mdim = len(ll)
+    ndim = np.max([len(x) for x in ll])
+    arr = np.zeros((mdim, ndim))
+    for jm, l in enumerate(ll):
+        for jn, x in enumerate(l):
+            if x is not None:
+                arr[jm, jn] = x
+    return arr
