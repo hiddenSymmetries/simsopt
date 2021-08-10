@@ -1,42 +1,17 @@
-from math import pi
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.field.biotsavart import Coil, ScaledCurrent
-
-
-class CoilCollection():
-    """
-    This class represents a collection of coils and currents.
-    For stellarators with symmetries (rotational, stellarator symmetry), this class performs reflections and
-    rotations to generate a full set of stellarator coils from a base set of modular coils.
-    """
-
-    def __init__(self, coils, currents, nfp, stellarator_symmetry):
-        self._base_coils = coils
-        self._base_currents = currents
-        self.coils = []
-        self.currents = []
-        flip_list = [False, True] if stellarator_symmetry else [False]
-        self.map = []
-        self.current_sign = []
-        for k in range(0, nfp):
-            for flip in flip_list:
-                for i in range(len(coils)):
-                    if k == 0 and not flip:
-                        self.coils.append(self._base_coils[i])
-                        self.currents.append(self._base_currents[i])
-                    else:
-                        rotcoil = RotatedCurve(coils[i], 2*pi*k/nfp, flip)
-                        self.coils.append(rotcoil)
-                        self.currents.append(-self._base_currents[i] if flip else currents[i])
-                    self.map.append(i)
-                    self.current_sign.append(-1 if flip else +1)
-        dof_ranges = [(0, len(self._base_coils[0].get_dofs()))]
-        for i in range(1, len(self._base_coils)):
-            dof_ranges.append((dof_ranges[-1][1], dof_ranges[-1][1] + len(self._base_coils[i].get_dofs())))
-        self.dof_ranges = dof_ranges
+from math import pi
+import numpy as np
 
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
+    """
+    Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
+    ``Coil`` objects obtained by applying rotations and flipping corresponding
+    to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
+    """
+
     assert len(curves) == len(currents)
     flip_list = [False, True] if stellsym else [False]
     coils = []
@@ -50,3 +25,30 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
                     current = ScaledCurrent(currents[i], -1.) if flip else currents[i]
                     coils.append(Coil(rotcurve, current))
     return coils
+
+
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, PPP=15):
+    """
+    Create ``ncurves`` curves that will result in equally spaced coils after applying
+    ``coils_via_symmetries``. Example that creates 4 base curves, that are then 
+    rotated 3 times and flipped for stellarator symmetry:
+
+    .. code-block::
+
+        base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
+        base_currents = [Current(1e5) for c in base_curves]
+        coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
+
+    """
+    curves = []
+    for i in range(ncurves):
+        curve = CurveXYZFourier(order*PPP, order)
+        d = curve.x
+        d[0] = R0
+        d[1] = R1
+        d[2*(2*order+1)+2] = R1
+        curve.x = d
+        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncoils)
+        curve = RotatedCurve(curve, angle, False)
+        curves.append(curve)
+    return curves

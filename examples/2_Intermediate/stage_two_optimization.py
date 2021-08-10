@@ -1,9 +1,8 @@
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.field.biotsavart import BiotSavart, Current, Coil
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 import numpy as np
 
@@ -24,18 +23,9 @@ order = 6
 PPP = 15
 ALPHA = 1e-5
 
-base_curves = []
+base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, PPP=PPP)
 base_currents = []
 for i in range(ncoils):
-    curve = CurveXYZFourier(order*PPP, order)
-    d = curve.x
-    d[0] = R0
-    d[1] = R1
-    d[2*(2*order+1)+2] = R1
-    curve.x = d
-    angle = (i+0.5)*(2*np.pi)/(2*nfp*ncoils)
-    curve = RotatedCurve(curve, angle, False)
-    base_curves.append(curve)
     curr = Current(1e5)
     if i == 0:
         curr.fix_all()
@@ -53,6 +43,10 @@ Jls = [CurveLength(c) for c in base_curves]
 
 JF = FOCUSObjective(Jf, Jls, ALPHA)
 
+
+# We don't have a general interface in SIMSOPT for optimisation problems that
+# are not in least-squares form, so we write a little wrapper function that we
+# pass directly to scipy.optimize.minimize
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
