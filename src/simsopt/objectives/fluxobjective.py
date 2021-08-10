@@ -42,19 +42,28 @@ class SquaredFlux(Optimizable):
 
 class FOCUSObjective(Optimizable):
 
-    def __init__(self, Jflux, Jcls, alpha):
+    def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=[], beta=0.):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[Jflux] + Jcls)
         self.Jflux = Jflux
         self.Jcls = Jcls
         self.alpha = alpha
+        self.Jdist = Jdist
+        self.beta = beta
 
     def J(self):
-        self.vals = [self.Jflux.J()] + [Jcl.J() for Jcl in self.Jcls]
-        return self.vals[0] + self.alpha * sum(self.vals[1:])
+        res = self.Jflux.J()
+        if self.alpha > 0:
+            res += self.alpha * sum([J.J() for J in self.Jcls])
+        if self.beta > 0:
+            res += self.beta * self.Jdist.J()
+        return  res
 
     def dJ(self):
         res = self.Jflux.dJ()
-        for Jcl in self.Jcls:
-            res += self.alpha * Jcl.dJ()
+        if self.alpha > 0:
+            for Jcl in self.Jcls:
+                res += self.alpha * Jcl.dJ()
+        if self.beta > 0:
+            res += self.beta * self.Jdist.dJ()
         return res
 

@@ -212,8 +212,8 @@ class MinimumDistance(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        dgamma_by_dcoeff_vjp_vecs = [None for c in self.curves]
-        dgammadash_by_dcoeff_vjp_vecs = [None for c in self.curves]
+        dgamma_by_dcoeff_vjp_vecs = [np.zeros_like((c.gamma(), )) for c in self.curves]
+        dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like((c.gammadash(), )) for c in self.curves]
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
@@ -228,28 +228,10 @@ class MinimumDistance(Optimizable):
                 gamma2 = self.curves[j].gamma()
                 l2 = self.curves[j].gammadash()
 
-                temp = self.thisgrad0(gamma1, l1, gamma2, l2)
-                if dgamma_by_dcoeff_vjp_vecs[i] is None:
-                    dgamma_by_dcoeff_vjp_vecs[i] = temp
-                else:
-                    dgamma_by_dcoeff_vjp_vecs[i] += temp
-
-                temp = self.thisgrad1(gamma1, l1, gamma2, l2)
-                if dgammadash_by_dcoeff_vjp_vecs[i] is None:
-                    dgammadash_by_dcoeff_vjp_vecs[i] = temp
-                else:
-                    dgammadash_by_dcoeff_vjp_vecs[i] += temp
-
-                temp = self.thisgrad2(gamma1, l1, gamma2, l2)
-                if dgamma_by_dcoeff_vjp_vecs[j] is None:
-                    dgamma_by_dcoeff_vjp_vecs[j] = temp
-                else:
-                    dgamma_by_dcoeff_vjp_vecs[j] += temp
-                temp = self.thisgrad3(gamma1, l1, gamma2, l2)
-                if dgammadash_by_dcoeff_vjp_vecs[j] is None:
-                    dgammadash_by_dcoeff_vjp_vecs[j] = temp
-                else:
-                    dgammadash_by_dcoeff_vjp_vecs[j] += temp
+                dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2)
+                dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2)
+                dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2)
+                dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res, start=Derivative({}))
