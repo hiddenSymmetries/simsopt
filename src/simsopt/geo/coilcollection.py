@@ -29,9 +29,12 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, PPP=15):
     """
-    Create ``ncurves`` curves that will result in equally spaced coils after applying
-    ``coils_via_symmetries``. Example that creates 4 base curves, that are then 
-    rotated 3 times and flipped for stellarator symmetry:
+    Create ``ncurves`` curves that will result in circular equally spaced coils
+    (major radius ``R0`` and minor radius ``R1``)  after applying
+    ``coils_via_symmetries``.
+
+    Usage example: create 4 base curves, which are then rotated 3 times and
+    flipped for stellarator symmetry:
 
     .. code-block::
 
