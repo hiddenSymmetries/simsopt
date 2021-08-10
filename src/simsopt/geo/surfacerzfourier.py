@@ -183,15 +183,39 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         rbc_first_n = nml.start_index['rbc'][0]
         rbc_last_n = rbc_first_n + rc.shape[1] - 1
         zbs_first_n = nml.start_index['zbs'][0]
-        zbs_last_n = zbs_first_n + rc.shape[1] - 1
-        ntor_boundary = np.max(np.abs(np.array([rbc_first_n, rbc_last_n, zbs_first_n, zbs_last_n], dtype='i')))
+        zbs_last_n = zbs_first_n + zs.shape[1] - 1
+        if lasym:
+            rbs_first_n = nml.start_index['rbs'][0]
+            rbs_last_n = rbs_first_n + rs.shape[1] - 1
+            zbc_first_n = nml.start_index['zbc'][0]
+            zbc_last_n = zbc_first_n + zc.shape[1] - 1
+        else:
+            rbs_first_n = 0
+            rbs_last_n = 0
+            zbc_first_n = 0
+            zbc_last_n = 0
+        ntor_boundary = np.max(np.abs(np.array([rbc_first_n, rbc_last_n,
+                                                zbs_first_n, zbs_last_n,
+                                                rbs_first_n, rbs_last_n,
+                                                zbc_first_n, zbc_last_n], dtype='i')))
 
         rbc_first_m = nml.start_index['rbc'][1]
         rbc_last_m = rbc_first_m + rc.shape[0] - 1
         zbs_first_m = nml.start_index['zbs'][1]
-        zbs_last_m = zbs_first_m + rc.shape[0] - 1
-        mpol_boundary = np.max((rbc_last_m, zbs_last_m))
-        logger.debug('Input file has ntor_boundary={} mpol_boundary={}'.format(ntor_boundary, mpol_boundary))
+        zbs_last_m = zbs_first_m + zs.shape[0] - 1
+        if lasym:
+            rbs_first_m = nml.start_index['rbs'][1]
+            rbs_last_m = rbs_first_m + rs.shape[0] - 1
+            zbc_first_m = nml.start_index['zbc'][1]
+            zbc_last_m = zbc_first_m + zc.shape[0] - 1
+        else:
+            rbs_first_m = 0
+            rbs_last_m = 0
+            zbc_first_m = 0
+            zbc_last_m = 0
+        mpol_boundary = np.max((rbc_last_m, zbs_last_m, rbs_last_m, zbc_last_m))
+        logger.debug('Input file has ntor_boundary={} mpol_boundary={}' \
+                     .format(ntor_boundary, mpol_boundary))
 
         surf = cls(mpol=mpol_boundary, ntor=ntor_boundary, nfp=nfp, stellsym=stellsym,
                    **kwargs)
@@ -208,6 +232,19 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             for jn in range(zs.shape[1]):
                 n = jn + nml.start_index['zbs'][0]
                 surf.set_zs(m, n, zs[jm, jn])
+
+        if lasym:
+            for jm in range(rs.shape[0]):
+                m = jm + nml.start_index['rbs'][1]
+                for jn in range(rs.shape[1]):
+                    n = jn + nml.start_index['rbs'][0]
+                    surf.set_rs(m, n, rs[jm, jn])
+
+            for jm in range(zc.shape[0]):
+                m = jm + nml.start_index['zbc'][1]
+                for jn in range(zc.shape[1]):
+                    n = jn + nml.start_index['zbc'][0]
+                    surf.set_zc(m, n, zc[jm, jn])
 
         return surf
 

@@ -457,17 +457,14 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=78, quadpoints_theta=71)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
-        """
         # Now try a non-stellarator-symmetric example:
-        filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
-        s = SurfaceRZFourier.from_wout(filename)
-        self.assertAlmostEqual(s.volume(), 0.199228326859097, places=8)
-        # If you ask for the s=0 surface, which is just the magnetic
-        # axis, the volume and area should be 0.
-        s = SurfaceRZFourier.from_wout(filename, 0)
-        self.assertTrue(np.abs(s.volume()) < 1.0e-13)
-        self.assertTrue(np.abs(s.area()) < 1.0e-13)
-        """
+        filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        true_volume = 0.199228326303124
+        self.assertAlmostEqual(s.volume(), true_volume, places=8)
+        # Try specifying the number of quadrature points:
+        s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=67, quadpoints_theta=69)
+        self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
     def test_from_vmec_2_ways(self):
         """
@@ -489,6 +486,36 @@ class SurfaceRZFourierTests(unittest.TestCase):
             for n in range(nmin, ntor + 1):
                 self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
                 self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+
+        # Now try a non-stellarator-symmetric example:
+        filename1 = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
+        filename2 = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
+        s1 = SurfaceRZFourier.from_vmec_input(filename1)
+        s2 = SurfaceRZFourier.from_wout(filename2)
+        self.assertEqual(s1.nfp, s2.nfp)
+        self.assertEqual(s1.stellsym, s2.stellsym)
+        # For non-stellarator-symmetric cases, we must be careful when
+        # directly comparing the rc/zs/rs/zc coefficients, because
+        # VMEC shifts the poloidal angle in readin.f upon loading the
+        # file. Moreover, in versions of VMEC other than the
+        # hiddenSymmetries python module, the shift to theta may have
+        # a bug so the angle shift is not by the claimed value. The
+        # specific input file used here has a boundary that should not
+        # be shifted by the hiddenSymmetries VMEC2000 module.  For any
+        # input file and version of VMEC, we can compare
+        # coordinate-independent properties like the volume and area.
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
+        self.assertAlmostEqual(s1.area(), s2.area(), places=7)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_from_focus(self):
         """
