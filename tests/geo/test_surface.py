@@ -446,7 +446,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         Test reading in surfaces from a VMEC input file.
         """
 
-        # First try a stellarator-symmetric example:
+        # First try some stellarator-symmetric examples:
         filename = TEST_DIR / 'input.li383_low_res'
         s = SurfaceRZFourier.from_vmec_input(filename)
         # The value in the next line includes m values up through 6,
@@ -455,6 +455,21 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
         # Try specifying the number of quadrature points:
         s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=78, quadpoints_theta=71)
+        self.assertAlmostEqual(s.volume(), true_volume, places=8)
+
+        filename = TEST_DIR / 'input.NuhrenbergZille_1988_QHS'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        true_volume = 188.552389137478
+        self.assertAlmostEqual(s.volume(), true_volume, places=8)
+
+        filename = TEST_DIR / 'input.cfqs_2b40'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        true_volume = 1.03641220569946
+        self.assertAlmostEqual(s.volume(), true_volume, places=8)
+
+        filename = TEST_DIR / 'input.circular_tokamak'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        true_volume = 473.741011252289
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
         # Now try a non-stellarator-symmetric example:
