@@ -6,7 +6,65 @@ class Derivative():
 
     """
     This class stores the derivative of a scalar output wrt to the individual
-    Optimizable classes that are required to compute this output.
+    ``Optimizable`` classes that are required to compute this output.
+
+    The idea of this class is as follows:
+
+    Consider a situation
+
+    .. code-block::
+
+        inA = OptimA()
+        inB = OptimB()
+        inter1 = Intermediate1(inA, inB)
+        inter2 = Intermediate2(inA, inB)
+        obj = Objective(inter1, inter2)
+
+    Then ``obj.dJ()`` will return a ``Derivative`` object containing a dictionary
+    
+    .. code-block::
+
+        {
+            inA : dobj/dinA,
+            inB : dobj/dinB,
+        }
+            
+    with
+
+    .. code-block::
+
+        dobj/dinA = dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
+        dobj/dinB = dobj/dinter1 * dinter1/dinB + dobj/dinter2 * dinter2/dinB
+
+    SIMSOPT computes these derivatives by first computing ``dobj/dinter1`` and ``dobj/dinter2``
+    and then passing this vector to `Intermediate1.vjp` and `Intermediate2.vjp`, which returns 
+
+    .. code-block::
+
+        {
+            inA: dobj/dinter1 * dinter1/dinA
+            inB: dobj/dinter1 * dinter1/dinA
+        }
+
+    and 
+
+    .. code-block::
+
+        {
+            inA: dobj/dinter2 * dinter2/dinA
+            inB: dobj/dinter2 * dinter2/dinA
+        }
+
+    respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects than results in the desired
+
+    .. code-block::
+
+        {
+            inA: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
+            inB: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
+        }
+
+    
     """
 
     def __init__(self, data={}):
@@ -50,7 +108,7 @@ class Derivative():
 
     def __call__(self, optim: Optimizable):
         """
-        Get the derivative with respect to the Optimizable object `optim`.
+        Get the derivative with respect to all DOFs that `optim` depends on.
         """
         deps = optim.ancestors + [optim]
         derivs = []
