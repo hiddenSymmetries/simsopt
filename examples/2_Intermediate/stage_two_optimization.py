@@ -4,11 +4,27 @@ from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.field.biotsavart import BiotSavart, Current
 from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
+from simsopt.geo.curveobjectives import MinimumDistance
 import numpy as np
-
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
+
+
+"""
+In this example we solve a FOCUS like Stage II coil optimisation problem: the
+goal is to find coils that generate a specific target normal field on a given
+surface.  In this particular case we consider a vacuum field, so the target is
+just zero.
+
+The objective is given by
+
+    J = \int |Bn| ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+
+if alpha or beta are increased, the coils are more regular and better
+separated, but the target normal field may not be achieved as well.
+"""
+
 nfp = 3
 nphi = 32
 ntheta = 32
@@ -21,12 +37,17 @@ R0 = 1.5
 R1 = 0.8
 order = 6
 PPP = 15
-ALPHA = 1e-5
+ALPHA = 1e-6
+MIN_DIST = 0.2
+BETA = 10
 
 base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, PPP=PPP)
 base_currents = []
 for i in range(ncoils):
     curr = Current(1e5)
+    # since the target field is zero, one possible solution is just to set all
+    # currents to 0. to avoid the minimizer finding that solution, we fix one
+    # of the currents
     if i == 0:
         curr.fix_all()
     base_currents.append(curr)
@@ -43,8 +64,9 @@ s.to_vtk("/tmp/surf_init", extra_data=pointData)
 
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
+Jdist = MinimumDistance(curves, MIN_DIST)
 
-JF = FOCUSObjective(Jf, Jls, ALPHA)
+JF = FOCUSObjective(Jf, Jls, ALPHA, Jdist, BETA)
 
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
@@ -55,9 +77,9 @@ def fun(dofs):
     J = JF.J()
     dJ = JF.dJ()
     grad = dJ(JF)
-    cl_string = ", ".join([f"{v:.3f}" for v in JF.vals[1:]])
+    cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
-    print(f"J={J:.3e}, Jflux={JF.vals[0]:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(JF.vals[0])/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
+    print(f"J={J:.3e}, Jflux={Jf.J():.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(Jf.J())/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
     return J, grad
 
 print("""
