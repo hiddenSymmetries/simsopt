@@ -1,6 +1,6 @@
 from math import pi
 from simsopt.geo.curve import RotatedCurve
-from .biotsavart import Coil, ScaledCurrent
+from simsopt.field.biotsavart import Coil, ScaledCurrent
 
 
 

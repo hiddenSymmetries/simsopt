@@ -80,7 +80,7 @@ class MagneticFieldMultiply(MagneticField):
     """
 
     def __init__(self, scalar, Bfield):
-        MagneticField.__init__(self)
+        MagneticField.__init__(self, depends_on=[Bfield])
         self.scalar = scalar
         self.Bfield = Bfield
 
@@ -115,7 +115,7 @@ class MagneticFieldSum(MagneticField):
     """
 
     def __init__(self, Bfields):
-        MagneticField.__init__(self, opts_in=Bfields)
+        MagneticField.__init__(self, depends_on=Bfields)
         self.Bfields = Bfields
 
     def _set_points_cb(self):
