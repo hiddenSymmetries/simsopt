@@ -209,7 +209,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
         comm: MPI communicator to parallelize over
         seed: random seed
         umin: the parallel speed is defined as  ``v_par = u * speed_total``
-            where  ``u`` is drawn uniformly in ``[umin, umax]``
+              where  ``u`` is drawn uniformly in ``[umin, umax]``
         umax: see ``umin``
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed
@@ -265,7 +265,7 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
         comm: MPI communicator to parallelize over
         seed: random seed
         umin: the parallel speed is defined as  ``v_par = u * speed_total``
-            where  ``u`` is drawn uniformly in ``[umin, umax]``
+              where  ``u`` is drawn uniformly in ``[umin, umax]``.
         umax: see ``umin``
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed
