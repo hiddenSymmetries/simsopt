@@ -74,11 +74,12 @@ class VmecTests(unittest.TestCase):
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 
-    def test_surface_2_ways(self):
+    def test_surface_3_ways(self):
         """
         If we initialize a Vmec object, the boundary surface object should
         be (almost) the same as if we initialize a SurfaceRZFourier
-        using SurfaceRZFourier.from_wout(). The possible difference is
+        using SurfaceRZFourier.from_wout() or
+        SurfaceRZFourier.from_vmec_input(). The possible difference is
         that mpol, ntor, and the quadrature points may be different.
         """
 
@@ -96,6 +97,16 @@ class VmecTests(unittest.TestCase):
             for n in range(nmin, ntor + 1):
                 self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
                 self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+        # Now try from_vmec_input() instead of from_wout():
+        s2 = SurfaceRZFourier.from_vmec_input(filename1)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
 
         # Now try a non-stellarator-symmetric example:
         filename1 = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
@@ -103,12 +114,42 @@ class VmecTests(unittest.TestCase):
         v = Vmec(filename1)
         s1 = v.boundary
         s2 = SurfaceRZFourier.from_wout(filename2)
-        # For this non-stellarator-symmetric case, we cannot directly
-        # compare the rc/zs/rs/zc coefficients, because VMEC shifts
-        # the poloidal angle upon loading the file. But we can compare
+        # For non-stellarator-symmetric cases, we must be careful when
+        # directly comparing the rc/zs/rs/zc coefficients, because
+        # VMEC shifts the poloidal angle in readin.f upon loading the
+        # file. Moreover, in versions of VMEC other than the
+        # hiddenSymmetries python module, the shift to theta may have
+        # a bug so the angle shift is not by the claimed value. The
+        # specific input file used here has a boundary that should not
+        # be shifted by the hiddenSymmetries VMEC2000 module.  For any
+        # input file and version of VMEC, we can compare
         # coordinate-independent properties like the volume and area.
         self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+        # Now try from_vmec_input() instead of from_wout():
+        s2 = SurfaceRZFourier.from_vmec_input(filename1)
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
+        self.assertAlmostEqual(s1.area(), s2.area(), places=7)
+        mpol = min(s1.mpol, s2.mpol)
+        ntor = min(s1.ntor, s2.ntor)
+        places = 13
+        for m in range(mpol + 1):
+            nmin = 0 if m == 0 else -ntor
+            for n in range(nmin, ntor + 1):
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_vmec_failure(self):
         """
