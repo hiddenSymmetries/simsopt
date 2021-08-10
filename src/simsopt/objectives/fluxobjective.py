@@ -28,38 +28,43 @@ class SquaredFlux(Optimizable):
     def dJ(self):
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:,:,None]
+        unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
         if self.target is not None:
             B_n = (Bcoil_n - self.target)
         else:
             B_n = Bcoil_n
-        dJdB = (B_n[...,None] * unitn * absn[...,None])/absn.size
+        dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
 
 class FOCUSObjective(Optimizable):
 
-    def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=[], beta=0.):
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[Jflux] + Jcls)
-        self.Jflux = Jflux
+    def __init__(self, Jfluxs, Jcls=[], alpha=0., Jdist=[], beta=0.):
+        if isinstance(Jfluxs, SquaredFlux):
+            Jfluxs = [Jfluxs]
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=Jfluxs + Jcls)
+        self.Jfluxs = Jfluxs
         self.Jcls = Jcls
         self.alpha = alpha
         self.Jdist = Jdist
         self.beta = beta
 
     def J(self):
-        res = self.Jflux.J()
+        res = sum(J.J() for J in self.Jfluxs)/len(self.Jfluxs)
         if self.alpha > 0:
             res += self.alpha * sum([J.J() for J in self.Jcls])
         if self.beta > 0:
             res += self.beta * self.Jdist.J()
-        return  res
+        return res
 
     def dJ(self):
-        res = self.Jflux.dJ()
+        res = self.Jfluxs[0].dJ()
+        for i in range(1, len(self.Jfluxs)):
+            res += self.Jfluxs[i].dJ()
+        res *= 1./len(self.Jfluxs)
         if self.alpha > 0:
             for Jcl in self.Jcls:
                 res += self.alpha * Jcl.dJ()
