@@ -32,16 +32,17 @@ class DOFs:
     associated with an Optimizable object. To access the data stored in
     the DOFs class, use the labels shown shown in the table below.
 
-    =====   =============
-    Index   Name
-    =====   =============
-    0       x
-    1       free
-    2       lower_bounds
-    3       upper_bounds
-    =====   =============
+    =============  =============
+    External name  Internal name
+    =============  =============
+    x              _x
+    free           _free
+    lower_bounds   _lb
+    upper_bounds   _ub
+    names          _names
+    =============  =============
 
-    The class implements the `Name` column properties in the above
+    The class implements the external name column properties in the above
     table as properties. Additional methods to update bounds, fix/unfix DOFs,
     etc. are also defined.
     """
