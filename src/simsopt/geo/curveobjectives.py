@@ -212,8 +212,8 @@ class MinimumDistance(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        dgamma_by_dcoeff_vjp_vecs = [np.zeros_like((c.gamma(), )) for c in self.curves]
-        dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like((c.gammadash(), )) for c in self.curves]
+        dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
+        dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
