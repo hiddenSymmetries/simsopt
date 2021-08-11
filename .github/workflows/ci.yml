@@ -203,8 +203,7 @@ jobs:
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
-        # mpiexec -n 3 --oversubscribe --use-hwthread-cpus coverage run -m unittest discover -k "mpi" -s tests -v
-        mpiexec -n 3 --use-hwthread-cpus coverage run -m unittest discover -k "mpi" -s tests -v
+        mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v
 
     - name: Combine coverage reports
       if: contains(matrix.test-type, 'unit')
