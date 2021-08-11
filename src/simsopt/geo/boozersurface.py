@@ -47,6 +47,7 @@ class BoozerSurface():
         self.targetlabel = targetlabel
         self.res = None
     
+    #@profile
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         r"""
         Define the residual
@@ -289,7 +290,8 @@ class BoozerSurface():
         res['s'] = s
         res['iota'] = iota
         return res
-
+    
+    #@profile
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
@@ -328,6 +330,7 @@ class BoozerSurface():
             resdict = {
                 "residual": r, "gradient": b, "JTJ": JTJ, "success": norm <= tol,
                 "mask": np.ones(b.shape, dtype=bool),
+                "type" : "leastsquares",
                 "dconstraint_dcoils_vjp": boozer_surface_dlsqgrad_dcoils_vjp,
                 "iter" : i
             }
@@ -591,6 +594,7 @@ class BoozerSurface():
         res = {
             "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota,
             "mask": mask, "dconstraint_dcoils_vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp,
+            "type" : "exact",
             "PLU": (P, L, U)
         }
         
