@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
