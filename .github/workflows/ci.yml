@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -52,7 +52,7 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libblacs-mpi-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev
 
     - uses: actions/checkout@v2
 
@@ -202,7 +202,7 @@ jobs:
       run: | 
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
-        mpiexec -n 3 coverage run -m unittest discover -k "mpi" -s tests -v
+        mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v
 
     - name: Combine coverage reports
       if: contains(matrix.test-type, 'unit')
