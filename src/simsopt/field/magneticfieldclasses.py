@@ -290,9 +290,9 @@ class CircularCoil(MagneticField):
         ellipkk2 = ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
         B[:] = np.dot(self.rotMatrixInv, np.array(
-            [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
-             self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
-             self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
+            [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm/(2*alpha**2*beta+1e-31)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
