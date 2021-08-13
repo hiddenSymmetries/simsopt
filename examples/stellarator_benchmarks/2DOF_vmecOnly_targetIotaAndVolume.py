@@ -37,7 +37,9 @@ mpi = MpiPartition(ngroups=3)
 mpi.write()
 
 # Initialize VMEC from an input file:
-equil = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_vmecOnly_targetIotaAndVolume'), mpi)
+filename = os.path.join(os.path.dirname(__file__), 'inputs',
+                        'input.2DOF_vmecOnly_targetIotaAndVolume')
+equil = Vmec(filename, mpi)
 surf = equil.boundary
 
 # VMEC parameters are all fixed by default, while surface parameters
@@ -59,6 +61,7 @@ iota_weight = 1
 term2 = (equil.iota_axis, desired_iota, iota_weight)
 
 prob = LeastSquaresProblem.from_tuples([term1, term2])
+print(f"Length of x is {len(prob.x)}")
 
 # Solve the minimization problem:
 least_squares_mpi_solve(prob, mpi)  # , grad=True)
