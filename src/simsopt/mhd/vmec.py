@@ -245,7 +245,7 @@ class Vmec(Optimizable):
         # Handle a few variables that are not Parameters:
         self.need_to_run_code = True
 
-        x0 = self.get_dofs(),
+        x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
         super().__init__(x0=x0, fixed=fixed, names=names,
