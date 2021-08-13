@@ -7,7 +7,8 @@ from simsopt.solve.graph_serial import least_squares_serial_solve
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
 """
-
+print("Running 1_Simple/surface_volume_and_area.py")
+print("===========================================")
 desired_volume = 0.6
 desired_area = 8.0
 
@@ -39,3 +40,5 @@ print(" zs(m=1,n=0) = ", surf.get_zs(1, 0))
 print(" volume = ", surf.volume())
 print(" area = ", surf.area())
 print(" objective function = ", prob.objective())
+print("End of 1_Simple/surface_volume_and_area.py")
+print("===========================================")
