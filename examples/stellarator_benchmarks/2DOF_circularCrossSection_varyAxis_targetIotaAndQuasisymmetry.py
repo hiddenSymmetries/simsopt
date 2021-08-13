@@ -31,12 +31,12 @@ qs = Quasisymmetry(boozer,
 
 # Objective function is 100 * (iota - (-0.41))^2 + 1 * (qs - 0)^2
 prob = LeastSquaresProblem.from_tuples([(vmec.iota_axis, -0.41, 100),
-                                        (qs, 0, 1)])
+                                        (qs.J, 0, 1)])
 
 least_squares_serial_solve(prob)
 
 # print("Final values before shifting and scaling:", prob.dofs.f())
-print("Final residuals:", prob())
+print("Final residuals:", prob.residuals())
 print("Final state vector:", prob.x)
 print("Final iota on axis:", vmec.iota_axis())
 
