@@ -209,12 +209,14 @@ class LeastSquaresProblem(Optimizable):
         #    outputs += [output]
         #outputs = np.concatenate(outputs)
         #diff_values = outputs - self.goals
+        logger.info(f"objective() called with x={x}")
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
 
         s = 0
         for i, val in enumerate(unweighted_residuals):
             s += np.dot(val, val) * self.weights[i]
 
+        logger.info(f"objective(): {s}")
         return s
 
     return_fn_map = {'residuals': residuals, 'objective': objective}
