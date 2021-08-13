@@ -28,7 +28,8 @@ This example uses the serial solver instead of the MPI solver, since
 the MPI case is covered by the example
 stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.
 """
-
+print("Running 1DOF_circularCrossSection_varyR0_targetVolume_spec.py")
+print("=============================================================")
 # Print detailed logging info. This could be commented out if desired.
 logging.basicConfig(level=logging.DEBUG)
 
@@ -77,3 +78,5 @@ assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
 assert np.abs(equil.volume() - 0.15) < 1.0e-6
 assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective() < 1.0e-15
+print("End of 1DOF_circularCrossSection_varyR0_targetVolume_spec.py")
+print("============================================================")

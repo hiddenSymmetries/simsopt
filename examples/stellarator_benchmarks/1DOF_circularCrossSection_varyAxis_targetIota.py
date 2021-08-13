@@ -25,6 +25,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
 """
+print("Running 1DOF_circularCrossSection_varyAxis_targetIota.py")
+print("========================================================")
 
 # Print detailed logging info. This line could be commented out if desired.
 log()
@@ -72,3 +74,5 @@ if mpi.proc0_world:
 assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
 assert np.abs(equil.iota_axis() - desired_iota) < 1.0e-5
 assert prob.objective() < 1.0e-15
+print("End of 1DOF_circularCrossSection_varyAxis_targetIota.py")
+print("========================================================")

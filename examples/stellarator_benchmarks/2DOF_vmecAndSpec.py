@@ -26,7 +26,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
-
+print("Running 2DOF_vmecAndSpec.py")
+print("=========================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log(logging.INFO)
@@ -92,3 +93,5 @@ if mpi.proc0_world:
     assert np.abs(surf_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
     assert final_objective < 1.0e-2
+print("End of  2DOF_vmecAndSpec.py")
+print("=========================")
