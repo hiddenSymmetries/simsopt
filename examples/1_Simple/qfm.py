@@ -16,6 +16,8 @@ the penalty objective function to target a given toroidal flux using LBFGS.
 The equality constrained objective is then reduced using SLSQP. This is repeated
 for fixing the area and toroidal flux.
 """
+print("Running 1_Simple/qfm.py")
+print("=======================")
 
 coils, currents, ma = get_ncsx_data()
 stellarator = CoilCollection(coils, currents, 3, True)
@@ -90,3 +92,5 @@ print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
 
 if "DISPLAY" in os.environ:
     s.plot()
+print("End of 1_Simple/qfm.py")
+print("=======================")

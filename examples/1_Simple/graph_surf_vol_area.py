@@ -8,6 +8,8 @@ Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area using the graph method.
 """
 
+print("Running 1_Simple/graph_surf_vol_area.py")
+print("=======================================")
 desired_volume = 0.6
 desired_area = 8.0
 
@@ -88,3 +90,5 @@ print(" -------------------------\n\n")
 #print(" volume = ", surf.volume())
 #print(" area = ", surf.area())
 #print(" objective function = ", prob.objective())
+print("End of 1_Simple/graph_surf_vol_area.py")
+print("=======================================")
