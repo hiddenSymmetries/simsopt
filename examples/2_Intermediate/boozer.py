@@ -18,6 +18,8 @@ the surface area constant.  We then switch the label to the Toroidal Flux, and
 aim for a Boozer surface with three times larger flux.
 """
 
+print("Running 2_Intermediate/boozer.py")
+print("================================")
 
 coils, currents, ma = get_ncsx_data()
 stellarator = CoilCollection(coils, currents, 3, True)
@@ -66,3 +68,6 @@ res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=1
 print(f"After Lev-Mar: iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
+
+print("End of 2_Intermediate/boozer.py")
+print("================================")

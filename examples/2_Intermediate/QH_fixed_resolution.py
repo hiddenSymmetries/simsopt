@@ -13,6 +13,9 @@ Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
 # This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
 # concurrent function evaluations for 1-sided finite difference
 # gradients.
+print("Running 2_Intermediate/QH_fixed_resolution.py")
+print("=============================================")
+
 mpi = MpiPartition(25)
 
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start'), mpi=mpi)
@@ -39,3 +42,6 @@ prob = LeastSquaresProblem([(vmec.aspect, 7, 1),
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
 least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=1)
+
+print("End of 2_Intermediate/QH_fixed_resolution.py")
+print("============================================")

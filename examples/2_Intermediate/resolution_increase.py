@@ -22,6 +22,9 @@ resolution for VMEC and booz_xform is increased.
 
 #log()
 
+print("Running 2_Intermediate/resolution_increase.py")
+print("=============================================")
+
 mpi = MpiPartition()
 mpi.write()
 
@@ -82,3 +85,6 @@ for step in range(3):
               ". Final vmec iteration = ", vmec.iter)
 
 print("Good bye")
+
+print("End of 2_Intermediate/resolution_increase.py")
+print("=============================================")

@@ -18,6 +18,8 @@ will eliminate the islands by minimizing an objective function
 involving Greene's residue for several O-points and X-points, similar
 to the approach of Hanson and Cary (1984).
 """
+print("Running 2_Intermediate/eliminate_magnetic_islands.py")
+print("====================================================")
 
 log()
 
@@ -77,3 +79,6 @@ if mpi.proc0_world:
     logging.info(f"Final residues: {final_r1}, {final_r2}")
 
 np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)
+
+print("End of 2_Intermediate/eliminate_magnetic_islands.py")
+print("===================================================")
