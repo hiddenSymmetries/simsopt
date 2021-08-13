@@ -12,6 +12,8 @@ See that website for a detailed description of the problem and plots
 of the objective function landscape.
 """
 
+print("Running 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
+print("========================================================================")
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry'))
 
 # Define parameter space:
@@ -37,3 +39,6 @@ least_squares_serial_solve(prob)
 print("Final residuals:", prob())
 print("Final state vector:", prob.x)
 print("Final iota on axis:", vmec.iota_axis())
+
+print("End of 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
+print("========================================================================")

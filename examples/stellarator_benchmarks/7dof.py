@@ -11,7 +11,8 @@ This script solve the problem in
 https://github.com/landreman/stellopt_scenarios/tree/master/7DOF_varyAxisAndElongation_targetIotaAndQuasisymmetry
 See that website for a detailed description of the problem.
 """
-
+print("Running 7dof.py")
+print("===============")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log()
@@ -65,3 +66,5 @@ if mpi.proc0_world:
     print("Final objective function:", prob.objective())
     print("Final state vector:", prob.x)
     print("Final iota on axis:", vmec.iota_axis())
+print("End of 7dof.py")
+print("===============")

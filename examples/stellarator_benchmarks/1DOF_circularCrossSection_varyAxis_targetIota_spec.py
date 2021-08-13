@@ -27,6 +27,8 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 # Print out detailed logging info. This could be commented out if desired.
+print("Running 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+print("=============================================================")
 log(logging.DEBUG)
 
 # Divide up the MPI processes. Since the finite difference gradient
@@ -73,3 +75,5 @@ if mpi.proc0_world:
     assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
     assert np.abs(final_iota - desired_iota) < 1.0e-5
     assert final_objective < 1.0e-15
+print("End of 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+print("=============================================================")
