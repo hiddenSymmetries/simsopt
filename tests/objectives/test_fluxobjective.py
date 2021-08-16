@@ -9,7 +9,7 @@ from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
 
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
-filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
 def check_taylor_test(J):
@@ -35,11 +35,11 @@ def check_taylor_test(J):
 class FluxObjectiveTests(unittest.TestCase):
 
     def test_flux(self):
-        s = SurfaceRZFourier.from_wout(filename)
+        s = SurfaceRZFourier.from_vmec_input(filename)
         ncoils = 4
         ALPHA = 1e-5
 
-        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=1.5, R1=0.8, order=6, PPP=15)
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=1.0, R1=0.5, order=6, PPP=15)
         base_currents = []
         for i in range(ncoils):
             curr = Current(1e5)
