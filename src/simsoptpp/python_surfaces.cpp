@@ -104,7 +104,6 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
             PySurfaceXYZTensorFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
         }
 
-
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
         }
@@ -122,6 +121,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("normal", &T::normal)
      .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
      .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
+     .def("d2normal_by_dcoeffdcoeff_dot_v", &T::d2normal_by_dcoeffdcoeff_dot_v)
      .def("area", &T::area)
      .def("darea_by_dcoeff", &T::darea_by_dcoeff)
      .def("darea", &T::darea_by_dcoeff) // shorthand

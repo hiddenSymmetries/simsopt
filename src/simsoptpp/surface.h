@@ -142,6 +142,7 @@ class Surface {
         void dnormal_by_dcoeff_impl(Array& data);
         void d2normal_by_dcoeffdcoeff_impl(Array& data);
         Array dnormal_by_dcoeff_vjp(Array& v);
+        Array d2normal_by_dcoeffdcoeff_dot_v(Array& data);
 
         double area();
         void darea_by_dcoeff_impl(Array& data);
@@ -191,7 +192,6 @@ class Surface {
         Array& d2volume_by_dcoeffdcoeff() {
             return check_the_cache("d2volume_by_dcoeffdcoeff", {num_dofs(), num_dofs()}, [this](Array& A) { return d2volume_by_dcoeffdcoeff_impl(A);});
         }
-
 
         virtual ~Surface() = default;
 };

@@ -193,6 +193,33 @@ void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
     }
 };
 
+template<class Array>
+Array Surface<Array>::d2normal_by_dcoeffdcoeff_dot_v(Array &v)  { 
+
+    auto dg1 = this->gammadash1();
+    auto dg2 = this->gammadash2();
+    auto dg1_dc = this->dgammadash1_by_dcoeff();
+    auto dg2_dc = this->dgammadash2_by_dcoeff();
+    int ndofs = num_dofs();
+    Array data = xt::zeros<double>({ndofs, ndofs});
+
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            for (int m = 0; m < ndofs; ++m ) {
+                for (int n = 0; n < ndofs; ++n ) {
+                    data(m, n) += (dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n)) * v(i, j, 0);
+                    data(m, n) += (dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m)) * v(i, j, 0);
+                    data(m, n) += (dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n)) * v(i, j, 1);
+                    data(m, n) += (dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m)) * v(i, j, 1);
+                    data(m, n) += (dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n)) * v(i, j, 2);
+                    data(m, n) += (dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m)) * v(i, j, 2);
+                }
+            }
+        }
+    }
+    return data;
+};
+
 
 template<class Array>
 double Surface<Array>::area() {
@@ -351,12 +378,38 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
         data(m) = temp(m);
     }
 }
+//template<class Array>
+//void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
+//    data *= 0.;
+//    auto nor = this->normal();
+//    auto dnor_dc = this->dnormal_by_dcoeff();
+//    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+//    auto xyz = this->gamma();
+//    auto dxyz_dc = this->dgamma_by_dcoeff();
+//    int ndofs = num_dofs();
+//    for (int i = 0; i < numquadpoints_phi; ++i) {
+//        for (int j = 0; j < numquadpoints_theta; ++j) {
+//            for (int m = 0; m < ndofs; ++m){ 
+//                for (int n = 0; n < ndofs; ++n){ 
+//                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+//                            +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+//                            +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+//                    data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+//                            +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+//                            +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+//                }
+//            }
+//        }
+//    }
+//    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+//}
+
+
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     data *= 0.;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
-    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
     auto xyz = this->gamma();
     auto dxyz_dc = this->dgamma_by_dcoeff();
     int ndofs = num_dofs();
@@ -367,15 +420,30 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
                             +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
                             +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
-                    data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
-                            +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
-                            +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+                                         + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+                                         + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
                 }
             }
         }
     }
+    
+    auto d2n_dcdc_dot_xyz = this->d2normal_by_dcoeffdcoeff_dot_v(xyz);
+    for (int m = 0; m < ndofs; ++m){ 
+        for (int n = 0; n < ndofs; ++n){ 
+            data(m,n) += (1./3) * d2n_dcdc_dot_xyz(m,n);
+        }
+    }
+
+
     data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
+
+
+
+
+
+
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
