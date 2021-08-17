@@ -205,14 +205,32 @@ Array Surface<Array>::d2normal_by_dcoeffdcoeff_dot_v(Array &v)  {
 
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
+            double v0 = v(i, j, 0);
+            double v1 = v(i, j, 1);
+            double v2 = v(i, j, 2);
+            auto dg1_dc_0_ptr = &(dg1_dc(i, j, 0, 0));
+            auto dg1_dc_1_ptr = &(dg1_dc(i, j, 1, 0));
+            auto dg1_dc_2_ptr = &(dg1_dc(i, j, 2, 0));
+            auto dg2_dc_0_ptr = &(dg2_dc(i, j, 0, 0));
+            auto dg2_dc_1_ptr = &(dg2_dc(i, j, 1, 0));
+            auto dg2_dc_2_ptr = &(dg2_dc(i, j, 2, 0));
             for (int m = 0; m < ndofs; ++m ) {
+                auto data_ptr = &(data(m, 0));
+                auto dg1_dc_0 = dg1_dc(i, j, 0, m);
+                auto dg1_dc_1 = dg1_dc(i, j, 1, m);
+                auto dg1_dc_2 = dg1_dc(i, j, 2, m);
+                auto dg2_dc_0 = dg2_dc(i, j, 0, m);
+                auto dg2_dc_1 = dg2_dc(i, j, 1, m);
+                auto dg2_dc_2 = dg2_dc(i, j, 2, m);
                 for (int n = 0; n < ndofs; ++n ) {
-                    data(m, n) += (dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n)) * v(i, j, 0);
-                    data(m, n) += (dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m)) * v(i, j, 0);
-                    data(m, n) += (dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n)) * v(i, j, 1);
-                    data(m, n) += (dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m)) * v(i, j, 1);
-                    data(m, n) += (dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n)) * v(i, j, 2);
-                    data(m, n) += (dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m)) * v(i, j, 2);
+                    double res = 0;
+                    res += (dg1_dc_1*dg2_dc_2_ptr[n] - dg1_dc_2*dg2_dc_1_ptr[n]) * v0;
+                    res += (dg1_dc_1_ptr[n]*dg2_dc_2 - dg1_dc_2_ptr[n]*dg2_dc_1) * v0;
+                    res += (dg1_dc_2*dg2_dc_0_ptr[n] - dg1_dc_0*dg2_dc_2_ptr[n]) * v1;
+                    res += (dg1_dc_2_ptr[n]*dg2_dc_0 - dg1_dc_0_ptr[n]*dg2_dc_2) * v1;
+                    res += (dg1_dc_0*dg2_dc_1_ptr[n] - dg1_dc_1*dg2_dc_0_ptr[n]) * v2;
+                    res += (dg1_dc_0_ptr[n]*dg2_dc_1 - dg1_dc_1_ptr[n]*dg2_dc_0) * v2;
+                    data_ptr[n] += res;
                 }
             }
         }
@@ -413,30 +431,60 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     auto xyz = this->gamma();
     auto dxyz_dc = this->dgamma_by_dcoeff();
     int ndofs = num_dofs();
+    // TODO: assert that data is row-major
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             for (int m = 0; m < ndofs; ++m){ 
+                auto data_ptr = &(data(m, 0));
+                auto dxyz_dc_0 = dxyz_dc(i,j,0,m);
+                auto dxyz_dc_1 = dxyz_dc(i,j,1,m);
+                auto dxyz_dc_2 = dxyz_dc(i,j,2,m);
+                auto dnor_dc_0 = dnor_dc(i,j,0,m);
+                auto dnor_dc_1 = dnor_dc(i,j,1,m);
+                auto dnor_dc_2 = dnor_dc(i,j,2,m);
+
+                auto dxyz_dc_0_ptr = &(dxyz_dc(i,j,0,0));
+                auto dxyz_dc_1_ptr = &(dxyz_dc(i,j,1,0));
+                auto dxyz_dc_2_ptr = &(dxyz_dc(i,j,2,0));
+                auto dnor_dc_0_ptr = &(dnor_dc(i,j,0,0));
+                auto dnor_dc_1_ptr = &(dnor_dc(i,j,1,0));
+                auto dnor_dc_2_ptr = &(dnor_dc(i,j,2,0));
+
                 for (int n = 0; n < ndofs; ++n){ 
-                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
-                            +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
-                            +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
-                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
-                                         + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
-                                         + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+                    data_ptr[n] += (1./3) * (
+                             dxyz_dc_0*dnor_dc_0_ptr[n]
+                            +dxyz_dc_1*dnor_dc_1_ptr[n]
+                            +dxyz_dc_2*dnor_dc_2_ptr[n]);
+                    data_ptr[n] += (1./3) * (
+                              dxyz_dc_0_ptr[n] * dnor_dc_0
+                            + dxyz_dc_1_ptr[n] * dnor_dc_1
+                            + dxyz_dc_2_ptr[n] * dnor_dc_2);
                 }
             }
         }
     }
+    //for (int i = 0; i < numquadpoints_phi; ++i) {
+    //    for (int j = 0; j < numquadpoints_theta; ++j) {
+    //        for (int m = 0; m < ndofs; ++m){ 
+    //            for (int n = 0; n < ndofs; ++n){ 
+    //                data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+    //                        +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+    //                        +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+    //                data(m,n) += (1./3) * (dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+    //                                     + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+    //                                     + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+    //            }
+    //        }
+    //    }
+    //}
     
     auto d2n_dcdc_dot_xyz = this->d2normal_by_dcoeffdcoeff_dot_v(xyz);
-    for (int m = 0; m < ndofs; ++m){ 
-        for (int n = 0; n < ndofs; ++n){ 
-            data(m,n) += (1./3) * d2n_dcdc_dot_xyz(m,n);
-        }
+    auto dataptr = &(data(0, 0));
+    auto d2nptr = &(d2n_dcdc_dot_xyz(0, 0));
+    for(int i=0; i<ndofs*ndofs; i++){
+        dataptr[i] += (1./3.) * d2nptr[i];
+        dataptr[i] *= 1./ (numquadpoints_phi*numquadpoints_theta);
     }
-
-
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
 
 
