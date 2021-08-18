@@ -4,6 +4,7 @@ import numpy as np
 
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from simsopt.geo.surfaceobjectives import boozer_surface_residual_accumulate
 from simsopt.geo.surfaceobjectives import boozer_surface_dlsqgrad_dcoils_vjp
 from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_dcurrents_vjp
 
@@ -47,8 +48,8 @@ class BoozerSurface():
         self.targetlabel = targetlabel
         self.res = None
     
-    #@profile
-    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
+#    @profile
+    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, accumulate=False):
         r"""
         Define the residual
 
@@ -85,6 +86,35 @@ class BoozerSurface():
         bs = self.bs
 
         s.set_dofs(sdofs)
+        
+        if accumulate:
+            boozer = boozer_surface_residual_accumulate(s, iota, G, self.bs, derivatives=derivatives)
+            lab = self.label.J()
+            
+            rnl = boozer[0]
+            rl = np.sqrt(constraint_weight) * (lab-self.targetlabel)
+            rz = np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
+            r = rnl + 0.5*rl**2 + 0.5*rz**2
+            
+            if derivatives == 0:
+                return r
+            dl = np.zeros(x.shape)
+            drz = np.zeros(x.shape)
+            dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
+            drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
+           
+            Jnl = boozer[1]
+            drl = np.sqrt(constraint_weight) * dl
+            drz = np.sqrt(constraint_weight) * drz
+            J = Jnl + rl * drl + rz * drz
+            if derivatives == 1:
+                return r, J
+            
+            Hnl = boozer[2]
+            d2rl = np.zeros((x.shape[0], x.shape[0]))
+            d2rl[:nsurfdofs, :nsurfdofs] = np.sqrt(constraint_weight)*self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
+            H = Hnl + drl[:,None] @ drl[None,:] + drz[:,None] @ drz[None, :] + rl * d2rl 
+            return r, J, H
 
         boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives)
 
@@ -291,7 +321,7 @@ class BoozerSurface():
         res['iota'] = iota
         return res
     
-    #@profile
+#    @profile
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
@@ -309,6 +339,7 @@ class BoozerSurface():
         iota0 = iota
         G0 = G
         
+#        import ipdb; ipdb.set_trace()
         norm = 1e10
         if method == 'manual':
             i = 0
@@ -334,6 +365,7 @@ class BoozerSurface():
                 "dconstraint_dcoils_vjp": boozer_surface_dlsqgrad_dcoils_vjp,
                 "iter" : i
             }
+
             if G is None:
                 s.set_dofs(x[:-1])
                 iota = x[-1]
@@ -344,9 +376,9 @@ class BoozerSurface():
                 resdict['G'] = G
             resdict['s'] = s
             resdict['iota'] = iota
-
+            
             val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
             resdict["jacobian"] = d2val
             P, L, U = lu(d2val)
             resdict["PLU"] = (P, L, U)

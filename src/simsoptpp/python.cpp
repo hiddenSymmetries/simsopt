@@ -74,8 +74,37 @@ PYBIND11_MODULE(simsoptpp, m) {
             }
             delete[] B_dB_dc;
             return res;
-        });
+        } );
+   
+    //resd2B_dcdc = np.einsum('ijkpl,ijpn,ijkm,ijl->mn', d2B_by_dXdX, dx_dc, dx_dc, residual, optimize=True)
+    //m.def("res_dot_d2B_dcdc", [](PyArray& d2B_dXdX, PyArray& dX_dc, PyArray& residual){
+    //        int nphi = dX_dc.shape(0);
+    //        int ntheta = dX_dc.shape(1);
+    //        int ndofs = dX_dc.shape(3);
 
+    //        PyArray res = xt::zeros<double>({ndofs, ndofs});
+    //        double *res_ptr = res.data();
+    //        for(int i=0; i<nphi; i++){
+    //            for(int j=0; j<ntheta; j++){
+    //                for(int k=0; k<3; k++){
+    //                    for(int p=0; p<3; p++){
+    //                        for(int l=0; l<3; l++){
+    //                            double temp0 = d2B_dXdX(i,j,k,p,l)*residual(i,j,l);
+    //                            double *dX_dc_p_ptr = &(dX_dc(i,j,p,0));
+    //                            double *dX_dc_k_ptr = &(dX_dc(i,j,k,0));
+    //                            for(int m=0; m<ndofs; m++){
+    //                                double temp1 = temp0 * dX_dc_k_ptr[m];
+    //                                for(int n=0; n<ndofs; n++){
+    //                                    res_ptr[m*ndofs+n] += temp1*dX_dc_p_ptr[n]; 
+    //                               } 
+    //                            }
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //        }
+    //        return res;
+    //    } );
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
 #else
