@@ -162,19 +162,22 @@ class VmecTests(unittest.TestCase):
             # Use the objective function from
             # stellopt_scenarios_2DOF_targetIotaAndVolume:
             if j == 0:
-                prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
-                                            (vmec.volume, 0.15, 1)])
+                prob = LeastSquaresProblem.from_tuples(
+                    [(vmec.iota_axis, 0.41, 1),
+                     (vmec.volume, 0.15, 1)])
                 fail_val = 1e12
             else:
                 # Try a custom failure value
                 fail_val = 2.0e30
-                prob = LeastSquaresProblem([(vmec.iota_axis, 0.41, 1),
-                                            (vmec.volume, 0.15, 1)],
-                                           fail=fail_val)
+                prob = LeastSquaresProblem.from_tuples(
+                    [(vmec.iota_axis, 0.41, 1),
+                     (vmec.volume, 0.15, 1)],
+                    fail=fail_val)
 
             r00 = vmec.boundary.get_rc(0, 0)
             # The first evaluation should succeed.
-            f = prob.f()
+            # f = prob.f()
+            f = prob.residuals()
             print(f[0], f[1])
             correct_f = [-0.004577338528148067, 2.8313872701632925]
             # Don't worry too much about accuracy here.
@@ -185,14 +188,14 @@ class VmecTests(unittest.TestCase):
             # without meeting ftol.
             vmec.boundary.set_rc(0, 0, 0.2)
             vmec.need_to_run_code = True
-            f = prob.f()
+            f = prob.residuals()
             print(f)
             np.testing.assert_allclose(f, np.full(2, fail_val))
 
             # Restore a reasonable boundary shape. VMEC should work again.
             vmec.boundary.set_rc(0, 0, r00)
             vmec.need_to_run_code = True
-            f = prob.f()
+            f = prob.residuals()
             print(f)
             np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
@@ -202,14 +205,14 @@ class VmecTests(unittest.TestCase):
             orig_mode = vmec.boundary.get_rc(1, 3)
             vmec.boundary.set_rc(1, 3, 0.5)
             vmec.need_to_run_code = True
-            f = prob.f()
+            f = prob.residuals()
             print(f)
             np.testing.assert_allclose(f, np.full(2, fail_val))
 
             # Restore a reasonable boundary shape. VMEC should work again.
             vmec.boundary.set_rc(1, 3, orig_mode)
             vmec.need_to_run_code = True
-            f = prob.f()
+            f = prob.residuals()
             print(f)
             np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
