@@ -18,6 +18,7 @@ from numbers import Real
 import numpy as np
 
 from .._core.graph_optimizable import Optimizable
+from .._core.util import ObjectiveFailure
 from ..util.types import RealArray, IntArray, BoolArray
 
 
@@ -55,7 +56,8 @@ class LeastSquaresProblem(Optimizable):
                  weights: Union[Real, RealArray],
                  funcs_in: Sequence[Callable] = None,
                  depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
-                 opt_return_fns: StrSeq = None):
+                 opt_return_fns: StrSeq = None,
+                 fail: Union[None, float] = 1.0e12):
 
         if isinstance(goals, Real):
             goals = [goals]
@@ -65,12 +67,15 @@ class LeastSquaresProblem(Optimizable):
             raise ValueError('Weight cannot be negative')
         self.goals = np.array(goals)
         self.weights = np.array(weights)
+        self.fail = fail
+
+        # Attributes for function evaluation
+        self.nvals = 0
+        self.first_eval = True
 
         if depends_on is not None:
             if not isinstance(depends_on, ABC_Sequence):
                 depends_on = [depends_on]
-                #goals = [goals]
-                #weights = [weights]
                 if opt_return_fns is not None:
                     opt_return_fns = [opt_return_fns]
 
@@ -83,7 +88,8 @@ class LeastSquaresProblem(Optimizable):
                    sigma: Union[Real, RealArray],
                    funcs_in: Sequence[Callable] = None,
                    depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
-                   opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
+                   opt_return_fns: StrSeq = None,
+                   fail: Union[None, float] = 1.0e12) -> LeastSquaresProblem:
         r"""
         Define the LeastSquaresProblem with
 
@@ -111,12 +117,13 @@ class LeastSquaresProblem(Optimizable):
         return cls(goals, 1.0 / (sigma * sigma),
                    depends_on=depends_on,
                    opt_return_fns=opt_return_fns,
-                   funcs_in=funcs_in)
+                   funcs_in=funcs_in,
+                   fail=fail)
 
     @classmethod
     def from_tuples(cls,
-                    tuples: Sequence[Tuple[Callable, Real, Real]]
-                    ) -> LeastSquaresProblem:
+                    tuples: Sequence[Tuple[Callable, Real, Real]],
+                    fail: Union[None, float] = 1.0e12) -> LeastSquaresProblem:
         """
         Initializes graph based LeastSquaresProblem from a sequence of tuples
         containing *f_in*, *goal*, and *weight*.
@@ -129,7 +136,7 @@ class LeastSquaresProblem(Optimizable):
         #funcs_in = list(funcs_in)
         #goals = list(goals)
         #weights = list(weights)
-        return cls(goals, weights, funcs_in=funcs_in)
+        return cls(goals, weights, funcs_in=funcs_in, fail=fail)
 
     def unweighted_residuals(self, x=None, *args, **kwargs):
         """
@@ -145,11 +152,29 @@ class LeastSquaresProblem(Optimizable):
 
         outputs = []
         for i, opt in enumerate(self.parents):
-            out = opt(child=self, *args, **kwargs)
-            output = np.array([out]) if not np.ndim(out) else np.array(out)
-            outputs += [output]
+            try:
+                out = opt(child=self, *args, **kwargs)
+            except ObjectiveFailure:
+                logger.warning(f"Function evaluation failed for {opt}")
+                print(f'fail val is {self.fail}')
+                print(f"Is it a first eval {self.first_eval}")
+                if self.fail is None or self.first_eval:
+                    raise
 
-        return np.concatenate(outputs) - self.goals
+                break
+
+            output = np.array([out]) if not np.ndim(out) else np.asarray(out)
+            if self.first_eval:
+                self.nvals += len(output)
+            outputs += [output]
+        else:
+            self.first_eval = False
+            return np.concatenate(outputs) - self.goals
+
+        # Reached here after encountering break in for loop
+        return np.full(self.nvals, self.fail)
+
+
 
     def residuals(self, x=None, *args, **kwargs):
         """
