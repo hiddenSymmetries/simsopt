@@ -236,11 +236,11 @@ class Vmec(Optimizable):
         # Transfer boundary shape data from fortran to the ParameterArray:
         for m in range(vi.mpol + 1):
             for n in range(-vi.ntor, vi.ntor + 1):
-                self.boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
-                self.boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+                self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+                self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
                 if vi.lasym:
-                    self.boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
-                    self.boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+                    self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
+                    self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
 
         # Handle a few variables that are not Parameters:
         self.need_to_run_code = True
