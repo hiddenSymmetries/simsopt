@@ -61,20 +61,26 @@ class TestFunction3(Optimizable):
         x = [0., 0.]
         self.comm = comm
         self.dummy = 42
+        self.f0_call_cnt = 0
+        self.f1_call_cnt = 0
         logger.debug("inside test function 3 init")
         super().__init__(x0=x)
 
     def f0(self):
         # Do some random MPI stuff just for the sake of testing.
         self.comm.barrier()
-        self.comm.bcast(self.full_x)
-        return self.full_x[0] - 1
+        self.comm.bcast(self.local_full_x)
+        print(f"x is {self.local_full_x}")
+        print(f"TestFunction3.f0 called {self.f0_call_cnt} times")
+        return self.local_full_x[0] - 1
 
     def f1(self):
         # Do some random MPI stuff just for the sake of testing.
         self.comm.bcast(self.dummy)
         self.comm.barrier()
-        return self.full_x[0] ** 2 - self.full_x[1]
+        print(f"x is {self.local_full_x}")
+        print(f"TestFunction3.f1 called {self.f1_call_cnt} times")
+        return self.local_full_x[0] ** 2 - self.local_full_x[1]
 
     return_fn_map = {'f0': f0, 'f1': f1}
 
