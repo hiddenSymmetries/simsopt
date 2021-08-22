@@ -490,7 +490,9 @@ class Testing(unittest.TestCase):
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
             err_3 = np.mean(bsh.estimate_error_BdotCurlB(1000))
-            print(err_1, err_2, err_3)
+            print('err_1 =',err_1)
+            print('err_2 =',err_2)
+            print('err_3 =',err_3)
             assert err_1 < 0.6**3 * old_err_1
             assert err_2 < 0.6**3 * old_err_2
             assert err_3 < 0.6**3 * old_err_3
