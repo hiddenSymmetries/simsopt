@@ -207,7 +207,7 @@ class InterpolatedField : public MagneticField<T> {
                 this->field->set_points(points);
                 auto BdotCurlB = this->field->BdotCurlB();
                 //fmt::print("BdotCurlB: Actual size: ({}, {}), 3*npoints={}\n", BdotCurlB.shape(0), BdotCurlB.shape(1), 3*npoints);
-                auto res = Vec(BdotCurlB.data(), BdotCurlB.data() + 3*npoints);
+                auto res = Vec(BdotCurlB.data(), BdotCurlB.data() + npoints);
                 return res;
             };
         }

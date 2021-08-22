@@ -269,7 +269,7 @@ class MagneticField {
         }
 
         Tensor2& BdotCurlB_ref() {
-            return data_BdotCurlB.get_or_create_and_fill({npoints}, [this](Tensor2& BdotCurlB) { return _BdotCurlB_impl(BdotCurlB);});
+            return data_BdotCurlB.get_or_create_and_fill({npoints, 1}, [this](Tensor2& BdotCurlB) { return _BdotCurlB_impl(BdotCurlB);});
         }
 
         Tensor2 GradAbsB_cyl() {

@@ -72,7 +72,7 @@ class GuidingCenterVacuumRHS {
             double v_perp2 = 2*mu*AbsB;
             double fak1 = (v_par/AbsB);
             double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*v_perp2 + v_par*v_par);
-            double fak3 = 1+(m*v_par/(q*pow(AbsB, 3)))*BdotcurlB(0);
+            double fak3 = 1+(m*v_par/(q*pow(AbsB, 3)))*BdotcurlB(0,0);
             dydt[0] = fak1*B(0, 0) + fak2*BcrossGradAbsB[0]/fak3;
             dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1]/fak3;
             dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2]/fak3;
