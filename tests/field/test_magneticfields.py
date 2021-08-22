@@ -473,6 +473,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         old_err_1 = 1e6
         old_err_2 = 1e6
+        old_err_3 = 1e6
         btotal = bs + B0
 
         for n in [4, 8, 16]:
@@ -488,11 +489,14 @@ class Testing(unittest.TestCase):
             bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
-            print(err_1, err_2)
+            err_3 = np.mean(bsh.estimate_error_BdotCurlB(1000))
+            print(err_1, err_2, err_3)
             assert err_1 < 0.6**3 * old_err_1
             assert err_2 < 0.6**3 * old_err_2
+            assert err_3 < 0.6**3 * old_err_3
             old_err_1 = err_1
             old_err_2 = err_2
+            old_err_3 = err_3
 
     def test_get_set_points_cyl_cart(self):
         coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)

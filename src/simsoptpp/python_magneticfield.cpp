@@ -107,6 +107,7 @@ void init_magneticfields(py::module_ &m){
         .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
+        .def("estimate_error_BdotCurlB", &PyInterpolatedField::estimate_error_BdotCurlB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)
         .def_readonly("phi_range", &PyInterpolatedField::phi_range)
         .def_readonly("z_range", &PyInterpolatedField::z_range)

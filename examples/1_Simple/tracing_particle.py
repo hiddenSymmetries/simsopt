@@ -90,6 +90,7 @@ def trace_particles(bfield, label, mode='gc_vac'):
 
 print('Error in B', bsh.estimate_error_B(1000), flush=True)
 print('Error in AbsB', bsh.estimate_error_GradAbsB(1000), flush=True)
+print('Error in BdotCurlB', bsh.estimate_error_BdotCurlB(1000), flush=True)
 trace_particles(bsh, 'bsh', 'gc_vac')
 # trace_particles(bsh, 'bsh', 'full')
 # trace_particles(bs, 'bs', 'gc')

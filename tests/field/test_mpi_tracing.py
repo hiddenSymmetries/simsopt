@@ -36,6 +36,7 @@ class MPITracingTesting(unittest.TestCase):
         )
         bsh.estimate_error_GradAbsB(1000)
         bsh.estimate_error_B(1000)
+        bsh.estimate_error_BdotCurlB(1000)
         # trick to clear the cache in the biot savart class to reduce memory usage
         bs.set_points(np.asarray([[0., 0., 0.]])).GradAbsB()
         self.bsh = bsh
