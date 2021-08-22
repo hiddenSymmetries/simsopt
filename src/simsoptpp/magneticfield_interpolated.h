@@ -7,14 +7,18 @@
 template<template<class, std::size_t, xt::layout_type> class T>
 class InterpolatedField : public MagneticField<T> {
     public:
+        using typename MagneticField<T>::Tensor1;
         using typename MagneticField<T>::Tensor2;
     private:
 
         CachedTensor<T, 2> points_cyl_sym;
         std::function<Vec(double, double, double)> f_B;
+        std::function<Vec(double, double, double)> f_BdotCurlB;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_GradAbsB;
+        std::function<Vec(Vec, Vec, Vec)> fbatch_BdotCurlB;
         shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_B, interp_GradAbsB;
+        shared_ptr<RegularGridInterpolant3D<Tensor1>> interp_BdotCurlB;
         bool status_B = false;
         bool status_GradAbsB = false;
         const bool extrapolate;
