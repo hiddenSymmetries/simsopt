@@ -97,14 +97,14 @@ class MagneticField {
             }
         }
 
-        virtual void _BdotCurlB_impl(Tensor1& BdotCurlB) {
+        virtual void _BdotCurlB_impl(Tensor2& BdotCurlB) {
             Tensor2& B = this->B_ref();
             Tensor3& GradB = this->dB_by_dX_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                BdotCurlB(i) = B(i, 0) * (GradB(i, 1, 2) - GradB(i, 2, 1))
-                             + B(i, 1) * (GradB(i, 2, 0) - GradB(i, 0, 2))
-                             + B(i, 2) * (GradB(i, 0, 1) - GradB(i, 1, 0));
+                BdotCurlB(i, 0) = B(i, 0) * (GradB(i, 1, 2) - GradB(i, 2, 1))
+                                + B(i, 1) * (GradB(i, 2, 0) - GradB(i, 0, 2))
+                                + B(i, 2) * (GradB(i, 0, 1) - GradB(i, 1, 0));
             }
         }
 
@@ -139,10 +139,9 @@ class MagneticField {
         virtual void _dA_by_dX_impl(Tensor3& dA_by_dX) { throw logic_error("_dA_by_dX_impl was not implemented"); }
         virtual void _d2A_by_dXdX_impl(Tensor4& d2A_by_dXdX) { throw logic_error("_d2A_by_dXdX_impl was not implemented"); }
 
-        CachedTensor<T, 1> data_BdotCurlB;
         CachedTensor<T, 2> points_cart;
         CachedTensor<T, 2> points_cyl;
-        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_GradAbsBcyl;
+        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_GradAbsBcyl,data_BdotCurlB;
         CachedTensor<T, 3> data_dB, data_dA;
         CachedTensor<T, 4> data_ddB, data_ddA;
         int npoints;
@@ -265,12 +264,12 @@ class MagneticField {
             return data_GradAbsB.get_or_create_and_fill({npoints, 3}, [this](Tensor2& GradAbsB) { return _GradAbsB_impl(GradAbsB);});
         }
 
-        Tensor1 BdotCurlB() {
+        Tensor2 BdotCurlB() {
             return BdotCurlB_ref();
         }
 
-        Tensor1& BdotCurlB_ref() {
-            return data_BdotCurlB.get_or_create_and_fill({npoints}, [this](Tensor1& BdotCurlB) { return _BdotCurlB_impl(BdotCurlB);});
+        Tensor2& BdotCurlB_ref() {
+            return data_BdotCurlB.get_or_create_and_fill({npoints}, [this](Tensor2& BdotCurlB) { return _BdotCurlB_impl(BdotCurlB);});
         }
 
         Tensor2 GradAbsB_cyl() {

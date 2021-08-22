@@ -18,7 +18,7 @@ class InterpolatedField : public MagneticField<T> {
         std::function<Vec(Vec, Vec, Vec)> fbatch_GradAbsB;
         std::function<Vec(Vec, Vec, Vec)> fbatch_BdotCurlB;
         shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_B, interp_GradAbsB;
-        shared_ptr<RegularGridInterpolant<Tensor1>> interp_BdotCurlB;
+        shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_BdotCurlB;
         bool status_B = false;
         bool status_GradAbsB = false;
         bool status_BdotCurlB = false;
@@ -68,9 +68,9 @@ class InterpolatedField : public MagneticField<T> {
             }
         }
 
-        void _BdotCurlB_impl(Tensor1& BdotCurlB) override {
+        void _BdotCurlB_impl(Tensor2& BdotCurlB) override {
             if(!interp_BdotCurlB)
-                interp_BdotCurlB = std::make_shared<RegularGridInterpolant<Tensor1>>(rule, r_range, phi_range, z_range, 3, extrapolate);
+                interp_BdotCurlB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 1, extrapolate);
             if(!status_BdotCurlB) {
                 Tensor2 old_points = this->field->get_points_cart();
                 interp_BdotCurlB->interpolate_batch(fbatch_BdotCurlB);
@@ -241,7 +241,7 @@ class InterpolatedField : public MagneticField<T> {
         }
         std::pair<double, double> estimate_error_BdotCurlB(int samples) {
             if(!interp_BdotCurlB)
-                interp_BdotCurlB = std::make_shared<RegularGridInterpolant<Tensor1>>(rule, r_range, phi_range, z_range, 3, extrapolate);
+                interp_BdotCurlB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 1, extrapolate);
             if(!status_BdotCurlB) {
                 Tensor2 old_points = this->field->get_points_cart();
                 interp_BdotCurlB->interpolate_batch(fbatch_BdotCurlB);
