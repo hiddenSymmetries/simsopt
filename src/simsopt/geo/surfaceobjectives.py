@@ -282,7 +282,7 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
     r = residual_flattened
     val = 0.5 * np.sum(r**2)
     if derivatives == 0:
-        return val
+        return val,
 
     dx_dc = surface.dgamma_by_dcoeff()
     dxphi_dc = surface.dgammadash1_by_dcoeff()
@@ -309,11 +309,12 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
     if derivatives == 1:
         return val, dval
     
+    #import ipdb;ipdb.set_trace()
     d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
     resd2B_dcdc = np.einsum('ijkpl,ijpn,ijkm,ijl->mn', d2B_by_dXdX, dx_dc, dx_dc, residual, optimize=True)
     dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc, optimize=True)
     resterm1 = np.einsum('ijlm,ijln,ijq->mn', dB_dc, dB_dc, residual*tang, optimize=True)
-    resterm2 = np.einsum('ijkpl,ijpn,ijkm,ijl,ijq->mn', d2B_by_dXdX, dx_dc, dx_dc, B, residual*tang, optimize=True)
+    resterm2 = np.einsum('ijkpl,ijpn,ijkm,ijl,ijq->mn', d2B_by_dXdX, dx_dc, dx_dc, B, residual*tang, optimize=['einsum_path', (3, 4), (0, 3), (0, 2), (0, 1)])
     resd2B2_dcdc = -2*(resterm1 + resterm2)
     
     tang_dc = dxphi_dc + iota * dxtheta_dc
@@ -417,7 +418,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened), axis=1)
     if derivatives == 1:
         return r, J
-
+    
     d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
     d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc, optimize=True)
     dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc, optimize=True)

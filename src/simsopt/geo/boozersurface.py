@@ -8,7 +8,6 @@ from simsopt.geo.surfaceobjectives import boozer_surface_residual_accumulate
 from simsopt.geo.surfaceobjectives import boozer_surface_dlsqgrad_dcoils_vjp
 from simsopt.geo.surfaceobjectives import boozer_surface_dexactresidual_dcoils_dcurrents_vjp
 
-
 class BoozerSurface():
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
@@ -165,8 +164,13 @@ class BoozerSurface():
             H,
             np.sqrt(constraint_weight) * d2l[None, :, :],
             np.zeros(d2l[None, :, :].shape)), axis=0)
+        
         d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
         
+        #import ipdb; ipdb.set_trace()
+        #import accupy 
+        #d2val = J.T @ J + accupy.kahan_sum(r[:, None, None] * H)
+
         if scalarize:
             return val, dval, d2val
         else:
@@ -291,23 +295,52 @@ class BoozerSurface():
         i = 0
 
         val, dval, d2val = self.boozer_penalty_constraints(
-            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-        norm = np.linalg.norm(dval)
+            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
+        
+        #val1, dval1, d2val1 = self.boozer_penalty_constraints(
+        #    x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=False)
+        #val2, dval2, d2val2 = self.boozer_penalty_constraints(
+        #    x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=False)
+        #import ipdb; ipdb.set_trace()
+        #import scipy.optimize.linesearch
+        #def func(x):
+        #    f = self.boozer_penalty_constraints(x, derivatives=0, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
+        #    return f
+        #def dfunc(x):
+        #    f,df = self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
+        #    return df
+        #
+        #import warnings
+        
+        norm = np.linalg.norm(dval, ord=np.inf)
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(d2val, dval)
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
+            #with warnings.catch_warnings():
+            #    warnings.simplefilter('ignore')
+            #    alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = scipy.optimize.line_search(func, dfunc, x, -dx)
+            #    if alpha_k is None:
+            #        break
+            #x = x - dx * alpha_k
+            
             x = x - dx
+             
             val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-            norm = np.linalg.norm(dval)
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
+            norm = np.linalg.norm(dval, ord=np.inf)
             i = i+1
+            stab *= 1/3
 
         r = self.boozer_penalty_constraints(
             x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+        
+        P, L, U = lu(d2val)
         res = {
             "residual": r, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
+            "dconstraint_dcoils_vjp": boozer_surface_dlsqgrad_dcoils_vjp, "gradient": dval,
+            "type" : "leastsquares", "PLU" : (P, L, U)
         }
         if G is None:
             s.set_dofs(x[:-1])
@@ -319,6 +352,7 @@ class BoozerSurface():
             res['G'] = G
         res['s'] = s
         res['iota'] = iota
+        self.res = res
         return res
     
 #    @profile
@@ -355,7 +389,7 @@ class BoozerSurface():
                     x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
                 JTJ = J.T@J
-                norm = np.linalg.norm(b)
+                norm = np.linalg.norm(b, ord=np.inf)
                 lam *= 1/3
                 i += 1
             resdict = {
