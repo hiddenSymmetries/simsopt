@@ -65,7 +65,7 @@ optimization.  Others include `STELLOPT
    problems
    testing
    source
-   cite
+   publications
    contributing
 
 .. toctree::
