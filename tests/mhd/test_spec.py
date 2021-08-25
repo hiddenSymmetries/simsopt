@@ -148,10 +148,7 @@ class SpecTests(unittest.TestCase):
             prob = LeastSquaresProblem.from_tuples([term1])
 
             # Check that the problem was set up correctly:
-            #self.assertEqual(len(prob.dofs.names), 1)
-            #self.assertEqual(prob.dofs.names[0][:7], 'rc(0,0)')
             np.testing.assert_allclose(prob.x, [1.0])
-            self.assertEqual(prob.ancestors, [equil, surf])
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob, grad=grad)
@@ -210,11 +207,7 @@ class SpecTests(unittest.TestCase):
                 [(equil.iota, desired_iota, 1)])
 
             # Check that the problem was set up correctly:
-            # self.assertEqual(len(prob.dofs.names), 1)
-            # self.assertEqual(prob.dofs.names[0][:11], 'Delta(1,-1)')
             np.testing.assert_allclose(prob.x, [0.1])
-            self.assertEqual(prob.ancestors, [equil, surf])
-            # self.assertEqual(prob.dofs.dof_owners, [surf])
 
             # Solve the minimization problem:
             least_squares_serial_solve(prob)
