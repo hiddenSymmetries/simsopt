@@ -77,8 +77,10 @@ class Boozer(Optimizable):
         self.mpi = None
         if equil is not None:
             self.mpi = equil.mpi
-
-        super().__init__(depends_on=[equil])
+        if equil is not None:
+            super().__init__(depends_on=[equil])
+        else:
+            super().__init__()
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
