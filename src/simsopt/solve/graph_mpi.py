@@ -11,6 +11,7 @@ the operation of these main functions.
 import logging
 from datetime import datetime
 from time import time
+import traceback
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -23,6 +24,7 @@ except ImportError as err:
 from .._core.graph_optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from ..util.types import RealArray
+from .._core.util import finite_difference_steps
 from ..objectives.graph_least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,10 @@ CALCULATE_FD_JAC = 3
 
 def _mpi_leaders_task(mpi: MpiPartition,
                       prob: Optimizable,
-                      data: int):
+                      data: int,
+                      abs_step: float = 1.0e-7,
+                      rel_step: float = 0,
+                      diff_method: str = 'centered'):
     """
     This function is called by group leaders when
     MpiPartition.leaders_loop() receives a signal to do something.
@@ -49,6 +54,12 @@ def _mpi_leaders_task(mpi: MpiPartition,
           divided into worker groups.
         prob: Optimizable object
         data: Dummy argument for this function
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
     """
     logger.debug('mpi leaders task')
 
@@ -61,12 +72,13 @@ def _mpi_leaders_task(mpi: MpiPartition,
     x = mpi.comm_leaders.bcast(x, root=0)
     logger.debug(f'mpi leaders loop x={x}')
     prob.x = x
-    fd_jac_mpi(prob, mpi)
+    fd_jac_mpi(prob, mpi, abs_step=abs_step, rel_step=rel_step,
+               diff_method=diff_method)
 
 
 def _mpi_workers_task(mpi: MpiPartition,
                       prob: Optimizable,
-                      data: str):
+                      data: int):
     """
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
@@ -86,22 +98,24 @@ def _mpi_workers_task(mpi: MpiPartition,
     # calculation, so receive the state vector: mpi4py has
     # separate bcast and Bcast functions!!  comm.Bcast(x, root=0)
     x = mpi.comm_groups.bcast(x, root=0)
-    logger.debug('worker loop worker x={}'.format(x))
+    logger.debug(f'worker loop worker x={x}')
     prob.x = x
 
     # We don't store or do anything with f() or jac(), because
     # the group leader will handle that.
     if data == CALCULATE_F:
         try:
-            prob.objective()
+            prob.residuals()
         except:
             logger.info("Exception caught by worker during dofs.f()")
+            traceback.print_exc()  # Print traceback
 
     elif data == CALCULATE_JAC:
         try:
             prob.jac()
         except:
             logger.info("Exception caught by worker during dofs.jac()")
+            traceback.print_exc()  # Print traceback
 
     else:
         raise ValueError('Unexpected data in worker_loop')
@@ -110,8 +124,9 @@ def _mpi_workers_task(mpi: MpiPartition,
 def fd_jac_mpi(prob: Optimizable,
                mpi: MpiPartition,
                x: RealArray = None,
-               eps: float = 1e-7,
-               centered: bool = False):
+               abs_step: float = 1.0e-7,
+               rel_step: float = 0,
+               diff_method: str = 'centered'):
     """
     Compute the finite-difference Jacobian of the functions in dofs
     with respect to all non-fixed degrees of freedom. Parallel
@@ -132,16 +147,19 @@ def fd_jac_mpi(prob: Optimizable,
 
     Args:
         prob: The map from :math:`\mathbb{R}^n \\to \mathbb{R}^m` for which you
-          want to compute the Jacobian.
+            want to compute the Jacobian.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
-          the information about how the pool of MPI processes is
-          divided into worker groups.
+            the information about how the pool of MPI processes is
+            divided into worker groups.
         x: The 1D state vector at which you wish to evaluate the Jacobian.
-          If ``None``, the Jacobian will be evaluated at the present
-          state vector.
-        eps: Step size for finite differences.
-        centered: If ``True``, centered finite differences will be used.
-          If ``false``, one-sided finite differences will be used.
+            If ``None``, the Jacobian will be evaluated at the present
+            state vector.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
 
     Returns:
         tuple containing
@@ -176,22 +194,26 @@ def fd_jac_mpi(prob: Optimizable,
     logger.info(f'x0: {x0}')
 
     # Set up the list of parameter values to try
-    if centered:
+    steps = finite_difference_steps(x0, abs_step=abs_step, rel_step=rel_step)
+    mpi.comm_leaders.Bcast(steps)
+    if diff_method == "centered":
         nevals_jac = 2 * prob.dof_size
         xs = np.zeros((prob.dof_size, nevals_jac))
         for j in range(prob.dof_size):
             xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
-            xs[j, 2 * j] = x0[j] + eps
+            xs[j, 2 * j] = x0[j] + steps[j]
             xs[:, 2 * j + 1] = x0[:]
-            xs[j, 2 * j + 1] = x0[j] - eps
-    else:
+            xs[j, 2 * j + 1] = x0[j] - steps[j]
+    elif diff_method == "forward":
         # 1-sided differences
         nevals_jac = prob.dof_size + 1
         xs = np.zeros((prob.dof_size, nevals_jac))
         xs[:, 0] = x0[:]
         for j in range(prob.dof_size):
             xs[:, j + 1] = x0[:]
-            xs[j, j + 1] = x0[j] + eps
+            xs[j, j + 1] = x0[j] + steps[j]
+    else:
+        raise ValueError("diff_method must be 'centered' or 'forward'")
 
     # proc0_world will be responsible for detecting nvals, since
     #proc0_world always does at least 1 function evaluation. Other
@@ -205,7 +227,7 @@ def fd_jac_mpi(prob: Optimizable,
         # All procs other than proc0_world should initialize evals
         # before the nevals_jac loop, since they may not have any
         # evals.
-        nvals = mpi.comm_leaders.bcast(prob.dof_size)
+        nvals = mpi.comm_leaders.bcast(prob.nvals)
         evals = np.zeros((nvals, nevals_jac))
     # Do the hard work of evaluating the functions.
     for j in range(nevals_jac):
@@ -216,14 +238,10 @@ def fd_jac_mpi(prob: Optimizable,
             mpi.comm_groups.bcast(x, root=0)
             prob.x = x
 
-            try:
-                f = prob.objective()
-            except:
-                logger.info("Exception caught during function evaluation")
-                f = np.full(prob.dofs.nvals, 1.0e12)
+            f = prob.residuals()
 
             if evals is None and mpi.proc0_world:
-                nvals = mpi.comm_leaders.bcast(prob.dof_size)
+                nvals = mpi.comm_leaders.bcast(prob.nvals)
                 evals = np.zeros((nvals, nevals_jac))
 
             evals[:, j] = f
@@ -240,14 +258,16 @@ def fd_jac_mpi(prob: Optimizable,
         return (None, None, None)
 
     # Use the evals to form the Jacobian
-    jac = np.zeros((prob.dof_size, prob.dof_size))
-    if centered:
+    jac = np.zeros((prob.nvals, prob.dof_size))
+    if diff_method == "centered":
         for j in range(prob.dof_size):
-            jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (2 * eps)
-    else:
+            jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (2 * steps[j])
+    elif diff_method == "forward":
         # 1-sided differences:
         for j in range(prob.dof_size):
-            jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / eps
+            jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
+    else:
+        assert False, "Program should not get here"
 
     # Weird things may happen if we do not reset the state vector
     # to x0:
@@ -258,6 +278,9 @@ def fd_jac_mpi(prob: Optimizable,
 def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             mpi: MpiPartition,
                             grad: bool = None,
+                            abs_step: float = 1.0e-7,
+                            rel_step: float = 0.0,
+                            diff_method: str = "centered",
                             **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -276,6 +299,12 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
               will be used by default. If you set ``grad=True`` for a problem
               in which gradient information is not available,
               finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -286,9 +315,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     if MPI is None:
         raise RuntimeError(
             "least_squares_mpi_solve requires the mpi4py package.")
-
     logger.info("Beginning solve.")
-    #prob._init()
     #if grad is None:
     #    grad = prob.grad_avail
 
@@ -313,7 +340,6 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         logger.debug("Past bcast in _f_proc0")
 
         try:
-            #f_unshifted = prob.dofs.f(x)
             unweighted_residuals = prob.unweighted_residuals(x)
             logger.debug(f"unweighted residuals:\n {unweighted_residuals}")
             residuals = prob.residuals()
@@ -429,14 +455,16 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             return prob.scale_dofs_jac(jac)
 
     # Send group leaders and workers into their respective loops:
-    leaders_action = lambda mpi2, data: _mpi_leaders_task(mpi, prob, data)
+    leaders_action = lambda mpi2, data: _mpi_leaders_task(
+        mpi, prob, data, abs_step=abs_step, rel_step=rel_step,
+        diff_method=diff_method)
     workers_action = lambda mpi2, data: _mpi_workers_task(mpi, prob, data)
     mpi.apart(leaders_action, workers_action)
 
     if mpi.proc0_world:
         # proc0_world does this block, running the optimization.
         x0 = np.copy(prob.x)
-        #print("x0:",x0)
+        print(f"x0 in proc0: {x0}")
         # Call scipy.optimize:
         if grad:
             logger.info("Using derivative free method despite derivatives given")
