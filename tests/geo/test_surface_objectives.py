@@ -152,8 +152,8 @@ class ParameterDerivativesTest(unittest.TestCase):
                     self.subtest_volume(surfacetype, stellsym)
 
     def subtest_volume(self, surfacetype, stellsym):
-        s = get_surface(surfacetype, stellsym, mpol=10, ntor=10, ntheta=100,
-                        nphi=100, full=True)
+        s = get_surface(surfacetype, stellsym, mpol=7, ntor=6,
+                        ntheta=32, nphi=31, full=True)
         dofs = s.get_dofs()
 
         vol = Volume(s)
