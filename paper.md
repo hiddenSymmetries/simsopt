@@ -169,8 +169,8 @@ optimization including both VMEC and SPEC simultaneously is shown in
 \autoref{fig:xsections}-\autoref{fig:poincare}. Here, the shape is
 optimized to both eliminate an internal island chain, as computed from
 SPEC, and to achieve quasisymmetry, as computed from VMEC and
-BOOZ_XFORM. More details of this calculation will be presented
-elsewhere.
+BOOZ_XFORM. More details of this calculation can be found in
+@combined_vmec_spec.
 
 ![An example of stage-1 optimization using SIMSOPT, in which the
  shape of a toroidal boundary is optimized to eliminate magnetic
@@ -198,8 +198,8 @@ which coil shapes are varied to optimize directly for quasisymmetry
 near the magnetic axis [@Giuliani]. \autoref{fig:coils} shows an
 example in which stochastic optimization is applied to find a
 configuration in which the quasisymmetry is relatively insensitive to
-errors in the coil shapes.  This example will be described in more
-detail in a separate publication.
+errors in the coil shapes.  This example is described in more
+detail in @Wechsung.
 
 
 ![A stellarator obtained using stochasic optimization with `Curve` and
