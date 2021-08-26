@@ -3,7 +3,8 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.mhd.vmec import Vmec, IotaTargetMetric
+from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 
