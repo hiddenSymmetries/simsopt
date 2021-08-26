@@ -110,8 +110,8 @@ class IotaTargetMetricTests(unittest.TestCase):
 
     def test_IotaTargetMetric_LeastSquaresProblem(self):
         """
-        Compare jacobian for least-squares problem with supplied gradient wrt
-        one surface coefficient matches finite-differences.
+        Compare Jacobian for least-squares problem with supplied gradient wrt
+        one surface coefficient with finite-differences.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         vmec = Vmec(filename, ntheta=100, nphi=100)
@@ -143,7 +143,7 @@ class IotaTargetMetricTests(unittest.TestCase):
 class IotaWeightedTests(unittest.TestCase):
     def test_IotaWeighted_J(self):
         """
-        Check that objective value with peaked gaussian weight function yields
+        Check that objective value with peaked Gaussian weight function yields
         approximately the value of iota at center of weight function.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
@@ -162,7 +162,7 @@ class IotaWeightedTests(unittest.TestCase):
 class WellWeightedTests(unittest.TestCase):
     def test_WellWeighted_J(self):
         """
-        Check that objective value with peaked gaussian weight function at axis
+        Check that objective value with peaked Gaussian weight function at axis
         and edge matches well metric computed with V'(0) and V'(1).
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
@@ -217,8 +217,8 @@ class WellWeightedTests(unittest.TestCase):
 
     def test_WellWeighted_LeastSquaresProblem(self):
         """
-        Compare jacobian for least-squares problem with supplied gradient wrt
-        one surface coefficient matches finite-differences.
+        Compare Jacobian for least-squares problem with supplied gradient wrt
+        one surface coefficient with finite-differences.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         vmec = Vmec(filename, ntheta=100, nphi=100)
