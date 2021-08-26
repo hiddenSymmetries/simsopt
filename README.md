@@ -28,7 +28,8 @@ repositories. These separate modules include
 - [VMEC](https://github.com/hiddenSymmetries/VMEC2000), for MHD
   equilibrium.
 - [SPEC](https://github.com/PrincetonUniversity/SPEC), for MHD
-  equilibrium. (This repository is private.)
+  equilibrium. (We are working to make the SPEC repository public,
+  and expect it to be so soon, but as of this writing it remains private.)
 - [booz_xform](https://hiddensymmetries.github.io/booz_xform), for
   Boozer coordinates and quasisymmetry.
   
