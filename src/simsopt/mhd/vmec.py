@@ -746,9 +746,10 @@ class Vmec(Optimizable):
 
     def d_well_weighted(self, weight_function1, weight_function2, delta=1.):
         """
-        Computes derivatives of iota_target_metric wrt surface parameters using
-        an adjoint method. The parameter delta sets the amplitude of the toroidal
-        current perturbation required for the adjoint solve.
+        Computes derivatives of well_weighted wrt surface parameters using
+        an adjoint method. The parameter delta sets the amplitude of
+        the toroidal current perturbation required for the adjoint
+        solve.
         """
 
         shape_gradient = self.well_weighted_shape_gradient(weight_function1, weight_function2, delta)
@@ -807,9 +808,9 @@ class Vmec(Optimizable):
 
     def B_cartesian(self):
         """
-        Computes cartesian vector components of magnetic field on boundary on grid in
-        toroidal angle and arclength poloidal angle. This is required to
-        compute the adjoint-based shape gradient.
+        Computes cartesian vector components of magnetic field on boundary
+        on a grid in the vmec toroidal and poloidal angles. This is
+        required to compute adjoint-based shape gradients.
         """
         dgamma1 = self.boundary.gammadash1()
         dgamma2 = self.boundary.gammadash2()
@@ -923,8 +924,8 @@ class IotaTargetMetric(Optimizable):
 
 class WellWeighted(Optimizable):
     """
-    WellWeightedMetric is a class that computes well_weighted from a
-    vmec equilibrium. Its derivatives can also be computed with an adjoint
+    WellWeighted is a class that computes well_weighted from a vmec
+    equilibrium. Its derivatives can also be computed with an adjoint
     method.
     """
 
