@@ -88,7 +88,7 @@ class IotaTargetMetric(Optimizable):
 
     def dJ(self):
         """
-        Computes derivatives of iota_target_metric wrt surface parameters using
+        Computes derivatives of J wrt surface parameters using
         an adjoint method.
         """
         if self.vmec.indata.ncurr != 1:
@@ -153,7 +153,7 @@ class IotaTargetMetric(Optimizable):
 class IotaWeighted(Optimizable):
     """
     Computes a weighted average of the rotational transform defined by
-    the prescribed weight_function, f,
+    the prescribed weight_function,
 
         \int ds \, iota * weight_function(s) / \int ds \, weight_function(s)
 
@@ -175,7 +175,7 @@ class IotaWeighted(Optimizable):
     def J(self):
         """
         Computes a weighted average of the rotational transform defined by
-        the prescribed weight_function, f,
+        the prescribed weight_function, 
 
             \int ds \, iota * weight_function(s) / \int ds \, weight_function(s)
         """
