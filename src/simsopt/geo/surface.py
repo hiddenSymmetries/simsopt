@@ -271,3 +271,44 @@ class Surface(Optimizable):
 
         AR = R_major/R_minor
         return AR
+
+    def arclength_poloidal_angle(self):
+        """
+        Computes poloidal angle based on arclenth along magnetic surface at
+        constant phi. This is required for evaluating the adjoint shape gradient
+        for free-boundary calculations.
+        """
+        gamma = self.gamma()
+        X = gamma[:, :, 0]
+        Y = gamma[:, :, 1]
+        Z = gamma[:, :, 2]
+        R = np.sqrt(X**2 + Y**2)
+
+        theta_arclength = np.zeros_like(gamma[:, :, 0])
+        nphi = len(theta_arclength[:, 0])
+        ntheta = len(theta_arclength[0, :])
+        for iphi in range(nphi):
+            for itheta in range(1, ntheta):
+                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
+                             + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
+                theta_arclength[iphi, itheta] = \
+                    theta_arclength[iphi, itheta-1] + dr
+        return theta_arclength
+
+    def interpolate_on_arclength_grid(self, function, theta_evaluate):
+        """
+        Interpolate function onto the theta_evaluate grid in the arclength
+        poloidal angle. This is required for evaluating the adjoint shape gradient
+        for free-boundary calculations.
+        """
+        from scipy import interpolate
+
+        theta_arclength = self.arclength_poloidal_angle()
+        function_interpolated = np.zeros_like(function)
+        nphi = len(theta_arclength[:, 0])
+        for iphi in range(nphi):
+            f = interpolate.InterpolatedUnivariateSpline(
+                theta_arclength[iphi, :], function[iphi, :])
+            function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
+
+        return function_interpolated
