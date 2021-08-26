@@ -91,11 +91,13 @@ optimization problems is written in python, whereas the Biot-Savart
 law is implemented in C++.
 
 Some of the physics modules with compiled code reside in separate
-repositories. Two such modules are the VMEC [@VMEC1983] and SPEC
-[@SPEC;@SPEC2] codes, for MHD equilibrium. These Fortran codes are interfaced
-using the `f90wrap` package [@f90wrap], so data can be passed directly
-in memory to and from python.  This is particularly useful for passing
-MPI communicators for parallelized evaluation of finite-difference
+repositories. Two such modules are the VMEC [@VMEC1983] and SPEC^[It
+is expected that the SPEC repository will be open-source soon, but
+as of this writing it remains private.]  [@SPEC;@SPEC2] codes, for MHD
+equilibrium. These Fortran codes are interfaced using the `f90wrap`
+package [@f90wrap], so data can be passed directly in memory to and
+from python.  This is particularly useful for passing MPI
+communicators for parallelized evaluation of finite-difference
 gradients.  Another module in a separate repository is BOOZ_XFORM
 [@booz_xform], for calculation of Boozer coordinates.  This latter
 repository is a new C++ re-implementation of an algorithm in an older
