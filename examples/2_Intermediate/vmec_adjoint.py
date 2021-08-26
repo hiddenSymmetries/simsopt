@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-import vmec
-from simsopt.mhd import Vmec
-from simsopt.mhd.vmec import IotaTargetMetric
+
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from simsopt.mhd.vmec import Vmec, IotaTargetMetric
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
-import matplotlib.pyplot as plt
 
 """
 Here, we perform an optimization begining with a 3 field period rotating ellipse
@@ -17,12 +16,12 @@ modes in the optimization space is slowly increased from |m|,|n| <= 2 to 5. At
 the end, the initial and final profiles are plotted.
 """
 
-target_function = lambda s: 0.381966  # target value of rotational transform
-epsilon = 1.e-4  # FD step size
+# target profile of rotational transform, here just a constant:
+target_function = lambda s: 0.381966
 adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
-# Compute random direction for surface perturbation
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse'), ntheta=100, nphi=100)
+filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse')
+vmec = Vmec(filename, ntheta=100, nphi=100)
 
 vmec.run()
 iotas_init = vmec.wout.iotas
@@ -44,13 +43,14 @@ for max_mode in range(3, 6):
     # deleted when vmec runs again:
     vmec.files_to_delete = []
 
-# Plot result
+vmec.run()
 iotas_final = vmec.wout.iotas
 
+# Plot result
 plt.figure()
-plt.plot(vmec.s_half_grid, iotas_init[1::], color='green')
-plt.plot(vmec.s_half_grid, iotas_final[1::], color='red')
-plt.axhline(0.381966, color='blue')
+plt.plot(vmec.s_half_grid, iotas_init[1:], color='green')
+plt.plot(vmec.s_half_grid, iotas_final[1:], color='red')
+plt.axhline(target_function(0), color='blue')
 plt.legend(['Initial', 'Final', 'Target'])
 plt.xlabel(r'$s$')
 plt.ylabel(r'$\iota$')

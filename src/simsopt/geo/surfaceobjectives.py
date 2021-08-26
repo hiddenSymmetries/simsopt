@@ -1,5 +1,8 @@
 import numpy as np
+from typing import Any
+from nptyping import NDArray, Float
 import simsoptpp as sopp
+from simsopt.geo.surface import Surface
 
 
 class Area(object):
@@ -246,23 +249,31 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     return r, J, H
 
 
-def parameter_derivatives(surface, shape_gradient):
-    """
-    Converts the shape gradient of a given figure of merit, f, to derivatives
-    with respect to parameters defining a surface. Here the shape gradient
-    is defined as S, where the perturbation to the objective function
-    corresponding to the perturbation of the surface, \delta x is,
+def parameter_derivatives(surface: Surface,
+                          shape_gradient: NDArray[(Any, Any), Float]
+                          ) -> NDArray[(Any,), Float]:
+    r"""
+    Converts the shape gradient of a given figure of merit, :math:`f`,
+    to derivatives with respect to parameters defining a surface.  For
+    a perturbation to the surface :math:`\delta \vec{x}`, the
+    resulting perturbation to the objective function is
 
-    \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n.
+    .. math::
+      \delta f(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}.
 
-    Given S, the parameter derivatives are then computed as,
+    where :math:`G` is the shape gradient and :math:`\vec{n}` is the
+    unit normal. Given :math:`G`, the parameter derivatives are then
+    computed as
 
-    df_by_dcoeff = \int d^2 x \, S dx_by_dcoeff \cdot n.
+    .. math::
+      \frac{\partial f}{\partial \Omega} = \int d^2 x \, G \frac{\partial\vec{x}}{\partial \Omega} \cdot \vec{n},
+
+    where :math:`\Omega` is any parameter of the surface.
 
     Args:
+        surface: The surface to use for the computation
         shape_gradient: array-like with same dimensions as angles on the surface,
             (nphi,ntheta)
-
     """
     N = surface.normal()
     norm_N = np.linalg.norm(N, axis=2)
