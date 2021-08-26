@@ -77,7 +77,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
-                    phase_angle=0):
+                    phase_angle=0, count_transits=False):
     r"""
     Follow particles in a magnetic field.
 
@@ -122,6 +122,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                            particle for the ``res_tys``. To be used when only res_phi_hits is of
                            interest or one wants to reduce memory usage.
         phase_angle: the phase angle to use in the case of full orbit calculations
+        count_transits: if True, count the number of toroidal and poloidal transits.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -351,7 +352,6 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
     return res_tys, res_phi_hits
 
-
 def particles_to_vtk(res_tys, filename):
     """
     Export particle tracing or field lines to a vtk file.
@@ -382,13 +382,17 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
+class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of toroidal transits is reached.
+    """
+    pass
 
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     Stop the iteration once the maximum number of iterations is reached.
     """
     pass
-
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
     """
