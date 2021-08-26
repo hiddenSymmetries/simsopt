@@ -8,6 +8,8 @@ using std::shared_ptr;
 using std::vector;
 using std::tuple;
 
+double get_phi(double x, double y, double phi_near);
+
 
 class StoppingCriterion {
     public:
@@ -16,12 +18,44 @@ class StoppingCriterion {
         virtual ~StoppingCriterion() {}
 };
 
+class ToroidalTransitStoppingCriterion : public StoppingCriterion {
+    private:
+        int ntransits;
+        int max_transits;
+        double phi_last;
+    public:
+        ToroidalTransitStoppingCriterion(int max_transits) : max_transits(max_transits) {
+          ntransits = 0;
+          phi_last = M_PI;
+        };
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            if (iter > 0) {
+              double phi = get_phi(x, y, phi_last);
+              bool phi_hit = std::floor((phi)/(2*M_PI)) != std::floor((phi_last)/(2*M_PI));
+              phi_last = phi;
+              if (phi_hit) {
+                ntransits += 1;
+              }
+            }
+            return ntransits>=max_transits;
+        };
+};
+
 class IterationStoppingCriterion : public StoppingCriterion{
     private:
         int max_iter;
+        double phi_last;
     public:
-        IterationStoppingCriterion(int max_iter) : max_iter(max_iter) { };
+        IterationStoppingCriterion(int max_iter) : max_iter(max_iter) {
+          phi_last = M_PI;
+          std::cout << "starting" << std::endl;
+        };
         bool operator()(int iter, double t, double x, double y, double z) override {
+          if (iter > 0) {
+            double phi = get_phi(x, y, phi_last);
+            // std::cout << "phi: " << phi << std::endl;
+            phi_last = phi;
+          }
             return iter>max_iter;
         };
 };
@@ -62,4 +96,3 @@ tuple<vector<array<double, 4>>, vector<array<double, 5>>>
 fieldline_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
         double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
-
