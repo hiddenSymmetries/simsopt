@@ -259,7 +259,7 @@ def parameter_derivatives(surface: Surface,
     resulting perturbation to the objective function is
 
     .. math::
-      \delta f(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}.
+      \delta f(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}
 
     where :math:`G` is the shape gradient and :math:`\vec{n}` is the
     unit normal. Given :math:`G`, the parameter derivatives are then

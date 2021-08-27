@@ -50,13 +50,18 @@ def B_cartesian(vmec):
 
 
 class IotaTargetMetric(Optimizable):
-    """
-    IotaTargetMetric is a class that computes the metric,
+    r"""
+    IotaTargetMetric is a class that computes a metric quantifying the
+    deviation of the rotational transform :math:`\iota` in from a
+    prescribed target profile in a Vmec equilibrium:
 
-        0.5 * \int ds \, (iota - iota_target)**2
+    .. math::
+        J = \frac{1}{2} \int ds \, (\iota - \iota_{target})^2
 
-    from a vmec equilibrium. Its derivatives can also be computed with an adjoint
-    method.
+    where the integral is over the normalized toroidal flux :math:`s`,
+    and the function :math:`\iota_{target}(s)` corresponds to the
+    argument ``iota_target``. This class also can compute the
+    derivatives of :math:`J` using an adjoint method.
 
     Args:
         vmec : instance of Vmec
@@ -76,10 +81,7 @@ class IotaTargetMetric(Optimizable):
 
     def J(self):
         """
-        Computes a metric quantifying the deviation of iota from a prescribed
-        target value,
-
-            0.5 * \int ds \, (iota - iota_target)**2
+        Computes the quantity :math:`J` described in the class definition.
         """
         self.vmec.need_to_run_code = True
         self.vmec.run()
@@ -88,8 +90,8 @@ class IotaTargetMetric(Optimizable):
 
     def dJ(self):
         """
-        Computes derivatives of J wrt surface parameters using
-        an adjoint method.
+        Computes derivatives of :math:`J` with respect to surface
+        parameters using an adjoint method.
         """
         if self.vmec.indata.ncurr != 1:
             raise RuntimeError('''dJ cannot be computed without
@@ -99,13 +101,18 @@ class IotaTargetMetric(Optimizable):
         return parameter_derivatives(self.vmec.boundary, shape_gradient)
 
     def shape_gradient(self):
-        """
-        Computes shape gradient of J, defined as S where,
+        r"""
+        Computes the shape gradient of the quantity :math:`J` described in
+        the class definition.  For a perturbation to the surface
+        :math:`\delta \vec{x}`, the resulting perturbation to the
+        objective function is
 
-            \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n,
+        .. math::
+          \delta J(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}
 
-        is the perturbation to the objective function corresponding to the
-        perturbation of the surface, \delta x.
+        where the integral is over the VMEC boundary surface,
+        :math:`G` is the shape gradient, and :math:`\vec{n}` is the
+        unit normal.
         """
         self.vmec.run()
 
@@ -151,14 +158,18 @@ class IotaTargetMetric(Optimizable):
 
 
 class IotaWeighted(Optimizable):
-    """
-    Computes a weighted average of the rotational transform defined by
-    the prescribed weight_function,
+    r"""
+    Computes a weighted average of the rotational transform for a VMEC
+    configuration.  The quantity computed is defined by
 
-        \int ds \, iota * weight_function(s) / \int ds \, weight_function(s)
+    .. math::
+        J = \frac{ \int ds \, \iota(s) w(s)}
+                 { \int ds \, w(s)}
 
-    from a vmec equilibrium. [an adjoint method is also available, but not
-    yet implemented]
+    where :math:`w(s)` is a prescribed weight function, corresponding
+    to the argument ``weight_function``.
+
+    An adjoint method is also available, but not yet implemented.
 
     Args:
         vmec : instance of Vmec
@@ -174,10 +185,7 @@ class IotaWeighted(Optimizable):
 
     def J(self):
         """
-        Computes a weighted average of the rotational transform defined by
-        the prescribed weight_function, 
-
-            \int ds \, iota * weight_function(s) / \int ds \, weight_function(s)
+        Computes the quantity :math:`J` described in the class definition.
         """
         self.vmec.need_to_run_code = True
         self.vmec.run()
@@ -186,14 +194,24 @@ class IotaWeighted(Optimizable):
 
 
 class WellWeighted(Optimizable):
-    """
-    WellWeighted is a class that computes the objective function,
+    r"""
+    WellWeighted is a class that computes a measure of magnetic well
+    for a vmec equilibrium. The magnetic well measure is
 
-        f = \int ds \, V'(s) * (weight_function1(s) - weight_function2(s))
-            / \int ds \, V'(s) (weight_function1(s) + weight_function2(s)),
+    .. math::
+        J = \frac{ \int ds \, V'(s) [w_1(s) - w_2(s)]}
+            { \int ds \, V'(s) [w_1(s) + w_2(s)]},
 
-    from a vmec equilibrium. Its derivatives can also be computed with an adjoint
-    method.
+    where :math:`w_1(s)` and :math:`w_2(s)` correspond to the
+    arguments ``weight_function1`` and ``weight_function2``, and
+    :math:`V(s)` is the volume enclosed by the flux surface with
+    normalized toroidal flux :math:`s`.  Typically, :math:`w_1` would
+    be peaked on the edge while :math:`w_2` would be peaked on the
+    axis, such that :math:`J < 0` corresonds to :math:`V''(s) < 0`,
+    which is favorable for stability.
+
+    This class also provides calculations of the derivatives of
+    :math:`J` using an adjoint method.
 
     Args:
         vmec : instance of Vmec
@@ -215,15 +233,7 @@ class WellWeighted(Optimizable):
 
     def J(self):
         """
-        Computed a weighted average of the vacuum magnetic well defined by
-        the prescribed weight_functions:
-
-        f = \int ds \, V'(s) * (weight_function1(s) - weight_function2(s))
-            / \int ds \, V'(s) (weight_function1(s) + weight_function2(s))
-
-        For example, weight_function1 could be peaked on the edge while
-        weight_function2 could be peaked on the axis such that f < 0 corresonds
-        to V''(s) < 0.
+        Computes the quantity :math:`J` described in the class definition.
         """
 
         self.vmec.need_to_run_code = True
@@ -233,8 +243,8 @@ class WellWeighted(Optimizable):
 
     def dJ(self):
         """
-        Computes derivatives of J wrt surface parameters using
-        an adjoint method.
+        Computes derivatives of :math:`J` with respect to surface
+        parameters using an adjoint method.
         """
 
         self.vmec.need_to_run_code = True
@@ -242,13 +252,18 @@ class WellWeighted(Optimizable):
         return parameter_derivatives(self.vmec.boundary, shape_gradient)
 
     def shape_gradient(self):
-        """
-        Computes shape gradient of J, defined as S where,
+        r"""
+        Computes the shape gradient of the quantity :math:`J` described in
+        the class definition.  For a perturbation to the surface
+        :math:`\delta \vec{x}`, the resulting perturbation to the
+        objective function is
 
-        \delta f(\delta x) = \int d^2 x \, S \delta x \cdot n,
+        .. math::
+          \delta J(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}
 
-        is the perturbation to the objective function corresponding to the
-        perturbation of the surface, \delta x.
+        where the integral is over the VMEC boundary surface,
+        :math:`G` is the shape gradient, and :math:`\vec{n}` is the
+        unit normal.
         """
         self.vmec.run()
 
