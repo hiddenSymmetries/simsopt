@@ -84,7 +84,6 @@ add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
-
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp
@@ -99,7 +98,8 @@ pybind11_add_module(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON)
+    CXX_STANDARD_REQUIRED ON
+    OUTPUT_NAME "_${PROJECT_NAME}")
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
@@ -134,3 +134,4 @@ target_link_libraries(profiling PRIVATE fmt::fmt)
 #        #LIBRARY
 #        DESTINATION src/${PROJECT_NAME})
 #install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} DESTINATION .)
