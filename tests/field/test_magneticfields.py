@@ -474,6 +474,7 @@ class Testing(unittest.TestCase):
         old_err_1 = 1e6
         old_err_2 = 1e6
         old_err_3 = 1e6
+        old_err_4 = 1e6
         btotal = bs + B0
 
         for n in [4, 8, 16]:
@@ -490,15 +491,18 @@ class Testing(unittest.TestCase):
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
             err_3 = np.mean(bsh.estimate_error_BdotCurlB(1000))
+            err_4 = np.mean(bsh.estimate_error_CurlbdotGradAbsB(1000))
             print('err_1 =', err_1)
             print('err_2 =', err_2)
             print('err_3 =', err_3)
             assert err_1 < 0.6**3 * old_err_1
             assert err_2 < 0.6**3 * old_err_2
-            # assert err_3 < 0.6**3 * old_err_3 ## Not sure if this is the right law. Ask Florian
+            # assert err_3 < 0.6**3 * old_err_3 ## Not sure if this is the right law.
+            # assert err_4 < 0.6**3 * old_err_4 ## Not sure if this is the right law.
             old_err_1 = err_1
             old_err_2 = err_2
             old_err_3 = err_3
+            old_err_4 = err_4
 
     def test_get_set_points_cyl_cart(self):
         coils, currents, _ = get_ncsx_data(Nt_coils=5, Nt_ma=10, ppp=5)

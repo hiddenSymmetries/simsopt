@@ -14,14 +14,16 @@ class InterpolatedField : public MagneticField<T> {
         CachedTensor<T, 2> points_cyl_sym;
         std::function<Vec(double, double, double)> f_B;
         std::function<Vec(double, double, double)> f_BdotCurlB;
+        std::function<Vec(double, double, double)> f_CurlbdotGradAbsB;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_GradAbsB;
         std::function<Vec(Vec, Vec, Vec)> fbatch_BdotCurlB;
-        shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_B, interp_GradAbsB;
-        shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_BdotCurlB;
+        std::function<Vec(Vec, Vec, Vec)> fbatch_CurlbdotGradAbsB;
+        shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_B, interp_GradAbsB, interp_BdotCurlB, interp_CurlbdotGradAbsB;
         bool status_B = false;
         bool status_GradAbsB = false;
         bool status_BdotCurlB = false;
+        bool status_CurlbdotGradAbsB = false;
         const bool extrapolate;
         const bool stellsym = false;
         const int nfp = 1;
@@ -78,6 +80,18 @@ class InterpolatedField : public MagneticField<T> {
                 status_BdotCurlB = true;
             }
             interp_BdotCurlB->evaluate_batch(this->get_points_cyl_ref(), BdotCurlB);
+        }
+
+        void _CurlbdotGradAbsB_impl(Tensor2& CurlbdotGradAbsB) override {
+            if(!interp_CurlbdotGradAbsB)
+                interp_CurlbdotGradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 1, extrapolate);
+            if(!status_CurlbdotGradAbsB) {
+                Tensor2 old_points = this->field->get_points_cart();
+                interp_CurlbdotGradAbsB->interpolate_batch(fbatch_CurlbdotGradAbsB);
+                this->field->set_points_cart(old_points);
+                status_CurlbdotGradAbsB = true;
+            }
+            interp_CurlbdotGradAbsB->evaluate_batch(this->get_points_cyl_ref(), CurlbdotGradAbsB);
         }
 
         void _B_impl(Tensor2& B) override {
@@ -210,6 +224,22 @@ class InterpolatedField : public MagneticField<T> {
                 auto res = Vec(BdotCurlB.data(), BdotCurlB.data() + npoints);
                 return res;
             };
+
+            fbatch_CurlbdotGradAbsB = [this](Vec x, Vec y, Vec z) {
+                int npoints = x.size();
+                Tensor2 points = xt::zeros<double>({npoints, 3});
+                for(int i=0; i<npoints; i++) {
+                    points(i, 0) = x[i];
+                    points(i, 1) = y[i];
+                    points(i, 2) = z[i];
+                }
+                this->field->set_points(points);
+                auto CurlbdotGradAbsB = this->field->CurlbdotGradAbsB();
+                //fmt::print("CurlbdotGradAbsB: Actual size: ({}, {}), 3*npoints={}\n", CurlbdotGradAbsB.shape(0), CurlbdotGradAbsB.shape(1), 3*npoints);
+                auto res = Vec(CurlbdotGradAbsB.data(), CurlbdotGradAbsB.data() + npoints);
+                return res;
+            };
+
         }
 
         InterpolatedField(
@@ -250,4 +280,16 @@ class InterpolatedField : public MagneticField<T> {
             }
             return interp_BdotCurlB->estimate_error(this->fbatch_BdotCurlB, samples);
         }
+        std::pair<double, double> estimate_error_CurlbdotGradAbsB(int samples) {
+            if(!interp_CurlbdotGradAbsB)
+                interp_CurlbdotGradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 1, extrapolate);
+            if(!status_CurlbdotGradAbsB) {
+                Tensor2 old_points = this->field->get_points_cart();
+                interp_CurlbdotGradAbsB->interpolate_batch(fbatch_CurlbdotGradAbsB);
+                this->field->set_points_cart(old_points);
+                status_CurlbdotGradAbsB = true;
+            }
+            return interp_CurlbdotGradAbsB->estimate_error(this->fbatch_CurlbdotGradAbsB, samples);
+        }
+
 };

@@ -68,7 +68,9 @@ class GuidingCenterVacuumRHS {
             BcrossGradAbsB[0] = (B(0, 1) * GradAbsB(0, 2)) - (B(0, 2) * GradAbsB(0, 1));
             BcrossGradAbsB[1] = (B(0, 2) * GradAbsB(0, 0)) - (B(0, 0) * GradAbsB(0, 2));
             BcrossGradAbsB[2] = (B(0, 0) * GradAbsB(0, 1)) - (B(0, 1) * GradAbsB(0, 0));
+            double BdotGradAbsB = (B(0, 0)*GradAbsB(0, 0) + B(0, 1)*GradAbsB(0, 1) + B(0, 2)*GradAbsB(0, 2))/AbsB;
             auto& BdotcurlB = field->BdotCurlB_ref();
+            auto& CurlbdotGradAbsB = field->CurlbdotGradAbsB_ref();
             double v_perp2 = 2*mu*AbsB;
             double fak1 = (v_par/AbsB);
             double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*v_perp2 + v_par*v_par);
@@ -76,7 +78,7 @@ class GuidingCenterVacuumRHS {
             dydt[0] = fak1*B(0, 0) + fak2*BcrossGradAbsB[0]/fak3;
             dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1]/fak3;
             dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2]/fak3;
-            dydt[3] = -mu*(B(0, 0)*GradAbsB(0, 0) + B(0, 1)*GradAbsB(0, 1) + B(0, 2)*GradAbsB(0, 2))/AbsB;
+            dydt[3] = -mu*(BdotGradAbsB + v_par*CurlbdotGradAbsB(0,0)*m/(q*AbsB))/fak3;
         }
 };
 
