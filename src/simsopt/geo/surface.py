@@ -84,7 +84,6 @@ class Surface(Optimizable):
             raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
 
-
     def to_vtk(self, filename):
         from pyevtk.hl import gridToVTK
         g = self.gamma()
