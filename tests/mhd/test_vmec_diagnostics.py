@@ -50,7 +50,7 @@ class BCartesianTests(unittest.TestCase):
         angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
             - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
         B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
-        self.assertTrue(np.max(np.abs(B**2-B2)) < 1.e-4)
+        np.testing.assert_allclose(B**2, B2, atol=1e-4)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
