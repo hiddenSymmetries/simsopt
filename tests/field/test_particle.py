@@ -157,11 +157,10 @@ class ParticleTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
             ma, bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.1, umax=+0.1, phis=phis, mode='gc_vac',
-            stopping_criteria=[LevelsetStoppingCriterion(sc)])
+            stopping_criteria=[LevelsetStoppingCriterion(sc)], forget_exact_path=True)
 
-        if with_evtk:
-            particles_to_vtk(gc_tys, '/tmp/particles_gc')
         for i in range(nparticles):
+            assert gc_tys[i].shape[0] == 2
             assert validate_phi_hits(gc_phi_hits[i], bsh, nphis)
 
     def test_gc_to_full(self):

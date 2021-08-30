@@ -19,8 +19,9 @@ class MagneticField(sopp.MagneticField, Optimizable):
         dA = bfield.dA_by_dX() # returns the gradient of the potential of the field at `points`
 
     ``MagneticField`` has a cache to avoid repeated calculations.
-    To clear this cache, call the `clear_cached_properties()` function.
-    The cache is automatically cleared when ``set_points`` is called.
+    To clear this cache manually, call the `clear_cached_properties()` function.
+    The cache is automatically cleared when ``set_points`` is called or one of the dependencies
+    changes.
 
     '''
 
@@ -34,8 +35,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def recompute_bell(self, parent=None):
         if np.any(self.dofs_free_status):
-            self.invalidate_cache()
-            # print("recompute_bell", self)
+            self.clear_cached_properties()
 
     def __add__(self, other):
         """Add two magnetic fields."""
@@ -141,4 +141,4 @@ class MagneticFieldSum(MagneticField):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
 
     def B_vjp(self, v):
-        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)], start=Derivative({}))
+        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)], Derivative({}))

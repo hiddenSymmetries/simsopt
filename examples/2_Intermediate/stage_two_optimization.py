@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
@@ -8,7 +9,7 @@ from simsopt.geo.curveobjectives import MinimumDistance
 import numpy as np
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 import os
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -25,22 +26,24 @@ The objective is given by
 
 if alpha or beta are increased, the coils are more regular and better
 separated, but the target normal field may not be achieved as well.
+
+The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
-nfp = 3
+nfp = 2
 nphi = 32
 ntheta = 32
 phis = np.linspace(0, 1./(2*nfp), nphi, endpoint=False)
 thetas = np.linspace(0, 1., ntheta, endpoint=False)
-s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=phis, quadpoints_theta=thetas)
+s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=phis, quadpoints_theta=thetas)
 
 ncoils = 4
-R0 = 1.5
-R1 = 0.8
+R0 = 1.0
+R1 = 0.5
 order = 6
 PPP = 15
-ALPHA = 1e-5
-MIN_DIST = 0.2
+ALPHA = 1e-6
+MIN_DIST = 0.1
 BETA = 10
 MAXITER = 50 if ci else 400
 
@@ -82,7 +85,7 @@ def fun(dofs):
     grad = dJ(JF)
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
-    jf = sum(J.J() for J in JF.Jfluxs)/len(JF.Jfluxs)
+    jf = Jf.J()
     print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
     return J, grad
 
