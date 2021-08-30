@@ -280,9 +280,10 @@ def signed_distance_from_surface(xyz, surface):
     positive for points inside the volume surrounded by the surface.
     """
     gammas = surface.gamma().reshape((-1, 3))
-    from scipy.spatial.distance import cdist
-    dists = cdist(xyz, gammas)
-    mins = np.argmin(dists, axis=1)
+    from scipy.spatial import KDTree
+    tree = KDTree(gammas)
+    _, mins = tree.query(xyz, k=1)  # find closest points on the surface
+
     n = surface.unitnormal().reshape((-1, 3))
     nmins = n[mins]
     gammamins = gammas[mins]

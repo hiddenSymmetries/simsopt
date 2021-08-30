@@ -20,7 +20,6 @@ Mandatory Packages
 - jax
 - jaxlib
 - scipy
-- pandas
 - nptyping
 - ruamel.yaml
 - importlib_metadata if python version is less than 3.8
