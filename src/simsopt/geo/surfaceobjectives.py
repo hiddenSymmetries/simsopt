@@ -272,8 +272,10 @@ def parameter_derivatives(surface: Surface,
 
     Args:
         surface: The surface to use for the computation
-        shape_gradient: array-like with same dimensions as angles on the surface,
-            (nphi,ntheta)
+        shape_gradient: 2d array of size (numquadpoints_phi,numquadpoints_theta)
+
+    Returns:
+        1d array of size (ndofs)
     """
     N = surface.normal()
     norm_N = np.linalg.norm(N, axis=2)
