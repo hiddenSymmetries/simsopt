@@ -136,7 +136,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 1.e-2)
+        self.assertTrue(relative_error < 5.e-2)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -190,8 +190,8 @@ class WellWeightedTests(unittest.TestCase):
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
-        weight1 = lambda s: np.exp(-s**2/0.2**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.2**2)
+        weight1 = lambda s: np.exp(-s**2/0.4**2)
+        weight2 = lambda s: np.exp(-(1-s)**2/0.4**2)
 
         obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
 

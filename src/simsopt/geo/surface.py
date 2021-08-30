@@ -300,7 +300,7 @@ class Surface(Optimizable):
             dr = np.sqrt((R[iphi, 0] - R[iphi, -1])**2
                          + (Z[iphi, 0] - Z[iphi, -1])**2)
             L = theta_arclength[iphi, -1] + dr
-            theta_arclength[iphi,:] = theta_arclength[iphi,:]/L
+            theta_arclength[iphi, :] = theta_arclength[iphi, :]/L
         return theta_arclength
 
     def interpolate_on_arclength_grid(self, function, theta_evaluate):

@@ -579,8 +579,8 @@ class ArclengthTests(unittest.TestCase):
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
             np.testing.assert_allclose(arclength[iphi, :], theta1D, atol=1e-3)
-            self.assertTrue(np.all(arclength[iphi,:] >= 0))
-            self.assertTrue(np.all(arclength[iphi,:] <= 1))
+            self.assertTrue(np.all(arclength[iphi, :] >= 0))
+            self.assertTrue(np.all(arclength[iphi, :] <= 1))
 
         s = get_surface('SurfaceRZFourier', True, mpol=2, ntor=2,
                         ntheta=20, nphi=20, full=True)
@@ -588,17 +588,17 @@ class ArclengthTests(unittest.TestCase):
         s.rc[1, 0] = -1.5
         s.rc[1, 1] = -0.5
         s.rc[0, 1] = -0.5
-        s.zs[1, 1] =  0.5
+        s.zs[1, 1] = 0.5
         s.zs[1, 0] = -1.5
-        s.zs[0, 1] =  0.5
+        s.zs[0, 1] = 0.5
 
         theta1D = s.quadpoints_theta
 
         arclength = s.arclength_poloidal_angle()
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
-            self.assertTrue(np.all(arclength[iphi,:] >= 0))
-            self.assertTrue(np.all(arclength[iphi,:] <= 1))
+            self.assertTrue(np.all(arclength[iphi, :] >= 0))
+            self.assertTrue(np.all(arclength[iphi, :] <= 1))
 
     def test_interpolate_on_arclength_grid(self):
         """
@@ -631,6 +631,7 @@ class ArclengthTests(unittest.TestCase):
             integral_1 = np.sum(integrand[iphi, :] * norm_drdtheta[iphi, :]) / np.sum(norm_drdtheta[iphi, :])
             integral_2 = np.sum(integrand_arclength[iphi, :]) / np.sum(np.ones_like(norm_drdtheta[iphi, :]))
             self.assertAlmostEqual(integral_1, integral_2, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()
