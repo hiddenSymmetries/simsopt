@@ -564,6 +564,7 @@ class ArclengthTests(unittest.TestCase):
         """
         Compute arclength poloidal angle from circular cross-section tokamak.
         Check that this matches parameterization angle.
+        Check that arclength_poloidal_angle is in [0,1]
         """
         s = get_surface('SurfaceRZFourier', True, mpol=1, ntor=0,
                         ntheta=200, nphi=5, full=True)
@@ -571,12 +572,14 @@ class ArclengthTests(unittest.TestCase):
         s.rc[1, 0] = 1.
         s.zs[1, 0] = 1.
 
-        theta1D = s.quadpoints_theta * 2 * np.pi
+        theta1D = s.quadpoints_theta
 
         arclength = s.arclength_poloidal_angle()
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
             self.assertTrue(np.max(np.abs(arclength[iphi, :]-theta1D)) < 1e-3)
+            self.assertTrue(np.all(arclength[iphi,:] >= 0))
+            self.assertTrue(np.all(arclength[iphi,:] <= 1))
 
     def test_interpolate_on_arclength_grid(self):
         """
@@ -603,14 +606,12 @@ class ArclengthTests(unittest.TestCase):
         integrand = 1 + np.cos(theta - phi)
 
         norm_drdtheta = np.linalg.norm(dgamma2, axis=2)
-        length = np.sum(norm_drdtheta, axis=1) / ntheta
-        theta_interp = theta * length[:, None]
+        theta_interp = theta
         integrand_arclength = s.interpolate_on_arclength_grid(integrand, theta_interp)
         for iphi in range(nphi):
             integral_1 = np.sum(integrand[iphi, :] * norm_drdtheta[iphi, :]) / np.sum(norm_drdtheta[iphi, :])
             integral_2 = np.sum(integrand_arclength[iphi, :]) / np.sum(np.ones_like(norm_drdtheta[iphi, :]))
             self.assertAlmostEqual(integral_1, integral_2, places=3)
-
 
 if __name__ == "__main__":
     unittest.main()
