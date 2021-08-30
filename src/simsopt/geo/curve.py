@@ -9,7 +9,7 @@ from monty.dev import requires
 import matplotlib.pyplot as plt
 
 try:
-    from myavi import mlab
+    from mayavi import mlab
 except ImportError:
     mlab = None
 
