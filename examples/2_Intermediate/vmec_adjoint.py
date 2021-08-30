@@ -46,6 +46,8 @@ iotas_init = vmec.wout.iotas
 obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
 # Define objective function and derivative that handle ObjectiveFailure
+
+
 def J(dofs):
     dofs_prev = obj.vmec.boundary.get_dofs()
     try:
@@ -55,6 +57,7 @@ def J(dofs):
         obj.vmec.boundary.set_dofs(dofs_prev)
         return 2*obj.J()
 
+
 def dJ(dofs):
     dofs_prev = obj.vmec.boundary.get_dofs()
     try:
@@ -63,6 +66,7 @@ def dJ(dofs):
     except ObjectiveFailure:
         obj.vmec.boundary.set_dofs(dofs_prev)
         return 2*obj.dJ()
+
 
 surf = vmec.boundary
 surf.all_fixed(True)
