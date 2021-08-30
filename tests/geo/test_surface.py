@@ -564,20 +564,39 @@ class ArclengthTests(unittest.TestCase):
         """
         Compute arclength poloidal angle from circular cross-section tokamak.
         Check that this matches parameterization angle.
-        Check that arclength_poloidal_angle is in [0,1]
+        Check that arclength_poloidal_angle is in [0,1] for both circular
+            cross-section tokamak and rotating ellipse boundary.
         """
         s = get_surface('SurfaceRZFourier', True, mpol=1, ntor=0,
                         ntheta=200, nphi=5, full=True)
         s.rc[0, 0] = 5.
-        s.rc[1, 0] = 1.
-        s.zs[1, 0] = 1.
+        s.rc[1, 0] = 1.5
+        s.zs[1, 0] = 1.5
 
         theta1D = s.quadpoints_theta
 
         arclength = s.arclength_poloidal_angle()
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
-            self.assertTrue(np.max(np.abs(arclength[iphi, :]-theta1D)) < 1e-3)
+            np.testing.assert_allclose(arclength[iphi, :], theta1D, atol=1e-3)
+            self.assertTrue(np.all(arclength[iphi,:] >= 0))
+            self.assertTrue(np.all(arclength[iphi,:] <= 1))
+
+        s = get_surface('SurfaceRZFourier', True, mpol=2, ntor=2,
+                        ntheta=20, nphi=20, full=True)
+        s.rc[0, 0] = 5.
+        s.rc[1, 0] = -1.5
+        s.rc[1, 1] = -0.5
+        s.rc[0, 1] = -0.5
+        s.zs[1, 1] =  0.5
+        s.zs[1, 0] = -1.5
+        s.zs[0, 1] =  0.5
+
+        theta1D = s.quadpoints_theta
+
+        arclength = s.arclength_poloidal_angle()
+        nphi = len(arclength[:, 0])
+        for iphi in range(nphi):
             self.assertTrue(np.all(arclength[iphi,:] >= 0))
             self.assertTrue(np.all(arclength[iphi,:] <= 1))
 
