@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from scipy.optimize import minimize
+from simsopt._core.util import ObjectiveFailure
 
 """
 Here, we perform an optimization begining with a 3 field period rotating ellipse
@@ -17,6 +17,9 @@ modes in the optimization space is slowly increased from |m|,|n| <= 2 to 5. At
 the end, the initial and final profiles are plotted.
 """
 
+# check whether we're in CI, in that case we make the run a bit cheaper
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+
 # target profile of rotational transform, here just a constant:
 target_function = lambda s: 0.381966
 adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
@@ -24,21 +27,54 @@ adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse')
 vmec = Vmec(filename, ntheta=100, nphi=100)
 
+# Lower resolution and function evaluations if in CI
+if ci:
+    vmec.indata.mpol = 6
+    vmec.indata.ntor = 6
+    vmec.indata.ns_array = np.zeros_like(vmec.indata.ns_array)
+    vmec.indata.ns_array[0] = 9
+    vmec.indata.ns_array[0] = 49
+    maxres = 4
+    maxfun = 1
+else:
+    maxres = 6
+    maxfun = 15000
+
 vmec.run()
 iotas_init = vmec.wout.iotas
 
 obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
-prob = LeastSquaresProblem([(obj, 0, 1)])
+
+# Define objective function and derivative that handle ObjectiveFailure
+def J(dofs):
+    dofs_prev = obj.vmec.boundary.get_dofs()
+    try:
+        obj.vmec.boundary.set_dofs(dofs)
+        return obj.J()
+    except ObjectiveFailure:
+        obj.vmec.boundary.set_dofs(dofs_prev)
+        return 2*obj.J()
+
+def dJ(dofs):
+    dofs_prev = obj.vmec.boundary.get_dofs()
+    try:
+        obj.vmec.boundary.set_dofs(dofs)
+        return obj.dJ()
+    except ObjectiveFailure:
+        obj.vmec.boundary.set_dofs(dofs_prev)
+        return 2*obj.dJ()
 
 surf = vmec.boundary
 surf.all_fixed(True)
 # Slowly increase range of modes in optimization space
-for max_mode in range(3, 6):
-    print(max_mode)
+for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
-    least_squares_serial_solve(prob, grad=True, ftol=1e-12, gtol=1e-12, xtol=1e-12)
+    res = minimize(
+        fun=J, x0=surf.get_dofs(), jac=dJ, method='L-BFGS-B',
+        options={'maxfun': maxfun, 'ftol': 1e-8, 'gtol': 1e-8})
+    print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, jac={np.linalg.norm(res['jac']):.3f}")
 
     # Preserve the output file from the last iteration, so it is not
     # deleted when vmec runs again:
