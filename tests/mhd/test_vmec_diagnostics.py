@@ -190,8 +190,8 @@ class WellWeightedTests(unittest.TestCase):
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
-        weight1 = lambda s: np.exp(-s**2/0.4**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.4**2)
+        weight1 = lambda s: np.exp(-s**2/0.3**2)
+        weight2 = lambda s: np.exp(-(1-s)**2/0.3**2)
 
         obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
 
