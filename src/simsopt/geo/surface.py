@@ -18,9 +18,17 @@ class Surface(Optimizable):
         self.dependencies = []
         self.fixed = np.full(len(self.get_dofs()), False)
 
-    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False, scalars=None, wireframe=True):
+    def plot(self, engine="matplotlib", ax=None, show=True, plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
-        Plot the surface using mayavi. 
+        Plot the surface in 3D using matplotlib/mayavi/plotly. 
+
+        Args:
+            engine: select the plot engine, currently support "matplotlib" (default), "mayavi", and "plotly".
+            ax: the figure/axis to be plotted on. Default: None
+            plot_normal: whether to plot the surface normal vectors.
+            plot_derivative: whether to plot the surface derivatives.
+            wireframe: whether to plot the wireframe in Mayavi.
+
         Note: the `ax` and `show` parameter can be used to plot more than one surface:
 
         .. code-block::
@@ -32,22 +40,50 @@ class Surface(Optimizable):
 
         """
         gamma = self.gamma()
+        if engine == "matplotlib":
+            # plot in matplotlib.pyplot
+            import matplotlib.pyplot as plt
+            
+            if ax is None or ax.name != "3d":
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection="3d")
+            ax.plot_surface(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
+        elif engine == "mayavi":
+            # plot 3D surface in mayavi.mlab
+            from mayavi import mlab
+            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
+            if wireframe:
+                mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
 
-        from mayavi import mlab
-        mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
-        if wireframe:
-            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
+            if plot_derivative:
+                dg1 = 0.05 * self.gammadash1()
+                dg2 = 0.05 * self.gammadash2()
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
+            if plot_normal:
+                n = 0.005 * self.normal()
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
+            if show:
+                mlab.show()
+        elif engine == "plotly":
+            # plot in plotly
+            import plotly.graph_objects as go
 
-        if plot_derivative:
-            dg1 = 0.05 * self.gammadash1()
-            dg2 = 0.05 * self.gammadash2()
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
-        if plot_normal:
-            n = 0.005 * self.normal()
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
-        if show:
-            mlab.show()
+            if "color" in list(kwargs.keys()):
+                color = kwargs["color"]
+                del kwargs["color"]
+                kwargs["colorscale"] = [[0, color], [1, color]]
+            # for plotly, ax is actually the figure
+            if ax is None:
+                ax = go.Figure()
+            ax.add_trace(go.Surface(x=gamma[:, :, 0], y=gamma[:, :, 1], z=gamma[:, :, 2], **kwargs))
+            ax.update_layout(scene_aspectmode="data")
+            if show:
+                ax.show()
+        else:
+            raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
+        return ax
+
 
     def to_vtk(self, filename):
         from pyevtk.hl import gridToVTK
