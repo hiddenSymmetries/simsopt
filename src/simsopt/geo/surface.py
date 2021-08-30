@@ -275,8 +275,12 @@ class Surface(Optimizable):
     def arclength_poloidal_angle(self):
         """
         Computes poloidal angle based on arclenth along magnetic surface at
-        constant phi. This is required for evaluating the adjoint shape gradient
-        for free-boundary calculations.
+        constant phi. The resulting angle is in the range [0,1]. This is required
+        for evaluating the adjoint shape gradient for free-boundary calculations.
+
+        Returns:
+            theta_arclength: 2d array (numquadpoints_phi,numquadpoints_theta)
+                of arclength poloidal angle
         """
         gamma = self.gamma()
         X = gamma[:, :, 0]
@@ -293,6 +297,10 @@ class Surface(Optimizable):
                              + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
                 theta_arclength[iphi, itheta] = \
                     theta_arclength[iphi, itheta-1] + dr
+            dr = np.sqrt((R[iphi, 0] - R[iphi, -1])**2
+                         + (Z[iphi, 0] - Z[iphi, -1])**2)
+            L = theta_arclength[iphi, -1] + dr
+            theta_arclength[iphi,:] = theta_arclength[iphi,:]/L
         return theta_arclength
 
     def interpolate_on_arclength_grid(self, function, theta_evaluate):
@@ -300,6 +308,11 @@ class Surface(Optimizable):
         Interpolate function onto the theta_evaluate grid in the arclength
         poloidal angle. This is required for evaluating the adjoint shape gradient
         for free-boundary calculations.
+
+        Returns:
+            function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
+                defining interpolated function on arclength angle along curve
+                at constant phi
         """
         from scipy import interpolate
 
