@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 
 
 def B_cartesian(vmec):
-    """
+    r"""
     Computes Cartesian vector components of magnetic field on boundary
     on a grid in the vmec toroidal and poloidal angles. This is
     required to compute adjoint-based shape gradients.
+
+    Args:
+        vmec : instance of Vmec
+
+    Returns: 3 element tuple containing (Bx, By, Bz)
+        Bx, By, Bz : 2d arrays of size (numquadpoints_phi,numquadpoints_theta)
+            defining Cartesian components of magnetic field on vmec.boundary
     """
     dgamma1 = vmec.boundary.gammadash1()
     dgamma2 = vmec.boundary.gammadash2()
@@ -113,6 +120,9 @@ class IotaTargetMetric(Optimizable):
         where the integral is over the VMEC boundary surface,
         :math:`G` is the shape gradient, and :math:`\vec{n}` is the
         unit normal.
+
+        Returns:
+            :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
         self.vmec.run()
 
@@ -264,6 +274,9 @@ class WellWeighted(Optimizable):
         where the integral is over the VMEC boundary surface,
         :math:`G` is the shape gradient, and :math:`\vec{n}` is the
         unit normal.
+
+        Returns:
+            :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
         self.vmec.run()
 
