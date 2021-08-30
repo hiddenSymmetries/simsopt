@@ -17,7 +17,7 @@ from ..util.types import RealArray
 logger = logging.getLogger(__name__)
 
 
-class QuasisymmetryRatioError(Optimizable):
+class QuasisymmetryRatioResidual(Optimizable):
     r"""
     This class provides a measure of the deviation from quasisymmetry,
     one that can be computed without Boozer coordinates.  This metric
