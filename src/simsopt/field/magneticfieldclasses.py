@@ -294,9 +294,9 @@ class CircularCoil(MagneticField):
         ellipkk2 = ellipk(k**2)
         gamma = np.square(points[:, 0]) - np.square(points[:, 1])
         B[:] = np.dot(self.rotMatrixInv, np.array(
-            [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
-             self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
-             self.Inorm/(2*alpha**2*beta)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
+            [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
+             self.Inorm/(2*alpha**2*beta+1e-31)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
@@ -319,20 +319,20 @@ class CircularCoil(MagneticField):
                             3*gamma*points[:, 2]**4 - 2*(2*points[:, 0]**2 + points[:, 1]**2)*points[:, 2]**2 * rho**2
                             + (5*points[:, 0]**2 + points[:, 1]**2)*rho**4
             ))
-        ))/(2*alpha**4*beta**3*rho**4)
+        ))/(2*alpha**4*beta**3*rho**4+1e-31)
 
         dBydx = (self.Inorm*points[:, 0]*points[:, 1]*points[:, 2]*(
             ellipkk2*alpha**2*(
                 2*self.r0**4 + r**2*(2*r**2 + rho**2) - self.r0**2*(-4*points[:, 2]**2 + 5*rho**2))
             + ellipek2*(-2*self.r0**6 - r**4*(2*r**2 + rho**2) + 3*self.r0**4*(-2*points[:, 2]**2 + 3*rho**2) - 2*self.r0**2*(3*points[:, 2]**4 - points[:, 2]**2*rho**2 + 2*rho**4))
-        ))/(2*alpha**4*beta**3*rho**4)
+        ))/(2*alpha**4*beta**3*rho**4+1e-31)
 
         dBzdx = (self.Inorm*points[:, 0]*(
             - (ellipkk2*alpha**2*((-self.r0**2 + rho**2)**2 + points[:, 2]**2*(self.r0**2 + rho**2)))
             + ellipek2*(
                 points[:, 2]**4*(self.r0**2 + rho**2) + (-self.r0**2 + rho**2)**2*(self.r0**2 + rho**2)
                 + 2*points[:, 2]**2*(self.r0**4 - 6*self.r0**2*rho**2 + rho**4))
-        ))/(2*alpha**4*beta**3*rho**2)
+        ))/(2*alpha**4*beta**3*rho**2+1e-31)
         dBxdy = dBydx
 
         dBydy = (self.Inorm*points[:, 2]*(
@@ -341,16 +341,16 @@ class CircularCoil(MagneticField):
             ellipek2*(-((2*points[:, 1]**4 - gamma*(points[:, 0]**2 + points[:, 2]**2))*r**4) +
                       self.r0**4*(gamma*(self.r0**2 + 3*points[:, 2]**2) + (-points[:, 0]**2 + 8*points[:, 1]**2)*rho**2) -
                       self.r0**2*(-3*gamma*points[:, 2]**4 - 2*(points[:, 0]**2 + 2*points[:, 1]**2)*points[:, 2]**2*rho**2 +
-                                  (points[:, 0]**2 + 5*points[:, 1]**2)*rho**4))))/(2*alpha**4*beta**3*rho**4)
+                                  (points[:, 0]**2 + 5*points[:, 1]**2)*rho**4))))/(2*alpha**4*beta**3*rho**4+1e-31)
 
-        dBzdy = dBzdx*points[:, 1]/points[:, 0]
+        dBzdy = dBzdx*points[:, 1]/(points[:, 0]+1e-31)
 
         dBxdz = dBzdx
 
         dBydz = dBzdy
 
         dBzdz = (self.Inorm*points[:, 2]*(ellipkk2*alpha**2*(self.r0**2 - r**2) +
-                                          ellipek2*(-7*self.r0**4 + r**4 + 6*self.r0**2*(-points[:, 2]**2 + rho**2))))/(2*alpha**4*beta**3)
+                                          ellipek2*(-7*self.r0**4 + r**4 + 6*self.r0**2*(-points[:, 2]**2 + rho**2))))/(2*alpha**4*beta**3+1e-31)
 
         dB_by_dXm = np.array([
             [dBxdx, dBydx, dBzdx],
@@ -381,7 +381,7 @@ class CircularCoil(MagneticField):
 
         A[:] = -self.Inorm/2*np.dot(self.rotMatrixInv, np.array(
             (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
-            ((points[:, 0]**2+points[:, 1]**2)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2)) *
+            ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
             np.array([-points[:, 1], points[:, 0], 0])).T)
 
 

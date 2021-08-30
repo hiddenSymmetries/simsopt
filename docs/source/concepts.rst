@@ -179,7 +179,7 @@ Curves
 ~~~~~~
 
 A :obj:`simsopt.geo.curve.Curve` is modelled as a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.
-A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\} \subset [0, 1]` and return all information about the curve, at these quadrature points.
+A curve object stores a list of :math:`n_\phi` quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\} \subset [0, 1]` and returns all information about the curve, at these quadrature points.
 
 - ``Curve.gamma()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns a list of XYZ coordinates along the curve.
 - ``Curve.gammadash()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma'(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns the tangent along the curve.
@@ -351,8 +351,7 @@ Simsopt is able to follow particles in a magnetic field. The main function to us
 
   [\ddot x, \ddot y, \ddot z] = \frac{q}{m}  [\dot x, \dot y, \dot z] \times \mathbf B
 
-- In the case of ``mode='gc_vac'`` it solves the guiding center equations under
-    the assumption :math:`\nabla p=0`, that is
+- In the case of ``mode='gc_vac'`` it solves the guiding center equations under the assumption :math:`\nabla p=0`, that is
 
 .. math::
 
@@ -386,3 +385,9 @@ Below is an example of the vertical drift experienced by two particles in a simp
     z_particle_2 = gc_tys[1][:][2]
     print(z_particle_1)
     print(z_particle_2)
+
+
+We note that SIMSOPT draws initial data for particles consisting of the guiding center position, the parallel, and the perpendicular speed.
+
+* To compute the speed, the user specifies the total kinetic energy and an interval of pitch-angles :math:`[u_\min, u_\max]`. Given a pitch angle :math:`u` and total speed :math:`v` (computed from the kinetic energy and the particle mass), the parallel speed is given by :math:`v_{||} = u v` and, and :math:`v_\perp = \sqrt{v^2-v_{||}^2}`.
+* In the case of full orbit simulations, we need velocity initial data and hence this only defines the initial data up to the phase. To specify the phase, one can pass the ``phase_angle`` variable to the tracing functions. A value in :math:`[0, 2\pi]` is expected.
