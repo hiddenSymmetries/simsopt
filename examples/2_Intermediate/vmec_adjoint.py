@@ -2,7 +2,6 @@
 
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
 from scipy.optimize import minimize
@@ -39,6 +38,7 @@ if ci:
 else:
     maxres = 6
     maxfun = 15000
+    import matplotlib.pyplot as plt
 
 vmec.run()
 iotas_init = vmec.wout.iotas
@@ -87,12 +87,13 @@ for max_mode in range(3, maxres):
 vmec.run()
 iotas_final = vmec.wout.iotas
 
-# Plot result
-plt.figure()
-plt.plot(vmec.s_half_grid, iotas_init[1:], color='green')
-plt.plot(vmec.s_half_grid, iotas_final[1:], color='red')
-plt.axhline(target_function(0), color='blue')
-plt.legend(['Initial', 'Final', 'Target'])
-plt.xlabel(r'$s$')
-plt.ylabel(r'$\iota$')
-plt.show()
+if not ci:
+    # Plot result
+    plt.figure()
+    plt.plot(vmec.s_half_grid, iotas_init[1:], color='green')
+    plt.plot(vmec.s_half_grid, iotas_final[1:], color='red')
+    plt.axhline(target_function(0), color='blue')
+    plt.legend(['Initial', 'Final', 'Target'])
+    plt.xlabel(r'$s$')
+    plt.ylabel(r'$\iota$')
+    plt.show()
