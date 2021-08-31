@@ -188,7 +188,7 @@ class WellWeightedTests(unittest.TestCase):
         vmec = Vmec(filename, ntheta=100, nphi=100)
 
         epsilon = 1.e-2  # FD step size
-        adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
         weight1 = lambda s: np.exp(-s**2/0.5**2)
         weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
@@ -245,7 +245,7 @@ class WellWeightedTests(unittest.TestCase):
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 1.0e-2)
+        self.assertTrue(relative_error < 2.e-2)
 
 
 if __name__ == "__main__":
