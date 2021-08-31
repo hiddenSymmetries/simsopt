@@ -57,4 +57,6 @@ void init_tracing(py::module_ &m){
             py::arg("phis")=vector<double>{},
             py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
 
+    m.def("get_phi", &get_phi);
+
 }

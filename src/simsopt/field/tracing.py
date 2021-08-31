@@ -77,7 +77,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
-                    phase_angle=0, count_transits=False):
+                    phase_angle=0, count_transits=False, ma=None):
     r"""
     Follow particles in a magnetic field.
 
@@ -122,7 +122,6 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                            particle for the ``res_tys``. To be used when only res_phi_hits is of
                            interest or one wants to reduce memory usage.
         phase_angle: the phase angle to use in the case of full orbit calculations
-        count_transits: if True, count the number of toroidal and poloidal transits.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -296,6 +295,47 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
 
+def compute_toroidal_transits(res_tys):
+    nparticles = len(res_tys)
+    ntransits = np.zeros((nparticles,))
+    for ip in range(nparticles):
+        ntraj = len(res_tys[ip][:,0])
+        phi_init = sopp.get_phi(res_tys[ip][0,1],res_tys[ip][0,2],np.pi)
+        phi_prev = phi_init
+        for it in range(1,ntraj):
+            phi = sopp.get_phi(res_tys[ip][it,1],res_tys[ip][it,2],phi_prev)
+            phi_prev = phi
+        if ntraj > 1:
+            ntransits[ip] = np.floor((phi - phi_init)/(2*np.pi))
+    return ntransits
+
+def compute_poloidal_transits(res_tys,ma):
+
+    nparticles = len(res_tys)
+    ntransits = np.zeros((nparticles,))
+    gamma = np.zeros((1,3))
+    for ip in range(nparticles):
+        ntraj = len(res_tys[ip][:,0])
+        R_init = np.sqrt(res_tys[ip][0,1]**2 + res_tys[ip][0,2]**2)
+        Z_init = res_tys[ip][0,3]
+        phi_init = np.arctan2(res_tys[ip][0,2],res_tys[ip][0,1])
+        ma.gamma_impl(gamma, phi_init/(2*np.pi))
+        R_ma = np.sqrt(gamma[0,0]**2 + gamma[0,1]**2)
+        Z_ma = gamma[0,2]
+        theta_init = sopp.get_phi(R_init-R_ma,Z_init-Z_ma,np.pi)
+        theta_prev = theta_init
+        for it in range(1,ntraj):
+            phi = np.arctan2(res_tys[ip][it,2],res_tys[ip][it,1])
+            ma.gamma_impl(gamma, phi/(2*np.pi))
+            R_ma = np.sqrt(gamma[0,0]**2 + gamma[0,1]**2)
+            Z_ma = gamma[0,2]
+            R = np.sqrt(res_tys[ip][it,1]**2 + res_tys[ip][it,2]**2)
+            Z = res_tys[ip][it,3]
+            theta = sopp.get_phi(R-R_ma,Z-Z_ma,theta_prev)
+            theta_prev = theta
+        if ntraj > 1:
+            ntransits[ip] = np.floor((theta - theta_init)/(2*np.pi))
+    return ntransits
 
 def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
     r"""

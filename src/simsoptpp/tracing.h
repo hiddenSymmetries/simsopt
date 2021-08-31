@@ -20,28 +20,32 @@ class StoppingCriterion {
 
 class ToroidalTransitStoppingCriterion : public StoppingCriterion {
     private:
-        int ntransits;
         int max_transits;
         double phi_last;
         double phi_init;
     public:
         ToroidalTransitStoppingCriterion(int max_transits) : max_transits(max_transits) {
-          ntransits = 0;
-          phi_last = M_PI;
-          phi_init = -2*M_PI;
         };
         bool operator()(int iter, double t, double x, double y, double z) override {
-            if (iter > 0) {
-              double phi = get_phi(x, y, phi_last);
-              if (phi_init == -2*M_PI) {
-                phi_init = phi;
-              }
-              bool phi_hit = std::floor((phi-phi_init)/(2*M_PI)) != std::floor((phi_last-phi_init)/(2*M_PI));
-              phi_last = phi;
-              if (phi_hit) {
-                ntransits += 1;
-              }
+            if (iter == 1) {
+              phi_last = M_PI;
             }
+            // if (iter > 0) {
+            double phi = get_phi(x, y, phi_last);
+            if (iter == 1) {
+              phi_init = phi;
+            }
+            phi_last = phi;
+              // if (phi_init == -2*M_PI) {
+              //   phi_init = phi;
+              // }
+              // bool phi_hit = std::floor((phi-phi_init)/(2*M_PI)) != std::floor((phi_last-phi_init)/(2*M_PI));
+              // phi_last = phi;
+              // if (phi_hit) {
+              //   ntransits += 1;
+              // }
+            // }
+            int ntransits = std::abs(std::floor((phi-phi_init)/(2*M_PI)));
             return ntransits>=max_transits;
         };
 };
