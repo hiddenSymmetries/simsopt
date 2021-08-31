@@ -177,20 +177,22 @@ class IotaWeighted(Optimizable):
                  { \int ds \, w(s)}
 
     where :math:`w(s)` is a prescribed weight function, corresponding
-    to the argument ``weight_function``.
-
-    An adjoint method is also available, but not yet implemented.
+    to the argument ``weight_function``. This class also can compute the
+    derivatives of :math:`J` using an adjoint method.
 
     Args:
         vmec : instance of Vmec
         weight_function : function handle which takes a single argument, s,
             the normalized toroidal flux
+        adjoint_epsilon : sets the amplitude of the toroidal
+            current perturbation required for the adjoint solve.
     """
 
-    def __init__(self, vmec, weight_function):
+    def __init__(self, vmec, weight_function, adjoint_epsilon=1.e-1):
         self.vmec = vmec
         self.boundary = vmec.boundary
         self.weight_function = weight_function
+        self.adjoint_epsilon = adjoint_epsilon
         self.depends_on = ["boundary"]
 
     def J(self):
@@ -201,6 +203,76 @@ class IotaWeighted(Optimizable):
         self.vmec.run()
         return np.sum(self.weight_function(self.vmec.s_half_grid) * self.vmec.wout.iotas[1:]) \
             / np.sum(self.weight_function(self.vmec.s_half_grid))
+
+    def dJ(self):
+        """
+        Computes derivatives of :math:`J` with respect to surface
+        parameters using an adjoint method.
+        """
+        if self.vmec.indata.ncurr != 1:
+            raise RuntimeError('''dJ cannot be computed without
+                running vmec with ncurr = 1''')
+
+        shape_gradient = self.shape_gradient()
+        return parameter_derivatives(self.vmec.boundary, shape_gradient)
+
+    def shape_gradient(self):
+        r"""
+        Computes the shape gradient of the quantity :math:`J` described in
+        the class definition.  For a perturbation to the surface
+        :math:`\delta \vec{x}`, the resulting perturbation to the
+        objective function is
+
+        .. math::
+          \delta J(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}
+
+        where the integral is over the VMEC boundary surface,
+        :math:`G` is the shape gradient, and :math:`\vec{n}` is the
+        unit normal.
+
+        Returns:
+            :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
+        """
+        self.vmec.run()
+
+        Bx0, By0, Bz0 = B_cartesian(self.vmec)
+
+        mu0 = 4*np.pi*1e-7
+        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(self.vmec.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(self.vmec.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(self.vmec.indata.pcurr_type)
+        curtor_prev = np.copy(self.vmec.indata.curtor)
+
+        perturbation = self.weight_function(self.vmec.s_half_grid)
+
+        # Perturbed toroidal current profile
+        It_new = It_half + self.adjoint_epsilon*perturbation
+        curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
+        self.vmec.indata.ac_aux_f = -1.*np.ones_like(self.vmec.indata.ac_aux_f)
+        self.vmec.indata.ac_aux_s = -1.*np.ones_like(self.vmec.indata.ac_aux_s)
+        self.vmec.indata.ac_aux_f[0:self.vmec.wout.ns-1] = It_new
+        self.vmec.indata.ac_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
+        self.vmec.indata.curtor = curtor
+        self.vmec.indata.pcurr_type = b'line_segment_I'
+        self.vmec.need_to_run_code = True
+
+        self.vmec.run()
+
+        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+
+        Bx, By, Bz = B_cartesian(self.vmec)
+
+        # Reset input values
+        self.vmec.indata.ac_aux_f = ac_aux_f_prev
+        self.vmec.indata.ac_aux_s = ac_aux_s_prev
+        self.vmec.indata.pcurr_type = pcurr_type_prev
+        self.vmec.indata.curtor = curtor_prev
+        self.vmec.need_to_run_code = True
+
+        deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
+
+        return deltaB_dot_B/(mu0*self.vmec.ds*self.vmec.wout.phi[-1]*self.vmec.wout.signgs*np.sum(self.weight_function(self.vmec.s_half_grid)))
 
 
 class WellWeighted(Optimizable):

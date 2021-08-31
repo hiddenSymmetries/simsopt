@@ -158,6 +158,71 @@ class IotaWeightedTests(unittest.TestCase):
 
         self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
 
+    def test_IotaWeighted_dJ(self):
+        """
+        Compare dJ() with finite differences for a surface perturbation in a
+        random direction.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        vmec = Vmec(filename, ntheta=100, nphi=100)
+
+        weight_function = lambda s: s**2
+        epsilon = 1.e-4  # FD step size
+        adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
+
+        obj = IotaWeighted(vmec, weight_function, adjoint_epsilon)
+
+        # Compute random direction for surface perturbation
+        dofs = np.copy(vmec.boundary.get_dofs())
+        np.random.seed(0)
+        vec = np.random.standard_normal(dofs.shape)
+        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+
+        def iota_fun(epsilon):
+            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+            return obj.J()
+
+        d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
+
+        vmec.boundary.set_dofs(dofs)
+        vmec.need_to_run_code = True
+        d_iota_adjoint = np.dot(obj.dJ(), unitvec)
+
+        relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
+        logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
+        logger.info(f"relative error: {relative_error}")
+        self.assertTrue(relative_error < 5.e-2)
+
+    def test_IotaWeighted_LeastSquaresProblem(self):
+        """
+        Compare Jacobian for least-squares problem with supplied gradient wrt
+        one surface coefficient with finite-differences.
+        """
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        vmec = Vmec(filename, ntheta=100, nphi=100)
+
+        target_function = lambda s: 0.68
+        epsilon = 1.e-3  # FD step size
+        adjoint_epsilon = 5.e-1  # perturbation amplitude for adjoint solve
+
+        # Compute random direction for surface perturbation
+        surf = vmec.boundary
+        surf.all_fixed()
+        surf.set_fixed("rc(0,0)", False)  # Major radius
+
+        obj = IotaWeighted(vmec, target_function, adjoint_epsilon)
+
+        prob = LeastSquaresProblem([(obj, 0, 1)])
+
+        prob.dofs.abs_step = epsilon
+        jac = prob.dofs.jac()
+        fd_jac = prob.dofs.fd_jac()
+
+        relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
+        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
+        logger.info(f"relative error: {relative_error}")
+        self.assertTrue(relative_error < 2.e-2)
+
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
 class WellWeightedTests(unittest.TestCase):
