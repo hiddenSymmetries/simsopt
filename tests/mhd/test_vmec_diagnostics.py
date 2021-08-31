@@ -90,6 +90,7 @@ class IotaTargetMetricTests(unittest.TestCase):
 
         # Compute random direction for surface perturbation
         dofs = np.copy(vmec.boundary.get_dofs())
+        np.random.seed(0)
         vec = np.random.standard_normal(dofs.shape)
         unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
@@ -197,6 +198,7 @@ class WellWeightedTests(unittest.TestCase):
 
         # Compute random direction for surface perturbation
         dofs = np.copy(vmec.boundary.get_dofs())
+        np.random.seed(0)
         vec = np.random.standard_normal(dofs.shape)
         unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
