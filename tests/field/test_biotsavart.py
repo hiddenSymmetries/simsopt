@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 
 
 def get_coil(num_quadrature_points=200, perturb=False):
@@ -279,6 +279,7 @@ class Testing(unittest.TestCase):
     def test_biotsavart_coil_current_taylortest(self):
         coil0 = get_coil()
         current0 = 1e4
+        np.random.seed(0)
         coil1 = get_coil(perturb=True)
         current1 = 1e3
         bs = BiotSavart([coil0, coil1], [current0, current1])
@@ -291,23 +292,18 @@ class Testing(unittest.TestCase):
         dJ = bs.d2B_by_dXdcoilcurrents()
         dH = bs.d3B_by_dXdXdcoilcurrents()
 
-        h = 1.
-        bs.currents_optim[0].set_dofs(1e4+h)
+        # the B field is linear in the current, so a small stepsize is not necessary
+        bs.currents_optim[0].set_dofs(0.)
         bs.invalidate_cache()
-        Bp = bs.B()
-        Jp = bs.dB_by_dX()
-        Hp = bs.d2B_by_dXdX()
-        bs.currents_optim[0].set_dofs(1e4-h)
-        bs.invalidate_cache()
-        Bm = bs.B()
-        Jm = bs.dB_by_dX()
-        Hm = bs.d2B_by_dXdX()
-        dB_approx = (Bp-Bm)/(2*h)
-        dJ_approx = (Jp-Jm)/(2*h)
-        dH_approx = (Hp-Hm)/(2*h)
+        B0 = bs.B()
+        J0 = bs.dB_by_dX()
+        H0 = bs.d2B_by_dXdX()
+        dB_approx = (B-B0)/(current0)
+        dJ_approx = (J-J0)/(current0)
+        dH_approx = (H-H0)/(current0)
         assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
-        assert np.linalg.norm(dH[0]-dH_approx) < 1e-13
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
 
 if __name__ == "__main__":

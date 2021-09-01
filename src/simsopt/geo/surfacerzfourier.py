@@ -1,6 +1,13 @@
+import logging
 import numpy as np
+from scipy.io import netcdf
+from scipy.interpolate import interp1d
+import f90nml
 import simsoptpp as sopp
 from .surface import Surface
+from .._core.util import nested_lists_to_array
+
+logger = logging.getLogger(__name__)
 
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
@@ -61,7 +68,188 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return names
 
     @classmethod
-    def from_focus(cls, filename, nphi=32, ntheta=32):
+    def from_wout(cls,
+                  filename: str,
+                  s: float = 1.0,
+                  interp_kind: str = 'linear',
+                  **kwargs):
+        """
+        Read in a surface from a VMEC wout output file. Note that this
+        function does not require the VMEC python module.
+
+        Args:
+            filename: Name of the ``wout_*.nc`` file to read.
+            s: Value of normalized toroidal flux to use for the surface.
+              The default value of 1.0 corresponds to the VMEC plasma boundary.
+              Must lie in the interval [0, 1].
+            interp_kind: Interpolation method in s. The available options correspond to
+              the ``kind`` argument of
+              `scipy.interpolate.interp1d <https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html#scipy-interpolate-interp1d>`_.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
+              You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
+        """
+
+        if s < 0 or s > 1:
+            raise ValueError('s must lie in the interval [0, 1]')
+
+        f = netcdf.netcdf_file(filename, mmap=False)
+        nfp = f.variables['nfp'][()]
+        ns = f.variables['ns'][()]
+        xm = f.variables['xm'][()]
+        xn = f.variables['xn'][()]
+        rmnc = f.variables['rmnc'][()]
+        zmns = f.variables['zmns'][()]
+        lasym = bool(f.variables['lasym__logical__'][()])
+        stellsym = not lasym
+        if lasym:
+            rmns = f.variables['rmns'][()]
+            zmnc = f.variables['zmnc'][()]
+        f.close()
+
+        # Interpolate in s:
+        s_full_grid = np.linspace(0.0, 1.0, ns)
+
+        interp = interp1d(s_full_grid, rmnc, kind=interp_kind, axis=0)
+        rbc = interp(s)
+
+        interp = interp1d(s_full_grid, zmns, kind=interp_kind, axis=0)
+        zbs = interp(s)
+
+        if lasym:
+            interp = interp1d(s_full_grid, rmns, kind=interp_kind, axis=0)
+            rbs = interp(s)
+
+            interp = interp1d(s_full_grid, zmnc, kind=interp_kind, axis=0)
+            zbc = interp(s)
+
+        mpol = int(np.max(xm))
+        ntor = int(np.max(np.abs(xn)) / nfp)
+
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   **kwargs)
+
+        for j in range(len(xm)):
+            m = int(xm[j])
+            n = int(xn[j] / nfp)
+            surf.rc[m, n + ntor] = rbc[j]
+            surf.zs[m, n + ntor] = zbs[j]
+            if not stellsym:
+                surf.rs[m, n + ntor] = rbs[j]
+                surf.zc[m, n + ntor] = zbc[j]
+
+        return surf
+
+    @classmethod
+    def from_vmec_input(cls,
+                        filename: str,
+                        **kwargs):
+        """
+        Read in a surface from a VMEC input file. The ``INDATA`` namelist
+        of this file will be read using `f90nml
+        <https://f90nml.readthedocs.io/en/latest/index.html>`_. Note
+        that this function does not require the VMEC python module.
+
+        Args:
+            filename: Name of the ``input.*`` file to read.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
+              You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
+        """
+
+        all_namelists = f90nml.read(filename)
+        # We only care about the 'indata' namelist
+        nml = all_namelists['indata']
+        if 'nfp' in nml:
+            nfp = nml['nfp']
+        else:
+            nfp = 1
+
+        if 'lasym' in nml:
+            lasym = nml['lasym']
+        else:
+            lasym = False
+        stellsym = not lasym
+
+        # We can assume rbc and zbs are specified in the namelist.
+        # f90nml returns rbc and zbs as a list of lists where the
+        # inner lists do not necessarily all have the same
+        # dimension. Hence we need to be careful when converting to
+        # numpy arrays.
+        rc = nested_lists_to_array(nml['rbc'])
+        zs = nested_lists_to_array(nml['zbs'])
+        if lasym:
+            rs = nested_lists_to_array(nml['rbs'])
+            zc = nested_lists_to_array(nml['zbc'])
+
+        rbc_first_n = nml.start_index['rbc'][0]
+        rbc_last_n = rbc_first_n + rc.shape[1] - 1
+        zbs_first_n = nml.start_index['zbs'][0]
+        zbs_last_n = zbs_first_n + zs.shape[1] - 1
+        if lasym:
+            rbs_first_n = nml.start_index['rbs'][0]
+            rbs_last_n = rbs_first_n + rs.shape[1] - 1
+            zbc_first_n = nml.start_index['zbc'][0]
+            zbc_last_n = zbc_first_n + zc.shape[1] - 1
+        else:
+            rbs_first_n = 0
+            rbs_last_n = 0
+            zbc_first_n = 0
+            zbc_last_n = 0
+        ntor_boundary = np.max(np.abs(np.array([rbc_first_n, rbc_last_n,
+                                                zbs_first_n, zbs_last_n,
+                                                rbs_first_n, rbs_last_n,
+                                                zbc_first_n, zbc_last_n], dtype='i')))
+
+        rbc_first_m = nml.start_index['rbc'][1]
+        rbc_last_m = rbc_first_m + rc.shape[0] - 1
+        zbs_first_m = nml.start_index['zbs'][1]
+        zbs_last_m = zbs_first_m + zs.shape[0] - 1
+        if lasym:
+            rbs_first_m = nml.start_index['rbs'][1]
+            rbs_last_m = rbs_first_m + rs.shape[0] - 1
+            zbc_first_m = nml.start_index['zbc'][1]
+            zbc_last_m = zbc_first_m + zc.shape[0] - 1
+        else:
+            rbs_first_m = 0
+            rbs_last_m = 0
+            zbc_first_m = 0
+            zbc_last_m = 0
+        mpol_boundary = np.max((rbc_last_m, zbs_last_m, rbs_last_m, zbc_last_m))
+        logger.debug('Input file has ntor_boundary={} mpol_boundary={}' \
+                     .format(ntor_boundary, mpol_boundary))
+
+        surf = cls(mpol=mpol_boundary, ntor=ntor_boundary, nfp=nfp, stellsym=stellsym,
+                   **kwargs)
+
+        # Transfer boundary shape data from the namelist to the surface object:
+        for jm in range(rc.shape[0]):
+            m = jm + nml.start_index['rbc'][1]
+            for jn in range(rc.shape[1]):
+                n = jn + nml.start_index['rbc'][0]
+                surf.set_rc(m, n, rc[jm, jn])
+
+        for jm in range(zs.shape[0]):
+            m = jm + nml.start_index['zbs'][1]
+            for jn in range(zs.shape[1]):
+                n = jn + nml.start_index['zbs'][0]
+                surf.set_zs(m, n, zs[jm, jn])
+
+        if lasym:
+            for jm in range(rs.shape[0]):
+                m = jm + nml.start_index['rbs'][1]
+                for jn in range(rs.shape[1]):
+                    n = jn + nml.start_index['rbs'][0]
+                    surf.set_rs(m, n, rs[jm, jn])
+
+            for jm in range(zc.shape[0]):
+                m = jm + nml.start_index['zbc'][1]
+                for jn in range(zc.shape[1]):
+                    n = jn + nml.start_index['zbc'][0]
+                    surf.set_zc(m, n, zc[jm, jn])
+
+        return surf
+
+    @classmethod
+    def from_focus(cls, filename, quadpoints_phi=32, quadpoints_theta=32):
         """
         Read in a surface from a FOCUS-format file.
         """
@@ -96,7 +284,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=nphi, quadpoints_theta=ntheta)
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                   quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         for j in range(Nfou):
             surf.rc[m[j], n[j] + ntor] = rc[j]
             surf.zs[m[j], n[j] + ntor] = zs[j]
@@ -301,3 +490,37 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
+
+    def write_nml(self, filename: str = 'boundary'):
+        """
+        Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
+        coefficients, in the form used in VMEC and SPEC input files.
+
+        Args:
+            filename: Name of the file to write.
+        """
+        with open(filename, 'w') as f:
+            f.write('&INDATA\n')
+            if self.stellsym:
+                f.write('LASYM = .FALSE.\n')
+            else:
+                f.write('LASYM = .TRUE.\n')
+            f.write('NFP = ' + str(self.nfp) + '\n')
+
+            for m in range(self.mpol + 1):
+                nmin = -self.ntor
+                if m == 0:
+                    nmin = 0
+                for n in range(nmin, self.ntor + 1):
+                    rc = self.get_rc(m, n)
+                    zs = self.get_zs(m, n)
+                    if np.abs(rc) > 0 or np.abs(zs) > 0:
+                        f.write("RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
+                                .format(n, m, rc, n, m, zs))
+                    if (not self.stellsym):
+                        rs = self.get_rs(m, n)
+                        zc = self.get_zc(m, n)
+                        if np.abs(rs) > 0 or np.abs(zc) > 0:
+                            f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
+                                    .format(n, m, rs, n, m, zc))
+            f.write('/\n')

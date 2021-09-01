@@ -1,4 +1,5 @@
 import numpy as np
+import simsoptpp as sopp
 
 from .._core.optimizable import Optimizable
 
@@ -325,3 +326,105 @@ class Surface(Optimizable):
             function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
 
         return function_interpolated
+
+
+def signed_distance_from_surface(xyz, surface):
+    """
+    Compute the signed distances from points ``xyz`` to a surface.  The sign is
+    positive for points inside the volume surrounded by the surface.
+    """
+    gammas = surface.gamma().reshape((-1, 3))
+    from scipy.spatial import KDTree
+    tree = KDTree(gammas)
+    _, mins = tree.query(xyz, k=1)  # find closest points on the surface
+
+    n = surface.unitnormal().reshape((-1, 3))
+    nmins = n[mins]
+    gammamins = gammas[mins]
+
+    # Now that we have found the closest node, we approximate the surface with
+    # a plane through that node with the appropriate normal and then compute
+    # the distance from the point to that plane
+    # https://stackoverflow.com/questions/55189333/how-to-get-distance-from-point-to-plane-in-3d
+    mindist = np.sum((xyz-gammamins) * nmins, axis=1)
+
+    a_point_in_the_surface = np.mean(surface.gamma()[0, :, :], axis=0)
+    sign_of_interiorpoint = np.sign(np.sum((a_point_in_the_surface-gammas[0, :])*n[0, :]))
+
+    signed_dists = mindist * sign_of_interiorpoint
+    return signed_dists
+
+
+class SurfaceClassifier():
+    r"""
+    Takes in a toroidal surface and constructs an interpolant of the signed distance function
+    :math:`f:R^3\to R` that is positive inside the volume contained by the surface,
+    (approximately) zero on the surface, and negative outisde the volume contained by the surface.
+    """
+
+    def __init__(self, surface, p=1, h=0.05):
+        """
+        Args:
+            surface: the surface to contruct the distance from.
+            p: degree of the interpolant
+            h: grid resolution of the interpolant
+        """
+        gammas = surface.gamma()
+        r = np.linalg.norm(gammas[:, :, :2], axis=2)
+        z = gammas[:, :, 2]
+        rmin = max(np.min(r) - 0.1, 0.)
+        rmax = np.max(r) + 0.1
+        zmin = np.min(z) - 0.1
+        zmax = np.max(z) + 0.1
+
+        self.zrange = (zmin, zmax)
+        self.rrange = (rmin, rmax)
+
+        nr = int((self.rrange[1]-self.rrange[0])/h)
+        nphi = int(2*np.pi/h)
+        nz = int((self.zrange[1]-self.zrange[0])/h)
+
+        def fbatch(rs, phis, zs):
+            xyz = np.zeros((len(rs), 3))
+            xyz[:, 0] = rs * np.cos(phis)
+            xyz[:, 1] = rs * np.sin(phis)
+            xyz[:, 2] = zs
+            return list(signed_distance_from_surface(xyz, surface))
+
+        rule = sopp.UniformInterpolationRule(p)
+        self.dist = sopp.RegularGridInterpolant3D(
+            rule, [rmin, rmax, nr], [0., 2*np.pi, nphi], [zmin, zmax, nz], 1, True)
+        self.dist.interpolate_batch(fbatch)
+
+    def evaluate(self, xyz):
+        rphiz = np.zeros_like(xyz)
+        rphiz[:, 0] = np.linalg.norm(xyz[:, :2], axis=1)
+        rphiz[:, 1] = np.mod(np.arctan2(xyz[:, 1], xyz[:, 0]), 2*np.pi)
+        rphiz[:, 2] = xyz[:, 2]
+        d = np.zeros((xyz.shape[0], 1))
+        self.dist.evaluate_batch(rphiz, d)
+        return d
+
+    def to_vtk(self, filename, h=0.01):
+        from pyevtk.hl import gridToVTK
+
+        nr = int((self.rrange[1]-self.rrange[0])/h)
+        nphi = int(2*np.pi/h)
+        nz = int((self.zrange[1]-self.zrange[0])/h)
+        rs = np.linspace(self.rrange[0], self.rrange[1], nr)
+        phis = np.linspace(0, 2*np.pi, nphi)
+        zs = np.linspace(self.zrange[0], self.zrange[1], nz)
+
+        R, Phi, Z = np.meshgrid(rs, phis, zs)
+        X = R * np.cos(Phi)
+        Y = R * np.sin(Phi)
+        Z = Z
+
+        RPhiZ = np.zeros((R.size, 3))
+        RPhiZ[:, 0] = R.flatten()
+        RPhiZ[:, 1] = Phi.flatten()
+        RPhiZ[:, 2] = Z.flatten()
+        vals = np.zeros((R.size, 1))
+        self.dist.evaluate_batch(RPhiZ, vals)
+        vals = vals.reshape(R.shape)
+        gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})

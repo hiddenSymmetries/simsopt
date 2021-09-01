@@ -119,5 +119,41 @@ class FiniteDifferenceStepsTests(unittest.TestCase):
             finite_difference_steps(x, abs_step=0, rel_step=0)
 
 
+class NestedListsToArrayTests(unittest.TestCase):
+    def test_nested_lists_to_array(self):
+        """
+        Test the utility function used to convert 2D data in a fortran
+        namelist extracted by f90nml to a 2D numpy array.
+        """
+        list_of_lists = [[42]]
+        arr1 = nested_lists_to_array(list_of_lists)
+        arr2 = np.array([[42]])
+        np.testing.assert_allclose(arr1, arr2)
+
+        list_of_lists = [[42], [1, 2, 3]]
+        arr1 = nested_lists_to_array(list_of_lists)
+        arr2 = np.array([[42, 0, 0],
+                         [1, 2, 3]])
+        np.testing.assert_allclose(arr1, arr2)
+
+        list_of_lists = [[None, 42], [1, 2, 3]]
+        arr1 = nested_lists_to_array(list_of_lists)
+        arr2 = np.array([[0, 42, 0],
+                         [1, 2, 3]])
+        np.testing.assert_allclose(arr1, arr2)
+
+        list_of_lists = [[42, 43, 44], [1, 2, 3]]
+        arr1 = nested_lists_to_array(list_of_lists)
+        arr2 = np.array([[42, 43, 44],
+                         [1, 2, 3]])
+        np.testing.assert_allclose(arr1, arr2)
+
+        list_of_lists = [[42, 43, 44, 45], [1, 2, 3]]
+        arr1 = nested_lists_to_array(list_of_lists)
+        arr2 = np.array([[42, 43, 44, 45],
+                         [1, 2, 3, 0]])
+        np.testing.assert_allclose(arr1, arr2)
+
+
 if __name__ == "__main__":
     unittest.main()
