@@ -6,6 +6,8 @@ from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
 from scipy.optimize import minimize
 from simsopt._core.util import ObjectiveFailure
+from simsopt._core.dofs import Dofs
+import sys
 
 """
 Here, we perform an optimization begining with a 3 field period rotating ellipse
@@ -45,29 +47,6 @@ iotas_init = vmec.wout.iotas
 
 obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
-# Define objective function and derivative that handle ObjectiveFailure
-
-
-def J(dofs):
-    dofs_prev = obj.vmec.boundary.get_dofs()
-    try:
-        obj.vmec.boundary.set_dofs(dofs)
-        return obj.J()
-    except ObjectiveFailure:
-        obj.vmec.boundary.set_dofs(dofs_prev)
-        return 2*obj.J()
-
-
-def dJ(dofs):
-    dofs_prev = obj.vmec.boundary.get_dofs()
-    try:
-        obj.vmec.boundary.set_dofs(dofs)
-        return obj.dJ()
-    except ObjectiveFailure:
-        obj.vmec.boundary.set_dofs(dofs_prev)
-        return 2*obj.dJ()
-
-
 surf = vmec.boundary
 surf.all_fixed(True)
 # Slowly increase range of modes in optimization space
@@ -75,8 +54,20 @@ for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
+    myfunc=Dofs([obj])
+
+    # Define objective function and derivative that handle ObjectiveFailure
+    def J(dofs):
+        dofs_prev = myfunc.x
+        try:
+            myfunc.set(dofs)
+            return myfunc.f()[0], np.squeeze(myfunc.jac())
+        except ObjectiveFailure:
+            myfunc.set(dofs_prev)
+            return 2*myfunc.f()[0], 2*np.squeeze(myfunc.jac())
+
     res = minimize(
-        fun=J, x0=surf.get_dofs(), jac=dJ, method='L-BFGS-B',
+        fun=J, x0=myfunc.x, jac=True, method='L-BFGS-B',
         options={'maxfun': maxfun, 'ftol': 1e-8, 'gtol': 1e-8})
     print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, jac={np.linalg.norm(res['jac']):.3f}")
 
