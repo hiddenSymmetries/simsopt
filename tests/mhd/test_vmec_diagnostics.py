@@ -168,7 +168,7 @@ class IotaWeightedTests(unittest.TestCase):
 
         weight_function = lambda s: s**2
         epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 5.e-2 # perturbation amplitude for adjoint solve
+        adjoint_epsilon = 5.e-2  # perturbation amplitude for adjoint solve
 
         obj = IotaWeighted(vmec, weight_function, adjoint_epsilon)
 
