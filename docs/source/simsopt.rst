@@ -8,6 +8,7 @@ Subpackages
    :maxdepth: 4
 
    simsopt._core
+   simsopt.field
    simsopt.geo
    simsopt.mhd
    simsopt.objectives

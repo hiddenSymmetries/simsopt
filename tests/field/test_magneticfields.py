@@ -1,13 +1,13 @@
-from simsopt.geo.magneticfieldclasses import ToroidalField, \
+from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    Reiman, sympy_found, InterpolatedField
+    Reiman, sympy_found, InterpolatedField, PoloidalField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.magneticfield import MagneticFieldSum
+from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.geo.biotsavart import BiotSavart
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.coilcollection import CoilCollection
-from .surface_test_helpers import get_ncsx_data
+from simsopt.util.zoo import get_ncsx_data
 
 import numpy as np
 import unittest
@@ -329,15 +329,15 @@ class Testing(unittest.TestCase):
         y = points[:, 1]
         z = points[:, 2]
         Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+                                            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
               0.06*x*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
         By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+                                                0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
               0.06*y*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
         Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-              0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
+                                             0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
               0.06*z*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/np.sqrt(x**2 + y**2)
         B2 = np.array(np.vstack((Bx, By, Bz)).T)
         assert np.allclose(B1, B2)
@@ -378,7 +378,50 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
-    def test_interpolated_field_close(self):
+    def test_interpolated_field_close_with_symmetries(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        coils, currents, _ = get_ncsx_data(Nt_coils=10, Nt_ma=10, ppp=5)
+        nfp = 3
+        stellarator = CoilCollection(coils, currents, nfp, True)
+        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        btotal = bs + B0
+        n = 12
+        rmin = 1.5
+        rmax = 1.7
+        rsteps = n
+        phimin = 0
+        phimax = 2*np.pi/nfp
+        phisteps = n*32//nfp
+        zmin = 0.
+        zmax = 0.1
+        zsteps = n//2
+        bsh = InterpolatedField(
+            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
+            True, nfp=nfp, stellsym=True)
+        N = 1000
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(nfp*phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(2*zmax) - zmax
+        btotal.set_points_cyl(points)
+        dB = btotal.GradAbsB()
+        B = btotal.B()
+        dBc = btotal.GradAbsB_cyl()
+        Bc = btotal.B_cyl()
+        bsh.set_points_cyl(points)
+        Bh = bsh.B()
+        dBh = bsh.GradAbsB()
+        Bhc = bsh.B_cyl()
+        dBhc = bsh.GradAbsB_cyl()
+        assert np.allclose(B, Bh, rtol=1e-3)
+        assert np.allclose(dB, dBh, rtol=1e-3)
+        assert np.allclose(Bc, Bhc, rtol=1e-3)
+        assert np.allclose(dBc, dBhc, rtol=1e-3)
+
+    def test_interpolated_field_close_no_sym(self):
         R0test = 1.5
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
@@ -387,34 +430,38 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         btotal = bs + B0
-        n = 10
+        n = 8
         rmin = 1.5
         rmax = 1.7
         rsteps = n
         phimin = 0
         phimax = 2*np.pi
-        phisteps = n*32
+        phisteps = n*16
         zmin = -0.1
         zmax = 0.1
         zsteps = n
-        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
-        N = 10
+        bsh = InterpolatedField(
+            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
+            True)
+        N = 100
         points = np.random.uniform(size=(N, 3))
         points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
         points[:, 1] = points[:, 1]*(phimax-phimin) + phimin
         points[:, 2] = points[:, 2]*(zmax-zmin) + zmin
-        bsh.set_points_cyl(points)
         btotal.set_points_cyl(points)
-        B = btotal.B()
-        Bh = bsh.B()
         dB = btotal.GradAbsB()
+        B = btotal.B()
+        dBc = btotal.GradAbsB_cyl()
+        Bc = btotal.B_cyl()
+        bsh.set_points_cyl(points)
+        Bh = bsh.B()
         dBh = bsh.GradAbsB()
-        print("btotal.B()", B)
-        print("bsh.B()", Bh)
-        print("btotal.GradAbsB(()", dB)
-        print("bsh.GradAbsB()", dBh)
-        assert np.allclose(B, Bh, rtol=1e-3)
-        assert np.allclose(dB, dBh, rtol=1e-3)
+        Bhc = bsh.B_cyl()
+        dBhc = bsh.GradAbsB_cyl()
+        assert np.allclose(B, Bh, rtol=1e-2)
+        assert np.allclose(dB, dBh, rtol=1e-2)
+        assert np.allclose(Bc, Bhc, rtol=1e-2)
+        assert np.allclose(dBc, dBhc, rtol=1e-2)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5
@@ -429,12 +476,12 @@ class Testing(unittest.TestCase):
         btotal = bs + B0
 
         for n in [4, 8, 16]:
-            rmin = 1.3
+            rmin = 1.5
             rmax = 1.7
             rsteps = n
             phimin = 0
             phimax = 2*np.pi
-            phisteps = n*32
+            phisteps = n*16
             zmin = -0.1
             zmax = 0.1
             zsteps = n
@@ -473,6 +520,36 @@ class Testing(unittest.TestCase):
         stellarator = CoilCollection(coils, currents, 3, True)
         bs = BiotSavart(stellarator.coils, stellarator.currents)
         bs.to_vtk('/tmp/bfield')
+
+    def test_poloidal_field(self):
+        B0 = 1.1
+        R0 = 1.2
+        q = 1.3
+        # point locations
+        points = [
+            [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
+            [0.1231, 2.4123, 0.002341],
+        ]
+        # Bfield from class
+        Bfield = PoloidalField(R0=R0, B0=B0, q=q)
+        Bfield.set_points(points)
+        B1 = Bfield.B()
+        dB1 = Bfield.dB_by_dX()
+        print(dB1)
+        B1_analytical = [
+            [-3.48663e-7, 0.000221744, -0.211538],
+            [-0.0000841262, -0.00164856, 0.85704]
+        ]
+        dB1_analytical = [
+            [[0.000246381, 3.87403e-7, 0.00110872],
+             [3.87403e-7, 6.0914e-10, -0.705127],
+             [-0.00110872, 0.705127, 0]],
+            [[-0.000681623, 0.0000347833, -0.035936],
+             [0.0000347833, -1.775e-6, -0.704212],
+             [0.035936, 0.704212, 0]]
+        ]
+        assert np.allclose(B1, B1_analytical)
+        assert np.allclose(dB1, dB1_analytical)
 
 
 if __name__ == "__main__":
