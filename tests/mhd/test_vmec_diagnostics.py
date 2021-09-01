@@ -107,7 +107,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
         logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 5.e-2)
+        self.assertLessEqual(relative_error, 5.e-2)
 
     def test_IotaTargetMetric_LeastSquaresProblem(self):
         """
@@ -137,7 +137,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 2.e-2)
+        self.assertLessEqual(relative_error, 2.e-2)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -191,7 +191,7 @@ class IotaWeightedTests(unittest.TestCase):
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
         logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 5.e-2)
+        self.assertLessEqual(relative_error, 5.e-2)
 
     def test_IotaWeighted_LeastSquaresProblem(self):
         """
@@ -221,7 +221,7 @@ class IotaWeightedTests(unittest.TestCase):
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 2.e-2)
+        self.assertLessEqual(relative_error, 2.e-2)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -280,7 +280,7 @@ class WellWeightedTests(unittest.TestCase):
         relative_error = np.abs(d_well_fd-d_well_adjoint)/np.abs(d_well_fd)
         logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 5.e-2)
+        self.assertLessEqual(relative_error, 5.e-2)
 
     def test_WellWeighted_LeastSquaresProblem(self):
         """
@@ -312,7 +312,7 @@ class WellWeightedTests(unittest.TestCase):
         relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
         logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
         logger.info(f"relative error: {relative_error}")
-        self.assertTrue(relative_error < 2.e-2)
+        self.assertLessEqual(relative_error, 2.e-2)
 
 
 if __name__ == "__main__":
