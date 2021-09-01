@@ -54,7 +54,7 @@ for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
-    myfunc=Dofs([obj])
+    myfunc = Dofs([obj])
 
     # Define objective function and derivative that handle ObjectiveFailure
     def J(dofs):
