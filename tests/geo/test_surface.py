@@ -728,6 +728,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
 
+
 class ArclengthTests(unittest.TestCase):
     def test_arclength_poloidal_angle(self):
         """
@@ -800,6 +801,7 @@ class ArclengthTests(unittest.TestCase):
             integral_1 = np.sum(integrand[iphi, :] * norm_drdtheta[iphi, :]) / np.sum(norm_drdtheta[iphi, :])
             integral_2 = np.sum(integrand_arclength[iphi, :]) / np.sum(np.ones_like(norm_drdtheta[iphi, :]))
             self.assertAlmostEqual(integral_1, integral_2, places=3)
+
 
 class SurfaceDistanceTests(unittest.TestCase):
     def test_distance(self):

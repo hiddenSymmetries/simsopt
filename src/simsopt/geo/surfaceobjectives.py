@@ -248,6 +248,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     return r, J, H
 
+
 def parameter_derivatives(surface: Surface,
                           shape_gradient: NDArray[(Any, Any), Float]
                           ) -> NDArray[(Any,), Float]:
