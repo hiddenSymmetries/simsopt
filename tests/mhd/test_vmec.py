@@ -23,7 +23,7 @@ if (MPI is not None) and vmec_found:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -326,7 +326,7 @@ class VmecTests(unittest.TestCase):
         np.testing.assert_allclose(prob.x, [1.0])
         self.assertEqual(prob.all_owners, [equil, surf])
         self.assertEqual(prob.dof_owners, [surf])
-            
+
         # Solve the minimization problem:
         prob.solve()
 
