@@ -285,7 +285,8 @@ def parameter_derivatives(surface: Surface,
     ntheta = surface.gamma().shape[1]
     return np.einsum('ijk,ij->k', N_dot_dx_by_dc, shape_gradient) / (ntheta * nphi)
 
-  class QfmResidual(object):
+
+class QfmResidual(object):
     r"""
     For a given surface :math:`S`, this class computes the residual
 
