@@ -1,0 +1,28 @@
+&INDATA
+delt=0.8
+niter=5000
+nstep=200
+ns_array=9 49 79 99
+ftol_array=1e-06 1e-08 1e-10 1e-10
+!ftol_array=1e-06 1e-08 1e-10 1e-10 
+lasym=False
+nfp=3
+mpol=9
+ntor=7
+!mpol=11
+!ntor=11
+phiedge=-5
+am=0 0 
+curtor=0
+ncurr=1
+ac=0 0 
+raxis=4.9849289578553 0.693200821611415 0.333619005511178
+zaxis=-0 0.68394952807886 0.336539211117259
+Rbc(0,0)    =  5.000000000000000E+00
+Rbc(1,1)   =  -0.5
+Rbc(0,1)    =  -1.5
+RBC(1,0)    = -0.5
+Zbs(1,1)   =  0.5
+Zbs(0,1)    = -1.5
+Zbs(1,0)    = 0.5
+/

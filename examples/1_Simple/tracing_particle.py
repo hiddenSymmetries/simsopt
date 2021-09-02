@@ -2,10 +2,10 @@
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.geo.coilcollection import coils_via_symmetries
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, plot_poincare_data
-#from simsopt.geo.curve import curves_to_vtk
+from simsopt.geo.curve import curves_to_vtk
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import simsoptpp as sopp
@@ -37,15 +37,13 @@ trajectories of particles
 """
 
 
-coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
-
-stellarator = CoilCollection(coils, currents, 3, True)
-coils = stellarator.coils
-currents = stellarator.currents
-bs = BiotSavart(coils, currents)
+curves, currents, ma = get_ncsx_data()
+coils = coils_via_symmetries(curves, currents, 3, True)
+curves = [c.curve for c in coils]
+bs = BiotSavart(coils)
 print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
-#curves_to_vtk(coils + [ma], '/tmp/coils')
+curves_to_vtk(curves + [ma], '/tmp/coils')
 
 mpol = 5
 ntor = 5
@@ -82,10 +80,10 @@ def trace_particles(bfield, label, mode='gc_vac'):
         forget_exact_path=True)
     t2 = time.time()
     print(f"Time for particle tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in gc_tys])//nparticles}", flush=True)
-#    if comm is None or comm.rank == 0:
+    if comm is None or comm.rank == 0:
         # particles_to_vtk(gc_tys, f'/tmp/particles_{label}_{mode}')
-#        plot_poincare_data(gc_phi_hits, phis, f'/tmp/poincare_particle_{label}_loss.png', mark_lost=True)
-#        plot_poincare_data(gc_phi_hits, phis, f'/tmp/poincare_particle_{label}.png', mark_lost=False)
+        plot_poincare_data(gc_phi_hits, phis, f'/tmp/poincare_particle_{label}_loss.png', mark_lost=True)
+        plot_poincare_data(gc_phi_hits, phis, f'/tmp/poincare_particle_{label}.png', mark_lost=False)
 
 
 print('Error in B', bsh.estimate_error_B(1000), flush=True)

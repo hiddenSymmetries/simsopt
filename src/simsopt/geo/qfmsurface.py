@@ -30,6 +30,7 @@ class QfmSurface():
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
+        self.qfm = QfmResidual(surface, biotsavart)
 
     def qfm_label_constraint(self, x, derivatives=0):
         r"""
@@ -77,7 +78,7 @@ class QfmSurface():
         bs = self.bs
 
         s.set_dofs(sdofs)
-        qfm = QfmResidual(s, bs)
+        qfm = self.qfm
 
         r = qfm.J()
 
@@ -106,7 +107,7 @@ class QfmSurface():
 
         s.set_dofs(sdofs)
 
-        qfm = QfmResidual(s, bs)
+        qfm = self.qfm
 
         r = qfm.J()
 

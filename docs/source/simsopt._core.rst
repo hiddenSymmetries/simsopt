@@ -4,6 +4,15 @@ simsopt.\_core package
 Submodules
 ----------
 
+simsopt.\_core.derivative module
+--------------------------
+
+.. automodule:: simsopt._core.derivative
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.\_core.dofs module
 --------------------------
 
