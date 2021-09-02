@@ -30,21 +30,11 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
             if (iter == 1) {
               phi_last = M_PI;
             }
-            // if (iter > 0) {
             double phi = get_phi(x, y, phi_last);
             if (iter == 1) {
               phi_init = phi;
             }
             phi_last = phi;
-              // if (phi_init == -2*M_PI) {
-              //   phi_init = phi;
-              // }
-              // bool phi_hit = std::floor((phi-phi_init)/(2*M_PI)) != std::floor((phi_last-phi_init)/(2*M_PI));
-              // phi_last = phi;
-              // if (phi_hit) {
-              //   ntransits += 1;
-              // }
-            // }
             int ntransits = std::abs(std::floor((phi-phi_init)/(2*M_PI)));
             return ntransits>=max_transits;
         };

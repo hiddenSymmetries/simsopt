@@ -36,13 +36,14 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
+    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
 
     m.def("ReimanB" , &ReimanB);
     m.def("ReimandB", &ReimandB);
-    
+   
     // the computation below is used in boozer_surface_residual.
     //
     // G*dB_dc - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] - B2[..., None, None] * (dxphi_dc + iota * dxtheta_dc)

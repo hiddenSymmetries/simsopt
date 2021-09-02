@@ -20,13 +20,22 @@ Array curve_vjp_contraction(const Array& mat, const Array& v){
     int numquadpoints = mat.shape(0);
     int numdofs = mat.shape(2);
     Array res = xt::zeros<double>({numdofs});
-    for (int i = 0; i < numdofs; ++i) {
-        for (int j = 0; j < numquadpoints; ++j) {
-            for (int k = 0; k < 3; ++k) {
-                res(i) += mat(j, k, i) * v(j, k);
-            }
-        }
-    }
+    // we have to compute the contraction below:
+    //for (int i = 0; i < numdofs; ++i) {
+    //    for (int j = 0; j < numquadpoints; ++j) {
+    //        for (int k = 0; k < 3; ++k) {
+    //            res(i) += mat(j, k, i) * v(j, k);
+    //        }
+    //    }
+    //}
+    // instead of worrying how to do this efficiently, we map to a eigen
+    // matrix, and then write this as a matrix vector product.
+
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(mat.data()), numquadpoints*3, numdofs);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(v.data()), 1, numquadpoints*3);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(res.data()), 1, numdofs);
+    eigen_res = eigen_v*eigen_mat;
+
     return res;
 }
 
@@ -162,19 +171,19 @@ class Curve {
             return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
-        virtual Array dgamma_by_dcoeff_vjp(Array& v) {
+        virtual Array dgamma_by_dcoeff_vjp_impl(Array& v) {
             return curve_vjp_contraction<Array>(dgamma_by_dcoeff(), v);
         };
 
-        virtual Array dgammadash_by_dcoeff_vjp(Array& v) {
+        virtual Array dgammadash_by_dcoeff_vjp_impl(Array& v) {
             return curve_vjp_contraction<Array>(dgammadash_by_dcoeff(), v);
         };
 
-        virtual Array dgammadashdash_by_dcoeff_vjp(Array& v) {
+        virtual Array dgammadashdash_by_dcoeff_vjp_impl(Array& v) {
             return curve_vjp_contraction<Array>(dgammadashdash_by_dcoeff(), v);
         };
 
-        virtual Array dgammadashdashdash_by_dcoeff_vjp(Array& v) {
+        virtual Array dgammadashdashdash_by_dcoeff_vjp_impl(Array& v) {
             return curve_vjp_contraction<Array>(dgammadashdashdash_by_dcoeff(), v);
         };
 
