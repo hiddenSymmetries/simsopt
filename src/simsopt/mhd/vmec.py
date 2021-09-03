@@ -241,6 +241,7 @@ class Vmec(Optimizable):
                 if vi.lasym:
                     self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
                     self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+        self._boundary.local_full_x = self._boundary.get_dofs()
 
         # Handle a few variables that are not Parameters:
         self.need_to_run_code = True
