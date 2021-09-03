@@ -78,22 +78,22 @@ class QuasisymmetryRatioResidual(Optimizable):
     Args:
         vmec: A :obj:`simsopt.mhd.vmec.Vmec` object from which the
           quasisymmetry error will be calculated.
-        s: Value of normalized toroidal flux at which you want the
+        surfaces: Value of normalized toroidal flux at which you want the
           quasisymmetry error evaluated, or a list of values. Each
           value must be in the interval [0, 1], with 0 corresponding
           to the magnetic axis and 1 to the VMEC plasma boundary.
           This parameter corresponds to :math:`s_j` above.
-        m: Desired poloidal mode number :math:`M` in the magnetic field
+        helicity_m: Desired poloidal mode number :math:`M` in the magnetic field
           strength :math:`B`, so
           :math:`B = B(s, M \vartheta - n_{fp} \hat{N} \varphi)`
           where :math:`\vartheta` and :math:`\varphi` are Boozer angles.
-        n: Desired toroidal mode number :math:`\hat{N} = N / n_{fp}` in the magnetic field
+        helicity_n: Desired toroidal mode number :math:`\hat{N} = N / n_{fp}` in the magnetic field
           strength :math:`B`, so
           :math:`B = B(s, M \vartheta - n_{fp} \hat{N} \varphi)`
           where :math:`\vartheta` and :math:`\varphi` are Boozer angles.
-          Note that the supplied value of ``n`` will be multiplied by
+          Note that the supplied value of ``helicity_n`` will be multiplied by
           the number of field periods :math:`n_{fp}`, so typically
-          ``n`` should be +1 or -1 for quasi-helical symmetry.
+          ``helicity_n`` should be +1 or -1 for quasi-helical symmetry.
         weights: The list of weights :math:`w_j` for each flux surface.
           If ``None``, a weight of :math:`w_j=1` will be used for
           all surfaces.
@@ -105,9 +105,9 @@ class QuasisymmetryRatioResidual(Optimizable):
 
     def __init__(self,
                  vmec: Vmec,
-                 s: Union[float, RealArray],
-                 m: int = 1,
-                 n: int = 0,
+                 surfaces: Union[float, RealArray],
+                 helicity_m: int = 1,
+                 helicity_n: int = 0,
                  weights: RealArray = None,
                  ntheta: int = 63,
                  nphi: int = 64) -> None:
@@ -116,20 +116,20 @@ class QuasisymmetryRatioResidual(Optimizable):
         self.depends_on = ["vmec"]
         self.ntheta = ntheta
         self.nphi = nphi
-        self.m = m
-        self.n = n
+        self.helicity_m = helicity_m
+        self.helicity_n = helicity_n
 
-        # Make sure s is a list:
+        # Make sure surfaces is a list:
         try:
-            self.s = list(s)
+            self.surfaces = list(surfaces)
         except:
-            self.s = [s]
+            self.surfaces = [surfaces]
 
         if weights is None:
-            self.weights = np.ones(len(self.s))
+            self.weights = np.ones(len(self.surfaces))
         else:
             self.weights = weights
-        assert len(self.weights) == len(self.s)
+        assert len(self.weights) == len(self.surfaces)
 
     def get_dofs(self):
         return np.array([])
@@ -151,7 +151,7 @@ class QuasisymmetryRatioResidual(Optimizable):
             raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
         logger.debug('Evaluating quasisymmetry residuals')
-        ns = len(self.s)
+        ns = len(self.surfaces)
         ntheta = self.ntheta
         nphi = self.nphi
         nfp = self.vmec.wout.nfp
@@ -161,31 +161,31 @@ class QuasisymmetryRatioResidual(Optimizable):
         method = 'linear'
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
-        iota = interp(self.s)
+        iota = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
-        G = interp(self.s)
+        G = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
-        I = interp(self.s)
+        I = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
-        gmnc = interp(self.s)
+        gmnc = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
-        bmnc = interp(self.s)
+        bmnc = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubumnc[:, 1:], fill_value="extrapolate")
-        bsubumnc = interp(self.s)
+        bsubumnc = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubvmnc[:, 1:], fill_value="extrapolate")
-        bsubvmnc = interp(self.s)
+        bsubvmnc = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupumnc[:, 1:], fill_value="extrapolate")
-        bsupumnc = interp(self.s)
+        bsupumnc = interp(self.surfaces)
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
-        bsupvmnc = interp(self.s)
+        bsupvmnc = interp(self.surfaces)
 
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
         phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
@@ -227,11 +227,11 @@ class QuasisymmetryRatioResidual(Optimizable):
         # Check that we can evaluate the flux surface average <1> and the result is 1:
         assert np.sum(np.abs(np.sqrt((1 / V_prime) * nfp * dtheta * dphi * np.sum(sqrtg, axis=(1, 2))) - 1)) < 1e-12
 
-        nn = self.n * nfp
+        nn = self.helicity_n * nfp
         for js in range(ns):
             residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
-                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.m) \
-                   - B_dot_grad_B[js, :, :] * (self.m * G[js] + nn * I[js])) \
+                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.helicity_m) \
+                   - B_dot_grad_B[js, :, :] * (self.helicity_m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
 
         residuals1d = residuals3d.reshape((ns * ntheta * nphi,))
