@@ -174,8 +174,6 @@ class LeastSquaresProblem(Optimizable):
         # Reached here after encountering break in for loop
         return np.full(self.nvals, self.fail)
 
-
-
     def residuals(self, x=None, *args, **kwargs):
         """
         Return the weighted residuals
