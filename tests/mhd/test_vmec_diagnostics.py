@@ -36,17 +36,17 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
 
         vmec = Vmec(os.path.join(TEST_DIR, 'input.circular_tokamak'))
 
-        for s in [[0.5], [0.3, 0.6]]:
-            qa = QuasisymmetryRatioResidual(vmec, s, m=1, n=0)
+        for surfaces in [[0.5], [0.3, 0.6]]:
+            qa = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=0)
             residuals = qa.residuals()
             logger.info(f'max QA error: {np.max(np.abs(residuals))}')
             np.testing.assert_allclose(residuals, np.zeros_like(residuals), atol=2e-6)
 
-            qh = QuasisymmetryRatioResidual(vmec, s, m=1, n=1)
+            qh = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=1)
             logger.info(f'QH error: {qh.total()}')
             self.assertTrue(qh.total() > 0.01)
 
-            qp = QuasisymmetryRatioResidual(vmec, s, m=0, n=1)
+            qp = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=0, helicity_n=1)
             logger.info(f'QP error: {qp.total()}')
             self.assertTrue(qp.total() > 0.01)
 
@@ -61,11 +61,15 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         weightss = [None, [1], None, [2.2, 5.5, 0.9]]
         ms = [1, 1, 1, 0]
         ns = [0, 1, -1, 1]
-        for s, weights in zip(ss, weightss):
-            logger.info(f's={s} weights={weights}')
+        for surfaces, weights in zip(ss, weightss):
+            logger.info(f'surfaces={surfaces} weights={weights}')
             for m, n in zip(ms, ns):
-                qs_ref = QuasisymmetryRatioResidual(vmec, s, m=m, n=n, weights=weights, ntheta=130, nphi=114)
-                qs = QuasisymmetryRatioResidual(vmec, s, m=m, n=n, weights=weights, ntheta=65, nphi=57)
+                qs_ref = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=m, helicity_n=n,
+                                                    weights=weights, ntheta=130, nphi=114)
+
+                qs = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=m, helicity_n=n,
+                                                weights=weights, ntheta=65, nphi=57)
+
                 total_ref = qs_ref.total()
                 total = qs.total()
                 logger.info(f'm={m} n={n} '
@@ -78,16 +82,16 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         the QA error should have a low value. The QH and QP errors should be larger.
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.simsopt_nfp2_QA_20210328-01-020_000_000251'))
-        qa = QuasisymmetryRatioResidual(vmec, 0.5, m=1, n=0)
+        qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
         total = qa.total()
         logger.info(f"QA error for simsopt_nfp2_QA_20210328-01-020_000_000251: {total}")
         self.assertTrue(total < 2e-5)
 
-        qh = QuasisymmetryRatioResidual(vmec, 0.5, m=1, n=1)
+        qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
         logger.info(f'QH error: {qh.total()}')
         self.assertTrue(qh.total() > 0.002)
 
-        qp = QuasisymmetryRatioResidual(vmec, 0.5, m=0, n=1)
+        qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
         logger.info(f'QP error: {qp.total()}')
         self.assertTrue(qp.total() > 0.002)
 
@@ -98,20 +102,20 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.20210406-01-002-nfp4_QH_000_000240'))
 
-        qh = QuasisymmetryRatioResidual(vmec, 0.5, m=1, n=-1)
+        qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=-1)
         logger.info(f'QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240: {qh.total()}')
         self.assertTrue(qh.total() < 5e-5)
 
-        qh2 = QuasisymmetryRatioResidual(vmec, 0.5, m=1, n=1)
+        qh2 = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
         logger.info(f'QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240: {qh2.total()}')
         self.assertTrue(qh2.total() > 0.01)
 
-        qa = QuasisymmetryRatioResidual(vmec, 0.5, m=1, n=0)
+        qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
         total = qa.total()
         logger.info(f'QA error for 20210406-01-002-nfp4_QH_000_000240: {total}')
         self.assertTrue(total > 0.05)
 
-        qp = QuasisymmetryRatioResidual(vmec, 0.5, m=0, n=1)
+        qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
         logger.info(f'QP error: {qp.total()}')
         self.assertTrue(qp.total() > 0.005)
 
@@ -121,7 +125,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         configuration in length and/or magnetic field strength.
         """
         vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
-        qs1 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
+        qs1 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1, helicity_n=-1, weights=[0.8, 1.1, 0.9])
         results1 = qs1.compute()
         residuals1 = qs1.residuals()
 
@@ -136,7 +140,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         vmec.indata.curtor *= B_scale * R_scale
 
         vmec.need_to_run_code = True
-        qs2 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], m=1, n=-1, weights=[0.8, 1.1, 0.9])
+        qs2 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1, helicity_n=-1, weights=[0.8, 1.1, 0.9])
         results2 = qs2.compute()
         residuals2 = qs2.residuals()
 
@@ -157,11 +161,11 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         weights = [0.2, 0.7, 1.3]
         m = 1
         n = 1
-        qs_profile = QuasisymmetryRatioResidual(vmec, surfs, m=m, n=n, weights=weights)
+        qs_profile = QuasisymmetryRatioResidual(vmec, surfs, helicity_m=m, helicity_n=n, weights=weights)
         profile = qs_profile.profile()
         np.testing.assert_allclose(np.sum(profile), qs_profile.total())
         for j in range(len(surfs)):
-            qs_single = QuasisymmetryRatioResidual(vmec, [surfs[j]], m=m, n=n, weights=[weights[j]])
+            qs_single = QuasisymmetryRatioResidual(vmec, [surfs[j]], helicity_m=m, helicity_n=n, weights=[weights[j]])
             np.testing.assert_allclose(profile[j], qs_single.total())
 
     def test_iota_0(self):
