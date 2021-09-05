@@ -395,3 +395,5 @@ class Quasisymmetry(Optimizable):
                 raise ValueError("Unrecognized value for weight in Quasisymmetry")
 
         return np.array(symmetry_error).flatten()
+
+    return_fn_map = {'J': J}
