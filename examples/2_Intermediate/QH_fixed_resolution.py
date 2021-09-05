@@ -2,8 +2,8 @@
 
 from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -22,11 +22,11 @@ vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_war
 
 # Define parameter space:
 surf = vmec.boundary
-surf.all_fixed()
+surf.fix_all()
 max_mode = 2
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
-surf.set_fixed("rc(0,0)")  # Major radius
+surf.fix("rc(0,0)")  # Major radius
 
 # Configure quasisymmetry objective:
 qs = Quasisymmetry(Boozer(vmec),
@@ -34,14 +34,15 @@ qs = Quasisymmetry(Boozer(vmec),
                    1, 1)  # (M, N) you want in |B|
 
 # Define objective function
-prob = LeastSquaresProblem([(vmec.aspect, 7, 1),
-                            (qs, 0, 1)],
-                           rel_step=1e-3, abs_step=1e-5)
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1), (qs.J, 0, 1)])
+print(f"aspect ratio is {vmec.aspect()}")
+print(f"Quasisymmetry  is {qs.J()}")
 
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
-least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=1)
+# least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=1)
+least_squares_mpi_solve(prob, mpi, rel_step=1e-3, abs_step=1e-5, max_nfev=1)
 
 print("End of 2_Intermediate/QH_fixed_resolution.py")
 print("============================================")

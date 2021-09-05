@@ -40,10 +40,10 @@ qs = Quasisymmetry(boozer,
                    1, 0)  # (M, N) you want in |B|
 
 # Define objective function
-prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
-                            (vmec.iota_axis, 0.465, 1),
-                            (vmec.iota_edge, 0.495, 1),
-                            (qs, 0, 1)])
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
+                                        (vmec.iota_axis, 0.465, 1),
+                                        (vmec.iota_edge, 0.495, 1),
+                                        (qs.J, 0, 1)])
 
 # Fourier modes of the boundary with m <= max_mode and |n| <= max_mode
 # will be varied in the optimization. A larger range of modes are
@@ -81,8 +81,8 @@ for step in range(3):
     vmec.files_to_delete = []
 
     if mpi.proc0_world:
-        print("Done optimization with max_mode =", max_mode, \
-              ". Final vmec iteration = ", vmec.iter)
+        print(f"Done optimization with max_mode ={max_mode}. "
+              f"Final vmec iteration = {vmec.iter}")
 
 print("Good bye")
 

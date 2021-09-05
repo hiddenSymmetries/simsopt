@@ -560,3 +560,7 @@ class Vmec(Optimizable):
 
         well = (dVds_s0 - dVds_s1) / dVds_s0
         return well
+
+    return_fn_map = {'aspect': aspect, 'volume': volume, 'iota_axis': iota_axis,
+                     'iota_edge': iota_edge, 'mean_iota': mean_iota,
+                     'mean_shear': mean_shear, 'vacuum_well': vacuum_well}
