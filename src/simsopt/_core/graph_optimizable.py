@@ -503,25 +503,38 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.return_fns = defaultdict(list)  # Store return fn's required by each child
 
         # Assign self as child to parents
-        self.parents = depends_on if depends_on is not None else []
-        for i, parent in enumerate(self.parents):
-            parent._add_child(self)
-            return_fns = opt_return_fns[i] if opt_return_fns else []
-            for fn in return_fns:
-                parent.add_return_fn(self, fn)
+        funcs_in = list(funcs_in) if funcs_in is not None else []
+        depends_on = list(depends_on) if depends_on is not None else []
+        assert(not ((len(funcs_in) > 0) and (len(depends_on) > 0)))
 
-        # Process funcs_in (Assumes depends_on is empty)
-        if depends_on is None or not len(depends_on):
-            depends_on = []
-            funcs_in = funcs_in if funcs_in is not None else []
+        def binder(fn, inst):
+            def func(*args, **kwargs):
+                return fn(inst, *args, **kwargs)
+            return func
+
+        if len(depends_on):
+            self.parents = depends_on
+            for i, parent in enumerate(self.parents):
+                parent._add_child(self)
+                return_fns = opt_return_fns[i] if opt_return_fns else []
+                try:
+                    if not len(return_fns) and len(parent.return_fn_map.values()):
+                        return_fns = parent.return_fn_map.values()
+                except:
+                    pass
+                for fn in return_fns:
+                    parent.add_return_fn(self, fn)
+                    funcs_in.append(binder(fn, parent))
+        else: # Process funcs_in (Assumes depends_on is empty)
             for fn in funcs_in:
                 opt_in = fn.__self__
                 depends_on.append(opt_in)
                 opt_in.add_return_fn(self, fn.__func__)
-            depends_on = list(dict.fromkeys(depends_on))
-            self.parents = list(depends_on) if depends_on is not None else []
+            self.parents = list(dict.fromkeys(depends_on))
             for i, parent in enumerate(self.parents):
                 parent._add_child(self)
+
+        self.funcs_in = funcs_in
 
         # Obtain unique list of the ancestors
         self.ancestors = self._get_ancestors()

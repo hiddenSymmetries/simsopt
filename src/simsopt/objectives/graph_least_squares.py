@@ -63,10 +63,10 @@ class LeastSquaresProblem(Optimizable):
             goals = [goals]
         if isinstance(weights, Real):
             weights = [weights]
-        if np.any(np.array(weights) < 0):
+        if np.any(np.asarray(weights) < 0):
             raise ValueError('Weight cannot be negative')
-        self.goals = np.array(goals)
-        self.weights = np.array(weights)
+        self.goals = np.asarray(goals)
+        self.weights = np.asarray(weights)
         self.fail = fail
 
         # Attributes for function evaluation
@@ -138,7 +138,7 @@ class LeastSquaresProblem(Optimizable):
         #weights = list(weights)
         return cls(goals, weights, funcs_in=funcs_in, fail=fail)
 
-    def unweighted_residuals(self, x=None, *args, **kwargs):
+    def unweighted_residuals_old(self, x=None, *args, **kwargs):
         """
         Return the unweighted residuals (f_in - goal)
 
@@ -170,6 +170,47 @@ class LeastSquaresProblem(Optimizable):
         else:
             self.first_eval = False
             return np.concatenate(outputs) - self.goals
+
+        # Reached here after encountering break in for loop
+        return np.full(self.nvals, self.fail)
+
+    def unweighted_residuals(self, x=None, *args, **kwargs):
+        """
+        Return the unweighted residuals (f_in - goal)
+
+        Args:
+            x: Degrees of freedom or state
+            args: Any additional arguments
+            kwargs: Keyword arguments
+        """
+        if x is not None:
+            self.x = x
+
+        outputs = []
+        new_weights = []
+        for i, func in enumerate(self.funcs_in):
+            try:
+                out = func(*args, **kwargs)
+            except ObjectiveFailure:
+                logger.warning(f"Function evaluation failed for {func}")
+                print(f'fail val is {self.fail}')
+                print(f"Is it a first eval {self.first_eval}")
+                if self.fail is None or self.first_eval:
+                    raise
+
+                break
+
+            output = np.array([out]) if not np.ndim(out) else np.asarray(out)
+            output -= self.goals[i]
+            if self.first_eval:
+                self.nvals += len(output)
+                new_weights += [self.weights[i]] * len(output)
+            outputs += [output]
+        else:
+            if self.first_eval:
+                self.weights = np.array(new_weights)
+                self.first_eval = False
+            return np.concatenate(outputs)
 
         # Reached here after encountering break in for loop
         return np.full(self.nvals, self.fail)
@@ -253,6 +294,8 @@ class LeastSquaresProblem(Optimizable):
             depends_on=(self.parents + other.parents),
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),
+            # funcs_in=(self.funcs_in + other.funcs_in),
+            fail = max(self.fail, other.fail)
         )
 
     #def residuals(self, x: Union[RealArray, IntArray] = None):
