@@ -107,14 +107,15 @@ def _mpi_workers_task(mpi: MpiPartition,
         try:
             prob.residuals()
         except:
-            logger.info("Exception caught by worker during dofs.f()")
+            logger.warning("Exception caught by worker during residual "
+                           "evaluation in worker loop")
             traceback.print_exc()  # Print traceback
 
     elif data == CALCULATE_JAC:
         try:
             prob.jac()
         except:
-            logger.info("Exception caught by worker during dofs.jac()")
+            logger.warning("Exception caught by worker during jac evaluation")
             traceback.print_exc()  # Print traceback
 
     else:
@@ -327,7 +328,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     nevals = 0
     start_time = time()
 
-    def _f_proc0(x, counter=[0]):
+    def _f_proc0(x):
         """
         This function is used for least_squares_mpi_solve.  It is similar
         to LeastSquaresProblem.f(), except this version is called only by
@@ -341,9 +342,9 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
         try:
             unweighted_residuals = prob.unweighted_residuals(x)
-            logger.debug(f"unweighted residuals:\n {unweighted_residuals}")
+            logger.debug(f"unweighted residuals in _f_proc0:\n {unweighted_residuals}")
             residuals = prob.residuals()
-            logger.debug(f"residuals:\n {residuals}")
+            logger.debug(f"residuals in _f_proc0:\n {residuals}")
         except:
             #f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
             unweighted_residuals = np.full(prob.parent_return_fns_no, 1.0e12)
@@ -398,8 +399,6 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             residuals_file.write(f",{fj:24.16e}")
         residuals_file.write("\n")
         residuals_file.flush()
-        counter[0] += 1
-        print(f"call count: {counter[0]}")
         nevals += 1
         return residuals
 
@@ -455,10 +454,10 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             return prob.scale_dofs_jac(jac)
 
     # Send group leaders and workers into their respective loops:
-    leaders_action = lambda mpi2, data: _mpi_leaders_task(
+    leaders_action = lambda mpi, data: _mpi_leaders_task(
         mpi, prob, data, abs_step=abs_step, rel_step=rel_step,
         diff_method=diff_method)
-    workers_action = lambda mpi2, data: _mpi_workers_task(mpi, prob, data)
+    workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob, data)
     mpi.apart(leaders_action, workers_action)
 
     if mpi.proc0_world:

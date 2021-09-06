@@ -57,8 +57,7 @@ class TestFunction3(Optimizable):
     MPI communication added in order to test optimization with MPI.
     """
 
-    def __init__(self, comm):
-        x = [0., 0.]
+    def __init__(self, comm, x=[0, 0]):
         self.comm = comm
         self.dummy = 42
         self.f0_call_cnt = 0
@@ -70,6 +69,7 @@ class TestFunction3(Optimizable):
         # Do some random MPI stuff just for the sake of testing.
         self.comm.barrier()
         self.comm.bcast(self.local_full_x)
+        self.f0_call_cnt += 1
         print(f"x is {self.local_full_x}")
         print(f"TestFunction3.f0 called {self.f0_call_cnt} times")
         return self.local_full_x[0] - 1
@@ -78,6 +78,7 @@ class TestFunction3(Optimizable):
         # Do some random MPI stuff just for the sake of testing.
         self.comm.bcast(self.dummy)
         self.comm.barrier()
+        self.f1_call_cnt += 1
         print(f"x is {self.local_full_x}")
         print(f"TestFunction3.f1 called {self.f1_call_cnt} times")
         return self.local_full_x[0] ** 2 - self.local_full_x[1]
@@ -257,7 +258,6 @@ class MpiPartitionTests(unittest.TestCase):
         """
         rank_world = MPI.COMM_WORLD.Get_rank()
         logger.info(f"rank world is {rank_world}")
-        nprocs = MPI.COMM_WORLD.Get_size()
         for ngroups in range(1, 4):
             #for grad in [True, False]:
             mpi = MpiPartition(ngroups=ngroups)
@@ -265,6 +265,6 @@ class MpiPartitionTests(unittest.TestCase):
             term1 = (o.f0, 0, 1)
             term2 = (o.f1, 0, 1)
             prob = LeastSquaresProblem.from_tuples([term1, term2])
-            least_squares_mpi_solve(prob, mpi)  # , grad=grad)
+            least_squares_mpi_solve(prob, mpi, grad=False)  # , grad=grad)
             self.assertAlmostEqual(prob.full_x[0], 1)
             self.assertAlmostEqual(prob.full_x[1], 1)
