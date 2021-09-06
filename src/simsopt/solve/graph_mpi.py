@@ -327,7 +327,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     nevals = 0
     start_time = time()
 
-    def _f_proc0(x):
+    def _f_proc0(x, counter=[0]):
         """
         This function is used for least_squares_mpi_solve.  It is similar
         to LeastSquaresProblem.f(), except this version is called only by
@@ -346,9 +346,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             logger.debug(f"residuals:\n {residuals}")
         except:
             #f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
-            unweighted_residuals = np.full(prob.get_parent_return_fns_no(),
-                                           1.0e12)
-            residuals = np.full(prob.get_parent_return_fns_no(), 1.0e12)
+            unweighted_residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            residuals = np.full(prob.parent_return_fns_no, 1.0e12)
             logger.info("Exception caught during function evaluation.")
 
         #f_shifted = prob.f_from_unshifted(f_unshifted)
@@ -399,7 +398,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             residuals_file.write(f",{fj:24.16e}")
         residuals_file.write("\n")
         residuals_file.flush()
-
+        counter[0] += 1
+        print(f"call count: {counter[0]}")
         nevals += 1
         return residuals
 
