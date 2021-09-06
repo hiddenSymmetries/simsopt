@@ -295,7 +295,7 @@ class LeastSquaresProblem(Optimizable):
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),
             # funcs_in=(self.funcs_in + other.funcs_in),
-            fail = max(self.fail, other.fail)
+            fail=max(self.fail, other.fail)
         )
 
     #def residuals(self, x: Union[RealArray, IntArray] = None):
