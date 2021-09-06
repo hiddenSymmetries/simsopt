@@ -14,6 +14,19 @@ message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
 message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
 message(status "Python version is ${Python_VERSION}")
 
+include(CheckLanguage)
+check_language(CUDA)
+
+#if(CMAKE_CUDA_COMPILER)
+#    enable_language(CUDA)
+#    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_60 -Xcompiler '-O3'")
+#    add_executable(cudaprofiling src/profiling/cudaprofiling.cu)
+#    target_compile_features(cudaprofiling PUBLIC cxx_std_14)
+#    set_target_properties(cudaprofiling
+#        PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+#    target_link_libraries(cudaprofiling)
+#endif()
+
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -122,6 +135,19 @@ set_target_properties(profiling
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_60 -Xcompiler '-O3'")
+    add_library(cudabiotsavart src/simsoptpp/biot_savart_cuda.cu)
+    target_compile_features(cudabiotsavart PUBLIC cxx_std_14)
+    set_target_properties(cudabiotsavart
+        PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    target_link_libraries(cudabiotsavart)
+    target_link_libraries(profiling PRIVATE cudabiotsavart)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(profiling PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+endif()
 
 
 #get_cmake_property(_variableNames VARIABLES)
