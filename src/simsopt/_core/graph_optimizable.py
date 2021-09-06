@@ -525,7 +525,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 for fn in return_fns:
                     parent.add_return_fn(self, fn)
                     funcs_in.append(binder(fn, parent))
-        else: # Process funcs_in (Assumes depends_on is empty)
+        else:  # Process funcs_in (Assumes depends_on is empty)
             for fn in funcs_in:
                 opt_in = fn.__self__
                 depends_on.append(opt_in)
