@@ -40,9 +40,10 @@ wout*
 mercier*
 jxbout*
 parvmecinfo.txt
-threed*
+*threed*
 vmec_f90wrap.py
 fort.9
+parvmec*.txt
 
 # SPEC specific
 spec*.sp
