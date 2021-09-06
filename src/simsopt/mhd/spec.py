@@ -149,11 +149,12 @@ class Spec(Optimizable):
         # surface object:
         for m in range(si.mpol + 1):
             for n in range(-si.ntor, si.ntor + 1):
-                self.boundary.rc[m, n + si.ntor] = si.rbc[n + si.mntor, m + si.mmpol]
-                self.boundary.zs[m, n + si.ntor] = si.zbs[n + si.mntor, m + si.mmpol]
+                self._boundary.rc[m, n + si.ntor] = si.rbc[n + si.mntor, m + si.mmpol]
+                self._boundary.zs[m, n + si.ntor] = si.zbs[n + si.mntor, m + si.mmpol]
                 if not stellsym:
-                    self.boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
-                    self.boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
+                    self._boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
+                    self._boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
+        self._boundary.local_full_x = self._boundary.get_dofs()
 
         # self.depends_on = ["boundary"]
         self.need_to_run_code = True
