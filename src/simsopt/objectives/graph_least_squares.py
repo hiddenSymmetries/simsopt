@@ -133,9 +133,6 @@ class LeastSquaresProblem(Optimizable):
                 each tuple (the specified order matters).
         """
         funcs_in, goals, weights = zip(*tuples)
-        #funcs_in = list(funcs_in)
-        #goals = list(goals)
-        #weights = list(weights)
         return cls(goals, weights, funcs_in=funcs_in, fail=fail)
 
     def unweighted_residuals_old(self, x=None, *args, **kwargs):
@@ -186,34 +183,40 @@ class LeastSquaresProblem(Optimizable):
         if x is not None:
             self.x = x
 
-        outputs = []
-        new_weights = []
-        for i, func in enumerate(self.funcs_in):
-            try:
-                out = func(*args, **kwargs)
-            except ObjectiveFailure:
-                logger.warning(f"Function evaluation failed for {func}")
-                print(f'fail val is {self.fail}')
-                print(f"Is it a first eval {self.first_eval}")
-                if self.fail is None or self.first_eval:
-                    raise
+        if self.new_x:
+            outputs = []
+            new_weights = []
+            for i, fn in enumerate(self.funcs_in):
+                try:
+                    out = fn(*args, **kwargs)
+                except ObjectiveFailure:
+                    logger.warning(f"Function evaluation failed for {fn}")
+                    if self.fail is None or self.first_eval:
+                        raise
 
-                break
+                    break
 
-            output = np.array([out]) if not np.ndim(out) else np.asarray(out)
-            output -= self.goals[i]
-            if self.first_eval:
-                self.nvals += len(output)
-                new_weights += [self.weights[i]] * len(output)
-            outputs += [output]
+                output = np.array([out]) if not np.ndim(out) else np.asarray(out)
+                output -= self.goals[i]
+                if self.first_eval:
+                    self.nvals += len(output)
+                    logger.debug(f"{i}: first eval {self.nvals}")
+                    new_weights += [self.weights[i]] * len(output)
+                outputs += [output]
+            else:
+                if self.first_eval:
+                    self.weights = np.array(new_weights)
+                    self.first_eval = False
+                self.cache = np.concatenate(outputs)
+                self.new_x = False
+                return self.cache
+
+            # Reached here after encountering break in for loop
+            self.cache = np.full(self.nvals, self.fail)
+            self.new_x = False
+            return self.cache
         else:
-            if self.first_eval:
-                self.weights = np.array(new_weights)
-                self.first_eval = False
-            return np.concatenate(outputs)
-
-        # Reached here after encountering break in for loop
-        return np.full(self.nvals, self.fail)
+            return self.cache
 
     def residuals(self, x=None, *args, **kwargs):
         """
@@ -227,33 +230,6 @@ class LeastSquaresProblem(Optimizable):
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
         return unweighted_residuals * np.sqrt(self.weights)
 
-        # if x is not None:
-        #    self.x = x
-        #outputs = []
-        #for i, opt in enumerate(self.parents):
-        #    out = opt(child=self, *args, **kwargs)
-        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
-        #    if self.opt_return_fns is None:
-        #       fn_value = output
-        #    elif self.func_masks[i] is None:
-        #       fn_value = output
-        #    else:
-        #       fn_value = output[self.func_masks[i]]
-        #    outputs += [output]
-        #outputs = np.concatenate(outputs)
-        #residuals = (outputs - self.goals) * np.sqrt(self.weights)
-        #return residuals
-
-        #print('terms at line 104', terms)
-        #print('goals', self.goals )
-        #terms = np.concatenate(terms) - self.goals
-        #print('after subtraction', terms)
-        #s = np.dot(terms, terms)
-        #print('dot product', s)
-        #objective = np.sum(np.multiply(s, self.weights))
-        #print('final objective', objective)
-        #return np.concatenate(residuals)
-
     def objective(self, x=None, *args, **kwargs):
         """
         Return the least squares sum
@@ -263,16 +239,6 @@ class LeastSquaresProblem(Optimizable):
             args: Any additional arguments
             kwargs: Keyword arguments
         """
-        #if x is not None:
-        #    self.x = x
-
-        #outputs = []
-        #for i, opt in enumerate(self.parents):
-        #    out = opt(child=self, *args, **kwargs)
-        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
-        #    outputs += [output]
-        #outputs = np.concatenate(outputs)
-        #diff_values = outputs - self.goals
         logger.info(f"objective() called with x={x}")
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
 
@@ -297,10 +263,3 @@ class LeastSquaresProblem(Optimizable):
             # funcs_in=(self.funcs_in + other.funcs_in),
             fail=max(self.fail, other.fail)
         )
-
-    #def residuals(self, x: Union[RealArray, IntArray] = None):
-    #    if x is not None:
-    #        self.x = x
-
-    #    temp = np.append([f() for f in self.parents]) - self.goal
-    #    return np.sqrt(self.weights) * temp
