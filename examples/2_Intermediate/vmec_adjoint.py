@@ -48,26 +48,28 @@ iotas_init = vmec.wout.iotas
 obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
 surf = vmec.boundary
-surf.all_fixed(True)
+surf.fix_all()
 # Slowly increase range of modes in optimization space
 for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
-    myfunc = Dofs([obj])
+    # myfunc = Dofs([obj])
 
     # Define objective function and derivative that handle ObjectiveFailure
     def J(dofs):
-        dofs_prev = myfunc.x
+        # dofs_prev = myfunc.x
+        dofs_prev = obj.x
         try:
-            myfunc.set(dofs)
-            return myfunc.f()[0], np.squeeze(myfunc.jac())
+            obj.x = dofs
+            return obj.J() # , np.squeeze(myfunc.jac())
         except ObjectiveFailure:
-            myfunc.set(dofs_prev)
-            return 2*myfunc.f()[0], 2*np.squeeze(myfunc.jac())
+            obj.x = dofs_prev
+            return 2*obj.J()# , 2*np.squeeze(myfunc.jac())
 
     res = minimize(
-        fun=J, x0=myfunc.x, jac=True, method='L-BFGS-B',
+        # fun=J, x0=myfunc.x, jac=True, method='L-BFGS-B',
+        fun=J, x0=obj.x, method='L-BFGS-B',
         options={'maxfun': maxfun, 'ftol': 1e-8, 'gtol': 1e-8})
     print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, jac={np.linalg.norm(res['jac']):.3f}")
 

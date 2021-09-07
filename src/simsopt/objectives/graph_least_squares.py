@@ -66,7 +66,7 @@ class LeastSquaresProblem(Optimizable):
         if np.any(np.asarray(weights) < 0):
             raise ValueError('Weight cannot be negative')
         self.goals = np.asarray(goals)
-        self.weights = np.asarray(weights)
+        self.inp_weights = np.asarray(weights)
         self.fail = fail
 
         # Attributes for function evaluation
@@ -201,12 +201,12 @@ class LeastSquaresProblem(Optimizable):
                 if self.first_eval:
                     self.nvals += len(output)
                     logger.debug(f"{i}: first eval {self.nvals}")
-                    new_weights += [self.weights[i]] * len(output)
+                new_weights += [self.inp_weights[i]] * len(output)
                 outputs += [output]
             else:
                 if self.first_eval:
-                    self.weights = np.array(new_weights)
                     self.first_eval = False
+                self.weights = np.asarray(new_weights)
                 self.cache = np.concatenate(outputs)
                 self.new_x = False
                 return self.cache
