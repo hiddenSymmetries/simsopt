@@ -60,12 +60,12 @@ if mpi.proc0_world:
 #exit(0)
 
 # Define objective function
-prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
                             (vmec.iota_axis, 0.385, 1),
                             (vmec.iota_edge, 0.415, 1),
-                            (qs, 0, 1),
-                            (residue1, 0, 2),
-                            (residue2, 0, 2)])
+                            (qs.J, 0, 1),
+                            (residue1.J, 0, 2),
+                            (residue2.J, 0, 2)])
 
 # Check whether we're in the CI. If so, just do a single function
 # evaluation rather than a real optimization.
