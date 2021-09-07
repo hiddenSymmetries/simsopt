@@ -256,7 +256,7 @@ class LeastSquaresProblem(Optimizable):
 
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
-            np.concatenate([self.weights, other.weights]),
+            np.concatenate([self.inp_weights, other.inp_weights]),
             depends_on=(self.parents + other.parents),
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),

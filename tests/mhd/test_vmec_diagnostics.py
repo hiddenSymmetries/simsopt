@@ -340,19 +340,19 @@ class IotaWeightedTests(unittest.TestCase):
         obj = IotaWeighted(vmec, weight_function, adjoint_epsilon)
 
         # Compute random direction for surface perturbation
-        dofs = np.copy(vmec.boundary.get_dofs())
+        dofs = np.copy(vmec.boundary.x)
         np.random.seed(0)
         vec = np.random.standard_normal(dofs.shape)
         unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
         def iota_fun(epsilon):
-            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+            vmec.boundary.x = dofs + epsilon*unitvec
             return obj.J()
 
         d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
 
-        vmec.boundary.set_dofs(dofs)
-        vmec.need_to_run_code = True
+        vmec.boundary.x = dofs
+        # vmec.need_to_run_code = True
         d_iota_adjoint = np.dot(obj.dJ(), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
