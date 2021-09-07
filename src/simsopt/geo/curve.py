@@ -6,13 +6,6 @@ from .jit import jit
 import jax.numpy as jnp
 from monty.dev import requires
 
-import matplotlib.pyplot as plt
-
-try:
-    from mayavi import mlab
-except ImportError:
-    mlab = None
-
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
 
@@ -76,7 +69,7 @@ class Curve(Optimizable):
         """
         self.invalidate_cache()
 
-    def plot(self, ax=None, show=True, plot_derivative=False, closed_loop=False, color=None, linestyle=None, axis_equal=True):
+    def plot(self, engine="matplotlib", ax=None, show=True, plot_derivative=False, closed_loop=False, axis_equal=True, **kwargs):
         """
         Plot the curve using :mod:`matplotlib.pyplot`
 
@@ -91,62 +84,85 @@ class Curve(Optimizable):
                          curve. can lead to surprising results when only quadrature points
                          on a part of the curve are considered, e.g. when exploting
                          rotational symmetry.
-            color: color of the curve, passed to the ``color=`` kwarg of pyplot
-            linestyle: linestyle of the curve, passed to the ``linestyle=`` kwarg of pyplot
             axis_equal: whether all three dimensions should be scaled equally.
                         this is actually broken in matplotlib, so we add a workaround that
                         at least does the right think for a single curve. For
                         multiple curves in the same plot, this will not give
-                        perfectly equal scaling.
+                        perfectly equal scaling. (only applied in matplotlib)
+            kwargs: keyword arguments for plotting functions, like color='r'. 
 
         Returns: a axis which could be passed to a further call to
                  ``Curve.plot`` so that multiple curve are shown together.
         """
-
-        gamma = self.gamma()
-        gammadash = self.gammadash()
-        if ax is None:
-            fig = plt.figure()
-            ax = fig.gca(projection='3d')
 
         def rep(data):
             if closed_loop:
                 return np.concatenate((data, [data[0]]))
             else:
                 return data
-        X = rep(gamma[:, 0])
-        Y = rep(gamma[:, 1])
-        Z = rep(gamma[:, 2])
-        ax.plot(X, Y, Z, color=color, linestyle=linestyle)
+        
+        x = rep(self.gamma()[:, 0])
+        y = rep(self.gamma()[:, 1])
+        z = rep(self.gamma()[:, 2])
         if plot_derivative:
-            ax.quiver(rep(gamma[:, 0]), rep(gamma[:, 1]), rep(gamma[:, 2]), 0.1 * rep(gammadash[:, 0]),
-                      0.1 * rep(gammadash[:, 1]), 0.1 * rep(gammadash[:, 2]), arrow_length_ratio=0.1, color="r")
-        if axis_equal:  # trick from
-            # https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
-            # to force the axis to be equal, since set_aspect('equal') doesn't work in 3d.
+            xt = rep(self.gammadash()[:,0])
+            yt = rep(self.gammadash()[:,1])
+            zt = rep(self.gammadash()[:,2])
+        if engine == "matplotlib":
+            # plot in matplotlib.pyplot
+            import matplotlib.pyplot as plt 
 
-            # Create cubic bounding box to simulate equal aspect ratio
-            max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
-            Xb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][0].flatten() + 0.5*(X.max()+X.min())
-            Yb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
-            Zb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
-            # Comment or uncomment following both lines to test the fake bounding box:
-            for xb, yb, zb in zip(Xb, Yb, Zb):
-                ax.plot([xb], [yb], [zb], 'w')
-        if show:
-            plt.show()
+            if ax is None or ax.name != "3d":
+                fig = plt.figure()
+                ax = fig.gca(projection='3d')
+            ax.plot(x, y, z, **kwargs)
+            if plot_derivative:
+                ax.quiver(x, y, z, 0.1 * xt, 0.1 * yt, 0.1 * zt, arrow_length_ratio=0.1, color="r")
+            if axis_equal:  # trick from
+                # https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
+                # to force the axis to be equal, since set_aspect('equal') doesn't work in 3d.
+
+                # Create cubic bounding box to simulate equal aspect ratio
+                max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+                Xb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+                Yb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+                Zb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+                # Comment or uncomment following both lines to test the fake bounding box:
+                for xb, yb, zb in zip(Xb, Yb, Zb):
+                    ax.plot([xb], [yb], [zb], 'w')
+            if show:
+                plt.show()
+        elif engine == "mayavi":
+            # plot 3D curve in mayavi.mlab
+            from mayavi import mlab
+
+            mlab.plot3d(x, y , z, **kwargs)
+            if plot_derivative:
+                mlab.quiver3d(x, y, z, 0.1*xt, 0.1*yt, 0.1*zt)
+            if show:
+                mlab.show()    
+        elif engine == "plotly":
+            import plotly.graph_objects as go
+
+            if "color" in list(kwargs.keys()):
+                color = kwargs["color"]
+                del kwargs["color"]
+            else:
+                color = "blue"
+            kwargs.setdefault("line", go.scatter3d.Line(color=color, width=4))
+            if ax is None:
+                ax = go.Figure()
+            ax.add_trace(
+                go.Scatter3d(
+                    x=x, y=y, z=z, mode="lines", **kwargs
+                )
+            )
+            ax.update_layout(scene_aspectmode="data")
+            if show:
+                ax.show()
+        else:
+            raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
-
-    @requires(mlab is not None, "plot_mayavi requires mayavi")
-    def plot_mayavi(self, show=True):
-        """
-        Plot the curve using :mod:`mayavi.mlab` rather than :mod:`matplotlib.pyplot`.
-        """
-
-        g = self.gamma()
-        mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
-        if show:
-            mlab.show()
 
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         r"""
