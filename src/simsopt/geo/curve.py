@@ -105,9 +105,9 @@ class Curve(Optimizable):
         y = rep(self.gamma()[:, 1])
         z = rep(self.gamma()[:, 2])
         if plot_derivative:
-            xt = rep(self.gammadash()[:,0])
-            yt = rep(self.gammadash()[:,1])
-            zt = rep(self.gammadash()[:,2])
+            xt = rep(self.gammadash()[:, 0])
+            yt = rep(self.gammadash()[:, 1])
+            zt = rep(self.gammadash()[:, 2])
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
             import matplotlib.pyplot as plt 
@@ -136,7 +136,7 @@ class Curve(Optimizable):
             # plot 3D curve in mayavi.mlab
             from mayavi import mlab
 
-            mlab.plot3d(x, y , z, **kwargs)
+            mlab.plot3d(x, y, z, **kwargs)
             if plot_derivative:
                 mlab.quiver3d(x, y, z, 0.1*xt, 0.1*yt, 0.1*zt)
             if show:
