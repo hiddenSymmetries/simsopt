@@ -6,6 +6,7 @@ import os
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surface import signed_distance_from_surface
 from simsopt.geo.curverzfourier import CurveRZFourier
+from .surface_test_helpers import get_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
