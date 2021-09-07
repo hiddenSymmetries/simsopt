@@ -28,6 +28,7 @@ class Surface(Optimizable):
             plot_normal: whether to plot the surface normal vectors.
             plot_derivative: whether to plot the surface derivatives.
             wireframe: whether to plot the wireframe in Mayavi.
+            kwargs: keyword arguments for plotting functions, like color='r'.
 
         Note: the `ax` and `show` parameter can be used to plot more than one surface:
 
@@ -51,6 +52,7 @@ class Surface(Optimizable):
         elif engine == "mayavi":
             # plot 3D surface in mayavi.mlab
             from mayavi import mlab
+            
             mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
             if wireframe:
                 mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
