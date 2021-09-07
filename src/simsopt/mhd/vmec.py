@@ -12,24 +12,22 @@ from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
-from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
 try:
     from mpi4py import MPI
 except ImportError as e:
-    MPI = None 
+    MPI = None
     logger.warning(str(e))
 
-# vmec_found = True
 try:
     import vmec
 except ImportError as e:
-    # vmec_found = False
     vmec = None
     logger.warning(str(e))
 
+from ..util.dev import SimsoptRequires
 from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -38,7 +36,6 @@ if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
-
 
 # Flags used by runvmec():
 restart_flag = 1
@@ -53,7 +50,7 @@ reset_jacdt_flag = 32
 #value flag-name         calls routines to...
 #----- ---------         ---------------------
 #  1   restart_flag      reset internal run-control parameters
-#                        (for example, if jacobian was bad, to try a smaller 
+#                        (for example, if jacobian was bad, to try a smaller
 #                        time-step)
 #  2   readin_flag       read in data from input_file and initialize parameters
 #                        or arrays which do not dependent on radial grid size
@@ -142,13 +139,13 @@ class Vmec(Optimizable):
     ``files_to_delete`` attribute to ``[]`` after that run of VMEC.
 
     Args:
-        filename: Name of a VMEC input file to use for loading the 
+        filename: Name of a VMEC input file to use for loading the
           initial parameters. If ``None``, default parameters will be used.
-        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which 
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
-          except for the first and most recent ones from worker group 0. If 
+          except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
 
     Attributes:
@@ -166,7 +163,9 @@ class Vmec(Optimizable):
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
-                 keep_all_files: bool = False):
+                 keep_all_files: bool = False,
+                 ntheta=50,
+                 nphi=50):
         if MPI is None:
             raise RuntimeError("mpi4py needs to be installed for running VMEC")
         if vmec is None:
@@ -227,10 +226,14 @@ class Vmec(Optimizable):
         # object, but the mpol/ntor values of either the vmec object
         # or the boundary surface object can be changed independently
         # by the user.
-        self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                          stellsym=not vi.lasym,
-                                          mpol=vi.mpol,
-                                          ntor=vi.ntor)
+        quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
+        quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
+        self.boundary = SurfaceRZFourier(nfp=vi.nfp,
+                                         stellsym=not vi.lasym,
+                                         mpol=vi.mpol,
+                                         ntor=vi.ntor,
+                                         quadpoints_theta=quadpoints_theta,
+                                         quadpoints_phi=quadpoints_phi)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:

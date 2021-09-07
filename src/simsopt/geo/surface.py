@@ -1,7 +1,6 @@
 import abc
 
 import numpy as np
-from monty.dev import requires
 
 try:
     from mayavi import mlab
@@ -15,6 +14,7 @@ except ImportError:
 
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
+from ..util.dev import SimsoptRequires
 
 
 class Surface(Optimizable):
@@ -30,11 +30,11 @@ class Surface(Optimizable):
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
 
-    @requires(mlab is not None, "Install mayavi to generate surface plot")
+    @SimsoptRequires(mlab is not None, "Install mayavi to generate surface plot")
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False,
              scalars=None, wireframe=True):
         """
-        Plot the surface using mayavi. 
+        Plot the surface using mayavi.
         Note: the `ax` and `show` parameter can be used to plot more than one surface:
 
         .. code-block::
@@ -60,7 +60,7 @@ class Surface(Optimizable):
         if show:
             mlab.show()
 
-    @requires(gridToVTK is not None, "to_vtk method requires pyevtk module")
+    @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def to_vtk(self, filename):
         g = self.gamma()
         ntor = g.shape[0]
@@ -112,7 +112,7 @@ class Surface(Optimizable):
         if phi < -np.pi:
             phi = phi + 2. * np.pi
 
-        # varphi are the search intervals on which we look for the cross section in 
+        # varphi are the search intervals on which we look for the cross section in
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
         varphi = np.asarray([0., 0.5, 1.0])
@@ -160,7 +160,7 @@ class Surface(Optimizable):
         # if idx_right == 0, then the subinterval must be idx_left = 0 and idx_right = 1
         idx_right = np.argmax(phi <= cyl_phi, axis=0)
         idx_right = np.where(idx_right == 0, 1, idx_right)
-        idx_left = idx_right-1 
+        idx_left = idx_right-1
 
         varphi_left = varphigrid[idx_left, np.arange(idx_left.size)]
         varphi_right = varphigrid[idx_right, np.arange(idx_right.size)]
@@ -173,7 +173,7 @@ class Surface(Optimizable):
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, theta)
             phi = np.arctan2(gamma[:, 1], gamma[:, 0])
-            pinc = (phi < left_bound).astype(int) 
+            pinc = (phi < left_bound).astype(int)
             minc = (phi > right_bound).astype(int)
             phi = phi + 2.*np.pi * (pinc - minc)
             return phi
@@ -193,11 +193,11 @@ class Surface(Optimizable):
                 c = np.where(flag, b, c)
                 err = np.max(np.abs(a-c))
             b = (a + c)/2.
-            return b          
+            return b
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
         cross_section = np.zeros((sol.size, 3))
-        self.gamma_lin(cross_section, sol, theta) 
+        self.gamma_lin(cross_section, sol, theta)
         return cross_section
 
     def aspect_ratio(self):
@@ -211,11 +211,11 @@ class Surface(Optimizable):
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
 
-        where 
+        where
 
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
-            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2} 
+            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
 
         and :math:`V` is the volume enclosed by the surface, and
         :math:`\overline{A}` is the average cross sectional area.
@@ -230,8 +230,8 @@ class Surface(Optimizable):
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
 
         .. math::
-            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\ 
-            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\ 
+            \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\
+            &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
         where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]`
@@ -265,7 +265,7 @@ class Surface(Optimizable):
         After the change of variables, the integral becomes:
 
         .. math::
-            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi} 
+            \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi}
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
@@ -288,13 +288,67 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi) 
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
 
         R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
         R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
 
         AR = R_major/R_minor
         return AR
+
+    def arclength_poloidal_angle(self):
+        """
+        Computes poloidal angle based on arclenth along magnetic surface at
+        constant phi. The resulting angle is in the range [0,1]. This is required
+        for evaluating the adjoint shape gradient for free-boundary calculations.
+
+        Returns:
+            theta_arclength: 2d array (numquadpoints_phi,numquadpoints_theta)
+                of arclength poloidal angle
+        """
+        gamma = self.gamma()
+        X = gamma[:, :, 0]
+        Y = gamma[:, :, 1]
+        Z = gamma[:, :, 2]
+        R = np.sqrt(X**2 + Y**2)
+
+        theta_arclength = np.zeros_like(gamma[:, :, 0])
+        nphi = len(theta_arclength[:, 0])
+        ntheta = len(theta_arclength[0, :])
+        for iphi in range(nphi):
+            for itheta in range(1, ntheta):
+                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
+                             + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
+                theta_arclength[iphi, itheta] = \
+                    theta_arclength[iphi, itheta-1] + dr
+            dr = np.sqrt((R[iphi, 0] - R[iphi, -1])**2
+                         + (Z[iphi, 0] - Z[iphi, -1])**2)
+            L = theta_arclength[iphi, -1] + dr
+            theta_arclength[iphi, :] = theta_arclength[iphi, :]/L
+        return theta_arclength
+
+    def interpolate_on_arclength_grid(self, function, theta_evaluate):
+        """
+        Interpolate function onto the theta_evaluate grid in the arclength
+        poloidal angle. This is required for evaluating the adjoint shape gradient
+        for free-boundary calculations.
+
+        Returns:
+            function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
+                defining interpolated function on arclength angle along curve
+                at constant phi
+        """
+        from scipy import interpolate
+
+        theta_arclength = self.arclength_poloidal_angle()
+        function_interpolated = np.zeros_like(function)
+        nphi = len(theta_arclength[:, 0])
+        for iphi in range(nphi):
+            f = interpolate.InterpolatedUnivariateSpline(
+                theta_arclength[iphi, :], function[iphi, :])
+            function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
+
+        return function_interpolated
 
 
 def signed_distance_from_surface(xyz, surface):
@@ -374,8 +428,9 @@ class SurfaceClassifier():
         self.dist.evaluate_batch(rphiz, d)
         return d
 
+    @SimsoptRequires(gridToVTK is not None,
+                     "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, h=0.01):
-        from pyevtk.hl import gridToVTK
 
         nr = int((self.rrange[1]-self.rrange[0])/h)
         nphi = int(2*np.pi/h)
