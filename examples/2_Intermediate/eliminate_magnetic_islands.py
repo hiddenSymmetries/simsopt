@@ -61,10 +61,10 @@ residue3 = Residue(s, p, q, s_guess=s_guess)
 residue4 = Residue(s, p, q, s_guess=s_guess, theta=np.pi)
 
 # Objective function is \sum_j residue_j ** 2
-prob = LeastSquaresProblem([(residue1, 0, 1),
-                            (residue2, 0, 1),
-                            (residue3, 0, 1),
-                            (residue4, 0, 1)])
+prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
+                                        (residue2.J, 0, 1),
+                                        (residue3.J, 0, 1),
+                                        (residue4.J, 0, 1)])
 
 # Solve the optimization problem:
 least_squares_mpi_solve(prob, mpi=mpi, grad=True)
