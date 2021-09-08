@@ -577,7 +577,6 @@ class WellWeighted(Optimizable):
         # self.depends_on = ["boundary"]
         super().__init__(depends_on=[vmec])
 
-
     def J(self):
         """
         Computes the quantity :math:`J` described in the class definition.
