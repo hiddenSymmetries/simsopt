@@ -24,7 +24,7 @@ except ImportError:
     pyevtk_found = False
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 class SurfaceXYZFourierTests(unittest.TestCase):
@@ -641,7 +641,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         else:
             engines.append("plotly")
 
-        logger.info(f'Testing these plotting engines: {engines}')
+        print(f'Testing these plotting engines: {engines}')
         filename1 = TEST_DIR / 'input.li383_low_res'
         surf1 = SurfaceRZFourier.from_vmec_input(filename1)
         filename2 = TEST_DIR / 'input.NuhrenbergZille_1988_QHS'

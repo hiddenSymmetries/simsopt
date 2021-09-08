@@ -19,7 +19,7 @@ class Surface(Optimizable):
         self.dependencies = []
         self.fixed = np.full(len(self.get_dofs()), False)
 
-    def plot(self, engine="matplotlib", ax=None, show=True, close=True, axis_equal=True,
+    def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
         Plot the surface in 3D using matplotlib/mayavi/plotly. 

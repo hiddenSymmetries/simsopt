@@ -16,7 +16,7 @@ except ImportError:
     pyevtk_found = False
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 
 parameters['jit'] = False
 
@@ -412,20 +412,20 @@ class Testing(unittest.TestCase):
         else:
             engines.append("plotly")
 
-        logger.info(f'Testing these plotting engines: {engines}')
+        print(f'Testing these plotting engines: {engines}')
         c = CurveXYZFourier(30, 2)
         c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
         coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
         for engine in engines:
             for close in [True, False]:
                 # Plot a single curve:
-                c.plot(engine=engine, closed_loop=close, plot_derivative=True, show=show, color=(0.9, 0.2, 0.3))
+                c.plot(engine=engine, close=close, plot_derivative=True, show=show, color=(0.9, 0.2, 0.3))
 
                 # Plot multiple curves together:
                 ax = None
                 for curve in coils:
-                    ax = curve.plot(engine=engine, ax=ax, show=False, closed_loop=close)
-                c.plot(engine=engine, ax=ax, closed_loop=close, plot_derivative=True, show=show)
+                    ax = curve.plot(engine=engine, ax=ax, show=False, close=close)
+                c.plot(engine=engine, ax=ax, close=close, plot_derivative=True, show=show)
 
 
 if __name__ == "__main__":
