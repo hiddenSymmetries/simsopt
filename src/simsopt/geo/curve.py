@@ -70,7 +70,7 @@ class Curve(Optimizable):
         """
         self.invalidate_cache()
 
-    def plot(self, engine="matplotlib", ax=None, show=True, plot_derivative=False, closed_loop=False, axis_equal=True, **kwargs):
+    def plot(self, engine="matplotlib", ax=None, show=True, plot_derivative=False, close=False, axis_equal=True, **kwargs):
         """
         Plot the curve in 3D using ``matplotlib.pyplot``, ``mayavi``, or ``plotly``.
 
@@ -81,7 +81,7 @@ class Curve(Optimizable):
             show: Whether to call the ``show()`` function of the graphics engine. Should be set to
               ``False`` if more objects will be plotted on the same axes.
             plot_derivative: Whether to plot the tangent of the curve too. Not implemented for plotly.
-            closed_loop: Whether to connect the first and last point on the
+            close: Whether to connect the first and last point on the
               curve. Can lead to surprising results when only quadrature points
               on a part of the curve are considered, e.g. when exploting rotational symmetry.
             axis_equal: For matplotlib, whether all three dimensions should be scaled equally.
@@ -93,7 +93,7 @@ class Curve(Optimizable):
         """
 
         def rep(data):
-            if closed_loop:
+            if close:
                 return np.concatenate((data, [data[0]]))
             else:
                 return data
