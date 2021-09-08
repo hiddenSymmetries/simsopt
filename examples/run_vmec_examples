@@ -33,3 +33,5 @@ mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVo
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
+
+./2_Intermediate/vmec_adjoint.py
