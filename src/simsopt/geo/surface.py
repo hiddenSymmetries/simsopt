@@ -52,10 +52,33 @@ class Surface(Optimizable):
             so multiple objects are shown together.
         """
         gamma = self.gamma()
-        print(gamma.shape)
+
+        if plot_derivative:
+            dg1 = 0.05 * self.gammadash1()
+            dg2 = 0.05 * self.gammadash2()
+        else:
+            # No need to calculate derivatives.
+            dg1 = np.array([[[1.0]]])
+            dg2 = np.array([[[1.0]]])
+
+        if plot_normal:
+            normal = 0.005 * self.normal()
+        else:
+            # No need to calculate the normal
+            normal = np.array([[[1.0]]])
+
         if close:
             gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
             gamma = np.concatenate((gamma, gamma[:, :1, :]), axis=1)
+
+            dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
+            dg1 = np.concatenate((dg1, dg1[:, :1, :]), axis=1)
+
+            dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
+            dg2 = np.concatenate((dg2, dg2[:, :1, :]), axis=1)
+
+            normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
+            normal = np.concatenate((normal, normal[:, :1, :]), axis=1)
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
@@ -79,13 +102,10 @@ class Surface(Optimizable):
                 mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
 
             if plot_derivative:
-                dg1 = 0.05 * self.gammadash1()
-                dg2 = 0.05 * self.gammadash2()
                 mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
                 mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
             if plot_normal:
-                n = 0.005 * self.normal()
-                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], normal[:, :, 0], normal[:, :, 1], normal[:, :, 2])
             if show:
                 mlab.show()
 

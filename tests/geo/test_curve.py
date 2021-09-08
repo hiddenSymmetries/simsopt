@@ -1,17 +1,22 @@
-import numpy as np
+import logging
 import unittest
+import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
+from simsopt.util.zoo import get_ncsx_data
 
 try:
     import pyevtk
     pyevtk_found = True
 except ImportError:
     pyevtk_found = False
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 parameters['jit'] = False
 
@@ -374,6 +379,53 @@ class Testing(unittest.TestCase):
         curve0 = get_curve(self.curvetypes[0], False)
         curve1 = get_curve(self.curvetypes[1], True)
         curves_to_vtk([curve0, curve1], '/tmp/curves')
+
+    def test_plot(self):
+        """
+        Test the plot() function for curves. The ``show`` argument is set
+        to ``False`` so the tests do not require human intervention to
+        close plot windows.  However, if you do want to actually
+        display the figure, you can change ``show`` to ``True`` in the
+        first line of this function.
+        """
+        show = False
+
+        engines = []
+        try:
+            import matplotlib
+        except ImportError:
+            pass
+        else:
+            engines.append("matplotlib")
+
+        try:
+            import mayavi
+        except ImportError:
+            pass
+        else:
+            engines.append("mayavi")
+
+        try:
+            import plotly
+        except ImportError:
+            pass
+        else:
+            engines.append("plotly")
+
+        logger.info(f'Testing these plotting engines: {engines}')
+        c = CurveXYZFourier(30, 2)
+        c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
+        coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
+        for engine in engines:
+            for close in [True, False]:
+                # Plot a single curve:
+                c.plot(engine=engine, closed_loop=close, plot_derivative=True, show=show, color=(0.9, 0.2, 0.3))
+
+                # Plot multiple curves together:
+                ax = None
+                for curve in coils:
+                    ax = curve.plot(engine=engine, ax=ax, show=False, closed_loop=close)
+                c.plot(engine=engine, ax=ax, closed_loop=close, plot_derivative=True, show=show)
 
 
 if __name__ == "__main__":

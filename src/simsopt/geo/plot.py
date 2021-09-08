@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def fix_matplotlib_3d(ax):
     '''
     Make axes of 3D plot have equal scale so that spheres appear as spheres,

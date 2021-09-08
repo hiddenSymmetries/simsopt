@@ -23,7 +23,8 @@ try:
 except ImportError:
     pyevtk_found = False
 
-# logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class SurfaceXYZFourierTests(unittest.TestCase):
@@ -607,6 +608,57 @@ class SurfaceRZFourierTests(unittest.TestCase):
         #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
+
+    def test_plot(self):
+        """
+        Test the plot() function for surfaces. The ``show`` argument is
+        set to ``False`` so the tests do not require human
+        intervention to close plot windows.  However, if you do want
+        to actually display the figure, you can change ``show`` to
+        ``True`` in the first line of this function.
+        """
+        show = False
+
+        engines = []
+        try:
+            import matplotlib
+        except ImportError:
+            pass
+        else:
+            engines.append("matplotlib")
+
+        try:
+            import mayavi
+        except ImportError:
+            pass
+        else:
+            engines.append("mayavi")
+
+        try:
+            import plotly
+        except ImportError:
+            pass
+        else:
+            engines.append("plotly")
+
+        logger.info(f'Testing these plotting engines: {engines}')
+        filename1 = TEST_DIR / 'input.li383_low_res'
+        surf1 = SurfaceRZFourier.from_vmec_input(filename1)
+        filename2 = TEST_DIR / 'input.NuhrenbergZille_1988_QHS'
+        surf2 = SurfaceRZFourier.from_vmec_input(filename2)
+        for engine in engines:
+            for close in [True, False]:
+                # Plot a single surface, passing arguments appropriate for the graphics engine:
+                if engine == 'plotly':
+                    surf1.plot(engine=engine, close=close, show=show, wireframe=True,
+                               colorscale=[[0, 'red'], [1, 'blue']])
+                else:
+                    surf1.plot(engine=engine, close=close, show=show, color=(0.9, 0.2, 0.3))
+
+                # Plot 2 surfaces together:
+                ax = surf2.plot(engine=engine, show=False, close=close)
+                surf1.plot(engine=engine, ax=ax, plot_normal=True,
+                           plot_derivative=True, wireframe=True, show=show, close=close)
 
     def test_derivatives(self):
         """
