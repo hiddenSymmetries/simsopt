@@ -27,7 +27,8 @@ Here is a list of publications in which simsopt results appear:
    
 #. | M Landreman, B Medasani, and C Zhu,
      "Stellarator optimization for good magnetic surfaces at the same time as quasisymmetry",
-     *Accepted in Phys. Plasmas*, (2021).
+     *Phys. Plasmas* **28**, 092505 (2021).
+     `[journal version] <https://doi.org/10.1063/5.0061665>`__
      `[arXiv version] <https://arxiv.org/pdf/2106.14930>`__
    |
 
