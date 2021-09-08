@@ -1,5 +1,8 @@
 import numpy as np
+from typing import Any
+from nptyping import NDArray, Float
 import simsoptpp as sopp
+from simsopt.geo.surface import Surface
 
 
 class Area(object):
@@ -244,6 +247,43 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
         H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
 
     return r, J, H
+
+
+def parameter_derivatives(surface: Surface,
+                          shape_gradient: NDArray[(Any, Any), Float]
+                          ) -> NDArray[(Any,), Float]:
+    r"""
+    Converts the shape gradient of a given figure of merit, :math:`f`,
+    to derivatives with respect to parameters defining a surface.  For
+    a perturbation to the surface :math:`\delta \vec{x}`, the
+    resulting perturbation to the objective function is
+
+    .. math::
+      \delta f(\delta \vec{x}) = \int d^2 x \, G \delta \vec{x} \cdot \vec{n}
+
+    where :math:`G` is the shape gradient and :math:`\vec{n}` is the
+    unit normal. Given :math:`G`, the parameter derivatives are then
+    computed as
+
+    .. math::
+      \frac{\partial f}{\partial \Omega} = \int d^2 x \, G \frac{\partial\vec{x}}{\partial \Omega} \cdot \vec{n},
+
+    where :math:`\Omega` is any parameter of the surface.
+
+    Args:
+        surface: The surface to use for the computation
+        shape_gradient: 2d array of size (numquadpoints_phi,numquadpoints_theta)
+
+    Returns:
+        1d array of size (ndofs)
+    """
+    N = surface.normal()
+    norm_N = np.linalg.norm(N, axis=2)
+    dx_by_dc = surface.dgamma_by_dcoeff()
+    N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl', N, dx_by_dc)
+    nphi = surface.gamma().shape[0]
+    ntheta = surface.gamma().shape[1]
+    return np.einsum('ijk,ij->k', N_dot_dx_by_dc, shape_gradient) / (ntheta * nphi)
 
 
 class QfmResidual(object):
