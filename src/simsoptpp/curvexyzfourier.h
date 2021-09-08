@@ -84,6 +84,6 @@ class CurveXYZFourier : public Curve<Array> {
         void dgammadash_by_dcoeff_impl(Array& data) override;
         void dgammadashdash_by_dcoeff_impl(Array& data) override;
         void dgammadashdashdash_by_dcoeff_impl(Array& data) override;
-        Array dgamma_by_dcoeff_vjp_impl(Array& v) override;
-        Array dgammadash_by_dcoeff_vjp_impl(Array& v) override;
+        //Array dgamma_by_dcoeff_vjp_impl(Array& v) override;
+        //Array dgammadash_by_dcoeff_vjp_impl(Array& v) override;
 };
