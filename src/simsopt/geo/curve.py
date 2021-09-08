@@ -71,7 +71,7 @@ class Curve(Optimizable):
 
     def plot(self, engine="matplotlib", ax=None, show=True, plot_derivative=False, closed_loop=False, axis_equal=True, **kwargs):
         """
-        Plot the curve using :mod:`matplotlib.pyplot`
+        Plot the curve using `matplotlib.pyplot`, `mayavi`, or `plotly`
 
         Args:
             ax: the axis object to plot this one. useful when plotting multiple
@@ -123,10 +123,10 @@ class Curve(Optimizable):
                 # to force the axis to be equal, since set_aspect('equal') doesn't work in 3d.
 
                 # Create cubic bounding box to simulate equal aspect ratio
-                max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
-                Xb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][0].flatten() + 0.5*(X.max()+X.min())
-                Yb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
-                Zb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+                max_range = np.array([x.max()-x.min(), y.max()-y.min(), z.max()-z.min()]).max()
+                Xb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][0].flatten() + 0.5*(x.max()+x.min())
+                Yb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][1].flatten() + 0.5*(y.max()+y.min())
+                Zb = 0.5*max_range*np.mgrid[-1:2:2, -1:2:2, -1:2:2][2].flatten() + 0.5*(z.max()+z.min())
                 # Comment or uncomment following both lines to test the fake bounding box:
                 for xb, yb, zb in zip(Xb, Yb, Zb):
                     ax.plot([xb], [yb], [zb], 'w')
