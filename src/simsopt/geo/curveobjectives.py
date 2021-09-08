@@ -98,6 +98,55 @@ class LpCurveCurvature(Optimizable):
 
 
 @jit
+def cosh_curvature_pure(kappa, gammadash, alpha, kappa_max):
+    """
+    This function is used in a Python+Jax implementation of the curvature penalty term suggested in
+    10.1017/S0022377821000106 equation (2.9)
+.
+    """
+    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    return jnp.mean((jnp.cosh(alpha*jnp.maximum(kappa-kappa_max, 0))-1)**2 * arc_length)/jnp.mean(arc_length)
+
+
+class CoshCurveCurvature(Optimizable):
+    r"""
+    This class computes a penalty term suggested in 10.1017/S0022377821000106 equation (2.9)
+    of the curve's curvature, and penalizes where the local curve curvature exceeds a threshold
+
+
+    .. math::
+        J = \int_{\text{curve}} (\cosh(\alpha*\text{max}(\kappa - \kappa_0, 0))-1)^2 ~dl
+
+    where :math:`\kappa_0` is a threshold curvature.
+    """
+
+    def __init__(self, curve, kappa_max=0., alpha=1.):
+        self.curve = curve
+        self.kappa_max = kappa_max
+        super().__init__(depends_on=[curve])
+
+        self.J_jax = jit(lambda kappa, gammadash: cosh_curvature_pure(kappa, gammadash, alpha, self.kappa_max))
+        self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
+        self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
+
+    def J(self):
+        """
+        This returns the value of the quantity.
+        """
+        return self.J_jax(self.curve.kappa(), self.curve.gammadash())
+
+    def dJ(self):
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+    return_fn_map = {'J': J, 'dJ': dJ}
+
+
+@jit
 def Lp_torsion_pure(torsion, gammadash, p):
     """
     This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
@@ -142,13 +191,22 @@ class LpCurveTorsion(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
+def distance_quad_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
     This function is used in a Python+Jax implementation of the distance formula.
     """
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
-    alen = jnp.linalg.norm(l1, axis=1) * jnp.linalg.norm(l2, axis=1)
+    alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
+
+
+def distance_cosh_pure(gamma1, l1, gamma2, l2, minimum_distance, alpha):
+    """
+    This function is used in a Python+Jax implementation of the distance formula.
+    """
+    dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
+    alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
+    return jnp.mean(alen * (jnp.cosh(alpha*jnp.maximum(minimum_distance-dists, 0))-1)**2)
 
 
 class MinimumDistance(Optimizable):
@@ -158,7 +216,7 @@ class MinimumDistance(Optimizable):
     .. math::
         J = \sum_{i = 1}^{\text{num_coils}} \sum_{j = 1}^{i-1} d_{i,j}
 
-    where 
+    where
 
     .. math::
         d_{i,j} = \int_{\text{curve}_i} \int_{\text{curve}_j} \max(0, d_{\min} - \| \mathbf{r}_i - \mathbf{r}_j \|_2)^2 ~dl_j ~dl_i\\
@@ -169,11 +227,18 @@ class MinimumDistance(Optimizable):
 
     """
 
-    def __init__(self, curves, minimum_distance):
+    def __init__(self, curves, minimum_distance, penalty_type="quadratic", alpha=1.):
         self.curves = curves
         self.minimum_distance = minimum_distance
+        assert penalty_type in ["quadratic", "cosh"]
 
-        self.J_jax = jit(lambda gamma1, l1, gamma2, l2: distance_pure(gamma1, l1, gamma2, l2, minimum_distance))
+        if penalty_type == "quadratic":
+            self.J_jax = jit(
+                lambda gamma1, l1, gamma2, l2: distance_quad_pure(gamma1, l1, gamma2, l2, minimum_distance))
+        else:
+            self.J_jax = jit(
+                lambda gamma1, l1, gamma2, l2: distance_cosh_pure(gamma1, l1, gamma2, l2, minimum_distance, alpha))
+
         self.thisgrad0 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2))
         self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
@@ -185,6 +250,16 @@ class MinimumDistance(Optimizable):
         self.trees = []
         for i in range(len(self.curves)):
             self.trees.append(KDTree(self.curves[i].gamma()))
+
+    def shortest_distance(self):
+        dist = 1e10
+        for i in range(len(self.curves)):
+            tree1 = self.trees[i]
+            for j in range(i):
+                gamma2 = self.curves[j].gamma()
+                dists, _ = tree1.query(gamma2, k=1)
+                dist = min(dist, np.min(dists))
+        return dist
 
     def J(self):
         """
