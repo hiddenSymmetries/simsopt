@@ -229,11 +229,11 @@ class Vmec(Optimizable):
         quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
         quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
         self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                         stellsym=not vi.lasym,
-                                         mpol=vi.mpol,
-                                         ntor=vi.ntor,
-                                         quadpoints_theta=quadpoints_theta,
-                                         quadpoints_phi=quadpoints_phi)
+                                          stellsym=not vi.lasym,
+                                          mpol=vi.mpol,
+                                          ntor=vi.ntor,
+                                          quadpoints_theta=quadpoints_theta,
+                                          quadpoints_phi=quadpoints_phi)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:

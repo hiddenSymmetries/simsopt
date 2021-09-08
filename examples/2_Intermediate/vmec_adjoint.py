@@ -62,10 +62,10 @@ for max_mode in range(3, maxres):
         dofs_prev = obj.x
         try:
             obj.x = dofs
-            return obj.J() # , np.squeeze(myfunc.jac())
+            return obj.J()  # , np.squeeze(myfunc.jac())
         except ObjectiveFailure:
             obj.x = dofs_prev
-            return 2*obj.J()# , 2*np.squeeze(myfunc.jac())
+            return 2*obj.J()  # , 2*np.squeeze(myfunc.jac())
 
     res = minimize(
         # fun=J, x0=myfunc.x, jac=True, method='L-BFGS-B',
