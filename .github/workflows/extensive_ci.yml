@@ -108,7 +108,7 @@ jobs:
     - name: Install python dependencies
       run: |
         #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib plotly
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
