@@ -72,7 +72,7 @@ class Curve(Optimizable):
 
     def plot(self, engine="matplotlib", ax=None, show=True, plot_derivative=False, closed_loop=False, axis_equal=True, **kwargs):
         """
-        Plots the curve in 3D.
+        Plot the curve in 3D using ``matplotlib.pyplot``, ``mayavi``, or ``plotly``.
 
         Args:
             engine: The graphics engine to use. Available settings are ``"matplotlib"``, ``"mayavi"``, and ``"plotly"``.

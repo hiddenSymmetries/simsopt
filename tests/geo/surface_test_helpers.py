@@ -37,15 +37,18 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     return (coils, currents, ma)
 
 
-def get_surface(surfacetype, stellsym, phis=None, thetas=None, ntor=5, mpol=5):
+def get_surface(surfacetype, stellsym, phis=None, thetas=None, mpol=5, ntor=5,
+                nphi=None, ntheta=None, full=False):
     nfp = 3
-    nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
-    ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
+    if nphi is None:
+        nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
+    if ntheta is None:
+        ntheta = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
 
     if phis is None:
         phis = np.linspace(0, 1/nfp, nphi, endpoint=False)
     if thetas is None:
-        if surfacetype == "SurfaceXYZTensorFourier":
+        if (surfacetype == "SurfaceXYZTensorFourier" or full == True):
             thetas = np.linspace(0, 1, ntheta, endpoint=False)
         else:
             thetas = np.linspace(0, 1/(1. + int(stellsym)), ntheta, endpoint=False)
