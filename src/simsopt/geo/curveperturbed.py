@@ -22,7 +22,7 @@ class GaussianSampler():
         cov_mat = np.zeros((n*(n_derivs+1), n*(n_derivs+1)))
 
         def kernel(x, y):
-            return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-2, 3))
+            return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-4, 5))
         XX, YY = np.meshgrid(xs, xs)
         for i in range(n):
             for j in range(n):
@@ -86,7 +86,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
             globalseed = 1
             N = 10 # number of perturbed stellarators
-            seeds = SeeqSequence(globalseed).spawn(N)
+            seeds = SeedSequence(globalseed).spawn(N)
             idx_start, idx_end = split_range_between_mpi_rank(N) # e.g. [0, 5) on rank 0, [5, 10) on rank 1
             for i in range(idx_start, idx_end):
                 rg = np.random.Generator(PCG64(seeds[i]))
