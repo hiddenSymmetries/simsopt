@@ -339,10 +339,10 @@ class QfmResidual(object):
         norm_N = np.linalg.norm(N, axis=2)
 
         B_N = np.sum(B * N, axis=2)
-        dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, :, None], axis=2))
+        dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, None, :], axis=3))
         dJ1dN = (2*B_N/norm_N)[:, :, None] * B - (B_N**2/norm_N**3)[:, :, None] * N
 
-        dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, :, None], axis=2) * norm_N[:, :, None]
+        dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
         dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
 
         num = np.sum(B_N**2 / norm_N)
