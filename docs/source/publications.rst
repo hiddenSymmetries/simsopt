@@ -1,14 +1,16 @@
 Publications
 ============
 
-If you use simsopt in your research, please cite simsopt using the following
-format:
-
-[1] Simsopt development team, *Simsopt: A python framework for stellarator optimization*, 2021
+If you use simsopt in your research, kindly cite simsopt using
+reference 1 below.  It is recommended that you also give a reference
+for the simsopt release version used in your work. Each release has a
+Zenodo archive with a unique DOI. The DOI for the latest release is
 
    .. image:: https://zenodo.org/badge/247710081.svg
         :target: https://zenodo.org/badge/latestdoi/247710081
 
+Clicking this badge will take you to Zenodo, and on the right of the
+page you will find a list of DOIs for previous releases.
    
 Here is a list of publications in which simsopt results appear:
 
@@ -16,7 +18,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | M Landreman, B Medasani, F Wechsung, A Giuliani, R Jorge, and C Zhu,
      "SIMSOPT: A flexible framework for stellarator optimization",
-     *Submitted*, (2021).
+     *J. Open Source Software* **6**, 3525 (2021).
+     `[journal version] <https://doi.org/10.21105/joss.03525>`__
    | 
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
