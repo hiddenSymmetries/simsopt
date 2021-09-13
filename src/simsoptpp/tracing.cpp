@@ -2,6 +2,7 @@
 #include <vector>
 #include <functional>
 #include "magneticfield.h"
+#include "boozermagneticfield.h"
 #include <cassert>
 #include <stdexcept>
 #include "tracing.h"
@@ -14,8 +15,6 @@ using std::function;
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
-
-
 
 #include <boost/math/tools/roots.hpp>
 #include <boost/numeric/odeint.hpp>
@@ -75,6 +74,58 @@ class GuidingCenterVacuumRHS {
             dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1];
             dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2];
             dydt[3] = -mu*(B(0, 0)*GradAbsB(0, 0) + B(0, 1)*GradAbsB(0, 1) + B(0, 2)*GradAbsB(0, 2))/AbsB;
+        }
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class GuidingCenterVacuumBoozerRHS {
+    /*
+     * The state consists of :math:`[x, y, z, v_par]` with
+     *
+     *   [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)
+     *   \dot v_{||}              &= -\mu  (B \cdot \nabla(|B|))
+     *
+     * where v_perp = 2*mu*|B|
+     */
+    private:
+        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
+        typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
+        shared_ptr<BoozerMagneticField<T>> field;
+        double m, q, mu;
+    public:
+        static constexpr int Size = 4;
+        using State = std::array<double, Size>;
+
+
+        GuidingCenterVacuumBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu)
+            : field(field), m(m), q(q), mu(mu) {
+            }
+
+        void operator()(const State &ys, array<double, 4> &dydt,
+                const double t) {
+            double v_par = ys[3];
+
+            stz(0, 0) = ys[0];
+            stz(0, 1) = ys[1];
+            stz(0, 2) = ys[2];
+
+            assert(ys[0]>0);
+
+            field->set_points(stz);
+            auto psi0 = field->psi0;
+            double modB = field->modB_ref()(0);
+            double G = field->G_ref()(0);
+            double iota = field->iota_ref()(0);
+            double dmodBds = field->dmodBds_ref()(0);
+            double dmodBdtheta = field->dmodBdtheta_ref()(0);
+            double dmodBdzeta = field->dmodBdzeta_ref()(0);
+            double v_perp2 = 2*mu*modB;
+            double fak1 = m*v_par*v_par/modB + m*mu;
+
+            dydt[0] = -dmodBdtheta*fak1/(q*psi0);
+            dydt[1] = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G;
+            dydt[2] = v_par*modB/G;
+            dydt[3] = -(iota*dmodBdtheta + dmodBdzeta)*mu*modB/G;
         }
 };
 
@@ -155,6 +206,26 @@ class FieldlineRHS {
         }
 };
 
+double get_phi_flux(double phi, double phi_near){
+    if(phi < 0)
+        phi += 2*M_PI;
+    phi = std::fmod(phi, 2*M_PI);
+    double phi_near_mod = std::fmod(phi_near, 2*M_PI);
+    double nearest_multiple = std::round(phi_near/(2*M_PI))*2*M_PI;
+    double opt1 = nearest_multiple - 2*M_PI + phi;
+    double opt2 = nearest_multiple + phi;
+    double opt3 = nearest_multiple + 2*M_PI + phi;
+    double dist1 = std::abs(opt1-phi_near);
+    double dist2 = std::abs(opt2-phi_near);
+    double dist3 = std::abs(opt3-phi_near);
+    if(dist1 <= std::min(dist2, dist3))
+        return opt1;
+    else if(dist2 <= std::min(dist1, dist3))
+        return opt2;
+    else
+        return opt3;
+}
+
 double get_phi(double x, double y, double phi_near){
     double phi = std::atan2(y, x);
     if(phi < 0)
@@ -191,7 +262,7 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool flux=false)
 {
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_phi_hits = {};
@@ -203,6 +274,10 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     int iter = 0;
     bool stop = false;
     double phi_last = get_phi(y[0], y[1], M_PI);
+    if (flux) {
+      phi_last = y[2];
+      // phi_last = get_phi_flux(y[2], M_PI);
+    }
     double phi_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
     uintmax_t rootmaxit = 200;
@@ -214,6 +289,10 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         t = dense.current_time();
         y = dense.current_state();
         phi_current = get_phi(y[0], y[1], phi_last);
+        if (flux) {
+          phi_current = y[2];
+          // phi_current = get_phi_flux(y[2], phi_last);
+        }
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
         // Now check whether we have hit any of the phi planes
@@ -224,9 +303,13 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double phi_shift = fak*2*M_PI + phi;
                 assert((phi_last <= phi_shift && phi_shift <= phi_current) || (phi_current <= phi_shift && phi_shift <= phi_last));
 
-                std::function<double(double)> rootfun = [&dense, &phi_shift, &temp, &phi_last](double t){
+                std::function<double(double)> rootfun = [&dense, &phi_shift, &temp, &phi_last, &flux](double t){
                     dense.calc_state(t, temp);
                     double diff = get_phi(temp[0], temp[1], phi_last)-phi_shift;
+                    if (flux) {
+                      diff = temp[2]-phi_shift;
+                      // diff = get_phi_flux(temp[2], phi_last)-phi_shift;
+                    }
                     return diff;
                 };
 
@@ -262,8 +345,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     return std::make_tuple(res, res_phi_hits);
 }
 
-
-
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing(
@@ -288,6 +369,35 @@ particle_guiding_center_tracing(
     else
         throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
 }
+
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_boozer_tracing(
+        shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double tol,
+        vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+{
+    typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
+    field->set_points(stz);
+    double modB = field->modB()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*modB);
+
+    array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
+    double G0 = field->G()(0);
+    double r0 = G0/modB;
+    double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
+    double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+
+    auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
+    return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+}
+
+template
+tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
+        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double tol,
+        vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
