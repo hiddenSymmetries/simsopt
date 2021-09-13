@@ -141,16 +141,6 @@ class QfmSurfaceTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym)
 
-    def test_qfm_penalty_constraints_hessian(self):
-        """
-        Taylor test to verify the Hessian of the scalarized constrained
-        optimization problem's objective.
-        """
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_penalty_constraints_hessian(surfacetype, stellsym)
-
     def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
         coils, currents, ma = get_ncsx_data()
