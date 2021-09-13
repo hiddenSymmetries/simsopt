@@ -345,7 +345,7 @@ class QfmResidual(object):
         dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
         dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
 
-        J1 = np.sum(B_N**2 / norm_N)
+        J1 = np.sum(B_N**2 / norm_N)  # same as np.sum(B_n**2 * norm_N)
         J2 = np.sum(B**2 * norm_N[:, :, None])
 
         # d_J1 = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
