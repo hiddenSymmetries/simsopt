@@ -72,7 +72,7 @@ class FOCUSObjective(Optimizable):
 
     @derivative_dec
     def dJ(self):
-        res = self.Jfluxs[0].dJ()
+        res = self.Jfluxs[0].dJ(partials=True)
         for i in range(1, len(self.Jfluxs)):
             res += self.Jfluxs[i].dJ(partials=True)
         res *= 1./len(self.Jfluxs)
