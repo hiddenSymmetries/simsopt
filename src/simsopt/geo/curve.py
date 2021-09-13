@@ -167,17 +167,6 @@ class Curve(Optimizable):
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return Derivative({self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v)})
 
-    @requires(mlab is not None, "plot_mayavi requires mayavi")
-    def plot_mayavi(self, show=True):
-        """
-        Plot the curve using :mod:`mayavi.mlab` rather than :mod:`matplotlib.pyplot`.
-        """
-
-        g = self.gamma()
-        mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
-        if show:
-            mlab.show()
-
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         r"""
         This function returns the vector Jacobian product
