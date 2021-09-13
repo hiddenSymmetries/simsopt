@@ -353,5 +353,5 @@ class QfmResidual(object):
         # deriv = d_J1/J2 - d_J2*J1/(J2*J2)
 
         deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/J2 - dJ2dN*J1/(J2*J2)) \
-            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/J2 - dJ2dx*J2/(J2*J2))
+            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/J2 - dJ2dx*J1/(J2*J2))
         return deriv
