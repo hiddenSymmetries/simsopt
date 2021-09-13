@@ -173,7 +173,6 @@ class QfmTests(unittest.TestCase):
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_qfm1(surfacetype, stellsym)
-                    self.subtest_qfm2(surfacetype, stellsym)
 
     def subtest_qfm1(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()
