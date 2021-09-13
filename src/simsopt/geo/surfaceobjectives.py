@@ -345,15 +345,15 @@ class QfmResidual(object):
         dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
         dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
 
-        num = np.sum(B_N**2 / norm_N)
-        denom = np.sum(B**2 * norm_N[:, :, None])
+        J1 = np.sum(B_N**2 / norm_N)
+        J2 = np.sum(B**2 * norm_N[:, :, None])
 
-        # d_num = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
-        # d_denom = self.surface.dnormal_by_dcoeff_vjp(dJ2dN) + self.surface.dgamma_by_dcoeff_vjp(dJ2dx)
-        # deriv = d_num/denom - d_denom*num/(denom*denom)
+        # d_J1 = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
+        # d_J2 = self.surface.dnormal_by_dcoeff_vjp(dJ2dN) + self.surface.dgamma_by_dcoeff_vjp(dJ2dx)
+        # deriv = d_J1/J2 - d_J2*J1/(J2*J2)
 
-        deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/denom - dJ2dN*num/(denom*denom)) \
-            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/denom - dJ2dx*num/(denom*denom))
+        deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/J2 - dJ2dN*J1/(J2*J2)) \
+            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/J2 - dJ2dx*J2/(J2*J2))
         return deriv
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
