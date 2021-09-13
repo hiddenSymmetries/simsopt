@@ -1,4 +1,5 @@
 from simsopt._core.graph_optimizable import Optimizable
+from .._core.derivative import derivative_dec
 import numpy as np
 
 
@@ -26,6 +27,7 @@ class SquaredFlux(Optimizable):
         mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
         return 0.5 * np.mean((B_n/mod_Bcoil)**2 * absn)
 
+    @derivative_dec
     def dJ(self):
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
@@ -68,15 +70,16 @@ class FOCUSObjective(Optimizable):
             res += self.beta * self.Jdist.J()
         return res
 
+    @derivative_dec
     def dJ(self):
         res = self.Jfluxs[0].dJ()
         for i in range(1, len(self.Jfluxs)):
-            res += self.Jfluxs[i].dJ()
+            res += self.Jfluxs[i].dJ(partials=True)
         res *= 1./len(self.Jfluxs)
         if self.alpha > 0:
             for Jcl in self.Jcls:
-                res += self.alpha * Jcl.dJ()
+                res += self.alpha * Jcl.dJ(partials=True)
         if self.beta > 0 and self.Jdist is not None:
-            res += self.beta * self.Jdist.dJ()
+            res += self.beta * self.Jdist.dJ(partials=True)
         return res
 

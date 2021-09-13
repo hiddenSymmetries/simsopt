@@ -125,3 +125,12 @@ class Derivative():
             if k in self.data.keys() and np.any(k.dofs_free_status):
                 derivs.append(self.data[k][k.dofs_free_status])
         return np.concatenate(derivs)
+
+
+def derivative_dec(func):
+    def _derivative_dec(self, *args, partials=False, **kwargs):
+        if partials:
+            return func(self, *args, **kwargs)
+        else:
+            return func(self, *args, **kwargs)(self)
+    return _derivative_dec

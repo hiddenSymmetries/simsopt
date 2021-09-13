@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from .jit import jit
 
 from .._core.graph_optimizable import Optimizable
-from .._core.derivative import Derivative
+from .._core.derivative import Derivative, derivative_dec
 
 
 @jit
@@ -35,6 +35,7 @@ class CurveLength(Optimizable):
         """
         return curve_length_pure(self.curve.incremental_arclength())
 
+    @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
@@ -86,6 +87,7 @@ class LpCurveCurvature(Optimizable):
         """
         return self.J_jax(self.curve.kappa(), self.curve.gammadash())
 
+    @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
@@ -180,6 +182,7 @@ class LpCurveTorsion(Optimizable):
         """
         return self.J_jax(self.curve.torsion(), self.curve.gammadash())
 
+    @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
@@ -283,6 +286,7 @@ class MinimumDistance(Optimizable):
                 res += self.J_jax(gamma1, l1, gamma2, l2)
         return res
 
+    @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
