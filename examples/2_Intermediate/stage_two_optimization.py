@@ -81,8 +81,7 @@ JF = FOCUSObjective(Jf, Jls, ALPHA, Jdist, BETA)
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
-    dJ = JF.dJ()
-    grad = dJ(JF)
+    grad = JF.dJ()
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
     jf = Jf.J()
