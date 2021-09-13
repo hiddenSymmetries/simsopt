@@ -307,7 +307,7 @@ class QfmResidual(object):
 
     def invalidate_cache(self):
         x = self.surface.gamma()
-        xsemiflat = x.reshape((x.size//3, 3)).copy()
+        xsemiflat = x.reshape((-1, 3))
         self.biotsavart.set_points(xsemiflat)
 
     def J(self):
@@ -326,35 +326,35 @@ class QfmResidual(object):
         """
         Calculate the derivatives with respect to the surface coefficients
         """
+
+        # we write the objective as J = J1/J2, then we compute the partial derivatives
+        # dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
+        # to get the derivatives wrt to the surface dofs
         x = self.surface.gamma()
         nphi = x.shape[0]
         ntheta = x.shape[1]
-        dx_by_dc = self.surface.dgamma_by_dcoeff()
         dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
         B = self.biotsavart.B().reshape((nphi, ntheta, 3))
-        d_B = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_by_dc)
-
         N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=2)
-        n = N/norm_N[:, :, None]
-        d_N = self.surface.dnormal_by_dcoeff()
-        d_norm_N = np.einsum('ijkl,ijk->ijl', d_N, n)
-        d_n = d_N/norm_N[:, :, None, None] \
-            - N[:, :, :, None] * d_norm_N[:, :, None, :]/norm_N[:, :, None, None]**2
 
-        B_n = np.sum(B * n, axis=2)
-        norm_B = np.linalg.norm(B, axis=2)
+        B_N = np.sum(B * N, axis=2)
+        dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, None, :], axis=3))
+        dJ1dN = (2*B_N/norm_N)[:, :, None] * B - (B_N**2/norm_N**3)[:, :, None] * N
 
-        d_B_n = np.einsum('ijkl,ijk->ijl', d_B, n) + np.einsum('ijk,ijkl->ijl', B, d_n)
-        d_norm_B = np.einsum('ijkl,ijk->ijl', d_B, B/norm_B[:, :, None])
+        dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
+        dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
 
-        num = np.sum(B_n**2 * norm_N)
-        denom = np.sum(norm_B**2 * norm_N)
-        d_num = np.sum(2 * d_B_n * B_n[:, :, None] * norm_N[:, :, None]
-                       + B_n[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        d_denom = np.sum(2 * d_norm_B * norm_B[:, :, None] * norm_N[:, :, None]
-                         + norm_B[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        return d_num/denom - d_denom*num/(denom*denom)
+        num = np.sum(B_N**2 / norm_N)
+        denom = np.sum(B**2 * norm_N[:, :, None])
+
+        # d_num = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
+        # d_denom = self.surface.dnormal_by_dcoeff_vjp(dJ2dN) + self.surface.dgamma_by_dcoeff_vjp(dJ2dx)
+        # deriv = d_num/denom - d_denom*num/(denom*denom)
+
+        deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/denom - dJ2dN*num/(denom*denom)) \
+            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/denom - dJ2dx*num/(denom*denom))
+        return deriv
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
