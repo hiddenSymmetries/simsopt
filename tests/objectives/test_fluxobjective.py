@@ -56,7 +56,7 @@ class FluxObjectiveTests(unittest.TestCase):
         target = np.zeros(s.gamma().shape[0:2])
         Jf2 = SquaredFlux(s, bs, target)
         check_taylor_test(Jf2)
-        target = np.zeros(s.gamma().shape[0:2])
+        target = np.ones(s.gamma().shape[0:2])
         Jf3 = SquaredFlux(s, bs, target)
         check_taylor_test(Jf3)
 
