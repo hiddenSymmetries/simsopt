@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 try:
     from mpi4py import MPI
 except ImportError as e:
-    MPI = None 
+    MPI = None
     logger.warning(str(e))
 
 # booz_xform_found = True
@@ -82,6 +82,7 @@ class Boozer(Optimizable):
         # so we have to allow for this case here.
         self.mpi = None
         if equil is not None:
+            print(equil)
             self.mpi = equil.mpi
 
     def get_dofs(self):
@@ -233,7 +234,7 @@ class Boozer(Optimizable):
                                    bsubvmns)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
-            self.bx.nboz = self.ntor            
+            self.bx.nboz = self.ntor
 
         else:
             # Cases for SPEC, GVEC, etc could be added here.
@@ -304,7 +305,7 @@ class Quasisymmetry(Optimizable):
         Carry out the calculation of the quasisymmetry error.
 
         Returns:
-            1D numpy array listing all the normalized mode amplitudes of 
+            1D numpy array listing all the normalized mode amplitudes of
             symmetry-breaking Fourier modes of ``|B|``.
         """
 
