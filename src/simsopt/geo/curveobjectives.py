@@ -137,6 +137,7 @@ class CoshCurveCurvature(Optimizable):
         """
         return self.J_jax(self.curve.kappa(), self.curve.gammadash())
 
+    @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
