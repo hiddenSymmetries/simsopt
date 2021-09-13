@@ -122,8 +122,11 @@ class Derivative():
         deps = optim.ancestors + [optim]
         derivs = []
         for k in deps:
-            if k in self.data.keys() and np.any(k.dofs_free_status):
-                derivs.append(self.data[k][k.dofs_free_status])
+            if np.any(k.dofs_free_status):
+                if k in self.data.keys():
+                    derivs.append(self.data[k][k.dofs_free_status])
+                else:
+                    derivs.append(np.zeros((np.sum(k.local_dofs_free_status), )))
         return np.concatenate(derivs)
 
 
