@@ -194,6 +194,7 @@ class IotaWeighted(Optimizable):
         self.weight_function = weight_function
         self.adjoint_epsilon = adjoint_epsilon
         self.depends_on = ["boundary"]
+        self.ancestors = [self.boundary]
 
     def J(self):
         """
@@ -214,7 +215,9 @@ class IotaWeighted(Optimizable):
                 running vmec with ncurr = 1''')
 
         shape_gradient = self.shape_gradient()
-        return parameter_derivatives(self.vmec.boundary, shape_gradient)
+        # return parameter_derivatives(self.vmec.boundary, shape_gradient)
+        s = self.vmec.boundary
+        return s.dgamma_by_dcoeff_vjp(s.normal() * shape_gradient[:, :, None])
 
     def shape_gradient(self):
         r"""

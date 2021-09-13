@@ -186,7 +186,7 @@ class IotaWeightedTests(unittest.TestCase):
 
         vmec.boundary.set_dofs(dofs)
         vmec.need_to_run_code = True
-        d_iota_adjoint = np.dot(obj.dJ(), unitvec)
+        d_iota_adjoint = np.dot(obj.dJ()(obj), unitvec)
 
         relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
         logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")

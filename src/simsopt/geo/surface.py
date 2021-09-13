@@ -2,6 +2,7 @@ import numpy as np
 import simsoptpp as sopp
 
 from .._core.optimizable import Optimizable
+from .._core.derivative import Derivative
 
 
 class Surface(Optimizable):
@@ -330,6 +331,15 @@ class Surface(Optimizable):
             function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
 
         return function_interpolated
+
+    def dgamma_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgamma_by_dcoeff_vjp_impl(v)})
+
+    def dgammadash1_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadash1_by_dcoeff_vjp_impl(v)})
+
+    def dgammadash2_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadash2_by_dcoeff_vjp_impl(v)})
 
 
 def signed_distance_from_surface(xyz, surface):
