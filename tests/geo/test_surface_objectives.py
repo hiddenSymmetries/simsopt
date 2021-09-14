@@ -173,7 +173,6 @@ class QfmTests(unittest.TestCase):
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_qfm1(surfacetype, stellsym)
-                    self.subtest_qfm2(surfacetype, stellsym)
 
     def subtest_qfm1(self, surfacetype, stellsym):
         coils, currents, ma = get_ncsx_data()
@@ -192,27 +191,3 @@ class QfmTests(unittest.TestCase):
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))
-
-    def subtest_qfm2(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        s = get_surface(surfacetype, stellsym)
-
-        qfm = QfmResidual(s, bs)
-        coeffs = s.get_dofs()
-
-        def f(dofs):
-            s.set_dofs(dofs)
-            return qfm.J()
-
-        def df(dofs):
-            s.set_dofs(dofs)
-            return qfm.dJ_by_dsurfacecoefficients()
-
-        def d2f(dofs):
-            s.set_dofs(dofs)
-            return qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-
-        taylor_test2(f, df, d2f, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(12, 20))))
