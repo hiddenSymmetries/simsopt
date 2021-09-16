@@ -2,6 +2,13 @@ import numpy as np
 from .graph_optimizable import Optimizable
 
 
+def copy_numpy_dict(d):
+    res = {}
+    for k in d:
+        res[k] = d[k].copy()
+    return res
+
+
 class Derivative():
 
     """
@@ -82,7 +89,7 @@ class Derivative():
     def __add__(self, other):
         x = self.data
         y = other.data
-        z = x.copy()
+        z = copy_numpy_dict(x)
         for k in y.keys():
             if k in z:
                 z[k] += y[k]
@@ -102,15 +109,15 @@ class Derivative():
         return self
 
     def __mul__(self, other):
-        assert isinstance(other, float)
-        x = self.data.copy()
+        assert isinstance(other, float) or isinstance(other, int)
+        x = copy_numpy_dict(self.data)
         for k in x.keys():
             x[k] *= other
         return Derivative(x)
 
     def __rmul__(self, other):
         assert isinstance(other, float) or isinstance(other, int)
-        x = self.data.copy()
+        x = copy_numpy_dict(self.data)
         for k in x.keys():
             x[k] *= other
         return Derivative(x)
