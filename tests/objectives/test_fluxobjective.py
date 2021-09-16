@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
+from simsopt.field.coil import coils_via_symmetries
+from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.field.biotsavart import BiotSavart, Current
 from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
