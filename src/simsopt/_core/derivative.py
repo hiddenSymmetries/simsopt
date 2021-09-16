@@ -136,6 +136,13 @@ class Derivative():
                     derivs.append(np.zeros((np.sum(k.local_dofs_free_status), )))
         return np.concatenate(derivs)
 
+    # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
+    def __radd__(self, other):
+    # This allows sum() to work (the default start value is zero)
+    if other == 0:
+        return self
+    return self.__add__(other)
+
 
 def derivative_dec(func):
     def _derivative_dec(self, *args, partials=False, **kwargs):
