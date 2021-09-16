@@ -5,6 +5,10 @@ from .graph_optimizable import Optimizable
 
 
 class OptimizableDefaultDict(collections.defaultdict):
+    """
+    Custom defaultdict that automatically returns a numpy array of zeros of
+    size equal to the number of free dofs when the key wasn't found.
+    """
 
     def __init__(self, d):
         super().__init__(None, d)
