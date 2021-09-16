@@ -20,7 +20,7 @@ def check_taylor_test(J):
     J0, dJ0 = J.J(), J.dJ()
     dJh = sum(dJ0 * h)
     err_old = 1e10
-    for i in range(12, 20):
+    for i in range(12, 19):
         eps = 0.5**i
         J.x = dofs + eps*h
         J1 = J.J()
