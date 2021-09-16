@@ -610,17 +610,17 @@ class JaxCurve(sopp.Curve, Curve):
 class RotatedCurve(sopp.Curve, Curve):
     """
     RotatedCurve inherits from the Curve base class.  It takes an input
-    a Curve, rotates it by ``theta``, and optionally completes a
+    a Curve, rotates it by ``phi``, and optionally completes a
     reflection when ``flip=True``.
     """
 
-    def __init__(self, curve, theta, flip):
+    def __init__(self, curve, phi, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self, depends_on=[curve])
         self.rotmat = np.asarray(
-            [[cos(theta), -sin(theta), 0],
-             [sin(theta), cos(theta), 0],
+            [[cos(phi), -sin(phi), 0],
+             [sin(phi), cos(phi), 0],
              [0, 0, 1]]).T
         if flip:
             self.rotmat = self.rotmat @ np.asarray(
