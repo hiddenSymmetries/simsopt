@@ -105,7 +105,7 @@ class Derivative():
         x = self.data
         y = other.data
         z = copy_numpy_dict(x)
-        for k in y.keys():
+        for k in y:
             z[k] += y[k]
 
         return Derivative(z)
@@ -113,21 +113,21 @@ class Derivative():
     def __iadd__(self, other):
         x = self.data
         y = other.data
-        for k in y.keys():
+        for k in y:
             x[k] += y[k]
         return self
 
     def __mul__(self, other):
         assert isinstance(other, numbers.Number)
         x = copy_numpy_dict(self.data)
-        for k in x.keys():
+        for k in x:
             x[k] *= other
         return Derivative(x)
 
     def __rmul__(self, other):
         assert isinstance(other, numbers.Number)
         x = copy_numpy_dict(self.data)
-        for k in x.keys():
+        for k in x:
             x[k] *= other
         return Derivative(x)
 
