@@ -2,7 +2,7 @@ from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, Int
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data
 from simsopt.field.biotsavart import BiotSavart, Coil, Current
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 import simsoptpp as sopp
