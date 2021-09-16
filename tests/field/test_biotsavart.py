@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.biotsavart import BiotSavart, Coil, Current
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import Coil, Current
 
 
 def get_curve(num_quadrature_points=200, perturb=False):

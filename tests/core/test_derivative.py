@@ -3,6 +3,7 @@ import numpy as np
 from simsopt._core.graph_optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 
+
 class Opt(Optimizable):
     """
     This class defines a minimal object that can be optimized.
@@ -67,6 +68,7 @@ class InterProd(Optimizable):
             + v[0] * self.opt_b.dfoo_vjp(v_b) \
 
 
+
 class Obj(Optimizable):
 
     def __init__(self, inter_a, inter_b):
@@ -79,7 +81,6 @@ class Obj(Optimizable):
 
     def dJ(self):
         return self.inter_a.dbar_vjp([self.inter_b.bar()]) + self.inter_b.dbar_vjp([self.inter_a.bar()])
-
 
 
 class DerivativeTests(unittest.TestCase):
@@ -118,7 +119,7 @@ class DerivativeTests(unittest.TestCase):
             obj.x = x - 3 * eps * h
             fmmm = obj.J()
             # print(np.abs((fp-fm)/(2*eps) - dfh))
-            dfhest = ((1/12) * fmm  - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
+            dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
             err = np.abs(dfhest - dfh)
             assert err < (0.6)**4 * err_old
             print(err_old/err)

@@ -42,7 +42,7 @@ class SquaredFlux(Optimizable):
         return self.field.B_vjp(dJdB)
 
 
-class FOCUSObjective(Optimizable):
+class CoilOptObjective(Optimizable):
 
     def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=None, beta=0.):
         deps = [Jflux] + Jcls
