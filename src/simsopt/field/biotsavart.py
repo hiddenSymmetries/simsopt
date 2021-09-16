@@ -7,6 +7,10 @@ from simsopt._core.derivative import Derivative
 
 
 class Coil(sopp.Coil, Optimizable):
+    """
+    A :mod:`Coil` combines a :mod:`Curve` and a :mod:`Current` and is used as input
+    for the mod:`BiotSavart` field.
+    """
 
     def __init__(self, curve, current):
         self.__curve = curve
@@ -21,6 +25,10 @@ class Coil(sopp.Coil, Optimizable):
 
 
 class Current(sopp.Current, Optimizable):
+    """
+    An optimizable object that wraps around a single scalar degree of freedom
+    and represents a coil.
+    """
 
     def __init__(self, current):
         sopp.Current.__init__(self, current)
@@ -38,6 +46,10 @@ class Current(sopp.Current, Optimizable):
 
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
+    """
+    Scales :mod:`Current` by a factor. To be used for example to flip currents
+    for stellarator symmetric coils.
+    """
 
     def __init__(self, basecurrent, scale):
         self.__basecurrent = basecurrent
