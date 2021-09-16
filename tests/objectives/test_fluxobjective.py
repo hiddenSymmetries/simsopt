@@ -4,7 +4,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.field.biotsavart import BiotSavart, Current
-from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
+from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
 
 
 from pathlib import Path
@@ -61,5 +61,5 @@ class FluxObjectiveTests(unittest.TestCase):
         check_taylor_test(Jf3)
 
         Jls = [CurveLength(c) for c in base_curves]
-        JF = FOCUSObjective(Jf, Jls, ALPHA)
+        JF = CoilOptObjective(Jf, Jls, ALPHA)
         check_taylor_test(JF)
