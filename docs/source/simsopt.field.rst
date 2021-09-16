@@ -13,6 +13,15 @@ simsopt.field.biotsavart module
    :show-inheritance:
    :inherited-members:
 
+simsopt.field.coil module
+-------------------------------
+
+.. automodule:: simsopt.field.coil
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+
 simsopt.field.magneticfield module
 ----------------------------------
 
