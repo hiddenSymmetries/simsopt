@@ -33,11 +33,8 @@ class Current(sopp.Current, Optimizable):
 
     def __init__(self, current):
         sopp.Current.__init__(self, current)
-        Optimizable.__init__(self, external_dof_setter=Current.set_dofs,
+        Optimizable.__init__(self, external_dof_setter=sopp.Current.set_dofs,
                              x0=self.get_dofs())
-
-    def set_dofs(self, dofs):
-        sopp.Current.set_dofs(self, dofs)
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
