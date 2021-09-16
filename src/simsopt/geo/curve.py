@@ -808,9 +808,9 @@ def curves_to_vtk(curves, filename):
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
 
-def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, PPP=15):
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
-    Create ``ncurves`` curves that will result in circular equally spaced coils
+    Create ``ncurves`` :mod:`CurveXYZFourier` of order `order` that will result in circular equally spaced coils
     (major radius ``R0`` and minor radius ``R1``)  after applying
     ``coils_via_symmetries``.
 
@@ -824,10 +824,12 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
 
     """
+    if numquadpoints is None:
+        numquadpoints = 15 * order
     curves = []
     from simsopt.geo.curvexyzfourier import CurveXYZFourier
     for i in range(ncurves):
-        curve = CurveXYZFourier(order*PPP, order)
+        curve = CurveXYZFourier(numquadpoints, order)
         d = curve.x
         d[0] = R0
         d[1] = R1
