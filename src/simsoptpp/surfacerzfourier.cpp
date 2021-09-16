@@ -5,6 +5,7 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
     int numquadpoints_phi = quadpoints_phi.size();
     int numquadpoints_theta = quadpoints_theta.size();
 
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -34,6 +35,7 @@ template<class Array>
 void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints = quadpoints_phi.size();
 
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         double theta  = 2*M_PI*quadpoints_theta[k1];
@@ -62,6 +64,7 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -90,6 +93,7 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
 }
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -116,6 +120,7 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -165,6 +170,7 @@ void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -214,6 +220,7 @@ void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data) {
+#pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
