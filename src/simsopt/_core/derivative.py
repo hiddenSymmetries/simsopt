@@ -1,10 +1,22 @@
 import numpy as np
 import numbers
+import collections
 from .graph_optimizable import Optimizable
 
 
+class OptimizableDefaultDict(collections.defaultdict):
+
+    def __init__(self, d):
+        super().__init__(None, d)
+
+    def __missing__(self, key):
+        assert isinstance(key, Optimizable)
+        self[key] = value = np.zeros((key.local_full_dof_size, ))
+        return value
+
+
 def copy_numpy_dict(d):
-    res = {}
+    res = OptimizableDefaultDict({})
     for k in d:
         res[k] = d[k].copy()
     return res
@@ -84,7 +96,9 @@ class Derivative():
 
     """
 
-    def __init__(self, data={}):
+    def __init__(self, data=OptimizableDefaultDict({})):
+        if isinstance(data, dict):
+            data = OptimizableDefaultDict(data)
         self.data = data
 
     def __add__(self, other):
@@ -92,10 +106,7 @@ class Derivative():
         y = other.data
         z = copy_numpy_dict(x)
         for k in y.keys():
-            if k in z:
-                z[k] += y[k]
-            else:
-                z[k] = y[k]
+            z[k] += y[k]
 
         return Derivative(z)
 
@@ -103,10 +114,7 @@ class Derivative():
         x = self.data
         y = other.data
         for k in y.keys():
-            if k in x:
-                x[k] += y[k]
-            else:
-                x[k] = y[k]
+            x[k] += y[k]
         return self
 
     def __mul__(self, other):
@@ -131,10 +139,7 @@ class Derivative():
         derivs = []
         for k in deps:
             if np.any(k.dofs_free_status):
-                if k in self.data.keys():
-                    derivs.append(self.data[k][k.dofs_free_status])
-                else:
-                    derivs.append(np.zeros((np.sum(k.local_dofs_free_status), )))
+                derivs.append(self.data[k][k.local_dofs_free_status])
         return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
