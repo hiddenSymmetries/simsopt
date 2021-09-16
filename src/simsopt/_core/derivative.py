@@ -1,4 +1,5 @@
 import numpy as np
+import numbers
 from .graph_optimizable import Optimizable
 
 
@@ -109,14 +110,14 @@ class Derivative():
         return self
 
     def __mul__(self, other):
-        assert isinstance(other, float) or isinstance(other, int)
+        assert isinstance(other, numbers.Number)
         x = copy_numpy_dict(self.data)
         for k in x.keys():
             x[k] *= other
         return Derivative(x)
 
     def __rmul__(self, other):
-        assert isinstance(other, float) or isinstance(other, int)
+        assert isinstance(other, numbers.Number)
         x = copy_numpy_dict(self.data)
         for k in x.keys():
             x[k] *= other
