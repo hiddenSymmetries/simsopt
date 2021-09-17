@@ -75,16 +75,21 @@ void init_magneticfields(py::module_ &m){
         .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
 
-    py::class_<Current<PyArray>, py_shared_ptr<Current<PyArray>>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
+    py::class_<CurrentBase<PyArray>, shared_ptr<CurrentBase<PyArray>>>(m, "CurrentBase");
+    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>, CurrentBase<PyArray>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
         .def(py::init<double>())
         .def("set_dofs", &Current<PyArray>::set_dofs, "Set the current.")
         .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
-        .def("set_value", &Current<PyArray>::set_value, "Set the current.")
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
+
+    py::class_<ScaledCurrent<PyArray>, shared_ptr<ScaledCurrent<PyArray>>, CurrentBase<PyArray>>(m, "ScaledCurrent", "Multiply a current object with a scalar (e.g. to flip its sign).")
+        .def(py::init<shared_ptr<Current<PyArray>>, double>())
+        .def("get_value", &ScaledCurrent<PyArray>::get_value, "Get the current.")
+        .def_readonly("scale", &ScaledCurrent<PyArray>::scale, "Get the scaling factor.");
         
 
-    py::class_<Coil<PyArray>, py_shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
-        .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<Current<PyArray>>>())
+    py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
+        .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<CurrentBase<PyArray>>>())
         .def_readonly("curve", &Coil<PyArray>::curve, "Get the underlying curve.")
         .def_readonly("current", &Coil<PyArray>::current, "Get the underlying current.");
 
@@ -97,7 +102,8 @@ void init_magneticfields(py::module_ &m){
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
         .def("compute", &PyBiotSavart::compute)
         .def("fieldcache_get_or_create", &PyBiotSavart::fieldcache_get_or_create)
-        .def("fieldcache_get_status", &PyBiotSavart::fieldcache_get_status);
+        .def("fieldcache_get_status", &PyBiotSavart::fieldcache_get_status)
+        .def_readonly("coils", &PyBiotSavart::coils);
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, py_shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")

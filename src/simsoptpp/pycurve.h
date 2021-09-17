@@ -58,20 +58,20 @@ template <class CurveBase = PyCurve> class PyCurveTrampoline : public CurveBase 
             PYBIND11_OVERLOAD(void, CurveBase, dgammadashdashdash_by_dcoeff_impl, data);
         }
 
-        virtual PyArray dgamma_by_dcoeff_vjp(PyArray& v) override {
-            PYBIND11_OVERLOAD(PyArray, CurveBase, dgamma_by_dcoeff_vjp, v);
+        virtual PyArray dgamma_by_dcoeff_vjp_impl(PyArray& v) override {
+            PYBIND11_OVERLOAD(PyArray, CurveBase, dgamma_by_dcoeff_vjp_impl, v);
         }
 
-        virtual PyArray dgammadash_by_dcoeff_vjp(PyArray& v) override {
-            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadash_by_dcoeff_vjp, v);
+        virtual PyArray dgammadash_by_dcoeff_vjp_impl(PyArray& v) override {
+            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadash_by_dcoeff_vjp_impl, v);
         }
 
-        virtual PyArray dgammadashdash_by_dcoeff_vjp(PyArray& v) override {
-            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadashdash_by_dcoeff_vjp, v);
+        virtual PyArray dgammadashdash_by_dcoeff_vjp_impl(PyArray& v) override {
+            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadashdash_by_dcoeff_vjp_impl, v);
         }
 
-        virtual PyArray dgammadashdashdash_by_dcoeff_vjp(PyArray& v) override {
-            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadashdashdash_by_dcoeff_vjp, v);
+        virtual PyArray dgammadashdashdash_by_dcoeff_vjp_impl(PyArray& v) override {
+            PYBIND11_OVERLOAD(PyArray, CurveBase, dgammadashdashdash_by_dcoeff_vjp_impl, v);
         }
 
         virtual void kappa_impl(PyArray& data) override {
