@@ -13,15 +13,6 @@ simsopt.geo.boozersurface module
    :show-inheritance:
    :private-members:
 
-simsopt.geo.coilcollection module
----------------------------------
-
-.. automodule:: simsopt.geo.coilcollection
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 simsopt.geo.config module
 -------------------------
 

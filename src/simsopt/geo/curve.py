@@ -615,9 +615,9 @@ class JaxCurve(sopp.Curve, Curve):
 
 class RotatedCurve(sopp.Curve, Curve):
     """
-    RotatedCurve inherits from the Curve base class.  It takes an input
-    a Curve, rotates it by ``phi``, and optionally completes a
-    reflection when ``flip=True``.
+    RotatedCurve inherits from the Curve base class.  It takes an
+    input a Curve, rotates it about the ``z`` axis by a toroidal angle
+    ``phi``, and optionally completes a reflection when ``flip=True``.
     """
 
     def __init__(self, curve, phi, flip):
@@ -816,9 +816,11 @@ def curves_to_vtk(curves, filename):
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
-    Create ``ncurves`` :mod:`CurveXYZFourier` of order `order` that will result in circular equally spaced coils
-    (major radius ``R0`` and minor radius ``R1``)  after applying
-    ``coils_via_symmetries``.
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
 
     Usage example: create 4 base curves, which are then rotated 3 times and
     flipped for stellarator symmetry:
@@ -828,7 +830,6 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
         base_currents = [Current(1e5) for c in base_curves]
         coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
-
     """
     if numquadpoints is None:
         numquadpoints = 15 * order

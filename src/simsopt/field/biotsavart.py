@@ -17,6 +17,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
     where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant.
 
+    Args:
+        coils: A list of :obj:`simsopt.field.coil.Coil` objects.
     """
 
     def __init__(self, coils):

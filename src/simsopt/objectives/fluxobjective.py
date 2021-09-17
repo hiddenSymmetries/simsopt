@@ -6,20 +6,21 @@ import numpy as np
 class SquaredFlux(Optimizable):
 
     r"""
-    Objective representing the flux of a field on a surface, that is
+    Objective representing the quadratic flux of a field on a surface, that is
 
     .. math::
-        \frac12 \int_{S} (\mathbf{B}\cdot \mathbf{nb} - B_T)^2 ds
+        \frac12 \int_{S} (\mathbf{B}\cdot \mathbf{n} - B_T)^2 ds
 
-    where :math:`B_T` is an optional (zero by default) target value for the
+    where :math:`\mathbf{n}` is the surface unit normal vector and
+    :math:`B_T` is an optional (zero by default) target value for the
     magnetic field.
 
     Args:
         surface: A :obj:`simsopt.geo.surface.Surface` object on which to compute the flux
         field: A :obj:`simsopt.field.magneticfield.MagneticField` for which to compute the flux.
-        target: A `nphi x ntheta` numpy array containing target values for the flux. Here 
-          `nphi` and `ntheta` correspond to the number of quadrature points on `surface` 
-          in `phi` and `theta` direction.
+        target: A ``nphi x ntheta`` numpy array containing target values for the flux. Here 
+          ``nphi`` and ``ntheta`` correspond to the number of quadrature points on `surface` 
+          in ``phi`` and ``theta`` direction.
     """
 
     def __init__(self, surface, field, target=None):
@@ -60,22 +61,27 @@ class SquaredFlux(Optimizable):
 
 
 class CoilOptObjective(Optimizable):
-    """
-    Objective combining a :obj:`simsopt.objectives.fluxobjective.SquaredFlux` with
-    a list of curve objectives and a distance objective to form the basis of a classic
-    Stage II optimization problem.
+    r"""
+    Objective combining a
+    :obj:`simsopt.objectives.fluxobjective.SquaredFlux` with a list of
+    curve objectives and a distance objective to form the basis of a
+    classic Stage II optimization problem. The objective functions are
+    combined into a single scalar function using weights ``alpha`` and
+    ``beta``, so the overall objective is
+
+    .. math::
+        J = \mathrm{Jflux} + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
 
     Args:
         Jflux: A :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
         Jcls: Typically a list of
           :obj:`simsopt.geo.curveobjectives.CurveLength`, though any list of objectives
-          that have a `J` and `dJ` function is fine.
-        alpha: The scalar weight in front of the objectives in `Jcls`.
+          that have a ``J()`` and ``dJ()`` function is fine.
+        alpha: The scalar weight in front of the objectives in ``Jcls``.
         Jdist: Typically a 
           :obj:`simsopt.geo.curveobjectives.MinimumDistance`, though any objective
-          that has a `J` and `dJ` function is fine.
-        beta: The scalar weight in front of the objective in `Jdist`.
-
+          that has a ``J()`` and ``dJ()`` function is fine.
+        beta: The scalar weight in front of the objective in ``Jdist``.
     """
 
     def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=None, beta=0.):
