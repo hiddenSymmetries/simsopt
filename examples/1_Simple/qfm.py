@@ -19,7 +19,6 @@ for fixing the area and toroidal flux.
 
 curves, currents, ma = get_ncsx_data()
 coils = coils_via_symmetries(curves, currents, 3, True)
-curves = [c.curve for c in coils]
 bs = BiotSavart(coils)
 bs_tf = BiotSavart(coils)
 
