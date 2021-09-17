@@ -17,11 +17,11 @@ class BiotSavart : public MagneticField<T> {
         using typename MagneticField<T>::Tensor2;
         using typename MagneticField<T>::Tensor3;
         using typename MagneticField<T>::Tensor4;
+        const vector<shared_ptr<Coil<Array>>> coils;
 
     private:
         Cache<Array> field_cache;
 
-        vector<shared_ptr<Coil<Array>>> coils;
         // this vectors are aligned in memory for fast simd usage.
         AlignedVector pointsx = AlignedVector(xsimd::simd_type<double>::size, 0.);
         AlignedVector pointsy = AlignedVector(xsimd::simd_type<double>::size, 0.);

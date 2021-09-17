@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
@@ -25,10 +25,11 @@ class QfmSurfaceTests(unittest.TestCase):
         """
 
         s = get_exact_surface()
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
         weight = 1.
         tf = ToroidalFlux(s, bs_tf)
@@ -53,11 +54,11 @@ class QfmSurfaceTests(unittest.TestCase):
 
     def subtest_qfm_objective_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -98,11 +99,11 @@ class QfmSurfaceTests(unittest.TestCase):
 
     def subtest_qfm_label_constraint_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -143,11 +144,11 @@ class QfmSurfaceTests(unittest.TestCase):
 
     def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -204,29 +205,27 @@ class QfmSurfaceTests(unittest.TestCase):
         fixed volume. Then solve constrained problem using SLSQP. Repeat
         both steps for fixed area. Check that volume is preserved.
         """
-        coils, currents, ma = get_ncsx_data()
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
 
         if stellsym:
-            stellarator = CoilCollection(coils, currents, 3, True)
+            coils = coils_via_symmetries(curves, currents, nfp, True)
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
             currents_flipped = [-cur for cur in currents]
-            for c in coils_flipped:
+            for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
-            stellarator = CoilCollection(coils + coils_flipped,
-                                         currents + currents_flipped, 3, False)
+            coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
-
-        nfp = 3
         phis = np.linspace(0, 1/nfp, 30, endpoint=False)
         thetas = np.linspace(0, 1, 30, endpoint=False)
         constraint_weight = 1e0
@@ -241,7 +240,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
+            tol=1e-8, maxiter=1000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-2
@@ -250,7 +249,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # As a second step, optimize with SLSQP
 
-        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9,
                                                                maxiter=1000)
 
         assert res['success']
@@ -267,14 +266,14 @@ class QfmSurfaceTests(unittest.TestCase):
         qfm_surface = QfmSurface(bs, s, ar, ar_target)
 
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=1000, constraint_weight=constraint_weight)
+            tol=1e-9, maxiter=1000, constraint_weight=constraint_weight)
 
         assert res['success']
         assert res['fun'] < 1e-5
         assert np.linalg.norm(res['gradient']) < 1e-2
         assert np.abs(ar_target - ar.J()) < 1e-5
 
-        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9,
                                                                maxiter=1000)
 
         assert res['success']
@@ -313,29 +312,28 @@ class QfmSurfaceTests(unittest.TestCase):
         minimize_qfm_penalty_constraints_LBFGS separately. Test that InputError
         is raised if 'LBFGS' or 'SLSQP' is passed.
         """
-        coils, currents, ma = get_ncsx_data()
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
 
         if stellsym:
-            stellarator = CoilCollection(coils, currents, 3, True)
+            coils = coils_via_symmetries(curves, currents, nfp, True)
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            coils_flipped = [RotatedCurve(c, 0, True) for c in coils]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
             currents_flipped = [-cur for cur in currents]
-            for c in coils_flipped:
+            for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
-            stellarator = CoilCollection(coils + coils_flipped,
-                                         currents + currents_flipped, 3, False)
+            coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
 
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        bs = BiotSavart(coils)
+        bs_tf = BiotSavart(coils)
 
-        nfp = 3
         phis = np.linspace(0, 1/nfp, 30, endpoint=False)
         thetas = np.linspace(0, 1, 30, endpoint=False)
         constraint_weight = 1e0
@@ -350,7 +348,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         # Compute surface first using LBFGS and a volume constraint
         res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
+            tol=1e-8, maxiter=1000, constraint_weight=constraint_weight)
 
         grad1 = np.linalg.norm(res['gradient'])
         fun1 = res['fun']
@@ -362,7 +360,7 @@ class QfmSurfaceTests(unittest.TestCase):
         s.fit_to_curve(ma, 0.2)
 
         res = qfm_surface.minimize_qfm(method='LBFGS',
-                                       tol=1e-10, maxiter=10000, constraint_weight=constraint_weight)
+                                       tol=1e-9, maxiter=1000, constraint_weight=constraint_weight)
 
         grad2 = np.linalg.norm(res['gradient'])
         fun2 = res['fun']
@@ -377,7 +375,7 @@ class QfmSurfaceTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
                         mpol=3)
         s.fit_to_curve(ma, 0.2)
-        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-11,
+        res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9,
                                                                maxiter=1000)
 
         grad1 = np.linalg.norm(res['gradient'])
@@ -389,7 +387,7 @@ class QfmSurfaceTests(unittest.TestCase):
                         mpol=3)
         s.fit_to_curve(ma, 0.2)
         res = qfm_surface.minimize_qfm(method='SLSQP',
-                                       tol=1e-11, maxiter=1000)
+                                       tol=1e-9, maxiter=1000)
 
         grad2 = np.linalg.norm(res['gradient'])
         fun2 = res['fun']
@@ -403,7 +401,7 @@ class QfmSurfaceTests(unittest.TestCase):
         # Test that InputError raised
         with self.assertRaises(ValueError):
             res = qfm_surface.minimize_qfm(method='SLSQPP',
-                                           tol=1e-11, maxiter=1000)
+                                           tol=1e-9, maxiter=1000)
 
 
 if __name__ == "__main__":

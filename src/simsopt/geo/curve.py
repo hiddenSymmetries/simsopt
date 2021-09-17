@@ -8,6 +8,7 @@ from monty.dev import requires
 
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
+from simsopt._core.derivative import Derivative
 from .plot import fix_matplotlib_3d
 
 
@@ -153,6 +154,18 @@ class Curve(Optimizable):
         else:
             raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
+
+    def dgamma_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgamma_by_dcoeff_vjp_impl(v)})
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadash_by_dcoeff_vjp_impl(v)})
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadashdash_by_dcoeff_vjp_impl(v)})
+
+    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v)})
 
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         r"""
@@ -457,7 +470,7 @@ class JaxCurve(sopp.Curve, Curve):
         """
         dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
-    def dgamma_by_dcoeff_vjp(self, v):
+    def dgamma_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -491,7 +504,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadash_by_dcoeff[:, :, :] = self.dgammadash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadash_by_dcoeff_vjp(self, v):
+    def dgammadash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns 
 
@@ -525,7 +538,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadashdash_by_dcoeff[:, :, :] = self.dgammadashdash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadashdash_by_dcoeff_vjp(self, v):
+    def dgammadashdash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -560,7 +573,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         dgammadashdashdash_by_dcoeff[:, :, :] = self.dgammadashdashdash_by_dcoeff_jax(self.get_dofs())
 
-    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+    def dgammadashdashdash_by_dcoeff_vjp_impl(self, v):
         r"""
         This function returns the vector Jacobian product
 
@@ -584,7 +597,7 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs and :math:`\kappa` is the curvature.
 
         """
-        return self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
+        return Derivative({self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
     def dtorsion_by_dcoeff_vjp(self, v):
         r"""
@@ -597,24 +610,23 @@ class JaxCurve(sopp.Curve, Curve):
 
         """
 
-        return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
+        return Derivative({self: self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
 
 class RotatedCurve(sopp.Curve, Curve):
     """
-    RotatedCurve inherits from the Curve base class.  It takes an input
-    a Curve, rotates it by ``theta``, and optionally completes a
-    reflection when ``flip=True``.
+    RotatedCurve inherits from the Curve base class.  It takes an
+    input a Curve, rotates it about the ``z`` axis by a toroidal angle
+    ``phi``, and optionally completes a reflection when ``flip=True``.
     """
 
-    def __init__(self, curve, theta, flip):
+    def __init__(self, curve, phi, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, depends_on=[curve],
-                       external_dof_setter=sopp.Curve.set_dofs)
+        Curve.__init__(self, depends_on=[curve])
         self.rotmat = np.asarray(
-            [[cos(theta), -sin(theta), 0],
-             [sin(theta), cos(theta), 0],
+            [[cos(phi), -sin(phi), 0],
+             [sin(phi), cos(phi), 0],
              [0, 0, 1]]).T
         if flip:
             self.rotmat = self.rotmat @ np.asarray(
@@ -747,7 +759,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadash_by_dcoeff_vjp(self, v):
         r"""
@@ -761,7 +773,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -775,7 +787,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmatT)
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -789,7 +801,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmat.T)
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmatT)
 
 
 def curves_to_vtk(curves, filename):
@@ -800,3 +812,38 @@ def curves_to_vtk(curves, filename):
     ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((curves[i].gamma().shape[0], )) for i in range(len(curves))])
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+
+
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+    """
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
+
+    Usage example: create 4 base curves, which are then rotated 3 times and
+    flipped for stellarator symmetry:
+
+    .. code-block::
+
+        base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
+        base_currents = [Current(1e5) for c in base_curves]
+        coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
+    """
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+    curves = []
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier
+    for i in range(ncurves):
+        curve = CurveXYZFourier(numquadpoints, order)
+        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+        d = curve.x
+        d[0] = cos(angle)*R0
+        d[1] = cos(angle)*R1
+        d[1*(2*order+1)+0] = sin(angle)*R0
+        d[1*(2*order+1)+1] = sin(angle)*R1
+        d[2*(2*order+1)+2] = R1
+        curve.x = d
+        curves.append(curve)
+    return curves

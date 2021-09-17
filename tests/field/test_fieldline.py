@@ -2,7 +2,7 @@ from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, Int
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 import simsoptpp as sopp
@@ -73,10 +73,10 @@ class FieldlineTesting(unittest.TestCase):
         assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
     def test_poincare_plot(self):
-        coils, currents, ma = get_ncsx_data(Nt_coils=15)
+        curves, currents, ma = get_ncsx_data()
         nfp = 3
-        stellarator = CoilCollection(coils, currents, nfp, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         n = 10
         rrange = (1.0, 1.9, n)
         phirange = (0, 2*np.pi/nfp, n*2)
@@ -101,11 +101,10 @@ class FieldlineTesting(unittest.TestCase):
             pass
 
     def test_poincare_ncsx_known(self):
-        coils, currents, ma = get_ncsx_data(Nt_coils=25)
+        curves, currents, ma = get_ncsx_data()
         nfp = 3
-        stellarator = CoilCollection(coils, currents, nfp, True)
-        currents = [-c for c in currents]
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         R0 = [np.linalg.norm(ma.gamma()[0, :2])]
         Z0 = [ma.gamma()[0, 2]]
         phis = np.arctan2(ma.gamma()[:, 1], ma.gamma()[:, 0])
@@ -120,12 +119,14 @@ class FieldlineTesting(unittest.TestCase):
         # solver given a set of two helical coils created using the CurveHelical
         # class. The total magnetic field is a superposition of a helical and
         # a toroidal magnetic field.
-        coils = [CurveHelical(200, 2, 5, 2, 1., 0.3) for i in range(2)]
-        coils[0].set_dofs(np.concatenate(([np.pi/2, 0.2841], [0, 0])))
-        coils[1].set_dofs(np.concatenate(([0, 0], [0, 0.2933])))
+        curves = [CurveHelical(200, 2, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].set_dofs(np.concatenate(([np.pi/2, 0.2841], [0, 0])))
+        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0.2933])))
         currents = [3.07e5, -3.07e5]
         Btoroidal = ToroidalField(1.0, 1.0)
-        Bhelical = BiotSavart(coils, currents)
+        Bhelical = BiotSavart([
+            Coil(curves[0], Current(currents[0])),
+            Coil(curves[1], Current(currents[1]))])
         bs = Bhelical+Btoroidal
         ma = CurveXYZFourier(300, 1)
         magnetic_axis_radius = 0.9413
