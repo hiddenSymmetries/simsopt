@@ -107,9 +107,7 @@ class Derivative():
     """
 
     def __init__(self, data=OptimizableDefaultDict({})):
-        if isinstance(data, dict):
-            data = OptimizableDefaultDict(data)
-        self.data = data
+        self.data = OptimizableDefaultDict(data)
 
     def __add__(self, other):
         x = self.data
@@ -145,6 +143,7 @@ class Derivative():
         """
         Get the derivative with respect to all DOFs that ``optim`` depends on.
         """
+        assert isinstance(optim, Optimizable)
         deps = optim.ancestors + [optim]
         derivs = []
         for k in deps:
