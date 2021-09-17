@@ -86,6 +86,7 @@ class Obj(Optimizable):
 class DerivativeTests(unittest.TestCase):
 
     def test_taylor_graph(self):
+        np.random.seed(1)
         # built a reasonably complex graph of two inputs, that both feed into
         # two intermediary results and then are combined into a final result.
         # i.e. f(g(x, y), h(x, y))
