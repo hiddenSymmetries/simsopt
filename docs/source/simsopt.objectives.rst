@@ -41,7 +41,7 @@ simsopt.objectives.least\_squares module
    :private-members:
 
 simsopt.objectives.fluxobjective module
------------------------------------
+---------------------------------------
 
 .. automodule:: simsopt.objectives.fluxobjective
    :members:

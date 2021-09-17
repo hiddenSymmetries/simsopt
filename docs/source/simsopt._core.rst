@@ -5,7 +5,7 @@ Submodules
 ----------
 
 simsopt.\_core.derivative module
---------------------------
+--------------------------------
 
 .. automodule:: simsopt._core.derivative
    :members:

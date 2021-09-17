@@ -9,8 +9,9 @@ import numpy as np
 
 class Coil(sopp.Coil, Optimizable):
     """
-    A :mod:`Coil` combines a :mod:`Curve` and a :mod:`Current` and is used as input
-    for the mod:`BiotSavart` field.
+    A :obj:`Coil` combines a :obj:`~simsopt.geo.curve.Curve` and a
+    :obj:`Current` and is used as input for a
+    :obj:`~simsopt.field.biotsavart.BiotSavart` field.
     """
 
     def __init__(self, curve, current):
@@ -27,8 +28,9 @@ class Coil(sopp.Coil, Optimizable):
 
 class Current(sopp.Current, Optimizable):
     """
-    An optimizable object that wraps around a single scalar degree of freedom
-    and represents a coil.
+    An optimizable object that wraps around a single scalar degree of
+    freedom. It represents the electric current in a coil, or in a set
+    of coils that are constrained to use the same current.
     """
 
     def __init__(self, current):

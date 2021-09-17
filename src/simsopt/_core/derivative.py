@@ -44,7 +44,7 @@ class Derivative():
         inter2 = Intermediate2(inA, inB)
         obj = Objective(inter1, inter2)
 
-    Then ``obj.dJ()`` will return a ``Derivative`` object containing a dictionary
+    Then ``obj.dJ(partials=True)`` will return a ``Derivative`` object containing a dictionary
 
     .. code-block::
 
@@ -61,7 +61,7 @@ class Derivative():
         dobj/dinB = dobj/dinter1 * dinter1/dinB + dobj/dinter2 * dinter2/dinB
 
     SIMSOPT computes these derivatives by first computing ``dobj/dinter1`` and ``dobj/dinter2``
-    and then passing this vector to `Intermediate1.vjp` and `Intermediate2.vjp`, which returns 
+    and then passing this vector to ``Intermediate1.vjp`` and ``Intermediate2.vjp``, which returns
 
     .. code-block::
 
@@ -88,16 +88,22 @@ class Derivative():
             inB: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
         }
 
-    This `Derivative` can then be used to obtain partial derivatives or the full gradient of `J`, via
+    This ``Derivative`` can then be used to obtain partial derivatives or the full gradient of ``J``, via
 
     .. code-block::
 
-        dJ = obj.dJ()
+        dJ = obj.dJ(partials=True)
         dJ_by_dinA = dJ(inA) # derivative of Objective w.r.t. to OptimA
         dJ_by_dinB = dJ(inB) # derivative of Objective w.r.t. to OptimB
         gradJ = dJ(obj) # gradient of Objective
 
-
+    For the common case in which you just want the gradient of
+    ``obj.J`` and do not need the individual partial derivatives, the
+    argument ``partials=True`` can be omitted in ``obj.dJ()``. In this
+    case, ``obj.dJ()`` directly returns the gradient rather than
+    returning the ``Derivative`` object, acting as a shorthand for
+    ``obj.dJ(partials=True)(obj)``. This behavior is implemented with
+    the decorator :obj:`derivative_dec`.
     """
 
     def __init__(self, data=OptimizableDefaultDict({})):
@@ -137,7 +143,7 @@ class Derivative():
 
     def __call__(self, optim: Optimizable):
         """
-        Get the derivative with respect to all DOFs that `optim` depends on.
+        Get the derivative with respect to all DOFs that ``optim`` depends on.
         """
         deps = optim.ancestors + [optim]
         derivs = []
@@ -155,6 +161,16 @@ class Derivative():
 
 
 def derivative_dec(func):
+    """
+    This decorator is applied to functions of Optimizable objects that
+    return a derivative, typically named ``dJ()``. This allows
+    ``obj.dJ()`` to provide a shorthand for the full gradient,
+    equivalent to ``obj.dJ(partials=True)(obj)``. If
+    ``partials=True``, the underlying :obj:`Derivative` object will be
+    returned, so partial derivatives can be accessed and combined to
+    assemble gradients.
+    """
+
     def _derivative_dec(self, *args, partials=False, **kwargs):
         if partials:
             return func(self, *args, **kwargs)
