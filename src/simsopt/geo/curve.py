@@ -633,7 +633,7 @@ class RotatedCurve(sopp.Curve, Curve):
                 [[1, 0, 0],
                  [0, -1, 0],
                  [0, 0, -1]])
-        self.rotmatT = self.rotmat.T
+        self.rotmatT = self.rotmat.T.copy()
 
     def get_dofs(self):
         """
@@ -758,8 +758,8 @@ class RotatedCurve(sopp.Curve, Curve):
         coordinates of the curve.
 
         """
-
-        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgamma_by_dcoeff_vjp(v)
 
     def dgammadash_by_dcoeff_vjp(self, v):
         r"""
@@ -772,8 +772,8 @@ class RotatedCurve(sopp.Curve, Curve):
         coordinates of the curve.
 
         """
-
-        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadash_by_dcoeff_vjp(v)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -787,7 +787,8 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v)
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -801,7 +802,8 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
 
 def curves_to_vtk(curves, filename):
