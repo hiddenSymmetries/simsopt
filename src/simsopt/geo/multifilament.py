@@ -86,18 +86,34 @@ def jaxrotationdash_pure(dofs, points, order):
         rotation -= dofs[2*j] * 2*np.pi*j*jnp.sin(2*np.pi*j*points)
     return rotation
 
+def rotation_dcoeff(points, order):
+    jac = np.zeros((len(points), 2*order+1))
+    jac[:, 0] = 1
+    for j in range(1, order+1):
+        jac[:, 2*j-1] = np.sin(2*np.pi*j*points)
+        jac[:, 2*j+0] = np.cos(2*np.pi*j*points)
+    return jac
+    
+def rotationdash_dcoeff(points, order):
+    jac = np.zeros((len(points), 2*order+1))
+    jac[:, 0] = 1
+    for j in range(1, order+1):
+        jac[:, 2*j-1] = +2*np.pi*j*np.cos(2*np.pi*j*points)
+        jac[:, 2*j+0] = -2*np.pi*j*np.sin(2*np.pi*j*points)
+    return jac
+
+
 
 class FilamentRotation(Optimizable):
 
-    def __init__(self, order):
+    def __init__(self, quadpoints, order):
         self.order = order
         Optimizable.__init__(self, x0=np.zeros((2*order+1, )))
+        self.quadpoints = quadpoints
+        self.jac = rotation_dcoeff(quadpoints, order)
+        self.jacdash = rotationdash_dcoeff(quadpoints, order)
         self.jax_alpha = jit(lambda dofs, points: jaxrotation_pure(dofs, points, self.order))
         self.jax_alphadash = jit(lambda dofs, points: jaxrotationdash_pure(dofs, points, self.order))
-        self.jax_alpha_vjp = jit(
-            lambda dofs, points, v: vjp(lambda d: self.jax_alpha(d, points), dofs)[1](v)[0])
-        self.jax_alphadash_vjp = jit(
-            lambda dofs, points, v: vjp(lambda d: self.jax_alphadash(d, points), dofs)[1](v)[0])
 
     def alpha(self, quadpoints):
         return self.jax_alpha(self._dofs.full_x, quadpoints)
@@ -106,10 +122,10 @@ class FilamentRotation(Optimizable):
         return self.jax_alphadash(self._dofs.full_x, quadpoints)
 
     def dalpha_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: self.jax_alpha_vjp(self._dofs.full_x, quadpoints, v)})
+        return Derivative({self: sopp.vjp(v, self.jac)})
 
     def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: self.jax_alphadash_vjp(self._dofs.full_x, quadpoints, v)})
+        return Derivative({self: sopp.vjp(v, self.jacdash)})
 
 
 class CurveShiftedRotated(sopp.Curve, Curve):

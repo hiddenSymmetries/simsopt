@@ -10,7 +10,7 @@ class MultifilamentTesting(unittest.TestCase):
         curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=80)
         c = curves[0]
 
-        rotation = FilamentRotation(1)
+        rotation = FilamentRotation(c.quadpoints, 1)
         rotation.x = np.array([0, 0.1, 0.3])
         c = CurveShiftedRotated(c, 0.01, 0.01, rotation)
         g = c.gamma()
@@ -32,7 +32,7 @@ class MultifilamentTesting(unittest.TestCase):
         curves, currents, ma = get_ncsx_data(Nt_coils=4, ppp=10)
         c = curves[0]
 
-        rotation = FilamentRotation(1)
+        rotation = FilamentRotation(c.quadpoints, 1)
         rotation.x = np.array([0, 0.1, 0.1])
 
         c = CurveShiftedRotated(c, 0.02, 0.02, rotation)
