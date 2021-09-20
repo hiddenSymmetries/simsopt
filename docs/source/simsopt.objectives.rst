@@ -40,6 +40,15 @@ simsopt.objectives.least\_squares module
    :show-inheritance:
    :private-members:
 
+simsopt.objectives.fluxobjective module
+---------------------------------------
+
+.. automodule:: simsopt.objectives.fluxobjective
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 Module contents
 ---------------
 

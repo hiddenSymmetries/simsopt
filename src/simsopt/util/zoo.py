@@ -1,7 +1,7 @@
 import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.biotsavart import Current
+from simsopt.field.coil import Current
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()

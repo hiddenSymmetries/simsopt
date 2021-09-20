@@ -5,8 +5,8 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.field.biotsavart import BiotSavart, Coil, Current
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.util.zoo import get_ncsx_data
 
 import numpy as np

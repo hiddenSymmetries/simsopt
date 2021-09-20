@@ -314,6 +314,6 @@ class MinimumDistance(Optimizable):
                 dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
-        return sum(res, Derivative({}))
+        return sum(res)
 
     return_fn_map = {'J': J, 'dJ': dJ}

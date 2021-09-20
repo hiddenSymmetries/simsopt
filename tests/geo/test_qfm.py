@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
@@ -142,16 +142,6 @@ class QfmSurfaceTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym)
 
-    def test_qfm_penalty_constraints_hessian(self):
-        """
-        Taylor test to verify the Hessian of the scalarized constrained
-        optimization problem's objective.
-        """
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_penalty_constraints_hessian(surfacetype, stellsym)
-
     def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
         curves, currents, ma = get_ncsx_data()
@@ -189,40 +179,6 @@ class QfmSurfaceTests(unittest.TestCase):
             assert err < err_old * 0.6
             err_old = err
         print("################################################################################")
-
-    def subtest_qfm_penalty_constraints_hessian(self, surfacetype, stellsym):
-        np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
-
-        s = get_surface(surfacetype, stellsym)
-        s.fit_to_curve(ma, 0.1)
-
-        tf = ToroidalFlux(s, bs_tf)
-
-        tf_target = 0.5
-        qfm_surface = QfmSurface(bs, s, tf, tf_target)
-
-        x = s.get_dofs()
-        f0, J0, H0 = qfm_surface.qfm_penalty_constraints(x, derivatives=2)
-
-        h1 = np.random.uniform(size=x.shape)-0.5
-        h2 = np.random.uniform(size=x.shape)-0.5
-        d2f = h1@H0@h2
-
-        err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(11, 18)))
-        print("################################################################################")
-        for eps in epsilons:
-            fp, Jp = qfm_surface.qfm_penalty_constraints(x + eps*h1, derivatives=1)
-            d2f_fd = (Jp@h2-J0@h2)/eps
-            err = np.abs(d2f_fd-d2f)/np.abs(d2f)
-            print(err/err_old)
-            # assert err < err_old * 0.6
-            err_old = err
 
     def test_qfm_surface_optimization_convergence(self):
         """

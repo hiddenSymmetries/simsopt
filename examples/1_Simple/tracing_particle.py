@@ -2,7 +2,7 @@
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, plot_poincare_data
 from simsopt.geo.curve import curves_to_vtk

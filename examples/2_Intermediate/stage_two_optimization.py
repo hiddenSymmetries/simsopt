@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk
-from simsopt.field.biotsavart import BiotSavart, Current
-from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
+from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.geo.curveobjectives import MinimumDistance
 import numpy as np
@@ -22,7 +22,7 @@ just zero.
 
 The objective is given by
 
-    J = \int |Bn| ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = \int |Bn|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
 if alpha or beta are increased, the coils are more regular and better
 separated, but the target normal field may not be achieved as well.
@@ -41,13 +41,12 @@ ncoils = 4
 R0 = 1.0
 R1 = 0.5
 order = 6
-PPP = 15
 ALPHA = 1e-6
 MIN_DIST = 0.1
 BETA = 10
 MAXITER = 50 if ci else 400
 
-base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, PPP=PPP)
+base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order)
 base_currents = []
 for i in range(ncoils):
     curr = Current(1e5)
@@ -72,7 +71,7 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
 
-JF = FOCUSObjective(Jf, Jls, ALPHA, Jdist, BETA)
+JF = CoilOptObjective(Jf, Jls, ALPHA, Jdist, BETA)
 
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
