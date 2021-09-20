@@ -62,7 +62,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     """A perturbed curve."""
 
-    def __init__(self, curve, sampler, randomgen=None):
+    def __init__(self, curve, sampler, randomgen=None, zero_mean=False):
         """
         Perturb a underlying :mod:`simsopt.geo.curve.Curve` object by drawing a perturbation from a 
         ``GaussianSampler``.
@@ -100,6 +100,7 @@ class CurvePerturbed(sopp.Curve, Curve):
         self.sampler = sampler
         self.randomgen = randomgen
         self.sample = sampler.sample(self.randomgen)
+        self.zero_mean = zero_mean
 
     def resample(self):
         self.sample = self.sampler.sample(self.randomgen)
@@ -114,7 +115,11 @@ class CurvePerturbed(sopp.Curve, Curve):
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
         assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
-        gamma[:] = self.curve.gamma() + self.sample[0]
+        pert = self.sample[0].copy()
+        if self.zero_mean:
+            pert_mean = np.mean(pert * self.curve.incremental_arclength()[:, None], axis=0)
+            pert -= pert_mean[None, :]
+        gamma[:] = self.curve.gamma() + pert
 
     def gammadash_impl(self, gammadash):
         gammadash[:] = self.curve.gammadash() + self.sample[1]
@@ -125,26 +130,18 @@ class CurvePerturbed(sopp.Curve, Curve):
     def gammadashdashdash_impl(self, gammadashdashdash):
         gammadashdashdash[:] = self.curve.gammadashdashdash() + self.sample[3]
 
-    def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
-        dgamma_by_dcoeff[:] = self.curve.dgamma_by_dcoeff()
-
-    def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
-        dgammadash_by_dcoeff[:] = self.curve.dgammadash_by_dcoeff()
-
-    def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
-        dgammadashdash_by_dcoeff[:] = self.curve.dgammadashdash_by_dcoeff()
-
-    def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
-        dgammadashdashdash_by_dcoeff[:] = self.curve.dgammadashdashdash_by_dcoeff()
-
     def dgamma_by_dcoeff_vjp(self, v):
-        return self.curve.dgamma_by_dcoeff_vjp(v)
+        res = self.curve.dgamma_by_dcoeff_vjp(v)
+        if self.zero_mean:
+            pert = self.sample[0]
+            n = len(self.quadpoints)
+            deriv0 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 0])
+            deriv1 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 1])
+            deriv2 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 2])
+            res -= float((np.sum(v[:, 0])/n)) * deriv0
+            res -= float((np.sum(v[:, 1])/n)) * deriv1
+            res -= float((np.sum(v[:, 2])/n)) * deriv2
+        return res
 
     def dgammadash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadash_by_dcoeff_vjp(v)
-
-    def dgamma_by_dcoeff_vjp_graph(self, v):
-        return self.curve.dgamma_by_dcoeff_vjp_graph(v)
-
-    def dgammadash_by_dcoeff_vjp_graph(self, v):
-        return self.curve.dgammadash_by_dcoeff_vjp_graph(v)
