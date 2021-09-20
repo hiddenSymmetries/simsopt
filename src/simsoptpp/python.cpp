@@ -92,6 +92,19 @@ PYBIND11_MODULE(simsoptpp, m) {
             return C;
         });
 
+    m.def("vjp", [](PyArray& v, PyArray&B) {
+            // Product of v.T @ B
+            int m = B.shape(0);
+            int n = B.shape(1);
+            PyArray C = xt::zeros<double>({n});
+
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigv(const_cast<double*>(v.data()), m, 1);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), 1, n);
+            eigC = eigv.transpose()*eigB;
+            return C;
+        });
+
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
 #else
