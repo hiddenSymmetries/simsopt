@@ -10,6 +10,7 @@ build an optimization problem in a graph like manner.
 from __future__ import annotations
 
 import types
+import weakref
 import hashlib
 from collections.abc import Callable as ABC_Callable, Hashable
 from collections import defaultdict
@@ -21,7 +22,7 @@ import numpy as np
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
-from .util import ImmutableId, OptimizableMeta
+from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict
 
 
 class DOFs:
@@ -500,7 +501,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.name = self.__class__.__name__ + str(self._id.id)
         self._children = []  # This gets populated when the object is passed
         # as argument to another Optimizable object
-        self.return_fns = defaultdict(list)  # Store return fn's required by each child
+        self.return_fns = WeakKeyDefaultDict(list)  # Store return fn's required by each child
 
         # Assign self as child to parents
         funcs_in = list(funcs_in) if funcs_in is not None else []
@@ -646,7 +647,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             List of methods that return a value when the current Optimizable
             object is called from the child
         """
-        return self.return_fns.get(child, list(self.return_fn_map.values()))
+        # return self.return_fns.get(child, list(self.return_fn_map.values()))
+        return self.return_fns[child]
 
     def get_return_fn_list(self) -> List[List[Callable]]:
         """
@@ -696,8 +698,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             child: Direct dependent (child) of the Optimizable object
         """
-        if child not in self._children:
-            self._children.append(child)
+        weakref_child = weakref.ref(child)
+        if weakref_child not in self._children:
+            self._children.append(weakref_child)
 
     def _remove_child(self, other: Optimizable) -> None:
         """
@@ -706,7 +709,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             child: Direct dependent (child) of the Optimizable object
         """
-        self._children.remove(other)
+        weakref_other = weakref.ref(other)
+        self._children.remove(weakref_other)
         if other in self.return_fns:
             del self.return_fns[other]
 
@@ -838,9 +842,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.dof_indices = dict(zip(self.ancestors + [self],
                                     zip(dof_indices[:-1], dof_indices[1:])))
 
-        # Update the reduced length of children
-        for child in self._children:
-            child._update_free_dof_size_indices()
+        # Update the reduced dof length of children
+        for weakref_child in self._children:
+            child = weakref_child()
+            if child is not None:
+                child._update_free_dof_size_indices()
 
     def _update_full_dof_size_indices(self) -> None:
         """
@@ -860,9 +866,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             full_dof_size += opt.local_full_dof_size
         self._full_dof_size = full_dof_size
 
-        # Update the reduced length of children
-        for child in self._children:
-            child._update_full_dof_size_indices()
+        # Update the full dof length of children
+        for weakref_child in self._children:
+            child = weakref_child()
+            if child is not None:
+                child._update_full_dof_size_indices()
 
     @property
     def x(self) -> RealArray:
@@ -942,8 +950,11 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         #if self.local_dof_setter is not None:
         self.recompute_bell(parent=parent)
 
-        for child in self._children:
-            child._set_new_x(parent=self)
+        # for child in self._children:
+        for weakref_child in self._children:
+            child = weakref_child()
+            if child is not None:
+                child._set_new_x(parent=self)
 
     def get(self, key: Key) -> Real:
         """
@@ -1151,3 +1162,129 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             ancestors += parent.ancestors
         ancestors += self.parents
         return list(dict.fromkeys(ancestors))
+
+
+def make_optimizable(func, /, *args, dof_indicators=None, **kwargs):
+    """
+    Factory function to generate an Optimizable instance from a function
+    to be used with the graph framework.
+
+    Args:
+        func: Callable to be used in the optimization
+        args: Positional arguments to pass to "func".
+        dof_indicators: List of strings that match with the length of the
+            args and kwargs. Each string can be either of
+            "opt" - to indicate the argument is optimizable object
+            "dof" - argument that is a degree of freedom for optimization
+            "non-dof" - argument that is not part of optimization.
+            Here ordered property of the dict is used to map kwargs to
+            dof_indicators
+        kwargs: Keyword arguments to pass to "func".
+    Returns: Optimizable object to be used in the graph based optimization.
+             if `obj` is the returned object, pass obj.J to the
+             LeastSquaresProblem
+    """
+    class TempOptimizable(Optimizable):
+        """
+        Subclass of Optimizable class to create optimizable objects dynamically.
+        dof_indicators argument is used to filter out dofs and
+        """
+        def __init__(self, func, /, *args, dof_indicators=None, **kwargs):
+
+            self.func = func
+            self.arg_len = len(args)
+            self.kwarg_len = len(kwargs)
+            self.kwarg_keys = []
+            if dof_indicators is not None:
+                assert (self.arg_len + self.kwarg_len == len(dof_indicators))
+                # Using dof_indicators, map args and kwargs to
+                # dofs, non_dofs, and opts
+                dofs, non_dofs, opts = [], [], []
+                for i, arg in enumerate(args):
+                    if dof_indicators[i] == 'opt':
+                        opts.append(arg)
+                    elif dof_indicators[i] == "non-dof":
+                        non_dofs.append(arg)
+                    elif dof_indicators[i] == "dof":
+                        dofs.append(arg)
+                    else:
+                        raise ValueError
+                for i, k in enumerate(kwargs.keys()):
+                    self.kwarg_keys.append(k)
+                    if dof_indicators[i + self.arg_len] == 'opt':
+                        opts.append(kwargs[k])
+                    elif dof_indicators[i + self.arg_len] == "non-dof":
+                        non_dofs.append(kwargs[k])
+                    elif dof_indicators[i + self.arg_len] == "dof":
+                        dofs.append(kwargs[k])
+                    else:
+                        raise ValueError
+            else:
+                # nonlocal dof_indicators
+                dofs, non_dofs, opts, dof_indicators = [], [], [], []
+                for i, arg in enumerate(args):
+                    if isinstance(arg, Optimizable):
+                        opts.append(arg)
+                        dof_indicators.append("opt")
+                    else:
+                        non_dofs.append(arg)
+                        dof_indicators.append("non-dof")
+                for k, v in kwargs.items():
+                    self.kwarg_keys.append(k)
+                    if isinstance(v, Optimizable):
+                        opts.append(v)
+                        dof_indicators.append("opt")
+                    else:
+                        non_dofs.append(v)
+                        dof_indicators.append("non-dof")
+
+            # Create args map and kwargs map
+            super().__init__(x0=dofs, depends_on=opts)
+            self.non_dofs = non_dofs
+            self.dof_indicators = dof_indicators
+
+        def J(self):
+            dofs = self.local_full_x
+            # Re-Assemble dofs, non_dofs and opts to args, kwargs
+            args = []
+            kwargs = {}
+            i = 0
+            opt_ind = 0
+            non_dof_ind = 0
+            dof_ind = 0
+            for i in range(self.arg_len):
+                if self.dof_indicators[i] == 'opt':
+                    args.append(self.parents[opt_ind])
+                    opt_ind += 1
+                elif self.dof_indicators[i] == 'dof':
+                    args.append(dofs[dof_ind])
+                    dof_ind += 1
+                elif self.dof_indicators[i] == 'non-dof':
+                    args.append(self.non_dofs[non_dof_ind])
+                    non_dof_ind += 1
+                else:
+                    raise ValueError
+                i += 1
+
+            for j in range(self.kwarg_len):
+                i = j + self.arg_len
+                if self.dof_indicators[i] == 'opt':
+                    kwargs[self.kwarg_keys[j]] = self.parents[opt_ind]
+                    opt_ind += 1
+                elif self.dof_indicators[i] == 'dof':
+                    kwargs[self.kwarg_keys[j]] = dofs[dof_ind]
+                    dof_ind += 1
+                elif self.dof_indicators[i] == 'non-dof':
+                    kwargs[self.kwarg_keys[j]] = self.non_dofs[non_dof_ind]
+                    non_dof_ind += 1
+                else:
+                    raise ValueError
+                j += 1
+            print(f'reassembled args len is {len(args)}')
+
+            return self.func(*args, **kwargs)
+
+    return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
+
+
+

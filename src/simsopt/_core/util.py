@@ -11,6 +11,7 @@ import itertools
 from numbers import Integral, Number
 from dataclasses import dataclass
 from abc import ABCMeta
+from weakref import WeakKeyDictionary
 
 import numpy as np
 
@@ -234,3 +235,25 @@ def nested_lists_to_array(ll):
             if x is not None:
                 arr[jm, jn] = x
     return arr
+
+class WeakKeyDefaultDict(WeakKeyDictionary):
+    """
+    A simple implementation of defaultdict that uses WeakKeyDictionary as its
+    parent class instead of standard dictionary.
+    """
+    def __init__(self, default_factory=None, /, *args, **kwargs):
+        self.default_factory = default_factory
+        super().__init__(*args, **kwargs)
+
+    def __missing__(self, key):
+        if self.default_factory:
+            self[key] = self.default_factory()
+            return self[key]
+        else:
+            raise KeyError(key)
+
+    def __getitem__(self, key):
+        try:
+            return super().__getitem__(key)
+        except:
+            return self.__missing__(key)
