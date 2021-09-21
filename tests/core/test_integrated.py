@@ -41,7 +41,7 @@ class IntegratedTests(unittest.TestCase):
 
             # Start with a default surface, which is axisymmetric with major
             # radius 1 and minor radius 0.1.
-            surf = SurfaceRZFourier(quadpoints_phi=62, quadpoints_theta=63)
+            surf = SurfaceRZFourier()
 
             # Set initial surface shape. It helps to make zs(1,0) larger
             # than rc(1,0) since there are two solutions to this

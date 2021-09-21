@@ -257,7 +257,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return surf
 
     @classmethod
-    def from_focus(cls, filename, quadpoints_phi=32, quadpoints_theta=32):
+    def from_focus(cls, filename, **kwargs):
         """
         Read in a surface from a FOCUS-format file.
         """
@@ -291,9 +291,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, **kwargs)
+
         for j in range(Nfou):
             surf.rc[m[j], n[j] + ntor] = rc[j]
             surf.zs[m[j], n[j] + ntor] = zs[j]
