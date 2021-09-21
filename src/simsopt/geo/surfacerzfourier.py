@@ -35,11 +35,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     :math:`r`, and the cos terms for :math:`z`.
     """
 
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, quadpoints_phi=63,
-                 quadpoints_theta=62):
-        if isinstance(quadpoints_phi, np.ndarray):
-            quadpoints_phi = list(quadpoints_phi)
-            quadpoints_theta = list(quadpoints_theta)
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0, **kwargs):
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp, **kwargs)
         sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                        quadpoints_phi, quadpoints_theta)
         self.rc[0, ntor] = 1.0

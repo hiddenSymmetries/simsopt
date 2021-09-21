@@ -39,10 +39,8 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1,
                  clamped_dims=[False, False, False],
-                 quadpoints_phi=32, quadpoints_theta=32):
-        if isinstance(quadpoints_phi, np.ndarray):
-            quadpoints_phi = list(quadpoints_phi)
-            quadpoints_theta = list(quadpoints_theta)
+                 **kwargs):
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp, **kwargs)
         sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                               clamped_dims, quadpoints_phi,
                                               quadpoints_theta)
