@@ -27,8 +27,48 @@ class Surface(Optimizable):
     quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
     """
 
+    # Options for the 'range' parameter for setting quadpoints_phi:
+    RANGE_FULL_TORUS = "full torus"
+    RANGE_FIELD_PERIOD = "field period"
+    RANGE_HALF_PERIOD = "half period"
+
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
+
+    def get_quadpoints(quadpoints_phi=None,
+                       quadpoints_theta=None,
+                       range=RANGE_FULL_TORUS,
+                       nphi=None,
+                       ntheta=None,
+                       nfp=1):
+        """
+        """
+        # Handle theta:
+        if (quadpoints_theta is not None) and (ntheta is not None):
+            raise ValueError("quadpoints_theta and ntheta cannot both be specified")
+        if (quadpoints_theta is None) and (ntheta is None):
+            # Neither is specified, so use a default:
+            ntheta = 62
+        if quadpoints_theta is None:
+            quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+
+        # Handle phi:
+        if (quadpoints_phi is not None) and (nphi is not None):
+            raise ValueError("quadpoints_phi and nphi cannot both be specified")
+        if (quadpoints_phi is None) and (nphi is None):
+            # Neither is specified, so use a default:
+            nphi = 61
+        if quadpoints_phi is None:
+            if range == Surface.RANGE_FULL_TORUS:
+                quadpoints_phi = np.linspace(0.0, 1.0, nphi, endpoint=False)
+            elif range == Surface.RANGE_FIELD_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
+            elif range == Surface.RANGE_HALF_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
+            else:
+                raise ValueError("Invalid setting for range")
+
+        return list(quadpoints_phi), list(quadpoints_theta)
 
     @SimsoptRequires(mlab is not None, "Install mayavi to generate surface plot")
     def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False,

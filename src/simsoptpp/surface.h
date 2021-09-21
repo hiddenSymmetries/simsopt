@@ -80,21 +80,6 @@ class Surface {
             }
         }
 
-        Surface(int _numquadpoints_phi, int _numquadpoints_theta) {
-            numquadpoints_phi = _numquadpoints_phi;
-            numquadpoints_theta = _numquadpoints_theta;
-
-            quadpoints_phi = xt::zeros<double>({numquadpoints_phi});
-            for (int i = 0; i < numquadpoints_phi; ++i) {
-                quadpoints_phi[i] = i/double(numquadpoints_phi);
-            }
-            quadpoints_theta = xt::zeros<double>({numquadpoints_theta});
-            for (int i = 0; i < numquadpoints_theta; ++i) {
-                quadpoints_theta[i] = i/double(numquadpoints_theta);
-            }
-        }
-
-
         void least_squares_fit(Array& target_values);
         void fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta);
         void scale(double scale);

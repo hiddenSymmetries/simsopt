@@ -1,13 +1,14 @@
 import numpy as np
 import logging
 
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
 
-class SurfaceGarabedian(Surface):
+class SurfaceGarabedian(sopp.Surface, Surface):
     """
     `SurfaceGarabedian` represents a toroidal surface for which the
     shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
@@ -18,7 +19,7 @@ class SurfaceGarabedian(Surface):
     coefficients be imaginary.
     """
 
-    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
+    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None, **kwargs):
         if nmin is None:
             nmin = -nmax
         # Perform some validation.
@@ -42,6 +43,8 @@ class SurfaceGarabedian(Surface):
         self.shape = (self.mdim, self.ndim)
 
         Delta = np.zeros(self.shape)
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp, **kwargs)
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         Surface.__init__(self, x0=Delta.ravel(),
                          names=self._make_dof_names())
 

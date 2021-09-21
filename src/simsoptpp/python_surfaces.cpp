@@ -150,7 +150,6 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
         .def_readwrite("rs", &PySurfaceRZFourier::rs)
         .def_readwrite("zc", &PySurfaceRZFourier::zc)
@@ -164,7 +163,6 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("xc", &PySurfaceXYZFourier::xc)
         .def_readwrite("xs", &PySurfaceXYZFourier::xs)
         .def_readwrite("yc", &PySurfaceXYZFourier::yc)
@@ -179,7 +177,6 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
         .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, vector<bool>, int, int>())
         .def_readwrite("xcs", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("ycs", &PySurfaceXYZTensorFourier::y)
         .def_readwrite("zcs", &PySurfaceXYZTensorFourier::z)
