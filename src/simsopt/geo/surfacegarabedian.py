@@ -9,17 +9,49 @@ logger = logging.getLogger(__name__)
 
 
 class SurfaceGarabedian(sopp.Surface, Surface):
-    """
-    `SurfaceGarabedian` represents a toroidal surface for which the
+    r"""
+    ``SurfaceGarabedian`` represents a toroidal surface for which the
     shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
-    coefficients.
+    coefficients:
+
+    .. math::
+      R + i Z = e^{i u} \sum_{m = m_\min}^{m_\max} \sum_{n = n_\min}^{n_\max} \Delta_{m,n} e^{-i m u + i n v}
+
+    where :math:`u = 2 \pi \theta` is a poloidal angle on :math:`[0, 2\pi]`, and
+    :math:`v` is the standard toroidal angle on :math:`[0, 2\pi]`.
 
     The present implementation assumes stellarator symmetry. Note that
     non-stellarator-symmetric surfaces require that the :math:`\Delta_{m,n}`
     coefficients be imaginary.
+
+    For more information about the arguments ``nphi``, ``ntheta``,
+    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+    general documentation on :ref:`surfaces`.
+
+    Args:
+        nfp: The number of field periods.
+        mmin: Minimum poloidal mode number :math:`m` included (usually 0 or negative).
+        mmax: Maximum poloidal mode number :math:`m` included.
+        nmin: Minimum toroidal mode number :math:`n` included (usually negative).
+          If ``None``, ``nmin = -nmax`` will be used.
+        nmax: Maximum toroidal mode number :math:`n` included.
+        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+        range: Toroidal extent of the :math:`\phi` grid.
+          Set to ``"full torus"`` (or equivalently ``SurfaceGarabedian.RANGE_FULL_TORUS``)
+          to generate points up to 1 (with no point at 1).
+          Set to ``"field period"`` (or equivalently ``SurfaceGarabedian.RANGE_FIELD_PERIOD``)
+          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+          Set to ``"half period"`` (or equivalently ``SurfaceGarabedian.RANGE_HALF_PERIOD``)
+          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
-    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None, **kwargs):
+    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None,
+                 nphi=None, ntheta=None, range="full torus",
+                 quadpoints_phi=None, quadpoints_theta=None):
         if nmin is None:
             nmin = -nmax
         # Perform some validation.
@@ -43,7 +75,10 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         self.shape = (self.mdim, self.ndim)
 
         Delta = np.zeros(self.shape)
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp, **kwargs)
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi, ntheta=ntheta, range=range,
+                                                                  quadpoints_phi=quadpoints_phi,
+                                                                  quadpoints_theta=quadpoints_theta)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         Surface.__init__(self, x0=Delta.ravel(),
                          names=self._make_dof_names())
