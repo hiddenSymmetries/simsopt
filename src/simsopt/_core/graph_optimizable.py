@@ -1103,4 +1103,4 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         for parent in self.parents:
             ancestors += parent.ancestors
         ancestors += self.parents
-        return list(dict.fromkeys(ancestors))
+        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
