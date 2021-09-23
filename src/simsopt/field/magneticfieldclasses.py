@@ -489,6 +489,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
         sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
+        self.__field == field
 
     def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
