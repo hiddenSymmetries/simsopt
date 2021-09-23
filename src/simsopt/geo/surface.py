@@ -41,7 +41,28 @@ class Surface(Optimizable):
                        nphi=None,
                        ntheta=None,
                        nfp=1):
-        """
+        r"""
+        This function is used to set the theta and phi grid points for Surface subclasses.
+        It is typically called in the constructor of each Surface subclass.
+
+        For more information about the arguments ``nphi``, ``ntheta``,
+        ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+        general documentation on :ref:`surfaces`.
+
+        Args:
+            nfp: The number of field periods.
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+            ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+            range: Toroidal extent of the :math:`\phi` grid.
+              Set to ``"full torus"`` (or equivalently ``Surface.RANGE_FULL_TORUS``)
+              to generate points up to 1 (with no point at 1).
+              Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
+              to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+              Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
+              to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+            quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+            quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
         """
         # Handle theta:
         if (quadpoints_theta is not None) and (ntheta is not None):
