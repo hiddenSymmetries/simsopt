@@ -1,8 +1,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>

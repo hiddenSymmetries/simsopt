@@ -5,11 +5,10 @@
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
 using std::vector;
 
+namespace py = pybind11;
 #include "magneticfield.h"
 #include "magneticfield_biotsavart.h"
 #include "magneticfield_interpolated.h"
@@ -54,17 +53,17 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 
 void init_magneticfields(py::module_ &m){
 
-    py::class_<InterpolationRule, py_shared_ptr<InterpolationRule>>(m, "InterpolationRule", "Abstract class for interpolation rules on an interval.")
+    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule", "Abstract class for interpolation rules on an interval.")
         .def_readonly("degree", &InterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
 
-    py::class_<UniformInterpolationRule, py_shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule", "Polynomial interpolation using equispaced points.")
+    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule", "Polynomial interpolation using equispaced points.")
         .def(py::init<int>())
         .def_readonly("degree", &UniformInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
-    py::class_<ChebyshevInterpolationRule, py_shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule", "Polynomial interpolation using chebychev points.")
+    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule", "Polynomial interpolation using chebychev points.")
         .def(py::init<int>())
         .def_readonly("degree", &ChebyshevInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
 
-    py::class_<RegularGridInterpolant3D<PyTensor>, py_shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D",
+    py::class_<RegularGridInterpolant3D<PyTensor>, shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D",
             R"pbdoc(
             Interpolates a (vector valued) function on a uniform grid. 
             This interpolant is optimized for fast function evaluation (at the cost of memory usage). The main purpose of this class is to be used to interpolate magnetic fields and then use the interpolant for tasks such as fieldline or particle tracing for which the field needs to be evaluated many many times.
@@ -93,12 +92,12 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("curve", &Coil<PyArray>::curve, "Get the underlying curve.")
         .def_readonly("current", &Coil<PyArray>::current, "Get the underlying current.");
 
-    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, py_shared_ptr<PyMagneticField>>(m, "MagneticField", "Abstract class representing magnetic fields.")
+    auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, shared_ptr<PyMagneticField>>(m, "MagneticField", "Abstract class representing magnetic fields.")
         .def(py::init<>());
     register_common_field_methods<PyMagneticField>(mf);
         //.def("B", py::overload_cast<>(&PyMagneticField::B));
 
-    auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, py_shared_ptr<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
+    auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, shared_ptr<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
         .def("compute", &PyBiotSavart::compute)
         .def("fieldcache_get_or_create", &PyBiotSavart::fieldcache_get_or_create)
@@ -106,7 +105,7 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("coils", &PyBiotSavart::coils);
     register_common_field_methods<PyBiotSavart>(bs);
 
-    auto ifield = py::class_<PyInterpolatedField, py_shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
+    auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
         .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
         .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
