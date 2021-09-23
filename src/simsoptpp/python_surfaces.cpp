@@ -2,11 +2,10 @@
 #include "pybind11/stl.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
 using std::vector;
 
+namespace py = pybind11;
 #include "pycurve.h"
 #include "surface.h"
 #include "pysurface.h"
