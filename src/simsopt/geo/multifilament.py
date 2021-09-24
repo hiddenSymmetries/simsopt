@@ -86,6 +86,7 @@ def jaxrotationdash_pure(dofs, points, order):
         rotation -= dofs[2*j] * 2*np.pi*j*jnp.sin(2*np.pi*j*points)
     return rotation
 
+
 def rotation_dcoeff(points, order):
     jac = np.zeros((len(points), 2*order+1))
     jac[:, 0] = 1
@@ -94,9 +95,9 @@ def rotation_dcoeff(points, order):
         jac[:, 2*j+0] = np.cos(2*np.pi*j*points)
     return jac
 
+
 def rotationdash_dcoeff(points, order):
     jac = np.zeros((len(points), 2*order+1))
-    jac[:, 0] = 1
     for j in range(1, order+1):
         jac[:, 2*j-1] = +2*np.pi*j*np.cos(2*np.pi*j*points)
         jac[:, 2*j+0] = -2*np.pi*j*np.sin(2*np.pi*j*points)
@@ -127,15 +128,38 @@ class FilamentRotation(Optimizable):
         return Derivative({self: sopp.vjp(v, self.jacdash)})
 
 
+class ZeroRotation():
+
+    def __init__(self, quadpoints):
+        self.zero = np.zeros((quadpoints.size, ))
+
+    def alpha(self, quadpoints):
+        return self.zero
+
+    def alphadash(self, quadpoints):
+        return self.zero
+
+    def dalpha_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({})
+
+    def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({})
+
+
 class CurveShiftedRotated(sopp.Curve, Curve):
 
-    def __init__(self, curve, dn, db, rotation):
+    def __init__(self, curve, dn, db, rotation=None):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, depends_on=[curve, rotation])
+        deps = [curve]
+        if rotation is not None:
+            deps.append(rotation)
+        Curve.__init__(self, depends_on=deps)
         self.curve = curve
         self.dn = dn
         self.db = db
+        if rotation is None:
+            rotation = ZeroRotation(curve.quadpoints)
         self.rotation = rotation
 
     def recompute_bell(self, parent=None):
