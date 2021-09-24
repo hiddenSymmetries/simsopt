@@ -138,29 +138,59 @@ class CurvePerturbed(sopp.Curve, Curve):
             pert = self.sample[0]
             n = len(self.quadpoints)
             denom = np.mean(self.incremental_arclength())
-            # derivative of pert * self.incremental_arclength()[:, None]
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*pert[:, 0])
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*pert[:, 1])
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*pert[:, 2])
-            # derivative of self.curve.gamma() * self.incremental_arclength()[:, None]
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
-            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
-            res -= (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.incremental_arclength()[:, None])
-
-            # derivative of self.curve.gamma() * self.curve.incremental_arclength()[:, None]
-            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
-            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
-            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
-            res += (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.curve.incremental_arclength()[:, None])
-
-            # derivative of the denominator
             mean_before = np.mean(self.curve.gamma() * self.curve.incremental_arclength()[:, None], axis=0)
             mean_after = np.mean((self.curve.gamma() + self.sample[0]) * self.incremental_arclength()[:, None], axis=0)
             adj = mean_after-mean_before
-            res += (adj[0]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 0])))
-            res += (adj[1]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 1])))
-            res += (adj[2]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 2])))
+
+            # # derivative of pert * self.incremental_arclength()[:, None]
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*pert[:, 0])
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*pert[:, 1])
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*pert[:, 2])
+            # # derivative of self.curve.gamma() * self.incremental_arclength()[:, None]
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
+            # res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
+            # res -= (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.incremental_arclength()[:, None])
+
+            # # derivative of self.curve.gamma() * self.curve.incremental_arclength()[:, None]
+            # res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
+            # res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
+            # res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
+            # res += (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.curve.incremental_arclength()[:, None])
+
+            # # derivative of the denominator
+            # res += (adj[0]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 0])))
+            # res += (adj[1]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 1])))
+            # res += (adj[2]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 2])))
+
+            lhs1 = (1./denom) * (
+                - float((np.mean(v[:, 0])))*pert[:, 0] \
+                - float((np.mean(v[:, 1])))*pert[:, 1] \
+                - float((np.mean(v[:, 2])))*pert[:, 2] \
+                - float((np.mean(v[:, 0])))*self.curve.gamma()[:, 0] \
+                - float((np.mean(v[:, 1])))*self.curve.gamma()[:, 1] \
+                - float((np.mean(v[:, 2])))*self.curve.gamma()[:, 2] \
+            ) + (1./denom**2) * (
+                float(np.mean(v[:, 0]))*np.ones((n, ))*adj[0] \
+                + float(np.mean(v[:, 1]))*np.ones((n, ))*adj[1] \
+                + float(np.mean(v[:, 2]))*np.ones((n, ))*adj[2]
+            )
+
+            res += self.dincremental_arclength_by_dcoeff_vjp(lhs1)
+
+            lhs2 = (1./denom) * (
+                + float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0] \
+                + float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1] \
+                + float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2] \
+            )
+            res += self.curve.dincremental_arclength_by_dcoeff_vjp(lhs2)
+
+            lhs3 = (1./denom) * (
+                - (np.sum(v, axis=0)/n)[None, :]*self.incremental_arclength()[:, None]
+                + (np.sum(v, axis=0)/n)[None, :]*self.curve.incremental_arclength()[:, None]
+            )
+
+            res += self.curve.dgamma_by_dcoeff_vjp(lhs3)
 
         return res
 
