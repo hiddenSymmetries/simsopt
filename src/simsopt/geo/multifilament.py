@@ -93,7 +93,7 @@ def rotation_dcoeff(points, order):
         jac[:, 2*j-1] = np.sin(2*np.pi*j*points)
         jac[:, 2*j+0] = np.cos(2*np.pi*j*points)
     return jac
-    
+
 def rotationdash_dcoeff(points, order):
     jac = np.zeros((len(points), 2*order+1))
     jac[:, 0] = 1
@@ -101,7 +101,6 @@ def rotationdash_dcoeff(points, order):
         jac[:, 2*j-1] = +2*np.pi*j*np.cos(2*np.pi*j*points)
         jac[:, 2*j+0] = -2*np.pi*j*np.sin(2*np.pi*j*points)
     return jac
-
 
 
 class FilamentRotation(Optimizable):
@@ -138,6 +137,9 @@ class CurveShiftedRotated(sopp.Curve, Curve):
         self.dn = dn
         self.db = db
         self.rotation = rotation
+
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
 
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
