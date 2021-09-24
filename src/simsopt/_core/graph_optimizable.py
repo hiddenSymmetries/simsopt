@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import types
 import hashlib
+import re
 from collections.abc import Callable as ABC_Callable, Hashable
 from collections import defaultdict
 from numbers import Real, Integral
@@ -1103,4 +1104,15 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         for parent in self.parents:
             ancestors += parent.ancestors
         ancestors += self.parents
-        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
+        return sorted(dict.fromkeys(ancestors), key=lambda a: natural_keys(a.name))
+
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+def natural_keys(text):
+    '''
+    alist.sort(key=natural_keys) sorts in human order
+    http://nedbatchelder.com/blog/200712/human_sorting.html
+    (See Toothy's implementation in the comments)
+    '''
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
