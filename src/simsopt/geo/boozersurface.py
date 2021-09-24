@@ -374,7 +374,6 @@ class BoozerSurface():
         G0 = G
         
 #        import ipdb; ipdb.set_trace()
-        norm = 1e10
         if method == 'manual':
             i = 0
             lam = 1.
@@ -382,6 +381,7 @@ class BoozerSurface():
                 x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
             b = J.T@r
             JTJ = J.T@J
+            norm = np.linalg.norm(b, ord=np.inf)
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
@@ -655,6 +655,7 @@ class BoozerSurface():
                 np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
             ))
             b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
+        
 
         P, L, U = lu(J)
         res = {
@@ -664,6 +665,13 @@ class BoozerSurface():
             "PLU": (P, L, U)
         }
         
+        #import ipdb;ipdb.set_trace()
+        #r, = boozer_surface_residual(s, iota, G, self.bs, derivatives=0)
+        #norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])), ord=np.inf)
+        #print(norm) 
+
+
+
         self.res = res
         if not res['success']:
             s.set_dofs(backup)
