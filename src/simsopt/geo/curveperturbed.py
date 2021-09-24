@@ -116,10 +116,12 @@ class CurvePerturbed(sopp.Curve, Curve):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
         assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
         pert = self.sample[0].copy()
-        if self.zero_mean:
-            pert_mean = np.mean(pert * self.curve.incremental_arclength()[:, None], axis=0)
-            pert -= pert_mean[None, :]
         gamma[:] = self.curve.gamma() + pert
+        if self.zero_mean:
+            mean_before = np.mean(self.curve.gamma() * self.curve.incremental_arclength()[:, None], axis=0)
+            mean_after = np.mean(gamma * self.incremental_arclength()[:, None], axis=0)
+            adj = (mean_after-mean_before)/np.mean(self.incremental_arclength())
+            gamma -= adj[None, :]
 
     def gammadash_impl(self, gammadash):
         gammadash[:] = self.curve.gammadash() + self.sample[1]
@@ -135,12 +137,31 @@ class CurvePerturbed(sopp.Curve, Curve):
         if self.zero_mean:
             pert = self.sample[0]
             n = len(self.quadpoints)
-            deriv0 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 0])
-            deriv1 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 1])
-            deriv2 = self.curve.dincremental_arclength_by_dcoeff_vjp(pert[:, 2])
-            res -= float((np.sum(v[:, 0])/n)) * deriv0
-            res -= float((np.sum(v[:, 1])/n)) * deriv1
-            res -= float((np.sum(v[:, 2])/n)) * deriv2
+            denom = np.mean(self.incremental_arclength())
+            # derivative of pert * self.incremental_arclength()[:, None]
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*pert[:, 0])
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*pert[:, 1])
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*pert[:, 2])
+            # derivative of self.curve.gamma() * self.incremental_arclength()[:, None]
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
+            res -= (1./denom)*self.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
+            res -= (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.incremental_arclength()[:, None])
+
+            # derivative of self.curve.gamma() * self.curve.incremental_arclength()[:, None]
+            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0])
+            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1])
+            res += (1./denom)*self.curve.dincremental_arclength_by_dcoeff_vjp(float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2])
+            res += (1./denom)*self.curve.dgamma_by_dcoeff_vjp((np.sum(v, axis=0)/n)[None, :]*self.curve.incremental_arclength()[:, None])
+
+            # derivative of the denominator
+            mean_before = np.mean(self.curve.gamma() * self.curve.incremental_arclength()[:, None], axis=0)
+            mean_after = np.mean((self.curve.gamma() + self.sample[0]) * self.incremental_arclength()[:, None], axis=0)
+            adj = mean_after-mean_before
+            res += (adj[0]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 0])))
+            res += (adj[1]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 1])))
+            res += (adj[2]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 2])))
+
         return res
 
     def dgammadash_by_dcoeff_vjp(self, v):
