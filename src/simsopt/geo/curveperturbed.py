@@ -163,33 +163,25 @@ class CurvePerturbed(sopp.Curve, Curve):
             # res += (adj[1]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 1])))
             # res += (adj[2]/denom**2) * self.dincremental_arclength_by_dcoeff_vjp(np.ones((n, ))*float(np.mean(v[:, 2])))
 
+            vmean = np.mean(v, axis=0)
+            v0, v1, v2 = vmean
             lhs1 = (1./denom) * (
-                - float((np.mean(v[:, 0])))*pert[:, 0] \
-                - float((np.mean(v[:, 1])))*pert[:, 1] \
-                - float((np.mean(v[:, 2])))*pert[:, 2] \
-                - float((np.mean(v[:, 0])))*self.curve.gamma()[:, 0] \
-                - float((np.mean(v[:, 1])))*self.curve.gamma()[:, 1] \
-                - float((np.mean(v[:, 2])))*self.curve.gamma()[:, 2] \
+                - v0*pert[:, 0] - v1*pert[:, 1] - v2*pert[:, 2]
+                - v0*self.curve.gamma()[:, 0] - v1*self.curve.gamma()[:, 1] - v2*self.curve.gamma()[:, 2]
             ) + (1./denom**2) * (
-                float(np.mean(v[:, 0]))*np.ones((n, ))*adj[0] \
-                + float(np.mean(v[:, 1]))*np.ones((n, ))*adj[1] \
-                + float(np.mean(v[:, 2]))*np.ones((n, ))*adj[2]
+                v0*np.ones((n, ))*adj[0] + v1*np.ones((n, ))*adj[1] + v2*np.ones((n, ))*adj[2]
             )
-
             res += self.dincremental_arclength_by_dcoeff_vjp(lhs1)
 
             lhs2 = (1./denom) * (
-                + float((np.sum(v[:, 0])/n))*self.curve.gamma()[:, 0] \
-                + float((np.sum(v[:, 1])/n))*self.curve.gamma()[:, 1] \
-                + float((np.sum(v[:, 2])/n))*self.curve.gamma()[:, 2] \
+                + v0*self.curve.gamma()[:, 0] + v1*self.curve.gamma()[:, 1] + v2*self.curve.gamma()[:, 2]
             )
             res += self.curve.dincremental_arclength_by_dcoeff_vjp(lhs2)
 
             lhs3 = (1./denom) * (
-                - (np.sum(v, axis=0)/n)[None, :]*self.incremental_arclength()[:, None]
-                + (np.sum(v, axis=0)/n)[None, :]*self.curve.incremental_arclength()[:, None]
+                - vmean[None, :]*self.incremental_arclength()[:, None]
+                + vmean[None, :]*self.curve.incremental_arclength()[:, None]
             )
-
             res += self.curve.dgamma_by_dcoeff_vjp(lhs3)
 
         return res
