@@ -48,7 +48,7 @@ class GaussianSampler():
         from scipy.linalg import sqrtm
         self.L = np.real(sqrtm(cov_mat))
 
-    def sample(self, randomgen=None):
+    def draw_sample(self, randomgen=None):
         n = len(self.points)
         n_derivs = self.n_derivs
         if randomgen is None:
@@ -58,12 +58,32 @@ class GaussianSampler():
         return [curve_and_derivs[(i*n):((i+1)*n), :] for i in range(n_derivs+1)]
 
 
+class PerturbationSample():
+
+    def __init__(self, sampler, randomgen=None):
+        self.sampler = sampler
+        self.randomgen = randomgen
+        self.resample()
+
+    def resample(self):
+        self.__sample = self.sampler.draw_sample(self.randomgen)
+
+    def __getitem__(self, deriv):
+        assert isinstance(deriv, int)
+        if deriv >= len(self.__sample):
+            raise ValueError("""
+The sample on has {len(self.__sample)-1} derivatives.
+Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
+""")
+        return self.__sample[deriv]
+
+
 class CurvePerturbed(sopp.Curve, Curve):
 
     """A perturbed curve."""
 
-    def __init__(self, curve, sampler, randomgen=None, zero_mean=False):
-        """
+    def __init__(self, curve, sample, zero_mean=False):
+        r"""
         Perturb a underlying :mod:`simsopt.geo.curve.Curve` object by drawing a perturbation from a 
         ``GaussianSampler``.
 
@@ -97,13 +117,11 @@ class CurvePerturbed(sopp.Curve, Curve):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self, x0=np.asarray([]), depends_on=[curve])
-        self.sampler = sampler
-        self.randomgen = randomgen
-        self.sample = sampler.sample(self.randomgen)
+        self.sample = sample
         self.zero_mean = zero_mean
 
     def resample(self):
-        self.sample = self.sampler.sample(self.randomgen)
+        self.sample.resample()
         self.invalidate_cache()
 
     def recompute_bell(self, parent=None):

@@ -1,10 +1,10 @@
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk
-from simsopt.field.biotsavart import BiotSavart, Current, Coil
-from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
+from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import Current, Coil, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
-from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed
+from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
 import numpy as np
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -14,19 +14,21 @@ import os
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
 
-"""
+r"""
 In this example we solve a stochastic version of the FOCUS like Stage II coil
-optimisation problem. We consider a set of design coils, then draw perturbed
-versions of those coils and then minimize the average normal field error. In
-this particular case we consider a vacuum field, so the target is just zero.
+optimisation problem: the goal is to find coils that generate a specific target
+normal field on a given surface.  In this particular case we consider a vacuum
+field, so the target is just zero.
 
 The objective is given by
 
-    J = \int |Bn| ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = Mean(\int |Bn|^2 ds) + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
-if alpha or beta are increased, the coils are more regular and better
-separated, but the target normal field may not be achieved as well.
+where the Mean is approximated by a sample average over perturbed coils.
+
+The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
+
 
 MAXITER = 10 if ci else 400
 
@@ -48,7 +50,7 @@ BETA = 10
 SIGMA = 0.003
 L = 0.3
 
-base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, PPP=PPP)
+base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=PPP*order)
 base_currents = []
 for i in range(ncoils):
     curr = Current(1e5)
@@ -76,7 +78,7 @@ Nsamples = 16
 Jfs = []
 curves_pert = []
 for i in range(Nsamples):
-    coils_pert = [Coil(CurvePerturbed(c.curve, sampler), c.current) for c in coils]
+    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
     Jfs.append(SquaredFlux(s, bs_pert))
@@ -87,7 +89,7 @@ for i in range(len(curves_pert)):
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
 
-JF = FOCUSObjective(Jfs, Jls, ALPHA, Jdist, BETA)
+JF = CoilOptObjective(Jfs, Jls, ALPHA, Jdist, BETA)
 
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
@@ -96,8 +98,7 @@ JF = FOCUSObjective(Jfs, Jls, ALPHA, Jdist, BETA)
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
-    dJ = JF.dJ()
-    grad = dJ(JF)
+    grad = JF.dJ()
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
     jf = sum(J.J() for J in JF.Jfluxs)/len(JF.Jfluxs)

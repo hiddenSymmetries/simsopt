@@ -17,7 +17,7 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 import os
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
-"""
+r"""
 In this example we solve a FOCUS like Stage II coil optimisation problem: the
 goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
