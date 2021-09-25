@@ -808,6 +808,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
 def curves_to_vtk(curves, filename, close=False):
     from pyevtk.hl import polyLinesToVTK
+
     def wrap(data):
         return np.concatenate([data, [data[0]]])
     if close:
@@ -853,6 +854,6 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curve.set("yc(0)", sin(angle)*R0)
         curve.set("yc(1)", sin(angle)*R1)
         curve.set("zs(1)", R1)
-        curve.x = curve.x # need to do this to transfer data to C++
+        curve.x = curve.x  # need to do this to transfer data to C++
         curves.append(curve)
     return curves

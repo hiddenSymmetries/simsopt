@@ -1106,8 +1106,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         ancestors += self.parents
         return sorted(dict.fromkeys(ancestors), key=lambda a: natural_keys(a.name))
 
+
 def atoi(text):
     return int(text) if text.isdigit() else text
+
 
 def natural_keys(text):
     '''
@@ -1115,4 +1117,4 @@ def natural_keys(text):
     http://nedbatchelder.com/blog/200712/human_sorting.html
     (See Toothy's implementation in the comments)
     '''
-    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
+    return [atoi(c) for c in re.split(r'(\d+)', text)]

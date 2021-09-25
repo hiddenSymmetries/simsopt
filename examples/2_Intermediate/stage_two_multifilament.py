@@ -108,6 +108,8 @@ JF = CoilOptObjective(Jf, Jls, ALPHA, Jdist, BETA)
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()

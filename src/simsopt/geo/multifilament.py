@@ -201,7 +201,7 @@ class CurveShiftedRotated(sopp.Curve, Curve):
         zero = np.zeros_like(v)
 
         vg = rotated_centroid_frame_dash_dcoeff_vjp0(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        vgd = rotated_centroid_frame_dash_dcoeff_vjp1(g, gd, gdd, a, ad,  (zero, self.dn*v, self.db*v))
+        vgd = rotated_centroid_frame_dash_dcoeff_vjp1(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
         vgdd = rotated_centroid_frame_dash_dcoeff_vjp2(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
         va = rotated_centroid_frame_dash_dcoeff_vjp3(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
         vad = rotated_centroid_frame_dash_dcoeff_vjp4(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
