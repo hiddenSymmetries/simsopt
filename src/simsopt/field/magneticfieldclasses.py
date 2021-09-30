@@ -222,16 +222,18 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.PhiStr = PhiStr
         self.Phiparsed = parse_expr(PhiStr)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R)+1e-30*sp.sin(Phi), self.Phiparsed.diff(Phi)/R+1e-30*sp.sin(Phi), self.Phiparsed.diff(Z)+1e-30*sp.sin(Phi)])
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R)+1e-30*sp.sin(Phi*R*Z), self.Phiparsed.diff(Phi)/R+1e-30*sp.sin(Phi*R*Z), self.Phiparsed.diff(Z)+1e-30*sp.sin(Phi*R*Z)])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
-            [[sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [self.Phiparsed.diff(R).diff(Z)+1e-30*sp.sin(Phi), (self.Phiparsed.diff(Phi)/R).diff(Z), self.Phiparsed.diff(Z).diff(Z)+1e-30*sp.sin(Phi)]])
+            [[1e-30*sp.sin(Phi*R*Z)+sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
+              1e-30*sp.sin(Phi*R*Z)+sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
+              1e-30*sp.sin(Phi*R*Z)+sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
+             [1e-30*sp.sin(Phi*R*Z)+sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
+              1e-30*sp.sin(Phi*R*Z)+sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
+              1e-30*sp.sin(Phi*R*Z)+sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
+             [1e-30*sp.sin(Phi*R*Z)+self.Phiparsed.diff(R).diff(Z),
+              1e-30*sp.sin(Phi*R*Z)+(self.Phiparsed.diff(Phi)/R).diff(Z),
+              1e-30*sp.sin(Phi*R*Z)+self.Phiparsed.diff(Z).diff(Z)]])
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
