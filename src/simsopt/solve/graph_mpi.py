@@ -25,6 +25,7 @@ from .._core.graph_optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from ..util.types import RealArray
 from .._core.util import finite_difference_steps
+from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.graph_least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
@@ -77,8 +78,7 @@ def _mpi_leaders_task(mpi: MpiPartition,
 
 
 def _mpi_workers_task(mpi: MpiPartition,
-                      prob: Optimizable,
-                      data: int):
+                      prob: Optimizable):
     """
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
@@ -103,26 +103,17 @@ def _mpi_workers_task(mpi: MpiPartition,
 
     # We don't store or do anything with f() or jac(), because
     # the group leader will handle that.
-    if data == CALCULATE_F:
-        try:
-            prob.residuals()
-        except:
-            logger.warning("Exception caught by worker during residual "
-                           "evaluation in worker loop")
-            traceback.print_exc()  # Print traceback
-
-    elif data == CALCULATE_JAC:
-        try:
-            prob.jac()
-        except:
-            logger.warning("Exception caught by worker during jac evaluation")
-            traceback.print_exc()  # Print traceback
-
-    else:
-        raise ValueError('Unexpected data in worker_loop')
+    try:
+        # prob.residuals()
+        prob.unweighted_residuals()
+    except:
+        logger.warning("Exception caught by worker during residual "
+                       "evaluation in worker loop")
+        traceback.print_exc()  # Print traceback
 
 
-def fd_jac_mpi(prob: Optimizable,
+
+def fd_jac_mpi(prob: LeastSquaresProblem,
                mpi: MpiPartition,
                x: RealArray = None,
                abs_step: float = 1.0e-7,
@@ -276,13 +267,13 @@ def fd_jac_mpi(prob: Optimizable,
     return jac, xs, evals
 
 
-def least_squares_mpi_solve(prob: LeastSquaresProblem,
-                            mpi: MpiPartition,
-                            grad: bool = None,
-                            abs_step: float = 1.0e-7,
-                            rel_step: float = 0.0,
-                            diff_method: str = "centered",
-                            **kwargs):
+def old_least_squares_mpi_solve(prob: LeastSquaresProblem,
+                                mpi: MpiPartition,
+                                grad: bool = None,
+                                abs_step: float = 1.0e-7,
+                                rel_step: float = 0.0,
+                                diff_method: str = "centered",
+                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
     MPI. All MPI processes (including group leaders and workers)
@@ -469,6 +460,239 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             logger.info("Using derivative free method despite derivatives given")
             #result = least_squares(_f_proc0, x0, verbose=2, jac=_jac_proc0, **kwargs)
             result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
+        else:
+            logger.info("Using derivative-free method")
+            result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
+
+        logger.info("Completed solve.")
+        x = result.x
+
+        objective_file.close()
+        residuals_file.close()
+
+    # Stop loops for workers and group leaders:
+    mpi.together()
+
+    datalog_started = False
+    logger.info("Completed solve.")
+
+    # Finally, make sure all procs get the optimal state vector.
+    mpi.comm_world.Bcast(x)
+    logger.debug(f'After Bcast, x={x}')
+    # Set Parameters to their values for the optimum
+    prob.x = x
+
+
+def least_squares_mpi_solve(prob: LeastSquaresProblem,
+                            mpi: MpiPartition,
+                            grad: bool = False,
+                            abs_step: float = 1.0e-7,
+                            rel_step: float = 0.0,
+                            diff_method: str = "centered",
+                            **kwargs):
+    """
+    Solve a nonlinear-least-squares minimization problem using
+    MPI. All MPI processes (including group leaders and workers)
+    should call this function.
+
+    Args:
+        prob: Optimizable object defining the objective function(s) and
+              parameter space.
+        mpi: A MpiPartition object, storing the information about how
+             the pool of MPI processes is divided into worker groups.
+        grad: Whether to use a gradient-based optimization algorithm, as
+              opposed to a gradient-free algorithm. If unspecified, a
+              gradient-based algorithm will be used if ``prob`` has gradient
+              information available, otherwise a gradient-free algorithm
+              will be used by default. If you set ``grad=True`` for a problem
+              in which gradient information is not available,
+              finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
+        kwargs: Any arguments to pass to
+                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+                For instance, you can supply ``max_nfev=100`` to set
+                the maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100. Or, you
+                can supply ``method`` to choose the optimization algorithm.
+    """
+    if MPI is None:
+        raise RuntimeError(
+            "least_squares_mpi_solve requires the mpi4py package.")
+    logger.info("Beginning solve.")
+    #if grad is None:
+    #    grad = prob.grad_avail
+
+    x = np.copy(prob.x)  # For use in Bcast later.
+
+    objective_file = None
+    residuals_file = None
+    datalog_started = False
+    nevals = 0
+    start_time = time()
+
+    def _f_proc0(x):
+        """
+        This function is used for least_squares_mpi_solve.  It is similar
+        to LeastSquaresProblem.f(), except this version is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        logger.debug("Entering _f_proc0")
+        print("Entering _f_proc0")
+        mpi.mobilize_workers(CALCULATE_F)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        logger.debug("Past bcast in _f_proc0")
+
+        try:
+            unweighted_residuals = prob.unweighted_residuals(x)
+            logger.debug(f"unweighted residuals in _f_proc0:\n {unweighted_residuals}")
+            residuals = prob.residuals()
+            logger.debug(f"residuals in _f_proc0:\n {residuals}")
+        except:
+            #f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
+            unweighted_residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            logger.info("Exception caught during function evaluation.")
+
+        #f_shifted = prob.f_from_unshifted(f_unshifted)
+        #objective_val = prob.objective_from_shifted_f(f_shifted)
+        objective_val = prob.objective()
+
+        nonlocal datalog_started, objective_file, residuals_file, nevals
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not datalog_started:
+            # Initialize log file
+            datalog_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            objective_file = open(f"objective_{datestr}.dat", 'w')
+            objective_file.write("Problem type:\nleast_squares")
+            objective_file.write("function_evaluation,seconds")
+
+            residuals_file = open(f"residuals_{datestr}.dat", 'w')
+            residuals_file.write("Problem type:\nleast_squares")
+            residuals_file.write("function_evaluation,seconds")
+
+            for j in range(prob.dof_size):
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n")
+
+            for j in range(prob.dof_size):
+                residuals_file.write(f",x({j})")
+            residuals_file.write(",objective_function")
+            for j in range(prob.dof_size):
+                residuals_file.write(f",F({j})")
+            residuals_file.write("\n")
+
+        del_t = time() - start_time
+        objective_file.write(f"{nevals:6d},{del_t:12.4e}")
+        for xj in x:
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}\n")
+        objective_file.flush()
+
+        residuals_file.write(f"{nevals:6d},{del_t:12.4e}")
+        for xj in x:
+            residuals_file.write(f",{xj:24.16e}")
+        residuals_file.write(f",{objective_val:24.16e}")
+        for fj in unweighted_residuals:
+            residuals_file.write(f",{fj:24.16e}")
+        residuals_file.write("\n")
+        residuals_file.flush()
+        nevals += 1
+        print(f"residuals are {residuals}")
+        return residuals
+
+    def _jac_proc0(x):
+        """
+        This function is used for least_squares_mpi_solve.  It is similar
+        to LeastSquaresProblem.jac, except this version is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        return None
+        # TODO: reimplement this after jac evaluation is implemented
+        if prob.grad_avail:
+            # proc0_world calling mobilize_workers will mobilize only group 0.
+            mpi.mobilize_workers(CALCULATE_JAC)
+            # Send workers the state vector:
+            mpi.comm_groups.bcast(x, root=0)
+
+            return prob.jac(x)
+
+        else:
+            # Evaluate Jacobian using fd_jac_mpi
+            mpi.mobilize_leaders(CALCULATE_FD_JAC)
+            # Send leaders the state vector:
+            mpi.comm_leaders.bcast(x, root=0)
+
+            jac, xs, evals = fd_jac_mpi(prob, mpi, x)
+
+            # Write function evaluations to the files
+            nonlocal datalog_started, objective_file, residuals_file, nevals
+            nevals_jac = evals.shape[1]
+            for j in range(nevals_jac):
+                objective_val = prob.objective_from_unshifted_f(evals[:, j])
+
+                del_t = time() - start_time
+                objective_file.write(f"{nevals:6d},{del_t:12.4e}")
+                for xj in xs[:, j]:
+                    objective_file.write(f",{xj:24.16e}")
+                objective_file.write(f",{objective_val:24.16e}")
+                objective_file.write("\n")
+                objective_file.flush()
+
+                residuals_file.write(f"{nevals:6d},{del_t:12.4e}")
+                for xj in xs[:, j]:
+                    residuals_file.write(f",{xj:24.16e}")
+                residuals_file.write(f",{objective_val:24.16e}")
+                for fj in evals[:, j]:
+                    residuals_file.write(f",{fj:24.16e}")
+                residuals_file.write("\n")
+                residuals_file.flush()
+
+                nevals += 1
+
+            return prob.scale_dofs_jac(jac)
+
+    # For MPI finite difference gradient, get the worker and leader action from
+    # MPIFiniteDifference
+    if grad:
+        fd = MPIFiniteDifference(prob.residuals, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method)
+        # leaders_action = lambda mpi, data: fd.mpi_leaders_task()
+        # workers_action = lambda mpi, data: fd.mpi_workers_task()
+        fd.mpi_apart()
+        # fd = None
+        # leaders_action = lambda mpi, data: None
+        # workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+    else:
+        fd = None
+        leaders_action = lambda mpi, data: None
+        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        mpi.apart(leaders_action, workers_action)
+
+    # Send group leaders and workers into their respective loops:
+
+    if mpi.proc0_world:
+        # proc0_world does this block, running the optimization.
+        x0 = np.copy(prob.x)
+        print(f"x0 in proc0: {x0}")
+        # Call scipy.optimize:
+        if grad:
+            logger.info("Using finite difference method implemented in SIMSOPT"
+                        "for evaluating gradient")
+            print("Using finite difference method implemented in SIMSOPT"
+                  "for evaluating gradient")
+            result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2, **kwargs)
+            # result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
         else:
             logger.info("Using derivative-free method")
             result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
