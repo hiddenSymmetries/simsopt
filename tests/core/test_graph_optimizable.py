@@ -870,9 +870,9 @@ class TestMakeOptimizable(unittest.TestCase):
         self.arb_fun_dofs_opts = arb_fun_dofs_opts
 
     def test_arb_func_dofs_noopts(self):
-        a, b, c = 1, 2, 3
+        x, y, z = 1, 2, 3
         opt = make_optimizable(self.arb_fun_dofs_noopts,
-                               a, b, c,
+                               x, y, z,
                                dof_indicators=["dof", "dof", "dof"])
         self.assertAlmostEqual(opt.J(), 26.0)
         opt.x = np.array([1.2, 0.8, 0.5])
@@ -884,7 +884,6 @@ class TestMakeOptimizable(unittest.TestCase):
                                adder,
                                dof_indicators=["opt"])
         self.assertAlmostEqual(opt.J(), 26.0)
-        x = opt.x
         x = opt.x   # Length of x is 3
         opt.x = x / 2.0
         self.assertAlmostEqual(opt.J(), -1.0)
