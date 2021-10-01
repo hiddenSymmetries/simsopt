@@ -108,7 +108,7 @@ class MPISolveTests(unittest.TestCase):
         """
         Test a full least-squares optimization.
         """
-        for ngroups in range(1, 2):
+        for ngroups in range(1, 4):
             for abs_step in [0, 1.0e-7]:
                 # Only try rel_step=0 if abs_step is positive:
                 rel_steps = [0, 1.0e-7]

@@ -335,6 +335,7 @@ class MPIFiniteDifference:
                 x = self.x0
             self.mpi.mobilize_workers(ARB_VAL)
             self.mpi.comm_groups.bcast(x, root=0)
+            self.opt.x = x
             out = self.fn()
             if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
                 out = np.array([out])
