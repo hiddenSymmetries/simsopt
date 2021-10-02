@@ -1164,7 +1164,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
 
 
-def make_optimizable(func, /, *args, dof_indicators=None, **kwargs):
+def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
     Factory function to generate an Optimizable instance from a function
     to be used with the graph framework.
