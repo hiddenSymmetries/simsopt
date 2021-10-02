@@ -76,30 +76,41 @@ def parallel_loop_bounds(comm, n):
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, zetas=[], stopping_criteria=[], forget_exact_path=False):
+                    tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
-    Follow particles in a magnetic field.
+    Follow particles in a BoozerMagneticField. This is modeled after
+    trace_particles.
 
-    In the case of ``mod='full'`` we solve
 
-    .. math::
-
-        [\ddot x, \ddot y, \ddot z] = \frac{q}{m}  [\dot x, \dot y, \dot z] \times B
-
-    in the case of ``mod='gc_vac'`` we solve the guiding center equations under
-    the assumption :math:`\nabla p=0`, that is
+    In the case of ``mod='gc_vac'`` we solve the guiding center equations under
+    the vacuum assumption, i.e :math:`G =` const. and :math:`I = 0`:
 
     .. math::
 
-        [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)\\
-        \dot v_{||}    &= -\mu  (B \cdot \nabla(|B|))
+        \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+        \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+        \dot \zeta = v_{||}|B|/G
+        \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
 
-    where :math:`v_\perp = 2\mu|B|`. See equations (12) and (13) of
-    [Guiding Center Motion, H.J. de Blank, https://doi.org/10.13182/FST04-A468].
+    where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+
+    In the case of ``mod='gc'`` we solve the general guiding center equations
+    for an MHD equilibrium:
+
+    .. math::
+
+        \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+        \dot \theta = (G |B|_{,\psi} m(v_{||}^2/|B| + \mu) - (-q \iota + m v_{||} G' / |B|) v_{||} |B|)/(\iota D)
+        \dot \zeta = \left((q + m v_{||} I'/|B|) v_{||} |B| - |B|_{,\psi} m(\rho_{||}^2 |B| + \mu) I\right)/(\iota D)
+        \dot v_{||} = ((-q\iota + m v_{||} G'/|B|)|B|_{,\theta} - (q + m v_{||}I'/|B|)|B|_{,\zeta})\mu |B|/(\iota D)
+        D = ((q + m v_{||} I'/|B|)*G - (-q \iota + m v_{||} G'/|B|) I)/\iota
+
+    where primes indicate differentiation wrt :math:`\psi`.
 
     Args:
-        field: The magnetic field :math:`B`.
-        xyz_inits: A (nparticles, 3) array with the initial positions of the particles.
+        field: The BoozerMagneticField instance
+        stz_inits: A (nparticles, 3) array with the initial positions of the particles
+            in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A (nparticles, ) array containing the speed in direction of the B field
                          for each particle.
         tmax: integration time
@@ -108,19 +119,18 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         Ekin: kinetic energy in Joule, defaults to 3.52MeV
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
-        phis: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that phi should be computed
+        zetas: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that zeta should be computed
         stopping_criteria: list of stopping criteria, mostly used in
                            combination with the ``LevelsetStoppingCriterion``
                            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
         mode: how to trace the particles. options are
             `gc`: general guiding center equations,
-            `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
-            `full`: full orbit calculation (slow!)
+            `gc_vac`: simplified guiding center equations for the case :math:`G` = const.
+                           and :math:`I = 0`.
         forget_exact_path: return only the first and last position of each
-                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
                            interest or one wants to reduce memory usage.
-        phase_angle: the phase angle to use in the case of full orbit calculations
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -128,17 +138,15 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
             solution over time. The numpy array is of shape (ntimesteps, M)
             with M depending on the ``mode``.  Each row contains the time and
             the state.  So for `mode='gc'` and `mode='gc_vac'` the state
-            consists of the xyz position and the parallel speed, hence
-            each row contains `[t, x, y, z, v_par]`.  For `mode='full'`, the
-            state consists of position and velocity vector, i.e. each row
-            contains `[t, x, y, z, vx, vy, vz]`.
+            consists of the :math:`(s,\theta,\zeta)` position and the parallel speed, hence
+            each row contains `[t, s, t, z, v_par]`.
 
-        - ``res_phi_hits``:
+        - ``res_zeta_hits``:
             A list of numpy arrays (one for each particle) containing
-            information on each time the particle hits one of the phi planes or
+            information on each time the particle hits one of the zeta planes or
             one of the stopping criteria. Each row of the array contains
-            `[time] + [idx] + state`, where `idx` tells us which of the `phis`
-            or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
+            `[time] + [idx] + state`, where `idx` tells us which of the `zetas`
+            or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
 
@@ -147,6 +155,8 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     speed_par = parallel_speeds
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    mode = mode.lower()
+    assert mode in ['gc', 'gc_vac']
 
     res_tys = []
     res_zeta_hits = []
@@ -155,7 +165,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
-            m, charge, speed_total, speed_par[i], tmax, tol,
+            m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
             zetas=zetas, stopping_criteria=stopping_criteria)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
@@ -397,10 +407,49 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
         phase_angle=phase_angle)
 
 
-def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2, flux=True):
+def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
     """
-    Here we assume that res_phi_hits corresponds to phi = 0 planes
+    Computes resonant particle orbits given the output of either
+    trace_particles or trace_particles_boozer, res_tys and
+    res_phi_hits/res_zeta_hits with forget_exact_path=False.
+    Resonance indicates a trajectory which returns to the same position
+    at the :math:`\zeta = 0` plane after :math:`m` poloidal turns and
+    :math:`n` toroidal turns. For the case of particles traced in a
+    MagneticField (not a BoozerMagneticField), the poloidal angle is computed
+    using the arctangent angle in the poloidal plane with respect to the
+    coordinate axis, `ma`,
+
+    .. math::
+
+        \theta = \tan^{-1} \left(\frac{R(\phi)-R_{\mathrm{ma}(\phi)}}{Z(\phi)-Z_{\mathrm{ma}}(\phi)}\right),
+
+    where :math:`(R,\phi,Z)` are the cylindrical coordinates of the trajectory
+    and :math:`(R_{\mathrm{ma}}(\phi),Z_{\mathrm{ma}(\phi)})` is the position
+    of the coordinate axis.
+
+    Args:
+        res_tys: trajectory solution computed from trace_particles or trace_particles_boozer
+                with forget_exact_path=False
+        res_phi_hits: output of trace_particles or trace_particles_boozer with
+                phis/zetas = [0]
+        ma: an instance of Curve representing the coordinate axis with
+                respect to which the poloidal angle is computed. If orbit is
+                computed in Boozer coordinates, ma should be None.
+        delta: the distance tolerance in the poloidal plane used to compute
+                a resonant orbit
+
+    Returns:
+        resonances: list of 7d arrays containing resonant particle orbits. The
+                elements of each array is [s0, theta0, zeta0, vpar0, t, mpol, ntor]
+                if ma=None, and [R0, Z0, phi0, vpar0, t, mpol, ntor] otherwise.
+                Here (s0, theta0, zeta0, vpar0)/(R0, Z0, phi0, vpar0)) indicates the
+                initial position and parallel velocity of the particle, t
+                indicates the time of the  resonance, mpol is the number of
+                poloidal turns of the orbit, and ntor is the number of toroidal turns.
     """
+    flux = False
+    if ma is None:
+        flux = True
     nparticles = len(res_tys)
     resonances = []
     gamma = np.zeros((1, 3))
@@ -408,11 +457,13 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2, flux=True):
     for ip in range(nparticles):
         nhits = len(res_phi_hits[ip][:, 0])
         if (flux):
-            s0 = res_tys[ip][0, 1]
-            theta0 = res_tys[ip][0, 2]
+            s0         = res_tys[ip][0, 1]
+            theta0     = res_tys[ip][0, 2]
+            zeta0      = res_tys[ip][0, 3]
             theta0_mod = theta0 % (2*np.pi)
-            zeta0 = res_tys[ip][0, 3]
-            zeta0_mod = zeta0 % (2*np.pi)
+            zeta0_mod  = zeta0 % (2*np.pi)
+            x0 = s0 * np.cos(theta0)
+            y0 = s0 * np.sin(theta0)
         else:
             X0 = res_tys[ip][0, 1]
             Y0 = res_tys[ip][0, 2]
@@ -432,7 +483,9 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2, flux=True):
                     theta = res_phi_hits[ip][it, 3]
                     zeta = res_phi_hits[ip][it, 4]
                     theta_mod = theta % 2*np.pi
-                    dist = np.sqrt((theta_mod-theta0_mod)**2/(4*np.pi**2) + (s-s0)**2)
+                    x = s * np.cos(theta)
+                    y = s * np.sin(theta)
+                    dist = np.sqrt((x-x0)**2 + (y-y0)**2)
                 else:
                 # Check that distance is less than delta
                     X = res_phi_hits[ip][it, 2]
@@ -493,22 +546,31 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2, flux=True):
                 break
     return resonances
 
-
 def compute_toroidal_transits(res_tys, flux=True):
+    """
+    Computes the number of toroidal transits of an orbit.
+
+    Args:
+        res_tys: trajectory solution computed from trace_particles or
+                trace_particles_boozer with forget_exact_path=False.
+        flux: if True, res_tys represents the position in flux coordinates
+                (should be True if computed from trace_particles_boozer)
+    Returns:
+        ntransits: array with length len(res_tys). Each element contains the
+                number of toroidal transits of the orbit.
+    """
     nparticles = len(res_tys)
     ntransits = np.zeros((nparticles,))
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
         if flux:
             phi_init = res_tys[ip][0,3]
-            # phi_init = sopp.get_phi_flux(res_tys[ip][0, 3], np.pi)
         else:
             phi_init = sopp.get_phi(res_tys[ip][0, 1], res_tys[ip][0, 2], np.pi)
         phi_prev = phi_init
         for it in range(1, ntraj):
             if flux:
                 phi = res_tys[ip][it,3]
-                # phi = sopp.get_phi_flux(res_tys[ip][it, 3], phi_prev)
             else:
                 phi = sopp.get_phi(res_tys[ip][it, 1], res_tys[ip][it, 2], phi_prev)
             phi_prev = phi
@@ -517,6 +579,33 @@ def compute_toroidal_transits(res_tys, flux=True):
     return ntransits
 
 def compute_poloidal_transits(res_tys, ma=None, flux=True):
+    """
+    Computes the number of poloidal transits of an orbit. For the case of
+    particles traced in a MagneticField (not a BoozerMagneticField), the poloidal
+    angle is computed using the arctangent angle in the poloidal plane with
+    respect to the coordinate axis, `ma`,
+
+    .. math::
+
+        \theta = \tan^{-1} \left(\frac{R(\phi)-R_{\mathrm{ma}(\phi)}}{Z(\phi)-Z_{\mathrm{ma}}(\phi)}\right),
+
+    where :math:`(R,\phi,Z)` are the cylindrical coordinates of the trajectory
+    and :math:`(R_{\mathrm{ma}}(\phi),Z_{\mathrm{ma}(\phi)})` is the position
+    of the coordinate axis.
+
+    Args:
+        res_tys: trajectory solution computed from trace_particles or
+                trace_particles_boozer with forget_exact_path=False.
+        ma: an instance of Curve representing the coordinate axis with
+                respect to which the poloidal angle is computed. If orbit is
+                computed in Boozer coordinates, ma should be None.
+        flux: if True, res_tys represents the position in flux coordinates
+                (should be True if computed from trace_particles_boozer). If True,
+                ma is not used.
+    Returns:
+        ntransits: array with length len(res_tys). Each element contains the
+                number of poloidal transits of the orbit.
+    """
     if not flux:
         assert(ma is not None)
     nparticles = len(res_tys)
@@ -526,7 +615,6 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
         ntraj = len(res_tys[ip][:, 0])
         if flux:
             theta_init = res_tys[ip][0,2]
-            # theta_init = sopp.get_phi_flux(res_tys[ip][0, 2], np.pi)
         else:
             R_init = np.sqrt(res_tys[ip][0, 1]**2 + res_tys[ip][0, 2]**2)
             Z_init = res_tys[ip][0, 3]
@@ -539,7 +627,6 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
         for it in range(1, ntraj):
             if flux:
                 theta = res_tys[ip][it,2]
-                # theta = sopp.get_phi_flux(res_tys[ip][it, 2], theta_prev)
             else:
                 phi = np.arctan2(res_tys[ip][it, 2], res_tys[ip][it, 1])
                 ma.gamma_impl(gamma, phi/(2*np.pi))
@@ -641,7 +728,13 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
 
-class ToroidalFluxStoppingCriterion(sopp.ToroidalFluxStoppingCriterion):
+class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
+    """
+    Stop the iteration once the minimum number of toroidal transits is reached.
+    """
+    pass
+
+class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     Stop the iteration once the maximum number of toroidal transits is reached.
     """

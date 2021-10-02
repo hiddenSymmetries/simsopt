@@ -11,8 +11,6 @@ using std::tuple;
 
 double get_phi(double x, double y, double phi_near);
 
-double get_phi_flux(double phi, double phi_near);
-
 class StoppingCriterion {
     public:
         // Should return true if the Criterion is satisfied.
@@ -46,13 +44,23 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
         };
 };
 
-class ToroidalFluxStoppingCriterion : public StoppingCriterion{
+class MaxToroidalFluxStoppingCriterion : public StoppingCriterion{
     private:
         double max_s;
     public:
-        ToroidalFluxStoppingCriterion(double max_s) : max_s(max_s) {};
+        MaxToroidalFluxStoppingCriterion(double max_s) : max_s(max_s) {};
         bool operator()(int iter, double t, double s, double theta, double zeta) override {
             return s>=max_s;
+        };
+};
+
+class MinToroidalFluxStoppingCriterion : public StoppingCriterion{
+    private:
+        double min_s;
+    public:
+        MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
+        bool operator()(int iter, double t, double s, double theta, double zeta) override {
+            return s<=min_s;
         };
 };
 
@@ -88,7 +96,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
