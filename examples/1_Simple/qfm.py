@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
-from simsopt.geo.coilcollection import CoilCollection
 from simsopt.util.zoo import get_ncsx_data
 import numpy as np
 import os
@@ -19,12 +19,10 @@ for fixing the area and toroidal flux.
 print("Running 1_Simple/qfm.py")
 print("=======================")
 
-coils, currents, ma = get_ncsx_data()
-stellarator = CoilCollection(coils, currents, 3, True)
-coils = stellarator.coils
-currents = stellarator.currents
-bs = BiotSavart(coils, currents)
-bs_tf = BiotSavart(coils, currents)
+curves, currents, ma = get_ncsx_data()
+coils = coils_via_symmetries(curves, currents, 3, True)
+bs = BiotSavart(coils)
+bs_tf = BiotSavart(coils)
 
 mpol = 5
 ntor = 5

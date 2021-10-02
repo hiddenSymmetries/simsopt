@@ -12,3 +12,4 @@ set -ex
 ./1_Simple/qfm.py
 ./2_Intermediate/QSC.py
 ./2_Intermediate/boozer.py
+./2_Intermediate/stage_two_optimization.py

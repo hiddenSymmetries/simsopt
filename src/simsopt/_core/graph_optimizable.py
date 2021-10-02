@@ -1161,7 +1161,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         for parent in self.parents:
             ancestors += parent.ancestors
         ancestors += self.parents
-        return list(dict.fromkeys(ancestors))
+        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
 
 
 def make_optimizable(func, /, *args, dof_indicators=None, **kwargs):
@@ -1286,6 +1286,3 @@ def make_optimizable(func, /, *args, dof_indicators=None, **kwargs):
             return self.func(*args, **kwargs)
 
     return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
-
-
-

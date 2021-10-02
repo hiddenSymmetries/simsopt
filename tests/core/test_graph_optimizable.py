@@ -492,7 +492,7 @@ class OptimizableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             test_obj1.x = np.array([20])
 
-        test_obj1.x = np.array([20, 4, 5, 6, 25])
+        test_obj1.x = np.array([4, 5, 6, 20, 25])
         self.assertAlmostEqual(iden2.local_x[0], 20)
         self.assertAlmostEqual(adder2.local_x[0], 4)
         self.assertAlmostEqual(adder2.local_x[1], 5)
@@ -552,11 +552,11 @@ class OptimizableTests(unittest.TestCase):
         # Check with Optimizable objects containing parents
         test_obj1 = OptClassWithParents(20, depends_on=[iden, adder])
         full_x = test_obj1.full_x
-        self.assertTrue(np.allclose(full_x, np.array([10, 1, 2, 3, 20])))
+        self.assertTrue(np.allclose(full_x, np.array([1, 2, 3, 10, 20])))
 
         test_obj1.x = np.array([4, 5, 6, 25])
         full_x = test_obj1.full_x
-        self.assertTrue(np.allclose(full_x, np.array([10, 4, 5, 6, 25])))
+        self.assertTrue(np.allclose(full_x, np.array([4, 5, 6, 10, 25])))
 
     def test_local_full_x(self):
         # Check with leaf type Optimizable objects
@@ -609,7 +609,7 @@ class OptimizableTests(unittest.TestCase):
         adder_status = [False, True, True]
         self.assertTrue(np.equal(adder.dofs_free_status, adder_status).all())
         self.assertTrue(np.equal(iden.dofs_free_status, [False]).all())
-        obj_status = [False, False, True, True, True]
+        obj_status = [False, True, True, False, True]
         self.assertTrue(np.equal(test_obj.dofs_free_status, obj_status).all())
 
     def test_local_dofs_free_status(self):
@@ -786,12 +786,12 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(test_obj.local_full_x[0], 25)
 
         iden.unfix_all()
-        test_obj.x = np.array([1, 1, 2, 3, 10])
+        test_obj.x = np.array([1, 2, 3, 1, 10])
 
-        self.assertAlmostEqual(iden.local_full_x[0], 1)
         self.assertAlmostEqual(adder.local_full_x[0], 1)
         self.assertAlmostEqual(adder.local_full_x[1], 2)
         self.assertAlmostEqual(adder.local_full_x[2], 3)
+        self.assertAlmostEqual(iden.local_full_x[0], 1)
         self.assertAlmostEqual(test_obj.local_full_x[0], 10)
 
     def test_get_ancestors(self):

@@ -2,22 +2,10 @@ import numpy as np
 
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
+from .._core.derivative import Derivative
 
 
-class Current(sopp.Current, Optimizable):
-    def __init__(self, current):
-        sopp.Current.__init__(self, current)
-        Optimizable.__init__(self, x0=self.get_dofs(),
-                             external_dof_setter=sopp.Current.set_dofs)
-
-
-class Coil(sopp.Coil, Optimizable):
-    def __init__(self, curve, current):
-        sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, depends_on=[curve, current])
-
-
-class MagneticField(sopp.MagneticField):
+class MagneticField(sopp.MagneticField, Optimizable):
 
     '''
     Generic class that represents any magnetic field from which each magnetic
@@ -32,17 +20,23 @@ class MagneticField(sopp.MagneticField):
         dA = bfield.dA_by_dX() # returns the gradient of the potential of the field at `points`
 
     ``MagneticField`` has a cache to avoid repeated calculations.
-    To clear this cache, call the `clear_cached_properties()` function.
-    The cache is automatically cleard when ``set_points`` is called.
+    To clear this cache manually, call the `clear_cached_properties()` function.
+    The cache is automatically cleared when ``set_points`` is called or one of the dependencies
+    changes.
 
     '''
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         sopp.MagneticField.__init__(self)
+        Optimizable.__init__(self, **kwargs)
 
     def clear_cached_properties(self):
         """Clear the cache."""
         sopp.MagneticField.invalidate_cache(self)
+
+    def recompute_bell(self, parent=None):
+        if np.any(self.dofs_free_status):
+            self.clear_cached_properties()
 
     def __add__(self, other):
         """Add two magnetic fields."""
@@ -87,7 +81,7 @@ class MagneticFieldMultiply(MagneticField):
     """
 
     def __init__(self, scalar, Bfield):
-        MagneticField.__init__(self)
+        MagneticField.__init__(self, depends_on=[Bfield])
         self.scalar = scalar
         self.Bfield = Bfield
 
@@ -122,7 +116,7 @@ class MagneticFieldSum(MagneticField):
     """
 
     def __init__(self, Bfields):
-        MagneticField.__init__(self)
+        MagneticField.__init__(self, depends_on=Bfields)
         self.Bfields = Bfields
 
     def _set_points_cb(self):
@@ -146,3 +140,6 @@ class MagneticFieldSum(MagneticField):
 
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
+
+    def B_vjp(self, v):
+        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])

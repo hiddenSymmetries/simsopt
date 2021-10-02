@@ -160,7 +160,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
     user_provided_G = G is not None
     if not user_provided_G:
-        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+        G = 2. * np.pi * np.sum([np.abs(c.current.get_value()) for c in biotsavart.coils]) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
     x = surface.gamma()
     xphi = surface.gammadash1()
@@ -317,7 +317,7 @@ class QfmResidual(Optimizable):
 
     def invalidate_cache(self):
         x = self.surface.gamma()
-        xsemiflat = x.reshape((x.size//3, 3)).copy()
+        xsemiflat = x.reshape((-1, 3))
         self.biotsavart.set_points(xsemiflat)
 
     def J(self):
@@ -336,102 +336,32 @@ class QfmResidual(Optimizable):
         """
         Calculate the derivatives with respect to the surface coefficients
         """
-        x = self.surface.gamma()
-        nphi = x.shape[0]
-        ntheta = x.shape[1]
-        dx_by_dc = self.surface.dgamma_by_dcoeff()
-        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-        B = self.biotsavart.B().reshape((nphi, ntheta, 3))
-        d_B = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_by_dc)
 
-        N = self.surface.normal()
-        norm_N = np.linalg.norm(N, axis=2)
-        n = N/norm_N[:, :, None]
-        d_N = self.surface.dnormal_by_dcoeff()
-        d_norm_N = np.einsum('ijkl,ijk->ijl', d_N, n)
-        d_n = d_N/norm_N[:, :, None, None] \
-            - N[:, :, :, None] * d_norm_N[:, :, None, :]/norm_N[:, :, None, None]**2
-
-        B_n = np.sum(B * n, axis=2)
-        norm_B = np.linalg.norm(B, axis=2)
-
-        d_B_n = np.einsum('ijkl,ijk->ijl', d_B, n) + np.einsum('ijk,ijkl->ijl', B, d_n)
-        d_norm_B = np.einsum('ijkl,ijk->ijl', d_B, B/norm_B[:, :, None])
-
-        num = np.sum(B_n**2 * norm_N)
-        denom = np.sum(norm_B**2 * norm_N)
-        d_num = np.sum(2 * d_B_n * B_n[:, :, None] * norm_N[:, :, None]
-                       + B_n[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        d_denom = np.sum(2 * d_norm_B * norm_B[:, :, None] * norm_N[:, :, None]
-                         + norm_B[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        return d_num/denom - d_denom*num/(denom*denom)
-
-    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
-        """
-        Calculate the second derivative wrt the surface coefficients
-        """
+        # we write the objective as J = J1/J2, then we compute the partial derivatives
+        # dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
+        # to get the derivatives wrt to the surface dofs
         x = self.surface.gamma()
         nphi = x.shape[0]
         ntheta = x.shape[1]
         dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-        d2B_by_dXdX = self.biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
         B = self.biotsavart.B().reshape((nphi, ntheta, 3))
-        dx_by_dc = self.surface.dgamma_by_dcoeff()
-
-        d_B = np.einsum('ijkl,ijkm->ijml', dx_by_dc, dB_by_dX)
-        d2_B = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_by_dc, dx_by_dc)
-
         N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=2)
-        n = N/norm_N[:, :, None]
 
-        d_N = self.surface.dnormal_by_dcoeff()
-        d2_N = self.surface.d2normal_by_dcoeffdcoeff()
+        B_N = np.sum(B * N, axis=2)
+        dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, None, :], axis=3))
+        dJ1dN = (2*B_N/norm_N)[:, :, None] * B - (B_N**2/norm_N**3)[:, :, None] * N
 
-        d_norm_N = np.einsum('ijkl,ijk->ijl', d_N, n)
-        d2_norm_N = (np.einsum('imjk,imjl->imkl', d_N, d_N)
-                     + np.einsum('imjkl,imj->imkl', d2_N, N)
-                     - d_norm_N[:, :, :, None]*d_norm_N[:, :, None, :])/norm_N[:, :, None, None]
-        d_n = d_N/norm_N[:, :, None, None] \
-            - N[:, :, :, None] * d_norm_N[:, :, None, :]/norm_N[:, :, None, None]**2
-        d2_n = d2_N/norm_N[:, :, None, None, None] \
-            - np.einsum('imjk,iml->imjkl', d_N, d_norm_N)/norm_N[:, :, None, None, None]**2 \
-            - np.einsum('imjk,iml->imjlk', d_N, d_norm_N)/norm_N[:, :, None, None, None]**2 \
-            + 2 * np.einsum('imj,iml,imk->imjlk', N, d_norm_N, d_norm_N)/norm_N[:, :, None, None, None]**3 \
-            - np.einsum('imj,imkl->imjkl', N, d2_norm_N)/norm_N[:, :, None, None, None]**2
+        dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
+        dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
 
-        B_n = np.sum(B * n, axis=2)
-        norm_B = np.linalg.norm(B, axis=2)
+        J1 = np.sum(B_N**2 / norm_N)  # same as np.sum(B_n**2 * norm_N)
+        J2 = np.sum(B**2 * norm_N[:, :, None])
 
-        d_B_n = np.einsum('ijkl,ijk->ijl', d_B, n) + np.einsum('ijk,ijkl->ijl', B, d_n)
-        d_norm_B = np.einsum('ijkl,ijk->ijl', d_B, B/norm_B[:, :, None])
+        # d_J1 = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
+        # d_J2 = self.surface.dnormal_by_dcoeff_vjp(dJ2dN) + self.surface.dgamma_by_dcoeff_vjp(dJ2dx)
+        # deriv = d_J1/J2 - d_J2*J1/(J2*J2)
 
-        d2_B_n = np.einsum('imjkl,imj->imkl', d2_B, n) \
-            + np.einsum('imj,imjkl->imkl', B, d2_n) \
-            + np.einsum('imjk,imjl->imkl', d_B, d_n) \
-            + np.einsum('imjk,imjl->imlk', d_B, d_n)
-        d2_norm_B = (np.einsum('imjkl,imj->imkl', d2_B, B)
-                     + np.einsum('imjk,imjl->imkl', d_B, d_B)
-                     - np.einsum('imk,iml->imkl', d_norm_B, d_norm_B))/norm_B[:, :, None, None]
-
-        num = np.sum(B_n**2 * norm_N)
-        denom = np.sum(norm_B**2 * norm_N)
-        d_num = np.sum(2 * d_B_n * B_n[:, :, None] * norm_N[:, :, None]
-                       + B_n[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        d2_num = np.sum(2*(d2_B_n * B_n[:, :, None, None] \
-                           + d_B_n[:, :, :, None] * d_B_n[:, :, None, :]) * norm_N[:, :, None, None]
-                        + 2 * d_B_n[:, :, None, :] * B_n[:, :, None, None] * d_norm_N[:, :, :, None]
-                        + 2 * d_B_n[:, :, :, None] * B_n[:, :, None, None] * d_norm_N[:, :, None, :]
-                        + B_n[:, :, None, None]**2 * d2_norm_N, axis=(0, 1))
-        d_denom = np.sum(2 * d_norm_B * norm_B[:, :, None] * norm_N[:, :, None]
-                         + norm_B[:, :, None]**2 * d_norm_N, axis=(0, 1))
-        d2_denom = np.sum(2*(d2_norm_B * norm_B[:, :, None, None] \
-                             + d_norm_B[:, :, :, None] * d_norm_B[:, :, None, :]) * norm_N[:, :, None, None]
-                          + 2 * d_norm_B[:, :, None, :] * norm_B[:, :, None, None] * d_norm_N[:, :, :, None]
-                          + 2 * d_norm_B[:, :, :, None] * norm_B[:, :, None, None] * d_norm_N[:, :, None, :]
-                          + norm_B[:, :, None, None]**2 * d2_norm_N, axis=(0, 1))
-
-        return d2_num/denom - d_num[:, None]*d_denom[None, :]/denom**2 \
-            - d_num[None, :]*d_denom[:, None]/denom**2 \
-            - d2_denom*num/(denom*denom) \
-            + 2 * d_denom[:, None]*d_denom[None, :]*num/(denom**3)
+        deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/J2 - dJ2dN*J1/(J2*J2)) \
+            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/J2 - dJ2dx*J1/(J2*J2))
+        return deriv

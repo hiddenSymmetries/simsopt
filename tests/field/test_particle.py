@@ -1,4 +1,4 @@
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.util.zoo import get_ncsx_data
@@ -57,10 +57,10 @@ class ParticleTracingTesting(unittest.TestCase):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        coils, currents, ma = get_ncsx_data(Nt_coils=8)
-        currents = [3 * c for c in currents]
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         n = 16
 
         rrange = (1.1, 1.8, n)

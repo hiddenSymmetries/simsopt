@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume
-from simsopt.geo.coilcollection import CoilCollection
 from simsopt.util.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
@@ -65,9 +65,10 @@ class ToroidalFluxTests(unittest.TestCase):
         of the cross section (varphi = constant) across which it is computed
         """
         s = get_exact_surface()
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs_tf = BiotSavart(coils)
 
         gamma = s.gamma()
         num_phi = gamma.shape[0]
@@ -102,9 +103,10 @@ class ToroidalFluxTests(unittest.TestCase):
                     self.subtest_toroidal_flux2(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs_tf = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs_tf = BiotSavart(coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -120,9 +122,10 @@ class ToroidalFluxTests(unittest.TestCase):
         taylor_test1(f, df, coeffs)
 
     def subtest_toroidal_flux2(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs)
@@ -175,12 +178,12 @@ class QfmTests(unittest.TestCase):
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_qfm1(surfacetype, stellsym)
-                    self.subtest_qfm2(surfacetype, stellsym)
 
     def subtest_qfm1(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         s = get_surface(surfacetype, stellsym)
         coeffs = s.x
         qfm = QfmResidual(s, bs)
@@ -194,27 +197,3 @@ class QfmTests(unittest.TestCase):
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))
-
-    def subtest_qfm2(self, surfacetype, stellsym):
-        coils, currents, ma = get_ncsx_data()
-        stellarator = CoilCollection(coils, currents, 3, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        s = get_surface(surfacetype, stellsym)
-
-        qfm = QfmResidual(s, bs)
-        coeffs = s.x
-
-        def f(dofs):
-            s.x = dofs
-            return qfm.J()
-
-        def df(dofs):
-            s.x = dofs
-            return qfm.dJ_by_dsurfacecoefficients()
-
-        def d2f(dofs):
-            s.x = dofs
-            return qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-
-        taylor_test2(f, df, d2f, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(12, 20))))
