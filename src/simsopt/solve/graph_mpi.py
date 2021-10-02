@@ -112,7 +112,6 @@ def _mpi_workers_task(mpi: MpiPartition,
         traceback.print_exc()  # Print traceback
 
 
-
 def fd_jac_mpi(prob: LeastSquaresProblem,
                mpi: MpiPartition,
                x: RealArray = None,

@@ -1189,6 +1189,7 @@ def make_optimizable(func, /, *args, dof_indicators=None, **kwargs):
         Subclass of Optimizable class to create optimizable objects dynamically.
         dof_indicators argument is used to filter out dofs and
         """
+
         def __init__(self, func, /, *args, dof_indicators=None, **kwargs):
 
             self.func = func

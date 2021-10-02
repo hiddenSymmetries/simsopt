@@ -130,8 +130,8 @@ class MPISolveTests(unittest.TestCase):
                         prob.x = [-0.1, 0.2]
                         least_squares_mpi_solve(prob, mpi, grad=True,
                                                 diff_method=diff_method,
-                                                abs_step = abs_step,
-                                                rel_step = rel_step)
+                                                abs_step=abs_step,
+                                                rel_step=rel_step)
                         self.assertAlmostEqual(prob.x[0], 1)
                         self.assertAlmostEqual(prob.x[1], 1)
 

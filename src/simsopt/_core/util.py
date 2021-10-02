@@ -236,11 +236,13 @@ def nested_lists_to_array(ll):
                 arr[jm, jn] = x
     return arr
 
+
 class WeakKeyDefaultDict(WeakKeyDictionary):
     """
     A simple implementation of defaultdict that uses WeakKeyDictionary as its
     parent class instead of standard dictionary.
     """
+
     def __init__(self, default_factory=None, /, *args, **kwargs):
         self.default_factory = default_factory
         super().__init__(*args, **kwargs)
