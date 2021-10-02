@@ -155,8 +155,8 @@ jobs:
     #- name: Add spec python wrapper to PYTHONPATH.
     #  run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
 
-    - name: Try import spec
-      run: python -c "import spec; print(spec.constants.version)"
+    #  - name: Try import spec
+    #    run: python -c "import spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
