@@ -857,7 +857,7 @@ class OptimizableTestsExternalDofs(unittest.TestCase):
 class TestMakeOptimizable(unittest.TestCase):
     def setUp(self) -> None:
         def arb_fun_dofs_noopts(a, b, c, /):
-            return a ** 2 + 2 * b ** 2 + 3 * c ** 2  - 10
+            return a ** 2 + 2 * b ** 2 + 3 * c ** 2 - 10
 
         def arb_fun_nodofs_opts(adder):
             return adder.sum()**2 - 10
@@ -894,7 +894,7 @@ class TestMakeOptimizable(unittest.TestCase):
         a = 2.0
         b = 3.0
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
-        opt = make_optimizable(self.arb_fun_dofs_opts, a,  b, adder)
+        opt = make_optimizable(self.arb_fun_dofs_opts, a, b, adder)
         self.assertAlmostEqual(opt.J(), 39.0)
         x = opt.x   # Length of x is 3
         self.assertEqual(len(x), 3)
@@ -911,7 +911,7 @@ class TestMakeOptimizable(unittest.TestCase):
                                a, b, adder,
                                dof_indicators=['dof', 'non-dof', 'opt'])
         self.assertAlmostEqual(opt.J(), 39.0)
-        x = opt.x # Length of x is 4
+        x = opt.x  # Length of x is 4
         self.assertEqual(len(x), 4)
         opt.x = x / 2.0
         self.assertAlmostEqual(opt.J(), 9.0)

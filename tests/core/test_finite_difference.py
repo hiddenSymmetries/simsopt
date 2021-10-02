@@ -28,8 +28,8 @@ class TestFunction1(Optimizable):
 
     def dJ(self):
         jac = self.J() * np.asarray([2*self.full_x[0],
-                                       -np.exp(self.full_x[1]),
-                                       np.cos(self.full_x[2])])
+                                     -np.exp(self.full_x[1]),
+                                     np.cos(self.full_x[2])])
         return np.expand_dims(jac, axis=0)
 
     return_fn_map = {'J': J}
@@ -174,7 +174,6 @@ class FiniteDifferenceTests(unittest.TestCase):
                     np.testing.assert_allclose(jac, jac_ref,
                                                rtol=rtol, atol=atol)
 
-
                     # Now try a case with different nparams and nfuncs.
                     o = TestFunction2()
                     anlt_jac = np.concatenate(
@@ -189,6 +188,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                     fd_jac = fd.jac()
                     np.testing.assert_allclose(fd_jac, anlt_jac, rtol=1e-6,
                                                atol=1e-6)
+
 
 @unittest.skipIf(MPI is None, "Requires mpi4py")
 class MPIFiniteDifferenceTests(unittest.TestCase):

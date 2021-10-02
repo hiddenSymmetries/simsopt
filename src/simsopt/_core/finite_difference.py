@@ -28,12 +28,14 @@ from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)
 
+
 class FiniteDifference:
     """
     Provides Jacobian evaluated with finite difference scheme.
     Supplies a method named jac to be used with optimizers. Use
     the initialization to customize the finite difference scheme
     """
+
     def __init__(self, func: Callable, /,
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
@@ -53,7 +55,7 @@ class FiniteDifference:
         self.rel_step = rel_step
         if diff_method not in ['centered', 'forward']:
             raise ValueError(f"Finite difference method {diff_method} not implemented. "
-            "Supported methods are 'centered' and 'forward'.")
+                             "Supported methods are 'centered' and 'forward'.")
         self.diff_method = diff_method
 
         self.x0 = np.asarray(x0) if x0 is not None else x0
@@ -111,6 +113,7 @@ class FiniteDifference:
 
         return jac
 
+
 @SimsoptRequires(MPI is not None, "MPIFiniteDifference requires mpi4py")
 class MPIFiniteDifference:
     """
@@ -120,6 +123,7 @@ class MPIFiniteDifference:
     Supplies a method named jac to be used with optimizers. Use
     the initialization to customize the finite difference scheme
     """
+
     def __init__(self, func: Callable,
                  mpi: MpiPartition, /,
                  x0: RealArray = None,
@@ -172,7 +176,7 @@ class MPIFiniteDifference:
         print(f"is mpi apart {mpi.is_apart}")
         if not mpi.is_apart:
             mpi.worker_loop(lambda mpi, data: self.mpi_workers_task())
-        if not mpi.proc0_groups: # This condition shouldn't  be  triggered
+        if not mpi.proc0_groups:  # This condition shouldn't  be  triggered
             return (None, None, None)
 
         if x is not None:
@@ -200,7 +204,7 @@ class MPIFiniteDifference:
                 xs[j, 2 * j] = x0[j] + steps[j]
                 xs[:, 2 * j + 1] = x0[:]
                 xs[j, 2 * j + 1] = x0[j] - steps[j]
-        else: #  diff_method == "forward":
+        else:  # diff_method == "forward":
             # 1-sided differences
             nevals_jac = nparams + 1
             xs = np.zeros((nparams, nevals_jac))
@@ -214,7 +218,7 @@ class MPIFiniteDifference:
         if not mpi.proc0_world:
             # All procs other than proc0_world should initialize evals before
             # the nevals_jac loop, since they may not have any evals.
-            self.jac_size = np.zeros(2,  dtype=np.int32)
+            self.jac_size = np.zeros(2, dtype=np.int32)
             self.jac_size = mpi.comm_leaders.bcast(self.jac_size)
             evals = np.zeros((self.jac_size[0], nevals_jac))
         # Do the hard work of evaluating the functions.
@@ -263,8 +267,8 @@ class MPIFiniteDifference:
         if diff_method == "centered":
             for j in range(nparams):
                 jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (
-                            2 * steps[j])
-        else: # diff_method == "forward":
+                    2 * steps[j])
+        else:  # diff_method == "forward":
             # 1-sided differences:
             for j in range(nparams):
                 jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
@@ -295,7 +299,7 @@ class MPIFiniteDifference:
         self.opt.x = x
         self._jac()
 
-    def mpi_workers_task(self,  *args):
+    def mpi_workers_task(self, *args):
         """
             Note: func is a method of opt.
             """
@@ -322,7 +326,7 @@ class MPIFiniteDifference:
             traceback.print_exc()  # Print traceback
 
 # Call to jac function is made in proc0
-    def jac(self, x: RealArray = None,  *args, **kwargs):
+    def jac(self, x: RealArray = None, *args, **kwargs):
         """
         Called by proc0
         """
@@ -330,7 +334,7 @@ class MPIFiniteDifference:
         ARB_VAL = 100
         print("Entering jac evaluation")
 
-        if  self.jac_size  is None:  # Do one evaluation of code
+        if self.jac_size is None:  # Do one evaluation of code
             if x is None:
                 x = self.x0
             self.mpi.mobilize_workers(ARB_VAL)
@@ -340,7 +344,7 @@ class MPIFiniteDifference:
             if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
                 out = np.array([out])
             else:
-                out =np.asarray(out)
+                out = np.asarray(out)
             print(f'out is {out}')
             print(f'out shape is {np.shape(out)}')
             self.jac_size = np.array((len(out), self.opt.dof_size),
