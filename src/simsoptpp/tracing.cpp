@@ -80,12 +80,15 @@ class GuidingCenterVacuumRHS {
 template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumBoozerRHS {
     /*
-     * The state consists of :math:`[x, y, z, v_par]` with
+     * The state consists of :math:`[s, t, z, v_par]` with
      *
-     *   [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)
-     *   \dot v_{||}              &= -\mu  (B \cdot \nabla(|B|))
+     *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+     *    \dot \zeta = v_{||}|B|/G
+     *    \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
      *
-     * where v_perp = 2*mu*|B|
+     *  where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+     *
      */
     private:
         std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
@@ -126,6 +129,67 @@ class GuidingCenterVacuumBoozerRHS {
             dydt[1] = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G;
             dydt[2] = v_par*modB/G;
             dydt[3] = -(iota*dmodBdtheta + dmodBdzeta)*mu*modB/G;
+        }
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class GuidingCenterBoozerRHS {
+    /*
+     * The state consists of :math:`[s, t, z, v_par]` with
+     *
+     *  \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+     *  \dot \theta = (G |B|_{,\psi} m(v_{||}^2/|B| + \mu) - (-q \iota + m v_{||} G' / |B|) v_{||} |B|)/(\iota D)
+     *  \dot \zeta = \left((q + m v_{||} I'/|B|) v_{||} |B| - |B|_{,\psi} m(\rho_{||}^2 |B| + \mu) I\right)/(\iota D)
+     *  \dot v_{||} = ((-q\iota + m v_{||} G'/|B|)|B|_{,\theta} - (q + m v_{||}I'/|B|)|B|_{,\zeta})\mu |B|/(\iota D)
+     *  D = ((q + m v_{||} I'/|B|)*G - (-q \iota + m v_{||} G'/|B|) I)/\iota
+     *
+     *  where primes indicate differentiation wrt :math:`\psi`, :math:`q` is the charge,
+     *  :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+     */
+    private:
+        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
+        typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
+        shared_ptr<BoozerMagneticField<T>> field;
+        double m, q, mu;
+    public:
+        static constexpr int Size = 4;
+        using State = std::array<double, Size>;
+
+
+        GuidingCenterBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu)
+            : field(field), m(m), q(q), mu(mu) {
+            }
+
+        void operator()(const State &ys, array<double, 4> &dydt,
+                const double t) {
+            double v_par = ys[3];
+
+            stz(0, 0) = ys[0];
+            stz(0, 1) = ys[1];
+            stz(0, 2) = ys[2];
+
+            assert(ys[0]>0);
+
+            field->set_points(stz);
+            auto psi0 = field->psi0;
+            double modB = field->modB_ref()(0);
+            double G = field->G_ref()(0);
+            double I = field->I_ref()(0);
+            double dGdpsi = field->dGds_ref()(0)/psi0;
+            double dIdpsi = field->dIds_ref()(0)/psi0;
+            double iota = field->iota_ref()(0);
+            double dmodBdpsi = field->dmodBds_ref()(0)/psi0;
+            double dmodBdtheta = field->dmodBdtheta_ref()(0);
+            double dmodBdzeta = field->dmodBdzeta_ref()(0);
+            double v_perp2 = 2*mu*modB;
+            double fak1 = m*v_par*v_par/modB + m*mu;
+            double D = ((q + m*v_par*dIdpsi/modB)*G - (-q*iota + m*v_par*dGdpsi/modB)*I)/iota;
+
+            dydt[0] = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);
+            dydt[1] = (G*dmodBdpsi*fak1 - (-q*iota + m*v_par*dGdpsi/modB)*v_par*modB)/(D*iota);
+            dydt[2] = ((q + m*v_par*dIdpsi/modB)*v_par*modB - dmodBdpsi*fak1*I)/(D*iota);
+            dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
+            // ((-q*iota + m*v_par*dGdpsi/modB)*dmodBdtheta - (q + m*v_par*dIdpsi/modB)*dmodBdzeta)*mu*modB/(D*iota);
         }
 };
 
@@ -206,26 +270,6 @@ class FieldlineRHS {
         }
 };
 
-double get_phi_flux(double phi, double phi_near){
-    if(phi < 0)
-        phi += 2*M_PI;
-    phi = std::fmod(phi, 2*M_PI);
-    double phi_near_mod = std::fmod(phi_near, 2*M_PI);
-    double nearest_multiple = std::round(phi_near/(2*M_PI))*2*M_PI;
-    double opt1 = nearest_multiple - 2*M_PI + phi;
-    double opt2 = nearest_multiple + phi;
-    double opt3 = nearest_multiple + 2*M_PI + phi;
-    double dist1 = std::abs(opt1-phi_near);
-    double dist2 = std::abs(opt2-phi_near);
-    double dist3 = std::abs(opt3-phi_near);
-    if(dist1 <= std::min(dist2, dist3))
-        return opt1;
-    else if(dist2 <= std::min(dist1, dist3))
-        return opt2;
-    else
-        return opt3;
-}
-
 double get_phi(double x, double y, double phi_near){
     double phi = std::atan2(y, x);
     if(phi < 0)
@@ -276,7 +320,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     double phi_last = get_phi(y[0], y[1], M_PI);
     if (flux) {
       phi_last = y[2];
-      // phi_last = get_phi_flux(y[2], M_PI);
     }
     double phi_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
@@ -291,7 +334,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         phi_current = get_phi(y[0], y[1], phi_last);
         if (flux) {
           phi_current = y[2];
-          // phi_current = get_phi_flux(y[2], phi_last);
         }
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
@@ -308,20 +350,18 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                     double diff = get_phi(temp[0], temp[1], phi_last)-phi_shift;
                     if (flux) {
                       diff = temp[2]-phi_shift;
-                      // diff = get_phi_flux(temp[2], phi_last)-phi_shift;
                     }
                     return diff;
                 };
-
-                auto root = toms748_solve(rootfun, tlast, tcurrent, phi_last - phi_shift, phi_current-phi_shift, roottol, rootmaxit);
+                auto root = toms748_solve(rootfun, tlast, tcurrent, phi_last - phi_shift, phi_current - phi_shift, roottol, rootmaxit);
                 double f0 = rootfun(root.first);
                 double f1 = rootfun(root.second);
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
-                double rroot = std::sqrt(temp[0]*temp[0] + temp[1]*temp[1]);
-                double phiroot = std::atan2(temp[1], temp[0]);
-                if(phiroot<0)
-                    phiroot += 2*M_PI;
+                // double rroot = std::sqrt(temp[0]*temp[0] + temp[1]*temp[1]);
+                // double phiroot = std::atan2(temp[1], temp[0]);
+                // if(phiroot<0)
+                //     phiroot += 2*M_PI;
                 //fmt::print("root=({:.5f}, {:.5f}), tlast={:.5f}, phi_last={:.5f}, tcurrent={:.5f}, phi_current={:.5f}, phi_shift={:.5f}, phi_root={:.5f}\n", std::get<0>(root), std::get<1>(root), tlast, phi_last, tcurrent, phi_current, phi_shift, get_phi(temp[0], temp[1], phi_last));
                 //fmt::print("t={:.5f}, xyz=({:.5f}, {:.5f}, {:.5f}), rphiz=({}, {}, {})\n", troot, temp[0], temp[1], temp[2], rroot, phiroot, temp[2]);
                 //fmt::print("x={}, y={}, phi={}\n", temp[0], temp[1], std::atan2(temp[1], temp[0]));
@@ -375,7 +415,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -384,20 +424,25 @@ particle_guiding_center_boozer_tracing(
     double mu = vperp2/(2*modB);
 
     array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
-    double G0 = field->G()(0);
+    double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-    return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+    if (vacuum) {
+      auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+    } else {
+      auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+    }
 }
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(

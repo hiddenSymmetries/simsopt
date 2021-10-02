@@ -18,7 +18,9 @@ void init_tracing(py::module_ &m){
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
     py::class_<IterationStoppingCriterion, shared_ptr<IterationStoppingCriterion>, StoppingCriterion>(m, "IterationStoppingCriterion")
         .def(py::init<int>());
-    py::class_<ToroidalFluxStoppingCriterion, shared_ptr<ToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "ToroidalFluxStoppingCriterion")
+    py::class_<MaxToroidalFluxStoppingCriterion, shared_ptr<MaxToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MaxToroidalFluxStoppingCriterion")
+        .def(py::init<double>());
+    py::class_<MinToroidalFluxStoppingCriterion, shared_ptr<MinToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MinToroidalFluxStoppingCriterion")
         .def(py::init<double>());
     py::class_<ToroidalTransitStoppingCriterion, shared_ptr<ToroidalTransitStoppingCriterion>, StoppingCriterion>(m, "ToroidalTransitStoppingCriterion")
         .def(py::init<int,bool>());
@@ -34,6 +36,7 @@ void init_tracing(py::module_ &m){
         py::arg("vtang"),
         py::arg("tmax"),
         py::arg("tol"),
+        py::arg("vacuum"),
         py::arg("zetas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
         );
@@ -73,5 +76,4 @@ void init_tracing(py::module_ &m){
             py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
 
     m.def("get_phi", &get_phi);
-    m.def("get_phi_flux", &get_phi_flux);
 }
