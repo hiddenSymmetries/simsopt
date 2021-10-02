@@ -106,6 +106,46 @@ class BoozerAnalytic(BoozerMagneticField):
         self.psi0 = psi0
         BoozerMagneticField.__init__(self,psi0)
 
+    def set_etabar(self,etabar):
+        self.invalidate_cache()
+        self.etabar = etabar
+
+    def set_B0(self,B0):
+        self.invalidate_cache()
+        self.B0 = B0
+
+    def set_Bbar(self,Bbar):
+        self.invalidate_cache()
+        self.Bbar = Bbar
+
+    def set_N(self,N):
+        self.invalidate_cache()
+        self.N = N
+
+    def set_G0(self,G0):
+        self.invalidate_cache()
+        self.G0 = G0
+
+    def set_I0(self,I0):
+        self.invalidate_cache()
+        self.I0 = I0
+
+    def set_G1(self,G1):
+        self.invalidate_cache()
+        self.G1 = G1
+
+    def set_I1(self,I1):
+        self.invalidate_cache()
+        self.I1 = I1
+
+    def set_iota0(self,iota0):
+        self.invalidate_cache()
+        self.iota0 = iota0
+
+    def set_psi0(self,psi0):
+        self.invalidate_cache()
+        self.psi0 = psi0
+
     def _psip_impl(self, psip):
         points = self.get_points_ref()
         s = points[:, 0]
@@ -113,6 +153,9 @@ class BoozerAnalytic(BoozerMagneticField):
 
     def _iota_impl(self, iota):
         iota[:,0] = self.iota0
+
+    def _diotads_impl(self, diotads):
+        diotads[:,0] = 0
 
     def _G_impl(self, G):
         points = self.get_points_ref()
