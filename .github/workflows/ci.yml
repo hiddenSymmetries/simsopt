@@ -87,7 +87,7 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -223,4 +223,3 @@ jobs:
         fail_ci_if_error: true
         #path_to_write_report: ./coverage/codecov_report.gz
         verbose: true
-

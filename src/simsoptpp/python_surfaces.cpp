@@ -2,11 +2,10 @@
 #include "pybind11/stl.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
 using std::vector;
 
+namespace py = pybind11;
 #include "pycurve.h"
 #include "surface.h"
 #include "pysurface.h"
@@ -115,12 +114,14 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("gamma_impl", &T::gamma_impl)
      .def("gamma_lin", &T::gamma_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
+     .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
      .def("gammadash1", &T::gammadash1)
      .def("dgammadash1_by_dcoeff", &T::dgammadash1_by_dcoeff)
      .def("gammadash2", &T::gammadash2)
      .def("dgammadash2_by_dcoeff", &T::dgammadash2_by_dcoeff)
      .def("normal", &T::normal)
      .def("dnormal_by_dcoeff", &T::dnormal_by_dcoeff)
+     .def("dnormal_by_dcoeff_vjp", &T::dnormal_by_dcoeff_vjp)
      .def("d2normal_by_dcoeffdcoeff", &T::d2normal_by_dcoeffdcoeff)
      .def("unitnormal", &T::unitnormal)
      .def("area", &T::area)

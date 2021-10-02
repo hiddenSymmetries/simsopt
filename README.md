@@ -68,11 +68,14 @@ container](https://simsopt.readthedocs.io/en/latest/docker.html), and
 other information can be found in the [main simsopt documentation
 here.](https://simsopt.readthedocs.io)
 
-[//]: # (`simsopt` is one of several available systems for stellarator)
-[//]: # "optimization.  Others include [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT),"
-[//]: # "[ROSE](https://doi.org/10.1088/1741-4326/aaed50), and"
-[//]: # "[LASSO](https://gitlab.com/wistell).)"
+If you use `simsopt` in your research, kindly cite the code using
+[this reference](https://doi.org/10.21105/joss.03525):
 
+[1] M Landreman, B Medasani, F Wechsung, A Giuliani, R Jorge, and C Zhu,
+    "SIMSOPT: A flexible framework for stellarator optimization",
+    *J. Open Source Software* **6**, 3525 (2021).
+
+See also [the simsopt publications page](https://simsopt.readthedocs.io/en/latest/publications.html).
 
 We gratefully acknowledge funding from the [Simons Foundation's Hidden
 symmetries and fusion energy

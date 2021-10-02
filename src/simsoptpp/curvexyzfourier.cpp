@@ -104,7 +104,7 @@ void CurveXYZFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
 }
 
 template<class Array>
-Array CurveXYZFourier<Array>:: dgamma_by_dcoeff_vjp(Array& v) {
+Array CurveXYZFourier<Array>:: dgamma_by_dcoeff_vjp_impl(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     for (int k = 0; k < numquadpoints; ++k) {
         for (int i = 0; i < 3; ++i) {
@@ -119,7 +119,7 @@ Array CurveXYZFourier<Array>:: dgamma_by_dcoeff_vjp(Array& v) {
 }
 
 template<class Array>
-Array CurveXYZFourier<Array>:: dgammadash_by_dcoeff_vjp(Array& v) {
+Array CurveXYZFourier<Array>:: dgammadash_by_dcoeff_vjp_impl(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     for (int k = 0; k < numquadpoints; ++k) {
         for (int i = 0; i < 3; ++i) {
