@@ -64,7 +64,7 @@ term2 = (vmec.iota_axis, desired_iota, iota_weight)
 prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
-least_squares_mpi_solve(prob, mpi=mpi)  # , grad=True)
+least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
 # Evaluate quantities on all processes, in case communication is
 # required:

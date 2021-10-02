@@ -56,7 +56,7 @@ if mpi.proc0_world:
     print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
-least_squares_mpi_solve(prob, mpi)  # , grad=True)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 # residuals = prob.f()
 # vals = prob.dofs.f()

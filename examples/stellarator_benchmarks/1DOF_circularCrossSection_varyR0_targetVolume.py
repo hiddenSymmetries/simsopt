@@ -63,7 +63,7 @@ prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
-least_squares_mpi_solve(prob, mpi)  # , grad=True)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 # Make sure all procs call VMEC:
 objective = prob.objective()
