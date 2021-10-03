@@ -49,11 +49,11 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 }
 
 void init_boozermagneticfields(py::module_ &m){
-  auto mf = py::class_<PyBoozerMagneticField, PyBoozerMagneticFieldTrampoline<PyBoozerMagneticField>, py_shared_ptr<PyBoozerMagneticField>>(m, "BoozerMagneticField", "")
+  auto mf = py::class_<PyBoozerMagneticField, PyBoozerMagneticFieldTrampoline<PyBoozerMagneticField>, shared_ptr<PyBoozerMagneticField>>(m, "BoozerMagneticField", "")
       .def(py::init<double>());
   register_common_field_methods<PyBoozerMagneticField>(mf);
 
-  auto ifield = py::class_<PyInterpolatedBoozerField, py_shared_ptr<PyInterpolatedBoozerField>, PyBoozerMagneticField>(m, "InterpolatedBoozerField")
+  auto ifield = py::class_<PyInterpolatedBoozerField, shared_ptr<PyInterpolatedBoozerField>, PyBoozerMagneticField>(m, "InterpolatedBoozerField")
       .def(py::init<shared_ptr<PyBoozerMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
       .def(py::init<shared_ptr<PyBoozerMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
       .def("estimate_error_modB", &PyInterpolatedBoozerField::estimate_error_modB)
