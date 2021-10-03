@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class BoozerMagneticField(sopp.BoozerMagneticField):
     """
     Generic class that represents a magnetic field in Boozer coordinates
@@ -46,9 +47,10 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
     The cache is automatically cleared when ``set_points`` is called or one of the dependencies
     changes.
     """
-    def __init__(self,psi0):
+
+    def __init__(self, psi0):
         self.psi0 = psi0
-        sopp.BoozerMagneticField.__init__(self,psi0)
+        sopp.BoozerMagneticField.__init__(self, psi0)
 
     def clear_cached_properties(self):
         """Clear the cache."""
@@ -57,6 +59,7 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
     def recompute_bell(self, parent=None):
         if np.any(self.dofs_free_status):
             self.clear_cached_properties()
+
 
 class BoozerAnalytic(BoozerMagneticField):
     """
@@ -93,7 +96,8 @@ class BoozerAnalytic(BoozerMagneticField):
         G1: first order correction to toroidal covariant component (defaults to 0)
         I1: first order correction to poloidal covariant component (defaults to 0)
     """
-    def __init__(self,etabar,B0,Bbar,N,G0,psi0,iota0,I0=0.,G1=0.,I1=0.):
+
+    def __init__(self, etabar, B0, Bbar, N, G0, psi0, iota0, I0=0., G1=0., I1=0.):
         self.etabar = etabar
         self.B0 = B0
         self.Bbar = Bbar
@@ -104,74 +108,74 @@ class BoozerAnalytic(BoozerMagneticField):
         self.G1 = G1
         self.iota0 = iota0
         self.psi0 = psi0
-        BoozerMagneticField.__init__(self,psi0)
+        BoozerMagneticField.__init__(self, psi0)
 
-    def set_etabar(self,etabar):
+    def set_etabar(self, etabar):
         self.invalidate_cache()
         self.etabar = etabar
 
-    def set_B0(self,B0):
+    def set_B0(self, B0):
         self.invalidate_cache()
         self.B0 = B0
 
-    def set_Bbar(self,Bbar):
+    def set_Bbar(self, Bbar):
         self.invalidate_cache()
         self.Bbar = Bbar
 
-    def set_N(self,N):
+    def set_N(self, N):
         self.invalidate_cache()
         self.N = N
 
-    def set_G0(self,G0):
+    def set_G0(self, G0):
         self.invalidate_cache()
         self.G0 = G0
 
-    def set_I0(self,I0):
+    def set_I0(self, I0):
         self.invalidate_cache()
         self.I0 = I0
 
-    def set_G1(self,G1):
+    def set_G1(self, G1):
         self.invalidate_cache()
         self.G1 = G1
 
-    def set_I1(self,I1):
+    def set_I1(self, I1):
         self.invalidate_cache()
         self.I1 = I1
 
-    def set_iota0(self,iota0):
+    def set_iota0(self, iota0):
         self.invalidate_cache()
         self.iota0 = iota0
 
-    def set_psi0(self,psi0):
+    def set_psi0(self, psi0):
         self.invalidate_cache()
         self.psi0 = psi0
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
         s = points[:, 0]
-        psip[:,0] = self.psi0*s*self.iota0
+        psip[:, 0] = self.psi0*s*self.iota0
 
     def _iota_impl(self, iota):
-        iota[:,0] = self.iota0
+        iota[:, 0] = self.iota0
 
     def _diotads_impl(self, diotads):
-        diotads[:,0] = 0
+        diotads[:, 0] = 0
 
     def _G_impl(self, G):
         points = self.get_points_ref()
         s = points[:, 0]
-        G[:,0] = self.G0 + s*self.G1
+        G[:, 0] = self.G0 + s*self.G1
 
     def _dGds_impl(self, dGds):
-        dGds[:,0] = self.G1
+        dGds[:, 0] = self.G1
 
     def _I_impl(self, I):
         points = self.get_points_ref()
         s = points[:, 0]
-        I[:,0] = self.I0 + s*self.I1
+        I[:, 0] = self.I0 + s*self.I1
 
     def _dIds_impl(self, dIds):
-        dIds[:,0] = self.I1
+        dIds[:, 0] = self.I1
 
     def _modB_impl(self, modB):
         points = self.get_points_ref()
@@ -179,37 +183,38 @@ class BoozerAnalytic(BoozerMagneticField):
         thetas = points[:, 1]
         zetas = points[:, 2]
         psi = s*self.psi0
-        r = np.sqrt(2*psi/self.Bbar)
-        modB[:,0] = self.B0*(1 + self.etabar*r*np.cos(thetas-self.N*zetas))
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        modB[:, 0] = self.B0*(1 + self.etabar*r*np.cos(thetas-self.N*zetas))
 
-    def _dmodBds_impl(self,dmodBds):
+    def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
         psi = s*self.psi0
-        r = np.sqrt(2*psi/self.Bbar)
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
         drdpsi = 0.5*r/psi
         drds = drdpsi*self.psi0
-        dmodBds[:,0] = self.B0*self.etabar*drds*np.cos(thetas-self.N*zetas)
+        dmodBds[:, 0] = self.B0*self.etabar*drds*np.cos(thetas-self.N*zetas)
 
-    def _dmodBdtheta_impl(self,dmodBdtheta):
+    def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
         psi = s*self.psi0
-        r = np.sqrt(2*psi/self.Bbar)
-        dmodBdtheta[:,0] = -self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        dmodBdtheta[:, 0] = -self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
 
-    def _dmodBdzeta_impl(self,dmodBdzeta):
+    def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
         psi = s*self.psi0
-        r = np.sqrt(2*psi/self.Bbar)
-        dmodBdzeta[:,0] = self.N*self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        dmodBdzeta[:, 0] = self.N*self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
+
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     """
@@ -239,7 +244,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if (N is not None):
             self.N = N
             self.enforce_qs = True
-        BoozerMagneticField.__init__(self,vmec.wout.phi[-1]/(2*np.pi))
+        BoozerMagneticField.__init__(self, vmec.wout.phi[-1]/(2*np.pi))
         self.init_splines()
 
     def init_splines(self):
@@ -247,8 +252,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         iota = np.zeros((self.vmec.wout.ns+1))
         G = np.zeros((self.vmec.wout.ns+1))
         I = np.zeros((self.vmec.wout.ns+1))
-        bmnc = np.zeros((len(self.booz.bx.xm_b),self.vmec.wout.ns+1))
-        dbmncds = np.zeros((len(self.booz.bx.xm_b),self.vmec.wout.ns))
+        bmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
+        dbmncds = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns))
 
         s_half_ext = np.zeros((self.vmec.wout.ns+1))
 
@@ -256,21 +261,21 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         iota[1:-1] = self.vmec.wout.iotas[1::]
         G[1:-1] = self.vmec.wout.bvco[1::]
         I[1:-1] = self.vmec.wout.buco[1::]
-        bmnc[:,1:-1] = self.booz.bx.bmnc_b
+        bmnc[:, 1:-1] = self.booz.bx.bmnc_b
         # Extrapolate to get points at s = 0 and s = 1
         iota[0] = 1.5*iota[1] - 0.5*iota[2]
         G[0] = 1.5*G[1] - 0.5*G[2]
         I[0] = 1.5*I[1] - 0.5*I[2]
-        bmnc[:,0] = 1.5*bmnc[:,1] - 0.5*bmnc[:,2]
+        bmnc[:, 0] = 1.5*bmnc[:, 1] - 0.5*bmnc[:, 2]
         iota[-1] = 1.5*iota[-2] - 0.5*iota[-3]
         G[-1] = 1.5*G[-2] - 0.5*G[-3]
         I[-1] = 1.5*I[-2] - 0.5*I[-3]
-        bmnc[:,-1] = 1.5*bmnc[:,-2] - 0.5*bmnc[:,-3]
+        bmnc[:, -1] = 1.5*bmnc[:, -2] - 0.5*bmnc[:, -3]
         # Compute first derivatives - on full grid points in [1,ns-1]
         dGds = (G[2:-1] - G[1:-2])/self.vmec.ds
         dIds = (I[2:-1] - I[1:-2])/self.vmec.ds
         diotads = (iota[2:-1]-iota[1:-2])/self.vmec.ds
-        dbmncds = (bmnc[:,2:-1] - bmnc[:,1:-2])/self.vmec.ds
+        dbmncds = (bmnc[:, 2:-1] - bmnc[:, 1:-2])/self.vmec.ds
 
         s_half_ext[1:-1] = self.vmec.s_half_grid
         s_half_ext[-1] = 1
@@ -290,22 +295,22 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         self.dbmncds_splines = []
         for im in range(len(self.booz.bx.xm_b)):
             if (self.enforce_qs and (self.booz.bx.xn_b[im] != self.N * self.booz.bx.xm_b[im])):
-                self.bmnc_splines.append(interp1d(s_half_ext, 0*bmnc[im,:], kind=self.order))
-                self.dbmncds_splines.append(interp1d(self.vmec.s_full_grid[1:-1], 0*dbmncds[im,:], kind=self.order, fill_value='extrapolate'))
+                self.bmnc_splines.append(interp1d(s_half_ext, 0*bmnc[im, :], kind=self.order))
+                self.dbmncds_splines.append(interp1d(self.vmec.s_full_grid[1:-1], 0*dbmncds[im, :], kind=self.order, fill_value='extrapolate'))
             else:
-                self.bmnc_splines.append(interp1d(s_half_ext, bmnc[im,:], kind=self.order))
-                self.dbmncds_splines.append(interp1d(self.vmec.s_full_grid[1:-1], dbmncds[im,:], kind=self.order, fill_value='extrapolate'))
+                self.bmnc_splines.append(interp1d(s_half_ext, bmnc[im, :], kind=self.order))
+                self.dbmncds_splines.append(interp1d(self.vmec.s_full_grid[1:-1], dbmncds[im, :], kind=self.order, fill_value='extrapolate'))
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
         s = points[:, 0]
-        psip[:] = self.psip_spline(s)[:,None]
+        psip[:] = self.psip_spline(s)[:, None]
 
     def _G_impl(self, G):
         points = self.get_points_ref()
         s = points[:, 0]
         if not self.enforce_vacuum:
-            G[:] = self.G_spline(s)[:,None]
+            G[:] = self.G_spline(s)[:, None]
         else:
             G[:] = self.G0
 
@@ -313,20 +318,20 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         points = self.get_points_ref()
         s = points[:, 0]
         if not self.enforce_vacuum:
-            I[:] = self.I_spline(s)[:,None]
+            I[:] = self.I_spline(s)[:, None]
         else:
             I[:] = 0.
 
     def _iota_impl(self, iota):
         points = self.get_points_ref()
         s = points[:, 0]
-        iota[:] = self.iota_spline(s)[:,None]
+        iota[:] = self.iota_spline(s)[:, None]
 
     def _dGds_impl(self, dGds):
         points = self.get_points_ref()
         s = points[:, 0]
         if not self.enforce_vacuum:
-            dGds[:] = self.dGds_spline(s)[:,None]
+            dGds[:] = self.dGds_spline(s)[:, None]
         else:
             dGds[:] = 0.
 
@@ -334,54 +339,55 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         points = self.get_points_ref()
         s = points[:, 0]
         if not self.enforce_vacuum:
-            dIds[:] = self.dIds_spline(s)[:,None]
+            dIds[:] = self.dIds_spline(s)[:, None]
         else:
             dIds[:] = 0.
 
     def _diotads_impl(self, diotads):
         points = self.get_points_ref()
         s = points[:, 0]
-        diotads[:] = self.diotads_spline(s)[:,None]
+        diotads[:] = self.diotads_spline(s)[:, None]
 
     def _modB_impl(self, modB):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        modB[:,0] = 0.
+        modB[:, 0] = 0.
         for im in range(len(self.booz.bx.xm_b)):
             bmnc = self.bmnc_splines[im](s)
-            modB[:,0] += bmnc*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+            modB[:, 0] += bmnc*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        dmodBdtheta[:,0] = 0.
+        dmodBdtheta[:, 0] = 0.
         for im in range(len(self.booz.bx.xm_b)):
             bmnc = self.bmnc_splines[im](s)
-            dmodBdtheta[:,0] += -self.booz.bx.xm_b[im]*bmnc*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+            dmodBdtheta[:, 0] += -self.booz.bx.xm_b[im]*bmnc*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        dmodBdzeta[:,0] = 0.
+        dmodBdzeta[:, 0] = 0.
         for im in range(len(self.booz.bx.xm_b)):
             bmnc = self.bmnc_splines[im](s)
-            dmodBdzeta[:,0] += self.booz.bx.xn_b[im]*bmnc*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+            dmodBdzeta[:, 0] += self.booz.bx.xn_b[im]*bmnc*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
 
     def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        dmodBds[:,0] = 0.
+        dmodBds[:, 0] = 0.
         for im in range(len(self.booz.bx.xm_b)):
             dbmncds = self.dbmncds_splines[im](s)
-            dmodBds[:,0] += dbmncds*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+            dmodBds[:, 0] += dbmncds*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
