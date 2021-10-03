@@ -322,7 +322,7 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             Tensor2 points = xt::zeros<double>({npoints, 3});
             for(int i=0; i<npoints; i++) {
                 points(i, 0) = s[i];
-                if ((which_scalar != "G") &&  (which_scalar != "iota") && (which_scalar != "dGds") && (which_scalar != "diotads")) {
+                if ((which_scalar != "G") && (which_scalar != "I") && (which_scalar != "iota") && (which_scalar != "dGds") && (which_scalar != "dIds") && (which_scalar != "diotads")) {
                   points(i, 1) = theta[i];
                   points(i, 2) = zeta[i];
                 }
