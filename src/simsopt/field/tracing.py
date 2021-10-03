@@ -73,10 +73,11 @@ def parallel_loop_bounds(comm, n):
         assert idxs[-1] == n
         return idxs[comm.rank], idxs[comm.rank+1]
 
+
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
-                    parallel_speeds: NDArray[Float], tmax=1e-4,
-                    mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+                           parallel_speeds: NDArray[Float], tmax=1e-4,
+                           mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                           tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
     Follow particles in a BoozerMagneticField. This is modeled after
     trace_particles.
@@ -183,6 +184,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
     logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_zeta_hits
+
 
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
@@ -455,13 +457,13 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
     gamma = np.zeros((1, 3))
     # Iterate over particles
     for ip in range(nparticles):
-        nhits = len(res_phi_hits[ip][:, 0])
+        nhits = len(res_phi_hits[ip])
         if (flux):
-            s0         = res_tys[ip][0, 1]
-            theta0     = res_tys[ip][0, 2]
-            zeta0      = res_tys[ip][0, 3]
+            s0 = res_tys[ip][0, 1]
+            theta0 = res_tys[ip][0, 2]
+            zeta0 = res_tys[ip][0, 3]
             theta0_mod = theta0 % (2*np.pi)
-            zeta0_mod  = zeta0 % (2*np.pi)
+            zeta0_mod = zeta0 % (2*np.pi)
             x0 = s0 * np.cos(theta0)
             y0 = s0 * np.sin(theta0)
         else:
@@ -487,7 +489,7 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                     y = s * np.sin(theta)
                     dist = np.sqrt((x-x0)**2 + (y-y0)**2)
                 else:
-                # Check that distance is less than delta
+                    # Check that distance is less than delta
                     X = res_phi_hits[ip][it, 2]
                     Y = res_phi_hits[ip][it, 3]
                     R = np.sqrt(X**2 + Y**2)
@@ -546,6 +548,7 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                 break
     return resonances
 
+
 def compute_toroidal_transits(res_tys, flux=True):
     """
     Computes the number of toroidal transits of an orbit.
@@ -564,19 +567,20 @@ def compute_toroidal_transits(res_tys, flux=True):
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
         if flux:
-            phi_init = res_tys[ip][0,3]
+            phi_init = res_tys[ip][0, 3]
         else:
             phi_init = sopp.get_phi(res_tys[ip][0, 1], res_tys[ip][0, 2], np.pi)
         phi_prev = phi_init
         for it in range(1, ntraj):
             if flux:
-                phi = res_tys[ip][it,3]
+                phi = res_tys[ip][it, 3]
             else:
                 phi = sopp.get_phi(res_tys[ip][it, 1], res_tys[ip][it, 2], phi_prev)
             phi_prev = phi
         if ntraj > 1:
             ntransits[ip] = np.round((phi - phi_init)/(2*np.pi))
     return ntransits
+
 
 def compute_poloidal_transits(res_tys, ma=None, flux=True):
     """
@@ -614,7 +618,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
         if flux:
-            theta_init = res_tys[ip][0,2]
+            theta_init = res_tys[ip][0, 2]
         else:
             R_init = np.sqrt(res_tys[ip][0, 1]**2 + res_tys[ip][0, 2]**2)
             Z_init = res_tys[ip][0, 3]
@@ -626,7 +630,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
         theta_prev = theta_init
         for it in range(1, ntraj):
             if flux:
-                theta = res_tys[ip][it,2]
+                theta = res_tys[ip][it, 2]
             else:
                 phi = np.arctan2(res_tys[ip][it, 2], res_tys[ip][it, 1])
                 ma.gamma_impl(gamma, phi/(2*np.pi))
@@ -730,21 +734,52 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
 
 class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
-    Stop the iteration once the minimum number of toroidal transits is reached.
+    Stop the iteration once a particle falls below a critical value of
+    `s`, the normalized toroidal flux. This StoppingCriterion is important to use
+    when tracing particles in flux coordinates, as the poloidal angle becomes
+    ill-defined at the magnetic axis. This should only be used when tracing
+    trajectories in a flux coordinate system (i.e., `trace_particles_boozer`).
+
+    Usage:
+
+    .. code-block::
+        stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
+
+    where `s` is the value of the minimum toroidal flux.
     """
     pass
 
+
 class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
-    Stop the iteration once the maximum number of toroidal transits is reached.
+    Stop the iteration once a particle falls above a critical value of
+    s, the normalized toroidal flux. This should only be used when tracing
+    trajectories in a flux coordinate system (i.e.,`trace_particles_boozer`).
+
+    Usage:
+
+    .. code-block::
+        stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
+
+    where `s` is the value of the maximum normalized toroidal flux.
     """
     pass
+
 
 class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
     Stop the iteration once the maximum number of toroidal transits is reached.
+
+    Usage:
+
+    .. code-block::
+        stopping_criteria=[ToroidalTransitStoppingCriterion(ntransits,flux)]
+
+    where `ntransits` is the maximum number of toroidal transits and `flux` is a boolean
+    indicating whether tracing is being performed in a flux coordinate system.
     """
     pass
+
 
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
