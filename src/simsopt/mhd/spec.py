@@ -351,11 +351,8 @@ class Spec(Optimizable):
 class Residue(Optimizable):
     """
     Greene's residue, evaluated from a Spec equilibrum
-    """
 
-    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0,
-                 s_max=1.0, rtol=1e-9):
-        """
+    Args:
         spec: a Spec object
         pp, qq: Numerator and denominator for the resonant iota = pp / qq
         vol: Index of the Spec volume to consider
@@ -364,7 +361,10 @@ class Residue(Optimizable):
                 field line
         s_min, s_max: bounds on s for the search
         rtol: the relative tolerance of the integrator
-        """
+    """
+
+    def __init__(self, spec, pp, qq, vol=1, theta=0, s_guess=None, s_min=-1.0,
+                 s_max=1.0, rtol=1e-9):
         # if not spec_found:
         if spec is None:
             raise RuntimeError(

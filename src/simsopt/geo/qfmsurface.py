@@ -99,7 +99,7 @@ class QfmSurface():
         :math:`f(S)` is the QFM residual defined in :mod:`surfaceobjectives.py`.
         """
 
-        assert derivatives in [0, 1, 2]
+        assert derivatives in [0, 1]
         s = self.surface
         sdofs = x
         nsurfdofs = x.size
@@ -123,15 +123,7 @@ class QfmSurface():
         dl = self.label.dJ_by_dsurfacecoefficients()
 
         dval = dr + constraint_weight*rl*dl
-        if derivatives == 1:
-            return val, dval
-
-        d2r = qfm.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        d2l = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        d2val = d2r  \
-            + constraint_weight*rl*d2l + constraint_weight*dl[:, None]*dl[None, :]
-
-        return val, dval, d2val
+        return val, dval
 
     def minimize_qfm_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000,
                                                constraint_weight=1.):

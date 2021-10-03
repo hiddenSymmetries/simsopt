@@ -3,7 +3,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, ToroidalFlux, Area
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.util.zoo import get_ncsx_data
 import numpy as np
 import os

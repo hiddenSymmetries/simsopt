@@ -1,12 +1,11 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
+namespace py = pybind11;
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
 using std::vector;
 #include "tracing.h"
