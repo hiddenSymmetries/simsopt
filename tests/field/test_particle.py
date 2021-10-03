@@ -4,8 +4,10 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
-    IterationStoppingCriterion, trace_particles_starting_on_surface
+    IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
+    MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.field.boozermagneticfield import BoozerAnalytic
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 import simsoptpp as sopp
@@ -392,3 +394,150 @@ class ParticleTracingTesting(unittest.TestCase):
             Ekin=Ekin, umin=-0.80, umax=-0.70,
             phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[IterationStoppingCriterion(10)])
         assert len(gc_tys[0]) == 11
+
+class BoozerGuidingCenterTracingTesting(unittest.TestCase):
+
+    def test_energy_momentum_conservation_boozer(self):
+
+        # First, test energy and momentum conservation in a QA vacuum field
+        etabar = 1.2
+        B0 = 1.0
+        Bbar = 1.0
+        G0 = 1.1
+        psi0 = 0.8
+        iota0 = 0.4
+        bsh = BoozerAnalytic(etabar,B0,Bbar,0,G0,psi0,iota0)
+
+        nparticles = 1
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        tmax = 1e-5
+        Ekin = 100.*ONE_EV
+        vpar = np.sqrt(2*Ekin/m)
+
+        np.random.seed(1)
+        stz_inits = np.random.uniform(size=(nparticles, 3))
+        vpar_inits = vpar*np.random.uniform(size=(nparticles, 1))
+        smin = 0.2
+        smax = 0.6
+        thetamin = 0
+        thetamax = np.pi
+        zetamin = 0
+        zetamax = np.pi
+        stz_inits[:, 0] = stz_inits[:, 0]*(smax-smin) + smin
+        stz_inits[:, 1] = stz_inits[:, 1]*(thetamax-thetamin) + thetamin
+        stz_inits[:, 2] = stz_inits[:, 2]*(zetamax-zetamin) + zetamin
+
+        bsh.set_points(stz_inits)
+        modB_inits = bsh.modB()
+        G_inits = bsh.G()
+        mu_inits = (Ekin/m - 0.5*vpar_inits**2)/modB_inits
+        psip_inits = bsh.psip()
+        p_inits = vpar_inits*G_inits/modB_inits - q*psip_inits/m
+
+        gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
+            stopping_criteria=[MinToroidalFluxStoppingCriterion(.01),MaxToroidalFluxStoppingCriterion(0.99),ToroidalTransitStoppingCriterion(100,True)],
+            tol=1e-12)
+
+        # pick 100 random points on each trace, and ensure that
+        # the energy is being conserved up to some precision
+
+        N = 100
+        max_energy_gc_error = np.array([])
+        max_mu_gc_error = np.array([])
+        max_p_gc_error = np.array([])
+        np.seterr(divide = 'ignore')
+        for i in range(nparticles):
+            gc_ty = gc_tys[i]
+            idxs = np.random.randint(0, gc_ty.shape[0], size=(N, ))
+            gc_xyzs = gc_ty[idxs, 1:4]
+            bsh.set_points(gc_xyzs)
+            AbsBs_gc = np.squeeze(bsh.modB())
+            G_gc = np.squeeze(bsh.G())
+            psip = np.squeeze(bsh.psip())
+
+            energy_gc = np.array([])
+            mu_gc = np.array([])
+            p_gc = np.array([])
+            vParInitial = gc_ty[0, 4]
+            muInitial = mu_inits[i]
+            pInitial = p_inits[i]
+            for j in range(N):
+                v_gc = gc_ty[idxs[j], 4]
+                energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]))
+                mu_gc = np.append(mu_gc, Ekin/(m*AbsBs_gc[j]) - 0.5*v_gc**2/AbsBs_gc[j])
+                p_gc = np.append(p_gc, v_gc*G_gc[j]/AbsBs_gc[j] - q*psip[j]/m)
+            energy_gc_error = np.log10(np.abs(energy_gc-Ekin)/np.abs(energy_gc[0]))
+            mu_gc_error = np.log10(np.abs(mu_gc-muInitial)/np.abs(mu_gc[0]))
+            p_gc_error = np.log10(np.abs(p_gc-pInitial)/np.abs(p_gc[0]))
+            max_energy_gc_error = np.append(max_energy_gc_error, max(energy_gc_error[3::]))
+            max_mu_gc_error = np.append(max_mu_gc_error, max(mu_gc_error[3::]))
+            max_p_gc_error = np.append(max_p_gc_error, max(p_gc_error[3::]))
+        assert max(max_energy_gc_error) < -8
+        assert max(max_mu_gc_error) < -8
+        assert max(max_p_gc_error) < -8
+
+        # Now perform same tests for QH field with current terms added
+
+        bsh.set_N(1)
+        bsh.set_G1(0.2)
+        bsh.set_I1(0.1)
+        bsh.set_I0(0.5)
+
+        stz_inits = np.random.uniform(size=(nparticles, 3))
+        vpar_inits = vpar*np.random.uniform(size=(nparticles, 1))
+        stz_inits[:, 0] = stz_inits[:, 0]*(smax-smin) + smin
+        stz_inits[:, 1] = stz_inits[:, 1]*(thetamax-thetamin) + thetamin
+        stz_inits[:, 2] = stz_inits[:, 2]*(zetamax-zetamin) + zetamin
+
+        bsh.set_points(stz_inits)
+        modB_inits = bsh.modB()[:,0]
+        G_inits = bsh.G()[:,0]
+        I_inits = bsh.I()[:,0]
+        mu_inits = (Ekin/m - 0.5*vpar_inits[:,0]**2)/modB_inits
+        psip_inits = bsh.psip()[:,0]
+        psi_inits = bsh.psi0*stz_inits[:,0]
+        p_inits = vpar_inits[:,0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
+
+        gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+            stopping_criteria=[MinToroidalFluxStoppingCriterion(.01),MaxToroidalFluxStoppingCriterion(0.99),ToroidalTransitStoppingCriterion(100,True)],
+            tol=1e-12)
+
+        max_energy_gc_error = np.array([])
+        max_mu_gc_error = np.array([])
+        max_p_gc_error = np.array([])
+        for i in range(nparticles):
+            gc_ty = gc_tys[i]
+            idxs = np.random.randint(0, gc_ty.shape[0], size=(N, ))
+            gc_xyzs = gc_ty[idxs, 1:4]
+            bsh.set_points(gc_xyzs)
+            AbsBs_gc = np.squeeze(bsh.modB())
+            G_gc = np.squeeze(bsh.G())
+            I_gc = np.squeeze(bsh.I())
+            psip = np.squeeze(bsh.psip())
+            psi = np.squeeze(bsh.psi0*gc_ty[idxs,1])
+
+            energy_gc = np.array([])
+            mu_gc = np.array([])
+            p_gc = np.array([])
+            vParInitial = gc_ty[0, 4]
+            muInitial = mu_inits[i]
+            pInitial = p_inits[i]
+            for j in range(N):
+                v_gc = gc_ty[idxs[j], 4]
+                energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]))
+                mu_gc = np.append(mu_gc, Ekin/(m*AbsBs_gc[j]) - 0.5*v_gc**2/AbsBs_gc[j])
+                p_gc = np.append(p_gc, v_gc*(G_gc[j]+I_gc[j])/AbsBs_gc[j] + q*(psi[j] - psip[j])/m)
+            energy_gc_error = np.log10(np.abs(energy_gc-Ekin)/np.abs(energy_gc[0]))
+            mu_gc_error = np.log10(np.abs(mu_gc-muInitial)/np.abs(mu_gc[0]))
+            p_gc_error = np.log10(np.abs(p_gc-pInitial)/np.abs(p_gc[0]))
+            max_energy_gc_error = np.append(max_energy_gc_error, max(energy_gc_error[3::]))
+            max_mu_gc_error = np.append(max_mu_gc_error, max(mu_gc_error[3::]))
+            max_p_gc_error = np.append(max_p_gc_error, max(p_gc_error[3::]))
+        assert max(max_energy_gc_error) < -8
+        assert max(max_mu_gc_error) < -8
+        assert max(max_p_gc_error) < -8
+
+        np.seterr(divide = 'warn')
