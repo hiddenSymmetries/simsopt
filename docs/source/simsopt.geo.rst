@@ -4,28 +4,10 @@ simsopt.geo package
 Submodules
 ----------
 
-simsopt.geo.biotsavart module
------------------------------
-
-.. automodule:: simsopt.geo.biotsavart
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 simsopt.geo.boozersurface module
 --------------------------------
 
 .. automodule:: simsopt.geo.boozersurface
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
-simsopt.geo.coilcollection module
----------------------------------
-
-.. automodule:: simsopt.geo.coilcollection
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,15 +67,6 @@ simsopt.geo.curvexyzfourier module
    :show-inheritance:
    :private-members:
 
-simsopt.geo.graph\_surface module
----------------------------------
-
-.. automodule:: simsopt.geo.graph_surface
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 simsopt.geo.jit module
 ----------------------
 
@@ -103,28 +76,19 @@ simsopt.geo.jit module
    :show-inheritance:
    :private-members:
 
-simsopt.geo.magneticfield module
---------------------------------
-
-.. automodule:: simsopt.geo.magneticfield
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
-simsopt.geo.magneticfieldclasses module
----------------------------------------
-
-.. automodule:: simsopt.geo.magneticfieldclasses
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 simsopt.geo.qfmsurface module
 -----------------------------
 
 .. automodule:: simsopt.geo.qfmsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.geo.plot module
+-----------------------
+
+.. automodule:: simsopt.geo.plot
    :members:
    :undoc-members:
    :show-inheritance:

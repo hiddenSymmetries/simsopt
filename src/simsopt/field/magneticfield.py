@@ -141,4 +141,4 @@ class MagneticFieldSum(MagneticField):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
 
     def B_vjp(self, v):
-        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)], Derivative({}))
+        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])

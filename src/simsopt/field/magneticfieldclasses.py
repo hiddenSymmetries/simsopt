@@ -108,12 +108,16 @@ class ToroidalField(MagneticField):
 
 
 class PoloidalField(MagneticField):
-    ''' Magnetic field purely in the poloidal direction, that is, in the theta direction of a poloidal-toroidal coordinate system.
-       Its modulus is given by B = B0*r/(R0*q) so that, together with the toroidal field, it creates a safety factor equals to q
+    '''
+    Magnetic field purely in the poloidal direction, that is, in the
+    theta direction of a poloidal-toroidal coordinate system.  Its
+    modulus is given by B = B0 * r / (R0 * q) so that, together with
+    the toroidal field, it creates a safety factor equals to q
+
     Args:
         B0: modulus of the magnetic field at R0
         R0: major radius of the magnetic axis
-        q:  safety factor/pitch angle of the magnetic field lines
+        q: safety factor/pitch angle of the magnetic field lines
     '''
 
     def __init__(self, R0, B0, q):
@@ -485,6 +489,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
         sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
+        self.__field = field
 
     def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""

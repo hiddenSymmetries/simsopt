@@ -4,7 +4,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.biotsavart import Current
+from simsopt.field.coil import Current
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 

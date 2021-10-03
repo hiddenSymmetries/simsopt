@@ -1,4 +1,4 @@
-from simsopt.geo.coilcollection import coils_via_symmetries
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines

@@ -1,10 +1,11 @@
 import unittest
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.coilcollection import coils_via_symmetries, create_equally_spaced_curves
+from simsopt.field.coil import coils_via_symmetries, Current
+from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt.field.biotsavart import BiotSavart, Current
-from simsopt.objectives.fluxobjective import SquaredFlux, FOCUSObjective
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
 
 
 from pathlib import Path
@@ -16,10 +17,10 @@ def check_taylor_test(J):
     dofs = J.x
     np.random.seed(1)
     h = np.random.uniform(size=dofs.shape)
-    J0, dJ0 = J.J(), J.dJ()(J)
+    J0, dJ0 = J.J(), J.dJ()
     dJh = sum(dJ0 * h)
     err_old = 1e10
-    for i in range(12, 20):
+    for i in range(12, 19):
         eps = 0.5**i
         J.x = dofs + eps*h
         J1 = J.J()
@@ -39,7 +40,7 @@ class FluxObjectiveTests(unittest.TestCase):
         ncoils = 4
         ALPHA = 1e-5
 
-        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=1.0, R1=0.5, order=6, PPP=15)
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=1.0, R1=0.5, order=6)
         base_currents = []
         for i in range(ncoils):
             curr = Current(1e5)
@@ -56,10 +57,10 @@ class FluxObjectiveTests(unittest.TestCase):
         target = np.zeros(s.gamma().shape[0:2])
         Jf2 = SquaredFlux(s, bs, target)
         check_taylor_test(Jf2)
-        target = np.zeros(s.gamma().shape[0:2])
+        target = np.ones(s.gamma().shape[0:2])
         Jf3 = SquaredFlux(s, bs, target)
         check_taylor_test(Jf3)
 
         Jls = [CurveLength(c) for c in base_curves]
-        JF = FOCUSObjective(Jf, Jls, ALPHA)
+        JF = CoilOptObjective(Jf, Jls, ALPHA)
         check_taylor_test(JF)
