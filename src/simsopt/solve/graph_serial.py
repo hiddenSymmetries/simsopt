@@ -245,7 +245,7 @@ def serial_solve(prob: Union[Optimizable, Callable],
             logger.info("Using derivatives")
             fd = FiniteDifference(prob, abs_step=abs_step,
                                   rel_step=rel_step, diff_method=diff_method)
-            result = least_squares(objective, x0, verbose=2, fd=prob.jac,
+            result = least_squares(objective, x0, verbose=2, jac=fd.jac,
                                    **kwargs)
         else:
             logger.info("Using derivative-free method")
