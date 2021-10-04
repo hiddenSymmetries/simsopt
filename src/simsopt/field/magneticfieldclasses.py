@@ -275,10 +275,10 @@ class CircularCoil(MagneticField):
         self.center = center
         if len(normal) == 2:
             theta = normal[0]
-            phi   = normal[1]
+            phi = normal[1]
         else:
             theta = np.arctan2(normal[1], normal[0])
-            phi   = np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2])
+            phi = np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2])
         # self.rotMatrix = np.array([[np.cos(self.normal[1]), np.sin(self.normal[0])*np.sin(self.normal[1]),
         #                             np.cos(self.normal[0])*np.sin(self.normal[1])],
         #                            [0, np.cos(self.normal[0]), -np.sin(self.normal[0])],
