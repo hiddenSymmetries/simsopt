@@ -1,6 +1,9 @@
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField, BoozerAnalytic
 import numpy as np
 import unittest
+from pathlib import Path
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+filename = str((TEST_DIR / 'input.LandremanPaul2021_QA_lowres').resolve())
 
 try:
     from mpi4py import MPI
@@ -12,7 +15,6 @@ try:
     vmec_found = True
 except ImportError:
     vmec_found = False
-
 
 class Testing(unittest.TestCase):
     def test_boozeranalytic(self):
@@ -84,7 +86,7 @@ class Testing(unittest.TestCase):
     def test_boozerradialinterpolant(self):
         # Test that perfect derivatives integrate to zero
         if vmec_found:
-            vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
+            vmec = Vmec(filename)
             order = 'cubic'
             bri = BoozerRadialInterpolant(vmec, order)
 
@@ -124,182 +126,184 @@ class Testing(unittest.TestCase):
             assert np.allclose(bri.dmodBdzeta(), 0, atol=1e-2)
 
     def test_interpolatedboozerfield_sym(self):
-        vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
-        order = 'cubic'
-        bri = BoozerRadialInterpolant(vmec, order)
+        if vmec_found:
+            vmec = Vmec(filename)
+            order = 'cubic'
+            bri = BoozerRadialInterpolant(vmec, order)
 
-        # Perform interpolation from full grid
-        points = np.zeros((len(vmec.s_half_grid)-1, 3))
-        points[:, 0] = vmec.s_full_grid[1:-1]
-        bri.set_points(points)
+            # Perform interpolation from full grid
+            points = np.zeros((len(vmec.s_half_grid)-1, 3))
+            points[:, 0] = vmec.s_full_grid[1:-1]
+            bri.set_points(points)
 
-        nfp = vmec.indata.nfp
-        n = 12
-        smin = 0.4
-        smax = 0.6
-        ssteps = n
-        thetamin = np.pi*(1/4)
-        thetamax = np.pi*(3/4)
-        thetasteps = n
-        zetamin = -2*np.pi/(4*nfp)
-        zetamax = 2*np.pi/(4*nfp)
-        zetasteps = n*2
-        bsh = InterpolatedBoozerField(
-            bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
-            True, nfp=nfp, stellsym=True)
-        N = 10
-        np.random.seed(2)
-        points = np.random.uniform(size=(N, 3))
-        points[:, 0] = points[:, 0]*(smax-smin) + smin
-        points[:, 1] = points[:, 1]*(thetamax-thetamin) + thetamin
-        points[:, 2] = points[:, 2]*(zetamax-zetamin) + zetamin
+            nfp = vmec.indata.nfp
+            n = 12
+            smin = 0.4
+            smax = 0.6
+            ssteps = n
+            thetamin = np.pi*(1/4)
+            thetamax = np.pi*(3/4)
+            thetasteps = n
+            zetamin = -2*np.pi/(4*nfp)
+            zetamax = 2*np.pi/(4*nfp)
+            zetasteps = n*2
+            bsh = InterpolatedBoozerField(
+                bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
+                True, nfp=nfp, stellsym=True)
+            N = 10
+            np.random.seed(2)
+            points = np.random.uniform(size=(N, 3))
+            points[:, 0] = points[:, 0]*(smax-smin) + smin
+            points[:, 1] = points[:, 1]*(thetamax-thetamin) + thetamin
+            points[:, 2] = points[:, 2]*(zetamax-zetamin) + zetamin
 
-        bri.set_points(points)
-        modB = bri.modB()
-        dmodBds = bri.dmodBds()
-        dmodBdtheta = bri.dmodBdtheta()
-        dmodBdzeta = bri.dmodBdzeta()
-        G = bri.G()
-        I = bri.I()
-        iota = bri.iota()
-        diotads = bri.diotads()
-        dGds = bri.dGds()
-        dIds = bri.dIds()
+            bri.set_points(points)
+            modB = bri.modB()
+            dmodBds = bri.dmodBds()
+            dmodBdtheta = bri.dmodBdtheta()
+            dmodBdzeta = bri.dmodBdzeta()
+            G = bri.G()
+            I = bri.I()
+            iota = bri.iota()
+            diotads = bri.diotads()
+            dGds = bri.dGds()
+            dIds = bri.dIds()
 
-        bsh.set_points(points)
-        modBh = bsh.modB()
-        dmodBdsh = bsh.dmodBds()
-        dmodBdthetah = bsh.dmodBdtheta()
-        dmodBdzetah = bsh.dmodBdzeta()
-        Gh = bsh.G()
-        Ih = bsh.I()
-        iotah = bsh.iota()
-        diotadsh = bsh.diotads()
-        dGdsh = bsh.dGds()
-        dIdsh = bsh.dIds()
+            bsh.set_points(points)
+            modBh = bsh.modB()
+            dmodBdsh = bsh.dmodBds()
+            dmodBdthetah = bsh.dmodBdtheta()
+            dmodBdzetah = bsh.dmodBdzeta()
+            Gh = bsh.G()
+            Ih = bsh.I()
+            iotah = bsh.iota()
+            diotadsh = bsh.diotads()
+            dGdsh = bsh.dGds()
+            dIdsh = bsh.dIds()
 
-        assert np.allclose(modB, modBh, rtol=1e-3)
-        assert np.allclose((dmodBds - dmodBdsh)/np.mean(np.abs(dmodBds)), 0, atol=1e-2)
-        assert np.allclose((dmodBdtheta - dmodBdthetah)/np.mean(np.abs(dmodBdtheta)), 0, atol=1e-2)
-        assert np.allclose(dmodBdzeta, 0, atol=1e-3)
-        assert np.allclose(dmodBdzetah, 0, atol=1e-3)
-        assert np.allclose(G, Gh, rtol=1e-3)
-        assert np.allclose(iota, iotah, rtol=1e-3)
-        assert np.allclose(diotads, diotadsh, rtol=1e-3)
-        assert np.allclose(I, 0, atol=1e-3)
-        assert np.allclose(Ih, 0, atol=1e-3)
-        assert np.allclose(dGds, 0, atol=1e-3)
-        assert np.allclose(dGdsh, 0, atol=1e-3)
-        assert np.allclose(dIds, 0, atol=1e-3)
-        assert np.allclose(dIdsh, 0, atol=1e-3)
+            assert np.allclose(modB, modBh, rtol=1e-3)
+            assert np.allclose((dmodBds - dmodBdsh)/np.mean(np.abs(dmodBds)), 0, atol=1e-2)
+            assert np.allclose((dmodBdtheta - dmodBdthetah)/np.mean(np.abs(dmodBdtheta)), 0, atol=1e-2)
+            assert np.allclose(dmodBdzeta, 0, atol=1e-3)
+            assert np.allclose(dmodBdzetah, 0, atol=1e-3)
+            assert np.allclose(G, Gh, rtol=1e-3)
+            assert np.allclose(iota, iotah, rtol=1e-3)
+            assert np.allclose(diotads, diotadsh, rtol=1e-3)
+            assert np.allclose(I, 0, atol=1e-3)
+            assert np.allclose(Ih, 0, atol=1e-3)
+            assert np.allclose(dGds, 0, atol=1e-3)
+            assert np.allclose(dGdsh, 0, atol=1e-3)
+            assert np.allclose(dIds, 0, atol=1e-3)
+            assert np.allclose(dIdsh, 0, atol=1e-3)
 
     def test_interpolatedboozerfield_no_sym(self):
-        vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
-        order = 'cubic'
-        bri = BoozerRadialInterpolant(vmec, order)
+        if vmec_found:
+            vmec = Vmec(filename)
+            order = 'cubic'
+            bri = BoozerRadialInterpolant(vmec, order)
 
-        # Perform interpolation from full grid
-        points = np.zeros((len(vmec.s_half_grid)-1, 3))
-        points[:, 0] = vmec.s_full_grid[1:-1]
-        bri.set_points(points)
+            # Perform interpolation from full grid
+            points = np.zeros((len(vmec.s_half_grid)-1, 3))
+            points[:, 0] = vmec.s_full_grid[1:-1]
+            bri.set_points(points)
 
-        nfp = vmec.indata.nfp
+            nfp = vmec.indata.nfp
 
-        n = 12
-        smin = 0.4
-        smax = 0.6
-        ssteps = n
-        thetamin = np.pi*(1/4)
-        thetamax = np.pi*(3/4)
-        thetasteps = n
-        zetamin = -2*np.pi/(4*nfp)
-        zetamax = 2*np.pi/(4*nfp)
-        zetasteps = n*2
-        bsh = InterpolatedBoozerField(
-            bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
-            True)
-        N = 10
-        np.random.seed(2)
-        points = np.random.uniform(size=(N, 3))
-        points[:, 0] = points[:, 0]*(smax-smin) + smin
-        points[:, 1] = points[:, 1]*(thetamax-thetamin) + thetamin
-        points[:, 2] = points[:, 2]*(zetamax-zetamin) + zetamin
+            n = 12
+            smin = 0.4
+            smax = 0.6
+            ssteps = n
+            thetamin = np.pi*(1/4)
+            thetamax = np.pi*(3/4)
+            thetasteps = n
+            zetamin = -2*np.pi/(4*nfp)
+            zetamax = 2*np.pi/(4*nfp)
+            zetasteps = n*2
+            bsh = InterpolatedBoozerField(
+                bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
+                True)
+            N = 10
+            np.random.seed(2)
+            points = np.random.uniform(size=(N, 3))
+            points[:, 0] = points[:, 0]*(smax-smin) + smin
+            points[:, 1] = points[:, 1]*(thetamax-thetamin) + thetamin
+            points[:, 2] = points[:, 2]*(zetamax-zetamin) + zetamin
 
-        bri.set_points(points)
-        modB = bri.modB()
-        dmodBds = bri.dmodBds()
-        dmodBdtheta = bri.dmodBdtheta()
-        dmodBdzeta = bri.dmodBdzeta()
-        G = bri.G()
-        I = bri.I()
-        iota = bri.iota()
-        diotads = bri.diotads()
-        dGds = bri.dGds()
-        dIds = bri.dIds()
+            bri.set_points(points)
+            modB = bri.modB()
+            dmodBds = bri.dmodBds()
+            dmodBdtheta = bri.dmodBdtheta()
+            dmodBdzeta = bri.dmodBdzeta()
+            G = bri.G()
+            I = bri.I()
+            iota = bri.iota()
+            diotads = bri.diotads()
+            dGds = bri.dGds()
+            dIds = bri.dIds()
 
-        bsh.set_points(points)
-        modBh = bsh.modB()
-        dmodBdsh = bsh.dmodBds()
-        dmodBdthetah = bsh.dmodBdtheta()
-        dmodBdzetah = bsh.dmodBdzeta()
-        Gh = bsh.G()
-        Ih = bsh.I()
-        iotah = bsh.iota()
-        diotadsh = bsh.diotads()
-        dGdsh = bsh.dGds()
-        dIdsh = bsh.dIds()
+            bsh.set_points(points)
+            modBh = bsh.modB()
+            dmodBdsh = bsh.dmodBds()
+            dmodBdthetah = bsh.dmodBdtheta()
+            dmodBdzetah = bsh.dmodBdzeta()
+            Gh = bsh.G()
+            Ih = bsh.I()
+            iotah = bsh.iota()
+            diotadsh = bsh.diotads()
+            dGdsh = bsh.dGds()
+            dIdsh = bsh.dIds()
 
-        assert np.allclose(modB, modBh, rtol=1e-3)
-        assert np.allclose((dmodBds - dmodBdsh)/np.mean(np.abs(dmodBds)), 0, atol=1e-2)
-        assert np.allclose((dmodBdtheta - dmodBdthetah)/np.mean(np.abs(dmodBdtheta)), 0, atol=1e-2)
-        assert np.allclose(dmodBdzeta, 0, atol=1e-3)
-        assert np.allclose(dmodBdzetah, 0, atol=1e-3)
-        assert np.allclose(G, Gh, rtol=1e-3)
-        assert np.allclose(iota, iotah, rtol=1e-3)
-        assert np.allclose(diotads, diotadsh, rtol=1e-3)
-        assert np.allclose(I, 0, atol=1e-3)
-        assert np.allclose(Ih, 0, atol=1e-3)
-        assert np.allclose(dGds, 0, atol=1e-3)
-        assert np.allclose(dGdsh, 0, atol=1e-3)
-        assert np.allclose(dIds, 0, atol=1e-3)
-        assert np.allclose(dIdsh, 0, atol=1e-3)
+            assert np.allclose(modB, modBh, rtol=1e-3)
+            assert np.allclose((dmodBds - dmodBdsh)/np.mean(np.abs(dmodBds)), 0, atol=1e-2)
+            assert np.allclose((dmodBdtheta - dmodBdthetah)/np.mean(np.abs(dmodBdtheta)), 0, atol=1e-2)
+            assert np.allclose(dmodBdzeta, 0, atol=1e-3)
+            assert np.allclose(dmodBdzetah, 0, atol=1e-3)
+            assert np.allclose(G, Gh, rtol=1e-3)
+            assert np.allclose(iota, iotah, rtol=1e-3)
+            assert np.allclose(diotads, diotadsh, rtol=1e-3)
+            assert np.allclose(I, 0, atol=1e-3)
+            assert np.allclose(Ih, 0, atol=1e-3)
+            assert np.allclose(dGds, 0, atol=1e-3)
+            assert np.allclose(dGdsh, 0, atol=1e-3)
+            assert np.allclose(dIds, 0, atol=1e-3)
+            assert np.allclose(dIdsh, 0, atol=1e-3)
 
     def test_interpolated_field_convergence_rate(self):
 
-        vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
-        order = 'cubic'
-        bri = BoozerRadialInterpolant(vmec, order)
+        if vmec_found:
+            vmec = Vmec(filename)
+            order = 'cubic'
+            bri = BoozerRadialInterpolant(vmec, order)
 
-        # Perform interpolation from full grid
-        points = np.zeros((len(vmec.s_half_grid)-1, 3))
-        points[:, 0] = vmec.s_full_grid[1:-1]
-        bri.set_points(points)
+            # Perform interpolation from full grid
+            points = np.zeros((len(vmec.s_half_grid)-1, 3))
+            points[:, 0] = vmec.s_full_grid[1:-1]
+            bri.set_points(points)
 
-        nfp = vmec.indata.nfp
-        smin = 0.1
-        smax = 0.9
-        thetamin = np.pi*(1/4)
-        thetamax = np.pi*(3/4)
-        zetamin = -2*np.pi/(4*nfp)
-        zetamax = 2*np.pi/(4*nfp)
-        old_err_1 = 1e6
-        old_err_3 = 1e6
-        for n in [4, 8, 16]:
-            ssteps = n
-            thetasteps = n
-            zetasteps = n
-            bsh = InterpolatedBoozerField(
-                bri, 1, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
-                True, nfp=nfp, stellsym=True)
-            err_1 = np.mean(bsh.estimate_error_modB(1000))
-            err_3 = np.mean(bsh.estimate_error_iota(1000))
+            nfp = vmec.indata.nfp
+            smin = 0.1
+            smax = 0.9
+            thetamin = np.pi*(1/4)
+            thetamax = np.pi*(3/4)
+            zetamin = -2*np.pi/(4*nfp)
+            zetamax = 2*np.pi/(4*nfp)
+            old_err_1 = 1e6
+            old_err_3 = 1e6
+            for n in [4, 8, 16]:
+                ssteps = n
+                thetasteps = n
+                zetasteps = n
+                bsh = InterpolatedBoozerField(
+                    bri, 1, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
+                    True, nfp=nfp, stellsym=True)
+                err_1 = np.mean(bsh.estimate_error_modB(1000))
+                err_3 = np.mean(bsh.estimate_error_iota(1000))
 
-            assert err_1 < 0.6**2 * old_err_1
-            assert err_3 < 0.6**2 * old_err_3
+                assert err_1 < 0.6**2 * old_err_1
+                assert err_3 < 0.6**2 * old_err_3
 
-            old_err_1 = err_1
-            old_err_3 = err_3
-
+                old_err_1 = err_1
+                old_err_3 = err_3
 
 if __name__ == "__main__":
     unittest.main()
