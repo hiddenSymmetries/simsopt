@@ -13,6 +13,7 @@ try:
 except ImportError:
     vmec_found = False
 
+
 class Testing(unittest.TestCase):
     def test_boozeranalytic(self):
         # Test that perfect derivatives integrate to zero
