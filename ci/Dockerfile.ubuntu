@@ -22,7 +22,7 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install  .
 
-RUN git clone --depth 1 git@github.com:PrincetonUniversity/SPEC.git /src/SPEC && \
+RUN git clone --depth 1 https://github.com:PrincetonUniversity/SPEC.git /src/SPEC && \
     cd /src/SPEC   &&  \
     /venv/bin/pip install .
 
