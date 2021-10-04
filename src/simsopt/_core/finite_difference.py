@@ -36,7 +36,7 @@ class FiniteDifference:
     the initialization to customize the finite difference scheme
     """
 
-    def __init__(self, func: Callable, /,
+    def __init__(self, func: Callable,
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
@@ -121,7 +121,7 @@ class MPIFiniteDifference:
     """
 
     def __init__(self, func: Callable,
-                 mpi: MpiPartition, /,
+                 mpi: MpiPartition,
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,

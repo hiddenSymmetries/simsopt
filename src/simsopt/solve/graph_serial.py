@@ -224,7 +224,8 @@ def serial_solve(prob: Union[Optimizable, Callable],
             objective_file.write(f"{nevals:6d},{del_t:12.4e}")
             for xj in x:
                 objective_file.write(f",{xj:24.16e}")
-            objective_file.write(f",{result:24.16e}")
+            # objective_file.write(f",{result:24.16e}")
+            objective_file.write(f",{result}")
             objective_file.write("\n")
             objective_file.flush()
 
