@@ -16,6 +16,7 @@ RUN /venv/bin/pip install h5py pyoculus py_spec
 RUN /venv/bin/pip install vtk==9.0.1 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
+RUN /venv/bin/pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
 RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
     cd /src/VMEC && \
