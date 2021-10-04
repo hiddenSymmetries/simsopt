@@ -10,7 +10,7 @@ general optimization problems.
 
 from datetime import datetime
 from time import time
-from typing import Union
+from typing import Union, Callable
 import logging
 
 import numpy as np
