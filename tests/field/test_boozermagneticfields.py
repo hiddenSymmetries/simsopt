@@ -20,7 +20,7 @@ if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
 
 
-class Testing(unittest.TestCase):
+class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
         # Test that perfect derivatives integrate to zero
         etabar = 1.1
@@ -87,7 +87,9 @@ class Testing(unittest.TestCase):
         ba.set_psi0(3.6)
         assert(ba.psi0 == 3.6)
 
-    @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
+
+@unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
+class TestingVmec(unittest.TestCase):
     def test_boozerradialinterpolant(self):
         # Test that perfect derivatives integrate to zero
         vmec = Vmec(filename)
@@ -129,7 +131,6 @@ class Testing(unittest.TestCase):
         # Check that zeta derivatives are small since we are close to QA
         assert np.allclose(bri.dmodBdzeta(), 0, atol=1e-2)
 
-    @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
     def test_interpolatedboozerfield_sym(self):
         vmec = Vmec(filename)
         order = 'cubic'
@@ -200,7 +201,6 @@ class Testing(unittest.TestCase):
         assert np.allclose(dIds, 0, atol=1e-3)
         assert np.allclose(dIdsh, 0, atol=1e-3)
 
-    @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
     def test_interpolatedboozerfield_no_sym(self):
         vmec = Vmec(filename)
         order = 'cubic'
@@ -272,7 +272,6 @@ class Testing(unittest.TestCase):
         assert np.allclose(dIds, 0, atol=1e-3)
         assert np.allclose(dIdsh, 0, atol=1e-3)
 
-    @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
     def test_interpolated_field_convergence_rate(self):
         vmec = Vmec(filename)
         order = 'cubic'
