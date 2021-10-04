@@ -19,6 +19,7 @@ except ImportError:
 if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
 
+
 class Testing(unittest.TestCase):
     def test_boozeranalytic(self):
         # Test that perfect derivatives integrate to zero
@@ -306,6 +307,7 @@ class Testing(unittest.TestCase):
 
             old_err_1 = err_1
             old_err_3 = err_3
+
 
 if __name__ == "__main__":
     unittest.main()
