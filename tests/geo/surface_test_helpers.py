@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import numpy as np
+
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from pathlib import Path
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 

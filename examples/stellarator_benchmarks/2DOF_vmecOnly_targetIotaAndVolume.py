@@ -64,7 +64,7 @@ prob = LeastSquaresProblem.from_tuples([term1, term2])
 print(f"Length of x is {len(prob.x)}")
 
 # Solve the minimization problem:
-least_squares_mpi_solve(prob, mpi)  # , grad=True)
+least_squares_mpi_solve(prob, mpi, grad=True)
 
 objective = prob.objective()
 if mpi.proc0_world:

@@ -2,10 +2,6 @@ import abc
 
 import numpy as np
 
-try:
-    from mayavi import mlab
-except ImportError:
-    mlab = None
 
 try:
     from pyevtk.hl import gridToVTK
@@ -15,6 +11,7 @@ except ImportError:
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
 from ..util.dev import SimsoptRequires
+from .plot import fix_matplotlib_3d
 
 
 class Surface(Optimizable):
@@ -91,38 +88,117 @@ class Surface(Optimizable):
 
         return list(quadpoints_phi), list(quadpoints_theta)
 
-    @SimsoptRequires(mlab is not None, "Install mayavi to generate surface plot")
-    def plot(self, ax=None, show=True, plot_normal=False, plot_derivative=False,
-             scalars=None, wireframe=True):
+    def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
+             plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
-        Plot the surface using mayavi.
-        Note: the `ax` and `show` parameter can be used to plot more than one surface:
+        Plot the surface in 3D using matplotlib/mayavi/plotly. 
+
+        Args:
+            engine: Selects the graphics engine. Currently supported options are ``"matplotlib"`` (default),
+              ``"mayavi"``, and ``"plotly"``.
+            ax: The figure/axis to be plotted on. This argument is useful when plotting multiple
+              objects on the same axes. If equal to the default ``None``, a new axis will be created.
+            show: Whether to call the ``show()`` function of the graphics engine.
+              Should be set to ``False`` if more objects will be plotted on the same axes.
+            close: Whether to close the seams in the surface where the angles jump back to 0.
+            axis_equal: For matplotlib, whether to adjust the scales of the x, y, and z axes so
+              distances in each direction appear equal.
+            plot_normal: Whether to plot the surface normal vectors. Only implemented for mayavi.
+            plot_derivative: Whether to plot the surface derivatives. Only implemented for mayavi.
+            wireframe: Whether to plot the wireframe in Mayavi.
+            kwargs: Any additional arguments to pass to the plotting function, like ``color='r'``.
+
+        Note: the ``ax`` and ``show`` parameters can be used to plot more than one surface:
 
         .. code-block::
 
             ax = surface1.plot(show=False)
             ax = surface2.plot(ax=ax, show=False)
             surface3.plot(ax=ax, show=True)
+
+        Returns:
+            An axis which could be passed to a further call to the graphics engine
+            so multiple objects are shown together.
         """
         gamma = self.gamma()
-
-        mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], scalars=scalars)
-        if wireframe:
-            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
 
         if plot_derivative:
             dg1 = 0.05 * self.gammadash1()
             dg2 = 0.05 * self.gammadash2()
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
+        else:
+            # No need to calculate derivatives.
+            dg1 = np.array([[[1.0]]])
+            dg2 = np.array([[[1.0]]])
+
         if plot_normal:
-            n = 0.005 * self.normal()
-            mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], n[:, :, 0], n[:, :, 1], n[:, :, 2])
-        if show:
-            mlab.show()
+            normal = 0.005 * self.normal()
+        else:
+            # No need to calculate the normal
+            normal = np.array([[[1.0]]])
+
+        if close:
+            gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
+            gamma = np.concatenate((gamma, gamma[:, :1, :]), axis=1)
+
+            dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
+            dg1 = np.concatenate((dg1, dg1[:, :1, :]), axis=1)
+
+            dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
+            dg2 = np.concatenate((dg2, dg2[:, :1, :]), axis=1)
+
+            normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
+            normal = np.concatenate((normal, normal[:, :1, :]), axis=1)
+
+        if engine == "matplotlib":
+            # plot in matplotlib.pyplot
+            import matplotlib.pyplot as plt
+
+            if ax is None or ax.name != "3d":
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection="3d")
+            ax.plot_surface(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
+            if axis_equal:
+                fix_matplotlib_3d(ax)
+            if show:
+                plt.show()
+
+        elif engine == "mayavi":
+            # plot 3D surface in mayavi.mlab
+            from mayavi import mlab
+
+            mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
+            if wireframe:
+                mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
+
+            if plot_derivative:
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
+            if plot_normal:
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], normal[:, :, 0], normal[:, :, 1], normal[:, :, 2])
+            if show:
+                mlab.show()
+
+        elif engine == "plotly":
+            # plot in plotly
+            import plotly.graph_objects as go
+
+            if "color" in list(kwargs.keys()):
+                color = kwargs["color"]
+                del kwargs["color"]
+                kwargs["colorscale"] = [[0, color], [1, color]]
+            # for plotly, ax is actually the figure
+            if ax is None:
+                ax = go.Figure()
+            ax.add_trace(go.Surface(x=gamma[:, :, 0], y=gamma[:, :, 1], z=gamma[:, :, 2], **kwargs))
+            ax.update_layout(scene_aspectmode="data")
+            if show:
+                ax.show()
+        else:
+            raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
+        return ax
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
-    def to_vtk(self, filename):
+    def to_vtk(self, filename, extra_data=None):
         g = self.gamma()
         ntor = g.shape[0]
         npol = g.shape[1]
@@ -133,15 +209,15 @@ class Surface(Optimizable):
         dphi = self.gammadash1().reshape((1, ntor, npol, 3))
         dtheta = self.gammadash2().reshape((1, ntor, npol, 3))
         contig = np.ascontiguousarray
-        gridToVTK(filename, x, y, z, pointData={
+        pointData = {
             "dphi x dtheta": (contig(n[..., 0]), contig(n[..., 1]), contig(n[..., 2])),
             "dphi": (contig(dphi[..., 0]), contig(dphi[..., 1]), contig(dphi[..., 2])),
             "dtheta": (contig(dtheta[..., 0]), contig(dtheta[..., 1]), contig(dtheta[..., 2])),
-        })
+        }
+        if extra_data is not None:
+            pointData = {**pointData, **extra_data}
 
-    # Representation is handled by Optimizable object itself
-    # def __repr__(self):
-    #     return "Surface " + str(hex(id(self)))
+        gridToVTK(filename, x, y, z, pointData=pointData)
 
     @abc.abstractmethod
     def to_RZFourier(self):

@@ -40,15 +40,15 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         x_names = ['xc(0)']
         x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
-        x_names += list(chain.from_iterable(zip(x_cos_names, x_sin_names)))
+        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
         y_names = ['yc(0)']
         y_cos_names = [f'yc({i})' for i in range(1, order + 1)]
         y_sin_names = [f'ys({i})' for i in range(1, order + 1)]
-        y_names += list(chain.from_iterable(zip(y_cos_names, y_sin_names)))
+        y_names += list(chain.from_iterable(zip(y_sin_names, y_cos_names)))
         z_names = ['zc(0)']
         z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
         z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
-        z_names += list(chain.from_iterable(zip(z_cos_names, z_sin_names)))
+        z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
 
         return x_names + y_names + z_names
 

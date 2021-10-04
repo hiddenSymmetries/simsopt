@@ -243,7 +243,7 @@ class WeakKeyDefaultDict(WeakKeyDictionary):
     parent class instead of standard dictionary.
     """
 
-    def __init__(self, default_factory=None, /, *args, **kwargs):
+    def __init__(self, default_factory=None, *args, **kwargs):
         self.default_factory = default_factory
         super().__init__(*args, **kwargs)
 
