@@ -1,4 +1,4 @@
-from simsopt.geo.coilcollection import CoilCollection
+from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
@@ -22,10 +22,10 @@ class MPITracingTesting(unittest.TestCase):
         super(MPITracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        coils, currents, ma = get_ncsx_data(Nt_coils=6)
+        curves, currents, ma = get_ncsx_data()
         nfp = 3
-        stellarator = CoilCollection(coils, currents, nfp, True)
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
         n = 10
         rrange = (1.1, 1.8, n)
         phirange = (0, 2*np.pi/nfp, n*2)

@@ -1,6 +1,7 @@
 import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.field.coil import Current
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
@@ -17,9 +18,9 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
     filename = THIS_DIR / 'NCSX.dat'
-    coils = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
-    currents = [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]
+    currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
     cR = [
         1.471415400740515, 0.1205306261840785, 0.008016125223436036, -0.000508473952304439,
         -0.0003025251710853062, -0.0001587936004797397, 3.223984137937924e-06, 3.524618949869718e-05,
@@ -41,4 +42,4 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[0:(Nt_ma+1)]
     ma.zs[:] = sZ[0:Nt_ma]
-    return (coils, currents, ma)
+    return (curves, currents, ma)

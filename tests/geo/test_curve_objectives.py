@@ -134,7 +134,7 @@ class Testing(unittest.TestCase):
             curve_dofs = curves[k].x
             h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
             J0 = J.J()
-            dJ = J.dJ()[k]
+            dJ = J.dJ(partials=True)(curves[k].curve if isinstance(curves[k], RotatedCurve) else curves[k])
             deriv = np.sum(dJ * h)
             assert np.abs(deriv) > 1e-10
             err = 1e6
