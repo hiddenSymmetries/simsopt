@@ -12,7 +12,7 @@ from simsopt.objectives.graph_functions import Beale
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
-    from simsopt.solve.graph_mpi import fd_jac_mpi, least_squares_mpi_solve
+    from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
