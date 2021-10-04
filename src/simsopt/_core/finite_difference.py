@@ -59,7 +59,6 @@ class FiniteDifference:
         self.diff_method = diff_method
 
         self.x0 = np.asarray(x0) if x0 is not None else x0
-        # self.x0 = x0 if x0 else self.opt.x
 
         self.jac_size = None
 
@@ -67,13 +66,10 @@ class FiniteDifference:
         if x is not None:
             self.x0 = np.asarray(x)
         x0 = self.x0 if self.x0 is not None else self.opt.x
-        print(f'x0 is {x0}')
         opt_x0 = self.opt.x
 
         if self.jac_size is None:
             out = self.fn()
-            print(out)
-            print(f"is sequence {isinstance(out, collections.Sequence)}")
             if not isinstance(out, collections.abc.Sequence):
                 out = [out]
             self.jac_size = (len(out), self.opt.dof_size)
@@ -172,8 +168,6 @@ class MPIFiniteDifference:
         # Use shortcuts for class variables
         opt = self.opt
         mpi = self.mpi
-        print(f"Entering fd jac evaluation at group {mpi.group}")
-        print(f"is mpi apart {mpi.is_apart}")
         if not mpi.is_apart:
             mpi.worker_loop(lambda mpi, data: self.mpi_workers_task())
         if not mpi.proc0_groups:  # This condition shouldn't  be  triggered
@@ -223,18 +217,12 @@ class MPIFiniteDifference:
             evals = np.zeros((self.jac_size[0], nevals_jac))
         # Do the hard work of evaluating the functions.
         logger.info(f'size of evals is ({self.jac_size[0]}, {nevals_jac})')
-        print(f'size of evals is ({self.jac_size[0]}, {nevals_jac})')
 
         ARB_VAL = 100
         for j in range(nevals_jac):
             # Handle only this group's share of the work:
-            print(f'j is {j}')
-            print(f"ngroups is {mpi.ngroups}")
-            print(f"rank world {mpi.rank_world}")
             if np.mod(j, mpi.ngroups) == mpi.rank_leaders:
-                print('calling mobile workers within j loop')
                 mpi.mobilize_workers(ARB_VAL)
-                print('mobiled workers within j loop')
                 x = xs[:, j]
                 mpi.comm_groups.bcast(x, root=0)
                 opt.x = x
@@ -244,20 +232,14 @@ class MPIFiniteDifference:
                     self.jac_size = mpi.comm_leaders.bcast(self.jac_size)
                     evals = np.zeros((self.jac_size[0], nevals_jac))
 
-                print(f'shape of out is {np.shape(out)}')
-                print(f'out value is {out}')
-                print(f'shape  of evals is {np.shape(evals)}')
                 evals[:, j] = out
                 # evals[:, j] = np.array([f() for f in dofs.funcs])
 
         # Combine the results from all groups:
-        print('before reduce')
         evals = mpi.comm_leaders.reduce(evals, op=MPI.SUM, root=0)
-        print(f'evals is {evals}')
 
         if not mpi.is_apart:
             mpi.stop_workers()
-        print("Crossed stop  workers in jac")
         # Only proc0_world will actually have the Jacobian.
         if not mpi.proc0_world:
             return (None, None, None)
@@ -325,14 +307,14 @@ class MPIFiniteDifference:
                            "evaluation in worker loop")
             traceback.print_exc()  # Print traceback
 
-# Call to jac function is made in proc0
+    # Call to jac function is made in proc0
     def jac(self, x: RealArray = None, *args, **kwargs):
         """
         Called by proc0
         """
 
         ARB_VAL = 100
-        print("Entering jac evaluation")
+        logger.debug("Entering jac evaluation")
 
         if self.jac_size is None:  # Do one evaluation of code
             if x is None:
@@ -345,15 +327,12 @@ class MPIFiniteDifference:
                 out = np.array([out])
             else:
                 out = np.asarray(out)
-            print(f'out is {out}')
-            print(f'out shape is {np.shape(out)}')
             self.jac_size = np.array((len(out), self.opt.dof_size),
                                      dtype=np.int32)
-            print(f'jac size is {self.jac_size}')
 
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
         self.mpi.comm_leaders.bcast(x, root=0)
 
         jac, xs, evals = self._jac(x)
-        print(f'jac is {jac}')
+        logger.debug(f'jac is {jac}')
         return jac
