@@ -1,9 +1,17 @@
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField, BoozerAnalytic
-from simsopt.mhd.vmec import Vmec
-
 import numpy as np
 import unittest
 
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+try:
+    from simsopt.mhd.vmec import Vmec
+    vmec_found = True
+except ImportError:
+    vmec_found = False
 
 class Testing(unittest.TestCase):
     def test_boozeranalytic(self):
@@ -74,44 +82,45 @@ class Testing(unittest.TestCase):
 
     def test_boozerradialinterpolant(self):
         # Test that perfect derivatives integrate to zero
-        vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
-        order = 'cubic'
-        bri = BoozerRadialInterpolant(vmec, order)
+        if vmec_found:
+            vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
+            order = 'cubic'
+            bri = BoozerRadialInterpolant(vmec, order)
 
-        # Perform interpolation from full grid
-        points = np.zeros((len(vmec.s_half_grid)-1, 3))
-        points[:, 0] = vmec.s_full_grid[1:-1]
-        bri.set_points(points)
-        # Check with centered difference interpolation from half grid
-        G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
-        iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
-        assert np.allclose(bri.G(), G_full)
-        assert np.allclose(bri.iota(), iota_full, atol=1e-2)
-        # Compare splines of derivatives with spline derivatives
-        from scipy.interpolate import UnivariateSpline
-        G_spline = UnivariateSpline(vmec.s_half_grid, vmec.wout.bvco[1::])
-        iota_spline = UnivariateSpline(vmec.s_half_grid, vmec.wout.iotas[1::])
-        assert np.allclose(bri.dGds(), G_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-4)
-        assert np.allclose(bri.diotads(), iota_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-2)
-        # Check that angular derivatives integrate to zero
-        ntheta = 101
-        nzeta = 100
-        thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
-        zetas = np.linspace(0, 2*np.pi, nzeta, endpoint=False)
-        [zetas, thetas] = np.meshgrid(zetas, thetas)
-        points = np.zeros((len(thetas.flatten()), 3))
-        points[:, 0] = 0.5*np.ones_like(thetas.flatten())
-        points[:, 1] = thetas.flatten()
-        points[:, 2] = zetas.flatten()
-        bri.set_points(points)
-        # Check that get_points returns correct points
-        points_get = bri.get_points()
-        thetas_get = points_get[:, 1]
-        assert np.allclose(thetas_get, thetas.flatten())
-        assert np.allclose(np.sum(bri.dmodBdtheta().reshape(np.shape(thetas)), axis=0), 0, rtol=1e-12)
-        assert np.allclose(np.sum(bri.dmodBdzeta().reshape(np.shape(thetas)), axis=1), 0, rtol=1e-12)
-        # Check that zeta derivatives are small since we are close to QA
-        assert np.allclose(bri.dmodBdzeta(), 0, atol=1e-2)
+            # Perform interpolation from full grid
+            points = np.zeros((len(vmec.s_half_grid)-1, 3))
+            points[:, 0] = vmec.s_full_grid[1:-1]
+            bri.set_points(points)
+            # Check with centered difference interpolation from half grid
+            G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
+            iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
+            assert np.allclose(bri.G(), G_full)
+            assert np.allclose(bri.iota(), iota_full, atol=1e-2)
+            # Compare splines of derivatives with spline derivatives
+            from scipy.interpolate import UnivariateSpline
+            G_spline = UnivariateSpline(vmec.s_half_grid, vmec.wout.bvco[1::])
+            iota_spline = UnivariateSpline(vmec.s_half_grid, vmec.wout.iotas[1::])
+            assert np.allclose(bri.dGds(), G_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-4)
+            assert np.allclose(bri.diotads(), iota_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-2)
+            # Check that angular derivatives integrate to zero
+            ntheta = 101
+            nzeta = 100
+            thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
+            zetas = np.linspace(0, 2*np.pi, nzeta, endpoint=False)
+            [zetas, thetas] = np.meshgrid(zetas, thetas)
+            points = np.zeros((len(thetas.flatten()), 3))
+            points[:, 0] = 0.5*np.ones_like(thetas.flatten())
+            points[:, 1] = thetas.flatten()
+            points[:, 2] = zetas.flatten()
+            bri.set_points(points)
+            # Check that get_points returns correct points
+            points_get = bri.get_points()
+            thetas_get = points_get[:, 1]
+            assert np.allclose(thetas_get, thetas.flatten())
+            assert np.allclose(np.sum(bri.dmodBdtheta().reshape(np.shape(thetas)), axis=0), 0, rtol=1e-12)
+            assert np.allclose(np.sum(bri.dmodBdzeta().reshape(np.shape(thetas)), axis=1), 0, rtol=1e-12)
+            # Check that zeta derivatives are small since we are close to QA
+            assert np.allclose(bri.dmodBdzeta(), 0, atol=1e-2)
 
     def test_interpolatedboozerfield_sym(self):
         vmec = Vmec('test_files/input.LandremanPaul2021_QA_lowres')
