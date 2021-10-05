@@ -11,7 +11,6 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.boozermagneticfield import BoozerAnalytic, BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-from simsopt.mhd.vmec import Vmec
 from simsopt.geo.curverzfourier import CurveRZFourier
 import simsoptpp as sopp
 import numpy as np
@@ -23,6 +22,17 @@ try:
     with_evtk = True
 except ImportError:
     with_evtk = False
+
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+try:
+    from simsopt.mhd.vmec import Vmec
+    vmec_found = True
+except ImportError:
+    vmec_found = False
 
 
 def validate_phi_hits(phi_hits, bfield, nphis):
@@ -672,7 +682,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         """
         Compute particle resonances for low energy particles in a BoozerAnalytic
         field with zero magnetic shear. Check that helicity of resonances
-        matches the rotational transform.
+        matches the rotational transform. Perform same test for
+        a ToroidalField + PoloidalField.
         """
         etabar = 1.2
         B0 = 1.0
@@ -689,7 +700,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         Ekin = 1e3*ONE_EV
         vpar = np.sqrt(2*Ekin/m)
 
-        Nparticles = 1000
+        Nparticles = 10
         np.random.seed(1)
         stz_inits = np.random.uniform(size=(Nparticles, 3))
         vpar_inits = vpar*np.ones((Nparticles, 1))
@@ -714,3 +725,32 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             h = resonances[i][5]/resonances[i][6]
             assert h > iota_min
             assert h < iota_max
+
+        R0 = 1
+        B0 = 1
+        q = 1
+        bsh = ToroidalField(R0, B0)+PoloidalField(R0, B0, q)
+        nquadrature = 300
+        nfourier = 1
+        nfp = 1
+        stellsym = True
+        ma = CurveRZFourier(nquadrature, nfourier, nfp, stellsym)
+        x0 = np.zeros(ma.dof_size)
+        x0[0] = R0
+        ma.set_dofs(x0)
+
+        xyz_inits = np.random.uniform(size=(Nparticles, 3))
+        xyz_inits[:, 0] = xyz_inits[:, 0]+R0
+        xyz_inits[:, 1] = 0.
+        xyz_inits[:, 2] = 0.
+
+        gc_tys, gc_phi_hits = trace_particles(bsh, xyz_inits, vpar_inits,
+                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, phis=[], mode='gc_vac',
+                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1, False)],
+                                              tol=1e-12)
+
+        resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01)
+
+        for i in range(len(resonances)):
+            h = resonances[i][5]/resonances[i][6]
+            assert h == 1
