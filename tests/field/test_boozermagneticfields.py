@@ -6,17 +6,16 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = str((TEST_DIR / 'input.LandremanPaul2021_QA_lowres').resolve())
 
 try:
-    from mpi4py import MPI
-except:
-    MPI = None
+    import vmec
+except ImportError as e:
+    vmec = None
 
 try:
-    from simsopt.mhd.vmec import Vmec
-    vmec_found = True
-except ImportError:
-    vmec_found = False
+    from mpi4py import MPI
+except ImportError as e:
+    MPI = None
 
-if (MPI is not None) and vmec_found:
+if (MPI is not None) and (vmec is not None):
     from simsopt.mhd.vmec import Vmec
 
 
@@ -88,7 +87,7 @@ class TestingAnalytic(unittest.TestCase):
         assert(ba.psi0 == 3.6)
 
 
-@unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
+@unittest.skipIf(vmec is None, "vmec python package is not found")
 class TestingVmec(unittest.TestCase):
     def test_boozerradialinterpolant(self):
         # Test that perfect derivatives integrate to zero
