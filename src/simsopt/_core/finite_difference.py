@@ -164,7 +164,7 @@ class MPIFiniteDifference:
         self.mpi.together()
 
     # Called by MPI leaders
-    def _jac(self, x: RealArray = None, /):
+    def _jac(self, x: RealArray = None):
         # Use shortcuts for class variables
         opt = self.opt
         mpi = self.mpi
