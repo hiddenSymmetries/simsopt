@@ -258,6 +258,8 @@ class CircularCoil(MagneticField):
     kind.  As inputs, it takes the radius of the coil (r0), its center, current
     (I) and its normal vector [either spherical angle components
     (normal=[theta,phi]) or (x,y,z) components of a vector (normal=[x,y,z])]).
+    Sign convention: CircularCoil with a positive current produces a magnetic field
+    vector in the same direction as the normal when evaluated at the center of the coil.
 
     Args:
         r0: radius of the coil
@@ -284,11 +286,11 @@ class CircularCoil(MagneticField):
         self.rotMatrix = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
              -np.sin(phi / 2)**2 * np.sin(2 * theta), 
-             -np.cos(theta) * np.sin(phi)],
-            [np.sin(phi / 2)**2 * np.sin(2 * theta), 
+             np.cos(theta) * np.sin(phi)],
+            [-np.sin(phi / 2)**2 * np.sin(2 * theta), 
              np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2, 
              np.sin(phi) * np.sin(theta)],
-            [np.cos(theta) * np.sin(phi),
+            [-np.cos(theta) * np.sin(phi),
              -np.sin(phi) * np.sin(theta), 
              np.cos(phi)]
         ])

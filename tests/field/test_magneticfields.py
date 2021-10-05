@@ -180,7 +180,7 @@ class Testing(unittest.TestCase):
         normal = [0, np.pi/2]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        Bcircular = BiotSavart([Coil(curve, Current(-current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -192,12 +192,12 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
         Bfield.set_points([[0.1, 0.2, 0.3]])
         Afield = Bfield.A()
-        assert np.allclose(Afield, [[0, -5.15785, 2.643056]])
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        Bcircular = BiotSavart([Coil(curve, Current(-current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
