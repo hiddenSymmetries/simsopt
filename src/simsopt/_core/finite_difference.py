@@ -70,7 +70,7 @@ class FiniteDifference:
 
         if self.jac_size is None:
             out = self.fn()
-            if not isinstance(out, collections.abc.Sequence):
+            if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
                 out = [out]
             self.jac_size = (len(out), self.opt.dof_size)
 
