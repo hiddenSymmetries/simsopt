@@ -36,7 +36,7 @@ class FiniteDifference:
     the initialization to customize the finite difference scheme
     """
 
-    def __init__(self, func: Callable, /,
+    def __init__(self, func: Callable,
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
@@ -70,7 +70,7 @@ class FiniteDifference:
 
         if self.jac_size is None:
             out = self.fn()
-            if not isinstance(out, collections.abc.Sequence):
+            if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
                 out = [out]
             self.jac_size = (len(out), self.opt.dof_size)
 
@@ -121,7 +121,7 @@ class MPIFiniteDifference:
     """
 
     def __init__(self, func: Callable,
-                 mpi: MpiPartition, /,
+                 mpi: MpiPartition,
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
@@ -164,7 +164,7 @@ class MPIFiniteDifference:
         self.mpi.together()
 
     # Called by MPI leaders
-    def _jac(self, x: RealArray = None, /):
+    def _jac(self, x: RealArray = None):
         # Use shortcuts for class variables
         opt = self.opt
         mpi = self.mpi

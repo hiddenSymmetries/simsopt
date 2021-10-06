@@ -18,7 +18,8 @@ def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [serial_solve, least_squares_serial_solve]
+# solvers = [serial_solve, least_squares_serial_solve]
+solvers = [least_squares_serial_solve]
 if MPI is not None:
     solvers.append(mpi_solve_1group)
 

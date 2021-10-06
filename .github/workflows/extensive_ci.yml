@@ -27,12 +27,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
         test-type: [unit, integrated]
+        packages: [all, vmec, spec, boost, none]
+        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
         # spec: [true, false]
         # vmec: [true, false]
         # boost: [true]
-        packages: [none, boost, vmec, spec, all]
         include:
             - python-version: 3.9.5
               test-type: unit
