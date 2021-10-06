@@ -35,7 +35,7 @@ jobs:
   # Alternate setup for mac_wheel because cibuildwheel is failing for mac
   mac_wheels:
     name: Build wheels on mac 
-    runs-on: macos-10.15
+    runs-on: [macos-10.15, macos-11]
     strategy:
       matrix:
         python: [3.7, 3.8, 3.9]
