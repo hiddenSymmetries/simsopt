@@ -4,7 +4,8 @@
 template<class Array>
 class CurrentBase {
     public:
-        virtual double get_value();
+        virtual double get_value() = 0;
+        virtual ~CurrentBase() = default;
 };
 
 template<class Array>
