@@ -856,7 +856,7 @@ class OptimizableTestsExternalDofs(unittest.TestCase):
 
 class TestMakeOptimizable(unittest.TestCase):
     def setUp(self) -> None:
-        def arb_fun_dofs_noopts(a, b, c, /):
+        def arb_fun_dofs_noopts(a, b, c):
             return a ** 2 + 2 * b ** 2 + 3 * c ** 2 - 10
 
         def arb_fun_nodofs_opts(adder):

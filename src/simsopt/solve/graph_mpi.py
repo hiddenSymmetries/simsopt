@@ -89,10 +89,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
              the pool of MPI processes is divided into worker groups.
         grad: Whether to use a gradient-based optimization algorithm, as
               opposed to a gradient-free algorithm. If unspecified, a
-              gradient-based algorithm will be used if ``prob`` has gradient
-              information available, otherwise a gradient-free algorithm
-              will be used by default. If you set ``grad=True`` for a problem
-              in which gradient information is not available,
+              a gradient-free algorithm
+              will be used by default. If you set ``grad=True``
               finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
