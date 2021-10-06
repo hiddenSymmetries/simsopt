@@ -249,6 +249,23 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        ## Test with results from coilpy
+        radius = 1.2345
+        center = np.array([0.123, 1.456, 2.789])
+        current = 1E6
+        points = np.array([[2.987, 1.654, 0.321]])
+        angle = 0.123
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[-1.29465197e-02, 2.56216948e-05, 3.70911295e-03]])
+        angle = 0.982
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[-0.00916089, 0.00677598, 0.00294619]])
+        angle = 2.435
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[ 0.01016974, 0.00629875, -0.00220838]])
 
     def test_helicalcoil_Bfield(self):
         point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
