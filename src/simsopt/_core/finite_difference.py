@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 import traceback
 import collections
+from time import time
+from datetime import datetime
 from typing import Callable, Sequence
 from numbers import Real
 
@@ -125,7 +127,8 @@ class MPIFiniteDifference:
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
-                 diff_method: str = "centered") -> None:
+                 diff_method: str = "centered",
+                 log_file: Union[str, typing.IO]="jac_log") -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -146,22 +149,36 @@ class MPIFiniteDifference:
                 f"Finite difference method {diff_method} not implemented. "
                 "Supported methods are 'centered' and 'forward'.")
         self.diff_method = diff_method
+        self.log_file = log_file
 
         x0 = np.asarray(x0) if x0 is not None else x0
         self.x0 = x0 if x0 else self.opt.x
 
         self.jac_size = None
+        self.eval_cnt = 1
+
 
     def __enter__(self):
         self.mpi_apart()
+        self.init_log()
         return self
 
     def mpi_apart(self):
         self.mpi.apart(lambda mpi, data: self.mpi_leaders_task(),
                        lambda mpi, data: self.mpi_workers_task())
 
+    def init_log(self):
+        if self.mpi.proc0_world:
+            if isinstance(self.log_file, str):
+                datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                log_file = self.log_file + "_" +  datestr + ".dat"
+                self.log_file = open(log_file, 'w')
+        self.start_time = time()
+
     def __exit__(self, exc_type, exc_value, tb):
         self.mpi.together()
+        if self.mpi.proc0_world:
+            self.log_file.close()
 
     # Called by MPI leaders
     def _jac(self, x: RealArray = None):
@@ -335,4 +352,20 @@ class MPIFiniteDifference:
 
         jac, xs, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
+        logfile = self.log_file
+        nevals = evals.shape[1]
+        for j in range(nevals):
+            del_t = time() - self.start_time
+            logfile.write(f"nevals: {j+self.eval_cnt:6d}, calc_time: {del_t:12.4e}\n")
+            logfile.write("x")
+            for xj in xs[:, j]:
+                logfile.write(f",{xj:24.16e}")
+            logfile.write("\nFunction Vector")
+            for eval in evals[:, j]:
+                logfile.write(f",{eval:24.16e}")
+            logfile.write("\n")
+            logfile.flush()
+
+        self.eval_cnt += nevals
+
         return jac

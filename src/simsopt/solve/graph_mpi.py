@@ -193,37 +193,38 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
     if grad:
-        fd = MPIFiniteDifference(prob.residuals, mpi, abs_step=abs_step,
-                                 rel_step=rel_step, diff_method=diff_method)
-        fd.mpi_apart()
+        with MPIFiniteDifference(prob.residuals, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method) as fd:
+            if mpi.proc0_world:
+                # proc0_world does this block, running the optimization.
+                x0 = np.copy(prob.x)
+                logger.info("Using finite difference method implemented in "
+                            "SIMSOPT for evaluating gradient")
+                result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
+                                       **kwargs)
+
     else:
-        fd = None
         leaders_action = lambda mpi, data: None
         workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 
-    # Send group leaders and workers into their respective loops:
-
-    if mpi.proc0_world:
-        # proc0_world does this block, running the optimization.
-        x0 = np.copy(prob.x)
-        # Call scipy.optimize:
-        if grad:
-            logger.info("Using finite difference method implemented in SIMSOPT"
-                        "for evaluating gradient")
-            result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2, **kwargs)
-        else:
+        if mpi.proc0_world:
+            # proc0_world does this block, running the optimization.
+            x0 = np.copy(prob.x)
             logger.info("Using derivative-free method")
             result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
 
-        logger.info("Completed solve.")
+        # Stop loops for workers and group leaders:
+        mpi.together()
+
+
+    if mpi.proc0_world:
         x = result.x
 
         objective_file.close()
         residuals_file.close()
 
-    # Stop loops for workers and group leaders:
-    mpi.together()
 
     datalog_started = False
     logger.info("Completed solve.")
