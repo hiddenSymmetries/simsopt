@@ -8,11 +8,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
 
-message(status "Python executable is ${Python_EXECUTABLE}")
-message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
-message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
-message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
-message(status "Python version is ${Python_VERSION}")
+message(STATUS "Python executable is ${Python_EXECUTABLE}")
+message(STATUS "Python Development Module found value is ${Python_Development.Module_FOUND}")
+message(STATUS "Python header dirs are ${Python_INCLUDE_DIRS}")
+message(STATUS "Python library dirs are ${Python_LIBRARY_DIRS}")
+message(STATUS "Python version is ${Python_VERSION}")
 
 
 find_package(Git QUIET)
