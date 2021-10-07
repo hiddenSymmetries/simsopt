@@ -1,6 +1,7 @@
 import numpy as np
 import simsoptpp as sopp
 import scipy
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 
 
 def forward_backward(P, L, U, rhs):
@@ -85,6 +86,52 @@ class Volume(object):
 
     def dJ_by_dcoilcurrents(self):
         return [0. for c in self.stellarator.coils]
+
+
+class VolumeIncrease(object):
+    """
+    Wrapper class for volume label.
+    """
+
+    def __init__(self, in_surface, stellarator):
+        
+        phis = np.linspace(0,1/(2*in_surface.nfp), in_surface.quadpoints_phi.size+100, endpoint=False)
+        thetas = np.linspace(0,1., in_surface.quadpoints_theta.size+100, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(in_surface.get_dofs())
+        self.in_surface = in_surface
+        self.surface = s
+        self.stellarator = stellarator
+
+    def J(self):
+        """
+        Compute the volume enclosed by the surface.
+        """
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        return self.surface.volume()
+
+    def dJ_by_dsurfacecoefficients(self):
+        """
+        Calculate the derivatives with respect to the surface coefficients.
+        """
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        return self.surface.dvolume_by_dcoeff()
+
+    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        """
+        Calculate the second derivatives with respect to the surface coefficients.
+        """
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        return self.surface.d2volume_by_dcoeffdcoeff()
+
+    def dJ_by_dcoilcoefficients(self):
+        return [np.zeros((c.num_dofs(),)) for c in self.stellarator.coils]
+
+    def dJ_by_dcoilcurrents(self):
+        return [0. for c in self.stellarator.coils]
+
+
+
 
 
 class ToroidalFlux(object):

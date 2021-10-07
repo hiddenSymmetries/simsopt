@@ -226,25 +226,63 @@ class MinimumDistance(Optimizable):
         return res
 
 
-class UniformArclength():
-
-    def __init__(self, curve, desired_length):
-        self.curve = curve
-        self.desired_arclength = desired_length
+class QuadraticCurveLength:
+    def __init__(self, Jls, threshold):
+        self.Jls = Jls
+        self.threshold = threshold
 
     def J(self):
-        l = self.curve.incremental_arclength()
-        num_points = l.shape[0]
-        return np.mean((l-self.desired_arclength)**2)
+        sumlen = sum([J.J() for J in self.Jls])
+        return 0.5*(np.maximum(sumlen-self.threshold, 0))**2
+
+    def dJ(self):
+        sumlen = sum([J.J() for J in self.Jls])
+        dJ = [np.maximum(sumlen-self.threshold, 0)*J.dJ() for J in self.Jls] 
+        return dJ
+
+@jit
+def curve_arclengthvariation_pure(l):
+    """
+    This function is used in a Python+Jax implementation of the curve arclength variation.
+    """
+    return jnp.var(l)
+
+
+class UniformArclength():
+
+    def __init__(self, curve):
+        self.curve = curve
+        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x))(l))
+
+    def J(self):
+        return curve_arclengthvariation_pure(self.curve.incremental_arclength())
 
     def dJ_by_dcoefficients(self):
-        l = self.curve.incremental_arclength()
-        dl = self.curve.dincremental_arclength_by_dcoeff()
-        num_coeff = dl.shape[1]
-        res = np.zeros((num_coeff, ))
-        for i in range(num_coeff):
-            res[i] = np.mean(2 * (l-self.desired_arclength) * dl[:, i])
-        return res
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        return self.curve.dincremental_arclength_by_dcoeff_vjp(
+            self.thisgrad(self.curve.incremental_arclength()))
+
+#class UniformArclength():
+#
+#    def __init__(self, curve, desired_length):
+#        self.curve = curve
+#        self.desired_arclength = desired_length
+#
+#    def J(self):
+#        l = self.curve.incremental_arclength()
+#        num_points = l.shape[0]
+#        return np.mean((l-self.desired_arclength)**2)
+#
+#    def dJ_by_dcoefficients(self):
+#        l = self.curve.incremental_arclength()
+#        dl = self.curve.dincremental_arclength_by_dcoeff()
+#        num_coeff = dl.shape[1]
+#        res = np.zeros((num_coeff, ))
+#        for i in range(num_coeff):
+#            res[i] = np.mean(2 * (l-self.desired_arclength) * dl[:, i])
+#        return res
 
 
 class ThetaZero():
