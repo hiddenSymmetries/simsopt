@@ -146,8 +146,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         true_volume = 2.98138727016329
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
         # Try specifying the number of quadrature points:
-        s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=71,
-                                       quadpoints_theta=78)
+        s = SurfaceRZFourier.from_wout(filename, nphi=71,
+                                       ntheta=78)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
         # If you ask for the s=0 surface, which is just the magnetic
         # axis, the volume and area should be 0.
@@ -178,8 +178,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         true_volume = 2.97871721453671
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
         # Try specifying the number of quadrature points:
-        s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=78,
-                                             quadpoints_theta=71)
+        s = SurfaceRZFourier.from_vmec_input(filename, nphi=78,
+                                             ntheta=71)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
         filename = TEST_DIR / 'input.NuhrenbergZille_1988_QHS'
@@ -203,8 +203,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         true_volume = 0.199228326303124
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
         # Try specifying the number of quadrature points:
-        s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=67,
-                                             quadpoints_theta=69)
+        s = SurfaceRZFourier.from_vmec_input(filename, nphi=67,
+                                             ntheta=69)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
     def test_from_vmec_2_ways(self):
