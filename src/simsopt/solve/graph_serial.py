@@ -99,7 +99,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             objective_file.write("function_evaluation,seconds")
             for j in range(ndofs):
                 objective_file.write(f",x({j})")
-            objective_file.write(",objective_function\n\n")
+            objective_file.write(",objective_function\n")
 
             residuals_file.write(
                 f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")

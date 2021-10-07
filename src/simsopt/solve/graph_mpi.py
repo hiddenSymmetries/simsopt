@@ -153,11 +153,11 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             datalog_started = True
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             objective_file = open(f"objective_{datestr}.dat", 'w')
-            objective_file.write("Problem type:\nleast_squares")
+            objective_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
             objective_file.write("function_evaluation,seconds")
 
             residuals_file = open(f"residuals_{datestr}.dat", 'w')
-            residuals_file.write("Problem type:\nleast_squares")
+            residuals_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
             residuals_file.write("function_evaluation,seconds")
 
             for j in range(prob.dof_size):
@@ -167,7 +167,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             for j in range(prob.dof_size):
                 residuals_file.write(f",x({j})")
             residuals_file.write(",objective_function")
-            for j in range(prob.dof_size):
+            for j in range(len(residuals)):
                 residuals_file.write(f",F({j})")
             residuals_file.write("\n")
 
@@ -187,7 +187,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         residuals_file.write("\n")
         residuals_file.flush()
         nevals += 1
-        print(f"residuals are {residuals}")
+        logger.debug(f"residuals are {residuals}")
         return residuals
 
     # For MPI finite difference gradient, get the worker and leader action from
