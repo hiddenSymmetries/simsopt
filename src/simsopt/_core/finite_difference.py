@@ -150,6 +150,7 @@ class MPIFiniteDifference:
                 "Supported methods are 'centered' and 'forward'.")
         self.diff_method = diff_method
         self.log_file = log_file
+        self.new_log_file = False
 
         x0 = np.asarray(x0) if x0 is not None else x0
         self.x0 = x0 if x0 else self.opt.x
@@ -173,11 +174,12 @@ class MPIFiniteDifference:
                 datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 log_file = self.log_file + "_" +  datestr + ".dat"
                 self.log_file = open(log_file, 'w')
+                self.new_log_file = True
         self.start_time = time()
 
     def __exit__(self, exc_type, exc_value, tb):
         self.mpi.together()
-        if self.mpi.proc0_world:
+        if self.mpi.proc0_world and self.new_log_file:
             self.log_file.close()
 
     # Called by MPI leaders
