@@ -29,22 +29,6 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
 class SurfaceHennebergTests(unittest.TestCase):
-    def test_init_quadpoints(self):
-        """
-        Test that we can initialize the points either by an integer, list,
-        or numpy array.
-        """
-        for phi_points in [32,
-                           np.linspace(0.0, 1.0, 32, endpoint=False),
-                           list(np.linspace(0.0, 1.0, 32, endpoint=False))]:
-
-            for theta_points in [32,
-                                 np.linspace(0.0, 1.0, 32, endpoint=False),
-                                 list(np.linspace(0.0, 1.0, 32, endpoint=False))]:
-
-                surf = SurfaceHenneberg(nfp=5, alpha_fac=-1, mmax=3, nmax=4,
-                                        quadpoints_phi=phi_points,
-                                        quadpoints_theta=theta_points)
 
     def test_names(self):
         """

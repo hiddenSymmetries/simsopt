@@ -4,6 +4,10 @@ import numpy as np
 import os
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.geo.surfacehenneberg import SurfaceHenneberg
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surface import signed_distance_from_surface
 from simsopt.geo.curverzfourier import CurveRZFourier
 from .surface_test_helpers import get_surface
@@ -17,6 +21,102 @@ try:
     pyevtk_found = True
 except ImportError:
     pyevtk_found = False
+
+surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
+                 "SurfaceHenneberg", "SurfaceGarabedian"]
+
+
+class QuadpointsTests(unittest.TestCase):
+    def test_theta(self):
+        """
+        Check that the different options for initializing the theta
+        quadrature points behave as expected.
+        """
+        for surface_type in surface_types:
+            # Try specifying no arguments for theta:
+            s = eval(surface_type + "()")
+            np.testing.assert_allclose(s.quadpoints_theta,
+                                       np.linspace(0.0, 1.0, 62, endpoint=False))
+
+            # Try specifying ntheta:
+            s = eval(surface_type + "(ntheta=17)")
+            np.testing.assert_allclose(s.quadpoints_theta,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+
+            # Try specifying quadpoints_theta as a numpy array:
+            s = eval(surface_type + "(quadpoints_theta=np.linspace(0.0, 1.0, 5, endpoint=False))")
+            np.testing.assert_allclose(s.quadpoints_theta,
+                                       np.linspace(0.0, 1.0, 5, endpoint=False))
+
+            # Try specifying quadpoints_theta as a list:
+            s = eval(surface_type + "(quadpoints_theta=[0.2, 0.7, 0.3])")
+            np.testing.assert_allclose(s.quadpoints_theta, [0.2, 0.7, 0.3])
+
+            # Specifying both ntheta and quadpoints_theta should cause an error:
+            with self.assertRaises(ValueError):
+                s = eval(surface_type + "(ntheta=5, quadpoints_theta=np.linspace(0.0, 1.0, 5, endpoint=False))")
+
+    def test_phi(self):
+        """
+        Check that the different options for initializing the phi
+        quadrature points behave as expected.
+        """
+        for surface_type in surface_types:
+            # Try specifying no arguments for phi:
+            s = eval(surface_type + "()")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 61, endpoint=False))
+
+            # Try specifying nphi but not range:
+            s = eval(surface_type + "(nphi=17)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+
+            # Try specifying nphi plus range as a string, without nfp:
+            s = eval(surface_type + "(nphi=17, range='full torus')")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+            s = eval(surface_type + "(nphi=17, range='field period')")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+            s = eval(surface_type + "(nphi=17, range='half period')")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 0.5, 17, endpoint=False))
+
+            # Try specifying nphi plus range as a string, with nfp:
+            s = eval(surface_type + "(nphi=17, range='full torus', nfp=3)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+            s = eval(surface_type + "(nphi=17, range='field period', nfp=3)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0 / 3.0, 17, endpoint=False))
+            s = eval(surface_type + "(nphi=17, range='half period', nfp=3)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False))
+
+            # Try specifying nphi plus range as a constant, with nfp:
+            s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FULL_TORUS)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0, 17, endpoint=False))
+            s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FIELD_PERIOD)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 1.0 / 4.0, 17, endpoint=False))
+            s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_HALF_PERIOD)")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False))
+
+            # Try specifying quadpoints_phi as a numpy array:
+            s = eval(surface_type + "(quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
+            np.testing.assert_allclose(s.quadpoints_phi,
+                                       np.linspace(0, 1.0, 5, endpoint=False))
+
+            # Try specifying quadpoints_phi as a list:
+            s = eval(surface_type + "(quadpoints_phi=[0.2, 0.7, 0.3])")
+            np.testing.assert_allclose(s.quadpoints_phi, [0.2, 0.7, 0.3])
+
+            # Specifying both nphi and quadpoints_phi should cause an error:
+            with self.assertRaises(ValueError):
+                s = eval(surface_type + "(nphi=5, quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
 
 
 class ArclengthTests(unittest.TestCase):

@@ -9,6 +9,7 @@ from scipy.interpolate import interp1d
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
+from ..util.types import RealArray
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ logger = logging.getLogger(__name__)
 class SurfaceHenneberg(sopp.Surface, Surface):
     r"""
     This class represents a toroidal surface using the
-    parameterization in Henneberg, Helander, and Drevlak,
-    arXiv:2105.00768 (2021). The main benefit of this representation
-    is that there is no freedom in the poloidal angle,
+    parameterization in Henneberg, Helander, and Drevlak, Journal of
+    Plasma Physics 87, 905870503 (2021). The main benefit of this
+    representation is that there is no freedom in the poloidal angle,
     i.e. :math:`\theta` is uniquely defined, in contrast to other
     parameterizations like
     :obj:`~.surfacerzfourier.SurfaceRZFourier`. Stellarator symmetry
@@ -69,15 +70,42 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     ``nmax``. There are no corresponding functions for the 1D arrays
     ``R0nH``, ``Z0nH``, and ``bn`` since these arrays all have a first
     index corresponding to ``n=0``.
+
+    For more information about the arguments ``nphi``, ``ntheta``,
+    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+    general documentation on :ref:`surfaces`.
+
+    Args:
+        nfp: The number of field periods.
+        alpha_fac: Should be +1 or -1 for a stellarator, depending on the handedness
+          by which the elongation rotates, or 0 for axisymmetry.
+        mmax: Maximum poloidal mode number included.
+        nmax: Maximum toroidal mode number included, divided by ``nfp``.
+        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+        range: Toroidal extent of the :math:`\phi` grid.
+          Set to ``"full torus"`` (or equivalently ``SurfaceHenneberg.RANGE_FULL_TORUS``)
+          to generate points up to 1 (with no point at 1).
+          Set to ``"field period"`` (or equivalently ``SurfaceHenneberg.RANGE_FIELD_PERIOD``)
+          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+          Set to ``"half period"`` (or equivalently ``SurfaceHenneberg.RANGE_HALF_PERIOD``)
+          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
     def __init__(self,
-                 nfp: int,
-                 alpha_fac: int,
-                 mmax: int,
-                 nmax: int,
-                 quadpoints_phi: int = 63,
-                 quadpoints_theta: int = 62):
+                 nfp: int = 1,
+                 alpha_fac: int = 1,
+                 mmax: int = 1,
+                 nmax: int = 0,
+                 nphi: int = None,
+                 ntheta: int = None,
+                 range: str = "full torus",
+                 quadpoints_phi: RealArray = None,
+                 quadpoints_theta: RealArray = None):
+
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
 
@@ -88,11 +116,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
-        if isinstance(quadpoints_phi, int):
-            quadpoints_phi = np.linspace(0, 1.0, quadpoints_phi, endpoint=False)
-        if isinstance(quadpoints_theta, int):
-            quadpoints_theta = np.linspace(0, 1.0, quadpoints_theta, endpoint=False)
-
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi, ntheta=ntheta, range=range,
+                                                                  quadpoints_phi=quadpoints_phi,
+                                                                  quadpoints_theta=quadpoints_theta)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m

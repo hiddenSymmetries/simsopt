@@ -24,8 +24,69 @@ class Surface(Optimizable):
     quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
     """
 
+    # Options for the 'range' parameter for setting quadpoints_phi:
+    RANGE_FULL_TORUS = "full torus"
+    RANGE_FIELD_PERIOD = "field period"
+    RANGE_HALF_PERIOD = "half period"
+
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
+
+    def get_quadpoints(quadpoints_phi=None,
+                       quadpoints_theta=None,
+                       range=RANGE_FULL_TORUS,
+                       nphi=None,
+                       ntheta=None,
+                       nfp=1):
+        r"""
+        This function is used to set the theta and phi grid points for Surface subclasses.
+        It is typically called in the constructor of each Surface subclass.
+
+        For more information about the arguments ``nphi``, ``ntheta``,
+        ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+        general documentation on :ref:`surfaces`.
+
+        Args:
+            nfp: The number of field periods.
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+            ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+            range: Toroidal extent of the :math:`\phi` grid.
+              Set to ``"full torus"`` (or equivalently ``Surface.RANGE_FULL_TORUS``)
+              to generate points up to 1 (with no point at 1).
+              Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
+              to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+              Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
+              to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+            quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+            quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
+        """
+        # Handle theta:
+        if (quadpoints_theta is not None) and (ntheta is not None):
+            raise ValueError("quadpoints_theta and ntheta cannot both be specified")
+        if (quadpoints_theta is None) and (ntheta is None):
+            # Neither is specified, so use a default:
+            ntheta = 62
+        if quadpoints_theta is None:
+            quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+
+        # Handle phi:
+        if (quadpoints_phi is not None) and (nphi is not None):
+            raise ValueError("quadpoints_phi and nphi cannot both be specified")
+        if (quadpoints_phi is None) and (nphi is None):
+            # Neither is specified, so use a default:
+            nphi = 61
+        if quadpoints_phi is None:
+            if range == Surface.RANGE_FULL_TORUS:
+                quadpoints_phi = np.linspace(0.0, 1.0, nphi, endpoint=False)
+            elif range == Surface.RANGE_FIELD_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
+            elif range == Surface.RANGE_HALF_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
+            else:
+                raise ValueError("Invalid setting for range")
+
+        return list(quadpoints_phi), list(quadpoints_theta)
 
     def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
