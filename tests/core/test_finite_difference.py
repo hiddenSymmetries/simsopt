@@ -206,12 +206,14 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             fd = MPIFiniteDifference(o.J, mpi, diff_method="forward",
                                      abs_step=1e-7)
             fd.mpi_apart()
+            fd.init_log()
             logger.debug('About to do worker loop 1')
             if mpi.proc0_world:
                 jac = fd.jac()
                 np.testing.assert_allclose(jac, jac_ref, rtol=1e-7, atol=1e-7)
             mpi.together()
-            return
+            fd.log_file.close()
+
 
             # Use context manager
             with MPIFiniteDifference(o.J, mpi, diff_method="forward", abs_step=1e-7) as fd:
@@ -223,11 +225,13 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             fd = MPIFiniteDifference(o.J, mpi, diff_method="centered",
                                      abs_step=1e-7)
             fd.mpi_apart()
+            fd.init_log()
             logger.debug('About to do worker loop 2')
             if mpi.proc0_world:
                 jac = fd.jac()
                 np.testing.assert_allclose(jac, jac_ref, rtol=1e-7, atol=1e-7)
             mpi.together()
+            fd.log_file.close()
 
             # Now try a case with different nparams and nfuncs.
             o = TestFunction2()
@@ -240,8 +244,10 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
                                      abs_step=1e-7)
             logger.debug('About to do worker loop 2')
             fd.mpi_apart()
+            fd.init_log()
             if mpi.proc0_world:
                 fd_jac = fd.jac()
                 np.testing.assert_allclose(fd_jac, anlt_jac,
                                            rtol=1e-6, atol=1e-6)
             mpi.together()
+            fd.log_file.close()
