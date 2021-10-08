@@ -558,6 +558,17 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert max(max_mu_gc_error) < -8
         assert max(max_p_gc_error) < -8
 
+        # Now trace with forget_exact_path = False. Check that gc_phi_hits is the same
+        gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+                                                       tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+                                                       stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
+                                                       tol=1e-12, forget_exact_path=True)
+
+        for i in range(len(gc_phi_hits_2)):
+            assert np.allclose(gc_phi_hits[i], gc_phi_hits_2[i])
+
+        assert len(gc_tys) == N
+        assert np.shape(gc_tys[0])[0] == 2
         np.seterr(divide='warn')
 
     def test_compute_poloidal_toroidal_transits(self):
@@ -749,7 +760,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                               stopping_criteria=[ToroidalTransitStoppingCriterion(1, False)],
                                               tol=1e-12)
 
-        resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01)
+        resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01, ma=ma)
 
         for i in range(len(resonances)):
             h = resonances[i][5]/resonances[i][6]
