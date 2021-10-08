@@ -190,7 +190,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
-                    phase_angle=0, count_transits=False, ma=None):
+                    phase_angle=0):
     r"""
     Follow particles in a magnetic field.
 
