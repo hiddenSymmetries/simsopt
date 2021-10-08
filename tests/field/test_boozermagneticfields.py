@@ -94,7 +94,7 @@ class TestingVmec(unittest.TestCase):
         vmec = Vmec(filename)
         order = 3
         ns_delete = 1
-        for rescale in [True,False]:
+        for rescale in [True, False]:
             bri = BoozerRadialInterpolant(vmec, order, rescale=rescale, ns_delete=ns_delete)
 
             # Perform interpolation from full grid
@@ -104,7 +104,7 @@ class TestingVmec(unittest.TestCase):
             # Check with linear interpolation from half grid
             G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
             iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
-            modB00 = np.sum(bri.booz.bx.bmnc_b,axis=0)
+            modB00 = np.sum(bri.booz.bx.bmnc_b, axis=0)
             modB_full = (modB00[0:-1]+modB00[1::])/2
 
             # Compare splines of derivatives with spline derivatives
@@ -115,10 +115,10 @@ class TestingVmec(unittest.TestCase):
 
             assert np.allclose(bri.G(), G_full, atol=1e-4)
             assert np.allclose(bri.iota(), iota_full, atol=1e-2)
-            assert np.allclose(bri.modB()[:,0], modB_full, atol=1e-2)
+            assert np.allclose(bri.modB()[:, 0], modB_full, atol=1e-2)
             assert np.allclose(bri.dGds(), G_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-3)
             assert np.allclose(bri.diotads(), iota_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-2)
-            assert np.allclose(bri.dmodBds()[ns_delete+1::,0], modB00_spline.derivative()(vmec.s_full_grid[ns_delete+2:-1]), atol=1e-2)
+            assert np.allclose(bri.dmodBds()[ns_delete+1::, 0], modB00_spline.derivative()(vmec.s_full_grid[ns_delete+2:-1]), atol=1e-2)
 
             points = np.zeros((len(vmec.s_half_grid), 3))
             points[:, 0] = vmec.s_half_grid
