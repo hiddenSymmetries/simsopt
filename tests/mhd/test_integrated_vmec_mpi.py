@@ -48,8 +48,7 @@ class IntegratedTests(unittest.TestCase):
         logger = logging.getLogger(__name__)
 
         for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
-            # for grad in [False, True]:
-            for grad in [False]:
+            for grad in [False, True]:
                 # In the next line, we can adjust how many groups the pool of MPI
                 # processes is split into.
                 mpi = MpiPartition(ngroups=ngroups)
