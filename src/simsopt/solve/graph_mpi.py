@@ -218,13 +218,11 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         # Stop loops for workers and group leaders:
         mpi.together()
 
-
     if mpi.proc0_world:
         x = result.x
 
         objective_file.close()
         residuals_file.close()
-
 
     datalog_started = False
     logger.info("Completed solve.")

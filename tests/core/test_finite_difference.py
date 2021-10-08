@@ -214,7 +214,6 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             mpi.together()
             fd.log_file.close()
 
-
             # Use context manager
             with MPIFiniteDifference(o.J, mpi, diff_method="forward", abs_step=1e-7) as fd:
                 if mpi.proc0_world:

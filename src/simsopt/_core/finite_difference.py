@@ -128,7 +128,7 @@ class MPIFiniteDifference:
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
                  diff_method: str = "centered",
-                 log_file: Union[str, typing.IO]="jac_log") -> None:
+                 log_file: Union[str, typing.IO] = "jac_log") -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -158,7 +158,6 @@ class MPIFiniteDifference:
         self.jac_size = None
         self.eval_cnt = 1
 
-
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -172,7 +171,7 @@ class MPIFiniteDifference:
         if self.mpi.proc0_world:
             if isinstance(self.log_file, str):
                 datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-                log_file = self.log_file + "_" +  datestr + ".dat"
+                log_file = self.log_file + "_" + datestr + ".dat"
                 self.log_file = open(log_file, 'w')
                 self.new_log_file = True
         self.start_time = time()
