@@ -75,7 +75,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             grad: bool = False,
                             abs_step: float = 1.0e-7,
                             rel_step: float = 0.0,
-                            diff_method: str = "centered",
+                            diff_method: str = "forward",
                             **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -218,13 +218,11 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         # Stop loops for workers and group leaders:
         mpi.together()
 
-
     if mpi.proc0_world:
         x = result.x
 
         objective_file.close()
         residuals_file.close()
-
 
     datalog_started = False
     logger.info("Completed solve.")

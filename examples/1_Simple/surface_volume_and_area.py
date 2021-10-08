@@ -32,7 +32,7 @@ term2 = (surf.area, desired_area, 1)
 prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
-least_squares_serial_solve(prob)
+least_squares_serial_solve(prob, grad=True)
 
 print("At the optimum,")
 print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))

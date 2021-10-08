@@ -28,7 +28,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                abs_step: float = 1.0e-7,
                                rel_step: float = 0.0,
-                               diff_method: str = "centered",
+                               diff_method: str = "forward",
                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
