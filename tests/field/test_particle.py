@@ -751,13 +751,13 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         ma.set_dofs(x0)
 
         xyz_inits = np.random.uniform(size=(Nparticles, 3))
-        xyz_inits[:, 0] = xyz_inits[:, 0]+R0
+        xyz_inits[:, 0] = 0.01*xyz_inits[:, 0]+R0
         xyz_inits[:, 1] = 0.
         xyz_inits[:, 2] = 0.
 
         gc_tys, gc_phi_hits = trace_particles(bsh, xyz_inits, vpar_inits,
-                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, phis=[], mode='gc_vac',
-                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1, False)],
+                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, phis=[0], mode='gc_vac',
+                                              stopping_criteria=[ToroidalTransitStoppingCriterion(10, False)],
                                               tol=1e-12)
 
         resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01, ma=ma)
