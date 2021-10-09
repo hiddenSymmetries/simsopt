@@ -525,6 +525,8 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                         logger.debug(f'dtm ={dtm}, mpolm = {mpolm}, ntorm = {ntorm}, tm={res_tys[ip][indexm,0]}')
                         logger.debug(f'(R,Z)m = {np.sqrt(res_tys[ip][indexm,1]**2 + res_tys[ip][indexm,2]**2),res_tys[ip][indexm,3]}')
 
+                        mpolr = 0
+                        ntorr = 0
                         if indexr < len(res_tys[ip][:, 0]):
                             trajlistr = []
                             dtr = np.abs(res_tys[ip][indexr, 0]-t)
@@ -534,9 +536,6 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                             ntorr = np.abs(compute_toroidal_transits(trajlistr, flux))
                             logger.debug(f'dtr ={dtr}, mpolr = {mpolr}, ntorr = {ntorr}, tr={res_tys[ip][indexr,0]}')
                             logger.debug(f'(R,Z)r = {np.sqrt(res_tys[ip][indexr,1]**2 + res_tys[ip][indexr,2]**2),res_tys[ip][indexr,3]}')
-                        else:
-                            mpolr = 0
-                            ntorr = 0
 
                         mpol = np.amax([mpoll, mpolm, mpolr])
                         index_mpol = np.argmax([mpoll, mpolm, mpolr])
@@ -544,8 +543,6 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                         index_ntor = np.argmax([ntorl, ntorm, ntorr])
                         index = np.amax([index_mpol, index_ntor])
                         resonances.append(np.asarray([R0, Z0, phi0, vpar0, t, mpol, ntor]))
-            else:
-                break
     return resonances
 
 
