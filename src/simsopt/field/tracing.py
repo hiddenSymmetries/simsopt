@@ -498,8 +498,8 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                 t = res_phi_hits[ip][it, 0]
                 if dist < delta:
                     logger.debug('Resonance found.')
-                    logger.debug(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
                     if flux:
+                        logger.debug(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
                         mpol = np.rint((theta-theta0)/(2*np.pi))
                         ntor = np.rint((zeta-zeta0)/(2*np.pi))
                         resonances.append(np.asarray([s0, theta0, zeta0, vpar0, t, mpol, ntor]))
