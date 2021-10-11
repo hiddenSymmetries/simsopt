@@ -1,3 +1,4 @@
+import logging
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,9 @@ try:
     pyevtk_found = True
 except ImportError:
     pyevtk_found = False
+
+#logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class SurfaceGarabedianTests(unittest.TestCase):
@@ -78,6 +82,34 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     sf2 = sg.to_RZFourier()
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
+
+    def test_fix_range(self):
+        """
+        Test the fix_range() function for SurfaceGarabedian.
+        """
+        s = SurfaceGarabedian(mmin=-3, mmax=2, nmin=-4, nmax=3)
+        s.fix_all()
+        s.fix_range(0, 1, -2, 3, False)
+        for m in range(-3, 3):
+            for n in range(-4, 4):
+                is_fixed = s.is_fixed(f'Delta({m},{n})')
+                logger.debug(f'm={m} n={n} fixed={is_fixed}')
+                if m >= 0 and m <= 1 and n >= -2 and n <= 3:
+                    self.assertTrue(s.is_free(f'Delta({m},{n})'))
+                else:
+                    self.assertTrue(s.is_fixed(f'Delta({m},{n})'))
+
+        s = SurfaceGarabedian(mmin=0, mmax=3, nmin=-4, nmax=4)
+        s.unfix_all()
+        s.fix_range(1, 2, -3, 2)
+        for m in range(0, 4):
+            for n in range(-4, 5):
+                is_fixed = s.is_fixed(f'Delta({m},{n})')
+                logger.debug(f'm={m} n={n} fixed={is_fixed}')
+                if m >= 1 and m <= 2 and n >= -3 and n <= 2:
+                    self.assertTrue(s.is_fixed(f'Delta({m},{n})'))
+                else:
+                    self.assertTrue(s.is_free(f'Delta({m},{n})'))
 
 
 if __name__ == "__main__":

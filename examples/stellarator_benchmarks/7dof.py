@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
+import os
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_mpi import least_squares_mpi_solve
-import os
 
 """
 This script solve the problem in
@@ -26,7 +26,7 @@ vmec.boundary = surf
 
 # Define parameter space:
 surf.fix_all()
-surf.fixed_range(mmin=0, mmax=2, nmin=-1, nmax=1, fixed=False)
+surf.fix_range(mmin=0, mmax=2, nmin=-1, nmax=1, fixed=False)
 surf.fix("Delta(1,0)")  # toroidally-averaged major radius
 surf.fix("Delta(0,0)")  # toroidally-averaged minor radius
 
@@ -41,30 +41,29 @@ qs = Quasisymmetry(boozer,
 # Objective function is 100 * (iota - (-0.41))^2 + 1 * (qs - 0)^2
 prob = LeastSquaresProblem.from_tuples([(vmec.iota_axis, -0.41, 100),
                                         (qs.J, 0, 1)])
-
-# residuals = prob.f()
-# vals = prob.dofs.f()
+objective = prob.objective()
 if mpi.proc0_world:
-    # print("Initial values before shifting and scaling:  ", vals[:10])
-    # print("Initial residuals after shifting and scaling:", residuals[:10])
-    # print("size of residuals:", len(residuals))
-    print("Initial objective function:", prob.objective())
-    print("Parameter space:")
-    for name in prob.names:
-        print(name)
+    print("Initial objective function:", objective)
+    #print("Parameter space:")
+    #print(prob.dof_names)
     print("Initial state vector:", prob.x)
     print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
-least_squares_mpi_solve(prob, mpi, grad=True)
+# check whether we're in CI, in that case we make the run a bit cheaper
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+#ci = True
 
-# residuals = prob.f()
-# vals = prob.dofs.f()
+# Only do 1 iteration if we are running the tests in Gitub
+# Actions. Leave max_nfev as None for a real optimization.
+max_nfev = 5 if ci else None
+least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=max_nfev)
+
+objective = prob.objective()
 if mpi.proc0_world:
-    # print("Final values before shifting and scaling:  ", vals[:10])
-    # print("Final residuals after shifting and scaling:", residuals[:10])
-    print("Final objective function:", prob.objective())
+    print("Final objective function:", objective)
     print("Final state vector:", prob.x)
     print("Final iota on axis:", vmec.iota_axis())
+
 print("End of 7dof.py")
 print("===============")

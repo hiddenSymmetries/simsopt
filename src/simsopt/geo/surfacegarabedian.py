@@ -151,9 +151,10 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         are included (unlike the upper bound in python's range(min,
         max).)
         """
+        fn = self.fix if fixed else self.unfix
         for m in range(mmin, mmax + 1):
             for n in range(nmin, nmax + 1):
-                self.set_fixed(f'Delta({m},{n})', fixed)
+                fn(f'Delta({m},{n})')
 
     def to_RZFourier(self):
         """
