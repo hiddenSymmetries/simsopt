@@ -3,10 +3,12 @@
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_serial import least_squares_serial_solve
+
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
 """
+
 print("Running 1_Simple/surface_volume_and_area.py")
 print("===========================================")
 desired_volume = 0.6
