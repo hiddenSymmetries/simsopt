@@ -30,12 +30,9 @@ separated, but the target normal field may not be achieved as well.
 The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
-nfp = 2
 nphi = 32
 ntheta = 32
-phis = np.linspace(0, 1./(2*nfp), nphi, endpoint=False)
-thetas = np.linspace(0, 1., ntheta, endpoint=False)
-s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=phis, quadpoints_theta=thetas)
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 ncoils = 4
 R0 = 1.0
@@ -46,7 +43,7 @@ MIN_DIST = 0.1
 BETA = 10
 MAXITER = 50 if ci else 400
 
-base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order)
+base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
 base_currents = []
 for i in range(ncoils):
     curr = Current(1e5)
@@ -57,7 +54,7 @@ for i in range(ncoils):
         curr.fix_all()
     base_currents.append(curr)
 
-coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
