@@ -274,38 +274,6 @@ class IotaTargetMetricTests(unittest.TestCase):
         logger.info(f"relative error: {relative_error}")
         self.assertLessEqual(relative_error, 5.e-2)
 
-    def test_IotaTargetMetric_LeastSquaresProblem(self):
-        """
-        Compare Jacobian for least-squares problem with supplied gradient wrt
-        one surface coefficient with finite-differences.
-        """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
-
-        target_function = lambda s: 0.68
-        epsilon = 1.e-3  # FD step size
-        adjoint_epsilon = 5.e-1  # perturbation amplitude for adjoint solve
-
-        # Compute random direction for surface perturbation
-        surf = vmec.boundary
-        surf.fix_all()
-        surf.unfix("rc(0,0)")  # Major radius
-
-        obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
-
-        prob = LeastSquaresProblem.from_tuples([(obj.J, 0, 1)])
-
-        """
-        prob.dofs.abs_step = epsilon
-        jac = prob.dofs.jac()
-        fd_jac = prob.dofs.fd_jac()
-
-        relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
-        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 2.e-2)
-        """
-
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
 class IotaWeightedTests(unittest.TestCase):
@@ -359,38 +327,6 @@ class IotaWeightedTests(unittest.TestCase):
         logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
         logger.info(f"relative error: {relative_error}")
         self.assertLessEqual(relative_error, 5.e-2)
-
-    def test_IotaWeighted_LeastSquaresProblem(self):
-        """
-        Compare Jacobian for least-squares problem with supplied gradient wrt
-        one surface coefficient with finite-differences.
-        """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
-
-        target_function = lambda s: 0.68
-        epsilon = 1.e-3  # FD step size
-        adjoint_epsilon = 5.e-1  # perturbation amplitude for adjoint solve
-
-        # Compute random direction for surface perturbation
-        surf = vmec.boundary
-        surf.fix_all()
-        surf.unfix("rc(0,0)")  # Major radius
-
-        obj = IotaWeighted(vmec, target_function, adjoint_epsilon)
-
-        prob = LeastSquaresProblem.from_tuples([(obj.J, 0, 1)])
-
-        """
-        prob.dofs.abs_step = epsilon
-        jac = prob.dofs.jac()
-        fd_jac = prob.dofs.fd_jac()
-
-        relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
-        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 2.e-2)
-        """
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
@@ -450,40 +386,6 @@ class WellWeightedTests(unittest.TestCase):
         logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
         logger.info(f"relative error: {relative_error}")
         self.assertLessEqual(relative_error, 5.e-2)
-
-    def test_WellWeighted_LeastSquaresProblem(self):
-        """
-        Compare Jacobian for least-squares problem with supplied gradient wrt
-        one surface coefficient with finite-differences.
-        """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
-
-        epsilon = 1.e-2  # FD step size
-        adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
-
-        weight1 = lambda s: np.exp(-s**2/0.5**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
-
-        # Compute random direction for surface perturbation
-        surf = vmec.boundary
-        surf.fix_all()
-        surf.unfix("rc(0,0)")  # Major radius
-
-        obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
-
-        prob = LeastSquaresProblem.from_tuples([(obj.J, 0, 1)])
-        """
-        prob.dofs.abs_step = epsilon
-
-        jac = prob.dofs.jac()
-        fd_jac = prob.dofs.fd_jac()
-
-        relative_error = np.abs(fd_jac-jac)/np.abs(fd_jac)
-        logger.info(f"adjoint jac: {jac},   fd jac: {fd_jac}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 2.e-2)
-        """
 
 
 if __name__ == "__main__":
