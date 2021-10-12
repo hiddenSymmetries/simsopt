@@ -54,24 +54,21 @@ for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
 
-    # myfunc = Dofs([obj])
-
     # Define objective function and derivative that handle ObjectiveFailure
     def J(dofs):
-        # dofs_prev = myfunc.x
         dofs_prev = obj.x
         try:
             obj.x = dofs
-            return obj.J()  # , np.squeeze(myfunc.jac())
+            return (obj.J(), obj.dJ())
         except ObjectiveFailure:
             obj.x = dofs_prev
-            return 2*obj.J()  # , 2*np.squeeze(myfunc.jac())
+            return (2*obj.J(), 2*obj.dJ())
 
     res = minimize(
-        # fun=J, x0=myfunc.x, jac=True, method='L-BFGS-B',
-        fun=J, x0=obj.x, method='L-BFGS-B',
+        fun=J, x0=obj.x, jac=True, method='L-BFGS-B',
         options={'maxfun': maxfun, 'ftol': 1e-8, 'gtol': 1e-8})
-    print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, jac={np.linalg.norm(res['jac']):.3f}")
+    print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, "
+          f"jac={np.linalg.norm(res['jac']):.3f}")
 
     # Preserve the output file from the last iteration, so it is not
     # deleted when vmec runs again:
