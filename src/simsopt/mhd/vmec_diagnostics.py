@@ -345,7 +345,6 @@ class IotaTargetMetric(Optimizable):
         self.boundary = vmec.boundary
         self.iota_target = iota_target
         self.adjoint_epsilon = adjoint_epsilon
-        # self.depends_on = ["boundary"]
         super().__init__(depends_on=[vmec])
 
     def J(self):
