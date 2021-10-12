@@ -326,16 +326,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         self.d_bmnc_factor_splines = []
         self.bmnc_factor_splines = []
         for im in range(len(self.booz.bx.xm_b)):
+            bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, bmnc_factor[im, :], k=self.order)
+            self.bmnc_factor_splines.append(bmnc_factor_spline)
+            d_bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, d_bmnc_factor[im, :], k=self.order)
+            self.d_bmnc_factor_splines.append(d_bmnc_factor_spline)
             if (self.enforce_qs and (self.booz.bx.xn_b[im] != self.N * self.booz.bx.xm_b[im])):
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_bmnc, 0*bmnc[im, :], k=self.order))
                 self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], 0*dbmncds[im, :], k=self.order))
             else:
                 bmnc_spline = InterpolatedUnivariateSpline(s_half_bmnc, bmnc_factor[im, :]*bmnc[im, :], k=self.order)
                 self.bmnc_splines.append(bmnc_spline)
-                bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, bmnc_factor[im, :], k=self.order)
-                self.bmnc_factor_splines.append(bmnc_factor_spline)
-                d_bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, d_bmnc_factor[im, :], k=self.order)
-                self.d_bmnc_factor_splines.append(d_bmnc_factor_spline)
                 if self.rescale:
                     self.dbmncds_splines.append(bmnc_spline.derivative())
                 else:
