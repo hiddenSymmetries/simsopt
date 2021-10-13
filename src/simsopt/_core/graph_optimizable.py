@@ -22,7 +22,8 @@ import numpy as np
 from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
-from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict
+from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
+    DofLengthMismatchError
 
 
 class DOFs:
@@ -234,10 +235,10 @@ class DOFs:
                (word of caution: This setter blindly broadcasts a single value.
                So don't supply a single value unless you really desire.)
         """
+        # To prevent fully fixed DOFs from not raising Error
+        # And to prevent broadcasting of a single DOF
         if self.reduced_len != len(x):
-            # To prevent fully fixed DOFs from not raising Error
-            # And to prevent broadcasting of a single DOF
-            raise ValueError
+            raise DofLengthMismatchError(len(x), self.reduced_len)
         self._x[self._free] = np.asarray(x, dtype=np.double)
 
     @property
@@ -260,9 +261,9 @@ class DOFs:
         .. warning::
                Even fixed DOFs are assinged
         """
+        # To prevent broadcasting of a single DOF
         if len(self._x) != len(x):
-            # To prevent broadcasting of a single DOF
-            raise ValueError
+            raise DofLengthMismatchError(len(x), len(self._x))
         self._x = np.asarray(x, dtype=np.double)
 
     @property
@@ -294,10 +295,10 @@ class DOFs:
         Args:
             lower_bounds: Lower bounds of the DOFs
         """
+        # To prevent fully fixed DOFs from not raising Error
+        # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(lower_bounds):
-            # To prevent fully fixed DOFs from not raising Error
-            # And to prevent broadcasting of a single DOF
-            raise ValueError
+            raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
         self._lb[self._free] = np.asarray(lower_bounds, dtype=np.double)
 
     @property
@@ -316,10 +317,10 @@ class DOFs:
         Args:
             upper_bounds: Upper bounds of the DOFs
         """
+        # To prevent fully fixed DOFs from not raising Error
+        # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
-            # To prevent fully fixed DOFs from not raising Error
-            # And to prevent broadcasting of a single DOF
-            raise ValueError
+            raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
         self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
@@ -570,13 +571,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if x is not None:
             self.x = x
         return_fn_map = self.__class__.return_fn_map
-        # if self.new_x:
-        #     result = []
-        #     for fn in return_fn_map.values():
-        #         result.append(
-        #             fn(self, *args, **kwargs))
-        #     self._val = result
-        #     self.new_x = False
 
         if child:
             return_fns = self.return_fns[child] if self.return_fns[child] else \
@@ -586,8 +580,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         result = []
         for fn in return_fns:
-            # i = list(return_fn_map.values()).index(fn)
-            # return_result.append(self._val[i])
             result.append(fn(self, *args, **kwargs))
 
         return result if len(result) > 1 else result[0]
@@ -647,7 +639,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             List of methods that return a value when the current Optimizable
             object is called from the child
         """
-        # return self.return_fns.get(child, list(self.return_fn_map.values()))
         return self.return_fns[child]
 
     def get_return_fn_list(self) -> List[List[Callable]]:
@@ -892,7 +883,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 opt.recompute_bell()
             else:
                 opt.local_x = x[indices[0]:indices[1]]
-                # self._set_new_x()
 
     @property
     def full_x(self) -> RealArray:
@@ -975,10 +965,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             key: DOF identifier
             new_val: New value of the DOF
         """
-        # if isinstance(key, str):
-        #     self._dofs.loc[key, '_x'] = new_val
-        # else:
-        #     self._dofs.iloc[key, 0] = new_val
         self._dofs.set(key, new_val)
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
