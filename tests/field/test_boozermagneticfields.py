@@ -97,6 +97,11 @@ class TestingVmec(unittest.TestCase):
         for rescale in [True, False]:
             bri = BoozerRadialInterpolant(vmec, order, rescale=rescale, ns_delete=ns_delete)
 
+            """
+            The first evaluation points test G(), iota(), modB(), R(), and
+            associated derivatives by comparing with linear interpolation onto
+            vmec full grid.
+            """
             # Perform interpolation from full grid
             points = np.zeros((len(vmec.s_half_grid)-1, 3))
             points[:, 0] = vmec.s_full_grid[1:-1]
@@ -104,8 +109,12 @@ class TestingVmec(unittest.TestCase):
             # Check with linear interpolation from half grid
             G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
             iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
+            # magnitude of B at theta = 0, zeta = 0
             modB00 = np.sum(bri.booz.bx.bmnc_b, axis=0)
             modB_full = (modB00[0:-1]+modB00[1::])/2
+            rmnc_full = vmec.wout.rmnc[:, 1:-1]
+            # major radius at theta = 0, zeta = 0
+            R00 = np.sum(rmnc_full, axis=0)
 
             # Compare splines of derivatives with spline derivatives
             from scipy.interpolate import InterpolatedUnivariateSpline
@@ -116,9 +125,45 @@ class TestingVmec(unittest.TestCase):
             assert np.allclose(bri.G(), G_full, atol=1e-4)
             assert np.allclose(bri.iota(), iota_full, atol=1e-2)
             assert np.allclose(bri.modB()[:, 0], modB_full, atol=1e-2)
+            assert np.allclose(bri.R()[:, 0], R00, atol=1e-2)
             assert np.allclose(bri.dGds(), G_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-3)
             assert np.allclose(bri.diotads(), iota_spline.derivative()(vmec.s_full_grid[1:-1]), atol=1e-2)
             assert np.allclose(bri.dmodBds()[ns_delete+1::, 0], modB00_spline.derivative()(vmec.s_full_grid[ns_delete+2:-1]), atol=1e-2)
+
+            """
+            The next evaluation points test Z() and nu()
+            """
+            points = np.zeros((len(vmec.s_half_grid)-1, 3))
+            points[:, 0] = vmec.s_full_grid[1:-1]
+            points[:, 1] = 0.
+            points[:, 2] = np.pi/3
+            bri.set_points(points)
+
+            nu = bri.nu()
+            iota = bri.iota()
+
+            zmns_full = vmec.wout.zmns[:, 1:-1]
+            lmns_full = vmec.wout.lmns[:, 1:-1]
+            # To determine the vmec theta corresponding to theta_b = 0,
+            # solve a minimization problem to achieve theta = theta_b - lambda - iota*nu
+
+            def theta_diff(theta, isurf):
+                lam = np.sum(lmns_full[:, isurf] * np.sin(vmec.wout.xm*theta-vmec.wout.xn*(np.pi/3-nu[isurf, 0])), axis=0)
+                return ((theta + lam) + iota[isurf, 0]*nu[isurf, 0])**2
+
+            from scipy.optimize import minimize
+            thetas_vmec = np.zeros((len(lmns_full[0, :])))
+            for isurf in range(len(lmns_full[0, :])):
+                opt = minimize(theta_diff, 0, args=(isurf))
+                thetas_vmec[isurf] = opt.x
+
+            # Compute Z at theta_b = 0, zeta_b = pi/2  and compare with vmec result
+            Z0pi = np.sum(zmns_full * np.sin(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu.T)), axis=0)
+            assert np.allclose(bri.Z()[:, 0], Z0pi, atol=1e-2)
+
+            """
+            The next evaluation points test the derivatives of modB
+            """
 
             points = np.zeros((len(vmec.s_half_grid), 3))
             points[:, 0] = vmec.s_half_grid
