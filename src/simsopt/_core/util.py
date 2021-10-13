@@ -156,6 +156,19 @@ class ObjectiveFailure(Exception):
     """
     pass
 
+class DofLengthMismatchError(Exception):
+    """
+    Exception raised for errors where the length of supplied DOFs does
+    not match with the length of free DOFs.
+    Especially useful to prevent fully fixed DOFs from not raising Error
+    and to prevent broadcasting of a single DOF
+    """
+    def __init__(self, input_dof_length=None, optim_dof_length=None,
+                 message=None):
+        if message is None:
+            message = f"Input dof proerpty size, {input_dof_length}, does not " + \
+                      f"match with Optimizable dof size {optim_dof_length}"
+        super().__init__(massage)
 
 def finite_difference_steps(x: RealArray,
                             abs_step: float = 1.0e-7,
