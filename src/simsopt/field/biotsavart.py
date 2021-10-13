@@ -2,12 +2,11 @@ import numpy as np
 
 import simsoptpp as sopp
 from ..geo.curve import Curve
-from .._core.graph_optimizable import Optimizable
 from .._core.derivative import Derivative
 from .magneticfield import MagneticField
 
 
-class BiotSavart(sopp.BiotSavart, MagneticField, Optimizable):
+class BiotSavart(sopp.BiotSavart, MagneticField):
     r"""
     Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
     The field is given by
