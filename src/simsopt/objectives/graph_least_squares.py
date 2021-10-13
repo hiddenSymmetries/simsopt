@@ -135,42 +135,6 @@ class LeastSquaresProblem(Optimizable):
         funcs_in, goals, weights = zip(*tuples)
         return cls(goals, weights, funcs_in=funcs_in, fail=fail)
 
-    def unweighted_residuals_old(self, x=None, *args, **kwargs):
-        """
-        Return the unweighted residuals (f_in - goal)
-
-        Args:
-            x: Degrees of freedom or state
-            args: Any additional arguments
-            kwargs: Keyword arguments
-        """
-        if x is not None:
-            self.x = x
-
-        outputs = []
-        for i, opt in enumerate(self.parents):
-            try:
-                out = opt(child=self, *args, **kwargs)
-            except ObjectiveFailure:
-                logger.warning(f"Function evaluation failed for {opt}")
-                print(f'fail val is {self.fail}')
-                print(f"Is it a first eval {self.first_eval}")
-                if self.fail is None or self.first_eval:
-                    raise
-
-                break
-
-            output = np.array([out]) if not np.ndim(out) else np.asarray(out)
-            if self.first_eval:
-                self.nvals += len(output)
-            outputs += [output]
-        else:
-            self.first_eval = False
-            return np.concatenate(outputs) - self.goals
-
-        # Reached here after encountering break in for loop
-        return np.full(self.nvals, self.fail)
-
     def unweighted_residuals(self, x=None, *args, **kwargs):
         """
         Return the unweighted residuals (f_in - goal)
@@ -252,14 +216,11 @@ class LeastSquaresProblem(Optimizable):
     return_fn_map = {'residuals': residuals, 'objective': objective}
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
-        # TODO: This could be buggy with respect to x-order after addition
-
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
             np.concatenate([self.inp_weights, other.inp_weights]),
             depends_on=(self.parents + other.parents),
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),
-            # funcs_in=(self.funcs_in + other.funcs_in),
             fail=max(self.fail, other.fail)
         )
