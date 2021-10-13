@@ -584,23 +584,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         return result if len(result) > 1 else result[0]
 
-    #@abc.abstractmethod
-    #def f(self, *args, **kwargs):
-    #    """
-    #    Defines the callback function associated with the Optimizable subclass.
-
-    #   Define the callback method in subclass of Optimizable. The function
-    #    uses the state (x) stored self._dofs. To prevent hard-to-understand
-    #    bugs, don't forget to use self.full_x.
-
-    #    Args:
-    #        *args:
-    #        **kwargs:
-
-    #    Returns:
-
-    #    """
-
     def get_return_fn_names(self) -> List[str]:
         """
         Return the names of the functions that could be used as objective
@@ -937,7 +920,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def _set_new_x(self, parent=None):
         self.new_x = True
-        #if self.local_dof_setter is not None:
         self.recompute_bell(parent=parent)
 
         # for child in self._children:
@@ -1122,7 +1104,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Set the 'fixed' attribute for all degrees of freedom associated with
         the current Optimizable object.
         """
-        #self.dof_fixed = np.full(len(self.get_dofs()), True)
         self._dofs.fix_all()
         self._update_free_dof_size_indices()
 
@@ -1131,7 +1112,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Unset the 'fixed' attribute for all degrees of freedom associated
         with the current Optimizable object.
         """
-        #self.dof_fixed = np.full(len(self.get_dofs()), False)
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
 
