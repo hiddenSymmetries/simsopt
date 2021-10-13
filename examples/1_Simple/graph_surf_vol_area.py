@@ -22,27 +22,8 @@ surf = SurfaceRZFourier()
 # from the space of independent variables by setting their 'fixed'
 # property to True.
 surf.fix('rc(0,0)')
-surf.get_return_fn_names()
 
 # Approach 1
-
-surf2 = SurfaceRZFourier()
-surf2.fix('rc(0,0)')
-prob2 = LeastSquaresProblem(depends_on=surf2,
-                            opt_return_fns=['area', 'volume'],
-                            goals=[desired_area, desired_volume],
-                            weights=[1, 1])
-least_squares_serial_solve(prob2)
-print("At the optimum using approach 2,")
-print(" rc(m=1,n=0) = ", surf2.get_rc(1, 0))
-print(" zs(m=1,n=0) = ", surf2.get_zs(1, 0))
-print(" volume = ", surf2.volume())
-print(" area = ", surf2.area())
-print(" objective function = ", prob2.objective())
-print(" -------------------------\n\n")
-
-
-# Approach 2
 surf3 = SurfaceRZFourier()
 surf3.fix('rc(0,0)')
 prob3 = LeastSquaresProblem(funcs_in=[surf3.area, surf3.volume],
@@ -57,7 +38,7 @@ print(" area = ", surf3.area())
 print(" objective function = ", prob3.objective())
 print(" -------------------------\n\n")
 
-# Approach 3
+# Approach 2
 surf4 = SurfaceRZFourier()
 surf4.fix('rc(0,0)')
 prob4 = LeastSquaresProblem.from_tuples([(surf4.area, desired_area, 1),
@@ -72,23 +53,6 @@ print(" area = ", surf4.area())
 print(" objective function = ", prob4.objective())
 print(" -------------------------\n\n")
 
-# Each target function is then equipped with a shift and weight, to
-# become a term in a least-squares objective function
-#term1 = (surf.volume, desired_volume, 1)
-#term2 = (surf.area,   desired_area,   1)
 
-# A list of terms are combined to form a nonlinear-least-squares
-# problem.
-#prob = LeastSquaresProblem([term1, term2])
-
-# Solve the minimization problem:
-#least_squares_serial_solve(prob)
-
-#print("At the optimum,")
-#print(" rc(m=1,n=0) = ", surf.get_rc(1, 0))
-#print(" zs(m=1,n=0) = ", surf.get_zs(1, 0))
-#print(" volume = ", surf.volume())
-#print(" area = ", surf.area())
-#print(" objective function = ", prob.objective())
 print("End of 1_Simple/graph_surf_vol_area.py")
 print("=======================================")
