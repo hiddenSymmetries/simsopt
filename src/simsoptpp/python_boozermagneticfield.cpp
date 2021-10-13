@@ -18,6 +18,9 @@ typedef BoozerMagneticField<xt::pytensor> PyBoozerMagneticField;
 
 template <typename T, typename S> void register_common_field_methods(S &c) {
     c
+     .def("nu", py::overload_cast<>(&T::nu), "Returns a `(npoints, 1)` array containing the difference between the Boozer and cylindrical toroidal angles, e.g. zeta_b = phi + nu.")
+     .def("R", py::overload_cast<>(&T::R), "Returns a `(npoints, 1)` array containing the major radius as a function of Boozer coordinates.")
+     .def("Z", py::overload_cast<>(&T::Z), "Returns a `(npoints, 1)` array containing the height as a function of Boozer coordinates.")
      .def("modB", py::overload_cast<>(&T::modB), "Returns a `(npoints, 1)` array containing the magnetic field strength in Boozer coordinates.")
      .def("dmodBdtheta", py::overload_cast<>(&T::dmodBdtheta), "Returns a `(npoints, 1)` array containing the derivative of the magnetic field strength wrt theta in Boozer coordinates.")
      .def("dmodBdzeta", py::overload_cast<>(&T::dmodBdzeta), "Returns a `(npoints, 1)` array containing the derivative of the magnetic field strength wrt zeta in Boozer coordinates.")
@@ -30,6 +33,9 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("dIds", py::overload_cast<>(&T::dIds), "Returns a `(npoints, 1)` array containing the derivative of the magnetic field poloidal covariant component wrt s in Boozer coordinates.")
      .def("diotads", py::overload_cast<>(&T::diotads), "Returns a `(npoints, 1)` array containing the derivative of the rotational transform wrt s in Boozer coordinates.")
 
+     .def("nu_ref", py::overload_cast<>(&T::nu_ref), "Same as `nu`, but returns a reference to the array (this array should be read only).")
+     .def("R_ref", py::overload_cast<>(&T::R_ref), "Same as `R`, but returns a reference to the array (this array should be read only).")
+     .def("Z_ref", py::overload_cast<>(&T::Z_ref), "Same as `Z`, but returns a reference to the array (this array should be read only).")
      .def("modB_ref", py::overload_cast<>(&T::modB_ref), "Same as `modB`, but returns a reference to the array (this array should be read only).")
      .def("dmodBdtheta_ref", py::overload_cast<>(&T::dmodBdtheta_ref), "Same as `dmodBdtheta`, but returns a reference to the array (this array should be read only).")
      .def("dmodBdzeta_ref", py::overload_cast<>(&T::dmodBdzeta_ref), "Same as `dmodBdzeta`, but returns a reference to the array (this array should be read only).")
