@@ -14,11 +14,16 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
         shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_modB, interp_dmodBdtheta, \
           interp_dmodBdzeta, interp_dmodBds, interp_G, interp_iota, interp_dGds, \
           interp_I, interp_dIds, interp_diotads, interp_psip, interp_R, interp_Z, \
-          interp_nu;
+          interp_nu, interp_K, interp_dRdtheta, interp_dRdzeta, interp_dRds, \
+          interp_dZdtheta, interp_dZdzeta, interp_dZds, interp_dnudtheta, \
+          interp_dnudzeta, interp_dnuds;
         bool status_modB = false, status_dmodBdtheta = false, status_dmodBdzeta = false, \
           status_dmodBds = false, status_G = false, status_I = false, status_iota = false,
           status_dGds = false, status_dIds = false, status_diotads = false, status_psip = false,
-          status_R = false, status_Z = false, status_nu = false;
+          status_R = false, status_Z = false, status_nu = false, status_K = false, \
+          status_dRdtheta = false, status_dRdzeta = false, status_dRds = false, \
+          status_dZdtheta = false, status_dZdzeta = false, status_dZds = false, \
+          status_dnudtheta = false, status_dnudzeta = false, status_dnuds = false;
         const bool extrapolate;
         const bool stellsym = false;
         const int nfp = 1;
@@ -158,6 +163,30 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_diotads->evaluate_batch(stz0, diotads);
         }
 
+        void _K_impl(Tensor2& K) override {
+            if(!interp_K)
+                interp_K = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_K) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "K";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_K->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_K = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_K->evaluate_batch(stz_sym, K);
+                apply_odd_symmetry(K);
+            } else {
+                interp_K->evaluate_batch(this->get_points_ref(), K);
+            }
+        }
+
         void _nu_impl(Tensor2& nu) override {
             if(!interp_nu)
                 interp_nu = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
@@ -176,8 +205,79 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
                 exploit_symmetries_points(stz, stz_sym);
                 interp_nu->evaluate_batch(stz_sym, nu);
+                apply_odd_symmetry(nu);
             } else {
                 interp_nu->evaluate_batch(this->get_points_ref(), nu);
+            }
+        }
+
+        void _dnudtheta_impl(Tensor2& dnudtheta) override {
+            if(!interp_dnudtheta)
+                interp_dnudtheta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dnudtheta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dnudtheta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dnudtheta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dnudtheta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dnudtheta->evaluate_batch(stz_sym, dnudtheta);
+            } else {
+                interp_dnudtheta->evaluate_batch(this->get_points_ref(), dnudtheta);
+            }
+        }
+
+        void _dnudzeta_impl(Tensor2& dnudzeta) override {
+            if(!interp_dnudzeta)
+                interp_dnudzeta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dnudzeta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dnudzeta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dnudzeta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dnudzeta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dnudzeta->evaluate_batch(stz_sym, dnudzeta);
+            } else {
+                interp_dnudzeta->evaluate_batch(this->get_points_ref(), dnudzeta);
+            }
+        }
+
+        void _dnuds_impl(Tensor2& dnuds) override {
+            if(!interp_dnuds)
+                interp_dnuds = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dnuds) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dnuds";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dnuds->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dnuds = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dnuds->evaluate_batch(stz_sym, dnuds);
+                apply_odd_symmetry(dnuds);
+            } else {
+                interp_dnuds->evaluate_batch(this->get_points_ref(), dnuds);
             }
         }
 
@@ -204,6 +304,77 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             }
         }
 
+        void _dRdtheta_impl(Tensor2& dRdtheta) override {
+            if(!interp_dRdtheta)
+                interp_dRdtheta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dRdtheta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dRdtheta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dRdtheta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dRdtheta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dRdtheta->evaluate_batch(stz_sym, dRdtheta);
+                apply_odd_symmetry(dRdtheta);
+            } else {
+                interp_dRdtheta->evaluate_batch(this->get_points_ref(), dRdtheta);
+            }
+        }
+
+        void _dRdzeta_impl(Tensor2& dRdzeta) override {
+            if(!interp_dRdzeta)
+                interp_dRdzeta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dRdzeta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dRdzeta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dRdzeta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dRdzeta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dRdzeta->evaluate_batch(stz_sym, dRdzeta);
+                apply_odd_symmetry(dRdzeta);
+            } else {
+                interp_dRdzeta->evaluate_batch(this->get_points_ref(), dRdzeta);
+            }
+        }
+
+        void _dRds_impl(Tensor2& dRds) override {
+            if(!interp_dRds)
+                interp_dRds = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dRds) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dRds";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dRds->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dRds = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dRds->evaluate_batch(stz_sym, dRds);
+            } else {
+                interp_dRds->evaluate_batch(this->get_points_ref(), dRds);
+            }
+        }
+
         void _Z_impl(Tensor2& Z) override {
             if(!interp_Z)
                 interp_Z = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
@@ -222,8 +393,79 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
                 exploit_symmetries_points(stz, stz_sym);
                 interp_Z->evaluate_batch(stz_sym, Z);
+                apply_odd_symmetry(Z);
             } else {
                 interp_Z->evaluate_batch(this->get_points_ref(), Z);
+            }
+        }
+
+        void _dZdtheta_impl(Tensor2& dZdtheta) override {
+            if(!interp_dZdtheta)
+                interp_dZdtheta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dZdtheta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dZdtheta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dZdtheta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dZdtheta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dZdtheta->evaluate_batch(stz_sym, dZdtheta);
+            } else {
+                interp_dZdtheta->evaluate_batch(this->get_points_ref(), dZdtheta);
+            }
+        }
+
+        void _dZdzeta_impl(Tensor2& dZdzeta) override {
+            if(!interp_dZdzeta)
+                interp_dZdzeta = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dZdzeta) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dZdzeta";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dZdzeta->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dZdzeta = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dZdzeta->evaluate_batch(stz_sym, dZdzeta);
+            } else {
+                interp_dZdzeta->evaluate_batch(this->get_points_ref(), dZdzeta);
+            }
+        }
+
+        void _dZds_impl(Tensor2& dZds) override {
+            if(!interp_dZds)
+                interp_dZds = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+            if(!status_dZds) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "dZds";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_dZds->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_dZds = true;
+            }
+            if(nfp > 1 || stellsym){
+                Tensor2& stz = this->get_points_ref();
+                Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+                exploit_symmetries_points(stz, stz_sym);
+                interp_dZds->evaluate_batch(stz_sym, dZds);
+                apply_odd_symmetry(dZds);
+            } else {
+                interp_dZds->evaluate_batch(this->get_points_ref(), dZds);
             }
         }
 
@@ -268,7 +510,7 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
                 exploit_symmetries_points(stz, stz_sym);
                 interp_dmodBdtheta->evaluate_batch(stz_sym, dmodBdtheta);
-                apply_symmetries_to_modB_derivatives(dmodBdtheta);
+                apply_odd_symmetry(dmodBdtheta);
             } else {
                 interp_dmodBdtheta->evaluate_batch(this->get_points_ref(), dmodBdtheta);
             }
@@ -292,7 +534,7 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
                 exploit_symmetries_points(stz, stz_sym);
                 interp_dmodBdzeta->evaluate_batch(stz_sym, dmodBdzeta);
-                apply_symmetries_to_modB_derivatives(dmodBdzeta);
+                apply_odd_symmetry(dmodBdzeta);
             } else {
                 interp_dmodBdzeta->evaluate_batch(this->get_points_ref(), dmodBdzeta);
             }
@@ -379,7 +621,7 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             }
         }
 
-        void apply_symmetries_to_modB_derivatives(Tensor2& field){
+        void apply_odd_symmetry(Tensor2& field){
             int npoints = field.shape(0);
             for (int i = 0; i < npoints; ++i) {
                 if(symmetries[i]) {
@@ -402,12 +644,32 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             Tensor2 scalar;
             if (which_scalar == "modB") {
               scalar = this->field->modB();
+            } else if (which_scalar == "K") {
+              scalar = this->field->K();
             } else if (which_scalar == "nu") {
               scalar = this->field->nu();
+            } else if (which_scalar == "dnudtheta") {
+              scalar = this->field->dnudtheta();
+            } else if (which_scalar == "dnudzeta") {
+              scalar = this->field->dnudzeta();
+            } else if (which_scalar == "dnuds") {
+              scalar = this->field->dnuds();
             } else if (which_scalar == "R") {
               scalar = this->field->R();
+            } else if (which_scalar == "dRdtheta") {
+                scalar = this->field->dRdtheta();
+            } else if (which_scalar == "dRdzeta") {
+                scalar = this->field->dRdzeta();
+            } else if (which_scalar == "dRds") {
+                scalar = this->field->dRds();
             } else if (which_scalar == "Z") {
               scalar = this->field->Z();
+            } else if (which_scalar == "dZdtheta") {
+              scalar = this->field->dZdtheta();
+            } else if (which_scalar == "dZdzeta") {
+              scalar = this->field->dZdzeta();
+            } else if (which_scalar == "dZds") {
+              scalar = this->field->dZds();
             } else if (which_scalar == "dmodBdtheta") {
               scalar = this->field->dmodBdtheta();
             } else if (which_scalar == "dmodBdzeta") {
@@ -466,6 +728,54 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                         status_modB = true;
                     }
                     return interp_modB->estimate_error(fbatch, samples);
+                }
+
+                std::pair<double, double> estimate_error_R(int samples) {
+                    if(!interp_R) {
+                      interp_R = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+                    }
+                    std::function<Vec(Vec, Vec, Vec)> fbatch = [this](Vec s, Vec theta, Vec zeta) {
+                      return fbatch_scalar(s,theta,zeta,"R");
+                    };
+                    if(!status_R) {
+                        Tensor2 old_points = this->field->get_points();
+                        interp_R->interpolate_batch(fbatch);
+                        this->field->set_points(old_points);
+                        status_R = true;
+                    }
+                    return interp_R->estimate_error(fbatch, samples);
+                }
+
+                std::pair<double, double> estimate_error_Z(int samples) {
+                    if(!interp_Z) {
+                      interp_Z = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+                    }
+                    std::function<Vec(Vec, Vec, Vec)> fbatch = [this](Vec s, Vec theta, Vec zeta) {
+                      return fbatch_scalar(s,theta,zeta,"Z");
+                    };
+                    if(!status_Z) {
+                        Tensor2 old_points = this->field->get_points();
+                        interp_Z->interpolate_batch(fbatch);
+                        this->field->set_points(old_points);
+                        status_Z = true;
+                    }
+                    return interp_Z->estimate_error(fbatch, samples);
+                }
+
+                std::pair<double, double> estimate_error_nu(int samples) {
+                    if(!interp_nu) {
+                      interp_nu = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
+                    }
+                    std::function<Vec(Vec, Vec, Vec)> fbatch = [this](Vec s, Vec theta, Vec zeta) {
+                      return fbatch_scalar(s,theta,zeta,"nu");
+                    };
+                    if(!status_nu) {
+                        Tensor2 old_points = this->field->get_points();
+                        interp_nu->interpolate_batch(fbatch);
+                        this->field->set_points(old_points);
+                        status_nu = true;
+                    }
+                    return interp_nu->estimate_error(fbatch, samples);
                 }
 
                 std::pair<double, double> estimate_error_G(int samples) {

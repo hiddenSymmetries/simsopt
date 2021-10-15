@@ -31,8 +31,8 @@ simsopt.mhd.vmec module
    :show-inheritance:
    :private-members:
 
-simsopt.mhd.vmec_diagnostics module
------------------------------------
+simsopt.mhd.vmec\_diagnostics module
+------------------------------------
 
 .. automodule:: simsopt.mhd.vmec_diagnostics
    :members:

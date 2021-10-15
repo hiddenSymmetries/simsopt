@@ -76,19 +76,19 @@ simsopt.geo.jit module
    :show-inheritance:
    :private-members:
 
-simsopt.geo.qfmsurface module
------------------------------
+simsopt.geo.plot module
+-----------------------
 
-.. automodule:: simsopt.geo.qfmsurface
+.. automodule:: simsopt.geo.plot
    :members:
    :undoc-members:
    :show-inheritance:
    :private-members:
 
-simsopt.geo.plot module
------------------------
+simsopt.geo.qfmsurface module
+-----------------------------
 
-.. automodule:: simsopt.geo.plot
+.. automodule:: simsopt.geo.qfmsurface
    :members:
    :undoc-members:
    :show-inheritance:

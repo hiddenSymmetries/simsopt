@@ -8,19 +8,21 @@ logger = logging.getLogger(__name__)
 
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
-    """
+    r"""
     Generic class that represents a magnetic field in Boozer coordinates
     :math:`(s,\theta,\zeta)`. Here :math:`s = \psi/\psi_0` is the normalized
-    toroidal flux. The magnetic field in the covariant form is,
+    toroidal flux where :math:`2\pi\psi_0` is the toroidal flux at the boundary.
+    The magnetic field in the covariant form is,
 
     .. math::
 
         \textbf B(s,\theta,\zeta) = G(s) \nabla \zeta + I(s) \nabla \theta + K(s,\theta,\zeta) \nabla \psi,
 
     and the contravariant form is,
+
     .. math::
 
-        textbf B(s,\theta,\zeta) = \frac{1}{\sqrt{g}} \left(\frac{\partial \mathbf r}{\partial \zeta} + \iota(s)\frac{\partial \mathbf r}{\partial \theta}\right),
+        \textbf B(s,\theta,\zeta) = \frac{1}{\sqrt{g}} \left(\frac{\partial \mathbf r}{\partial \zeta} + \iota(s)\frac{\partial \mathbf r}{\partial \theta}\right),
 
     where,
 
@@ -29,21 +31,26 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
 
     Here :math:`\iota(s) = \psi_P'(\psi)` where :math:`2\pi\psi_P` is the
     poloidal flux and :math:`2\pi\psi` is the toroidal flux. Each subclass of
-    BoozerMagneticField implements functions to compute
-    :math:`B`, :math:`G`, :math:`I`, :math:`\iota`, :math:`\psi_P`, and their derivatives.
+    ``BoozerMagneticField`` implements functions to compute
+    :math:`B`, :math:`G`, :math:`I`, :math:`\iota`, :math:`\psi_P`, and their
+    derivatives. The cylindrical coordinates :math:`R(s,\theta,\zeta)` and
+    :math:`Z(s,\theta,\zeta)` in addition to :math:`K(s,\theta,\zeta)` and
+    :math:`\nu` where :math:`\zeta = \phi + \nu(s,\theta,\zeta)` and :math:`\phi`
+    is the cylindrical azimuthal angle are also implemented by
+    ``BoozerRadialInterpolant`` and ``InterpolatedBoozerField``.
     The usage is similar to the MagneticField class.
 
     The usage of ``BoozerMagneticField`` is as follows:
 
     .. code-block::
 
-        booz = BoozerAnalytic(etabar,B0,Bbar,N,G0,psi0,iota0) # An instance of BoozerMagneticField
+        booz = BoozerAnalytic(etabar,B0,N,G0,psi0,iota0) # An instance of BoozerMagneticField
         points = ... # points is a (n, 3) numpy array defining :math:`(s,\theta,\zeta)`
         booz.set_points(points)
         modB = bfield.modB() # returns the magnetic field strength at `points`
 
     ``BoozerMagneticField`` has a cache to avoid repeated calculations.
-    To clear this cache manually, call the `clear_cached_properties()` function.
+    To clear this cache manually, call the ``clear_cached_properties()``` function.
     The cache is automatically cleared when ``set_points`` is called or one of the dependencies
     changes.
     """
@@ -62,19 +69,20 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
 
 
 class BoozerAnalytic(BoozerMagneticField):
-    """
+    r"""
     Computes a BoozerMagneticField based on a first-order expansion in
     distance from the magnetic axis (Landreman & Sengupta, Journal of Plasma
     Physics 2018). Here the magnetic field strength is expressed as,
 
     .. math::
-        B(s,\theta,\zeta) = B_0 \left(1 + \frac{\etabar \sqrt{2s\psi_0}}{\overline{B}}\cos(\theta - N \zeta)\right)
+        B(s,\theta,\zeta) = B_0 \left(1 + \overline{\eta} \sqrt{2s\psi_0/\overline{B}}\cos(\theta - N \zeta)\right),
 
-    and the covariant forms are,
+    the covariant components are,
 
     .. math::
-        G(s) = G_0 + \frac{\sqrt{2s\psi_0}}{\overline{B}} G_1
-        I(s) = I_0 + \frac{\sqrt{2s\psi_0}}{\overline{B}} I_1,
+        G(s) = G_0 + \sqrt{2s\psi_0/\overline{B}} G_1
+
+        I(s) = I_0 + \sqrt{2s\psi_0/\overline{B}} I_1,
 
     and the rotational transform is,
 
@@ -87,17 +95,17 @@ class BoozerAnalytic(BoozerMagneticField):
     Args:
         etabar: magnitude of first order correction to magnetic field strength
         B0: magnetic field strength on the axis
-        Bbar: normalizing magnetic field strength
         N: helicity of symmetry (integer)
         G0: lowest order toroidal covariant component
         psi0: (toroidal flux)/ (2*pi) on the boundary
         iota0: lowest order rotational transform
+        Bbar: normalizing magnetic field strength (defaults to 1)
         I0: lowest order poloidal covariant component (defaults to 0)
         G1: first order correction to toroidal covariant component (defaults to 0)
         I1: first order correction to poloidal covariant component (defaults to 0)
     """
 
-    def __init__(self, etabar, B0, Bbar, N, G0, psi0, iota0, I0=0., G1=0., I1=0.):
+    def __init__(self, etabar, B0, N, G0, psi0, iota0, Bbar=1., I0=0., G1=0., I1=0.):
         self.etabar = etabar
         self.B0 = B0
         self.Bbar = Bbar
@@ -217,30 +225,36 @@ class BoozerAnalytic(BoozerMagneticField):
 
 
 class BoozerRadialInterpolant(BoozerMagneticField):
-    """
+    r"""
     Given a Vmec instance, performs a Boozer coordinate transformation using
     BOOZXFORM. The magnetic field can be computed at any point in Boozer
-    coordinates using radial interpolation and an inverse Fourier Transform
-    in the two angles.
+    coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``)
+    and an inverse Fourier transform in the two angles.
+    Throughout stellarator symmetry is assumed.
 
     Args:
-        vmec: instance of Vmec
-        order: (int) order for radial interpolation. Must be 1 <= order <= 5.
-        N: helicity of symmetry. If specified, then the non-symmetric Fourier
-            harmonics are filtered out. Otherwise, all harmonics are kept.
-        enforce_vacuum: If True, a vacuum field is assumed, and ::math::`G` is
-            set to its mean value and ::math::`I = 0`
+        vmec: instance of :mod:`simsopt.mhd.vmec.Vmec`
+        order: (int) order for radial interpolation. Must satisfy 1 <= order <= 5.
+        N: Helicity of quasisymmetry to enforce. If specified, then the non-symmetric Fourier
+            harmonics of :math:`B` are filtered out. Otherwise, all harmonics are kept.
+            Defaults to ``None``.
+        enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
+            set to its mean value, and :math:`I = 0`.
         rescale: If True, use the interpolation method in the DELTA5D code. Here, a few
-            of the first s grid points are deleted (determined by ns_delete).
-            The Fourier harmonics of the field strength (`bmnc`) are then rescaled
+            of the first :math:`s` grid points are deleted (determined by ``ns_delete``).
+            The Fourier harmonics of the field strength (``bmnc``) are then rescaled
             as:
                 bmnc(s)/s^(1/2) for m = 1
+
                 bmnc(s)/s for m even and >= 2
+
                 bmnc(s)/s^(3/2) for m odd and >=3
-            before performing interpolation and spline differentiation. If False,
-            interpolation of the unscaled `bmnc` its finite-difference wrt
-            s is performed instead. Default to False.
-        ns_delete: (see rescale). Default to 0
+
+            before performing interpolation and spline differentiation to
+            obtain dbmncds. If `False``, interpolation of the unscaled ``bmnc``
+            and its finite-difference derivative wrt ``s`` is performed
+            instead. Default to False.
+        ns_delete: (see ``rescale``). Default to 0
     """
 
     def __init__(self, vmec, order, N=None, enforce_vacuum=False, rescale=False,
@@ -290,7 +304,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         else:
             s_half_bmnc = s_half_ext
             bmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
-            dbmncds = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns))
             bmnc[:, 1:-1] = self.booz.bx.bmnc_b
             bmnc[:, 0] = 1.5*bmnc[:, 1] - 0.5*bmnc[:, 2]
             bmnc[:, -1] = 1.5*bmnc[:, -2] - 0.5*bmnc[:, -3]
@@ -310,6 +323,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         zmns[:, 1:-1] = self.booz.bx.zmns_b
         zmns[:, 0] = 1.5*zmns[:, 1] - 0.5*zmns[:, 2]
         zmns[:, -1] = 1.5*zmns[:, -2] - 0.5*zmns[:, -3]
+
+        drmncds = (rmnc[:, 2:-1] - rmnc[:, 1:-2])/self.vmec.ds
+        dzmnsds = (zmns[:, 2:-1] - zmns[:, 1:-2])/self.vmec.ds
+        dnumnsds = (numns[:, 2:-1] - numns[:, 1:-2])/self.vmec.ds
 
         # Extrapolate to get points at s = 0 and s = 1
         iota[0] = 1.5*iota[1] - 0.5*iota[2]
@@ -337,6 +354,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         self.numns_splines = []
         self.rmnc_splines = []
         self.zmns_splines = []
+        self.dnumnsds_splines = []
+        self.drmncds_splines = []
+        self.dzmnsds_splines = []
         self.bmnc_splines = []
         self.dbmncds_splines = []
         self.d_bmnc_factor_splines = []
@@ -345,6 +365,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.numns_splines.append(InterpolatedUnivariateSpline(s_half_ext, numns[im, :], k=self.order))
             self.rmnc_splines.append(InterpolatedUnivariateSpline(s_half_ext, rmnc[im, :], k=self.order))
             self.zmns_splines.append(InterpolatedUnivariateSpline(s_half_ext, zmns[im, :], k=self.order))
+            self.dnumnsds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dnumnsds[im, :], k=self.order))
+            self.drmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], drmncds[im, :], k=self.order))
+            self.dzmnsds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dzmnsds[im, :], k=self.order))
             bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, bmnc_factor[im, :], k=self.order)
             self.bmnc_factor_splines.append(bmnc_factor_spline)
             d_bmnc_factor_spline = InterpolatedUnivariateSpline(s_half_bmnc, d_bmnc_factor[im, :], k=self.order)
@@ -360,6 +383,44 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 else:
                     self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dbmncds[im, :], k=self.order))
 
+    def _K_impl(self, K):
+        B = self.modB()[:, 0]
+        R = self.R()[:, 0]
+        dRdtheta = self.dRdtheta()[:, 0]
+        dRdzeta = self.dRdzeta()[:, 0]
+        dRdpsi = self.dRds()[:, 0]/self.psi0
+        dZdtheta = self.dZdtheta()[:, 0]
+        dZdzeta = self.dZdzeta()[:, 0]
+        dZdpsi = self.dZds()[:, 0]/self.psi0
+        I = self.I()[:, 0]
+        G = self.G()[:, 0]
+        iota = self.iota()[:, 0]
+        nu = self.nu()[:, 0]
+        dnudpsi = self.dnuds()[:, 0]/self.psi0
+        dnudtheta = self.dnudtheta()[:, 0]
+        dnudzeta = self.dnudzeta()[:, 0]
+
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        phi = zetas - nu
+        dphidpsi = - dnudpsi
+        dphidtheta = - dnudtheta
+        dphidzeta = 1 - dnudzeta
+
+        dXdtheta = dRdtheta * np.cos(phi) - R * np.sin(phi) * dphidtheta
+        dYdtheta = dRdtheta * np.sin(phi) + R * np.cos(phi) * dphidtheta
+        dXdpsi = dRdpsi * np.cos(phi) - R * np.sin(phi) * dphidpsi
+        dYdpsi = dRdpsi * np.sin(phi) + R * np.cos(phi) * dphidpsi
+        dXdzeta = dRdzeta * np.cos(phi) - R * np.sin(phi) * dphidzeta
+        dYdzeta = dRdzeta * np.sin(phi) + R * np.cos(phi) * dphidzeta
+
+        gpsitheta = dXdtheta * dXdpsi + dYdtheta * dYdpsi + dZdtheta * dZdpsi
+        gpsizeta = dXdzeta * dXdpsi + dYdzeta * dYdpsi + dZdzeta * dZdpsi
+        sqrtg = (G + iota*I)/(B*B)
+        K[:, 0] = (gpsizeta + iota*gpsitheta)/sqrtg
+
     def _nu_impl(self, nu):
         points = self.get_points_ref()
         s = points[:, 0]
@@ -370,6 +431,66 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             numns = self.numns_splines[im](s)
             nu[:, 0] += numns*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
 
+    def _dnudtheta_impl(self, dnudtheta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dnudtheta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            numns = self.numns_splines[im](s)
+            dnudtheta[:, 0] += numns*self.booz.bx.xm_b[im]*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dnudzeta_impl(self, dnudzeta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dnudzeta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            numns = self.numns_splines[im](s)
+            dnudzeta[:, 0] += -numns*self.booz.bx.xn_b[im]*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dnuds_impl(self, dnuds):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dnuds[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            dnumnsds = self.dnumnsds_splines[im](s)
+            dnuds[:, 0] += dnumnsds*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dRdtheta_impl(self, dRdtheta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dRdtheta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            rmnc = self.rmnc_splines[im](s)
+            dRdtheta[:, 0] += -rmnc*self.booz.bx.xm_b[im]*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dRdzeta_impl(self, dRdzeta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dRdzeta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            rmnc = self.rmnc_splines[im](s)
+            dRdzeta[:, 0] += rmnc*self.booz.bx.xn_b[im]*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dRds_impl(self, dRds):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dRds[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            drmncds = self.drmncds_splines[im](s)
+            dRds[:, 0] += drmncds*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
     def _R_impl(self, R):
         points = self.get_points_ref()
         s = points[:, 0]
@@ -379,6 +500,36 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.booz.bx.xm_b)):
             rmnc = self.rmnc_splines[im](s)
             R[:, 0] += rmnc*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dZdtheta_impl(self, dZdtheta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dZdtheta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            zmns = self.zmns_splines[im](s)
+            dZdtheta[:, 0] += zmns*self.booz.bx.xm_b[im]*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dZdzeta_impl(self, dZdzeta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dZdzeta[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            zmns = self.zmns_splines[im](s)
+            dZdzeta[:, 0] += -zmns*self.booz.bx.xn_b[im]*np.cos(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
+
+    def _dZds_impl(self, dZds):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        dZds[:, 0] = 0.
+        for im in range(len(self.booz.bx.xm_b)):
+            dzmnsds = self.dzmnsds_splines[im](s)
+            dZds[:, 0] += dzmnsds*np.sin(self.booz.bx.xm_b[im]*thetas - self.booz.bx.xn_b[im]*zetas)
 
     def _Z_impl(self, Z):
         points = self.get_points_ref()
@@ -497,7 +648,7 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             field: the underlying :mod:`simsopt.field.boozermagneticfield.BoozerMagneticField` to be interpolated.
             degree: the degree of the piecewise polynomial interpolant.
             srange: a 3-tuple of the form ``(smin, smax, ns)``. This mean that
-                the interval :math:`[smin, smax]` is split into ``ns`` many subintervals.
+                the interval ``[smin, smax]`` is split into ``ns`` many subintervals.
             thetarange: a 3-tuple of the form ``(thetamin, thetamax, ntheta)``.
             zetarange: a 3-tuple of the form ``(zetamin, zetamax, nzeta)``.
             extrapolate: whether to extrapolate the field when evaluate outside

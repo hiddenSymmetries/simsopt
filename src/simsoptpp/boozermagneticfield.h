@@ -27,9 +27,19 @@ class BoozerMagneticField {
 
     protected:
         virtual void _set_points_cb() { }
+        virtual void _K_impl(Tensor2& K) { throw logic_error("_K_impl was not implemented"); }
         virtual void _nu_impl(Tensor2& nu) { throw logic_error("_nu_impl was not implemented"); }
+        virtual void _dnudtheta_impl(Tensor2& dnudtheta) { throw logic_error("_dnudtheta_impl was not implemented"); }
+        virtual void _dnudzeta_impl(Tensor2& dnudzeta) { throw logic_error("_dnudzeta_impl was not implemented"); }
+        virtual void _dnuds_impl(Tensor2& dnuds) { throw logic_error("_dnuds_impl was not implemented"); }
         virtual void _R_impl(Tensor2& R) { throw logic_error("_R_impl was not implemented"); }
         virtual void _Z_impl(Tensor2& Z) { throw logic_error("_Z_impl was not implemented"); }
+        virtual void _dRdtheta_impl(Tensor2& dRdtheta) { throw logic_error("_dRdtheta_impl was not implemented"); }
+        virtual void _dZdtheta_impl(Tensor2& dZdtheta) { throw logic_error("_dZdtheta_impl was not implemented"); }
+        virtual void _dRdzeta_impl(Tensor2& dRdzeta) { throw logic_error("_dRdzeta_impl was not implemented"); }
+        virtual void _dZdzeta_impl(Tensor2& dZdzeta) { throw logic_error("_dZdzeta_impl was not implemented"); }
+        virtual void _dRds_impl(Tensor2& dRds) { throw logic_error("_dRds_impl was not implemented"); }
+        virtual void _dZds_impl(Tensor2& dZds) { throw logic_error("_dZds_impl was not implemented"); }
         virtual void _modB_impl(Tensor2& modB) { throw logic_error("_modB_impl was not implemented"); }
         virtual void _dmodBdtheta_impl(Tensor2& dmodBdtheta) { throw logic_error("_dmodBdtheta_impl was not implemented"); }
         virtual void _dmodBdzeta_impl(Tensor2& dmodBdzeta) { throw logic_error("_dmodBdzeta_impl was not implemented"); }
@@ -46,7 +56,9 @@ class BoozerMagneticField {
         CachedTensor<T, 2> points;
         CachedTensor<T, 2> data_modB, data_dmodBdtheta, data_dmodBdzeta, data_dmodBds,\
           data_G, data_iota, data_dGds, data_diotads, data_psip, data_I, data_dIds, \
-          data_R, data_Z, data_nu;
+          data_R, data_Z, data_nu, data_K, data_dRdtheta, data_dRdzeta, data_dRds, \
+          data_dZdtheta, data_dZdzeta, data_dZds, data_dnudtheta, data_dnudzeta, \
+          data_dnuds;
         int npoints;
 
     public:
@@ -57,9 +69,19 @@ class BoozerMagneticField {
 
         virtual void invalidate_cache() {
             data_modB.invalidate_cache();
+            data_K.invalidate_cache();
             data_nu.invalidate_cache();
+            data_dnudtheta.invalidate_cache();
+            data_dnudzeta.invalidate_cache();
+            data_dnuds.invalidate_cache();
             data_R.invalidate_cache();
+            data_dRdtheta.invalidate_cache();
+            data_dRdzeta.invalidate_cache();
+            data_dRds.invalidate_cache();
             data_Z.invalidate_cache();
+            data_dZdtheta.invalidate_cache();
+            data_dZdzeta.invalidate_cache();
+            data_dZds.invalidate_cache();
             data_dmodBdtheta.invalidate_cache();
             data_dmodBdzeta.invalidate_cache();
             data_dmodBds.invalidate_cache();
@@ -90,16 +112,56 @@ class BoozerMagneticField {
             return points.get_or_create({npoints, 3});
         }
 
+        Tensor2& K_ref() {
+            return data_K.get_or_create_and_fill({npoints, 1}, [this](Tensor2& K) { return _K_impl(K);});
+        }
+
         Tensor2& nu_ref() {
             return data_nu.get_or_create_and_fill({npoints, 1}, [this](Tensor2& nu) { return _nu_impl(nu);});
+        }
+
+        Tensor2& dnudtheta_ref() {
+            return data_dnudtheta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dnudtheta) { return _dnudtheta_impl(dnudtheta);});
+        }
+
+        Tensor2& dnudzeta_ref() {
+            return data_dnudzeta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dnudzeta) { return _dnudzeta_impl(dnudzeta);});
+        }
+
+        Tensor2& dnuds_ref() {
+            return data_dnuds.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dnuds) { return _dnuds_impl(dnuds);});
         }
 
         Tensor2& R_ref() {
             return data_R.get_or_create_and_fill({npoints, 1}, [this](Tensor2& R) { return _R_impl(R);});
         }
 
+        Tensor2& dRdtheta_ref() {
+            return data_dRdtheta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dRdtheta) { return _dRdtheta_impl(dRdtheta);});
+        }
+
+        Tensor2& dRdzeta_ref() {
+            return data_dRdzeta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dRdzeta) { return _dRdzeta_impl(dRdzeta);});
+        }
+
+        Tensor2& dRds_ref() {
+            return data_dRds.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dRds) { return _dRds_impl(dRds);});
+        }
+
         Tensor2& Z_ref() {
             return data_Z.get_or_create_and_fill({npoints, 1}, [this](Tensor2& Z) { return _Z_impl(Z);});
+        }
+
+        Tensor2& dZdtheta_ref() {
+            return data_dZdtheta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dZdtheta) { return _dZdtheta_impl(dZdtheta);});
+        }
+
+        Tensor2& dZdzeta_ref() {
+            return data_dZdzeta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dZdzeta) { return _dZdzeta_impl(dZdzeta);});
+        }
+
+        Tensor2& dZds_ref() {
+            return data_dZds.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dZds) { return _dZds_impl(dZds);});
         }
 
         Tensor2& modB_ref() {
@@ -146,9 +208,19 @@ class BoozerMagneticField {
             return data_diotads.get_or_create_and_fill({npoints, 1}, [this](Tensor2& diotads) { return _diotads_impl(diotads);});
         }
 
+        Tensor2 K() { return K_ref(); }
         Tensor2 nu() { return nu_ref(); }
+        Tensor2 dnudtheta() { return dnudtheta_ref(); }
+        Tensor2 dnudzeta() { return dnudzeta_ref(); }
+        Tensor2 dnuds() { return dnuds_ref(); }
         Tensor2 R() { return R_ref(); }
         Tensor2 Z() { return Z_ref(); }
+        Tensor2 dRdtheta() { return dRdtheta_ref(); }
+        Tensor2 dZdtheta() { return dZdtheta_ref(); }
+        Tensor2 dRdzeta() { return dRdzeta_ref(); }
+        Tensor2 dZdzeta() { return dZdzeta_ref(); }
+        Tensor2 dRds() { return dRds_ref(); }
+        Tensor2 dZds() { return dZds_ref(); }
         Tensor2 modB() { return modB_ref(); }
         Tensor2 dmodBdtheta() { return dmodBdtheta_ref(); }
         Tensor2 dmodBdzeta() { return dmodBdzeta_ref(); }
