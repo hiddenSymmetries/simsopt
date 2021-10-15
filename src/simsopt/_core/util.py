@@ -170,7 +170,7 @@ class DofLengthMismatchError(Exception):
         if message is None:
             message = f"Input dof proerpty size, {input_dof_length}, does not " + \
                       f"match with Optimizable dof size {optim_dof_length}"
-        super().__init__(massage)
+        super().__init__(message)
 
 
 def finite_difference_steps(x: RealArray,
