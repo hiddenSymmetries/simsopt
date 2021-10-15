@@ -320,7 +320,7 @@ class DOFs:
         # To prevent fully fixed DOFs from not raising Error
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
-            raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
+            raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
         self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
