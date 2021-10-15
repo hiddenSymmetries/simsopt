@@ -59,12 +59,12 @@ for max_mode in range(3, maxres):
         dofs_prev = obj.x
         try:
             obj.x = dofs
-            return obj.J(), obj.dJ()[obj.dofs_free_status]
+            return obj.J()  # , obj.dJ()[obj.dofs_free_status]
         except ObjectiveFailure:
             obj.x = dofs_prev
-            return 2*obj.J(), 2*obj.dJ()[obj.dofs_free_status]
+            return 2*obj.J()  # , 2*obj.dJ()[obj.dofs_free_status]
     res = minimize(
-        fun=J, x0=obj.x, jac=True, method='L-BFGS-B',
+        fun=J, x0=obj.x, jac=False, method='L-BFGS-B',
         options={'maxfun': maxfun, 'ftol': 1e-8, 'gtol': 1e-8})
     print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, "
           f"jac={np.linalg.norm(res['jac']):.3f}")
