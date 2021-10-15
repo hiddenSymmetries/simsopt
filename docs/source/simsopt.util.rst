@@ -4,6 +4,15 @@ simsopt.util package
 Submodules
 ----------
 
+simsopt.util.constants module
+-----------------------------
+
+.. automodule:: simsopt.util.constants
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.util.dev module
 -----------------------
 
@@ -44,6 +53,15 @@ simsopt.util.types module
 -------------------------
 
 .. automodule:: simsopt.util.types
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+simsopt.util.zoo module
+-----------------------
+
+.. automodule:: simsopt.util.zoo
    :members:
    :undoc-members:
    :show-inheritance:

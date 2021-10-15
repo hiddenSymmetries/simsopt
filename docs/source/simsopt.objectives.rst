@@ -4,6 +4,15 @@ simsopt.objectives package
 Submodules
 ----------
 
+simsopt.objectives.fluxobjective module
+---------------------------------------
+
+.. automodule:: simsopt.objectives.fluxobjective
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.objectives.functions module
 -----------------------------------
 
@@ -35,15 +44,6 @@ simsopt.objectives.least\_squares module
 ----------------------------------------
 
 .. automodule:: simsopt.objectives.least_squares
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
-simsopt.objectives.fluxobjective module
----------------------------------------
-
-.. automodule:: simsopt.objectives.fluxobjective
    :members:
    :undoc-members:
    :show-inheritance:
