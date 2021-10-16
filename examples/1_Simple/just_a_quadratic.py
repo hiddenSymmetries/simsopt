@@ -13,6 +13,8 @@ The optimum is at (x,y,z)=(1,2,3), and f=0 at this point.
 # To print out diagnostic information along the way, uncomment this
 # next line:
 #logging.basicConfig(level=logging.INFO)
+print("Running 1_Simple/just_a_quadratic.py")
+print("====================================")
 
 # Define some Target objects that depend on Parameter objects. In the
 # future these functions would involve codes like VMEC, but for now we
@@ -44,3 +46,5 @@ least_squares_serial_solve(prob)
 print("An optimum was found at x=", iden1.x, ", y=", iden2.x, \
       ", z=", iden3.x)
 print("The minimum value of the objective function is ", prob.objective())
+print("End of 1_Simple/just_a_quadratic.py")
+print("====================================")

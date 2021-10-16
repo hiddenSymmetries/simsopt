@@ -99,12 +99,16 @@ can be installed for your user only::
 If you want to build SIMSOPT locally with the optional dependencies,
 you can run
 
+.. code-block::
+
     pip install --user -e .[MPI,SPEC]
 
 However, if you're using a zsh terminal (example: latest Macbook versions),
 you'll need to run instead
 
-    pip install --user -e .\[MPI,SPEC]\
+.. code-block::
+
+    pip install --user -e ".[MPI,SPEC]"
 
 
 From docker container

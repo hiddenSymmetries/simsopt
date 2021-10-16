@@ -4,8 +4,8 @@ import logging
 import numpy as np
 
 from simsopt.mhd import Spec
-from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 import os
 
 """
@@ -26,6 +26,8 @@ can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
 
+print("Running 2DOF_specOnly_targetIotaAndVolume.py")
+print("============================================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 logging.basicConfig(level=logging.INFO)
@@ -41,9 +43,9 @@ surf = equil.boundary
 
 # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
 # You can choose which parameters are optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(1,1)', False)
-surf.set_fixed('zs(1,1)', False)
+surf.fix_all()
+surf.unfix('rc(1,1)')
+surf.unfix('zs(1,1)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
@@ -56,7 +58,7 @@ desired_iota = -0.41
 iota_weight = 1
 term2 = (equil.iota, desired_iota, iota_weight)
 
-prob = LeastSquaresProblem([term1, term2])
+prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
 least_squares_serial_solve(prob, grad=True)
@@ -78,3 +80,5 @@ assert np.abs(equil.volume() - 0.178091) < 0.001
 assert np.abs(surf.volume() - 0.178091) < 0.001
 assert np.abs(equil.iota() - (-0.4114567)) < 0.001
 assert (prob.objective() - 7.912501330E-04) < 0.2e-4
+print("End of 2DOF_specOnly_targetIotaAndVolume.py")
+print("============================================")

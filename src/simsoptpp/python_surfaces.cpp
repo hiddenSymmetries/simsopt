@@ -138,6 +138,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("least_squares_fit", &T::least_squares_fit)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("set_dofs", &T::set_dofs)
+     .def("set_dofs_impl", &T::set_dofs_impl)
      .def("get_dofs", &T::get_dofs)
      .def_readonly("quadpoints_phi", &T::quadpoints_phi)
      .def_readonly("quadpoints_theta", &T::quadpoints_theta);
@@ -150,7 +151,6 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
         .def_readwrite("rs", &PySurfaceRZFourier::rs)
         .def_readwrite("zc", &PySurfaceRZFourier::zc)
@@ -164,7 +164,6 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, int, int>())
         .def_readwrite("xc", &PySurfaceXYZFourier::xc)
         .def_readwrite("xs", &PySurfaceXYZFourier::xs)
         .def_readwrite("yc", &PySurfaceXYZFourier::yc)
@@ -179,10 +178,9 @@ void init_surfaces(py::module_ &m){
 
     auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
         .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
-        .def(py::init<int, int, int, bool, vector<bool>, int, int>())
-        .def_readwrite("x", &PySurfaceXYZTensorFourier::x)
-        .def_readwrite("y", &PySurfaceXYZTensorFourier::y)
-        .def_readwrite("z", &PySurfaceXYZTensorFourier::z)
+        .def_readwrite("xcs", &PySurfaceXYZTensorFourier::x)
+        .def_readwrite("ycs", &PySurfaceXYZTensorFourier::y)
+        .def_readwrite("zcs", &PySurfaceXYZTensorFourier::z)
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
