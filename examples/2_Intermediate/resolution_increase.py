@@ -2,8 +2,8 @@
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -22,6 +22,9 @@ resolution for VMEC and booz_xform is increased.
 
 #log()
 
+print("Running 2_Intermediate/resolution_increase.py")
+print("=============================================")
+
 mpi = MpiPartition()
 mpi.write()
 
@@ -37,10 +40,10 @@ qs = Quasisymmetry(boozer,
                    1, 0)  # (M, N) you want in |B|
 
 # Define objective function
-prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
-                            (vmec.iota_axis, 0.465, 1),
-                            (vmec.iota_edge, 0.495, 1),
-                            (qs, 0, 1)])
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
+                                        (vmec.iota_axis, 0.465, 1),
+                                        (vmec.iota_edge, 0.495, 1),
+                                        (qs.J, 0, 1)])
 
 # Fourier modes of the boundary with m <= max_mode and |n| <= max_mode
 # will be varied in the optimization. A larger range of modes are
@@ -63,10 +66,10 @@ for step in range(3):
               ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
-    surf.all_fixed()
+    surf.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, 
                      nmin=-max_mode, nmax=max_mode, fixed=False)
-    surf.set_fixed("rc(0,0)")  # Major radius
+    surf.fix("rc(0,0)")  # Major radius
 
     # For the test to run quickly, we stop after the first function
     # evaluation, by passing max_nfev=1 to scipy.optimize. For a
@@ -78,7 +81,10 @@ for step in range(3):
     vmec.files_to_delete = []
 
     if mpi.proc0_world:
-        print("Done optimization with max_mode =", max_mode, \
-              ". Final vmec iteration = ", vmec.iter)
+        print(f"Done optimization with max_mode ={max_mode}. "
+              f"Final vmec iteration = {vmec.iter}")
 
 print("Good bye")
+
+print("End of 2_Intermediate/resolution_increase.py")
+print("=============================================")

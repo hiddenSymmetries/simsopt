@@ -25,6 +25,8 @@ logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
+print("Running 1_Simple/tracing_particle.py")
+print("====================================")
 # check whether we're in CI, in that case we make the run a bit cheaper
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nparticles = 3 if ci else 100
@@ -91,3 +93,6 @@ print('Error in AbsB', bsh.estimate_error_GradAbsB(1000), flush=True)
 trace_particles(bsh, 'bsh', 'gc_vac')
 # trace_particles(bsh, 'bsh', 'full')
 # trace_particles(bs, 'bs', 'gc')
+
+print("End of 1_Simple/tracing_particle.py")
+print("====================================")

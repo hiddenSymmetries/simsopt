@@ -1,24 +1,57 @@
 import numpy as np
 import logging
 
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
 
-class SurfaceGarabedian(Surface):
-    """
-    `SurfaceGarabedian` represents a toroidal surface for which the
+class SurfaceGarabedian(sopp.Surface, Surface):
+    r"""
+    ``SurfaceGarabedian`` represents a toroidal surface for which the
     shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
-    coefficients.
+    coefficients:
+
+    .. math::
+      R + i Z = e^{i u} \sum_{m = m_\min}^{m_\max} \sum_{n = n_\min}^{n_\max} \Delta_{m,n} e^{-i m u + i n v}
+
+    where :math:`u = 2 \pi \theta` is a poloidal angle on :math:`[0, 2\pi]`, and
+    :math:`v` is the standard toroidal angle on :math:`[0, 2\pi]`.
 
     The present implementation assumes stellarator symmetry. Note that
     non-stellarator-symmetric surfaces require that the :math:`\Delta_{m,n}`
     coefficients be imaginary.
+
+    For more information about the arguments ``nphi``, ``ntheta``,
+    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+    general documentation on :ref:`surfaces`.
+
+    Args:
+        nfp: The number of field periods.
+        mmin: Minimum poloidal mode number :math:`m` included (usually 0 or negative).
+        mmax: Maximum poloidal mode number :math:`m` included.
+        nmin: Minimum toroidal mode number :math:`n` included (usually negative).
+          If ``None``, ``nmin = -nmax`` will be used.
+        nmax: Maximum toroidal mode number :math:`n` included.
+        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+        range: Toroidal extent of the :math:`\phi` grid.
+          Set to ``"full torus"`` (or equivalently ``SurfaceGarabedian.RANGE_FULL_TORUS``)
+          to generate points up to 1 (with no point at 1).
+          Set to ``"field period"`` (or equivalently ``SurfaceGarabedian.RANGE_FIELD_PERIOD``)
+          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+          Set to ``"half period"`` (or equivalently ``SurfaceGarabedian.RANGE_HALF_PERIOD``)
+          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
-    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None):
+    def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None,
+                 nphi=None, ntheta=None, range="full torus",
+                 quadpoints_phi=None, quadpoints_theta=None):
         if nmin is None:
             nmin = -nmax
         # Perform some validation.
@@ -36,35 +69,45 @@ class SurfaceGarabedian(Surface):
         self.nmax = nmax
         self.nfp = nfp
         self.stellsym = True
-        self.allocate()
-        self.recalculate = True
-        self.recalculate_derivs = True
+
+        self.mdim = self.mmax - self.mmin + 1
+        self.ndim = self.nmax - self.nmin + 1
+        self.shape = (self.mdim, self.ndim)
+
+        Delta = np.zeros(self.shape)
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi, ntheta=ntheta, range=range,
+                                                                  quadpoints_phi=quadpoints_phi,
+                                                                  quadpoints_theta=quadpoints_theta)
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+        Surface.__init__(self, x0=Delta.ravel(),
+                         names=self._make_dof_names())
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.set_Delta(1, 0, 1.0)
         self.set_Delta(0, 0, 0.1)
-        Surface.__init__(self)
+
+    def _make_dof_names(self):
+        names = []
+        for m in range(self.mmin, self.mmax + 1):
+            for n in range(self.nmin, self.nmax + 1):
+                names.append(f'Delta({m},{n})')
+        return names
 
     def __repr__(self):
-        return "SurfaceGarabedian " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", mmin=" + str(self.mmin) + ", mmax=" + str(self.mmax) \
-            + ", nmin=" + str(self.nmin) + ", nmax=" + str(self.nmax) \
-            + ")"
+        return self.name + f" (nfp={self.nfp}, " + \
+            f"mmin={self.mmin}, mmax={self.mmax}" + \
+            f", nmin={self.nmin}, nmax={self.nmax})"
 
-    def allocate(self):
-        """
-        Create the array for the :math:`\Delta_{m,n}` coefficients.
-        """
-        logger.info("Allocating SurfaceGarabedian")
-        self.mdim = self.mmax - self.mmin + 1
-        self.ndim = self.nmax - self.nmin + 1
-        myshape = (self.mdim, self.ndim)
-        self.Delta = np.zeros(myshape)
-        self.names = []
-        for n in range(self.nmin, self.nmax + 1):
-            for m in range(self.mmin, self.mmax + 1):
-                self.names.append('Delta(' + str(m) + ',' + str(n) + ')')
+    @property
+    def Delta(self):
+        return self.local_full_x.reshape(self.shape)
+
+    @Delta.setter
+    def Delta(self, Delta):
+        assert(self.shape == Delta.shape)
+        self.local_full_x = Delta.flatten()
 
     def get_Delta(self, m, n):
         """
@@ -76,41 +119,31 @@ class SurfaceGarabedian(Surface):
         """
         Set a particular :math:`\Delta_{m,n}` coefficient.
         """
-        self.Delta[m - self.mmin, n - self.nmin] = val
-        self.recalculate = True
-        self.recalculate_derivs = True
+        i = self.ndim * (m - self.mmin) + n - self.nmin
+        self.set(i, val)
 
     def get_dofs(self):
         """
         Return a 1D numpy array with all the degrees of freedom.
         """
-        num_dofs = (self.mmax - self.mmin + 1) * (self.nmax - self.nmin + 1)
-        return np.reshape(self.Delta, (num_dofs,), order='F')
+        self.local_full_x
 
-    def set_dofs(self, v):
+    def set_dofs(self, x):
         """
         Set the shape coefficients from a 1D list/array
         """
-
-        n = len(self.get_dofs())
-        if len(v) != n:
-            raise ValueError('Input vector should have ' + str(n) + \
-                             ' elements but instead has ' + str(len(v)))
-
         # Check whether any elements actually change:
-        if np.all(np.abs(self.get_dofs() - np.array(v)) == 0):
+        if np.all(np.abs(self.get_dofs() - np.array(x)) == 0):
             logger.info('set_dofs called, but no dofs actually changed')
             return
 
         logger.info('set_dofs called, and at least one dof changed')
-        self.recalculate = True
-        self.recalculate_derivs = True
 
-        self.Delta = v.reshape((self.mmax - self.mmin + 1, self.nmax - self.nmin + 1), order='F')
+        self.local_full_x = x
 
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+    def fix_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
-        Set the 'fixed' property for a range of m and n values.
+        Fix the DOFs for a range of m and n values.
 
         All modes with m in the interval [mmin, mmax] and n in the
         interval [nmin, nmax] will have their fixed property set to
@@ -118,9 +151,10 @@ class SurfaceGarabedian(Surface):
         are included (unlike the upper bound in python's range(min,
         max).)
         """
+        fn = self.fix if fixed else self.unfix
         for m in range(mmin, mmax + 1):
             for n in range(nmin, nmax + 1):
-                self.set_fixed('Delta({},{})'.format(m, n), fixed)
+                fn(f'Delta({m},{n})')
 
     def to_RZFourier(self):
         """
@@ -153,13 +187,13 @@ class SurfaceGarabedian(Surface):
         """
         Compute the surface area and the volume enclosed by the surface.
         """
-        if self.recalculate:
+        if self.new_x:
             logger.info('Running calculation of area and volume')
         else:
             logger.info('area_volume called, but no need to recalculate')
             return
 
-        self.recalculate = False
+        self.new_x = False
 
         # Delegate to the area and volume calculations of SurfaceRZFourier():
         s = self.to_RZFourier()
@@ -180,3 +214,6 @@ class SurfaceGarabedian(Surface):
         self.area_volume()
         return self._volume
 
+    return_fn_map = {'area': area,
+                     'volume': volume,
+                     'aspect-ratio': Surface.aspect_ratio}

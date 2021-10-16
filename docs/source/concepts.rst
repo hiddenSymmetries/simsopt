@@ -203,13 +203,71 @@ A number of quantities are implemented in :obj:`simsopt.geo.curveobjectives` and
 
 The value of the quantity and its derivative with respect to the curve dofs can be obtained by calling e.g., ``CurveLength.J()`` and ``CurveLength.dJ()``.
 
+.. _surfaces:
+
 Surfaces
 ~~~~~~~~
 
-The second large class of geometric objects are surfaces.
-A :obj:`simsopt.geo.surface.Surface` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to \mathbb{R}^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
+The second large class of geometric objects are surfaces.  A
+:obj:`simsopt.geo.surface.Surface` is modelled as a function
+:math:`\Gamma:[0, 1] \times [0, 1] \to \mathbb{R}^3` and is evaluated
+at quadrature points :math:`\{\phi_1, \ldots,
+\phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.  Here,
+:math:`\phi` is the toroidal angle and :math:`\theta` is the poloidal
+angle. Note that :math:`\phi` and :math:`\theta` go up to 1, not up to
+:math:`2 \pi`!
 
-The usage is similar to that of the :obj:`~simsopt.geo.curve.Curve` class:
+In practice, you almost never use the base
+:obj:`~simsopt.geo.surface.Surface` class.  Rather, you typically use
+one of the subclasses corresponding to a specific parameterization.
+Presently, the available subclasses are
+:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`,
+:obj:`~simsopt.geo.surfacegarabedian.SurfaceGarabedian`,
+:obj:`~simsopt.geo.surfacehenneberg.SurfaceHenneberg`,
+:obj:`~simsopt.geo.surfacexyzfourier.SurfaceXYZFourier`,
+and
+:obj:`~simsopt.geo.surfacexyztensorfourier.SurfaceXYZTensorFourier`.
+In many cases you can convert a surface from one type to another by going through
+:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`, as most surface types have
+``to_RZFourier()`` and ``from_RZFourier()`` methods.
+Note that :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`
+corresponds to the surface parameterization used internally in the VMEC and SPEC codes.
+However when using these codes in simsopt, any of the available surface subclasses
+can be used to represent the surfaces, and simsopt will automatically handle the conversion
+to :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` when running the code.
+
+The points :math:`\phi_j` and :math:`\theta_j` are used for evaluating
+the position vector and its derivatives, for computing integrals, and
+for plotting, and there are several available methods to specify these
+points.  For :math:`\theta_j`, you typically specify a keyword
+argument ``ntheta`` to the constructor when instantiating a surface
+class. This results in a grid of ``ntheta`` uniformly spaced points
+between 0 and 1, with no endpoint at 1. Alternatively, you can specify
+a list or array of points to the ``quadpoints_theta`` keyword argument
+when instantiating a surface class, specifying the :math:`\theta_j`
+directly.  If both ``ntheta`` and ``quadpoints_theta`` are specified,
+an exception will be raised.  For the :math:`\phi` coordinate, you
+sometimes want points up to 1 (the full torus), sometimes up to
+:math:`1/n_{fp}` (one field period), and sometimes up to :math:`1/(2
+n_{fp})` (half a field period). These three cases can be selected by
+setting the ``range`` keyword argument of the surface subclasses to
+``"full torus"``, ``"field period"``, or ``"half period"``.
+Equivalently, you can set ``range`` to the constants
+``S.RANGE_FULL_TORUS``, ``S.RANGE_FIELD_PERIOD``, or
+``S.RANGE_HALF_PERIOD``, where ``S`` can be
+:obj:`simsopt.geo.surface.Surface` or any of its subclasses.  For all
+of these cases, the ``nphi`` keyword argument can be set to the
+desired number of :math:`\phi` grid points. Alternatively, you can
+pass a list or array to the ``quadpoints_phi`` keyword argument of the
+constructor for any Surface subclass to specify the :math:`\phi_j`
+points directly.  An exception will be raised if both ``nphi`` and
+``quadpoints_phi`` are specified.  For more information about these
+arguments, see the
+:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` API
+documentation.
+
+The methods available to each surface class are similar to those of
+the :obj:`~simsopt.geo.curve.Curve` class:
 
 - ``Surface.gamma()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`, i.e. returns a list of XYZ coordinates on the surface.
 - ``Surface.gammadash1()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
