@@ -127,8 +127,9 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
                            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
         mode: how to trace the particles. options are
             `gc`: general guiding center equations,
-            `gc_vac`: simplified guiding center equations for the case :math:`G` = const.
-                           and :math:`I = 0`.
+            `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
+                           :math:`I = 0`, and :math:`K = 0`.
+            `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
                            particle for the ``res_tys``. To be used when only res_zeta_hits is of
                            interest or one wants to reduce memory usage.
@@ -157,7 +158,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     mode = mode.lower()
-    assert mode in ['gc', 'gc_vac']
+    assert mode in ['gc', 'gc_vac', 'gc_nok']
 
     res_tys = []
     res_zeta_hits = []
@@ -167,7 +168,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
             m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
-            zetas=zetas, stopping_criteria=stopping_criteria)
+            noK=(mode == 'gc_nok'), zetas=zetas, stopping_criteria=stopping_criteria)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:

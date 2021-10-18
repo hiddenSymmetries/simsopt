@@ -424,7 +424,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         G0 = 1.1
         psi0 = 0.8
         iota0 = 0.4
-        bsh = BoozerAnalytic(etabar, B0, Bbar, 0, G0, psi0, iota0)
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0)
 
         nparticles = 100
         m = PROTON_MASS
@@ -519,7 +519,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         p_inits = vpar_inits[:, 0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                     tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+                                                     tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
                                                      tol=1e-12)
 
@@ -560,7 +560,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         # Now trace with forget_exact_path = False. Check that gc_phi_hits is the same
         gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                       tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+                                                       tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                        stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
                                                        tol=1e-12, forget_exact_path=True)
 
@@ -584,7 +584,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         G0 = 1.1
         psi0 = 0.8
         iota0 = 1.0
-        bsh = BoozerAnalytic(etabar, B0, Bbar, 4, G0, psi0, iota0)
+        bsh = BoozerAnalytic(etabar, B0, 4, G0, psi0, iota0)
 
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
@@ -658,7 +658,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         G0 = 1.1
         psi0 = 0.8
         iota0 = 1.0
-        bsh = BoozerAnalytic(etabar, B0, Bbar, 4, G0, psi0, iota0)
+        bsh = BoozerAnalytic(etabar, B0, 4, G0, psi0, iota0)
 
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
@@ -703,7 +703,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         G0 = R0*B0
         psi0 = B0*(0.1)**2/2
         iota0 = 0.5
-        bsh = BoozerAnalytic(etabar, B0, Bbar, 0, G0, psi0, iota0)
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0)
 
         m = PROTON_MASS
         q = ELEMENTARY_CHARGE
