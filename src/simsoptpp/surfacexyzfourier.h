@@ -62,18 +62,6 @@ class SurfaceXYZFourier : public Surface<Array> {
                 zs = xt::zeros<double>({mpol+1, 2*ntor+1});
             }
 
-        SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
-            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                xc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                xs = xt::zeros<double>({mpol+1, 2*ntor+1});
-                yc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                ys = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
-            }
-
-
-
         int num_dofs() override {
             if(stellsym)
                 return 3*(mpol+1)*(2*ntor+1) - 1*ntor - 2*(ntor+1);

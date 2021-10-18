@@ -22,8 +22,9 @@ mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_var
 
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_spec.py
 
-./stellarator_benchmarks/2DOF_specOnly_targetIotaAndVolume.py
 
 ./2_Intermediate/eliminate_magnetic_islands.py
+ 
+./stellarator_benchmarks/2DOF_specOnly_targetIotaAndVolume.py
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/eliminate_magnetic_islands.py
 mpiexec $MPI_OPTIONS -n 3 ./2_Intermediate/eliminate_magnetic_islands.py
