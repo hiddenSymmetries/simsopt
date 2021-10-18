@@ -28,6 +28,8 @@ class BoozerMagneticField {
     protected:
         virtual void _set_points_cb() { }
         virtual void _K_impl(Tensor2& K) { throw logic_error("_K_impl was not implemented"); }
+        virtual void _dKdtheta_impl(Tensor2& dKdtheta) { throw logic_error("_dKdtheta_impl was not implemented"); }
+        virtual void _dKdzeta_impl(Tensor2& dKdzeta) { throw logic_error("_dKdzeta_impl was not implemented"); }
         virtual void _nu_impl(Tensor2& nu) { throw logic_error("_nu_impl was not implemented"); }
         virtual void _dnudtheta_impl(Tensor2& dnudtheta) { throw logic_error("_dnudtheta_impl was not implemented"); }
         virtual void _dnudzeta_impl(Tensor2& dnudzeta) { throw logic_error("_dnudzeta_impl was not implemented"); }
@@ -58,7 +60,7 @@ class BoozerMagneticField {
           data_G, data_iota, data_dGds, data_diotads, data_psip, data_I, data_dIds, \
           data_R, data_Z, data_nu, data_K, data_dRdtheta, data_dRdzeta, data_dRds, \
           data_dZdtheta, data_dZdzeta, data_dZds, data_dnudtheta, data_dnudzeta, \
-          data_dnuds;
+          data_dnuds, data_dKdtheta, data_dKdzeta;
         int npoints;
 
     public:
@@ -70,6 +72,8 @@ class BoozerMagneticField {
         virtual void invalidate_cache() {
             data_modB.invalidate_cache();
             data_K.invalidate_cache();
+            data_dKdtheta.invalidate_cache();
+            data_dKdzeta.invalidate_cache();
             data_nu.invalidate_cache();
             data_dnudtheta.invalidate_cache();
             data_dnudzeta.invalidate_cache();
@@ -114,6 +118,14 @@ class BoozerMagneticField {
 
         Tensor2& K_ref() {
             return data_K.get_or_create_and_fill({npoints, 1}, [this](Tensor2& K) { return _K_impl(K);});
+        }
+
+        Tensor2& dKdtheta_ref() {
+            return data_dKdtheta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dKdtheta) { return _dKdtheta_impl(dKdtheta);});
+        }
+
+        Tensor2& dKdzeta_ref() {
+            return data_dKdzeta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& dKdzeta) { return _dKdzeta_impl(dKdzeta);});
         }
 
         Tensor2& nu_ref() {
@@ -209,6 +221,8 @@ class BoozerMagneticField {
         }
 
         Tensor2 K() { return K_ref(); }
+        Tensor2 dKdtheta() { return dKdtheta_ref(); }
+        Tensor2 dKdzeta() { return dKdzeta_ref(); }
         Tensor2 nu() { return nu_ref(); }
         Tensor2 dnudtheta() { return dnudtheta_ref(); }
         Tensor2 dnudzeta() { return dnudzeta_ref(); }

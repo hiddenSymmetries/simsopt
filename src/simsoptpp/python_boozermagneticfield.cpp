@@ -18,6 +18,8 @@ typedef BoozerMagneticField<xt::pytensor> PyBoozerMagneticField;
 
 template <typename T, typename S> void register_common_field_methods(S &c) {
     c
+     .def("dKdtheta", py::overload_cast<>(&T::dKdtheta), "Returns a `(npoints, 1)` array containing the theta derivative of the Boozer radial covariant component, K, where B = G nabla zeta + I nabla theta + K nabla psi.")
+     .def("dKdzeta", py::overload_cast<>(&T::dKdzeta), "Returns a `(npoints, 1)` array containing the zeta derivative of the Boozer radial covariant component, K, where B = G nabla zeta + I nabla theta + K nabla psi.")
      .def("K", py::overload_cast<>(&T::K), "Returns a `(npoints, 1)` array containing the Boozer radial covariant component, K, where B = G nabla zeta + I nabla theta + K nabla psi.")
      .def("nu", py::overload_cast<>(&T::nu), "Returns a `(npoints, 1)` array containing the difference between the Boozer and cylindrical toroidal angles, e.g. zeta_b = phi + nu.")
      .def("dnudtheta", py::overload_cast<>(&T::dnudtheta), "Returns a `(npoints, 1)` array containing the derivative of nu wrt theta as a function of Boozer coordinates.")
@@ -43,6 +45,9 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("dIds", py::overload_cast<>(&T::dIds), "Returns a `(npoints, 1)` array containing the derivative of the magnetic field poloidal covariant component wrt s in Boozer coordinates.")
      .def("diotads", py::overload_cast<>(&T::diotads), "Returns a `(npoints, 1)` array containing the derivative of the rotational transform wrt s in Boozer coordinates.")
 
+     .def("dKdtheta_ref", py::overload_cast<>(&T::dKdtheta_ref), "Same as `dKdtheta`, but returns a reference to the array (this array should be read only).")
+     .def("dKdzeta_ref", py::overload_cast<>(&T::dKdzeta_ref), "Same as `dKdzeta`, but returns a reference to the array (this array should be read only).")
+     .def("K_ref", py::overload_cast<>(&T::K_ref), "Same as `K`, but returns a reference to the array (this array should be read only).")
      .def("nu_ref", py::overload_cast<>(&T::nu_ref), "Same as `nu`, but returns a reference to the array (this array should be read only).")
      .def("dnudtheta_ref", py::overload_cast<>(&T::dnudtheta_ref), "Same as `dnudtheta`, but returns a reference to the array (this array should be read only).")
      .def("dnudzeta_ref", py::overload_cast<>(&T::dnudzeta_ref), "Same as `dnudzeta`, but returns a reference to the array (this array should be read only).")
@@ -81,6 +86,7 @@ void init_boozermagneticfields(py::module_ &m){
   auto ifield = py::class_<PyInterpolatedBoozerField, shared_ptr<PyInterpolatedBoozerField>, PyBoozerMagneticField>(m, "InterpolatedBoozerField")
       .def(py::init<shared_ptr<PyBoozerMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
       .def(py::init<shared_ptr<PyBoozerMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
+      .def("estimate_error_K", &PyInterpolatedBoozerField::estimate_error_K)
       .def("estimate_error_modB", &PyInterpolatedBoozerField::estimate_error_modB)
       .def("estimate_error_R", &PyInterpolatedBoozerField::estimate_error_R)
       .def("estimate_error_Z", &PyInterpolatedBoozerField::estimate_error_Z)
