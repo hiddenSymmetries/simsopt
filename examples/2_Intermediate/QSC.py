@@ -15,7 +15,8 @@ https://github.com/landreman/pyQSC
 """
 
 #logging.basicConfig(level=logging.INFO)
-
+print("Running 2_Intermediate/QSC.py")
+print("=============================")
 stel = make_optimizable(Qsc(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31))
 print('Initial dofs: ', stel.get_dofs())
 print('Names of the dofs: ', stel.names)
@@ -52,3 +53,6 @@ print(' QSC dofs: ', stel.get_dofs())
 print(' Iota: ', stel.iota)
 print(' Max elongation: ', stel.max_elongation)
 print(' objective function: ', prob.objective())
+
+print("End 2_Intermediate/QSC.py")
+print("=============================")

@@ -12,7 +12,6 @@ from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
-from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +21,14 @@ except ImportError as e:
     MPI = None
     logger.warning(str(e))
 
-# vmec_found = True
 try:
     import vmec
 except ImportError as e:
-    # vmec_found = False
     vmec = None
     logger.warning(str(e))
 
-from .._core.optimizable import Optimizable
+from ..util.dev import SimsoptRequires
+from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
@@ -180,10 +178,9 @@ class Vmec(Optimizable):
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'input.default')
-            logger.info("Initializing a VMEC object from defaults in "
-                        + filename)
+            logger.info(f"Initializing a VMEC object from defaults in {filename}")
         else:
-            logger.info("Initializing a VMEC object from file: " + filename)
+            logger.info(f"Initializing a VMEC object from file: {filename}")
         self.input_file = filename
 
         # Get MPI communicator:
@@ -231,29 +228,44 @@ class Vmec(Optimizable):
         # by the user.
         quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
         quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-        self.boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                         stellsym=not vi.lasym,
-                                         mpol=vi.mpol,
-                                         ntor=vi.ntor,
-                                         quadpoints_theta=quadpoints_theta,
-                                         quadpoints_phi=quadpoints_phi)
+        self._boundary = SurfaceRZFourier(nfp=vi.nfp,
+                                          stellsym=not vi.lasym,
+                                          mpol=vi.mpol,
+                                          ntor=vi.ntor,
+                                          quadpoints_theta=quadpoints_theta,
+                                          quadpoints_phi=quadpoints_phi)
         self.free_boundary = bool(vi.lfreeb)
 
         # Transfer boundary shape data from fortran to the ParameterArray:
         for m in range(vi.mpol + 1):
             for n in range(-vi.ntor, vi.ntor + 1):
-                self.boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
-                self.boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+                self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+                self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
                 if vi.lasym:
-                    self.boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
-                    self.boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+                    self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
+                    self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+        self._boundary.local_full_x = self._boundary.get_dofs()
 
         # Handle a few variables that are not Parameters:
-        self.depends_on = ["boundary"]
         self.need_to_run_code = True
 
-        self.fixed = np.full(len(self.get_dofs()), True)
-        self.names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        x0 = self.get_dofs()
+        fixed = np.full(len(x0), True)
+        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        super().__init__(x0=x0, fixed=fixed, names=names,
+                         depends_on=[self._boundary],
+                         external_dof_setter=Vmec.set_dofs)
+
+    @property
+    def boundary(self):
+        return self._boundary
+
+    @boundary.setter
+    def boundary(self, boundary):
+        if not boundary is self._boundary:
+            self.remove_parent(self._boundary)
+            self._boundary = boundary
+            self.append_parent(boundary)
 
     def get_dofs(self):
         return np.array([self.indata.delt, self.indata.tcon0,
@@ -267,6 +279,9 @@ class Vmec(Optimizable):
         self.indata.phiedge = x[2]
         self.indata.curtor = x[3]
         self.indata.gamma = x[4]
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def run(self):
         """
@@ -401,70 +416,22 @@ class Vmec(Optimizable):
         data in a ``wout`` attribute of this Vmec object.
         """
         ierr = 0
-        logger.info("Attempting to read file " + self.output_file)
-        # vmec.read_wout_mod.read_wout_file(self.output_file, ierr)
-        #if ierr == 0:
-        #    logger.info('Successufully load VMEC results from ' + \
-        #                self.output_file)
-        # else:
-        #    print('Load VMEC results from {:} failed!'.format(
-        #        self.output_file))
-        #wout = vmec.read_wout_mod
-        #print('xm:', wout.xm)
-        #print('xn:', wout.xn)
-        #print('xm_nyq:', wout.xm_nyq)
-        #print('xn_nyq:', wout.xn_nyq)
-        #print('type(xm):', type(wout.xm), ' type(xn):', type(wout.xn), ' type(xm_nyq):', type(wout.xm_nyq), ' type(xn_nyq):', type(wout.xn_nyq))
-        #print('ierr:', ierr)
-        #print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-        #print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
-        #assert len(wout.xm) == wout.mnmax
-        #assert len(wout.xn) == wout.mnmax
-        #assert len(wout.xm_nyq) == wout.mnmax_nyq
-        #assert len(wout.xn_nyq) == wout.mnmax_nyq
+        logger.info(f"Attempting to read file {self.output_file}")
 
-        f = netcdf.netcdf_file(self.output_file, mmap=False)
-        for key, val in f.variables.items():
-            # 2D arrays need to be transposed.
-            val2 = val[()]  # Convert to numpy array
-            val3 = val2.T if len(val2.shape) == 2 else val2
-            self.wout.__setattr__(key, val3)
+        with netcdf.netcdf_file(self.output_file, mmap=False) as f:
+            for key, val in f.variables.items():
+                # 2D arrays need to be transposed.
+                val2 = val[()]  # Convert to numpy array
+                val3 = val2.T if len(val2.shape) == 2 else val2
+                self.wout.__setattr__(key, val3)
 
-        #self.wout.ier_flag = f.variables['ier_flag'][()]
-        if self.wout.ier_flag != 0:
-            logger.info("VMEC did not succeed!")
-            raise ObjectiveFailure("VMEC did not succeed")
+            if self.wout.ier_flag != 0:
+                logger.info("VMEC did not succeed!")
+                raise ObjectiveFailure("VMEC did not succeed")
 
-        # Shorthand for a long variable name:
-        self.wout.lasym = f.variables['lasym__logical__'][()]
-        self.wout.volume = self.wout.volume_p
-
-        #self.wout.ier_flag = f.variables['ier_flag'][()]
-        #if self.wout.ier_flag != 0:
-        #    logger.info("VMEC did not succeed!")
-        #    raise ObjectiveFailure("VMEC did not succeed")
-        #self.wout.nfp = f.variables['nfp'][()]
-        #self.wout.lasym = f.variables['lasym__logical__'][()]
-        #self.wout.ns = f.variables['ns'][()]
-        #self.wout.mnmax = f.variables['mnmax'][()]
-        #self.wout.mnmax_nyq = f.variables['mnmax_nyq'][()]
-        #self.wout.xm = f.variables['xm'][()]
-        #self.wout.xn = f.variables['xn'][()]
-        #self.wout.xm_nyq = f.variables['xm_nyq'][()]
-        #self.wout.xn_nyq = f.variables['xn_nyq'][()]
-        #self.wout.mpol = f.variables['mpol'][()]
-        #self.wout.ntor = f.variables['ntor'][()]
-        #self.wout.bmnc = f.variables['bmnc'][()].transpose()
-        #self.wout.rmnc = f.variables['rmnc'][()].transpose()
-        #self.wout.zmns = f.variables['zmns'][()].transpose()
-        #self.wout.lmns = f.variables['lmns'][()].transpose()
-        #self.wout.bsubumnc = f.variables['bsubumnc'][()].transpose()
-        #self.wout.bsubvmnc = f.variables['bsubvmnc'][()].transpose()
-        #self.wout.iotas = f.variables['iotas'][()]
-        #self.wout.iotaf = f.variables['iotaf'][()]
-        #self.wout.aspect = f.variables['aspect'][()]
-        #self.wout.volume = f.variables['volume_p'][()]
-        f.close()
+            # Shorthand for a long variable name:
+            self.wout.lasym = f.variables['lasym__logical__'][()]
+            self.wout.volume = self.wout.volume_p
 
         self.s_full_grid = np.linspace(0, 1, self.wout.ns)
         self.ds = self.s_full_grid[1] - self.s_full_grid[0]
@@ -553,10 +520,8 @@ class Vmec(Optimizable):
         """
         Print the object in an informative way.
         """
-        return "Vmec instance " + str(hex(id(self))) \
-            + " (nfp=" + str(self.indata.nfp) \
-            + " mpol=" + str(self.indata.mpol) \
-            + " ntor=" + str(self.indata.ntor) + ")"
+        return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
+               f" ntor={self.indata.ntor})"
 
     def vacuum_well(self):
         """
@@ -598,3 +563,7 @@ class Vmec(Optimizable):
 
         well = (dVds_s0 - dVds_s1) / dVds_s0
         return well
+
+    return_fn_map = {'aspect': aspect, 'volume': volume, 'iota_axis': iota_axis,
+                     'iota_edge': iota_edge, 'mean_iota': mean_iota,
+                     'mean_shear': mean_shear, 'vacuum_well': vacuum_well}

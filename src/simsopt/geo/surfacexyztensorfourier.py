@@ -1,4 +1,5 @@
 import numpy as np
+
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
@@ -34,19 +35,48 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         \hat y(\theta, \phi) &= \sum_{i=0}^{m_\text{pol}} \sum_{j=n_\text{tor}+1}^{2n_\text{tor}} y_{ij} w_i(\theta)v_j(\phi) + \sum_{i=m_\text{pol}+1}^{2m_\text{pol}} \sum_{j=0}^{n_\text{tor}} y_{ij} w_i(\theta)v_j(\phi)\\\\
         z(\theta, \phi) &= \sum_{i=0}^{m_\text{pol}} \sum_{j=n_\text{tor}+1}^{2n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi) + \sum_{i=m_\text{pol}+1}^{2m_\text{pol}} \sum_{j=0}^{n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi)
 
+    For more information about the arguments ``nphi``, ``ntheta``,
+    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+    general documentation on :ref:`surfaces`.
+
+    Args:
+        nfp: The number of field periods.
+        stellsym: Whether the surface is stellarator-symmetric, i.e.
+          symmetry under rotation by :math:`\pi` about the x-axis.
+        mpol: Maximum poloidal mode number included.
+        ntor: Maximum toroidal mode number included, divided by ``nfp``.
+        clamped_dims: ???
+        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+        range: Toroidal extent of the :math:`\phi` grid.
+          Set to ``"full torus"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_FULL_TORUS``)
+          to generate points up to 1 (with no point at 1).
+          Set to ``"field period"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_FIELD_PERIOD``)
+          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+          Set to ``"half period"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_HALF_PERIOD``)
+          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
-    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1, clamped_dims=[False, False, False],
-                 quadpoints_phi=32, quadpoints_theta=32):
-        if isinstance(quadpoints_phi, np.ndarray):
-            quadpoints_phi = list(quadpoints_phi)
-            quadpoints_theta = list(quadpoints_theta)
-        sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym, clamped_dims,
-                                              quadpoints_phi, quadpoints_theta)
-        self.x[0, 0] = 1.0
-        self.x[1, 0] = 0.1
-        self.z[mpol+1, 0] = 0.1
-        Surface.__init__(self)
+    def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1,
+                 clamped_dims=[False, False, False],
+                 nphi=None, ntheta=None, range="full torus",
+                 quadpoints_phi=None, quadpoints_theta=None):
+
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi, ntheta=ntheta, range=range,
+                                                                  quadpoints_phi=quadpoints_phi,
+                                                                  quadpoints_theta=quadpoints_theta)
+        sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym,
+                                              clamped_dims, quadpoints_phi,
+                                              quadpoints_theta)
+        self.xcs[0, 0] = 1.0
+        self.xcs[1, 0] = 0.1
+        self.zcs[mpol+1, 0] = 0.1
+        Surface.__init__(self, x0=self.get_dofs(),
+                         external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
     def get_dofs(self):
         """
@@ -54,25 +84,28 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         """
         return np.asarray(sopp.SurfaceXYZTensorFourier.get_dofs(self))
 
+    def set_dofs(self, dofs):
+        """
+        Set the dofs associated to this surface.
+        """
+        self.local_full_x = dofs
+
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
+
     def to_RZFourier(self):
         """
         Return a SurfaceRZFourier instance corresponding to the shape of this
         surface.
         """
-        surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym, self.quadpoints_phi, self.quadpoints_theta)
+        surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym,
+                                self.quadpoints_phi, self.quadpoints_theta)
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+            gamma[idx, :, :] = self.cross_section(
+                surf.quadpoints_phi[idx]*2*np.pi)
         surf.least_squares_fit(self.gamma())
         return surf
-
-    def set_dofs(self, dofs):
-        """
-        Set the dofs associated to this surface.
-        """
-        sopp.SurfaceXYZTensorFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()
 
     def get_stellsym_mask(self):
         """

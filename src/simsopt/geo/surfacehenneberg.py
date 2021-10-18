@@ -1,5 +1,6 @@
 import logging
 from typing import Union
+
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
@@ -8,6 +9,7 @@ from scipy.interpolate import interp1d
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
+from ..util.types import RealArray
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +17,9 @@ logger = logging.getLogger(__name__)
 class SurfaceHenneberg(sopp.Surface, Surface):
     r"""
     This class represents a toroidal surface using the
-    parameterization in Henneberg, Helander, and Drevlak,
-    arXiv:2105.00768 (2021). The main benefit of this representation
-    is that there is no freedom in the poloidal angle,
+    parameterization in Henneberg, Helander, and Drevlak, Journal of
+    Plasma Physics 87, 905870503 (2021). The main benefit of this
+    representation is that there is no freedom in the poloidal angle,
     i.e. :math:`\theta` is uniquely defined, in contrast to other
     parameterizations like
     :obj:`~.surfacerzfourier.SurfaceRZFourier`. Stellarator symmetry
@@ -68,15 +70,42 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     ``nmax``. There are no corresponding functions for the 1D arrays
     ``R0nH``, ``Z0nH``, and ``bn`` since these arrays all have a first
     index corresponding to ``n=0``.
+
+    For more information about the arguments ``nphi``, ``ntheta``,
+    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+    general documentation on :ref:`surfaces`.
+
+    Args:
+        nfp: The number of field periods.
+        alpha_fac: Should be +1 or -1 for a stellarator, depending on the handedness
+          by which the elongation rotates, or 0 for axisymmetry.
+        mmax: Maximum poloidal mode number included.
+        nmax: Maximum toroidal mode number included, divided by ``nfp``.
+        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+        range: Toroidal extent of the :math:`\phi` grid.
+          Set to ``"full torus"`` (or equivalently ``SurfaceHenneberg.RANGE_FULL_TORUS``)
+          to generate points up to 1 (with no point at 1).
+          Set to ``"field period"`` (or equivalently ``SurfaceHenneberg.RANGE_FIELD_PERIOD``)
+          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+          Set to ``"half period"`` (or equivalently ``SurfaceHenneberg.RANGE_HALF_PERIOD``)
+          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
     def __init__(self,
-                 nfp: int,
-                 alpha_fac: int,
-                 mmax: int,
-                 nmax: int,
-                 quadpoints_phi: int = 63,
-                 quadpoints_theta: int = 62):
+                 nfp: int = 1,
+                 alpha_fac: int = 1,
+                 mmax: int = 1,
+                 nmax: int = 0,
+                 nphi: int = None,
+                 ntheta: int = None,
+                 range: str = "full torus",
+                 quadpoints_phi: RealArray = None,
+                 quadpoints_theta: RealArray = None):
+
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
 
@@ -87,24 +116,23 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
-        if isinstance(quadpoints_phi, int):
-            quadpoints_phi = np.linspace(0, 1.0, quadpoints_phi, endpoint=False)
-        if isinstance(quadpoints_theta, int):
-            quadpoints_theta = np.linspace(0, 1.0, quadpoints_theta, endpoint=False)
-
-        Surface.__init__(self)
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi, ntheta=ntheta, range=range,
+                                                                  quadpoints_phi=quadpoints_phi,
+                                                                  quadpoints_theta=quadpoints_theta)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
-
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
+        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
+                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+
     def __repr__(self):
-        return "SurfaceHenneberg " + str(hex(id(self))) + " (nfp=" + \
-            str(self.nfp) + ", alpha_fac=" + str(self.alpha_fac) \
-            + ", mmax=" + str(self.mmax) + ", nmax=" + str(self.nmax) + ")"
+        return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \
+            + f"mmax={self.mmax}, nmax={self.nmax})"
 
     def allocate(self):
         """
@@ -125,20 +153,22 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         myshape = (self.mmax + 1, self.ndim)
         self.rhomn = np.zeros(myshape)
 
-        self.names = []
+    def _make_names(self):
+        names = []
         for n in range(self.nmax + 1):
-            self.names.append('R0nH(' + str(n) + ')')
+            names.append('R0nH(' + str(n) + ')')
         for n in range(1, self.nmax + 1):
-            self.names.append('Z0nH(' + str(n) + ')')
+            names.append('Z0nH(' + str(n) + ')')
         for n in range(self.nmax + 1):
-            self.names.append('bn(' + str(n) + ')')
+            names.append('bn(' + str(n) + ')')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            self.names.append('rhomn(0,' + str(n) + ')')
+            names.append('rhomn(0,' + str(n) + ')')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                self.names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+        return names
 
     def _validate_mn(self, m, n):
         r"""
@@ -177,6 +207,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         return np.concatenate((self.R0nH, self.Z0nH[1:], self.bn,
                                self.rhomn[0, self.nmax + 1:],
                                np.reshape(self.rhomn[1:, :], (self.mmax * (2 * self.nmax + 1),), order='C')))
+
+    def set_dofs(self, dofs):
+        self.local_x = dofs
 
     def num_dofs(self):
         """
@@ -243,20 +276,22 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         if nmax > self.nmax:
             nmax = self.nmax
 
+        fn = self.fix if fixed else self.unfix
+
         for n in range(nmax + 1):
-            self.set_fixed(f'R0nH({n})', fixed)
+            fn(f'R0nH({n})')
         for n in range(1, nmax + 1):
-            self.set_fixed(f'Z0nH({n})', fixed)
+            fn(f'Z0nH({n})')
         if mmax > 0:
             for n in range(nmax + 1):
-                self.set_fixed(f'bn({n})', fixed)
+                fn(f'bn({n})')
 
         for m in range(mmax + 1):
             nmin_to_use = -nmax
             if m == 0:
                 nmin_to_use = 1
             for n in range(nmin_to_use, nmax + 1):
-                self.set_fixed(f'rhomn({m},{n})', fixed)
+                fn(f'rhomn({m},{n})')
 
     def to_RZFourier(self):
         """
@@ -356,7 +391,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
               If ``None``, the value ``3 * nphi`` will be used.
         """
         if not surf.stellsym:
-            raise RuntimeError('SurfaceHenneberg.from_RZFourier() only works for stellarator symmetric surfaces')
+            raise RuntimeError('SurfaceHenneberg.from_RZFourier method only '
+                               'works for stellarator symmetric surfaces')
         if mmax is None:
             mmax = surf.mpol
         if nmax is None:
