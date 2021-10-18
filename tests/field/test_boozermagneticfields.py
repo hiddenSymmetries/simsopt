@@ -98,7 +98,8 @@ class TestingAnalytic(unittest.TestCase):
         assert(ba.iota0 == 3.5)
         ba.set_psi0(3.6)
         assert(ba.psi0 == 3.6)
-
+        ba.set_K1(3.7)
+        assert(ba.K1 == 3.7)
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class TestingVmec(unittest.TestCase):

@@ -235,6 +235,7 @@ class GuidingCenterBoozerRHS {
             double K = field->K_ref()(0);
             double dKdtheta = field->dKdtheta_ref()(0);
             double dKdzeta = field->dKdzeta_ref()(0);
+
             double G = field->G_ref()(0);
             double I = field->I_ref()(0);
             double dGdpsi = field->dGds_ref()(0)/psi0;
@@ -246,7 +247,7 @@ class GuidingCenterBoozerRHS {
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu; // dHdB
             double C = -m*v_par*(dKdzeta-dGdpsi)/modB - q*iota;
-            double F = -m*v_par*(dKdtheta-dIdpsi)*modB + q;
+            double F = -m*v_par*(dKdtheta-dIdpsi)/modB + q;
             double D = (F*G-C*I)/iota;
 
             dydt[0] = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);

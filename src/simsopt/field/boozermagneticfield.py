@@ -82,14 +82,16 @@ class BoozerAnalytic(BoozerMagneticField):
     .. math::
         G(s) = G_0 + \sqrt{2s\psi_0/\overline{B}} G_1
 
-        I(s) = I_0 + \sqrt{2s\psi_0/\overline{B}} I_1,
+        I(s) = I_0 + \sqrt{2s\psi_0/\overline{B}} I_1
+
+        K(s,\theta,\zeta) = \sqrt{2s\psi_0/\overline{B}} K_1 \sin(\theta - N \zeta),
 
     and the rotational transform is,
 
     .. math::
         \iota(s) = \iota_0.
 
-    While formally :math:`I_0 = I_1 = G_1 = 0`, these terms have been included
+    While formally :math:`I_0 = I_1 = G_1 = K_1 = 0`, these terms have been included
     in order to test the guiding center equations at finite beta.
 
     Args:
@@ -103,9 +105,11 @@ class BoozerAnalytic(BoozerMagneticField):
         I0: lowest order poloidal covariant component (defaults to 0)
         G1: first order correction to toroidal covariant component (defaults to 0)
         I1: first order correction to poloidal covariant component (defaults to 0)
+        K1: first order correction to radial covariant component (defaults to 0)
     """
 
-    def __init__(self, etabar, B0, N, G0, psi0, iota0, Bbar=1., I0=0., G1=0., I1=0.):
+    def __init__(self, etabar, B0, N, G0, psi0, iota0, Bbar=1., I0=0., G1=0.,
+            I1=0., K1=0.):
         self.etabar = etabar
         self.B0 = B0
         self.Bbar = Bbar
@@ -114,6 +118,7 @@ class BoozerAnalytic(BoozerMagneticField):
         self.I0 = I0
         self.I1 = I1
         self.G1 = G1
+        self.K1 = K1
         self.iota0 = iota0
         self.psi0 = psi0
         BoozerMagneticField.__init__(self, psi0)
@@ -149,6 +154,10 @@ class BoozerAnalytic(BoozerMagneticField):
     def set_I1(self, I1):
         self.invalidate_cache()
         self.I1 = I1
+
+    def set_K1(self, K1):
+        self.invalidate_cache()
+        self.K1 = K1
 
     def set_iota0(self, iota0):
         self.invalidate_cache()
@@ -223,6 +232,32 @@ class BoozerAnalytic(BoozerMagneticField):
         r = np.sqrt(np.abs(2*psi/self.Bbar))
         dmodBdzeta[:, 0] = self.N*self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
 
+    def _K_impl(self,K):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        psi = s*self.psi0
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        K[:, 0] = self.K1*r*np.sin(thetas-self.N*zetas)
+
+    def _dKdtheta_impl(self,dKdtheta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        psi = s*self.psi0
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        dKdtheta[:, 0] = self.K1*r*np.cos(thetas-self.N*zetas)
+
+    def _dKdzeta_impl(self,dKdzeta):
+        points = self.get_points_ref()
+        s = points[:, 0]
+        thetas = points[:, 1]
+        zetas = points[:, 2]
+        psi = s*self.psi0
+        r = np.sqrt(np.abs(2*psi/self.Bbar))
+        dKdzeta[:, 0] = -self.N*self.K1*r*np.cos(thetas-self.N*zetas)
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     r"""
