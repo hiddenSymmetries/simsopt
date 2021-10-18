@@ -101,6 +101,7 @@ class TestingAnalytic(unittest.TestCase):
         ba.set_K1(3.7)
         assert(ba.K1 == 3.7)
 
+
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class TestingVmec(unittest.TestCase):
     def test_boozerradialinterpolant(self):
