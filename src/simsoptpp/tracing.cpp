@@ -91,7 +91,6 @@ class GuidingCenterVacuumBoozerRHS {
      *
      */
     private:
-        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
         double m, q, mu;
@@ -133,7 +132,7 @@ class GuidingCenterVacuumBoozerRHS {
 };
 
 template<template<class, std::size_t, xt::layout_type> class T>
-class GuidingCenterBoozerRHS {
+class GuidingCenterNoKBoozerRHS {
     /*
      * The state consists of :math:`[s, t, z, v_par]` with
      *
@@ -144,10 +143,10 @@ class GuidingCenterBoozerRHS {
      *  D = ((q + m v_{||} I'/|B|)*G - (-q \iota + m v_{||} G'/|B|) I)/\iota
      *
      *  where primes indicate differentiation wrt :math:`\psi`, :math:`q` is the charge,
-     *  :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+     *  :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`. This corresponds
+     *  with the limit K = 0.
      */
     private:
-        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
         double m, q, mu;
@@ -156,7 +155,7 @@ class GuidingCenterBoozerRHS {
         using State = std::array<double, Size>;
 
 
-        GuidingCenterBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu)
+        GuidingCenterNoKBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu)
             : field(field), m(m), q(q), mu(mu) {
             }
 
@@ -189,7 +188,71 @@ class GuidingCenterBoozerRHS {
             dydt[1] = (G*dmodBdpsi*fak1 - (-q*iota + m*v_par*dGdpsi/modB)*v_par*modB)/(D*iota);
             dydt[2] = ((q + m*v_par*dIdpsi/modB)*v_par*modB - dmodBdpsi*fak1*I)/(D*iota);
             dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
-            // ((-q*iota + m*v_par*dGdpsi/modB)*dmodBdtheta - (q + m*v_par*dIdpsi/modB)*dmodBdzeta)*mu*modB/(D*iota);
+        }
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class GuidingCenterBoozerRHS {
+    /*
+     * The state consists of :math:`[s, t, z, v_par]` with
+     *
+     *  \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+     *  \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
+     *  \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K) m(\rho_{||}^2 |B| + \mu) )/(\iota D)
+     *  \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
+     *  C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
+     *  F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
+     *  D = (F G - C I))/\iota
+     *
+     *  where primes indicate differentiation wrt :math:`\psi`, :math:`q` is the charge,
+     *  :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+     */
+    private:
+        typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
+        shared_ptr<BoozerMagneticField<T>> field;
+        double m, q, mu;
+    public:
+        static constexpr int Size = 4;
+        using State = std::array<double, Size>;
+
+        GuidingCenterBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu)
+            : field(field), m(m), q(q), mu(mu) {
+            }
+
+        void operator()(const State &ys, array<double, 4> &dydt,
+                const double t) {
+            double v_par = ys[3];
+
+            stz(0, 0) = ys[0];
+            stz(0, 1) = ys[1];
+            stz(0, 2) = ys[2];
+
+            assert(ys[0]>0);
+
+            field->set_points(stz);
+            auto psi0 = field->psi0;
+            double modB = field->modB_ref()(0);
+            double K = field->K_ref()(0);
+            double dKdtheta = field->dKdtheta_ref()(0);
+            double dKdzeta = field->dKdzeta_ref()(0);
+            double G = field->G_ref()(0);
+            double I = field->I_ref()(0);
+            double dGdpsi = field->dGds_ref()(0)/psi0;
+            double dIdpsi = field->dIds_ref()(0)/psi0;
+            double iota = field->iota_ref()(0);
+            double dmodBdpsi = field->dmodBds_ref()(0)/psi0;
+            double dmodBdtheta = field->dmodBdtheta_ref()(0);
+            double dmodBdzeta = field->dmodBdzeta_ref()(0);
+            double v_perp2 = 2*mu*modB;
+            double fak1 = m*v_par*v_par/modB + m*mu; // dHdB
+            double C = -m*v_par*(dKdzeta-dGdpsi)/modB - q*iota;
+            double F = -m*v_par*(dKdtheta-dIdpsi)*modB + q;
+            double D = (F*G-C*I)/iota;
+
+            dydt[0] = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);
+            dydt[1] = (G*dmodBdpsi*fak1 - C*v_par*modB - K*fak1*dmodBdzeta)/(D*iota);
+            dydt[2] = (F*v_par*modB - dmodBdpsi*fak1*I + K*fak1*dmodBdtheta)/(D*iota);
+            dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
         }
 };
 
@@ -415,7 +478,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -432,6 +495,9 @@ particle_guiding_center_boozer_tracing(
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+    } else if (noK) {
+      auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
@@ -442,7 +508,7 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
