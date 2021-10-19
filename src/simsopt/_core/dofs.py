@@ -11,7 +11,9 @@ This module should not depend on anything involving communication
 
 import logging
 from typing import Union
+
 import numpy as np
+from monty.dev import deprecated
 
 from .optimizable import function_from_user
 from .util import unique, ObjectiveFailure, finite_difference_steps
@@ -36,7 +38,12 @@ def get_owners(obj, owners_so_far=[]):
             owners += get_owners(subobj, owners_so_far=owners)
     return owners
 
-
+@deprecated(message="This class has been deprecated from v0.6.0 and will be "
+                    "deleted from future versions of simsopt. Use graph "
+                    "framework to define the optimization problem. To use graph"
+                    "framework use simsopt._core.graph_optimizable.Optimizable "
+                    "class.",
+            category=DeprecationWarning)
 class Dofs:
     """
     This class holds data related to the vector of degrees of freedom

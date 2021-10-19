@@ -9,11 +9,20 @@ setting up optimizable objects and objective functions.
 
 import logging
 import types
-import numpy as np
 
+import numpy as np
+from monty.dev import deprecated
+
+from .graph_optimizable import Optimizable as GOptimizable
 logger = logging.getLogger(__name__)
 
 
+@deprecated(replacement=GOptimizable,
+            message="Optimizable class has been deprecated from v0.6.0. Instead"
+                    "use the Optimizable class defined in "
+                    "simsopt._core.graph_optimizable. This class will be deleted"
+                    "starting from v0.7.0 of simsopt",
+            category=DeprecationWarning)
 class Optimizable():
     """
     This base class provides some useful features for optimizable functions.
