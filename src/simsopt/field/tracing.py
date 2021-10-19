@@ -79,8 +79,8 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                            tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
-    Follow particles in a BoozerMagneticField. This is modeled after
-    trace_particles.
+    Follow particles in a :class:`BoozerMagneticField`. This is modeled after
+    :func:`trace_particles`.
 
 
     In the case of ``mod='gc_vac'`` we solve the guiding center equations under
@@ -89,11 +89,14 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     .. math::
 
         \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+
         \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+
         \dot \zeta = v_{||}|B|/G
+
         \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
 
-    where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+    where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp^2 = 2\mu|B|`.
 
     In the case of ``mod='gc'`` we solve the general guiding center equations
     for an MHD equilibrium:
@@ -101,19 +104,28 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     .. math::
 
         \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
-        \dot \theta = (G |B|_{,\psi} m(v_{||}^2/|B| + \mu) - (-q \iota + m v_{||} G' / |B|) v_{||} |B|)/(\iota D)
-        \dot \zeta = \left((q + m v_{||} I'/|B|) v_{||} |B| - |B|_{,\psi} m(\rho_{||}^2 |B| + \mu) I\right)/(\iota D)
-        \dot v_{||} = ((-q\iota + m v_{||} G'/|B|)|B|_{,\theta} - (q + m v_{||}I'/|B|)|B|_{,\zeta})\mu |B|/(\iota D)
-        D = ((q + m v_{||} I'/|B|)*G - (-q \iota + m v_{||} G'/|B|) I)/\iota
 
-    where primes indicate differentiation wrt :math:`\psi`.
+        \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
+
+        \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K) m(\rho_{||}^2 |B| + \mu) )/(\iota D)
+
+        \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
+
+        C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
+
+        F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
+
+        D = (F G - C I))/\iota
+
+    where primes indicate differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``,
+    the above equations are used with :math:`K=0`.
 
     Args:
-        field: The BoozerMagneticField instance
-        stz_inits: A (nparticles, 3) array with the initial positions of the particles
-            in Boozer coordinates :math:`(s,\theta,\zeta)`.
-        parallel_speeds: A (nparticles, ) array containing the speed in direction of the B field
-                         for each particle.
+        field: The :class:`BoozerMagneticField` instance
+        stz_inits: A ``(nparticles, 3)`` array with the initial positions of
+            the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
+        parallel_speeds: A ``(nparticles, )`` array containing the speed in
+                         direction of the B field for each particle.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -411,44 +423,43 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
 
 
 def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
-    """
+    r"""
     Computes resonant particle orbits given the output of either
-    trace_particles or trace_particles_boozer, res_tys and
-    res_phi_hits/res_zeta_hits with forget_exact_path=False.
+    :func:`trace_particles` or :func:`trace_particles_boozer`, ``res_tys`` and
+    ``res_phi_hits``/``res_zeta_hits``, with ``forget_exact_path=False``.
     Resonance indicates a trajectory which returns to the same position
-    at the :math:`\zeta = 0` plane after :math:`m` poloidal turns and
-    :math:`n` toroidal turns. For the case of particles traced in a
-    MagneticField (not a BoozerMagneticField), the poloidal angle is computed
-    using the arctangent angle in the poloidal plane with respect to the
-    coordinate axis, `ma`,
+    at the :math:`\zeta = 0` plane after ``mpol`` poloidal turns and
+    ``ntor`` toroidal turns. For the case of particles traced in a
+    :class:`MagneticField` (not a :class:`BoozerMagneticField`), the poloidal
+    angle is computed using the arctangent angle in the poloidal plane with
+    respect to the coordinate axis, ``ma``,
 
     .. math::
-
-        \theta = \tan^{-1} \left(\frac{R(\phi)-R_{\mathrm{ma}(\phi)}}{Z(\phi)-Z_{\mathrm{ma}}(\phi)}\right),
+        \theta = \tan^{-1} \left( \frac{R(\phi)-R_{\mathrm{ma}}(\phi)}{Z(\phi)-Z_{\mathrm{ma}}(\phi)} \right),
 
     where :math:`(R,\phi,Z)` are the cylindrical coordinates of the trajectory
     and :math:`(R_{\mathrm{ma}}(\phi),Z_{\mathrm{ma}(\phi)})` is the position
     of the coordinate axis.
 
     Args:
-        res_tys: trajectory solution computed from trace_particles or trace_particles_boozer
-                with forget_exact_path=False
-        res_phi_hits: output of trace_particles or trace_particles_boozer with
-                phis/zetas = [0]
-        ma: an instance of Curve representing the coordinate axis with
-                respect to which the poloidal angle is computed. If orbit is
-                computed in Boozer coordinates, ma should be None.
+        res_tys: trajectory solution computed from :func:`trace_particles` or
+                :func:`trace_particles_boozer` with ``forget_exact_path=False``
+        res_phi_hits: output of :func:`trace_particles` or
+                :func:`trace_particles_boozer` with `phis/zetas = [0]`
+        ma: an instance of :class:`Curve` representing the coordinate axis with
+                respect to which the poloidal angle is computed. If the orbit is
+                computed in flux coordinates, ``ma`` should be ``None``. (defaults to None)
         delta: the distance tolerance in the poloidal plane used to compute
-                a resonant orbit
+                a resonant orbit. (defaults to 1e-2)
 
     Returns:
         resonances: list of 7d arrays containing resonant particle orbits. The
-                elements of each array is [s0, theta0, zeta0, vpar0, t, mpol, ntor]
-                if ma=None, and [R0, Z0, phi0, vpar0, t, mpol, ntor] otherwise.
-                Here (s0, theta0, zeta0, vpar0)/(R0, Z0, phi0, vpar0)) indicates the
-                initial position and parallel velocity of the particle, t
-                indicates the time of the  resonance, mpol is the number of
-                poloidal turns of the orbit, and ntor is the number of toroidal turns.
+                elements of each array is ``[s0, theta0, zeta0, vpar0, t, mpol, ntor]``
+                if ``ma=None``, and ``[R0, Z0, phi0, vpar0, t, mpol, ntor]`` otherwise.
+                Here ``(s0, theta0, zeta0, vpar0)/(R0, Z0, phi0, vpar0)`` indicates the
+                initial position and parallel velocity of the particle, ``t``
+                indicates the time of the  resonance, ``mpol`` is the number of
+                poloidal turns of the orbit, and ``ntor`` is the number of toroidal turns.
     """
     flux = False
     if ma is None:
@@ -548,16 +559,16 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
 
 
 def compute_toroidal_transits(res_tys, flux=True):
-    """
+    r"""
     Computes the number of toroidal transits of an orbit.
 
     Args:
-        res_tys: trajectory solution computed from trace_particles or
-                trace_particles_boozer with forget_exact_path=False.
-        flux: if True, res_tys represents the position in flux coordinates
-                (should be True if computed from trace_particles_boozer)
+        res_tys: trajectory solution computed from :func:`trace_particles` or
+                :func:`trace_particles_boozer` with ``forget_exact_path=False``.
+        flux: if ``True``, ``res_tys`` represents the position in flux coordinates
+                (should be ``True`` if computed from :func:`trace_particles_boozer`)
     Returns:
-        ntransits: array with length len(res_tys). Each element contains the
+        ntransits: array with length ``len(res_tys)``. Each element contains the
                 number of toroidal transits of the orbit.
     """
     nparticles = len(res_tys)
@@ -581,31 +592,30 @@ def compute_toroidal_transits(res_tys, flux=True):
 
 
 def compute_poloidal_transits(res_tys, ma=None, flux=True):
-    """
+    r"""
     Computes the number of poloidal transits of an orbit. For the case of
-    particles traced in a MagneticField (not a BoozerMagneticField), the poloidal
-    angle is computed using the arctangent angle in the poloidal plane with
-    respect to the coordinate axis, `ma`,
+    particles traced in a :class:`MagneticField` (not a :class:`BoozerMagneticField`),
+    the poloidal angle is computed using the arctangent angle in the poloidal plane with
+    respect to the coordinate axis, ``ma``,
 
     .. math::
-
-        \theta = \tan^{-1} \left(\frac{R(\phi)-R_{\mathrm{ma}(\phi)}}{Z(\phi)-Z_{\mathrm{ma}}(\phi)}\right),
+        \theta = \tan^{-1} \left( \frac{R(\phi)-R_{\mathrm{ma}}(\phi)}{Z(\phi)-Z_{\mathrm{ma}}(\phi)} \right),
 
     where :math:`(R,\phi,Z)` are the cylindrical coordinates of the trajectory
     and :math:`(R_{\mathrm{ma}}(\phi),Z_{\mathrm{ma}(\phi)})` is the position
     of the coordinate axis.
 
     Args:
-        res_tys: trajectory solution computed from trace_particles or
-                trace_particles_boozer with forget_exact_path=False.
-        ma: an instance of Curve representing the coordinate axis with
+        res_tys: trajectory solution computed from :func:`trace_particles` or
+                :func:`trace_particles_boozer` with ``forget_exact_path=False``.
+        ma: an instance of :class:`Curve` representing the coordinate axis with
                 respect to which the poloidal angle is computed. If orbit is
-                computed in Boozer coordinates, ma should be None.
-        flux: if True, res_tys represents the position in flux coordinates
-                (should be True if computed from trace_particles_boozer). If True,
-                ma is not used.
+                computed in Boozer coordinates, ``ma`` should be ``None``.
+        flux: if ``True``, ``res_tys`` represents the position in flux coordinates
+                (should be ``True`` if computed from :func:`trace_particles_boozer`).
+                If ``True``, ``ma`` is not used.
     Returns:
-        ntransits: array with length len(res_tys). Each element contains the
+        ntransits: array with length ``len(res_tys)``. Each element contains the
                 number of poloidal transits of the orbit.
     """
     if not flux:
@@ -733,17 +743,18 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
 class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
-    `s`, the normalized toroidal flux. This StoppingCriterion is important to use
-    when tracing particles in flux coordinates, as the poloidal angle becomes
-    ill-defined at the magnetic axis. This should only be used when tracing
-    trajectories in a flux coordinate system (i.e., `trace_particles_boozer`).
+    ``s``, the normalized toroidal flux. This :class:`StoppingCriterion` is
+    important to use when tracing particles in flux coordinates, as the poloidal
+    angle becomes ill-defined at the magnetic axis. This should only be used
+    when tracing trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
 
     Usage:
 
     .. code-block::
+
         stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
 
-    where `s` is the value of the minimum toroidal flux.
+    where ``s`` is the value of the minimum normalized toroidal flux.
     """
     pass
 
@@ -751,15 +762,16 @@ class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
 class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     Stop the iteration once a particle falls above a critical value of
-    s, the normalized toroidal flux. This should only be used when tracing
-    trajectories in a flux coordinate system (i.e.,`trace_particles_boozer`).
+    ``s``, the normalized toroidal flux. This should only be used when tracing
+    trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
 
     Usage:
 
     .. code-block::
+
         stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
 
-    where `s` is the value of the maximum normalized toroidal flux.
+    where ``s`` is the value of the maximum normalized toroidal flux.
     """
     pass
 
@@ -771,10 +783,11 @@ class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     Usage:
 
     .. code-block::
+
         stopping_criteria=[ToroidalTransitStoppingCriterion(ntransits,flux)]
 
-    where `ntransits` is the maximum number of toroidal transits and `flux` is a boolean
-    indicating whether tracing is being performed in a flux coordinate system.
+    where ``ntransits`` is the maximum number of toroidal transits and ``flux``
+    is a boolean indicating whether tracing is being performed in a flux coordinate system.
     """
     pass
 
