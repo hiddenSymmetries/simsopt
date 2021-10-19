@@ -58,8 +58,8 @@ More details about setting degrees of freedom and defining
 objective functions can be found on the :doc:`problems` page.
 
 For the solution step, two functions are provided presently,
-:meth:`simsopt.solve.serial.least_squares_serial_solve` and
-:meth:`simsopt.solve.mpi.least_squares_mpi_solve`.  The first
+:meth:`simsopt.solve.graph_serial.least_squares_serial_solve` and
+:meth:`simsopt.solve.graph_mpi.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
 
@@ -122,13 +122,13 @@ The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the 
 
   # ... code to define an optimization problem "prob" ...
   
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.solve.graph_mpi import least_squares_mpi_solve
   
   least_squares_mpi_solve(prob, mpi, grad=True)
 
 Many optimization algorithms that do not use derivatives do not
 support concurrent evaluations of the objective.  In this case, the
-number of worker groups should be :math:`W=1`.  Any algorithm that
+number of worker groups, :math:`W`, should be equal to 1.  Any algorithm that
 uses derivatives, such as Levenberg-Marquardt, can take advantage of
 multiple worker groups to evaluate derivatives by finite
 differences. If the number of parameters (i.e. independent variables)
