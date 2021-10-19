@@ -17,6 +17,7 @@ from collections import defaultdict
 from numbers import Real, Integral
 from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
+from functools import lru_cache
 
 import numpy as np
 from deprecated import deprecated
@@ -320,7 +321,7 @@ class DOFs:
         # To prevent fully fixed DOFs from not raising Error
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
-            raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
+            raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
         self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
@@ -376,6 +377,13 @@ class DOFs:
         Returns:
             string identifiers of the DOFs
         """
+        @lru_cache
+        def red_names(free):
+            return self._names[list(free)]
+        return red_names(tuple(self._free))
+
+    @property
+    def all_names(self):
         return self._names
 
 
@@ -1035,12 +1043,29 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.names for opt in opts])
 
     @property
+    def all_dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
+        opts = self.ancestors + [self]
+        return np.concatenate([opt._dofs.all_names for opt in opts])
+
+    @property
     def local_dof_names(self) -> StrArray:
         """
         Names (Identifiers) of the DOFs associated with this Optimizable
         object
         """
         return self._dofs.names
+
+    @property
+    def all_local_dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with this Optimizable
+        object
+        """
+        return self._dofs.all_names
 
     @property
     def dofs_free_status(self) -> BoolArray:
