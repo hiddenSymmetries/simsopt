@@ -3,7 +3,6 @@
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
 #include <xtensor/xview.hpp>
-#include <omp.h>
 
 Array compute_kmns(Array& rmnc, Array& drmncds, Array& zmns, Array& dzmnsds, Array& numns, Array& dnumnsds, Array& bmnc, Array& iota, Array& G, Array& I, Array& xm, Array& xn, Array& thetas, Array& zetas) {
 
