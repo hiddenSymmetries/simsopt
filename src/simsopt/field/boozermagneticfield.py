@@ -15,13 +15,11 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
     The magnetic field in the covariant form is,
 
     .. math::
-
         \textbf B(s,\theta,\zeta) = G(s) \nabla \zeta + I(s) \nabla \theta + K(s,\theta,\zeta) \nabla \psi,
 
     and the contravariant form is,
 
     .. math::
-
         \textbf B(s,\theta,\zeta) = \frac{1}{\sqrt{g}} \left(\frac{\partial \mathbf r}{\partial \zeta} + \iota(s)\frac{\partial \mathbf r}{\partial \theta}\right),
 
     where,
@@ -31,16 +29,16 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
 
     Here :math:`\iota(s) = \psi_P'(\psi)` where :math:`2\pi\psi_P` is the
     poloidal flux and :math:`2\pi\psi` is the toroidal flux. Each subclass of
-    ``BoozerMagneticField`` implements functions to compute
+    :class:`BoozerMagneticField` implements functions to compute
     :math:`B`, :math:`G`, :math:`I`, :math:`\iota`, :math:`\psi_P`, and their
     derivatives. The cylindrical coordinates :math:`R(s,\theta,\zeta)` and
     :math:`Z(s,\theta,\zeta)` in addition to :math:`K(s,\theta,\zeta)` and
     :math:`\nu` where :math:`\zeta = \phi + \nu(s,\theta,\zeta)` and :math:`\phi`
     is the cylindrical azimuthal angle are also implemented by
-    ``BoozerRadialInterpolant`` and ``InterpolatedBoozerField``.
-    The usage is similar to the MagneticField class.
+    :class:`BoozerRadialInterpolant` and :class:`InterpolatedBoozerField`.
+    The usage is similar to the :class:`MagneticField` class.
 
-    The usage of ``BoozerMagneticField`` is as follows:
+    The usage of :class:`BoozerMagneticField`` is as follows:
 
     .. code-block::
 
@@ -49,9 +47,9 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         booz.set_points(points)
         modB = bfield.modB() # returns the magnetic field strength at `points`
 
-    ``BoozerMagneticField`` has a cache to avoid repeated calculations.
-    To clear this cache manually, call the ``clear_cached_properties()``` function.
-    The cache is automatically cleared when ``set_points`` is called or one of the dependencies
+    :class:`BoozerMagneticField` has a cache to avoid repeated calculations.
+    To clear this cache manually, call the :func:`clear_cached_properties()` function.
+    The cache is automatically cleared when :func:`set_points` is called or one of the dependencies
     changes.
     """
 
@@ -70,7 +68,7 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
 
 class BoozerAnalytic(BoozerMagneticField):
     r"""
-    Computes a BoozerMagneticField based on a first-order expansion in
+    Computes a :class:`BoozerMagneticField` based on a first-order expansion in
     distance from the magnetic axis (Landreman & Sengupta, Journal of Plasma
     Physics 2018). Here the magnetic field strength is expressed as,
 
@@ -262,20 +260,20 @@ class BoozerAnalytic(BoozerMagneticField):
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     r"""
-    Given a Vmec instance, performs a Boozer coordinate transformation using
-    BOOZXFORM. The magnetic field can be computed at any point in Boozer
+    Given a :class:`Vmec` instance, performs a Boozer coordinate transformation using
+    ``BOOZXFORM``. The magnetic field can be computed at any point in Boozer
     coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``)
     and an inverse Fourier transform in the two angles.
     Throughout stellarator symmetry is assumed.
 
     Args:
-        vmec: instance of :mod:`simsopt.mhd.vmec.Vmec`
+        vmec: instance of :class:`simsopt.mhd.vmec.Vmec`
         order: (int) order for radial interpolation. Must satisfy 1 <= order <= 5.
-        mpol: (int) number of poloidal mode numbers for BOOZXFORM (default to 32)
-        ntor: (int) number of toroidal mode numbers for BOOZXFORM (default to 32)
+        mpol: (int) number of poloidal mode numbers for BOOZXFORM (defaults to 32)
+        ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 32)
         N: Helicity of quasisymmetry to enforce. If specified, then the non-symmetric Fourier
             harmonics of :math:`B` are filtered out. Otherwise, all harmonics are kept.
-            Defaults to ``None``.
+            (defaults to ``None``)
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
         rescale: If True, use the interpolation method in the DELTA5D code. Here, a few
@@ -291,8 +289,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             before performing interpolation and spline differentiation to
             obtain dbmncds. If `False``, interpolation of the unscaled ``bmnc``
             and its finite-difference derivative wrt ``s`` is performed
-            instead. Default to False.
-        ns_delete: (see ``rescale``). Default to 0
+            instead (defaults to ``False``)
+        ns_delete: (see ``rescale``) (defaults to 0)
     """
 
     def __init__(self, vmec, order, mpol=32, ntor=32, N=None, enforce_vacuum=False, rescale=False,
@@ -743,15 +741,15 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
-    This field takes an existing BoozerMagneticField and interpolates it on a
+    This field takes an existing :class:`BoozerMagneticField` and interpolates it on a
     regular grid in :math:`s,\theta,\zeta`. This resulting interpolant can then
-    be evaluated very quickly. This is modeled after InterpolatedField.
+    be evaluated very quickly. This is modeled after :class:`InterpolatedField`.
     """
 
     def __init__(self, field, degree, srange, thetarange, zetarange, extrapolate=True, nfp=1, stellsym=True):
         r"""
         Args:
-            field: the underlying :mod:`simsopt.field.boozermagneticfield.BoozerMagneticField` to be interpolated.
+            field: the underlying :class:`simsopt.field.boozermagneticfield.BoozerMagneticField` to be interpolated.
             degree: the degree of the piecewise polynomial interpolant.
             srange: a 3-tuple of the form ``(smin, smax, ns)``. This mean that
                 the interval ``[smin, smax]`` is split into ``ns`` many subintervals.
@@ -764,8 +762,8 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
                  hence it makes sense to use ``zetamin=0`` and
                  ``zetamax=2*np.pi/nfp``.
             stellsym: Whether to exploit stellarator symmetry. In this case
-                      ``theta`` is always mapped to be positive, hence it makes sense to use
-                      ``thetamin=0``.
+                      ``theta`` is always mapped to the interval :math:`[0, \pi]`,
+                      hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``.
         """
         BoozerMagneticField.__init__(self, field.psi0)
         if stellsym and (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > np.pi)):

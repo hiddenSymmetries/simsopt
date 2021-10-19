@@ -7,7 +7,6 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   simsopt._core
    simsopt.field
    simsopt.geo
    simsopt.mhd
@@ -22,4 +21,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
