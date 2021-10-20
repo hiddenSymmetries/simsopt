@@ -1,17 +1,21 @@
-import numpy as np
 from typing import Any
+
+import numpy as np
 from nptyping import NDArray, Float
+
 import simsoptpp as sopp
+from .._core.graph_optimizable import Optimizable
 from simsopt.geo.surface import Surface
 
 
-class Area(object):
+class Area(Optimizable):
     """
     Wrapper class for surface area label.
     """
 
     def __init__(self, surface):
         self.surface = surface
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -32,13 +36,14 @@ class Area(object):
         return self.surface.d2area_by_dcoeffdcoeff()
 
 
-class Volume(object):
+class Volume(Optimizable):
     """
     Wrapper class for volume label.
     """
 
     def __init__(self, surface):
         self.surface = surface
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -59,7 +64,7 @@ class Volume(object):
         return self.surface.d2volume_by_dcoeffdcoeff()
 
 
-class ToroidalFlux(object):
+class ToroidalFlux(Optimizable):
     r"""
     Given a surface and Biot Savart kernel, this objective calculates
 
@@ -76,7 +81,9 @@ class ToroidalFlux(object):
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
-        self.surface.dependencies.append(self)
+        super().__init__(depends_on=[surface, biotsavart])
+
+    def recompute_bell(self, parent=None):
         self.invalidate_cache()
 
     def invalidate_cache(self):
@@ -286,7 +293,7 @@ def parameter_derivatives(surface: Surface,
     return np.einsum('ijk,ij->k', N_dot_dx_by_dc, shape_gradient) / (ntheta * nphi)
 
 
-class QfmResidual(object):
+class QfmResidual(Optimizable):
     r"""
     For a given surface :math:`S`, this class computes the residual
 
@@ -302,7 +309,10 @@ class QfmResidual(object):
     def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
-        self.surface.dependencies.append(self)
+        self.biotsavart.append_parent(self.surface)
+        super().__init__(depends_on=[surface, biotsavart])
+
+    def recompute_bell(self, parent=None):
         self.invalidate_cache()
 
     def invalidate_cache(self):

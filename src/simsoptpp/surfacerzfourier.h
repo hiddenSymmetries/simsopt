@@ -43,11 +43,6 @@ class SurfaceRZFourier : public Surface<Array> {
                 this->allocate();
             }
 
-        SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, int _numquadpoints_phi, int _numquadpoints_theta)
-            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                this->allocate();
-            }
-
         void allocate() {
             rc = xt::zeros<double>({mpol+1, 2*ntor+1});
             rs = xt::zeros<double>({mpol+1, 2*ntor+1});

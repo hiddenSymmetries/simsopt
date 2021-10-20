@@ -1,7 +1,16 @@
-import numpy as np
-import simsoptpp as sopp
+import abc
 
-from .._core.optimizable import Optimizable
+import numpy as np
+
+
+try:
+    from pyevtk.hl import gridToVTK
+except ImportError:
+    gridToVTK = None
+
+import simsoptpp as sopp
+from .._core.graph_optimizable import Optimizable
+from ..util.dev import SimsoptRequires
 from .plot import fix_matplotlib_3d
 
 
@@ -10,14 +19,74 @@ class Surface(Optimizable):
     ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
 
-    A ``Surface`` is modelled as a function :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
-
+    A ``Surface`` is modelled as a function
+    :math:`\Gamma:[0, 1] \times [0, 1] \to R^3` and is evaluated at
+    quadrature points :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots, \theta_{n_\theta}\}`.
     """
 
-    def __init__(self):
-        Optimizable.__init__(self)
-        self.dependencies = []
-        self.fixed = np.full(len(self.get_dofs()), False)
+    # Options for the 'range' parameter for setting quadpoints_phi:
+    RANGE_FULL_TORUS = "full torus"
+    RANGE_FIELD_PERIOD = "field period"
+    RANGE_HALF_PERIOD = "half period"
+
+    def __init__(self, **kwargs):
+        Optimizable.__init__(self, **kwargs)
+
+    def get_quadpoints(quadpoints_phi=None,
+                       quadpoints_theta=None,
+                       range=RANGE_FULL_TORUS,
+                       nphi=None,
+                       ntheta=None,
+                       nfp=1):
+        r"""
+        This function is used to set the theta and phi grid points for Surface subclasses.
+        It is typically called in the constructor of each Surface subclass.
+
+        For more information about the arguments ``nphi``, ``ntheta``,
+        ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
+        general documentation on :ref:`surfaces`.
+
+        Args:
+            nfp: The number of field periods.
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+            ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+            range: Toroidal extent of the :math:`\phi` grid.
+              Set to ``"full torus"`` (or equivalently ``Surface.RANGE_FULL_TORUS``)
+              to generate points up to 1 (with no point at 1).
+              Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
+              to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+              Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
+              to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+            quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+            quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
+        """
+        # Handle theta:
+        if (quadpoints_theta is not None) and (ntheta is not None):
+            raise ValueError("quadpoints_theta and ntheta cannot both be specified")
+        if (quadpoints_theta is None) and (ntheta is None):
+            # Neither is specified, so use a default:
+            ntheta = 62
+        if quadpoints_theta is None:
+            quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+
+        # Handle phi:
+        if (quadpoints_phi is not None) and (nphi is not None):
+            raise ValueError("quadpoints_phi and nphi cannot both be specified")
+        if (quadpoints_phi is None) and (nphi is None):
+            # Neither is specified, so use a default:
+            nphi = 61
+        if quadpoints_phi is None:
+            if range == Surface.RANGE_FULL_TORUS:
+                quadpoints_phi = np.linspace(0.0, 1.0, nphi, endpoint=False)
+            elif range == Surface.RANGE_FIELD_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
+            elif range == Surface.RANGE_HALF_PERIOD:
+                quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
+            else:
+                raise ValueError("Invalid setting for range")
+
+        return list(quadpoints_phi), list(quadpoints_theta)
 
     def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
@@ -128,8 +197,8 @@ class Surface(Optimizable):
             raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
 
+    @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, extra_data=None):
-        from pyevtk.hl import gridToVTK
         g = self.gamma()
         ntor = g.shape[0]
         npol = g.shape[1]
@@ -150,14 +219,12 @@ class Surface(Optimizable):
 
         gridToVTK(filename, x, y, z, pointData=pointData)
 
-    def __repr__(self):
-        return "Surface " + str(hex(id(self)))
-
+    @abc.abstractmethod
     def to_RZFourier(self):
         """
-        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance corresponding to the shape of this
-        surface.  All subclasses should implement this abstract
-        method.
+        Return a :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier` instance
+        corresponding to the shape of this surface. All subclasses should
+        implement this abstract method.
         """
         raise NotImplementedError
 
@@ -166,6 +233,9 @@ class Surface(Optimizable):
         This function takes in a cylindrical angle :math:`\phi` and returns the cross
         section of the surface in that plane evaluated at `thetas`. This is
         done using the method of bisection.
+        This function takes in a cylindrical angle :math:`\phi` and returns
+        the cross section of the surface in that plane evaluated at `thetas`.
+        This is done using the method of bisection.
 
         This function assumes that the surface intersection with the plane is a
         single curve.
@@ -269,10 +339,11 @@ class Surface(Optimizable):
 
     def aspect_ratio(self):
         r"""
-        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where :math:`\phi \in [-\pi,\pi)`
-        and the angles that parametrize the surface are :math:`(\varphi, \theta) \in [0,1)^2`
-        For a given surface, this function computes its aspect ratio using the VMEC
-        definition:
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where
+        :math:`\phi \in [-\pi,\pi)` and the angles that parametrize the
+        surface are :math:`(\varphi, \theta) \in [0,1)^2`
+        For a given surface, this function computes its aspect ratio using
+        the VMEC definition:
 
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
@@ -283,15 +354,16 @@ class Surface(Optimizable):
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
             R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
 
-        and :math:`V` is the volume enclosed by the surface, and :math:`\overline{A}` is the
-        average cross sectional area.
-        The main difficult part of this calculation is the mean cross sectional
-        area.  This is given by the integral
+        and :math:`V` is the volume enclosed by the surface, and
+        :math:`\overline{A}` is the average cross sectional area.
+        The main difficult part of this calculation is the mean cross
+        sectional area.  This is given by the integral
 
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
 
-        where :math:`S_\phi` is the cross section of the surface at the cylindrical angle :math:`\phi`.
+        where :math:`S_\phi` is the cross section of the surface at the
+        cylindrical angle :math:`\phi`.
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
 
         .. math::
@@ -299,25 +371,30 @@ class Surface(Optimizable):
             &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
 
-        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]` is the outward pointing normal.
+        where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]`
+        is the outward pointing normal.
 
-        Consider the surface in cylindrical coordinates terms of its angles :math:`[R(\varphi,\theta),
-        \phi(\varphi,\theta), Z(\varphi,\theta)]`.  The boundary of the cross section
-        :math:`\partial S_\phi` is given by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
-        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`.  The cross sectional area of :math:`S_\phi` becomes
+        Consider the surface in cylindrical coordinates terms of its angles
+        :math:`[R(\varphi,\theta), \phi(\varphi,\theta), Z(\varphi,\theta)]`.
+        The boundary of the cross section :math:`\partial S_\phi` is given
+        by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
+        Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`. The cross
+        sectional area of :math:`S_\phi` becomes
 
         .. math::
             \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
             \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
 
-        Now, substituting this into the formula for the mean cross sectional area, we have
+        Now, substituting this into the formula for the mean cross sectional
+        area, we have
 
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
                 \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
 
-        Instead of integrating over cylindrical :math:`\phi`, let's complete the change of variables and
-        integrate over :math:`\varphi` using the mapping:
+        Instead of integrating over cylindrical :math:`\phi`, let's complete
+        the change of variables and integrate over :math:`\varphi` using the
+        mapping:
 
         .. math::
             [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
@@ -488,8 +565,9 @@ class SurfaceClassifier():
         self.dist.evaluate_batch(rphiz, d)
         return d
 
+    @SimsoptRequires(gridToVTK is not None,
+                     "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, h=0.01):
-        from pyevtk.hl import gridToVTK
 
         nr = int((self.rrange[1]-self.rrange[0])/h)
         nphi = int(2*np.pi/h)

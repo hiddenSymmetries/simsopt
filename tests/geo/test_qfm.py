@@ -77,7 +77,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_objective(
                 x + eps*h, derivatives=0)
@@ -86,7 +86,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_qfm_label_constraint_gradient(self):
         """
@@ -121,7 +121,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 17)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_label_constraint(
                 x + eps*h, derivatives=0)
@@ -130,7 +130,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_qfm_penalty_constraints_gradient(self):
         """
@@ -169,7 +169,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(9, 17)))
-        print("################################################################################")
+        print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_penalty_constraints(
                 x + eps*h, derivatives=0, constraint_weight=weight)
@@ -178,7 +178,7 @@ class QfmSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
-        print("################################################################################")
+        print("###############################################################")
 
     def test_qfm_surface_optimization_convergence(self):
         """
