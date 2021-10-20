@@ -701,6 +701,79 @@ class OptimizableTests(unittest.TestCase):
     def test_local_upper_bounds(self):
         pass
 
+    def test_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.dof_names), 0)
+        self.assertEqual(len(adder.dof_names), 3)
+        self.assertTrue("Adder2:x0" in adder.dof_names)
+        self.assertTrue("Adder2:x1" in adder.dof_names)
+        self.assertTrue("Adder2:x2" in adder.dof_names)
+
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.dof_names), 4)
+        self.assertTrue("Adder2:x0" in test_obj.dof_names)
+        self.assertTrue("Adder2:x1" in test_obj.dof_names)
+        self.assertTrue("Adder2:x2" in test_obj.dof_names)
+        self.assertTrue("OptClassWithParents1:val" in test_obj.dof_names)
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.dof_names), 3)
+        self.assertTrue("Adder2:x0" in test_obj.dof_names)
+        self.assertTrue("Adder2:x1" in test_obj.dof_names)
+        self.assertTrue("Adder2:x2" in test_obj.dof_names)
+        self.assertFalse("OptClassWithParents1:val" in test_obj.dof_names)
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.dof_names), 2)
+        self.assertTrue("Adder2:x0" in test_obj.dof_names)
+        self.assertFalse("Adder2:x1" in test_obj.dof_names)
+        self.assertTrue("Adder2:x2" in test_obj.dof_names)
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        self.assertEqual(len(test_obj2.dof_names), 10)
+        self.assertTrue("Adder3:x0" in test_obj2.dof_names)
+        self.assertTrue("Adder3:x1" in test_obj2.dof_names)
+        self.assertTrue("Adder3:x2" in test_obj2.dof_names)
+        self.assertTrue("Adder4:x0" in test_obj2.dof_names)
+        self.assertTrue("Adder4:x1" in test_obj2.dof_names)
+        self.assertTrue("Adder5:x0" in test_obj2.dof_names)
+        self.assertTrue("Adder5:x1" in test_obj2.dof_names)
+        self.assertTrue("OptClassWithParents2:val" in test_obj2.dof_names)
+        self.assertTrue("OptClassWith2LevelParents1:v1" in test_obj2.dof_names)
+        self.assertTrue("OptClassWith2LevelParents1:v2" in test_obj2.dof_names)
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.dof_names), 9)
+        self.assertFalse("OptClassWith2LevelParents1:v1" in test_obj2.dof_names)
+        self.assertTrue("OptClassWith2LevelParents1:v2" in test_obj2.dof_names)
+
+
+    def test_all_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.all_dof_names), 1)
+        self.assertEqual(len(adder.all_dof_names), 3)
+
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.all_dof_names), 5)
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.all_dof_names), 5)
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.all_dof_names), 5)
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        self.assertEqual(len(test_obj2.all_dof_names), 10)
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.all_dof_names), 10)
+        self.assertTrue("OptClassWith2LevelParents1:v1" in test_obj2.all_dof_names)
+        self.assertTrue("OptClassWith2LevelParents1:v2" in test_obj2.all_dof_names)
+
+    def test_local_dof_names(self):
+        # Test in DOFs class is sufficient
+        pass
+
+    def test_local_all_dof_names(self):
+        # Test in DOFs class is sufficient
+        pass
+
     def test_is_fixed(self):
         iden = Identity(x=10, dof_fixed=True)
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
