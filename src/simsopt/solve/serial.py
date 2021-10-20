@@ -28,10 +28,9 @@ from scipy.optimize import least_squares, minimize
 
 from ..objectives.least_squares import LeastSquaresProblem
 from .graph_serial import least_squares_serial_solve as glsss
+from ..util.dev import deprecated
 
 logger = logging.getLogger(__name__)
-
-#def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
 
 
 @deprecated(replacement=glsss,
