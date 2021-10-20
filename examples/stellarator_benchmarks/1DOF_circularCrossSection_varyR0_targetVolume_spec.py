@@ -5,8 +5,8 @@ import numpy as np
 
 from simsopt.mhd import Spec
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -28,7 +28,8 @@ This example uses the serial solver instead of the MPI solver, since
 the MPI case is covered by the example
 stellopt_scenarios_1DOF_circularCrossSection_varyAxis_targetIota_spec.
 """
-
+print("Running 1DOF_circularCrossSection_varyR0_targetVolume_spec.py")
+print("=============================================================")
 # Print detailed logging info. This could be commented out if desired.
 logging.basicConfig(level=logging.DEBUG)
 
@@ -54,14 +55,14 @@ print('zs:', surf.zs)
 
 # Surface parameters are all non-fixed by default.  You can choose
 # which parameters are optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(0,0)', False)
+surf.fix_all()
+surf.unfix('rc(0,0)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
 # combined to form a nonlinear-least-squares problem.
 desired_volume = 0.15
-prob = LeastSquaresProblem([(equil.volume, desired_volume, 1)])
+prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
@@ -77,3 +78,5 @@ assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
 assert np.abs(equil.volume() - 0.15) < 1.0e-6
 assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective() < 1.0e-15
+print("End of 1DOF_circularCrossSection_varyR0_targetVolume_spec.py")
+print("============================================================")

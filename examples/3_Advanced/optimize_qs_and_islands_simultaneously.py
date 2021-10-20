@@ -6,8 +6,8 @@ import numpy as np
 from simsopt.util.mpi import log, MpiPartition
 from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry
 from simsopt.mhd.spec import Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 """
 In this example, we simultaneously optimize for quasisymmetry and
@@ -36,10 +36,10 @@ spec = Spec(spec_filename, mpi=mpi)
 spec.boundary = surf
 
 # Define parameter space:
-surf.all_fixed()
+surf.fix_all()
 surf.fixed_range(mmin=0, mmax=3,
                  nmin=-3, nmax=3, fixed=False)
-surf.set_fixed("rc(0,0)")  # Major radius
+surf.fix("rc(0,0)")  # Major radius
 
 # Configure quasisymmetry objective:
 qs = Quasisymmetry(Boozer(vmec),
@@ -60,12 +60,12 @@ if mpi.proc0_world:
 #exit(0)
 
 # Define objective function
-prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
-                            (vmec.iota_axis, 0.385, 1),
-                            (vmec.iota_edge, 0.415, 1),
-                            (qs, 0, 1),
-                            (residue1, 0, 2),
-                            (residue2, 0, 2)])
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
+                                        (vmec.iota_axis, 0.385, 1),
+                                        (vmec.iota_edge, 0.415, 1),
+                                        (qs.J, 0, 1),
+                                        (residue1.J, 0, 2),
+                                        (residue2.J, 0, 2)])
 
 # Check whether we're in the CI. If so, just do a single function
 # evaluation rather than a real optimization.

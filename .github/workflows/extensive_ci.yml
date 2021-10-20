@@ -27,22 +27,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
         test-type: [unit, integrated]
-        spec: [true, false]
-        vmec: [true, false]
-        boost: [true]
+        packages: [all, vmec, spec, boost, none]
+        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
+        # spec: [true, false]
+        # vmec: [true, false]
+        # boost: [true]
         include:
             - python-version: 3.9.5
               test-type: unit
-              spec: false
-              vmec: false
-              boost: false
+              packages: none
+              # spec: false
+              # vmec: false
+              # boost: false
             - python-version: 3.9.5
               test-type: integrated
-              spec: false
-              vmec: false
-              boost: false
+              packages: none
+              # spec: false
+              # vmec: false
+              # boost: false
 
     steps:
     # First print out lots of information. We do this in separate 
@@ -67,10 +70,11 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libopenblas-dev
     
     - name: install boost if required
-      if: matrix.boost == true
+      if: contains(matrix.packages, 'boost') || contains(matrix.packages, 'all')
+      # if: matrix.boost == true
       run: sudo apt-get install -y libboost-all-dev
 
     - uses: actions/checkout@v2
@@ -80,7 +84,8 @@ jobs:
 
     # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
-      if: matrix.vmec == true
+      # if: matrix.vmec == true
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
@@ -108,11 +113,12 @@ jobs:
     - name: Install python dependencies
       run: |
         #pip install wheel numpy scipy jax jaxlib cmake scikit-build ninja f90nml h5py pyoculus qsc sympy
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib plotly
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja  plotly
         # qsc is used for an integrated test.
 
     - name: Install booz_xform
-      if: matrix.vmec == true 
+      # if: matrix.vmec == true
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     # Checking out SPEC is a tricky because it is a private repository.
@@ -120,26 +126,27 @@ jobs:
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
-      if: matrix.spec == true
+      # if: matrix.spec == true
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       uses: actions/checkout@v2
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
-        token: ${{ secrets.SPEC_CHECKOUT }}
+        # token: ${{ secrets.SPEC_CHECKOUT }}
         #ref: python_hdf5
         # "ref" specifies the branch of the repository to use
      
-    - name: ls -l again
-      run: |
-        ls -l
-        pwd
+    #- name: ls -l again
+    #  run: |
+    #    ls -l
+    #    pwd
 
-    - name: ls -l inside SPEC
-      if: matrix.spec == true
-      run: |
-        cd SPEC
-        pwd
-        ls -l
+    #- name: ls -l inside SPEC
+    #  if: matrix.spec == true
+    #  run: |
+    #    cd SPEC
+    #    pwd
+    #    ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     #- name: Install py_spec
@@ -147,41 +154,49 @@ jobs:
     #    pip install -e SPEC/Utilities/pythontools
     #    python -c "import py_spec; print('success')"
 
-    - name: Build SPEC.
-      if: matrix.spec == true
-      run: |
-        cd SPEC
-        # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
-        # f90wrap gets confused by "-Wl,-rpath" so remove it:
-        cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
-        #cp Makefile1 Makefile
-        head -n126 Makefile
-        make -j
+    #- name: Build SPEC.
+    #  if: matrix.spec == true
+    #  run: |
+    #    cd SPEC
+    #    # In the SPEC Makefile, we need to set BUILD_ENV:
+    #    cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
+    #    # f90wrap gets confused by "-Wl,-rpath" so remove it:
+    #    cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
+    #    #cp Makefile1 Makefile
+    #    head -n126 Makefile
+    #    make -j
 
-    - name: Add xspec to PATH.
-      if: matrix.spec == true
-      run: |
-        cd SPEC
-        ls -l
-        echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
+    #- name: Add xspec to PATH.
+    #  if: matrix.spec == true
+    #  run: |
+    #    cd SPEC
+    #    ls -l
+    #    echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
-    - name: Build SPEC python wrapper.
-      if: matrix.spec == true
-      run: |
-        cd SPEC/Utilities/python_wrapper
-        make all
+    #- name: Build SPEC python wrapper.
+    #  if: matrix.spec == true
+    #  run: |
+    #    cd SPEC/Utilities/python_wrapper
+    #    make all
 
-    - name: Add spec python wrapper to PYTHONPATH.
-      if: matrix.spec == true
-      run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
+    - name: Build SPEC python wrapper.
+      # if: matrix.spec == true
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      run: |
+         cd SPEC
+         pip install .
+
+    #- name: Add spec python wrapper to PYTHONPATH.
+    #  if: matrix.spec == true
+    #  run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
 
     - name: Try import spec
-      if: matrix.spec == true
-      run: python -c "import spec; print(spec.constants.version)"
+      # if: matrix.spec == true
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      run: python -c "import spec.spec as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -193,11 +208,13 @@ jobs:
       run: env
 
     - name: ls in VMEC2000/python 1
-      if: matrix.vmec == true
+      # if: matrix.vmec == true
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
     - name: Configure VMEC2000 module
-      if: matrix.vmec == true
+      # if: matrix.vmec == true
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
@@ -205,19 +222,23 @@ jobs:
         pip install .
 
     - name: Try importing vmec module
-      if: matrix.vmec == true
+      # if: matrix.vmec == true
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      if: matrix.spec == true 
+      # if: matrix.spec == true
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: pip install -v .[MPI,SPEC]
 
     - name: Install simsopt package
-      if: matrix.spec == false && matrix.vmec == false && matrix.boost == false
+      # if: matrix.spec == false && matrix.vmec == false && matrix.boost == false
+      if: contains(matrix.packages, 'none') || contains(matrix.packages, 'boost')
       run: pip install -v .
 
     - name: Install simsopt package
-      if: matrix.spec == false && ( matrix.vmec == true || matrix.boost == true )
+      # if: matrix.spec == false && ( matrix.vmec == true || matrix.boost == true )
+      if: contains(matrix.packages, 'vmec')
       run: pip install -v .[MPI]
 
     - name: Run serial examples as part of integrated tests
@@ -233,19 +254,22 @@ jobs:
         ./run_parallel_examples
 
     - name: Run spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && matrix.spec == true 
+      # if: contains(matrix.test-type, 'integrated') && matrix.spec == true
+      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'spec') || contains(matrix.packages, 'all'))
       run: |
         cd examples
         ./run_spec_examples
 
     - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && matrix.vmec == true 
+      #  if: contains(matrix.test-type, 'integrated') && matrix.vmec == true
+      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all'))
       run: |
         cd examples
         ./run_vmec_examples
 
     - name: Run vmec and spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && matrix.spec == true && matrix.vmec == true
+      # if: contains(matrix.test-type, 'integrated') && matrix.spec == true && matrix.vmec == true
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
       run: |
         cd examples
         ./run_spec_vmec_examples
@@ -257,11 +281,18 @@ jobs:
     - name: Run tests on 1 MPI process using coverage
       if: "contains(matrix.test-type, 'unit')"
       run: | 
-        coverage run --source=simsopt -m unittest discover -s tests -v
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/solve
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true || matrix.boost == true)
-      run: | 
+      # if: contains(matrix.test-type, 'unit') && (matrix.vmec == true || matrix.spec == true || matrix.boost == true)
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') || contains(matrix.packages, 'vmec') ||contains(matrix.packages, 'spec'))
+      run: |
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v

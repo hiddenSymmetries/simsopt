@@ -4,8 +4,8 @@ import logging
 import numpy as np
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -18,6 +18,8 @@ will eliminate the islands by minimizing an objective function
 involving Greene's residue for several O-points and X-points, similar
 to the approach of Hanson and Cary (1984).
 """
+print("Running 2_Intermediate/eliminate_magnetic_islands.py")
+print("====================================================")
 
 log()
 
@@ -32,9 +34,9 @@ s.boundary.change_resolution(6, s.boundary.ntor)
 # To make this example run relatively quickly, we will optimize in a
 # small parameter space. Here we pick out just 2 Fourier modes to vary
 # in the optimization:
-s.boundary.all_fixed()
-s.boundary.set_fixed('zs(6,1)', False)
-s.boundary.set_fixed('zs(6,2)', False)
+s.boundary.fix_all()
+s.boundary.unfix('zs(6,1)')
+s.boundary.unfix('zs(6,2)')
 
 # The main resonant surface is iota = p / q:
 p = -8
@@ -59,10 +61,10 @@ residue3 = Residue(s, p, q, s_guess=s_guess)
 residue4 = Residue(s, p, q, s_guess=s_guess, theta=np.pi)
 
 # Objective function is \sum_j residue_j ** 2
-prob = LeastSquaresProblem([(residue1, 0, 1),
-                            (residue2, 0, 1),
-                            (residue3, 0, 1),
-                            (residue4, 0, 1)])
+prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
+                                        (residue2.J, 0, 1),
+                                        (residue3.J, 0, 1),
+                                        (residue4.J, 0, 1)])
 
 # Solve the optimization problem:
 least_squares_mpi_solve(prob, mpi=mpi, grad=True)
@@ -77,3 +79,6 @@ if mpi.proc0_world:
     logging.info(f"Final residues: {final_r1}, {final_r2}")
 
 np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)
+
+print("End of 2_Intermediate/eliminate_magnetic_islands.py")
+print("===================================================")
