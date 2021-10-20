@@ -26,11 +26,12 @@ class SimsoptRequires(requires):
     def __instancecheck__(self, other):
         return isinstance(other, self._callable)
 
-# Credits: monty.dev package from Materials Virtual Lab
+
 def deprecated(replacement=None, message=None, category=FutureWarning):
     """
     Decorator to mark classes or functions as deprecated,
     with a possible replacement.
+    Credits: monty.dev package from Materials Virtual Lab
 
     Args:
         replacement (callable): A replacement class or method.
