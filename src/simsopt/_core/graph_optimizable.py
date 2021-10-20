@@ -379,7 +379,11 @@ class DOFs:
         """
         @lru_cache
         def red_names(free):
-            return self._names[list(free)]
+            rnames = []
+            for i, f in enumerate((free)):
+                if f:
+                    rnames.append(self._names[i])
+            return rnames
         return red_names(tuple(self._free))
 
     @property
