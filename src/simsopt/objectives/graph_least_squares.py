@@ -18,6 +18,7 @@ from numbers import Real
 import numpy as np
 
 from .._core.graph_optimizable import Optimizable
+from .._core.util import ObjectiveFailure
 from ..util.types import RealArray, IntArray, BoolArray
 
 
@@ -55,22 +56,26 @@ class LeastSquaresProblem(Optimizable):
                  weights: Union[Real, RealArray],
                  funcs_in: Sequence[Callable] = None,
                  depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
-                 opt_return_fns: StrSeq = None):
+                 opt_return_fns: StrSeq = None,
+                 fail: Union[None, float] = 1.0e12):
 
         if isinstance(goals, Real):
             goals = [goals]
         if isinstance(weights, Real):
             weights = [weights]
-        if np.any(np.array(weights) < 0):
+        if np.any(np.asarray(weights) < 0):
             raise ValueError('Weight cannot be negative')
-        self.goals = np.array(goals)
-        self.weights = np.array(weights)
+        self.goals = np.asarray(goals)
+        self.inp_weights = np.asarray(weights)
+        self.fail = fail
+
+        # Attributes for function evaluation
+        self.nvals = 0
+        self.first_eval = True
 
         if depends_on is not None:
             if not isinstance(depends_on, ABC_Sequence):
                 depends_on = [depends_on]
-                #goals = [goals]
-                #weights = [weights]
                 if opt_return_fns is not None:
                     opt_return_fns = [opt_return_fns]
 
@@ -83,7 +88,8 @@ class LeastSquaresProblem(Optimizable):
                    sigma: Union[Real, RealArray],
                    funcs_in: Sequence[Callable] = None,
                    depends_on: Union[Optimizable, Sequence[Optimizable]] = None,
-                   opt_return_fns: StrSeq = None) -> LeastSquaresProblem:
+                   opt_return_fns: StrSeq = None,
+                   fail: Union[None, float] = 1.0e12) -> LeastSquaresProblem:
         r"""
         Define the LeastSquaresProblem with
 
@@ -111,12 +117,13 @@ class LeastSquaresProblem(Optimizable):
         return cls(goals, 1.0 / (sigma * sigma),
                    depends_on=depends_on,
                    opt_return_fns=opt_return_fns,
-                   funcs_in=funcs_in)
+                   funcs_in=funcs_in,
+                   fail=fail)
 
     @classmethod
     def from_tuples(cls,
-                    tuples: Sequence[Tuple[Callable, Real, Real]]
-                    ) -> LeastSquaresProblem:
+                    tuples: Sequence[Tuple[Callable, Real, Real]],
+                    fail: Union[None, float] = 1.0e12) -> LeastSquaresProblem:
         """
         Initializes graph based LeastSquaresProblem from a sequence of tuples
         containing *f_in*, *goal*, and *weight*.
@@ -126,10 +133,7 @@ class LeastSquaresProblem(Optimizable):
                 each tuple (the specified order matters).
         """
         funcs_in, goals, weights = zip(*tuples)
-        #funcs_in = list(funcs_in)
-        #goals = list(goals)
-        #weights = list(weights)
-        return cls(goals, weights, funcs_in=funcs_in)
+        return cls(goals, weights, funcs_in=funcs_in, fail=fail)
 
     def unweighted_residuals(self, x=None, *args, **kwargs):
         """
@@ -143,13 +147,40 @@ class LeastSquaresProblem(Optimizable):
         if x is not None:
             self.x = x
 
-        outputs = []
-        for i, opt in enumerate(self.parents):
-            out = opt(child=self, *args, **kwargs)
-            output = np.array([out]) if not np.ndim(out) else np.array(out)
-            outputs += [output]
+        if self.new_x:
+            outputs = []
+            new_weights = []
+            for i, fn in enumerate(self.funcs_in):
+                try:
+                    out = fn(*args, **kwargs)
+                except ObjectiveFailure:
+                    logger.warning(f"Function evaluation failed for {fn}")
+                    if self.fail is None or self.first_eval:
+                        raise
 
-        return np.concatenate(outputs) - self.goals
+                    break
+
+                output = np.array([out]) if not np.ndim(out) else np.asarray(out)
+                output -= self.goals[i]
+                if self.first_eval:
+                    self.nvals += len(output)
+                    logger.debug(f"{i}: first eval {self.nvals}")
+                new_weights += [self.inp_weights[i]] * len(output)
+                outputs += [output]
+            else:
+                if self.first_eval:
+                    self.first_eval = False
+                self.weights = np.asarray(new_weights)
+                self.cache = np.concatenate(outputs)
+                self.new_x = False
+                return self.cache
+
+            # Reached here after encountering break in for loop
+            self.cache = np.full(self.nvals, self.fail)
+            self.new_x = False
+            return self.cache
+        else:
+            return self.cache
 
     def residuals(self, x=None, *args, **kwargs):
         """
@@ -163,33 +194,6 @@ class LeastSquaresProblem(Optimizable):
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
         return unweighted_residuals * np.sqrt(self.weights)
 
-        # if x is not None:
-        #    self.x = x
-        #outputs = []
-        #for i, opt in enumerate(self.parents):
-        #    out = opt(child=self, *args, **kwargs)
-        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
-        #    if self.opt_return_fns is None:
-        #       fn_value = output
-        #    elif self.func_masks[i] is None:
-        #       fn_value = output
-        #    else:
-        #       fn_value = output[self.func_masks[i]]
-        #    outputs += [output]
-        #outputs = np.concatenate(outputs)
-        #residuals = (outputs - self.goals) * np.sqrt(self.weights)
-        #return residuals
-
-        #print('terms at line 104', terms)
-        #print('goals', self.goals )
-        #terms = np.concatenate(terms) - self.goals
-        #print('after subtraction', terms)
-        #s = np.dot(terms, terms)
-        #print('dot product', s)
-        #objective = np.sum(np.multiply(s, self.weights))
-        #print('final objective', objective)
-        #return np.concatenate(residuals)
-
     def objective(self, x=None, *args, **kwargs):
         """
         Return the least squares sum
@@ -199,40 +203,24 @@ class LeastSquaresProblem(Optimizable):
             args: Any additional arguments
             kwargs: Keyword arguments
         """
-        #if x is not None:
-        #    self.x = x
-
-        #outputs = []
-        #for i, opt in enumerate(self.parents):
-        #    out = opt(child=self, *args, **kwargs)
-        #    output = np.array([out]) if np.isscalar(out) else np.array(out)
-        #    outputs += [output]
-        #outputs = np.concatenate(outputs)
-        #diff_values = outputs - self.goals
+        logger.info(f"objective() called with x={x}")
         unweighted_residuals = self.unweighted_residuals(x, *args, **kwargs)
 
         s = 0
         for i, val in enumerate(unweighted_residuals):
             s += np.dot(val, val) * self.weights[i]
 
+        logger.info(f"objective(): {s}")
         return s
 
     return_fn_map = {'residuals': residuals, 'objective': objective}
 
     def __add__(self, other: LeastSquaresProblem) -> LeastSquaresProblem:
-        # TODO: This could be buggy with respect to x-order after addition
-
         return LeastSquaresProblem(
             np.concatenate([self.goals, other.goals]),
-            np.concatenate([self.weights, other.weights]),
+            np.concatenate([self.inp_weights, other.inp_weights]),
             depends_on=(self.parents + other.parents),
             opt_return_fns=(self.get_parent_return_fns_list() +
                             other.get_parent_return_fns_list()),
+            fail=max(self.fail, other.fail)
         )
-
-    #def residuals(self, x: Union[RealArray, IntArray] = None):
-    #    if x is not None:
-    #        self.x = x
-
-    #    temp = np.append([f() for f in self.parents]) - self.goal
-    #    return np.sqrt(self.weights) * temp

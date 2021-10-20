@@ -1,7 +1,8 @@
 import numpy as np
+
 import simsoptpp as sopp
-from simsopt._core.graph_optimizable import Optimizable
-from simsopt._core.derivative import Derivative
+from .._core.graph_optimizable import Optimizable
+from .._core.derivative import Derivative
 
 
 class MagneticField(sopp.MagneticField, Optimizable):
