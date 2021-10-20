@@ -60,3 +60,7 @@ docs/build/
 # IDE related
 .idea
 compile_commands.json
+
+# Tests output
+tests/*.dat
+tests/boundary*
