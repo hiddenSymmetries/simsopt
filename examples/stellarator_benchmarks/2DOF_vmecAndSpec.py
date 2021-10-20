@@ -5,8 +5,8 @@ import numpy as np
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Spec
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """
@@ -26,7 +26,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
-
+print("Running 2DOF_vmecAndSpec.py")
+print("=========================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log(logging.INFO)
@@ -45,9 +46,9 @@ spec.boundary = surf
 
 # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
 # You can choose which parameters are optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('rc(1,1)', False)
-surf.set_fixed('zs(1,1)', False)
+surf.fix_all()
+surf.unfix('rc(1,1)')
+surf.unfix('zs(1,1)')
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function.  A list of terms are
@@ -60,7 +61,7 @@ desired_iota = 0.41
 iota_weight = 1
 term2 = (vmec.iota_axis, desired_iota, iota_weight)
 
-prob = LeastSquaresProblem([term1, term2])
+prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 # Solve the minimization problem:
 least_squares_mpi_solve(prob, mpi=mpi, grad=True)
@@ -92,3 +93,5 @@ if mpi.proc0_world:
     assert np.abs(surf_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
     assert final_objective < 1.0e-2
+print("End of  2DOF_vmecAndSpec.py")
+print("=========================")

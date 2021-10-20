@@ -10,6 +10,7 @@ general optimization problems.
 
 from datetime import datetime
 from time import time
+from typing import Union, Callable
 import logging
 
 import numpy as np
@@ -17,6 +18,7 @@ from scipy.optimize import least_squares, minimize
 
 from ..objectives.graph_least_squares import LeastSquaresProblem
 from .._core.graph_optimizable import Optimizable
+from .._core.finite_difference import FiniteDifference
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
+                               abs_step: float = 1.0e-7,
+                               rel_step: float = 0.0,
+                               diff_method: str = "forward",
                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -34,11 +39,15 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
               and parameter space.
         grad: Whether to use a gradient-based optimization algorithm, as
               opposed to a gradient-free algorithm. If unspecified, a
-              gradient-based algorithm will be used if ``prob`` has gradient
-              information available, otherwise a gradient-free algorithm
-              will be used by default. If you set ``grad=True`` for a problem
-              in which gradient information is not available,
+              a gradient-free algorithm
+              will be used by default. If you set ``grad=True`` for a problem,
               finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -90,7 +99,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             objective_file.write("function_evaluation,seconds")
             for j in range(ndofs):
                 objective_file.write(f",x({j})")
-            objective_file.write(",objective_function\n\n")
+            objective_file.write(",objective_function\n")
 
             residuals_file.write(
                 f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
@@ -131,8 +140,10 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     print('prob is ', prob)
     x0 = np.copy(prob.x)
     if grad:
+        fd = FiniteDifference(prob.residuals, abs_step=abs_step,
+                              rel_step=rel_step, diff_method=diff_method)
         logger.info("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
+        result = least_squares(objective, x0, verbose=2, jac=fd.jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
@@ -145,8 +156,11 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     prob.x = result.x
 
 
-def serial_solve(prob: Optimizable,
+def serial_solve(prob: Union[Optimizable, Callable],
                  grad: bool = None,
+                 abs_step: float = 1.0e-7,
+                 rel_step: float = 0.0,
+                 diff_method: str = "centered",
                  **kwargs):
     """
     Solve a general minimization problem (i.e. one that need not be of
@@ -160,9 +174,15 @@ def serial_solve(prob: Optimizable,
               opposed to a gradient-free algorithm. If unspecified, a
               gradient-based algorithm will be used if ``prob`` has gradient
               information available, otherwise a gradient-free algorithm
-              will be used by default. If you set ``grad=True`` for a problem
+              will be used by default. If you set ``grad=True``
               in which gradient information is not available,
               finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+            "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -181,7 +201,7 @@ def serial_solve(prob: Optimizable,
         def objective(x):
             nonlocal datalogging_started, objective_file, nevals
             try:
-                result = prob.objective(x)
+                result = prob(x)
             except:
                 result = 1e+12
 
@@ -204,7 +224,8 @@ def serial_solve(prob: Optimizable,
             objective_file.write(f"{nevals:6d},{del_t:12.4e}")
             for xj in x:
                 objective_file.write(f",{xj:24.16e}")
-            objective_file.write(f",{result:24.16e}")
+            # objective_file.write(f",{result:24.16e}")
+            objective_file.write(f",{result}")
             objective_file.write("\n")
             objective_file.flush()
 
@@ -223,7 +244,9 @@ def serial_solve(prob: Optimizable,
             raise RuntimeError("Need to convert least-squares Jacobian to "
                                "gradient of the scalar objective function")
             logger.info("Using derivatives")
-            result = least_squares(objective, x0, verbose=2, jac=prob.jac,
+            fd = FiniteDifference(prob, abs_step=abs_step,
+                                  rel_step=rel_step, diff_method=diff_method)
+            result = least_squares(objective, x0, verbose=2, jac=fd.jac,
                                    **kwargs)
         else:
             logger.info("Using derivative-free method")

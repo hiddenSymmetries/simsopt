@@ -1,12 +1,12 @@
+from pathlib import Path
+
 import numpy as np
+
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.coil import Current
-from pathlib import Path
-TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+
+TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None, mpol=5, ntor=5,

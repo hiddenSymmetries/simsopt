@@ -8,12 +8,13 @@ This module contains functions that can postprocess VMEC output.
 
 import logging
 from typing import Union
+
 import numpy as np
 from scipy.interpolate import interp1d
 
 from .vmec import Vmec
 from .._core.util import Struct
-from .._core.optimizable import Optimizable
+from .._core.graph_optimizable import Optimizable
 from ..util.types import RealArray
 from ..geo.surfaceobjectives import parameter_derivatives
 
@@ -113,7 +114,7 @@ class QuasisymmetryRatioResidual(Optimizable):
                  nphi: int = 64) -> None:
 
         self.vmec = vmec
-        self.depends_on = ["vmec"]
+        #self.depends_on = ["vmec"]
         self.ntheta = ntheta
         self.nphi = nphi
         self.helicity_m = helicity_m
@@ -130,12 +131,10 @@ class QuasisymmetryRatioResidual(Optimizable):
         else:
             self.weights = weights
         assert len(self.weights) == len(self.surfaces)
+        super().__init__(depends_on=[vmec])
 
-    def get_dofs(self):
-        return np.array([])
-
-    def set_dofs(self, x):
-        self.need_to_run_code = True
+    # def recompute_bell(self, parent=None):
+    #     self.need_to_run_code = True
 
     def compute(self):
         """
@@ -346,7 +345,7 @@ class IotaTargetMetric(Optimizable):
         self.boundary = vmec.boundary
         self.iota_target = iota_target
         self.adjoint_epsilon = adjoint_epsilon
-        self.depends_on = ["boundary"]
+        super().__init__(depends_on=[vmec])
 
     def J(self):
         """
@@ -455,7 +454,8 @@ class IotaWeighted(Optimizable):
         self.boundary = vmec.boundary
         self.weight_function = weight_function
         self.adjoint_epsilon = adjoint_epsilon
-        self.depends_on = ["boundary"]
+        # self.depends_on = ["boundary"]
+        super().__init__(depends_on=[vmec])
 
     def J(self):
         """
@@ -573,7 +573,8 @@ class WellWeighted(Optimizable):
         self.weight_function1 = weight_function1
         self.weight_function2 = weight_function2
         self.adjoint_epsilon = adjoint_epsilon
-        self.depends_on = ["boundary"]
+        # self.depends_on = ["boundary"]
+        super().__init__(depends_on=[vmec])
 
     def J(self):
         """
