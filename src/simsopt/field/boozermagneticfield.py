@@ -272,14 +272,13 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         mpol: (int) number of poloidal mode numbers for BOOZXFORM (defaults to 32)
         ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 32)
         N: Helicity of quasisymmetry to enforce. If specified, then the non-symmetric Fourier
-            harmonics of :math:`B` are filtered out. Otherwise, all harmonics are kept.
+            harmonics of :math:`B` and :math:`K` are filtered out. Otherwise, all harmonics are kept.
             (defaults to ``None``)
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
         rescale: If True, use the interpolation method in the DELTA5D code. Here, a few
-            of the first :math:`s` grid points are deleted (determined by ``ns_delete``).
-            The Fourier harmonics (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``)
-            are then rescaled as:
+            of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``)
+            are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
                 bmnc(s)/s^(1/2) for m = 1
 
                 bmnc(s)/s for m even and >= 2
@@ -287,7 +286,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 bmnc(s)/s^(3/2) for m odd and >=3
 
             before performing interpolation and spline differentiation to
-            obtain dbmncds. If ``False``, interpolation of the unscaled Fourier
+            obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier
             harmonics and its finite-difference derivative wrt ``s`` is performed
             instead (defaults to ``False``)
         ns_delete: (see ``rescale``) (defaults to 0)
