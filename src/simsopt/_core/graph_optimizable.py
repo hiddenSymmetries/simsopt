@@ -1044,7 +1044,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Optimizable object and those of its ancestors
         """
         opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.names for opt in opts])
+        names = []
+        for opt in opts:
+            names += [opt.name + ":" + dname for dname in opt._dofs.names]
+        return names
 
     @property
     def all_dof_names(self) -> StrArray:
@@ -1053,7 +1056,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Optimizable object and those of its ancestors
         """
         opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.all_names for opt in opts])
+        names = []
+        for opt in opts:
+            names += [opt.name + ":" + dname for dname in opt._dofs.all_names]
+        return names
 
     @property
     def local_dof_names(self) -> StrArray:
