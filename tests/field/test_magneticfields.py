@@ -255,17 +255,17 @@ class Testing(unittest.TestCase):
         current = 1E6
         points = np.array([[2.987, 1.654, 0.321]])
         angle = 0.123
-        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
         assert np.allclose(field.B(), [[-1.29465197e-02, 2.56216948e-05, 3.70911295e-03]])
         angle = 0.982
-        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
         assert np.allclose(field.B(), [[-0.00916089, 0.00677598, 0.00294619]])
         angle = 2.435
-        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
-        assert np.allclose(field.B(), [[ 0.01016974, 0.00629875, -0.00220838]])
+        assert np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
         ## Random test
         radius = 1.2345
         center = np.array([0.123, 1.456, 2.789])
@@ -273,42 +273,42 @@ class Testing(unittest.TestCase):
         points = np.array([[2.987, 1.654, 0.321]])
         angle = 2.435
 
-        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
-        np.allclose(field.B(), [[ 0.01016974 , 0.00629875 , -0.00220838]])
+        np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
 
     def test_circularcoil_Bfield_toroidal_arrangement(self):
         # This makes N_coils with centered at major radius R_m
         # each coil has N_turns which are evenly spaced between a1 and a2.
-        R_m     = 0.3048
+        R_m = 0.3048
         N_coils = 30
 
         N_turns = 3
-        a1 = 10     /2   * 0.0254 
-        a2 = 19.983 /2   * 0.0254 
+        a1 = 10 / 2 * 0.0254 
+        a2 = 19.983 / 2 * 0.0254 
         r_array = np.linspace(a1, a2, N_turns)
-        I_amp   = 433 * (33/N_turns)
+        I_amp = 433 * (33/N_turns)
 
         phi_ax = np.linspace(0, 2*np.pi, N_coils, endpoint=False) + (np.pi/N_coils)
         coils = []
         for j in np.arange(N_coils):
 
             for a_m in r_array:
-            
+
                 phi = phi_ax[j] 
-                R0  = R_m * np.array([np.cos(phi), np.sin(phi), 0])
-                n1  = np.array([-np.sin(phi), np.cos(phi), 0])
-            
-                B = CircularCoil( I=I_amp, r0=a_m, center=R0, normal=n1)
+                R0 = R_m * np.array([np.cos(phi), np.sin(phi), 0])
+                n1 = np.array([-np.sin(phi), np.cos(phi), 0])
+
+                B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
                 coils.append(B)
-            
+
         B_field = MagneticFieldSum(coils)
 
         ### setup target points
         N_points = 100
         ax = np.linspace(0, 2*np.pi, N_points, endpoint=False)
 
-        points = R_m * np.array( [np.cos(ax), np.sin(ax), 0*ax] ).T
+        points = R_m * np.array([np.cos(ax), np.sin(ax), 0*ax]).T
         points = np.ascontiguousarray(points)
 
         B_field.set_points(points)
@@ -317,7 +317,7 @@ class Testing(unittest.TestCase):
         Bout = B_field.B()
 
         #bx,by,bz = Bout.T
-        bx,by,bz = np.nan_to_num(Bout).T      # maps NaN (which should not occur if running correctly) to 0
+        bx, by, bz = np.nan_to_num(Bout).T      # maps NaN (which should not occur if running correctly) to 0
         bmag = np.sqrt(bx*bx + by*by + bz*bz)
         np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
 
