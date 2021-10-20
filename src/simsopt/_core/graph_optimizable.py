@@ -377,7 +377,7 @@ class DOFs:
         Returns:
             string identifiers of the DOFs
         """
-        @lru_cache
+        @lru_cache()
         def red_names(free):
             rnames = []
             for i, f in enumerate((free)):
