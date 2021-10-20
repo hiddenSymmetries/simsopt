@@ -18,7 +18,6 @@ import traceback
 
 import numpy as np
 from scipy.optimize import least_squares
-from monty.dev import deprecated
 
 try:
     from mpi4py import MPI
@@ -27,6 +26,7 @@ except ImportError as err:
 
 from .._core.dofs import Dofs
 from ..util.mpi import MpiPartition
+from ..util.dev import deprecated
 from .._core.util import finite_difference_steps
 from ..objectives.least_squares import LeastSquaresProblem
 from .graph_mpi import least_squares_mpi_solve as glsmpi
@@ -247,6 +247,7 @@ def fd_jac_mpi(dofs: Dofs,
     # to x0:
     dofs.set(x0)
     return jac, xs, evals
+
 
 @deprecated(replacement=glsmpi,
             message="This class has been deprecated from v0.6.0 and will be "

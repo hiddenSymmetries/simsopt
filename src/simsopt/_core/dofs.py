@@ -13,10 +13,10 @@ import logging
 from typing import Union
 
 import numpy as np
-from monty.dev import deprecated
 
 from .optimizable import function_from_user
 from .util import unique, ObjectiveFailure, finite_difference_steps
+from ..util.dev import deprecated
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ def get_owners(obj, owners_so_far=[]):
                 raise RuntimeError('Circular dependency detected among the objects')
             owners += get_owners(subobj, owners_so_far=owners)
     return owners
+
 
 @deprecated(message="This class has been deprecated from v0.6.0 and will be "
                     "deleted from future versions of simsopt. Use graph "

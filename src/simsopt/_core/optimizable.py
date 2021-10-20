@@ -9,20 +9,17 @@ setting up optimizable objects and objective functions.
 
 import logging
 import types
+import warnings
 
 import numpy as np
-from monty.dev import deprecated
 
-from .graph_optimizable import Optimizable as GOptimizable
+warnings.warn("optimizable module is deprecated in favor of"
+              " graph_optimizable module and will be removed in future versions"
+              " of simsopt", DeprecationWarning, stacklevel=2)
+
 logger = logging.getLogger(__name__)
 
 
-@deprecated(replacement=GOptimizable,
-            message="Optimizable class has been deprecated from v0.6.0. Instead"
-                    "use the Optimizable class defined in "
-                    "simsopt._core.graph_optimizable. This class will be deleted"
-                    "starting from v0.7.0 of simsopt",
-            category=DeprecationWarning)
 class Optimizable():
     """
     This base class provides some useful features for optimizable functions.
@@ -98,6 +95,7 @@ def function_from_user(target):
 
 
 class Target(Optimizable):
+
     """
     Given an attribute of an object, which typically would be a
     @property, form a callable function that can be used as a target
