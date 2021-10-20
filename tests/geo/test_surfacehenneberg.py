@@ -29,22 +29,6 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
 class SurfaceHennebergTests(unittest.TestCase):
-    def test_init_quadpoints(self):
-        """
-        Test that we can initialize the points either by an integer, list,
-        or numpy array.
-        """
-        for phi_points in [32,
-                           np.linspace(0.0, 1.0, 32, endpoint=False),
-                           list(np.linspace(0.0, 1.0, 32, endpoint=False))]:
-
-            for theta_points in [32,
-                                 np.linspace(0.0, 1.0, 32, endpoint=False),
-                                 list(np.linspace(0.0, 1.0, 32, endpoint=False))]:
-
-                surf = SurfaceHenneberg(nfp=5, alpha_fac=-1, mmax=3, nmax=4,
-                                        quadpoints_phi=phi_points,
-                                        quadpoints_theta=theta_points)
 
     def test_names(self):
         """
@@ -57,7 +41,7 @@ class SurfaceHennebergTests(unittest.TestCase):
                          'rhomn(0,1)',
                          'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)',
                          'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)']
-        self.assertEqual(surf.names, names_correct)
+        self.assertEqual(surf.local_dof_names, names_correct)
 
     def test_set_get_dofs(self):
         """
@@ -67,7 +51,7 @@ class SurfaceHennebergTests(unittest.TestCase):
         for mmax in range(1, 4):
             for nmax in range(4):
                 surf = SurfaceHenneberg(nfp=1, alpha_fac=1, mmax=mmax, nmax=nmax)
-                self.assertEqual(len(surf.names), len(surf.get_dofs()))
+                self.assertEqual(len(surf.local_dof_names), len(surf.get_dofs()))
 
                 # R0nH has nmax+1
                 # Z0nH has nmax
@@ -113,25 +97,30 @@ class SurfaceHennebergTests(unittest.TestCase):
                          'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)',
                          'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)']
         surf.fixed_range(20, 20, True)
-        np.testing.assert_equal(surf.fixed, [True]*12)
+        np.testing.assert_equal(surf.local_dofs_free_status, [False]*12)
         surf.fixed_range(20, 20, False)
-        np.testing.assert_equal(surf.fixed, [False]*12)
+        np.testing.assert_equal(surf.local_dofs_free_status, [True]*12)
         surf.fixed_range(0, 0, True)
-        np.testing.assert_equal(surf.fixed, [True, False, False, False, False, False,
-                                             False, False, False, False, False, False])
+        np.testing.assert_equal(surf.local_dofs_free_status,
+                                [False, True, True, True, True, True,
+                                 True, True, True, True, True, True])
         surf.fixed_range(1, 0, True)
-        np.testing.assert_equal(surf.fixed, [True, False, False, True, False, False,
-                                             False, True, False, False, False, False])
+        np.testing.assert_equal(surf.local_dofs_free_status,
+                                [False, True, True, False, True, True,
+                                 True, False, True, True, True, True])
         surf.fixed_range(2, 0, True)
-        np.testing.assert_equal(surf.fixed, [True, False, False, True, False, False,
-                                             False, True, False, False, True, False])
-        surf.all_fixed(True)
+        np.testing.assert_equal(surf.local_dofs_free_status,
+                                [False, True, True, False, True, True,
+                                 True, False, True, True, False, True])
+        surf.fix_all()
         surf.fixed_range(0, 1, False)
-        np.testing.assert_equal(surf.fixed, [False, False, False, True, True, False,
-                                             True, True, True, True, True, True])
+        np.testing.assert_equal(surf.local_dofs_free_status,
+                                [True, True, True, False, False, True,
+                                 False, False, False, False, False, False])
         surf.fixed_range(1, 1, False)
-        np.testing.assert_equal(surf.fixed, [False, False, False, False, False, False,
-                                             False, False, False, True, True, True])
+        np.testing.assert_equal(surf.local_dofs_free_status,
+                                [True, True, True, True, True, True,
+                                 True, True, True, False, False, False])
 
     def test_indexing(self):
         """
@@ -153,16 +142,21 @@ class SurfaceHennebergTests(unittest.TestCase):
                 surf.set_rhomn(m, n, m * 100 + n)
 
         x = surf.get_dofs()
-        np.testing.assert_allclose(x, [1.000e+03, 1.001e+03, 1.002e+03, 3.001e+03, 3.002e+03, 2.000e+03, 2.001e+03, \
-                                       2.002e+03, 1.000e+00, 2.000e+00, 9.800e+01, 9.900e+01, 1.000e+02, 1.010e+02, \
-                                       1.020e+02, 1.980e+02, 1.990e+02, 2.000e+02, 2.010e+02, 2.020e+02, 2.980e+02, \
-                                       2.990e+02, 3.000e+02, 3.010e+02, 3.020e+02])
-        self.assertListEqual(surf.names, ['R0nH(0)', 'R0nH(1)', 'R0nH(2)', 'Z0nH(1)', 'Z0nH(2)', 'bn(0)',
-                                          'bn(1)', 'bn(2)', 'rhomn(0,1)', 'rhomn(0,2)', 'rhomn(1,-2)',
-                                          'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)', 'rhomn(1,2)',
-                                          'rhomn(2,-2)', 'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)',
-                                          'rhomn(2,2)', 'rhomn(3,-2)', 'rhomn(3,-1)', 'rhomn(3,0)',
-                                          'rhomn(3,1)', 'rhomn(3,2)'])
+        np.testing.assert_allclose(
+            x,
+            [1.000e+03, 1.001e+03, 1.002e+03, 3.001e+03, 3.002e+03, 2.000e+03,
+             2.001e+03, 2.002e+03, 1.000e+00, 2.000e+00, 9.800e+01, 9.900e+01,
+             1.000e+02, 1.010e+02, 1.020e+02, 1.980e+02, 1.990e+02, 2.000e+02,
+             2.010e+02, 2.020e+02, 2.980e+02, 2.990e+02, 3.000e+02, 3.010e+02,
+             3.020e+02])
+        self.assertListEqual(
+            surf.local_dof_names,
+            ['R0nH(0)', 'R0nH(1)', 'R0nH(2)', 'Z0nH(1)', 'Z0nH(2)', 'bn(0)',
+             'bn(1)', 'bn(2)', 'rhomn(0,1)', 'rhomn(0,2)', 'rhomn(1,-2)',
+             'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)', 'rhomn(1,2)',
+             'rhomn(2,-2)', 'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)',
+             'rhomn(2,2)', 'rhomn(3,-2)', 'rhomn(3,-1)', 'rhomn(3,0)',
+             'rhomn(3,1)', 'rhomn(3,2)'])
 
     def test_axisymm(self):
         """
@@ -175,7 +169,8 @@ class SurfaceHennebergTests(unittest.TestCase):
             for alpha_fac in [-1, 0, 1]:
                 for mmax in range(1, 3):
                     for nmax in range(3):
-                        surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac, mmax=mmax, nmax=nmax)
+                        surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac,
+                                                 mmax=mmax, nmax=nmax)
                         self.assertEqual(surfH.num_dofs(), len(surfH.get_dofs()))
                         surfH.R0nH[0] = R0
                         surfH.bn[0] = a

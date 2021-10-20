@@ -25,6 +25,9 @@ logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
+print("Running 1_Simple/tracing_fieldline.py")
+print("=====================================")
+
 # check whether we're in CI, in that case we make the run a bit cheaper
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nfieldlines = 3 if ci else 30
@@ -91,3 +94,5 @@ bsh = InterpolatedField(
 )
 # print('Error in B', bsh.estimate_error_B(1000), flush=True)
 trace_fieldlines(bsh, 'bsh')
+print("End of 1_Simple/tracing_fieldline.py")
+print("=====================================")
