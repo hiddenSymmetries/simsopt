@@ -266,6 +266,16 @@ class Testing(unittest.TestCase):
         field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
         field.set_points(points)
         assert np.allclose(field.B(), [[ 0.01016974, 0.00629875, -0.00220838]])
+        ## Random test
+        radius = 1.2345
+        center = np.array([0.123, 1.456, 2.789])
+        current = 1E6
+        points = np.array([[2.987, 1.654, 0.321]])
+        angle = 2.435
+
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2,-angle])
+        field.set_points(points)
+        np.allclose(field.B(), [[ 0.01016974 , 0.00629875 , -0.00220838]])
 
     def test_circularcoil_Bfield_toroidal_arrangement(self):
         # This makes N_coils with centered at major radius R_m
