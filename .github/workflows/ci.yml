@@ -52,7 +52,7 @@ jobs:
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev libopenblas-dev
 
     - uses: actions/checkout@v2
 
@@ -87,7 +87,7 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib plotly
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -101,8 +101,8 @@ jobs:
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
-        token: ${{ secrets.SPEC_CHECKOUT }}
-        #ref: python_hdf5
+        # token: ${{ secrets.SPEC_CHECKOUT }}
+        # ref: python_hdf5
         # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
@@ -122,36 +122,19 @@ jobs:
     #    pip install -e SPEC/Utilities/pythontools
     #    python -c "import py_spec; print('success')"
 
-    - name: Build SPEC.
-      run: |
-        cd SPEC
-        # In the SPEC Makefile, we need to set BUILD_ENV:
-        cat Makefile | sed 's/BUILD_ENV?=intel/BUILD_ENV=gfortran_ubuntu/' > Makefile1
-        # f90wrap gets confused by "-Wl,-rpath" so remove it:
-        cat Makefile1 | sed 's&LINKS=-Wl,-rpath -Wl,/usr/lib/lapack -llapack -lblas&LINKS=-L/usr/lib/lapack -llapack -lblas&' > Makefile
-        #cp Makefile1 Makefile
-        head -n126 Makefile
-        make -j
-
-    - name: Add xspec to PATH.
-      run: |
-        cd SPEC
-        ls -l
-        echo "PATH=$PATH:/home/runner/work/simsopt/simsopt/SPEC" >> $GITHUB_ENV
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
     - name: Build SPEC python wrapper.
       run: |
-        cd SPEC/Utilities/python_wrapper
-        make all
-
-    - name: Add spec python wrapper to PYTHONPATH.
-      run: echo "PYTHONPATH=$PYTHONPATH:/home/runner/work/simsopt/simsopt/SPEC/Utilities/python_wrapper" >> $GITHUB_ENV
+        cd SPEC
+        pip install .
+        # python setup.py bdist_wheel
+        # pip install dist/*.whl
 
     - name: Try import spec
-      run: python -c "import spec; print(spec.constants.version)"
+      run: python -c "import spec.spec as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -184,8 +167,8 @@ jobs:
         cd examples
         ./run_serial_examples
         ./run_parallel_examples
-        ./run_spec_examples
         ./run_vmec_examples
+        ./run_spec_examples
         ./run_spec_vmec_examples
 
     - name: Install coverage dependencies
@@ -195,7 +178,13 @@ jobs:
     - name: Run tests on 1 process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
-        coverage run --source=simsopt -m unittest discover -s tests -v
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/solve
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
 
     - name: Run MPI tests using coverage
       if: contains(matrix.test-type, 'unit')
@@ -234,4 +223,3 @@ jobs:
         fail_ci_if_error: true
         #path_to_write_report: ./coverage/codecov_report.gz
         verbose: true
-

@@ -18,7 +18,7 @@ def mpi_solve_1group(prob, **kwargs):
     least_squares_mpi_solve(prob, MpiPartition(ngroups=1), **kwargs)
 
 
-solvers = [serial_solve, least_squares_serial_solve]
+solvers = [least_squares_serial_solve]
 if MPI is not None:
     solvers.append(mpi_solve_1group)
 
@@ -73,13 +73,6 @@ class LeastSquaresProblemTests(unittest.TestCase):
             prob = LeastSquaresProblem(0, 1, depends_on=r)
             solver(prob)  # , grad=grad)
             self.assertAlmostEqual(prob.objective(), 0)
-            #v = r.full_x
-            #print(v)
-            #print(prob.objective())
-            #print(r.terms)
-            #self.assertTrue(np.allclose(v, [1, 1]))
-            #self.assertAlmostEqual(v[0], 1)
-            #self.assertAlmostEqual(v[1], 1)
 
 
 if __name__ == "__main__":

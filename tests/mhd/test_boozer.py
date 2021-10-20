@@ -18,6 +18,7 @@ try:
 except ImportError as e:
     MPI = None
 
+from simsopt._core.graph_optimizable import Optimizable
 if MPI is not None:
     from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
     from simsopt.mhd.vmec import Vmec  # , vmec_found
@@ -56,7 +57,7 @@ class MockBoozXform():
         # print('booz_xform_found:', booz_xform_found)
 
 
-class MockBoozer():
+class MockBoozer(Optimizable):
     """
     This class exists only for testing the Quasisymmetry class.  It
     returns similar data to the real Boozer class, but without doing a
@@ -67,6 +68,7 @@ class MockBoozer():
         self.bx = MockBoozXform(mpol, ntor, nfp)
         self.s_to_index = {0: 0, 1: 1}
         self.mpi = None
+        super().__init__()
 
     def register(self, s):
         pass

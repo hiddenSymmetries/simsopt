@@ -5,8 +5,8 @@ import numpy as np
 
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Spec
-from simsopt import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_mpi import least_squares_mpi_solve
 import os
 
 """¡
@@ -27,6 +27,8 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 # Print out detailed logging info. This could be commented out if desired.
+print("Running 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+print("=============================================================")
 log(logging.DEBUG)
 
 # Divide up the MPI processes. Since the finite difference gradient
@@ -47,15 +49,15 @@ equil.boundary = surf
 # VMEC parameters are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
-surf.all_fixed()
-surf.set_fixed('Delta(1,-1)', False)
+surf.fix_all()
+surf.unfix('Delta(1,-1)')
 
 # Each function we want in the objective function is then equipped
 # with a shift and weight, to become a term in a least-squares
 # objective function.  A list of terms are combined to form a
 # nonlinear-least-squares problem.
 desired_iota = 0.41  # Sign was + for VMEC
-prob = LeastSquaresProblem([(equil.iota, desired_iota, 1)])
+prob = LeastSquaresProblem.from_tuples([(equil.iota, desired_iota, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
@@ -73,3 +75,5 @@ if mpi.proc0_world:
     assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
     assert np.abs(final_iota - desired_iota) < 1.0e-5
     assert final_objective < 1.0e-15
+print("End of 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+print("=============================================================")

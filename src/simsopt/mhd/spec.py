@@ -21,31 +21,25 @@ except ImportError as e:
     MPI = None 
     logger.warning(str(e))
 
-# spec_found = True
 try:
-    import spec
+    import spec.spec as spec
 except ImportError as e:
     spec = None
     logger.warning(str(e))
-    # spec_found = False
 
-# py_spec_found = True
 try:
     import py_spec
 except ImportError as e:
     py_spec = None
     logger.warning(str(e))
-    # py_spec_found = False
 
-# pyoculus_found = True
 try:
     import pyoculus
 except ImportError as e:
     pyoculus = None
     logger.warning(str(e))
-    # pyoculus_found = False
 
-from .._core.optimizable import Optimizable
+from .._core.graph_optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..util.dev import SimsoptRequires
@@ -53,7 +47,6 @@ if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
-#from ..util.mpi import MpiPartition
 
 
 @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running SPEC")
@@ -94,12 +87,9 @@ class Spec(Optimizable):
                  verbose: bool = True,
                  keep_all_files: bool = False):
 
-        #if not spec_found:
         if spec is None:
             raise RuntimeError(
                 "Using Spec requires spec python wrapper to be installed.")
-
-        #if not py_spec_found:
         if py_spec is None:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
@@ -135,12 +125,11 @@ class Spec(Optimizable):
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'defaults.sp')
-            logger.info("Initializing a SPEC object from defaults in " \
-                        + filename)
+            logger.info(f"Initializing a SPEC object from defaults in {filename}")
         else:
             if not filename.endswith('.sp'):
-                filename = filename + '.sp'
-            logger.info("Initializing a SPEC object from file: " + filename)
+                filename = f"{filename}.sp"
+            logger.info(f"Initializing a SPEC object from file: {filename}")
 
         self.init(filename)
         self.extension = filename[:-3]
@@ -150,30 +139,49 @@ class Spec(Optimizable):
         # Create a surface object for the boundary:
         si = spec.inputlist  # Shorthand
         stellsym = bool(si.istellsym)
-        print("In __init__, si.istellsym=", si.istellsym, " stellsym=", stellsym)
-        self.boundary = SurfaceRZFourier(nfp=si.nfp,
-                                         stellsym=stellsym,
-                                         mpol=si.mpol,
-                                         ntor=si.ntor)
+        print(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
+        self._boundary = SurfaceRZFourier(nfp=si.nfp,
+                                          stellsym=stellsym,
+                                          mpol=si.mpol,
+                                          ntor=si.ntor)
 
         # Transfer the boundary shape from fortran to the boundary
         # surface object:
         for m in range(si.mpol + 1):
             for n in range(-si.ntor, si.ntor + 1):
-                self.boundary.rc[m, n + si.ntor] = si.rbc[n + si.mntor, m + si.mmpol]
-                self.boundary.zs[m, n + si.ntor] = si.zbs[n + si.mntor, m + si.mmpol]
+                self._boundary.rc[m, n + si.ntor] = si.rbc[n + si.mntor, m + si.mmpol]
+                self._boundary.zs[m, n + si.ntor] = si.zbs[n + si.mntor, m + si.mmpol]
                 if not stellsym:
-                    self.boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
-                    self.boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
+                    self._boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
+                    self._boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
+        self._boundary.local_full_x = self._boundary.get_dofs()
 
-        self.depends_on = ["boundary"]
+        # self.depends_on = ["boundary"]
         self.need_to_run_code = True
         self.counter = -1
 
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
-        self.fixed = np.full(len(self.get_dofs()), True)
-        self.names = ['phiedge', 'curtor']
+        x0 = self.get_dofs()
+        fixed = np.full(len(x0), True)
+        names = ['phiedge', 'curtor']
+        super().__init__(x0=x0, fixed=fixed, names=names,
+                         depends_on=[self._boundary],
+                         external_dof_setter=Spec.set_dofs)
+
+    @property
+    def boundary(self):
+        return self._boundary
+
+    @boundary.setter
+    def boundary(self, boundary):
+        if self._boundary is not boundary:
+            self.remove_parent(self._boundary)
+            self._boundary = boundary
+            self.append_parent(boundary)
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def get_dofs(self):
         return np.array([self.inputlist.phiedge,
@@ -394,6 +402,10 @@ class Residue(Optimizable):
         # to, but for now we'll use the same MpiPartition for
         # simplicity.
         self.mpi = spec.mpi
+        super().__init__(depends_on=[spec])
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def J(self):
         """
@@ -422,8 +434,3 @@ class Residue(Optimizable):
 
         return self.fixed_point.GreenesResidue
 
-    def get_dofs(self):
-        return np.array([])
-
-    def set_dofs(self, x):
-        self.need_to_run_code = True

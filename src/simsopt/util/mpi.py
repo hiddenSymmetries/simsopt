@@ -203,7 +203,7 @@ class MpiPartition:
             # Wait for proc 0 to send us something:
             data = None
             data = self.comm_leaders.bcast(data, root=0)
-            logger.debug('leaders_loop received {}'.format(data))
+            logger.debug(f"leaders_loop received {data}")
             if data == STOP:
                 # Tell workers to stop
                 break
@@ -230,7 +230,7 @@ class MpiPartition:
             # Wait for the group leader to send us something:
             data = None
             data = self.comm_groups.bcast(data, root=0)
-            logger.debug('worker_loop worker received {}'.format(data))
+            logger.debug(f'worker_loop worker received {data}')
             if data == STOP:
                 break
 
