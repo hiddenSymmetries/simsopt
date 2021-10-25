@@ -213,30 +213,32 @@ class ScalarPotentialRZMagneticField(MagneticField):
     to every entry. Note: this function needs sympy.
 
     Args:
-        PhiStr:  string containing vacuum scalar potential expression as a function of R, Z and phi
+        phi_str:  string containing vacuum scalar potential expression as a function of R, Z and phi
     """
 
     ## TRY to add C*R*phi*Z in all entries and then put C=0
 
-    def __init__(self, PhiStr):
+    def __init__(self, phi_str):
         MagneticField.__init__(self)
         if not sympy_found:
             raise RuntimeError("Sympy is required for the ScalarPotentialRZMagneticField class")
-        self.PhiStr = PhiStr
-        self.Phiparsed = parse_expr(PhiStr)
+        self.phi_str = phi_str
+        self.phi_parsed = parse_expr(phi_str)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.Phiparsed.diff(R)+1e-30*Phi*R*Z, self.Phiparsed.diff(Phi)/R+1e-30*Phi*R*Z, self.Phiparsed.diff(Z)+1e-30*Phi*R*Z])
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z,\
+                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z,\
+                                                   self.phi_parsed.diff(Z)+1e-30*Phi*R*Z])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
-            [[1e-30*Phi*R*Z+sp.cos(Phi)*self.Phiparsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              1e-30*Phi*R*Z+sp.cos(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              1e-30*Phi*R*Z+sp.cos(Phi)*self.Phiparsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [1e-30*Phi*R*Z+sp.sin(Phi)*self.Phiparsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(R).diff(Phi),
-              1e-30*Phi*R*Z+sp.sin(Phi)*(self.Phiparsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.Phiparsed.diff(Phi)/R).diff(Phi),
-              1e-30*Phi*R*Z+sp.sin(Phi)*self.Phiparsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.Phiparsed.diff(Z).diff(Phi)],
-             [1e-30*Phi*R*Z+self.Phiparsed.diff(R).diff(Z),
-              1e-30*Phi*R*Z+(self.Phiparsed.diff(Phi)/R).diff(Z),
-              1e-30*Phi*R*Z+self.Phiparsed.diff(Z).diff(Z)]])
+            [[1e-30*Phi*R*Z+sp.cos(Phi)*self.phi_parsed.diff(R).diff(R)-(sp.sin(Phi)/R)*self.phi_parsed.diff(R).diff(Phi),
+              1e-30*Phi*R*Z+sp.cos(Phi)*(self.phi_parsed.diff(Phi)/R).diff(R)-(sp.sin(Phi)/R)*(self.phi_parsed.diff(Phi)/R).diff(Phi),
+              1e-30*Phi*R*Z+sp.cos(Phi)*self.phi_parsed.diff(Z).diff(R)-(sp.sin(Phi)/R)*self.phi_parsed.diff(Z).diff(Phi)],
+             [1e-30*Phi*R*Z+sp.sin(Phi)*self.phi_parsed.diff(R).diff(R)+(sp.cos(Phi)/R)*self.phi_parsed.diff(R).diff(Phi),
+              1e-30*Phi*R*Z+sp.sin(Phi)*(self.phi_parsed.diff(Phi)/R).diff(R)+(sp.cos(Phi)/R)*(self.phi_parsed.diff(Phi)/R).diff(Phi),
+              1e-30*Phi*R*Z+sp.sin(Phi)*self.phi_parsed.diff(Z).diff(R)+(sp.cos(Phi)/R)*self.phi_parsed.diff(Z).diff(Phi)],
+             [1e-30*Phi*R*Z+self.phi_parsed.diff(R).diff(Z),
+              1e-30*Phi*R*Z+(self.phi_parsed.diff(Phi)/R).diff(Z),
+              1e-30*Phi*R*Z+self.phi_parsed.diff(Z).diff(Z)]])
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
