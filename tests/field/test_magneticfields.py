@@ -290,36 +290,53 @@ class Testing(unittest.TestCase):
         I_amp = 433 * (33/N_turns)
 
         phi_ax = np.linspace(0, 2*np.pi, N_coils, endpoint=False) + (np.pi/N_coils)
-        coils = []
-        for j in np.arange(N_coils):
+        for xyz in range(3):
+            # xyz = 0: Coil centers and eval points in the x-y plane.
+            # xyz = 1: Coil centers and eval points in the y-z plane.
+            # xyz = 2: Coil centers and eval points in the z-x plane.
+            coils = []
+            for j in np.arange(N_coils):
 
-            for a_m in r_array:
+                for a_m in r_array:
 
-                phi = phi_ax[j] 
-                R0 = R_m * np.array([np.cos(phi), np.sin(phi), 0])
-                n1 = np.array([-np.sin(phi), np.cos(phi), 0])
+                    phi = phi_ax[j]
+                    if xyz == 0:
+                        R0 = R_m * np.array([np.cos(phi), np.sin(phi), 0])
+                        n1 = np.array([-np.sin(phi), np.cos(phi), 0])
+                    elif xyz == 1:
+                        R0 = R_m * np.array([0, np.cos(phi), np.sin(phi)])
+                        n1 = np.array([0, -np.sin(phi), np.cos(phi)])
+                    elif xyz == 2:
+                        R0 = R_m * np.array([np.sin(phi), 0, np.cos(phi)])
+                        n1 = np.array([np.cos(phi), 0, -np.sin(phi)])
 
-                B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
-                coils.append(B)
+                    B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
+                    coils.append(B)
 
-        B_field = MagneticFieldSum(coils)
+            B_field = MagneticFieldSum(coils)
 
-        ### setup target points
-        N_points = 100
-        ax = np.linspace(0, 2*np.pi, N_points, endpoint=False)
+            ### setup target points
+            N_points = 100
+            ax = np.linspace(0, 2*np.pi, N_points, endpoint=False)
 
-        points = R_m * np.array([np.cos(ax), np.sin(ax), 0*ax]).T
-        points = np.ascontiguousarray(points)
+            if xyz == 0:
+                points = R_m * np.array([np.cos(ax), np.sin(ax), 0*ax]).T
+            elif xyz == 1:
+                points = R_m * np.array([0*ax, np.cos(ax), np.sin(ax)]).T
+            elif xyz == 2:
+                points = R_m * np.array([np.sin(ax), 0*ax, np.cos(ax)]).T
 
-        B_field.set_points(points)
+            points = np.ascontiguousarray(points)
 
-        ### evaluate
-        Bout = B_field.B()
+            B_field.set_points(points)
 
-        #bx,by,bz = Bout.T
-        bx, by, bz = np.nan_to_num(Bout).T      # maps NaN (which should not occur if running correctly) to 0
-        bmag = np.sqrt(bx*bx + by*by + bz*bz)
-        np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
+            ### evaluate
+            Bout = B_field.B()
+
+            #bx,by,bz = Bout.T
+            bx, by, bz = np.nan_to_num(Bout).T      # maps NaN (which should not occur if running correctly) to 0
+            bmag = np.sqrt(bx*bx + by*by + bz*bz)
+            np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
 
     def test_helicalcoil_Bfield(self):
         point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
