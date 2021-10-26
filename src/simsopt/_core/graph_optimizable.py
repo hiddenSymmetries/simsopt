@@ -387,7 +387,7 @@ class DOFs:
         return red_names(tuple(self._free))
 
     @property
-    def all_names(self):
+    def full_names(self):
         return self._names
 
 
@@ -1050,7 +1050,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return names
 
     @property
-    def all_dof_names(self) -> StrArray:
+    def full_dof_names(self) -> StrArray:
         """
         Names (Identifiers) of the DOFs associated with the current
         Optimizable object and those of its ancestors
@@ -1058,7 +1058,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         opts = self.ancestors + [self]
         names = []
         for opt in opts:
-            names += [opt.name + ":" + dname for dname in opt._dofs.all_names]
+            names += [opt.name + ":" + dname for dname in opt._dofs.full_names]
         return names
 
     @property
@@ -1070,12 +1070,12 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return self._dofs.names
 
     @property
-    def all_local_dof_names(self) -> StrArray:
+    def local_full_dof_names(self) -> StrArray:
         """
         Names (Identifiers) of the DOFs associated with this Optimizable
         object
         """
-        return self._dofs.all_names
+        return self._dofs.full_names
 
     @property
     def dofs_free_status(self) -> BoolArray:
