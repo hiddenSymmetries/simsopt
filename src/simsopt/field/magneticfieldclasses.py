@@ -263,8 +263,10 @@ class CircularCoil(MagneticField):
     kind.  As inputs, it takes the radius of the coil (r0), its center, current
     (I) and its normal vector [either spherical angle components
     (normal=[theta,phi]) or (x,y,z) components of a vector (normal=[x,y,z])]).
+    The (theta,phi) angles are related to the (x,y,z) components of the normal vector via
+    theta = np.arctan2(normal[1], normal[0]) and phi = np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2]).
     Sign convention: CircularCoil with a positive current produces a magnetic field
-    vector in the same direction as the normal when evaluated at the center of the coil.
+    vector in the same direction as the normal when evaluated at the center of the coil.a
 
     Args:
         r0: radius of the coil
