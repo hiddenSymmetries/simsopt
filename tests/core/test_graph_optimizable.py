@@ -754,8 +754,6 @@ class OptimizableTests(unittest.TestCase):
         for name in test_obj.dof_names:
             self.assertFalse(exc_patt.match(name))
 
-
-
     def test_full_dof_names(self):
         iden = Identity(x=10, dof_fixed=True)
         adder = Adder(n=3, x0=[1, 2, 3])
