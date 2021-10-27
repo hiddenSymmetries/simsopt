@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.7.10, 3.8.10, 3.9.5] # To sync with coveragerc
+        python-version: [3.7.12, 3.8.12, 3.9.6, 3.10.0] # To sync with coveragerc use 3 levels with python version
         include:
-            - python-version: 3.9.5
+            - python-version: 3.9.6
               test-type: unit
               packages: none
-            - python-version: 3.9.5
+            - python-version: 3.9.6
               test-type: integrated
               packages: none
 
