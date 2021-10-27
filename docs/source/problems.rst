@@ -112,9 +112,9 @@ associated with a dof name ``str``, and the methods ``get(str)`` and
 ``str``.
 
 There are two ways to equip your object with these functions. One way
-is to inherit from the ``simsopt.Optimizable`` class. Or, if you do
+is to inherit from the :obj:``simsopt.Optimizable`` class. Or, if you do
 not want your class to depend on simsopt, you can use the function
-``simsopt.make_optimizable()`` to your objective function.
+:func:``simsopt.make_optimizable()`` to your objective function.
 
 
 Fixing degrees of freedom
@@ -128,15 +128,15 @@ dofs are included in the optimization. Whether or not a
 dof is fixed can be identified by the ``dofs_free_status`` attribute of the
 object. The ``dofs_free_status`` attribute is a boolean
 numpy array, with each element True or False. You can also query the free/fixed
-status of individual status by ``is_free/is_fixed`` methods by using the array index
+status of individual status by :meth:``is_free`` or :meth:``is_fixed`` methods by using the array index
 of the dof or by using the name of the dof as key.
 
 There are several ways you can manipulate the fixed/free status of the dofs.
   You can set all entries to True or False using the
-``fix_all()/unfix_all()`` methods from ``simsopt._core.graph_optimizable.Optimizable``.
+:meth:``fix_all`` or :meth:``unfix_all`` methods from :obj:``simsopt.Optimizable``.
 You can set individual entries using the
-string names or arry indices of each dof via the ``fix()/unfix()`` methods,
-e.g. ``fix("phiedge")`` or ``unfix("2")``.
+string names or arry indices of each dof via the :meth:``fix`` or
+:meth:``unfix`` methods, e.g. :meth:``fix("phiedge")`` or :meth:``unfix("2")``.
 
 
 Dependencies
