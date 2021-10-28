@@ -27,12 +27,19 @@ import numpy as np
 from scipy.optimize import least_squares, minimize
 
 from ..objectives.least_squares import LeastSquaresProblem
+from .graph_serial import least_squares_serial_solve as glsss
+from ..util.dev import deprecated
 
 logger = logging.getLogger(__name__)
 
-#def least_squares_serial_solve(prob: simsopt.core.least_squares_problem.LeastSquaresProblem,
 
-
+@deprecated(replacement=glsss,
+            message="This class has been deprecated from v0.6.0 and will be "
+                    "deleted from future versions of simsopt. Use graph "
+                    "framework to define the optimization problem. Use "
+                    "simsopt.objectives.graph_least_squares.LeastSquaresProblem"
+                    " class in conjunction with"
+                    " simsopt.solve.graph_serial.least_squares_serial_solve")
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
                                **kwargs):

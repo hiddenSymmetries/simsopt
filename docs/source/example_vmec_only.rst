@@ -60,8 +60,8 @@ For simplicity, MPI parallelization will not be used for now.
 To start, we must import several classes::
 
   from simsopt.mhd import Spec
-  from simsopt.solve.least_squares_problem import LeastSquaresProblem
-  from simsopt.solve.serial_solve import least_squares_serial_solve
+  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.solve.graph_serial import least_squares_serial_solve
 
 Then we create the equilibrium object, starting from an input file::
 
@@ -76,9 +76,9 @@ case, the independent variables are two of the Fourier amplitudes
 defining the boundary. We choose the independent variables as follows::
 
   surf = equil.boundary
-  surf.all_fixed()
-  surf.set_fixed('rc(1,1)', False)
-  surf.set_fixed('zs(1,1)', False)
+  surf.fix_all()
+  surf.unfix('rc(1,1)')
+  surf.unfix('zs(1,1)')
 
 The next step is to define the objective function. For details of how to define
 least-squares objective functions, see the :doc:`problems` page. For the present problem, we use
@@ -93,7 +93,7 @@ least-squares objective functions, see the :doc:`problems` page. For the present
    iota_weight = 1
    term2 = (equil.iota, desired_iota, iota_weight)
 
-   prob = LeastSquaresProblem([term1, term2])
+   prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 Finally, we solve the optimization problem::
 
@@ -148,8 +148,8 @@ The complete example is then as follows::
 
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd import Vmec
-  from simsopt.solve.least_squares_problem import LeastSquaresProblem
-  from simsopt.solve.mpi_solve import least_squares_mpi_solve
+  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
   # In the next line, we can adjust how many groups the pool of MPI
   # processes is split into.
@@ -160,9 +160,9 @@ The complete example is then as follows::
   surf = equil.boundary
 
   # You can choose which parameters are optimized by setting their 'fixed' attributes.
-  surf.all_fixed()
-  surf.set_fixed('rc(1,1)', False)
-  surf.set_fixed('zs(1,1)', False)
+  surf.fix_all()
+  surf.unfix('rc(1,1)')
+  surf.unfix('zs(1,1)')
 
   # Each Target is then equipped with a shift and weight, to become a
   # term in a least-squares objective function.  A list of terms are
@@ -175,7 +175,7 @@ The complete example is then as follows::
   iota_weight = 1
   term2 = (equil.iota_axis, desired_iota, iota_weight)
 
-  prob = LeastSquaresProblem([term1, term2])
+  prob = LeastSquaresProblem.from_tuples([term1, term2])
 
   # Solve the minimization problem:
   least_squares_mpi_solve(prob, mpi, grad=True)

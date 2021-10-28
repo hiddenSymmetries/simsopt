@@ -257,6 +257,47 @@ class DOFsTests(unittest.TestCase):
     def test_update_bounds(self):
         pass
 
+    def test_names(self):
+        dofs = DOFs(x=np.array([1.0, 2.0, 3.0]),
+                    names=np.array(['x', 'y', 'z']),
+                    free=np.array([True, True, False]),
+                    lower_bounds=np.array([-100.0, -101.0, -102.0]),
+                    upper_bounds=np.array([100.0, 101.0, 102.0]))
+        self.assertTrue('x' in dofs.names)
+        self.assertTrue('y' in dofs.names)
+        self.assertFalse('z' in dofs.names)
+        dofs.fix_all()
+        self.assertTrue(len(dofs.names) == 0)
+        dofs.unfix_all()
+        self.assertTrue('x' in dofs.names)
+        self.assertTrue('y' in dofs.names)
+        self.assertTrue('z' in dofs.names)
+        dofs.fix('y')
+        self.assertTrue('x' in dofs.names)
+        self.assertFalse('y' in dofs.names)
+        self.assertTrue('z' in dofs.names)
+
+    def test_full_names(self):
+        dofs = DOFs(x=np.array([1.0, 2.0, 3.0]),
+                    names=np.array(['x', 'y', 'z']),
+                    free=np.array([True, True, False]),
+                    lower_bounds=np.array([-100.0, -101.0, -102.0]),
+                    upper_bounds=np.array([100.0, 101.0, 102.0]))
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
+        dofs.fix_all()
+        self.assertTrue(len(dofs.full_names) == 3)
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
+        dofs.unfix_all()
+        self.assertTrue(len(dofs.full_names) == 3)
+        dofs.fix('y')
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
+
 
 if __name__ == "__main__":
     unittest.main()

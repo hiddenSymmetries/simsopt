@@ -32,8 +32,8 @@ imports of the classes and functions we will need::
 
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-  from simsopt.objectives.least_squares import LeastSquaresProblem
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 For this problem we will want MPI for parallelized finite difference
 gradients. As explained below, this particular problem has 24
@@ -73,11 +73,11 @@ property of the boundary's Fourier modes as follows::
 
   # Define parameter space:
   surf = vmec.boundary
-  surf.all_fixed()
+  surf.fix_all()
   max_mode = 2
   surf.fixed_range(mmin=0, mmax=max_mode,
                    nmin=-max_mode, nmax=max_mode, fixed=False)
-  surf.set_fixed("rc(0,0)") # Major radius
+  surf.fix("rc(0,0)") # Major radius
 
 The above code first fixes all modes of the boundary, since we want
 the mode numbers greater than 2 to all be fixed. Then the desired
@@ -93,7 +93,7 @@ follows::
   # Configure quasisymmetry objective:
   qs = Quasisymmetry(Boozer(vmec),
                      0.5, # Radius to target
-		     1, 1) # (M, N) you want in |B|
+                     1, 1) # (M, N) you want in |B|
 
 There are several adjustable options, the details of which can be
 found in the API documentation for :obj:`~simsopt.mhd.boozer.Boozer`
@@ -115,8 +115,8 @@ increasing the aspect ratio to infinity. The simsopt objective
 function is defined as follows::
 
   # Define objective function
-  prob = LeastSquaresProblem([(vmec.aspect, 7, 1),
-                              (qs, 0, 1)])
+  prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
+                                          (qs, 0, 1)])
 
 It can be seen that we are targeting an aspect ratio of 7. This
 objective function will be a sum of 2017 least-squares terms, 2016 of
@@ -173,8 +173,8 @@ As usual, we begin with the necessary imports::
 
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-  from simsopt import LeastSquaresProblem
-  from simsopt import least_squares_mpi_solve
+  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups. Here, for
 simplicity, we make each process its own worker group, by omitting the
@@ -197,7 +197,7 @@ instead of quasi-helical symmetry::
   boozer = Boozer(vmec)
   qs = Quasisymmetry(boozer,
                      0.5, # Radius to target
-	  	     1, 0) # (M, N) you want in |B|
+                     1, 0) # (M, N) you want in |B|
 
 We now define the total objective function. For this example, it is
 necessary to include a nonzero target value for the rotational
@@ -205,10 +205,10 @@ transform in the objective, to prevent the optimum from being truly
 axisymmetric::
 
   # Define objective function
-  prob = LeastSquaresProblem([(vmec.aspect, 6, 1),
-                              (vmec.iota_axis, 0.465, 1),
-                              (vmec.iota_edge, 0.495, 1),
-                              (qs, 0, 1)])
+  prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
+                                          (vmec.iota_axis, 0.465, 1),
+                                          (vmec.iota_edge, 0.495, 1),
+                                          (qs, 0, 1)])
 
 It can be seen here that we are seeking a configuration with aspect
 ratio 6, and iota slightly below 0.5.
@@ -237,10 +237,10 @@ toroidal mode numbers are set to be varied in the optimization::
                 ". Previous vmec iteration = ", vmec.iter)
 
       # Define parameter space:
-      surf.all_fixed()
+      surf.fix_all()
       surf.fixed_range(mmin=0, mmax=max_mode, 
                        nmin=-max_mode, nmax=max_mode, fixed=False)
-      surf.set_fixed("rc(0,0)") # Major radius
+      surf.fix("rc(0,0)") # Major radius
 
       # Carry out the optimization for this step:
       least_squares_mpi_solve(prob, mpi, grad=True)
