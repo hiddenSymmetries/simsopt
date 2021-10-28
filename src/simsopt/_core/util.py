@@ -8,7 +8,7 @@ subpackage.
 """
 
 import itertools
-from numbers import Integral, Number
+from numbers import Integral, Real, Number
 from dataclasses import dataclass
 from abc import ABCMeta
 from weakref import WeakKeyDictionary
@@ -165,8 +165,10 @@ class DofLengthMismatchError(Exception):
     and to prevent broadcasting of a single DOF
     """
 
-    def __init__(self, input_dof_length=None, optim_dof_length=None,
-                 message=None):
+    def __init__(self,
+                 input_dof_length: Integral,
+                 optim_dof_length: Integral,
+                 message: str = None):
         if message is None:
             message = f"Input dof proerpty size, {input_dof_length}, does not " + \
                       f"match with Optimizable dof size {optim_dof_length}"
@@ -174,8 +176,8 @@ class DofLengthMismatchError(Exception):
 
 
 def finite_difference_steps(x: RealArray,
-                            abs_step: float = 1.0e-7,
-                            rel_step: float = 0.0
+                            abs_step: Real = 1.0e-7,
+                            rel_step: Real = 0.0
                             ) -> RealArray:
     """
     Determine an array of step sizes for calculating finite-difference

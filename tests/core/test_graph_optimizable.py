@@ -1,5 +1,8 @@
 import unittest
+import re
+
 import numpy as np
+
 from simsopt._core.graph_optimizable import Optimizable, make_optimizable
 from simsopt.objectives.graph_functions import Identity, Rosenbrock, TestObject2
 
@@ -699,6 +702,88 @@ class OptimizableTests(unittest.TestCase):
         pass
 
     def test_local_upper_bounds(self):
+        pass
+
+    def test_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.dof_names), 0)
+        self.assertEqual(len(adder.dof_names), 3)
+        patt = re.compile("Adder\d+:x\d+")
+        for name in adder.dof_names:
+            self.assertTrue(patt.match(name))
+
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        comb_patt = re.compile("|".join([patt1, patt2]))
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.dof_names), 4)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.dof_names), 3)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("OptClassWithParents\d+:val")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.dof_names), 2)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("Adder\d+:x1")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        comb_patt = re.compile("|".join([patt1, patt2, patt3]))
+        self.assertEqual(len(test_obj2.dof_names), 10)
+        for name in test_obj2.dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.dof_names), 9)
+        for name in test_obj2.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("OptClassWith2LevelParents\d+:v1")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+    def test_full_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.full_dof_names), 1)
+        self.assertEqual(len(adder.full_dof_names), 3)
+
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        self.assertEqual(len(test_obj2.full_dof_names), 10)
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.full_dof_names), 10)
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        comb_patt = re.compile("|".join([patt1, patt2, patt3]))
+        for name in test_obj2.full_dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+    def test_local_dof_names(self):
+        # Test in DOFs class is sufficient
+        pass
+
+    def test_local_full_dof_names(self):
+        # Test in DOFs class is sufficient
         pass
 
     def test_is_fixed(self):
