@@ -882,8 +882,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def full_x(self) -> RealArray:
         """
-        Numeric values of all the DOFs associated with the current
-        Optimizable object and those of its ancestors
+        Numeric values of all the DOFs (both free and fixed) associated
+        with the current Optimizable object and those of its ancestors
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in (self.ancestors + [self])])
@@ -914,7 +914,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def local_full_x(self):
         """
-        Numeric values of all DOFs associated with this Optimizable object
+        Numeric values of all DOFs (both free and fixed) associated with
+        this Optimizable object
         """
         return self._dofs.full_x
 

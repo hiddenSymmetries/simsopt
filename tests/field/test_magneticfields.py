@@ -149,7 +149,7 @@ class Testing(unittest.TestCase):
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         ## verify with a x^2+z^2=radius^2 circular coil
-        normal = [np.pi/2, 0]
+        normal = [np.pi/2, np.pi/2]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
         Bcircular = BiotSavart([Coil(curve, Current(current))])
@@ -177,10 +177,10 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
         assert np.allclose(dB1_by_dX, transpGradB1)
         ## verify with a y^2+z^2=radius^2 circular coil
-        normal = [np.pi/2, np.pi/2]
+        normal = [0, np.pi/2]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        Bcircular = BiotSavart([Coil(curve, Current(-current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -192,12 +192,12 @@ class Testing(unittest.TestCase):
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
         Bfield.set_points([[0.1, 0.2, 0.3]])
         Afield = Bfield.A()
-        assert np.allclose(Afield, [[0, 5.15786, -2.643056]])
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        Bcircular = BiotSavart([Coil(curve, Current(-current))])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -249,6 +249,94 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        ## Test with results from coilpy
+        radius = 1.2345
+        center = np.array([0.123, 1.456, 2.789])
+        current = 1E6
+        points = np.array([[2.987, 1.654, 0.321]])
+        angle = 0.123
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[-1.29465197e-02, 2.56216948e-05, 3.70911295e-03]])
+        angle = 0.982
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[-0.00916089, 0.00677598, 0.00294619]])
+        angle = 2.435
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
+        field.set_points(points)
+        assert np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
+        ## Random test
+        radius = 1.2345
+        center = np.array([0.123, 1.456, 2.789])
+        current = 1E6
+        points = np.array([[2.987, 1.654, 0.321]])
+        angle = 2.435
+
+        field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
+        field.set_points(points)
+        np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
+
+    def test_circularcoil_Bfield_toroidal_arrangement(self):
+        # This makes N_coils with centered at major radius R_m
+        # each coil has N_turns which are evenly spaced between a1 and a2.
+        R_m = 0.3048
+        N_coils = 30
+
+        N_turns = 3
+        a1 = 10 / 2 * 0.0254 
+        a2 = 19.983 / 2 * 0.0254 
+        r_array = np.linspace(a1, a2, N_turns)
+        I_amp = 433 * (33/N_turns)
+
+        phi_ax = np.linspace(0, 2*np.pi, N_coils, endpoint=False) + (np.pi/N_coils)
+        for xyz in range(3):
+            # xyz = 0: Coil centers and eval points in the x-y plane.
+            # xyz = 1: Coil centers and eval points in the y-z plane.
+            # xyz = 2: Coil centers and eval points in the z-x plane.
+            coils = []
+            for j in np.arange(N_coils):
+
+                for a_m in r_array:
+
+                    phi = phi_ax[j]
+                    if xyz == 0:
+                        R0 = R_m * np.array([np.cos(phi), np.sin(phi), 0])
+                        n1 = np.array([-np.sin(phi), np.cos(phi), 0])
+                    elif xyz == 1:
+                        R0 = R_m * np.array([0, np.cos(phi), np.sin(phi)])
+                        n1 = np.array([0, -np.sin(phi), np.cos(phi)])
+                    elif xyz == 2:
+                        R0 = R_m * np.array([np.sin(phi), 0, np.cos(phi)])
+                        n1 = np.array([np.cos(phi), 0, -np.sin(phi)])
+
+                    B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
+                    coils.append(B)
+
+            B_field = MagneticFieldSum(coils)
+
+            ### setup target points
+            N_points = 100
+            ax = np.linspace(0, 2*np.pi, N_points, endpoint=False)
+
+            if xyz == 0:
+                points = R_m * np.array([np.cos(ax), np.sin(ax), 0*ax]).T
+            elif xyz == 1:
+                points = R_m * np.array([0*ax, np.cos(ax), np.sin(ax)]).T
+            elif xyz == 2:
+                points = R_m * np.array([np.sin(ax), 0*ax, np.cos(ax)]).T
+
+            points = np.ascontiguousarray(points)
+
+            B_field.set_points(points)
+
+            ### evaluate
+            Bout = B_field.B()
+
+            #bx,by,bz = Bout.T
+            bx, by, bz = np.nan_to_num(Bout).T      # maps NaN (which should not occur if running correctly) to 0
+            bmag = np.sqrt(bx*bx + by*by + bz*bz)
+            np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
 
     def test_helicalcoil_Bfield(self):
         point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
