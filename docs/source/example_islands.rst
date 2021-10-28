@@ -29,7 +29,7 @@ is to import some items we will need::
   import numpy as np
   from simsopt.mhd.spec import Spec, Residue
   from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_serial_solve import least_squares_serial_solve
+  from simsopt.solve.graph_serial import least_squares_serial_solve
 
 We then create a Spec object based on the input file::
 

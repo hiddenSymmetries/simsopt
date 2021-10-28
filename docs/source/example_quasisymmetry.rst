@@ -93,7 +93,7 @@ follows::
   # Configure quasisymmetry objective:
   qs = Quasisymmetry(Boozer(vmec),
                      0.5, # Radius to target
-		             1, 1) # (M, N) you want in |B|
+                     1, 1) # (M, N) you want in |B|
 
 There are several adjustable options, the details of which can be
 found in the API documentation for :obj:`~simsopt.mhd.boozer.Boozer`
@@ -197,7 +197,7 @@ instead of quasi-helical symmetry::
   boozer = Boozer(vmec)
   qs = Quasisymmetry(boozer,
                      0.5, # Radius to target
-	  	             1, 0) # (M, N) you want in |B|
+                     1, 0) # (M, N) you want in |B|
 
 We now define the total objective function. For this example, it is
 necessary to include a nonzero target value for the rotational
