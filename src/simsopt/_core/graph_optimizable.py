@@ -1180,7 +1180,8 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             "dof" - argument that is a degree of freedom for optimization
             "non-dof" - argument that is not part of optimization.
             Here ordered property of the dict is used to map kwargs to
-            dof_indicators
+            dof_indicators. Another important thing to consider is dofs related
+            to optimizable objects supplied as arguments should not be given.
         kwargs: Keyword arguments to pass to "func".
     Returns: Optimizable object to be used in the graph based optimization.
              if `obj` is the returned object, pass obj.J to the
