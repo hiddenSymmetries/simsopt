@@ -294,11 +294,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
     def __init__(self, vmec, order, mpol=32, ntor=32, N=None, enforce_vacuum=False, rescale=False,
                  ns_delete=0):
-        self.vmec = vmec
-        self.vmec.run()
+        vmec.run()
         self.booz = Boozer(vmec, mpol, ntor)
-        self.booz.register(self.vmec.s_half_grid)
+        self.booz.register(self.booz.equil.s_half_grid)
         self.booz.run()
+
         self.order = order
         self.enforce_qs = False
         self.enforce_vacuum = enforce_vacuum
@@ -308,28 +308,75 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.N = N
             self.enforce_qs = True
         BoozerMagneticField.__init__(self, vmec.wout.phi[-1]/(2*np.pi))
-        self.init_splines()
+
+        # self.booz.mpi.comm_world.Barrier()
+        if self.booz.mpi.proc0_groups:
+            self.init_splines()
+        else:
+            self.psip_spline = None
+            self.G_spline = None
+            self.I_spline = None
+            self.dGds_spline = None
+            self.dIds_spline = None
+            self.iota_spline = None
+            self.diotads_spline = None
+            self.numns_splines = None
+            self.rmnc_splines = None
+            self.zmns_splines = None
+            self.dnumnsds_splines = None
+            self.drmncds_splines = None
+            self.dzmnsds_splines = None
+            self.bmnc_splines = None
+            self.dbmncds_splines = None
+            self.d_mn_factor_splines = None
+            self.mn_factor_splines = None
+            self.xm_b = None
+            self.xn_b = None
+
+        self.psip_spline = self.booz.mpi.comm_world.bcast(self.psip_spline, root=0)
+        self.G_spline    = self.booz.mpi.comm_world.bcast(self.G_spline, root=0)
+        self.I_spline    = self.booz.mpi.comm_world.bcast(self.I_spline, root=0)
+        self.dGds_spline    = self.booz.mpi.comm_world.bcast(self.dGds_spline, root=0)
+        self.dIds_spline    = self.booz.mpi.comm_world.bcast(self.dIds_spline, root=0)
+        self.iota_spline    = self.booz.mpi.comm_world.bcast(self.iota_spline, root=0)
+        self.diotads_spline = self.booz.mpi.comm_world.bcast(self.diotads_spline, root=0)
+        self.numns_splines = self.booz.mpi.comm_world.bcast(self.numns_splines, root=0)
+        self.rmnc_splines = self.booz.mpi.comm_world.bcast(self.rmnc_splines, root=0)
+        self.zmns_splines = self.booz.mpi.comm_world.bcast(self.zmns_splines, root=0)
+        self.dnumnsds_splines = self.booz.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
+        self.drmncds_splines = self.booz.mpi.comm_world.bcast(self.drmncds_splines, root=0)
+        self.dzmnsds_splines = self.booz.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
+        self.bmnc_splines = self.booz.mpi.comm_world.bcast(self.bmnc_splines, root=0)
+        self.dbmncds_splines = self.booz.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
+        self.d_mn_factor_splines = self.booz.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
+        self.mn_factor_splines = self.booz.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
+        self.xm_b = self.booz.mpi.comm_world.bcast(self.xm_b, root=0)
+        self.xn_b = self.booz.mpi.comm_world.bcast(self.xn_b, root=0)
+        self.kmns_splines = None
 
     def init_splines(self):
-        # Define quantities on extended half grid
-        iota = np.zeros((self.vmec.wout.ns+1))
-        G = np.zeros((self.vmec.wout.ns+1))
-        I = np.zeros((self.vmec.wout.ns+1))
+        self.xm_b = self.booz.bx.xm_b
+        self.xn_b = self.booz.bx.xn_b
 
-        s_half_ext = np.zeros((self.vmec.wout.ns+1))
-        s_half_ext[1:-1] = self.vmec.s_half_grid
+        # Define quantities on extended half grid
+        iota = np.zeros((self.booz.equil.wout.ns+1))
+        G = np.zeros((self.booz.equil.wout.ns+1))
+        I = np.zeros((self.booz.equil.wout.ns+1))
+
+        s_half_ext = np.zeros((self.booz.equil.wout.ns+1))
+        s_half_ext[1:-1] = self.booz.equil.s_half_grid
         s_half_ext[-1] = 1
 
-        psip = self.vmec.wout.chi/(2*np.pi)
-        iota[1:-1] = self.vmec.wout.iotas[1::]
-        G[1:-1] = self.vmec.wout.bvco[1::]
-        I[1:-1] = self.vmec.wout.buco[1::]
+        psip = self.booz.equil.wout.chi/(2*np.pi)
+        iota[1:-1] = self.booz.equil.wout.iotas[1::]
+        G[1:-1] = self.booz.equil.wout.bvco[1::]
+        I[1:-1] = self.booz.equil.wout.buco[1::]
         if self.rescale:
-            s_half_mn = self.vmec.s_half_grid[self.ns_delete::]
-            bmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns-self.ns_delete))
-            rmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns-self.ns_delete))
-            zmns = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns-self.ns_delete))
-            numns = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns-self.ns_delete))
+            s_half_mn = self.booz.equil.s_half_grid[self.ns_delete::]
+            bmnc = np.zeros((len(self.xm_b), self.booz.equil.wout.ns-self.ns_delete))
+            rmnc = np.zeros((len(self.xm_b), self.booz.equil.wout.ns-self.ns_delete))
+            zmns = np.zeros((len(self.xm_b), self.booz.equil.wout.ns-self.ns_delete))
+            numns = np.zeros((len(self.xm_b), self.booz.equil.wout.ns-self.ns_delete))
 
             bmnc = self.booz.bx.bmnc_b[:, self.ns_delete::]
             rmnc = self.booz.bx.rmnc_b[:, self.ns_delete::]
@@ -338,25 +385,25 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
             mn_factor = np.ones_like(bmnc)
             d_mn_factor = np.zeros_like(bmnc)
-            mn_factor[self.booz.bx.xm_b == 1, :] = s_half_mn[None, :]**(-0.5)
-            d_mn_factor[self.booz.bx.xm_b == 1, :] = -0.5*s_half_mn[None, :]**(-1.5)
-            mn_factor[(self.booz.bx.xm_b % 2 == 1)*(self.booz.bx.xm_b > 1), :] = s_half_mn[None, :]**(-1.5)
-            d_mn_factor[(self.booz.bx.xm_b % 2 == 1)*(self.booz.bx.xm_b > 1), :] = -1.5*s_half_mn[None, :]**(-2.5)
-            mn_factor[(self.booz.bx.xm_b % 2 == 0)*(self.booz.bx.xm_b > 1), :] = s_half_mn[None, :]**(-1.)
-            d_mn_factor[(self.booz.bx.xm_b % 2 == 0)*(self.booz.bx.xm_b > 1), :] = -s_half_mn[None, :]**(-2.)
+            mn_factor[self.xm_b == 1, :] = s_half_mn[None, :]**(-0.5)
+            d_mn_factor[self.xm_b == 1, :] = -0.5*s_half_mn[None, :]**(-1.5)
+            mn_factor[(self.xm_b % 2 == 1)*(self.xm_b > 1), :] = s_half_mn[None, :]**(-1.5)
+            d_mn_factor[(self.xm_b % 2 == 1)*(self.xm_b > 1), :] = -1.5*s_half_mn[None, :]**(-2.5)
+            mn_factor[(self.xm_b % 2 == 0)*(self.xm_b > 1), :] = s_half_mn[None, :]**(-1.)
+            d_mn_factor[(self.xm_b % 2 == 0)*(self.xm_b > 1), :] = -s_half_mn[None, :]**(-2.)
         else:
             s_half_mn = s_half_ext
-            bmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
+            bmnc = np.zeros((len(self.xm_b), self.booz.equil.wout.ns+1))
             bmnc[:, 1:-1] = self.booz.bx.bmnc_b
             bmnc[:, 0] = 1.5*bmnc[:, 1] - 0.5*bmnc[:, 2]
             bmnc[:, -1] = 1.5*bmnc[:, -2] - 0.5*bmnc[:, -3]
-            dbmncds = (bmnc[:, 2:-1] - bmnc[:, 1:-2])/self.vmec.ds
+            dbmncds = (bmnc[:, 2:-1] - bmnc[:, 1:-2])/self.booz.equil.ds
             mn_factor = np.ones_like(bmnc)
             d_mn_factor = np.zeros_like(bmnc)
 
-            numns = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
-            rmnc = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
-            zmns = np.zeros((len(self.booz.bx.xm_b), self.vmec.wout.ns+1))
+            numns = np.zeros((len(self.xm_b), self.booz.equil.wout.ns+1))
+            rmnc = np.zeros((len(self.xm_b), self.booz.equil.wout.ns+1))
+            zmns = np.zeros((len(self.xm_b), self.booz.equil.wout.ns+1))
             numns[:, 1:-1] = self.booz.bx.numns_b
             numns[:, 0] = 1.5*numns[:, 1] - 0.5*numns[:, 2]
             numns[:, -1] = 1.5*numns[:, -2] - 0.5*numns[:, -3]
@@ -367,9 +414,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             zmns[:, 0] = 1.5*zmns[:, 1] - 0.5*zmns[:, 2]
             zmns[:, -1] = 1.5*zmns[:, -2] - 0.5*zmns[:, -3]
 
-            drmncds = (rmnc[:, 2:-1] - rmnc[:, 1:-2])/self.vmec.ds
-            dzmnsds = (zmns[:, 2:-1] - zmns[:, 1:-2])/self.vmec.ds
-            dnumnsds = (numns[:, 2:-1] - numns[:, 1:-2])/self.vmec.ds
+            drmncds = (rmnc[:, 2:-1] - rmnc[:, 1:-2])/self.booz.equil.ds
+            dzmnsds = (zmns[:, 2:-1] - zmns[:, 1:-2])/self.booz.equil.ds
+            dnumnsds = (numns[:, 2:-1] - numns[:, 1:-2])/self.booz.equil.ds
 
         # Extrapolate to get points at s = 0 and s = 1
         iota[0] = 1.5*iota[1] - 0.5*iota[2]
@@ -379,20 +426,23 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         G[-1] = 1.5*G[-2] - 0.5*G[-3]
         I[-1] = 1.5*I[-2] - 0.5*I[-3]
         # Compute first derivatives - on full grid points in [1,ns-1]
-        dGds = (G[2:-1] - G[1:-2])/self.vmec.ds
-        dIds = (I[2:-1] - I[1:-2])/self.vmec.ds
-        diotads = (iota[2:-1] - iota[1:-2])/self.vmec.ds
+        dGds = (G[2:-1] - G[1:-2])/self.booz.equil.ds
+        dIds = (I[2:-1] - I[1:-2])/self.booz.equil.ds
+        diotads = (iota[2:-1] - iota[1:-2])/self.booz.equil.ds
 
-        self.psip_spline = InterpolatedUnivariateSpline(self.vmec.s_full_grid, psip, k=self.order)
+        self.psip_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid, psip, k=self.order)
         if not self.enforce_vacuum:
             self.G_spline = InterpolatedUnivariateSpline(s_half_ext, G, k=self.order)
             self.I_spline = InterpolatedUnivariateSpline(s_half_ext, I, k=self.order)
-            self.dGds_spline = InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dGds, k=self.order)
-            self.dIds_spline = InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dIds, k=self.order)
+            self.dGds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dGds, k=self.order)
+            self.dIds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dIds, k=self.order)
         else:
-            self.G0 = np.mean(G)
+            self.G_spline = InterpolatedUnivariateSpline(s_half_ext, G0*np.ones_like(s_half_ext), k=self.order)
+            self.I_spline = InterpolatedUnivariateSpline(s_half_ext, np.zeros_like(s_half_ext), k=self.order)
+            self.dGds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(s_half_ext), k=self.order)
+            self.dIds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(s_half_ext), k=self.order)
         self.iota_spline = InterpolatedUnivariateSpline(s_half_ext, iota, k=self.order)
-        self.diotads_spline = InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], diotads, k=self.order)
+        self.diotads_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], diotads, k=self.order)
 
         self.numns_splines = []
         self.rmnc_splines = []
@@ -404,56 +454,54 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         self.dbmncds_splines = []
         self.d_mn_factor_splines = []
         self.mn_factor_splines = []
-        for im in range(len(self.booz.bx.xm_b)):
+        for im in range(len(self.xm_b)):
             self.numns_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*numns[im, :], k=self.order))
             self.rmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*rmnc[im, :], k=self.order))
             self.zmns_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*zmns[im, :], k=self.order))
             self.mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :], k=self.order))
             self.d_mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, d_mn_factor[im, :], k=self.order))
-            if (self.enforce_qs and (self.booz.bx.xn_b[im] != self.N * self.booz.bx.xm_b[im])):
+            if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_bmnc, 0*bmnc[im, :], k=self.order))
-                self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], 0*dbmncds[im, :], k=self.order))
+                self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], 0*dbmncds[im, :], k=self.order))
             else:
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*bmnc[im, :], k=self.order))
                 if self.rescale:
                     self.dbmncds_splines.append(self.bmnc_splines[-1].derivative())
                 else:
-                    self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dbmncds[im, :], k=self.order))
+                    self.dbmncds_splines.append(InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dbmncds[im, :], k=self.order))
 
             if self.rescale:
                 self.dnumnsds_splines.append(self.numns_splines[-1].derivative())
                 self.drmncds_splines.append(self.rmnc_splines[-1].derivative())
                 self.dzmnsds_splines.append(self.zmns_splines[-1].derivative())
             else:
-                self.dnumnsds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dnumnsds[im, :], k=self.order))
-                self.drmncds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], drmncds[im, :], k=self.order))
-                self.dzmnsds_splines.append(InterpolatedUnivariateSpline(self.vmec.s_full_grid[1:-1], dzmnsds[im, :], k=self.order))
-
-        self.kmns_splines = None
+                self.dnumnsds_splines.append(InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dnumnsds[im, :], k=self.order))
+                self.drmncds_splines.append(InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], drmncds[im, :], k=self.order))
+                self.dzmnsds_splines.append(InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dzmnsds[im, :], k=self.order))
 
     def compute_K(self):
-        s_half_ext = np.zeros((self.vmec.wout.ns+1))
-        s_half_ext[1:-1] = self.vmec.s_half_grid
+        s_half_ext = np.zeros((self.booz.equil.wout.ns+1))
+        s_half_ext[1:-1] = self.booz.equil.s_half_grid
         s_half_ext[-1] = 1
 
         ntheta = 2 * (2 * self.booz.bx.mboz + 1)
         nzeta = 2 * (2 * self.booz.bx.nboz + 1)
         thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
         dtheta = thetas[1]-thetas[0]
-        zetas = np.linspace(0, 2*np.pi/self.vmec.indata.nfp, nzeta, endpoint=False)
+        zetas = np.linspace(0, 2*np.pi/self.booz.equil.indata.nfp, nzeta, endpoint=False)
         dzeta = zetas[1]-zetas[0]
         thetas, zetas = np.meshgrid(thetas, zetas)
         thetas = thetas.flatten()
         zetas = zetas.flatten()
 
-        dzmnsds_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        drmncds_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        dnumnsds_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        bmnc_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        rmnc_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        zmns_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        numns_half = np.zeros((len(self.booz.bx.xm_b), len(s_half_ext)))
-        for im in range(len(self.booz.bx.xm_b)):
+        dzmnsds_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        drmncds_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        dnumnsds_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        bmnc_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        rmnc_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        zmns_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        numns_half = np.zeros((len(self.xm_b), len(s_half_ext)))
+        for im in range(len(self.xm_b)):
             mn_factor = self.mn_factor_splines[im](s_half_ext)
             d_mn_factor = self.d_mn_factor_splines[im](s_half_ext)
             dnumnsds_half[im, :] = ((self.dnumnsds_splines[im](s_half_ext) - self.numns_splines[im](s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
@@ -470,12 +518,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
                                  numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
-                                 self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
-        kmns = kmns*dtheta*dzeta*self.vmec.indata.nfp/self.psi0
+                                 self.xm_b, self.xn_b, thetas, zetas)
+        kmns = kmns*dtheta*dzeta*self.booz.equil.indata.nfp/self.psi0
 
         self.kmns_splines = []
-        for im in range(len(self.booz.bx.xm_b)):
-            if (self.enforce_qs and (self.booz.bx.xn_b[im] != self.N * self.booz.bx.xm_b[im])):
+        for im in range(len(self.xm_b)):
+            if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
                 self.kmns_splines.append(InterpolatedUnivariateSpline(s_half_ext, 0*kmns[im, :], k=self.order))
             else:
                 self.kmns_splines.append(InterpolatedUnivariateSpline(s_half_ext, self.mn_factor_splines[im](s_half_ext)*kmns[im, :], k=self.order))
@@ -489,11 +537,13 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.enforce_vacuum:
             return
         if self.kmns_splines is None:
-            self.compute_K()
-        kmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+            if self.booz.mpi.proc0_groups:
+                self.compute_K()
+            self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
+        kmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             kmns[im, :] = self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_odd(K[:, 0, ], kmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(K[:, 0, ], kmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dKdtheta_impl(self, dKdtheta):
         points = self.get_points_ref()
@@ -504,11 +554,13 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.enforce_vacuum:
             return
         if self.kmns_splines is None:
-            self.compute_K()
-        kmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            kmns[im, :] = self.kmns_splines[im](s) * self.booz.bx.xm_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+            if self.booz.mpi.proc0_groups:
+                self.compute_K()
+            self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
+        kmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            kmns[im, :] = self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
+        sopp.inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dKdzeta_impl(self, dKdzeta):
         points = self.get_points_ref()
@@ -519,150 +571,154 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.enforce_vacuum:
             return
         if self.kmns_splines is None:
-            self.compute_K()
-        kmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            kmns[im, :] = -self.kmns_splines[im](s) * self.booz.bx.xn_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+            if self.booz.mpi.proc0_groups:
+                self.compute_K()
+            else:
+                self.kmns_splines = None
+            self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
+        kmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            kmns[im, :] = -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
+        sopp.inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _nu_impl(self, nu):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        numns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             numns[im, :] = self.numns_splines[im](s)/self.mn_factor_splines[im](s)
         nu[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(nu[:, 0], numns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(nu[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnudtheta_impl(self, dnudtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            numns[im, :] = self.numns_splines[im](s)*self.booz.bx.xm_b[im]/self.mn_factor_splines[im](s)
+        numns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            numns[im, :] = self.numns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dnudtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnudzeta_impl(self, dnudzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            numns[im, :] = -self.numns_splines[im](s)*self.booz.bx.xn_b[im]/self.mn_factor_splines[im](s)
+        numns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            numns[im, :] = -self.numns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dnudzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnuds_impl(self, dnuds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        numns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
             numns[im, :] = ((self.dnumnsds_splines[im](s) - self.numns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
 
         dnuds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dnuds[:, 0], numns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dnuds[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRdtheta_impl(self, dRdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            rmnc[im, :] = -self.rmnc_splines[im](s)*self.booz.bx.xm_b[im]/self.mn_factor_splines[im](s)
+        rmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            rmnc[im, :] = -self.rmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dRdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRdzeta_impl(self, dRdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            rmnc[im, :] = self.rmnc_splines[im](s)*self.booz.bx.xn_b[im]/self.mn_factor_splines[im](s)
+        rmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            rmnc[im, :] = self.rmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dRdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRds_impl(self, dRds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        rmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
             rmnc[im, :] = ((self.drmncds_splines[im](s) - self.rmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dRds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dRds[:, 0], rmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dRds[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _R_impl(self, R):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        rmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             rmnc[im, :] = self.rmnc_splines[im](s)/self.mn_factor_splines[im](s)
         R[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(R[:, 0], rmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(R[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZdtheta_impl(self, dZdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            zmns[im, :] = self.zmns_splines[im](s)*self.booz.bx.xm_b[im]/self.mn_factor_splines[im](s)
+        zmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            zmns[im, :] = self.zmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dZdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZdzeta_impl(self, dZdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            zmns[im, :] = -self.zmns_splines[im](s)*self.booz.bx.xn_b[im]/self.mn_factor_splines[im](s)
+        zmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            zmns[im, :] = -self.zmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dZdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZds_impl(self, dZds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        zmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
             zmns[im, :] = ((self.dzmnsds_splines[im](s) - self.zmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dZds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dZds[:, 0], zmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dZds[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _Z_impl(self, Z):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        zmns = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             zmns[im, :] = self.zmns_splines[im](s)/self.mn_factor_splines[im](s)
         Z[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(Z[:, 0], zmns, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(Z[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
@@ -672,18 +728,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
     def _G_impl(self, G):
         points = self.get_points_ref()
         s = points[:, 0]
-        if not self.enforce_vacuum:
-            G[:] = self.G_spline(s)[:, None]
-        else:
-            G[:] = self.G0
+        G[:] = self.G_spline(s)[:, None]
 
     def _I_impl(self, I):
         points = self.get_points_ref()
         s = points[:, 0]
-        if not self.enforce_vacuum:
-            I[:] = self.I_spline(s)[:, None]
-        else:
-            I[:] = 0.
+        I[:] = self.I_spline(s)[:, None]
 
     def _iota_impl(self, iota):
         points = self.get_points_ref()
@@ -693,18 +743,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
     def _dGds_impl(self, dGds):
         points = self.get_points_ref()
         s = points[:, 0]
-        if not self.enforce_vacuum:
-            dGds[:] = self.dGds_spline(s)[:, None]
-        else:
-            dGds[:] = 0.
+        dGds[:] = self.dGds_spline(s)[:, None]
 
     def _dIds_impl(self, dIds):
         points = self.get_points_ref()
         s = points[:, 0]
-        if not self.enforce_vacuum:
-            dIds[:] = self.dIds_spline(s)[:, None]
-        else:
-            dIds[:] = 0.
+        dIds[:] = self.dIds_spline(s)[:, None]
 
     def _diotads_impl(self, diotads):
         points = self.get_points_ref()
@@ -716,46 +760,46 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        bmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             bmnc[im, :] = self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         modB[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(modB[:, 0], bmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(modB[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            bmnc[im, :] = -self.booz.bx.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        bmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            bmnc[im, :] = -self.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
-            bmnc[im, :] = self.booz.bx.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        bmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
+            bmnc[im, :] = self.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.booz.bx.xm_b), len(s)))
-        for im in range(len(self.booz.bx.xm_b)):
+        bmnc = np.zeros((len(self.xm_b), len(s)))
+        for im in range(len(self.xm_b)):
             mn_factor = self.mn_factor_splines[im](s)
             d_mn_factor = self.d_mn_factor_splines[im](s)
             bmnc[im, :] = ((self.dbmncds_splines[im](s) - self.bmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dmodBds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.booz.bx.xm_b, self.booz.bx.xn_b, thetas, zetas)
+        sopp.inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
 
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
