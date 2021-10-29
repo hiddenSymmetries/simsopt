@@ -98,7 +98,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
 
     where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp^2 = 2\mu|B|`.
 
-    In the case of ``mod='gc'`` we solve the general guiding center equations
+    In the case of ``mode='gc'`` we solve the general guiding center equations
     for an MHD equilibrium:
 
     .. math::
