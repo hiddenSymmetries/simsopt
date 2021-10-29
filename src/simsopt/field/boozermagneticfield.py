@@ -334,11 +334,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.xn_b = None
 
         self.psip_spline = self.booz.mpi.comm_world.bcast(self.psip_spline, root=0)
-        self.G_spline    = self.booz.mpi.comm_world.bcast(self.G_spline, root=0)
-        self.I_spline    = self.booz.mpi.comm_world.bcast(self.I_spline, root=0)
-        self.dGds_spline    = self.booz.mpi.comm_world.bcast(self.dGds_spline, root=0)
-        self.dIds_spline    = self.booz.mpi.comm_world.bcast(self.dIds_spline, root=0)
-        self.iota_spline    = self.booz.mpi.comm_world.bcast(self.iota_spline, root=0)
+        self.G_spline = self.booz.mpi.comm_world.bcast(self.G_spline, root=0)
+        self.I_spline = self.booz.mpi.comm_world.bcast(self.I_spline, root=0)
+        self.dGds_spline = self.booz.mpi.comm_world.bcast(self.dGds_spline, root=0)
+        self.dIds_spline = self.booz.mpi.comm_world.bcast(self.dIds_spline, root=0)
+        self.iota_spline = self.booz.mpi.comm_world.bcast(self.iota_spline, root=0)
         self.diotads_spline = self.booz.mpi.comm_world.bcast(self.diotads_spline, root=0)
         self.numns_splines = self.booz.mpi.comm_world.bcast(self.numns_splines, root=0)
         self.rmnc_splines = self.booz.mpi.comm_world.bcast(self.rmnc_splines, root=0)
