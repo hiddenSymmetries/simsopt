@@ -96,6 +96,14 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
             phis = np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)
             thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 
+        or
+
+            phis = np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)[:ntor+1]
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+
+
+
+
         This function could be extended to be aware of rotational symmetry as
         well.  So far we assume that that redundancy was removed already (hence
         the phis only go to 1/nfp or 1/(2*nfp)).
@@ -125,4 +133,8 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         if npsame(phis, np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)) and \
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
+        if npsame(phis, np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)[:ntor+1]) and \
+                npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
+            mask[0, mpol+1:] = False
+
         return mask

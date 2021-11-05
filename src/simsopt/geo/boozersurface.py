@@ -356,7 +356,7 @@ class BoozerSurface():
         return res
     
 #    @profile
-    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', hessian=True):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
         uses a nonlinear least squares algorithm when ``method='lm'``.  Options for the method 
@@ -372,8 +372,7 @@ class BoozerSurface():
         backup = s.get_dofs()
         iota0 = iota
         G0 = G
-        
-#        import ipdb; ipdb.set_trace()
+        import scipy.linalg
         if method == 'manual':
             i = 0
             lam = 1.
@@ -384,6 +383,11 @@ class BoozerSurface():
             norm = np.linalg.norm(b, ord=np.inf)
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
+                
+                #Gam = np.sqrt(lam * np.diag(np.diag(JTJ)) )
+                #Q, R = scipy.linalg.qr(np.concatenate((J, Gam), axis=0), mode='economic')
+                #dx = scipy.linalg.solve_triangular(R, Q.T@np.concatenate((r, np.zeros((Gam.shape[0],))))  )
+
                 x -= dx
                 r, J = self.boozer_penalty_constraints(
                     x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
@@ -411,11 +415,12 @@ class BoozerSurface():
             resdict['s'] = s
             resdict['iota'] = iota
             
-            val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
-            resdict["jacobian"] = d2val
-            P, L, U = lu(d2val)
-            resdict["PLU"] = (P, L, U)
+            if hessian:
+                val, dval, d2val = self.boozer_penalty_constraints(
+                    x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, accumulate=True)
+                resdict["jacobian"] = d2val
+                P, L, U = lu(d2val)
+                resdict["PLU"] = (P, L, U)
 
             self.res = resdict
             return resdict
@@ -443,7 +448,7 @@ class BoozerSurface():
         val, dval, d2val = self.boozer_penalty_constraints(
             res.x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         resdict["jacobian"] = d2val
-        
+       
         self.res = resdict
         if not resdict['success']:
             s.set_dofs(backup)
@@ -618,6 +623,7 @@ class BoozerSurface():
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
         norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])), ord=np.inf)
+        
         while i < maxiter and norm > tol:
             if s.stellsym:
                 J = np.vstack((
@@ -641,6 +647,41 @@ class BoozerSurface():
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
             norm = np.linalg.norm(np.concatenate((r, [label.J()-self.targetlabel])), ord=np.inf)
+        
+        if norm > tol:
+            import scipy.optimize
+            def func(x):
+                s.set_dofs(x[:-2])
+                iota = x[-2]
+                G = x[-1]
+                r, = boozer_surface_residual(s, iota, G, self.bs, derivatives=0)
+                if s.stellsym:
+                    b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
+                else:
+                    b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
+                return b
+
+            def dfunc(x):
+                s.set_dofs(x[:-2])
+                iota = x[-2]
+                G = x[-1]
+                r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+                if s.stellsym:
+                    J = np.vstack((
+                        J[mask, :],
+                        np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    ))
+                else:
+                    J = np.vstack((
+                        J[mask, :],
+                        np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                        np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
+                    ))
+                return J 
+            
+            #x0 = np.concatenate((backup, [iota0, G0]))
+            #x0 = np.concatenate((s.get_dofs(), [iota, G]))
+            #xout = scipy.optimize.fsolve(func, x0, fprime=dfunc)
 
         if s.stellsym:
             J = np.vstack((
