@@ -3,7 +3,7 @@ Docker container
 
 A Docker container for simsopt is available, allowing you to use
 simsopt without having to compile any code yourself.  The container
-includes VMEC and BOOZ_XFORM.
+includes VMEC, SPEC, and BOOZ_XFORM.
 
 Requirements
 ^^^^^^^^^^^^
