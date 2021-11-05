@@ -11,21 +11,10 @@ performance. Several types of components are included:
   optimization.
 - Geometric objects that are important for stellarators -- surfaces and
   curves -- with several available parameterizations.
-- An efficient implementation of the Biot-Savart law, including
-  derivatives.
+- Efficient implementations of the Biot-Savart law and other magnetic
+  field representations, including derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
-Some of the physics modules with compiled code reside in separate
-repositories. These separate modules include
-
-- `VMEC <https://github.com/hiddenSymmetries/VMEC2000>`_, for MHD
-  equilibrium.
-- `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
-  equilibrium. (We are working to make the SPEC repository public,
-  and expect it to be so soon, but as of this writing it remains private.)
-- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
-  Boozer coordinates and quasisymmetry.
-  
 The design of ``simsopt`` is guided by several principles:
 
 - Thorough unit testing, regression testing, and continuous
@@ -44,11 +33,22 @@ The design of ``simsopt`` is guided by several principles:
   function that can be plotted, passed to optimization packages
   outside of ``simsopt``, etc.
 
+``simsopt`` is fully open-source, and anyone is welcome to use it,
+make suggestions, and contribute.
+
+Some of the physics modules with compiled code reside in separate
+repositories. These separate modules include
+
+- `VMEC <https://github.com/hiddenSymmetries/VMEC2000>`_, for MHD
+  equilibrium.
+- `SPEC <https://github.com/PrincetonUniversity/SPEC>`_, for MHD
+  equilibrium.
+- `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
+  Boozer coordinates and quasisymmetry.
+  
 We gratefully acknowledge funding from the `Simons Foundation's Hidden
 symmetries and fusion energy project
-<https://hiddensymmetries.princeton.edu>`_.  ``simsopt`` is fully
-open-source, and anyone is welcome to make suggestions, contribute,
-and use.
+<https://hiddensymmetries.princeton.edu>`_.
 
 ``simsopt`` is one of several available systems for stellarator
 optimization.  Others include `STELLOPT
