@@ -1,6 +1,9 @@
 import unittest
+import re
+
 import numpy as np
-from simsopt._core.graph_optimizable import Optimizable
+
+from simsopt._core.graph_optimizable import Optimizable, make_optimizable
 from simsopt.objectives.graph_functions import Identity, Rosenbrock, TestObject2
 
 
@@ -701,6 +704,88 @@ class OptimizableTests(unittest.TestCase):
     def test_local_upper_bounds(self):
         pass
 
+    def test_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.dof_names), 0)
+        self.assertEqual(len(adder.dof_names), 3)
+        patt = re.compile("Adder\d+:x\d+")
+        for name in adder.dof_names:
+            self.assertTrue(patt.match(name))
+
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        comb_patt = re.compile("|".join([patt1, patt2]))
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.dof_names), 4)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.dof_names), 3)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("OptClassWithParents\d+:val")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.dof_names), 2)
+        for name in test_obj.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("Adder\d+:x1")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        comb_patt = re.compile("|".join([patt1, patt2, patt3]))
+        self.assertEqual(len(test_obj2.dof_names), 10)
+        for name in test_obj2.dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.dof_names), 9)
+        for name in test_obj2.dof_names:
+            self.assertTrue(comb_patt.match(name))
+        exc_patt = re.compile("OptClassWith2LevelParents\d+:v1")
+        for name in test_obj.dof_names:
+            self.assertFalse(exc_patt.match(name))
+
+    def test_full_dof_names(self):
+        iden = Identity(x=10, dof_fixed=True)
+        adder = Adder(n=3, x0=[1, 2, 3])
+        self.assertEqual(len(iden.full_dof_names), 1)
+        self.assertEqual(len(adder.full_dof_names), 3)
+
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+        test_obj.fix('val')
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+        adder.fix('x1')
+        self.assertEqual(len(test_obj.full_dof_names), 5)
+
+        test_obj2 = OptClassWith2LevelParents(10, 20)
+        self.assertEqual(len(test_obj2.full_dof_names), 10)
+        test_obj2.fix(0)
+        self.assertEqual(len(test_obj2.full_dof_names), 10)
+        patt1 = "Adder\d+:x\d+"
+        patt2 = "OptClassWithParents\d+:val"
+        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        comb_patt = re.compile("|".join([patt1, patt2, patt3]))
+        for name in test_obj2.full_dof_names:
+            self.assertTrue(comb_patt.match(name))
+
+    def test_local_dof_names(self):
+        # Test in DOFs class is sufficient
+        pass
+
+    def test_local_full_dof_names(self):
+        # Test in DOFs class is sufficient
+        pass
+
     def test_is_fixed(self):
         iden = Identity(x=10, dof_fixed=True)
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
@@ -852,6 +937,69 @@ class OptimizableTestsExternalDofs(unittest.TestCase):
         self.opt.local_x = [3, 4]
         vals = self.opt.get_dofs()
         self.assertTrue((vals == np.array([3, 4])).all())
+
+
+class TestMakeOptimizable(unittest.TestCase):
+    def setUp(self) -> None:
+        def arb_fun_dofs_noopts(a, b, c):
+            return a ** 2 + 2 * b ** 2 + 3 * c ** 2 - 10
+
+        def arb_fun_nodofs_opts(adder):
+            return adder.sum()**2 - 10
+
+        def arb_fun_dofs_opts(a, b, adder):
+            return a**2 + b**2 + adder.sum()**2 - 10
+
+        self.arb_fun_dofs_noopts = arb_fun_dofs_noopts
+        self.arb_fun_nodofs_opts = arb_fun_nodofs_opts
+        self.arb_fun_dofs_opts = arb_fun_dofs_opts
+
+    def test_arb_func_dofs_noopts(self):
+        x, y, z = 1, 2, 3
+        opt = make_optimizable(self.arb_fun_dofs_noopts,
+                               x, y, z,
+                               dof_indicators=["dof", "dof", "dof"])
+        self.assertAlmostEqual(opt.J(), 26.0)
+        opt.x = np.array([1.2, 0.8, 0.5])
+        self.assertAlmostEqual(opt.J(), -6.53)
+
+    def test_arb_func_nodofs_opts(self):
+        adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
+        opt = make_optimizable(self.arb_fun_nodofs_opts,
+                               adder,
+                               dof_indicators=["opt"])
+        self.assertAlmostEqual(opt.J(), 26.0)
+        x = opt.x   # Length of x is 3
+        opt.x = x / 2.0
+        self.assertAlmostEqual(opt.J(), -1.0)
+
+        # When dof_indicators argument is not passed only opts and non_dofs are
+        # considered. Below a and b are treated as non-dofs and the adder should
+        # be recognized as optimizable object
+        a = 2.0
+        b = 3.0
+        adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
+        opt = make_optimizable(self.arb_fun_dofs_opts, a, b, adder)
+        self.assertAlmostEqual(opt.J(), 39.0)
+        x = opt.x   # Length of x is 3
+        self.assertEqual(len(x), 3)
+        opt.x = x / 2.0
+        self.assertAlmostEqual(opt.J(), 12.0)
+
+    def test_arb_func_dofs_opts(self):
+        # Below a is passed as dof b is passed as non-dof and the adder is
+        # passed as optimizable object
+        a = 2.0
+        b = 3.0
+        adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
+        opt = make_optimizable(self.arb_fun_dofs_opts,
+                               a, b, adder,
+                               dof_indicators=['dof', 'non-dof', 'opt'])
+        self.assertAlmostEqual(opt.J(), 39.0)
+        x = opt.x  # Length of x is 4
+        self.assertEqual(len(x), 4)
+        opt.x = x / 2.0
+        self.assertAlmostEqual(opt.J(), 9.0)
 
 
 if __name__ == "__main__":

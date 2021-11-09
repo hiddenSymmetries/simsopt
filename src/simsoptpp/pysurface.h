@@ -18,6 +18,9 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual void set_dofs_impl(const vector<double>& _dofs) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, set_dofs_impl, _dofs);
         }
+        virtual void set_dofs(const vector<double>& _dofs) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, set_dofs, _dofs);
+        }
         virtual vector<double> get_dofs() override {
             PYBIND11_OVERLOAD_PURE(vector<double>, SurfaceBase, get_dofs);
         }

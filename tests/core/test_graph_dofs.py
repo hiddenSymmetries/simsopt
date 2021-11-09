@@ -1,10 +1,9 @@
 import unittest
 import numpy as np
-from collections import Counter
 
 from simsopt._core.graph_optimizable import DOFs
-from simsopt.objectives.graph_functions import Identity, Adder, \
-    TestObject2, Rosenbrock, Affine
+from simsopt.objectives.graph_functions import Identity, Adder, Rosenbrock
+from simsopt._core.util import DofLengthMismatchError
 
 
 class DOFsTests(unittest.TestCase):
@@ -38,7 +37,7 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(self.adder_dofs.any_fixed())
         self.assertFalse(self.adder_dofs.all_free())
         self.assertEqual(self.adder_dofs.reduced_len, 2)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             self.adder_dofs.x = np.array([4, 5, 6])
 
         self.adder_dofs.fix("x")
@@ -139,9 +138,9 @@ class DOFsTests(unittest.TestCase):
         # Test the setter
 
         # Use full array size
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             fixed_dofs.x = np.array([4, 5, 6])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             one_fixed_dofs.x = np.array([4, 5, 6])
 
         free_dofs.x = np.array([4, 5, 6])
@@ -171,9 +170,9 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(dofs.lower_bounds,
                                     np.array([np.NINF, np.NINF])))
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.lower_bounds = np.array([-1000.0, -1001.0, -1002.0])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.lower_bounds = np.array([-1000.0])
         dofs.lower_bounds = np.array([-1000.0, -1001.0])
         self.assertTrue(np.allclose(dofs.lower_bounds,
@@ -187,9 +186,9 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(dofs.lower_bounds,
                                     np.array([-1000.0, -1001.0, -1002.0])))
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.lower_bounds = np.array([-1000.0])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.lower_bounds = np.array([-1000.0, -1001.0])
 
     def test_upper_bounds(self):
@@ -199,9 +198,9 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(dofs.upper_bounds,
                                     np.array([np.inf, np.inf])))
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.upper_bounds = np.array([1000.0, 1001.0, 1002.0])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.upper_bounds = np.array([1000.0])
         dofs.upper_bounds = np.array([1000.0, 1001.0])
         self.assertTrue(np.allclose(dofs.upper_bounds,
@@ -215,9 +214,9 @@ class DOFsTests(unittest.TestCase):
         self.assertTrue(np.allclose(dofs.upper_bounds,
                                     np.array([1000.0, 1001.0, 1002.0])))
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.upper_bounds = np.array([1000.0])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DofLengthMismatchError):
             dofs.upper_bounds = np.array([1000.0, 1001.0])
 
     def test_bounds(self):
@@ -257,6 +256,47 @@ class DOFsTests(unittest.TestCase):
 
     def test_update_bounds(self):
         pass
+
+    def test_names(self):
+        dofs = DOFs(x=np.array([1.0, 2.0, 3.0]),
+                    names=np.array(['x', 'y', 'z']),
+                    free=np.array([True, True, False]),
+                    lower_bounds=np.array([-100.0, -101.0, -102.0]),
+                    upper_bounds=np.array([100.0, 101.0, 102.0]))
+        self.assertTrue('x' in dofs.names)
+        self.assertTrue('y' in dofs.names)
+        self.assertFalse('z' in dofs.names)
+        dofs.fix_all()
+        self.assertTrue(len(dofs.names) == 0)
+        dofs.unfix_all()
+        self.assertTrue('x' in dofs.names)
+        self.assertTrue('y' in dofs.names)
+        self.assertTrue('z' in dofs.names)
+        dofs.fix('y')
+        self.assertTrue('x' in dofs.names)
+        self.assertFalse('y' in dofs.names)
+        self.assertTrue('z' in dofs.names)
+
+    def test_full_names(self):
+        dofs = DOFs(x=np.array([1.0, 2.0, 3.0]),
+                    names=np.array(['x', 'y', 'z']),
+                    free=np.array([True, True, False]),
+                    lower_bounds=np.array([-100.0, -101.0, -102.0]),
+                    upper_bounds=np.array([100.0, 101.0, 102.0]))
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
+        dofs.fix_all()
+        self.assertTrue(len(dofs.full_names) == 3)
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
+        dofs.unfix_all()
+        self.assertTrue(len(dofs.full_names) == 3)
+        dofs.fix('y')
+        self.assertTrue('x' in dofs.full_names)
+        self.assertTrue('y' in dofs.full_names)
+        self.assertTrue('z' in dofs.full_names)
 
 
 if __name__ == "__main__":

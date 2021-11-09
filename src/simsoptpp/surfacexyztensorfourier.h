@@ -59,16 +59,6 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 build_cache();
             }
 
-        SurfaceXYZTensorFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, std::vector<bool> _clamped_dims, int _numquadpoints_phi, int _numquadpoints_theta)
-            : Surface<Array>(_numquadpoints_phi, _numquadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym), clamped_dims(_clamped_dims) {
-                x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                build_cache();
-            }
-
-
-
         int num_dofs() override {
             if(stellsym)
                 return (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1);

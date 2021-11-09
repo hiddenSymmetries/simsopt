@@ -19,6 +19,8 @@ from scipy.optimize import least_squares
 from .._core.dofs import Dofs
 from .._core.util import isnumber
 from .._core.optimizable import function_from_user, Target
+from ..util.dev import deprecated
+from .graph_least_squares import LeastSquaresProblem as GLSP
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,13 @@ class LeastSquaresTerm:
         return self.weight * np.dot(temp, temp)
 
 
+@deprecated(replacement=GLSP,
+            message="This class has been deprecated from v0.6.0 and will be "
+                    "deleted from future versions of simsopt. Use graph "
+                    "framework to define the optimization problem. Use "
+                    "simsopt.objectives.graph_least_squares.LeastSquaresProblem"
+                    " class in conjunction with"
+                    " simsopt.solve.graph_serial.least_squares_serial_solve")
 class LeastSquaresProblem:
     """
     This class represents a nonlinear-least-squares optimization

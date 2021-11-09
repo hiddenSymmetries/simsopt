@@ -10,11 +10,11 @@ except:
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.solve.graph_serial import least_squares_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
-    from simsopt.solve.mpi import least_squares_mpi_solve
+    from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
@@ -41,7 +41,7 @@ class IntegratedTests(unittest.TestCase):
 
             # Start with a default surface, which is axisymmetric with major
             # radius 1 and minor radius 0.1.
-            surf = SurfaceRZFourier(quadpoints_phi=62, quadpoints_theta=63)
+            surf = SurfaceRZFourier()
 
             # Set initial surface shape. It helps to make zs(1,0) larger
             # than rc(1,0) since there are two solutions to this
@@ -53,19 +53,18 @@ class IntegratedTests(unittest.TestCase):
             # optimized.  You can choose to exclude any subset of the variables
             # from the space of independent variables by setting their 'fixed'
             # property to True.
-            surf.set_fixed('rc(0,0)')
+            surf.fix('rc(0,0)')
 
             # Each function you want in the objective function is then
             # equipped with a shift and weight, to become a term in a
             # least-squares objective function. A list of terms are
             # combined to form a nonlinear-least-squares problem.
-            prob = LeastSquaresProblem([(surf.volume, desired_volume, 1),
-                                        (surf.area, desired_area, 1)])
+            prob = LeastSquaresProblem.from_tuples(
+                [(surf.volume, desired_volume, 1),
+                 (surf.area, desired_area, 1)])
 
-            # Verify the state vector and names are what we expect
+            # Verify the state vector is what we expect
             np.testing.assert_allclose(prob.x, [0.1, 0.2])
-            self.assertEqual(prob.dofs.names[0][:28], 'rc(1,0) of SurfaceRZFourier ')
-            self.assertEqual(prob.dofs.names[1][:28], 'zs(1,0) of SurfaceRZFourier ')
 
             # Solve the minimization problem:
             solver(prob)
@@ -106,21 +105,20 @@ class IntegratedTests(unittest.TestCase):
             # optimized.  You can choose to exclude any subset of the variables
             # from the space of independent variables by setting their 'fixed'
             # property to True.
-            surf.all_fixed()
-            surf.set_fixed('Delta(0,0)', False)  # Minor radius
-            surf.set_fixed('Delta(2,0)', False)  # Elongation
+            surf.fix_all()
+            surf.unfix('Delta(0,0)')  # Minor radius
+            surf.unfix('Delta(2,0)')  # Elongation
 
             # Each function you want in the objective function is then
             # equipped with a shift and weight, to become a term in a
             # least-squares objective function. A list of terms are
             # combined to form a nonlinear-least-squares problem.
-            prob = LeastSquaresProblem([(surf.volume, desired_volume, 1),
-                                        (surf.area, desired_area, 1)])
+            prob = LeastSquaresProblem.from_tuples(
+                [(surf.volume, desired_volume, 1),
+                 (surf.area, desired_area, 1)])
 
-            # Verify the state vector and names are what we expect
+            # Verify the state vector is what we expect
             np.testing.assert_allclose(prob.x, [0.1, -0.1])
-            self.assertEqual(prob.dofs.names[0][:31], 'Delta(0,0) of SurfaceGarabedian')
-            self.assertEqual(prob.dofs.names[1][:31], 'Delta(2,0) of SurfaceGarabedian')
 
             # Solve the minimization problem:
             solver(prob)

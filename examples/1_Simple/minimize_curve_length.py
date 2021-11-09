@@ -10,7 +10,8 @@ from simsopt.solve.graph_serial import least_squares_serial_solve
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.
 The result should be a circle.
 """
-
+print("Running 1_Simple/minimize_curve_length.py")
+print("==============================================")
 # Create a curve:
 nquadrature = 100
 nfourier = 4
@@ -58,3 +59,5 @@ print(' Final curve dofs: ', curve.local_full_x)
 print(' Final curve length:    ', obj.J())
 print(' Expected final length: ', 2 * np.pi * x0[0])
 print(' objective function: ', prob.objective())
+print("End of 1_Simple/minimize_curve_length.py")
+print("==============================================")

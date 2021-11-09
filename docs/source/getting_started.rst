@@ -33,9 +33,9 @@ Optional Packages
     * pyoculus
     * h5py
     * f90nml
-- For VMEC support
+- For VMEC support:
     * https://github.com/hiddenSymmetries/vmec2000
-- For quasisymmetry optimization
+- For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 
 For requirements of separate physics modules like VMEC, see the
@@ -99,23 +99,27 @@ can be installed for your user only::
 If you want to build SIMSOPT locally with the optional dependencies,
 you can run
 
+.. code-block::
+
     pip install --user -e .[MPI,SPEC]
 
 However, if you're using a zsh terminal (example: latest Macbook versions),
 you'll need to run instead
 
-    pip install --user -e .\[MPI,SPEC]\
+.. code-block::
+
+    pip install --user -e ".[MPI,SPEC]"
 
 
 From docker container
 ---------------------
 
-A docker image with simsopt along with its dependencies, VMEC, and
-BOOZ_XFORM pre-installed is available from docker hub. This container
-allows you to use simsopt without having to compile any code yourself.
-After `installing docker <https://docs.docker.com/get-docker/>`_, you
-can run the simsopt container directly from the docker image uploaded
-to Docker Hub.
+A docker image with simsopt along with its dependencies, VMEC, SPEC,
+and BOOZ_XFORM pre-installed is available from docker hub. This
+container allows you to use simsopt without having to compile any code
+yourself.  After `installing docker
+<https://docs.docker.com/get-docker/>`_, you can run the simsopt
+container directly from the docker image uploaded to Docker Hub.
 
 .. code-block::
 

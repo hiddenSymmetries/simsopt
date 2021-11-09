@@ -1,9 +1,9 @@
 import numpy as np
+
 import simsoptpp as sopp
-from simsopt.field.magneticfield import MagneticField
-from simsopt.geo.curve import Curve
-from simsopt._core.graph_optimizable import Optimizable
-from simsopt._core.derivative import Derivative
+from ..geo.curve import Curve
+from .._core.derivative import Derivative
+from .magneticfield import MagneticField
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
