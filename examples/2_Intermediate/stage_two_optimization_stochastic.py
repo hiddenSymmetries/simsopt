@@ -27,6 +27,10 @@ The objective is given by
 where the Mean is approximated by a sample average over perturbed coils.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
+
+The coil perturbations for each coil are the sum of a 'systematic error' and a
+'statistical error'.  The former satisfies rotational and stellarator symmetry,
+the latter is independent for each coil.
 """
 
 
@@ -47,8 +51,10 @@ PPP = 15
 ALPHA = 1e-6
 MIN_DIST = 0.2
 BETA = 10
-SIGMA = 0.003
-L = 0.3
+SIGMA = 0.005
+L = 0.5
+N_SAMPLES = 32 # how many samples to use to approximate the mean of the objective
+N_OOS = 256 # how many samples to use for the post-optimization out-of-sample evaluation
 
 base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=PPP*order)
 base_currents = []
@@ -74,10 +80,13 @@ s.to_vtk("/tmp/surf_init", extra_data=pointData)
 Jf = SquaredFlux(s, bs)
 
 sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
-Nsamples = 16
 Jfs = []
 curves_pert = []
-for i in range(Nsamples):
+for i in range(N_SAMPLES):
+    # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
+    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
+    coils = coils_via_symmetries(base_curves_perturbed, base_currents, nfp, True)
+    # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
     coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
@@ -129,6 +138,12 @@ print("""
 """)
 from scipy.optimize import minimize
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
+
+print("""
+################################################################################
+### Evaluate the obtained coils ################################################
+################################################################################
+""")
 curves_to_vtk(curves, "/tmp/curves_opt")
 for i in range(len(curves_pert)):
     curves_to_vtk(curves_pert[i], f"/tmp/curves_opt_{i}")
@@ -137,3 +152,18 @@ s.to_vtk("/tmp/surf_opt", extra_data=pointData)
 Jf.x = res.x
 print(f"Mean Flux Objective across perturbed coils: {np.mean([J.J() for J in Jfs]):.3e}")
 print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
+
+# now draw some fresh samples to evaluate the out-of-sample error
+val = 0
+for i in range(N_OOS):
+    # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
+    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
+    coils = coils_via_symmetries(base_curves_perturbed, base_currents, nfp, True)
+    # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
+    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
+    curves_pert.append([c.curve for c in coils_pert])
+    bs_pert = BiotSavart(coils_pert)
+    val += SquaredFlux(s, bs_pert).J()
+
+val *= 1./256
+print(f"Out-of-sample flux value                  : {val:.3e}")

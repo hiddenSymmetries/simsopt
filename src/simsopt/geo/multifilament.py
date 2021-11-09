@@ -16,6 +16,114 @@ In addition, we specify an angle along the curve that allows to optimise for the
 """
 
 
+class CurveShiftedRotated(sopp.Curve, Curve):
+
+    def __init__(self, curve, dn, db, rotation=None):
+        self.curve = curve
+        sopp.Curve.__init__(self, curve.quadpoints)
+        deps = [curve]
+        if rotation is not None:
+            deps.append(rotation)
+        Curve.__init__(self, depends_on=deps)
+        self.curve = curve
+        self.dn = dn
+        self.db = db
+        if rotation is None:
+            rotation = ZeroRotation(curve.quadpoints)
+        self.rotation = rotation
+
+    def recompute_bell(self, parent=None):
+        self.invalidate_cache()
+
+    def gamma_impl(self, gamma, quadpoints):
+        assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
+        assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
+        c = self.curve
+        t, n, b = rotated_centroid_frame(c.gamma(), c.gammadash(), self.rotation.alpha(c.quadpoints))
+        gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
+
+    def gammadash_impl(self, gammadash):
+        c = self.curve
+        td, nd, bd = rotated_centroid_frame_dash(
+            c.gamma(), c.gammadash(), c.gammadashdash(),
+            self.rotation.alpha(c.quadpoints), self.rotation.alphadash(c.quadpoints)
+        )
+        gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
+
+    def dgamma_by_dcoeff_vjp(self, v):
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+        vg = rotated_centroid_frame_dcoeff_vjp0(g, gd, a, (zero, self.dn*v, self.db*v))
+        vgd = rotated_centroid_frame_dcoeff_vjp1(g, gd, a, (zero, self.dn*v, self.db*v))
+        va = rotated_centroid_frame_dcoeff_vjp2(g, gd, a, (zero, self.dn*v, self.db*v))
+        return self.curve.dgamma_by_dcoeff_vjp(v + vg) \
+            + self.curve.dgammadash_by_dcoeff_vjp(vgd) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va)
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        gdd = self.curve.gammadashdash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        ad = self.rotation.alphadash(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+
+        vg = rotated_centroid_frame_dash_dcoeff_vjp0(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
+        vgd = rotated_centroid_frame_dash_dcoeff_vjp1(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
+        vgdd = rotated_centroid_frame_dash_dcoeff_vjp2(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
+        va = rotated_centroid_frame_dash_dcoeff_vjp3(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
+        vad = rotated_centroid_frame_dash_dcoeff_vjp4(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
+        return self.curve.dgamma_by_dcoeff_vjp(vg) \
+            + self.curve.dgammadash_by_dcoeff_vjp(v+vgd) \
+            + self.curve.dgammadashdash_by_dcoeff_vjp(vgdd) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) \
+            + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, vad)
+
+
+class FilamentRotation(Optimizable):
+
+    def __init__(self, quadpoints, order):
+        self.order = order
+        Optimizable.__init__(self, x0=np.zeros((2*order+1, )))
+        self.quadpoints = quadpoints
+        self.jac = rotation_dcoeff(quadpoints, order)
+        self.jacdash = rotationdash_dcoeff(quadpoints, order)
+        self.jax_alpha = jit(lambda dofs, points: jaxrotation_pure(dofs, points, self.order))
+        self.jax_alphadash = jit(lambda dofs, points: jaxrotationdash_pure(dofs, points, self.order))
+
+    def alpha(self, quadpoints):
+        return self.jax_alpha(self._dofs.full_x, quadpoints)
+
+    def alphadash(self, quadpoints):
+        return self.jax_alphadash(self._dofs.full_x, quadpoints)
+
+    def dalpha_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({self: sopp.vjp(v, self.jac)})
+
+    def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({self: sopp.vjp(v, self.jacdash)})
+
+
+class ZeroRotation():
+
+    def __init__(self, quadpoints):
+        self.zero = np.zeros((quadpoints.size, ))
+
+    def alpha(self, quadpoints):
+        return self.zero
+
+    def alphadash(self, quadpoints):
+        return self.zero
+
+    def dalpha_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({})
+
+    def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
+        return Derivative({})
+
+
 @jit
 def rotated_centroid_frame(gamma, gammadash, alpha):
     t = gammadash
@@ -102,111 +210,3 @@ def rotationdash_dcoeff(points, order):
         jac[:, 2*j-1] = +2*np.pi*j*np.cos(2*np.pi*j*points)
         jac[:, 2*j+0] = -2*np.pi*j*np.sin(2*np.pi*j*points)
     return jac
-
-
-class FilamentRotation(Optimizable):
-
-    def __init__(self, quadpoints, order):
-        self.order = order
-        Optimizable.__init__(self, x0=np.zeros((2*order+1, )))
-        self.quadpoints = quadpoints
-        self.jac = rotation_dcoeff(quadpoints, order)
-        self.jacdash = rotationdash_dcoeff(quadpoints, order)
-        self.jax_alpha = jit(lambda dofs, points: jaxrotation_pure(dofs, points, self.order))
-        self.jax_alphadash = jit(lambda dofs, points: jaxrotationdash_pure(dofs, points, self.order))
-
-    def alpha(self, quadpoints):
-        return self.jax_alpha(self._dofs.full_x, quadpoints)
-
-    def alphadash(self, quadpoints):
-        return self.jax_alphadash(self._dofs.full_x, quadpoints)
-
-    def dalpha_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: sopp.vjp(v, self.jac)})
-
-    def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: sopp.vjp(v, self.jacdash)})
-
-
-class ZeroRotation():
-
-    def __init__(self, quadpoints):
-        self.zero = np.zeros((quadpoints.size, ))
-
-    def alpha(self, quadpoints):
-        return self.zero
-
-    def alphadash(self, quadpoints):
-        return self.zero
-
-    def dalpha_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({})
-
-    def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({})
-
-
-class CurveShiftedRotated(sopp.Curve, Curve):
-
-    def __init__(self, curve, dn, db, rotation=None):
-        self.curve = curve
-        sopp.Curve.__init__(self, curve.quadpoints)
-        deps = [curve]
-        if rotation is not None:
-            deps.append(rotation)
-        Curve.__init__(self, depends_on=deps)
-        self.curve = curve
-        self.dn = dn
-        self.db = db
-        if rotation is None:
-            rotation = ZeroRotation(curve.quadpoints)
-        self.rotation = rotation
-
-    def recompute_bell(self, parent=None):
-        self.invalidate_cache()
-
-    def gamma_impl(self, gamma, quadpoints):
-        assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
-        assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
-        c = self.curve
-        t, n, b = rotated_centroid_frame(c.gamma(), c.gammadash(), self.rotation.alpha(c.quadpoints))
-        gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
-
-    def gammadash_impl(self, gammadash):
-        c = self.curve
-        td, nd, bd = rotated_centroid_frame_dash(
-            c.gamma(), c.gammadash(), c.gammadashdash(),
-            self.rotation.alpha(c.quadpoints), self.rotation.alphadash(c.quadpoints)
-        )
-        gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
-
-    def dgamma_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        zero = np.zeros_like(v)
-        vg = rotated_centroid_frame_dcoeff_vjp0(g, gd, a, (zero, self.dn*v, self.db*v))
-        vgd = rotated_centroid_frame_dcoeff_vjp1(g, gd, a, (zero, self.dn*v, self.db*v))
-        va = rotated_centroid_frame_dcoeff_vjp2(g, gd, a, (zero, self.dn*v, self.db*v))
-        return self.curve.dgamma_by_dcoeff_vjp(v + vg) \
-            + self.curve.dgammadash_by_dcoeff_vjp(vgd) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va)
-
-    def dgammadash_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        gdd = self.curve.gammadashdash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        ad = self.rotation.alphadash(self.curve.quadpoints)
-        zero = np.zeros_like(v)
-
-        vg = rotated_centroid_frame_dash_dcoeff_vjp0(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        vgd = rotated_centroid_frame_dash_dcoeff_vjp1(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        vgdd = rotated_centroid_frame_dash_dcoeff_vjp2(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        va = rotated_centroid_frame_dash_dcoeff_vjp3(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        vad = rotated_centroid_frame_dash_dcoeff_vjp4(g, gd, gdd, a, ad, (zero, self.dn*v, self.db*v))
-        return self.curve.dgamma_by_dcoeff_vjp(vg) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v+vgd) \
-            + self.curve.dgammadashdash_by_dcoeff_vjp(vgdd) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) \
-            + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, vad)
