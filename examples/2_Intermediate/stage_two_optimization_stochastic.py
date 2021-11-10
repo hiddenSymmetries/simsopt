@@ -34,7 +34,7 @@ the latter is independent for each coil.
 """
 
 
-MAXITER = 10 if ci else 1000
+MAXITER = 10 if ci else 400
 
 nfp = 3
 nphi = 32
@@ -47,14 +47,14 @@ ncoils = 4
 R0 = 1.5
 R1 = 0.8
 order = 6
-PPP = 10
+PPP = 15
 ALPHA = 1e-6
 MIN_DIST = 0.2
 BETA = 10
 SIGMA = 0.005
 L = 0.5
-N_SAMPLES = 8  # how many samples to use to approximate the mean of the objective
-N_OOS = 256  # how many samples to use for the post-optimization out-of-sample evaluation
+N_SAMPLES = 32 # how many samples to use to approximate the mean of the objective
+N_OOS = 256 # how many samples to use for the post-optimization out-of-sample evaluation
 
 base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=PPP*order)
 base_currents = []

@@ -42,7 +42,8 @@ class SquaredFlux(Optimizable):
             B_n = (Bcoil_n - self.target)
         else:
             B_n = Bcoil_n
-        return 0.5 * np.mean(B_n**2 * absn)
+        mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+        return 0.5 * np.mean((B_n/mod_Bcoil)**2 * absn)
 
     @derivative_dec
     def dJ(self):
@@ -55,7 +56,11 @@ class SquaredFlux(Optimizable):
             B_n = (Bcoil_n - self.target)
         else:
             B_n = Bcoil_n
-        dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
+        mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+        dJdB = ((
+            (B_n/mod_Bcoil)[..., None] * (
+                unitn/mod_Bcoil[..., None] - (B_n/mod_Bcoil**3)[..., None] * Bcoil
+            )) * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 

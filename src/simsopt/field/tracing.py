@@ -296,7 +296,8 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
         phase_angle=phase_angle)
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None,
+                       forget_exact_path=False):
     r"""
     Compute magnetic field lines by solving
 
@@ -315,6 +316,10 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         stopping_criteria: list of stopping criteria, mostly used in
                            combination with the ``LevelsetStoppingCriterion``
                            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           interest or one wants to reduce memory usage.
+        comm: MPI communicator to use
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -342,7 +347,10 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         res_ty, res_phi_hit = sopp.fieldline_tracing(
             field, xyz_inits[i, :],
             tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
-        res_tys.append(np.asarray(res_ty))
+        if not forget_exact_path:
+            res_tys.append(np.asarray(res_ty))
+        else:
+            res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(f"{i+1:3d}/{nlines}, t_final={res_ty[-1][0]}, average timestep {dtavg:.10f}s")
