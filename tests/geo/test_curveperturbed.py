@@ -21,9 +21,9 @@ class CurvePerturbationTesting(unittest.TestCase):
             g = sample[idx + 0]
             gd = sample[idx + 1]
 
-            gdest = (-1/12) * g[4:,:] + (2/3) * g[3:-1,:] + 0 * g[2:-2,:] +  (-2/3) * g[1:-3,:] + (1/12) *g[0:-4,:]
+            gdest = (-1/12) * g[4:, :] + (2/3) * g[3:-1, :] + 0 * g[2:-2, :] + (-2/3) * g[1:-3, :] + (1/12) * g[0:-4, :]
             gdest *= 1/dphi
-            err = np.abs(gdest - gd[2:-2,:])
+            err = np.abs(gdest - gd[2:-2, :])
 
             print("np.mean(err)", np.mean(err))
             if idx == 0:
