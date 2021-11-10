@@ -23,22 +23,13 @@ class GaussianSampler():
 
         def kernel(x, y):
             return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-4, 5))
-        XX, YY = np.meshgrid(xs, xs)
-        for i in range(n):
-            for j in range(n):
-                x = XX[i, j]
-                y = YY[i, j]
-                if abs(x-y) > 0.5:
-                    if y > 0.5:
-                        YY[i, j] -= 1
-                    else:
-                        XX[i, j] -= 1
 
+        XX, YY = np.meshgrid(xs, xs, indexing='ij')
+        x = Symbol("x")
+        y = Symbol("y")
+        f = kernel(x, y)
         for ii in range(n_derivs+1):
             for jj in range(n_derivs+1):
-                x = Symbol("x")
-                y = Symbol("y")
-                f = kernel(x, y)
                 if ii + jj == 0:
                     lam = lambdify((x, y), f, "numpy")
                 else:

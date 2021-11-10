@@ -84,19 +84,21 @@ class CoilOptObjective(Optimizable):
         beta: The scalar weight in front of the objective in ``Jdist``.
     """
 
-    def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=None, beta=0.):
-        deps = [Jflux] + Jcls
+    def __init__(self, Jfluxs, Jcls=[], alpha=0., Jdist=None, beta=0.):
+        if isinstance(Jfluxs, SquaredFlux):
+            Jfluxs = [Jfluxs]
+        deps = Jfluxs + Jcls
         if Jdist is not None:
             deps.append(Jdist)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=deps)
-        self.Jflux = Jflux
+        self.Jfluxs = Jfluxs
         self.Jcls = Jcls
         self.alpha = alpha
         self.Jdist = Jdist
         self.beta = beta
 
     def J(self):
-        res = self.Jflux.J()
+        res = sum(J.J() for J in self.Jfluxs)/len(self.Jfluxs)
         if self.alpha > 0:
             res += self.alpha * sum([J.J() for J in self.Jcls])
         if self.beta > 0 and self.Jdist is not None:
@@ -105,11 +107,13 @@ class CoilOptObjective(Optimizable):
 
     @derivative_dec
     def dJ(self):
-        res = self.Jflux.dJ(partials=True)
+        res = self.Jfluxs[0].dJ(partials=True)
+        for i in range(1, len(self.Jfluxs)):
+            res += self.Jfluxs[i].dJ(partials=True)
+        res *= 1./len(self.Jfluxs)
         if self.alpha > 0:
             for Jcl in self.Jcls:
                 res += self.alpha * Jcl.dJ(partials=True)
         if self.beta > 0 and self.Jdist is not None:
             res += self.beta * self.Jdist.dJ(partials=True)
         return res
-
