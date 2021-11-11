@@ -8,7 +8,7 @@ from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, Perturba
 import numpy as np
 from pathlib import Path
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 import os
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
