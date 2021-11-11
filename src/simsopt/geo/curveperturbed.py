@@ -22,7 +22,7 @@ class GaussianSampler():
         cov_mat = np.zeros((n*(n_derivs+1), n*(n_derivs+1)))
 
         def kernel(x, y):
-            return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-4, 5))
+            return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-5, 6))
 
         XX, YY = np.meshgrid(xs, xs, indexing='ij')
         x = Symbol("x")
