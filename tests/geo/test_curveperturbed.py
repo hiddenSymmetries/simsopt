@@ -30,3 +30,15 @@ class CurvePerturbationTesting(unittest.TestCase):
                 assert np.mean(err) < 1e-4
             else:
                 assert np.mean(err) < 1e-3
+
+    def test_perturbed_periodic(self):
+        sigma = 1
+        length_scale = 0.5
+        n = 100
+        points = np.linspace(0, 2, 2*n, endpoint=False)
+        sampler = GaussianSampler(points, sigma, length_scale, n_derivs=0)
+        rg = np.random.Generator(PCG64(1))
+        sample = PerturbationSample(sampler, randomgen=rg)
+        periodic_err = np.abs(sample[0][:n, :] - sample[0][n:, :])
+        print("periodic_err", np.mean(periodic_err))
+        assert np.mean(periodic_err) < 1e-7
