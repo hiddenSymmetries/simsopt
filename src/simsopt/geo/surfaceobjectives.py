@@ -87,7 +87,7 @@ def forward_backward(P, L, U, rhs):
 #    def dJ_by_dcoilcurrents(self):
 #        return [0. for c in self.stellarator.coils]
 
-sDIM = 25
+sDIM = 10
 class NonQuasiAxisymmetricComponent(object):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
