@@ -6,11 +6,10 @@ from simsopt.field.coil import Current, Coil, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
 from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
 import numpy as np
-from pathlib import Path
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'input.LandremanPaul2021_QA'
-
 import os
+from pathlib import Path
+filename = os.path.join(Path(__file__).parent, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
+
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
 
@@ -39,9 +38,7 @@ MAXITER = 10 if ci else 1000
 nfp = 3
 nphi = 32
 ntheta = 32
-phis = np.linspace(0, 1./(2*nfp), nphi, endpoint=False)
-thetas = np.linspace(0, 1., ntheta, endpoint=False)
-s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=phis, quadpoints_theta=thetas)
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 ncoils = 4
 R0 = 1.5
