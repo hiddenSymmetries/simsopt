@@ -8,7 +8,9 @@ from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, Perturba
 import numpy as np
 import os
 from pathlib import Path
-filename = os.path.join(Path(__file__).parent, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
+
+parentdir = Path(__file__).parent
+filename = os.path.join(parentdir, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
 
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
