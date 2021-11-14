@@ -41,4 +41,4 @@ class CurvePerturbationTesting(unittest.TestCase):
         sample = PerturbationSample(sampler, randomgen=rg)
         periodic_err = np.abs(sample[0][:n, :] - sample[0][n:, :])
         print("periodic_err", np.mean(periodic_err))
-        assert np.mean(periodic_err) < 1e-7
+        assert np.mean(periodic_err) < 1e-6
