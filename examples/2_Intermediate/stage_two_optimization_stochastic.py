@@ -9,7 +9,8 @@ import numpy as np
 import os
 from pathlib import Path
 
-parentdir = Path(__file__).parent
+filename =  __file__
+parentdir = Path(filename).parent
 filename = os.path.join(parentdir, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
 
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
