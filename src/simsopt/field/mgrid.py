@@ -8,9 +8,9 @@ import sys
 class MGRID():
 
     
-    def __init__(self,fname='temp',binary=False,
-                    nr=51,nz=51,nphi=24,nfp=2,
-                    rmin=0.20,rmax=0.40,zmin=-0.10,zmax=0.10,
+    def __init__(self,fname='temp',binary=False,\
+                    nr=51,nz=51,nphi=24,nfp=2,\
+                    rmin=0.20,rmax=0.40,zmin=-0.10,zmax=0.10,\
                     nextcur=0):
 
         self.nr = nr
