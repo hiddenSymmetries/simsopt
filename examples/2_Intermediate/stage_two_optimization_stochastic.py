@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
@@ -9,9 +10,8 @@ import numpy as np
 import os
 from pathlib import Path
 
-filename = __file__
-parentdir = Path(filename).parent
-filename = os.path.join(parentdir, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
