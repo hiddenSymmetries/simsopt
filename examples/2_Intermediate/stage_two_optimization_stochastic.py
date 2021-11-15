@@ -9,7 +9,7 @@ import numpy as np
 import os
 from pathlib import Path
 
-filename =  __file__
+filename = __file__
 parentdir = Path(filename).parent
 filename = os.path.join(parentdir, "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
 
