@@ -87,9 +87,9 @@ class MagneticField(sopp.MagneticField, Optimizable):
         Z = Z
 
         RPhiZ = np.zeros((R.size, 3))
-        RPhiZ[:, 0] = R.flatten()
-        RPhiZ[:, 1] = Phi.flatten()
-        RPhiZ[:, 2] = Z.flatten()
+        RPhiZ[:, 0] = Phi.flatten() # ordering (phi,z,r) to match mgrid netCDF, maybe rename this array PhiZR then?
+        RPhiZ[:, 1] = Z.flatten()
+        RPhiZ[:, 2] = R.flatten()
 
         # get field from simsopt
         self.set_points_cyl(RPhiZ)
@@ -100,7 +100,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         mgrid = mg.MGRID( fname=filename, nfp=nfp, \
                       nr=nr, nz=nz, nphi=nphi, \
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax )
-        mgrid.add_field(B, name='simsopt_coils') # expects a function (N_phi, N_Z, N_R, 3) (!)
+        mgrid.add_field(B, name='simsopt_coils') # expects an array (N_phi, N_Z, N_R, 3) (!)
         mgrid.write(filename) # perhaps mgrid.filename.nc
 
 class MagneticFieldMultiply(MagneticField):
