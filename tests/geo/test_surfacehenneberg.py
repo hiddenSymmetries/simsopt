@@ -231,7 +231,7 @@ class SurfaceHennebergTests(unittest.TestCase):
             np.testing.assert_allclose(surf1.area(), surf2.area(), atol=0, rtol=1e-3)
             np.testing.assert_allclose(surf1.area(), surf3.area(), atol=0, rtol=1e-3)
             surf4 = SurfaceHenneberg.from_RZFourier(surf3, alpha_fac, mmax=surf2.mmax, nmax=surf2.nmax)
-            np.testing.assert_allclose(surf2.R0nH, surf4.R0nH, atol=1e-12, rtol=1e-4)
+            np.testing.assert_allclose(surf2.R0nH, surf4.R0nH, atol=1e-10, rtol=1e-4)
             np.testing.assert_allclose(surf2.Z0nH, surf4.Z0nH, atol=1e-12, rtol=1e-4)
             np.testing.assert_allclose(surf2.bn, surf4.bn, atol=1e-12, rtol=1e-4)
             np.testing.assert_allclose(surf2.rhomn, surf4.rhomn, atol=1e-8, rtol=1e-4)
