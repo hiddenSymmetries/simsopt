@@ -3,6 +3,11 @@ import netCDF4 as nc
 import sys
 
 ### File I/O ###
+# This class is prepared by Tony Qian (tqian@pppl.gov)
+# the original file included reading options for netCDF and binary
+# these have been removed and the code only writes netCDF
+#
+# updated 15 November 2021
 
 
 class MGRID():
@@ -29,10 +34,6 @@ class MGRID():
         self.br_arr = [] 
         self.bz_arr = [] 
         self.bp_arr = [] 
-
-        # this option was disabled upon request (can be easily added back)
-#        if (binary):
-#            self.read_binary(fname,_debug=False)
 
         print('Initialized mgrid file: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(nr,nphi,nz,nfp))
 
@@ -65,33 +66,6 @@ class MGRID():
             label = pad_string(name)
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
-
-
-    def read_netCDF(self,fname):
-        
-        print(' reading:', fname)
-        # overwrites existing class information
-
-        f = nc.Dataset(fname, mode='r')
-        self.nr   = int( get(f, 'ir')  )
-        self.nz   = int( get(f, 'jz')  )
-        self.nphi = int( get(f, 'kp')  )
-        self.nfp  = int( get(f, 'nfp') )
-        self.n_ext_cur  = int( get(f, 'nextcur') )
-
-        self.rmin = float( get(f, 'rmin') )
-        self.rmax = float( get(f, 'rmax') )
-        self.zmin = float( get(f, 'zmin') )
-        self.zmax = float( get(f, 'zmax') )
-
-        self.cur_labels = get(f, 'coil_group')
-
-        # implement read fields in for loop
-        #self.br_arr = [] 
-        #self.bz_arr = [] 
-        #self.bp_arr = [] 
-
-        print(' overwriting  mgrid coordinates: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(self.nr,self.nphi,self.nz,self.nfp))
 
 
     def write(self,fout):
@@ -142,18 +116,6 @@ class MGRID():
         var_mgrid_mode[:] = 'R' # R - Raw, S - scaled, N - none (old version)
         var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
         
-        
-        
-        # go to rectangular arrays
-        #cos_arr = np.cos(phi)[np.newaxis,np.newaxis,:]
-        #sin_arr = np.sin(phi)[np.newaxis,np.newaxis,:]
-        #
-        #bx = np.ravel( br_arr*cos_arr - bphi_arr*sin_arr )
-        #by = np.ravel( br_arr*sin_arr + bphi_arr*cos_arr )
-        
-        # transpose because binary is read (r,z,phi)
-        # but netCDF is written (phi,zee,rad)
-
         # add fields
         for j in np.arange(self.n_ext_cur):
             
@@ -169,25 +131,7 @@ class MGRID():
         ds.close()
 
         print('  Wrote to file:', fout)
-
     
-    def init_targets(self):
-
-        raxis = np.linspace(self.rmin,self.rmax,self.nr)
-        zaxis = np.linspace(self.zmin,self.zmax,self.nz)
-        
-        phi   = np.linspace(0,2*np.pi/self.nfp,self.nphi)
-        
-        xyz = []
-        for r in raxis:
-            for z in zaxis:
-                for p in phi:
-                    x = r*np.cos(p)
-                    y = r*np.sin(p)
-                    xyz.append([x,y,z])
-        return np.array(xyz)
-
-
     def export_phi(self):
         phi   = np.linspace(0,2*np.pi/self.nfp,self.nphi)
         return phi
@@ -200,6 +144,3 @@ def pad_string(string):
     return '{:^30}'.format(string).replace(' ','_')
 
 
-# function for reading netCDF files
-def get(f,key):
-    return f.variables[key][:]
