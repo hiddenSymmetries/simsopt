@@ -68,7 +68,6 @@ Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
 """)
         return self.__sample[deriv]
 
-
 class CurvePerturbed(sopp.Curve, Curve):
 
     """A perturbed curve."""
@@ -79,10 +78,11 @@ class CurvePerturbed(sopp.Curve, Curve):
         ``GaussianSampler``.
 
         Comment:
-        Doing anything involving randomness in parallel is complicated.
+        Doing anything involving randomness in a reproducible way requires care.
+        Even more so, when doing things in parallel.
         Let's say we have a list of :mod:`simsopt.field.curve.Curve`s ``curves`` that represent a stellarator,
         and now we want to consider ``N`` perturbed stellarators. Let's also say we have multiple MPI ranks.
-        Two avoid the same thing happening on the different MPI ranks, we could pick a different seed on each rank.
+        To avoid the same thing happening on the different MPI ranks, we could pick a different seed on each rank.
         However, then we get different results depending on the number of MPI ranks that we run on. Not ideal.
         Instead, we should pick a new seed for each :math:`1\le i\le N`. e.g.
 
@@ -99,10 +99,14 @@ class CurvePerturbed(sopp.Curve, Curve):
             N = 10 # number of perturbed stellarators
             seeds = SeedSequence(globalseed).spawn(N)
             idx_start, idx_end = split_range_between_mpi_rank(N) # e.g. [0, 5) on rank 0, [5, 10) on rank 1
+            perturbed_curves = [] # this will be a List[List[Curve]], with perturbed_curves[i] containing the perturbed curves for the i-th stellarator
             for i in range(idx_start, idx_end):
-                rg = np.random.Generator(PCG64(seeds[i]))
-                perturbed_curves = [CurvePerturbed(c, sampler, randomgen=rg) for c in curves]
-
+                rg = np.random.Generator(PCG64(seeds_sys[j], inc=0))
+                stell = []
+                for c in curves:
+                    pert = PerturbationSample(sampler_systematic, randomgen=rg)
+                    stell.append(CurvePerturbed(c, pert))
+                perturbed_curves.append(stell)
 
         """
         self.curve = curve
@@ -139,3 +143,9 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def dgammadash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadash_by_dcoeff_vjp(v)
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v)
+
+    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
