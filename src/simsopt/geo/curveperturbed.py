@@ -68,6 +68,7 @@ Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
 """)
         return self.__sample[deriv]
 
+
 class CurvePerturbed(sopp.Curve, Curve):
 
     """A perturbed curve."""
