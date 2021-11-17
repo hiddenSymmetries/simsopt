@@ -437,10 +437,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.dGds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dGds, k=self.order)
             self.dIds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], dIds, k=self.order)
         else:
-            self.G_spline = InterpolatedUnivariateSpline(s_half_ext, G0*np.ones_like(s_half_ext), k=self.order)
+            self.G_spline = InterpolatedUnivariateSpline(s_half_ext, np.mean(G)*np.ones_like(s_half_ext), k=self.order)
             self.I_spline = InterpolatedUnivariateSpline(s_half_ext, np.zeros_like(s_half_ext), k=self.order)
-            self.dGds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(s_half_ext), k=self.order)
-            self.dIds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(s_half_ext), k=self.order)
+            self.dGds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(self.booz.equil.s_full_grid[1:-1]), k=self.order)
+            self.dIds_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], np.zeros_like(self.booz.equil.s_full_grid[1:-1]), k=self.order)
         self.iota_spline = InterpolatedUnivariateSpline(s_half_ext, iota, k=self.order)
         self.diotads_spline = InterpolatedUnivariateSpline(self.booz.equil.s_full_grid[1:-1], diotads, k=self.order)
 
