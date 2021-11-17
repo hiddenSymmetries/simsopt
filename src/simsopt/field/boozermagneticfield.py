@@ -817,7 +817,9 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             srange: a 3-tuple of the form ``(smin, smax, ns)``. This mean that
                 the interval ``[smin, smax]`` is split into ``ns`` many subintervals.
             thetarange: a 3-tuple of the form ``(thetamin, thetamax, ntheta)``.
+                thetamin must be >= 0, and thetamax must be <=2*pi.
             zetarange: a 3-tuple of the form ``(zetamin, zetamax, nzeta)``.
+                zetamin must be >= 0, and thetamax must be <=2*pi.
             extrapolate: whether to extrapolate the field when evaluate outside
                          the integration domain or to throw an error.
             nfp: Whether to exploit rotational symmetry. In this case any toroidal angle
@@ -829,6 +831,10 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
                       hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``.
         """
         BoozerMagneticField.__init__(self, field.psi0)
+        if (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > 2*np.pi)):
+            raise ValueError("thetamin and thetamax must be in [0,2*pi]")
+        if (np.any(np.asarray(zetarange[0:2]) < 0) or np.any(np.asarray(zetarange[0:2]) > 2*np.pi)):
+            raise ValueError("zetamin and zetamax must be in [0,2*pi]")
         if stellsym and (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > np.pi)):
             logger.warning(fr"Sure about thetarange=[{thetarange[0]},{thetarange[1]}]? When exploiting stellarator symmetry, the interpolant is only evaluated for theta in [0,pi].")
         if nfp > 1 and (np.any(np.asarray(zetarange[0:2]) < 0) or np.any(np.asarray(zetarange[0:2]) > 2*np.pi/nfp)):
