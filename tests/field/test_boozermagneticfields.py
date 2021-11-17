@@ -477,6 +477,16 @@ class TestingVmec(unittest.TestCase):
         zetamin = 0
         zetamax = 2*np.pi
         zetasteps = n*2
+
+        with self.assertRaises(ValueError):
+            bsh = InterpolatedBoozerField(
+                bri, 4, [smin, smax, ssteps], [-np.pi, 0, thetasteps], [zetamin, zetamax, zetasteps],
+                True, stellsym=False)
+        with self.assertRaises(ValueError):
+            bsh = InterpolatedBoozerField(
+                bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [-np.pi, 0, zetasteps],
+                True, stellsym=False)
+
         bsh = InterpolatedBoozerField(
             bri, 4, [smin, smax, ssteps], [thetamin, thetamax, thetasteps], [zetamin, zetamax, zetasteps],
             True, stellsym=False)
@@ -598,8 +608,8 @@ class TestingVmec(unittest.TestCase):
         smax = 0.9
         thetamin = np.pi*(1/4)
         thetamax = np.pi*(3/4)
-        zetamin = -2*np.pi/(4*nfp)
-        zetamax = 2*np.pi/(4*nfp)
+        zetamin = 2*np.pi/(4*nfp)
+        zetamax = 2*np.pi*3/(4*nfp)
         old_err_modB = 1e6
         old_err_I = 1e6
         old_err_G = 1e6

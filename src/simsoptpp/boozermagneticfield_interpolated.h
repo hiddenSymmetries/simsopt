@@ -177,15 +177,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_K = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_K->evaluate_batch(stz_sym, K);
-            apply_odd_symmetry(K);
-            // } else {
-            //     interp_K->evaluate_batch(this->get_points_ref(), K);
-            // }
+            if(stellsym){
+              apply_odd_symmetry(K);
+            }
         }
 
         void _dKdtheta_impl(Tensor2& dKdtheta) override {
@@ -201,14 +199,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dKdtheta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dKdtheta->evaluate_batch(stz_sym, dKdtheta);
-            // } else {
-            //     interp_dKdtheta->evaluate_batch(this->get_points_ref(), dKdtheta);
-            // }
         }
 
         void _dKdzeta_impl(Tensor2& dKdzeta) override {
@@ -224,14 +218,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dKdzeta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dKdzeta->evaluate_batch(stz_sym, dKdzeta);
-            // } else {
-            //     interp_dKdzeta->evaluate_batch(this->get_points_ref(), dKdzeta);
-            // }
         }
 
         void _nu_impl(Tensor2& nu) override {
@@ -247,15 +237,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_nu = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_nu->evaluate_batch(stz_sym, nu);
-            apply_odd_symmetry(nu);
-            // } else {
-            //     interp_nu->evaluate_batch(this->get_points_ref(), nu);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(nu);
+            }
         }
 
         void _dnudtheta_impl(Tensor2& dnudtheta) override {
@@ -271,14 +259,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dnudtheta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dnudtheta->evaluate_batch(stz_sym, dnudtheta);
-            // } else {
-            //     interp_dnudtheta->evaluate_batch(this->get_points_ref(), dnudtheta);
-            // }
         }
 
         void _dnudzeta_impl(Tensor2& dnudzeta) override {
@@ -294,14 +278,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dnudzeta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dnudzeta->evaluate_batch(stz_sym, dnudzeta);
-            // } else {
-            //     interp_dnudzeta->evaluate_batch(this->get_points_ref(), dnudzeta);
-            // }
         }
 
         void _dnuds_impl(Tensor2& dnuds) override {
@@ -317,15 +297,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dnuds = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dnuds->evaluate_batch(stz_sym, dnuds);
-            apply_odd_symmetry(dnuds);
-            // } else {
-            //     interp_dnuds->evaluate_batch(this->get_points_ref(), dnuds);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dnuds);
+            }
         }
 
         void _R_impl(Tensor2& R) override {
@@ -341,14 +319,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_R = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_R->evaluate_batch(stz_sym, R);
-            // } else {
-            //     interp_R->evaluate_batch(this->get_points_ref(), R);
-            // }
         }
 
         void _dRdtheta_impl(Tensor2& dRdtheta) override {
@@ -364,15 +338,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dRdtheta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dRdtheta->evaluate_batch(stz_sym, dRdtheta);
-            apply_odd_symmetry(dRdtheta);
-            // } else {
-            //     interp_dRdtheta->evaluate_batch(this->get_points_ref(), dRdtheta);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dRdtheta);
+            }
         }
 
         void _dRdzeta_impl(Tensor2& dRdzeta) override {
@@ -388,15 +360,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dRdzeta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dRdzeta->evaluate_batch(stz_sym, dRdzeta);
-            apply_odd_symmetry(dRdzeta);
-            // } else {
-            //     interp_dRdzeta->evaluate_batch(this->get_points_ref(), dRdzeta);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dRdzeta);
+            }
         }
 
         void _dRds_impl(Tensor2& dRds) override {
@@ -412,14 +382,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dRds = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dRds->evaluate_batch(stz_sym, dRds);
-            // } else {
-            //     interp_dRds->evaluate_batch(this->get_points_ref(), dRds);
-            // }
         }
 
         void _Z_impl(Tensor2& Z) override {
@@ -435,15 +401,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_Z = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_Z->evaluate_batch(stz_sym, Z);
-            apply_odd_symmetry(Z);
-            // } else {
-            //     interp_Z->evaluate_batch(this->get_points_ref(), Z);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(Z);
+            }
         }
 
         void _dZdtheta_impl(Tensor2& dZdtheta) override {
@@ -459,14 +423,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dZdtheta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dZdtheta->evaluate_batch(stz_sym, dZdtheta);
-            // } else {
-            //     interp_dZdtheta->evaluate_batch(this->get_points_ref(), dZdtheta);
-            // }
         }
 
         void _dZdzeta_impl(Tensor2& dZdzeta) override {
@@ -482,14 +442,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dZdzeta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dZdzeta->evaluate_batch(stz_sym, dZdzeta);
-            // } else {
-            //     interp_dZdzeta->evaluate_batch(this->get_points_ref(), dZdzeta);
-            // }
         }
 
         void _dZds_impl(Tensor2& dZds) override {
@@ -505,15 +461,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dZds = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dZds->evaluate_batch(stz_sym, dZds);
-            apply_odd_symmetry(dZds);
-            // } else {
-            //     interp_dZds->evaluate_batch(this->get_points_ref(), dZds);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dZds);
+            }
         }
 
         void _modB_impl(Tensor2& modB) override {
@@ -529,14 +483,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_modB = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_modB->evaluate_batch(stz_sym, modB);
-            // } else {
-            //     interp_modB->evaluate_batch(this->get_points_ref(), modB);
-            // }
         }
 
         void _dmodBdtheta_impl(Tensor2& dmodBdtheta) override {
@@ -552,15 +502,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dmodBdtheta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dmodBdtheta->evaluate_batch(stz_sym, dmodBdtheta);
-            apply_odd_symmetry(dmodBdtheta);
-            // } else {
-            //     interp_dmodBdtheta->evaluate_batch(this->get_points_ref(), dmodBdtheta);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dmodBdtheta);
+            }
         }
 
         void _dmodBdzeta_impl(Tensor2& dmodBdzeta) override {
@@ -576,15 +524,13 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dmodBdzeta = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dmodBdzeta->evaluate_batch(stz_sym, dmodBdzeta);
-            apply_odd_symmetry(dmodBdzeta);
-            // } else {
-            //     interp_dmodBdzeta->evaluate_batch(this->get_points_ref(), dmodBdzeta);
-            // }
+            if (stellsym) {
+              apply_odd_symmetry(dmodBdzeta);
+            }
         }
 
         void _dmodBds_impl(Tensor2& dmodBds) override {
@@ -600,14 +546,10 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 this->field->set_points(old_points);
                 status_dmodBds = true;
             }
-            // if(nfp > 1 || stellsym){
             Tensor2& stz = this->get_points_ref();
             Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
             exploit_symmetries_points(stz, stz_sym);
             interp_dmodBds->evaluate_batch(stz_sym, dmodBds);
-            // } else {
-            //     interp_dmodBds->evaluate_batch(this->get_points_ref(), dmodBds);
-            // }
         }
 
         void exploit_fluxfunction_points(Tensor2& stz, Tensor2& stz0){
@@ -666,8 +608,6 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
                 } else{
                     symmetries[i] = false;
                 }
-                // std::cout << "theta: " << theta << std::endl;
-                // std::cout << "zeta: " << zeta << std::endl;
                 datasymptr[3*i+0] = s;
                 datasymptr[3*i+1] = theta;
                 datasymptr[3*i+2] = zeta;
