@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import numpy as np
 from pathlib import Path
 from simsopt.field.tracing import compute_resonances
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
 try:
     from mpi4py import MPI
@@ -35,7 +36,7 @@ vmec = Vmec(filename)
 
 # Construct radial interpolant of magnetic field
 
-order = 'cubic'
+order = 3
 bri = BoozerRadialInterpolant(vmec, order, enforce_vacuum=True)
 
 # Construct 3D interpolation
@@ -144,30 +145,31 @@ gc_tys, gc_zeta_hits = trace_particles_boozer(
     Ekin=Ekin, comm=comm, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
-plt.figure()
-plt.scatter(np.abs(m), np.abs(n))
-plt.plot(np.abs(ms), np.abs(ms/iota_min))
-plt.plot(np.abs(ms), np.abs(ms/iota_max))
-plt.ylim([0, 20])
-plt.xlabel('m (poloidal mode number)')
-plt.ylabel('n (toroidal mode number)')
+if not ci:
+    plt.figure()
+    plt.scatter(np.abs(m), np.abs(n))
+    plt.plot(np.abs(ms), np.abs(ms/iota_min))
+    plt.plot(np.abs(ms), np.abs(ms/iota_max))
+    plt.ylim([0, 20])
+    plt.xlabel('m (poloidal mode number)')
+    plt.ylabel('n (toroidal mode number)')
 
-plt.figure()
-plt.scatter(np.abs(n), f/1e3)
-plt.xlabel('n (toroidal mode number)')
-plt.ylabel('frequency [kHz]')
+    plt.figure()
+    plt.scatter(np.abs(n), f/1e3)
+    plt.xlabel('n (toroidal mode number)')
+    plt.ylabel('frequency [kHz]')
 
-index = np.argmax(f)
+    index = np.argmax(f)
 
-index_2pi = np.argmin(np.abs(gc_tys[index][:, 3]+2*np.pi))
+    index_2pi = np.argmin(np.abs(gc_tys[index][:, 3]+2*np.pi))
 
-x = np.sqrt(gc_tys[index][0:index_2pi, 1])*np.cos(gc_tys[index][0:index_2pi, 2])
-y = np.sqrt(gc_tys[index][0:index_2pi, 1])*np.sin(gc_tys[index][0:index_2pi, 2])
+    x = np.sqrt(gc_tys[index][0:index_2pi, 1])*np.cos(gc_tys[index][0:index_2pi, 2])
+    y = np.sqrt(gc_tys[index][0:index_2pi, 1])*np.sin(gc_tys[index][0:index_2pi, 2])
 
-plt.figure()
-plt.plot(x, y, marker='*', linestyle='none')
-plt.xlabel(r'$x = \sqrt{s} \cos(\theta)$')
-plt.ylabel(r'$y = \sqrt{s} \sin(\theta)$')
-plt.title('First toroidal transit of highest frequency orbit')
+    plt.figure()
+    plt.plot(x, y, marker='*', linestyle='none')
+    plt.xlabel(r'$x = \sqrt{s} \cos(\theta)$')
+    plt.ylabel(r'$y = \sqrt{s} \sin(\theta)$')
+    plt.title('First toroidal transit of highest frequency orbit')
 
-plt.show()
+    plt.show()
