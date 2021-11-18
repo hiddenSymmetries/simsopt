@@ -3,9 +3,9 @@
 import logging
 import numpy as np
 from qsc import Qsc
-from simsopt import make_optimizable
-from simsopt import LeastSquaresProblem
-from simsopt import least_squares_serial_solve
+
+from simsopt._core.graph_optimizable import Optimizable
+from simsopt import LeastSquaresProblem, least_squares_serial_solve
 
 """
 Optimize an axis shape and the first-order shape of the flux surface
@@ -17,25 +17,42 @@ https://github.com/landreman/pyQSC
 #logging.basicConfig(level=logging.INFO)
 print("Running 2_Intermediate/QSC.py")
 print("=============================")
-stel = make_optimizable(Qsc(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31))
+
+
+class QSCWrapper(Qsc, Optimizable):
+    def __init__(self, *args, **kwargs):
+        Qsc.__init__(self, *args, **kwargs)
+        Optimizable.__init__(self, x0=Qsc.get_dofs(self),
+                             external_dof_setter=Qsc.set_dofs,
+                             names=self.names)
+
+    def get_iota(self):
+        return self.iota
+
+    def get_max_elongation(self):
+        return self.max_elongation
+
+
+stel = QSCWrapper(rc=[1, 0.045], zs=[0, 0.045], etabar=0.9, nfp=3, nphi=31)
+# stel = make_optimizable()
 print('Initial dofs: ', stel.get_dofs())
 print('Names of the dofs: ', stel.names)
 
 # Decide which degrees of freedom to optimize
-stel.all_fixed()
-stel.set_fixed('rc(1)', False)
-stel.set_fixed('zs(1)', False)
-stel.set_fixed('etabar', False)
+stel.fix_all()
+stel.unfix('rc(1)')
+stel.unfix('zs(1)')
+stel.unfix('etabar')
 
 # Each target function is then equipped with a shift and weight, to
 # become a term in a least-squares objective function
-term1 = (stel, 'iota', -0.5, 1.0)
-term2 = (stel, 'max_elongation', 0.0, 0.0001)
+term1 = (stel.get_iota, -0.5, 1.0)
+term2 = (stel.get_max_elongation, 0.0, 0.0001)
 # Note the weight on elongation must be much smaller than the weight on iota!
 
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
-prob = LeastSquaresProblem([term1, term2])
+prob = LeastSquaresProblem.from_tuples([term1, term2])
 
 print('Before optimization:')
 print(' Global state vector: ', prob.x)

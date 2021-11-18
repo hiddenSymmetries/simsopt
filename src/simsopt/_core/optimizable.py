@@ -9,7 +9,13 @@ setting up optimizable objects and objective functions.
 
 import logging
 import types
+import warnings
+
 import numpy as np
+
+warnings.warn("optimizable module is deprecated in favor of"
+              " graph_optimizable module and will be removed in future versions"
+              " of simsopt", DeprecationWarning, stacklevel=2)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +95,7 @@ def function_from_user(target):
 
 
 class Target(Optimizable):
+
     """
     Given an attribute of an object, which typically would be a
     @property, form a callable function that can be used as a target

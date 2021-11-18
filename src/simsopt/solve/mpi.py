@@ -26,8 +26,10 @@ except ImportError as err:
 
 from .._core.dofs import Dofs
 from ..util.mpi import MpiPartition
+from ..util.dev import deprecated
 from .._core.util import finite_difference_steps
 from ..objectives.least_squares import LeastSquaresProblem
+from .graph_mpi import least_squares_mpi_solve as glsmpi
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +249,13 @@ def fd_jac_mpi(dofs: Dofs,
     return jac, xs, evals
 
 
+@deprecated(replacement=glsmpi,
+            message="This class has been deprecated from v0.6.0 and will be "
+                    "deleted from future versions of simsopt. Use graph "
+                    "framework to define the optimization problem. Use "
+                    "simsopt.objectives.graph_least_squares.LeastSquaresProblem"
+                    " class in conjunction with"
+                    " simsopt.solve.graph_mpi.least_squares_mpi_solve")
 def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             mpi: MpiPartition,
                             grad: bool = None,
