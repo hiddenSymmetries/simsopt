@@ -17,6 +17,7 @@ from collections import defaultdict
 from numbers import Real, Integral
 from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
+from functools import lru_cache
 
 import numpy as np
 from deprecated import deprecated
@@ -376,6 +377,17 @@ class DOFs:
         Returns:
             string identifiers of the DOFs
         """
+        @lru_cache()
+        def red_names(free):
+            rnames = []
+            for i, f in enumerate((free)):
+                if f:
+                    rnames.append(self._names[i])
+            return rnames
+        return red_names(tuple(self._free))
+
+    @property
+    def full_names(self):
         return self._names
 
 
@@ -870,8 +882,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def full_x(self) -> RealArray:
         """
-        Numeric values of all the DOFs associated with the current
-        Optimizable object and those of its ancestors
+        Numeric values of all the DOFs (both free and fixed) associated
+        with the current Optimizable object and those of its ancestors
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in (self.ancestors + [self])])
@@ -902,7 +914,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @property
     def local_full_x(self):
         """
-        Numeric values of all DOFs associated with this Optimizable object
+        Numeric values of all DOFs (both free and fixed) associated with
+        this Optimizable object
         """
         return self._dofs.full_x
 
@@ -1032,7 +1045,22 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Optimizable object and those of its ancestors
         """
         opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.names for opt in opts])
+        names = []
+        for opt in opts:
+            names += [opt.name + ":" + dname for dname in opt._dofs.names]
+        return names
+
+    @property
+    def full_dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
+        opts = self.ancestors + [self]
+        names = []
+        for opt in opts:
+            names += [opt.name + ":" + dname for dname in opt._dofs.full_names]
+        return names
 
     @property
     def local_dof_names(self) -> StrArray:
@@ -1041,6 +1069,14 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         object
         """
         return self._dofs.names
+
+    @property
+    def local_full_dof_names(self) -> StrArray:
+        """
+        Names (Identifiers) of the DOFs associated with this Optimizable
+        object
+        """
+        return self._dofs.full_names
 
     @property
     def dofs_free_status(self) -> BoolArray:
@@ -1144,7 +1180,8 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             "dof" - argument that is a degree of freedom for optimization
             "non-dof" - argument that is not part of optimization.
             Here ordered property of the dict is used to map kwargs to
-            dof_indicators
+            dof_indicators. Another important thing to consider is dofs related
+            to optimizable objects supplied as arguments should not be given.
         kwargs: Keyword arguments to pass to "func".
     Returns: Optimizable object to be used in the graph based optimization.
              if `obj` is the returned object, pass obj.J to the

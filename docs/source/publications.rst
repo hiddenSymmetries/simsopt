@@ -37,7 +37,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | A Bader, D T Anderson, M Drevlak, B J Faber, C C Hegna, S Henneberg, M Landreman, J C Schmitt, Y Suzuki, and A Ware,
      "Energetic particle transport in optimized stellarators",
-     *Submitted*, (2021).
+     *Nuclear Fusion* **61**, 116060 (2021).
+     `[journal version] <https://doi.org/10.1088/1741-4326/ac2991>`__
      `[arXiv version] <https://arxiv.org/pdf/2106.00716>`__
    |
    

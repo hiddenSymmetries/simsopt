@@ -28,8 +28,8 @@ is to import some items we will need::
 
   import numpy as np
   from simsopt.mhd.spec import Spec, Residue
-  from simsopt.core.least_squares_problem import LeastSquaresProblem
-  from simsopt.solve.serial_solve import least_squares_serial_solve
+  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.solve.graph_serial import least_squares_serial_solve
 
 We then create a Spec object based on the input file::
 
@@ -50,9 +50,9 @@ available to vary::
 Now we can pick out a few modes of the boundary shape to vary in the
 optimization::
 
-  s.boundary.all_fixed()
-  s.boundary.set_fixed('zs(6,1)', False)
-  s.boundary.set_fixed('zs(6,2)', False)
+  s.boundary.fix_all()
+  s.boundary.unfix('zs(6,1)')
+  s.boundary.unfix('zs(6,2)')
 
 Next, let us define the objective function. The objective function
 will be based on the residue defined by Greene (1979). A residue is a
@@ -109,10 +109,10 @@ We now combine the four residues into a least-squares objective
 function, by summing the squares of the residues::
 
   # Objective function is \sum_j residue_j ** 2
-  prob = LeastSquaresProblem([(residue1, 0, 1),
-                              (residue2, 0, 1),
-                              (residue3, 0, 1),
-                              (residue4, 0, 1)])
+  prob = LeastSquaresProblem.from_tuples([(residue1, 0, 1),
+                                          (residue2, 0, 1),
+                                          (residue3, 0, 1),
+                                          (residue4, 0, 1)])
 
 If you wanted an island to be present instead of absent, which might
 be the case when designing an island divertor, a value other than zero

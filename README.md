@@ -18,21 +18,10 @@ are included:
   optimization.
 - Geometric objects that are important for stellarators - surfaces and
   curves - with several available parameterizations.
-- An efficient implementation of the Biot-Savart law, including
-  derivatives.
+- Efficient implementations of the Biot-Savart law and other magnetic
+  field representations, including derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
-Some of the physics modules with compiled code reside in separate
-repositories. These separate modules include
-
-- [VMEC](https://github.com/hiddenSymmetries/VMEC2000), for MHD
-  equilibrium.
-- [SPEC](https://github.com/PrincetonUniversity/SPEC), for MHD
-  equilibrium. (We are working to make the SPEC repository public,
-  and expect it to be so soon, but as of this writing it remains private.)
-- [booz_xform](https://hiddensymmetries.github.io/booz_xform), for
-  Boozer coordinates and quasisymmetry.
-  
 The design of `simsopt` is guided by several principles:
 
 - Thorough unit testing, regression testing, and continuous
@@ -50,7 +39,9 @@ The design of `simsopt` is guided by several principles:
   function that can be plotted, passed to optimization packages
   outside of `simsopt`, etc.
 
-`simsopt` is fully open-source, and anyone is welcome to make suggestions, contribute, and use.
+`simsopt` is fully open-source, and anyone is welcome to use it, make
+suggestions, and contribute.
+
 Several methods are available for installing `simsopt`. One
 recommended approach is to use pip:
 
@@ -68,6 +59,16 @@ container](https://simsopt.readthedocs.io/en/latest/docker.html), and
 other information can be found in the [main simsopt documentation
 here.](https://simsopt.readthedocs.io)
 
+Some of the physics modules with compiled code reside in separate
+repositories. These separate modules include
+
+- [VMEC](https://github.com/hiddenSymmetries/VMEC2000), for MHD
+  equilibrium.
+- [SPEC](https://github.com/PrincetonUniversity/SPEC), for MHD
+  equilibrium.
+- [booz_xform](https://hiddensymmetries.github.io/booz_xform), for
+  Boozer coordinates.
+  
 If you use `simsopt` in your research, kindly cite the code using
 [this reference](https://doi.org/10.21105/joss.03525):
 
