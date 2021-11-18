@@ -32,7 +32,7 @@ energy conservation and compute resonant particle trajectories.
 
 # Compute VMEC equilibrium
 
-vmec = Vmec(filename)
+vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', filename))
 
 # Construct radial interpolant of magnetic field
 
