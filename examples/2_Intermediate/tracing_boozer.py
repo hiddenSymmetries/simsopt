@@ -12,15 +12,10 @@ import plotly.graph_objects as go
 import numpy as np
 from pathlib import Path
 from simsopt.field.tracing import compute_resonances
+
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
-
-filename = 'input.LandremanPaul2021_QH'
+filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.LandremanPaul2021_QH')
 logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 
@@ -32,7 +27,7 @@ energy conservation and compute resonant particle trajectories.
 
 # Compute VMEC equilibrium
 
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', filename))
+vmec = Vmec(filename)
 
 # Construct radial interpolant of magnetic field
 
@@ -83,7 +78,7 @@ mu_inits = (Ekin - mass*0.5*vpar**2)/modB_inits  # m vperp^2 /(2B)
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_inits, vpar_inits, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, comm=comm, tol=1e-8, mode='gc_vac', stopping_criteria=[MaxToroidalFluxStoppingCriterion(0.99), MinToroidalFluxStoppingCriterion(0.01), ToroidalTransitStoppingCriterion(100, True)],
+    Ekin=Ekin, tol=1e-8, mode='gc_vac', stopping_criteria=[MaxToroidalFluxStoppingCriterion(0.99), MinToroidalFluxStoppingCriterion(0.01), ToroidalTransitStoppingCriterion(100, True)],
     forget_exact_path=False)
 
 Nparticles = len(gc_tys)
@@ -120,7 +115,7 @@ vpar_inits[:, 0] = -vpar
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_inits, vpar_inits, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, comm=comm, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
+    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
 resonances = compute_resonances(gc_tys, gc_zeta_hits, ma=None, delta=0.01)
@@ -142,7 +137,7 @@ for i in range(len(resonances)):
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_res, vpar_res, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, comm=comm, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
+    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
 if not ci:
