@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import trace_particles_boozer, MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, IterationStoppingCriterion, compute_poloidal_transits, compute_toroidal_transits
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
