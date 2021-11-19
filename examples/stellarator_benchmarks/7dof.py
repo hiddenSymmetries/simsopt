@@ -5,6 +5,7 @@ from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_mpi import least_squares_mpi_solve
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 
 """
 This script solve the problem in
@@ -21,7 +22,7 @@ mpi = MpiPartition()
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.stellopt_scenarios_7dof'), mpi)
 
 # We will optimize in the space of Garabedian coefficients:
-surf = vmec.boundary.to_Garabedian()
+surf = SurfaceGarabedian.from_RZFourier(vmec.boundary)
 vmec.boundary = surf
 
 # Define parameter space:
