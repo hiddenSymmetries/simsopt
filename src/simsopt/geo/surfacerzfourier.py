@@ -490,33 +490,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     if m > 0 or n != 0:
                         fn(f'rs({m},{n})')
 
-    # TODO: Reimplement by passing all Delta values once
-    def to_Garabedian(self):
-        """
-        Return a `SurfaceGarabedian` object with the identical shape.
-
-        For a derivation of the transformation here, see
-        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
-        """
-        if not self.stellsym:
-            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian '
-                               'objects have not been implemented')
-        from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-        mmax = self.mpol + 1
-        mmin = np.min((0, 1 - self.mpol))
-        s = SurfaceGarabedian(nfp=self.nfp, mmin=mmin, mmax=mmax,
-                              nmin=-self.ntor, nmax=self.ntor)
-        for n in range(-self.ntor, self.ntor + 1):
-            for m in range(mmin, mmax + 1):
-                Delta = 0
-                if m - 1 >= 0:
-                    Delta = 0.5 * (self.get_rc(m - 1, n) - self.get_zs(m - 1, n))
-                if 1 - m >= 0:
-                    Delta += 0.5 * (self.get_rc(1 - m, -n) + self.get_zs(1 - m, -n))
-                s.set_Delta(m, n, Delta)
-
-        return s
-
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
 
