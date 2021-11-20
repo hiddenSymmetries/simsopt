@@ -16,7 +16,8 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
           interp_I, interp_dIds, interp_diotads, interp_psip, interp_R, interp_Z, \
           interp_nu, interp_K, interp_dRdtheta, interp_dRdzeta, interp_dRds, \
           interp_dZdtheta, interp_dZdzeta, interp_dZds, interp_dnudtheta, \
-          interp_dnudzeta, interp_dnuds, interp_dKdtheta, interp_dKdzeta;
+          interp_dnudzeta, interp_dnuds, interp_dKdtheta, interp_dKdzeta, interp_K_derivs, \
+          interp_nu_derivs, interp_R_derivs, interp_Z_derivs, interp_modB_derivs;
         bool status_modB = false, status_dmodBdtheta = false, status_dmodBdzeta = false, \
           status_dmodBds = false, status_G = false, status_I = false, status_iota = false,
           status_dGds = false, status_dIds = false, status_diotads = false, status_psip = false,
@@ -24,7 +25,9 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
           status_dRdtheta = false, status_dRdzeta = false, status_dRds = false, \
           status_dZdtheta = false, status_dZdzeta = false, status_dZds = false, \
           status_dnudtheta = false, status_dnudzeta = false, status_dnuds = false, \
-          status_dKdtheta = false, status_dKdzeta = false;
+          status_dKdtheta = false, status_dKdzeta = false, status_K_derivs = false, \
+          status_R_derivs = false, status_Z_derivs = false, status_nu_derivs = false, \
+          status_modB_derivs = false;
         const bool extrapolate;
         const bool stellsym = false;
         const int nfp = 1;
@@ -224,6 +227,25 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_dKdzeta->evaluate_batch(stz_sym, dKdzeta);
         }
 
+        void _K_derivs_impl(Tensor2& K_derivs) override {
+            if(!interp_K_derivs)
+                interp_K_derivs = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 2, extrapolate);
+            if(!status_K_derivs) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "K_derivs";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_K_derivs->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_K_derivs = true;
+            }
+            Tensor2& stz = this->get_points_ref();
+            Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+            exploit_symmetries_points(stz, stz_sym);
+            interp_K_derivs->evaluate_batch(stz_sym, K_derivs);
+        }
+
         void _nu_impl(Tensor2& nu) override {
             if(!interp_nu)
                 interp_nu = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
@@ -303,6 +325,28 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_dnuds->evaluate_batch(stz_sym, dnuds);
             if (stellsym) {
               apply_odd_symmetry(dnuds);
+            }
+        }
+
+        void _nu_derivs_impl(Tensor2& nu_derivs) override {
+            if(!interp_nu_derivs)
+                interp_nu_derivs = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 3, extrapolate);
+            if(!status_nu_derivs) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "nu_derivs";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_nu_derivs->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_nu_derivs = true;
+            }
+            Tensor2& stz = this->get_points_ref();
+            Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+            exploit_symmetries_points(stz, stz_sym);
+            interp_nu_derivs->evaluate_batch(stz_sym, nu_derivs);
+            if (stellsym) {
+              apply_odd_symmetry(nu_derivs);
             }
         }
 
@@ -388,6 +432,28 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_dRds->evaluate_batch(stz_sym, dRds);
         }
 
+        void _R_derivs_impl(Tensor2& R_derivs) override {
+            if(!interp_R_derivs)
+                interp_R_derivs = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 3, extrapolate);
+            if(!status_R_derivs) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "R_derivs";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_R_derivs->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_R_derivs = true;
+            }
+            Tensor2& stz = this->get_points_ref();
+            Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+            exploit_symmetries_points(stz, stz_sym);
+            interp_R_derivs->evaluate_batch(stz_sym, R_derivs);
+            if (stellsym) {
+              apply_even_symmetry(R_derivs);
+            }
+        }
+
         void _Z_impl(Tensor2& Z) override {
             if(!interp_Z)
                 interp_Z = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 1, extrapolate);
@@ -467,6 +533,28 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_dZds->evaluate_batch(stz_sym, dZds);
             if (stellsym) {
               apply_odd_symmetry(dZds);
+            }
+        }
+
+        void _Z_derivs_impl(Tensor2& Z_derivs) override {
+            if(!interp_Z_derivs)
+                interp_Z_derivs = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 3, extrapolate);
+            if(!status_Z_derivs) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "Z_derivs";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_Z_derivs->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_Z_derivs = true;
+            }
+            Tensor2& stz = this->get_points_ref();
+            Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+            exploit_symmetries_points(stz, stz_sym);
+            interp_Z_derivs->evaluate_batch(stz_sym, Z_derivs);
+            if (stellsym) {
+              apply_odd_symmetry(Z_derivs);
             }
         }
 
@@ -552,6 +640,28 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             interp_dmodBds->evaluate_batch(stz_sym, dmodBds);
         }
 
+        void _modB_derivs_impl(Tensor2& modB_derivs) override {
+            if(!interp_modB_derivs)
+                interp_modB_derivs = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, s_range, theta_range, zeta_range, 3, extrapolate);
+            if(!status_modB_derivs) {
+                Tensor2 old_points = this->field->get_points();
+                string which_scalar = "modB_derivs";
+                std::function<Vec(Vec, Vec, Vec)> fbatch = [this,which_scalar](Vec s, Vec theta, Vec zeta) {
+                  return fbatch_scalar(s,theta,zeta,which_scalar);
+                };
+                interp_modB_derivs->interpolate_batch(fbatch);
+                this->field->set_points(old_points);
+                status_modB_derivs = true;
+            }
+            Tensor2& stz = this->get_points_ref();
+            Tensor2& stz_sym = points_cyl_sym.get_or_create({npoints, 3});
+            exploit_symmetries_points(stz, stz_sym);
+            interp_modB_derivs->evaluate_batch(stz_sym, modB_derivs);
+            if (stellsym) {
+              apply_even_symmetry(modB_derivs);
+            }
+        }
+
         void exploit_fluxfunction_points(Tensor2& stz, Tensor2& stz0){
             int npoints = stz.shape(0);
             double* dataptr = &(stz(0, 0));
@@ -618,7 +728,21 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
             int npoints = field.shape(0);
             for (int i = 0; i < npoints; ++i) {
                 if(symmetries[i]) {
-                  field(i, 0) = -field(i, 0);
+                  if (field.shape(1)==1) {
+                    field(i, 0) = -field(i, 0);
+                  } else if (field.shape(1)==3) {
+                    field(i, 0) = -field(i, 0);
+                  }
+                }
+            }
+        }
+
+        void apply_even_symmetry(Tensor2& field){
+            int npoints = field.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                if(symmetries[i] && field.shape(1)==3) {
+                    field(i, 1) = -field(i, 1);
+                    field(i, 2) = -field(i, 2);
                 }
             }
         }
@@ -643,6 +767,9 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
               scalar = this->field->dKdtheta();
             } else if (which_scalar == "dKdzeta") {
               scalar = this->field->dKdzeta();
+            } else if (which_scalar == "K_derivs") {
+              scalar = this->field->K_derivs();
+              npoints = 2*npoints;
             } else if (which_scalar == "nu") {
               scalar = this->field->nu();
             } else if (which_scalar == "dnudtheta") {
@@ -651,6 +778,9 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
               scalar = this->field->dnudzeta();
             } else if (which_scalar == "dnuds") {
               scalar = this->field->dnuds();
+            } else if (which_scalar == "nu_derivs") {
+              scalar = this->field->nu_derivs();
+              npoints = 3*npoints;
             } else if (which_scalar == "R") {
               scalar = this->field->R();
             } else if (which_scalar == "dRdtheta") {
@@ -659,6 +789,9 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
               scalar = this->field->dRdzeta();
             } else if (which_scalar == "dRds") {
               scalar = this->field->dRds();
+            } else if (which_scalar == "R_derivs") {
+              scalar = this->field->R_derivs();
+              npoints = 3*npoints;
             } else if (which_scalar == "Z") {
               scalar = this->field->Z();
             } else if (which_scalar == "dZdtheta") {
@@ -667,12 +800,18 @@ class InterpolatedBoozerField : public BoozerMagneticField<T> {
               scalar = this->field->dZdzeta();
             } else if (which_scalar == "dZds") {
               scalar = this->field->dZds();
+            } else if (which_scalar == "Z_derivs") {
+              scalar = this->field->Z_derivs();
+              npoints = 3*npoints;
             } else if (which_scalar == "dmodBdtheta") {
               scalar = this->field->dmodBdtheta();
             } else if (which_scalar == "dmodBdzeta") {
               scalar = this->field->dmodBdzeta();
             } else if (which_scalar == "dmodBds") {
               scalar = this->field->dmodBds();
+            } else if (which_scalar == "modB_derivs") {
+              scalar = this->field->modB_derivs();
+              npoints = 3*npoints;
             } else if (which_scalar == "G") {
               scalar = this->field->G();
             } else if (which_scalar == "I") {
