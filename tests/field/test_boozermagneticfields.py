@@ -30,7 +30,8 @@ class TestingAnalytic(unittest.TestCase):
         G0 = 1.1
         psi0 = 0.8
         iota0 = 0.4
-        ba = BoozerAnalytic(etabar, B0, N, G0, psi0, iota0)
+        K1 = 1.8
+        ba = BoozerAnalytic(etabar, B0, N, G0, psi0, iota0, K1)
 
         ntheta = 101
         nzeta = 100
@@ -80,6 +81,17 @@ class TestingAnalytic(unittest.TestCase):
         assert np.allclose(ba.dmodBdtheta(), 0, atol=1e-12)
         assert np.allclose(ba.dmodBdzeta(), 0, atol=1e-12)
         assert np.allclose(ba.dmodBds(), 0, atol=1e-12)
+
+        # Check that K_derivs matches dKdtheta and dKdzeta
+        K_derivs = ba.K_derivs()
+        assert np.allclose(ba.dKdtheta(), K_derivs[:, 0])
+        assert np.allclose(ba.dKdzeta(), K_derivs[:, 1])
+
+        # Check that modB_derivs matches (dmodBds,dmodBdtheta,dmodBdzeta)
+        modB_derivs = ba.modB_derivs()
+        assert np.allclose(ba.dmodBds(), modB_derivs[:, 0])
+        assert np.allclose(ba.dmodBdtheta(), modB_derivs[:, 1])
+        assert np.allclose(ba.dmodBdzeta(), modB_derivs[:, 2])
 
         # Check other set_ functions
         ba.set_B0(1.3)
@@ -196,6 +208,11 @@ class TestingVmec(unittest.TestCase):
             K = bri.K()[:, 0]
             dKdtheta = bri.dKdtheta()[:, 0]
             dKdzeta = bri.dKdzeta()[:, 0]
+            K_derivs = bri.K_derivs()
+
+            assert np.allclose(K_derivs[:, 0], dKdtheta)
+            assert np.allclose(K_derivs[:, 1], dKdzeta)
+
             I = bri.I()[:, 0]
             G = bri.G()[:, 0]
             iota = bri.iota()[:, 0]
@@ -333,6 +350,19 @@ class TestingVmec(unittest.TestCase):
             # Check that zeta derivatives are small since we are close to QA
             assert np.allclose(bri.dmodBdzeta(), 0, atol=1e-2)
 
+            assert np.allclose(bri.R_derivs()[:, 0], bri.dRds()[:, 0])
+            assert np.allclose(bri.R_derivs()[:, 1], bri.dRdtheta()[:, 0])
+            assert np.allclose(bri.R_derivs()[:, 2], bri.dRdzeta()[:, 0])
+            assert np.allclose(bri.Z_derivs()[:, 0], bri.dZds()[:, 0])
+            assert np.allclose(bri.Z_derivs()[:, 1], bri.dZdtheta()[:, 0])
+            assert np.allclose(bri.Z_derivs()[:, 2], bri.dZdzeta()[:, 0])
+            assert np.allclose(bri.nu_derivs()[:, 0], bri.dnuds()[:, 0])
+            assert np.allclose(bri.nu_derivs()[:, 1], bri.dnudtheta()[:, 0])
+            assert np.allclose(bri.nu_derivs()[:, 2], bri.dnudzeta()[:, 0])
+            assert np.allclose(bri.modB_derivs()[:, 0], bri.dmodBds()[:, 0])
+            assert np.allclose(bri.modB_derivs()[:, 1], bri.dmodBdtheta()[:, 0])
+            assert np.allclose(bri.modB_derivs()[:, 2], bri.dmodBdzeta()[:, 0])
+
     def test_interpolatedboozerfield_sym(self):
         """
         Here we perform 3D interpolation on a random set of points. Compare
@@ -455,6 +485,21 @@ class TestingVmec(unittest.TestCase):
         assert np.allclose(diotads, diotadsh, rtol=1e-3)
         assert np.allclose(dGds, dGdsh, rtol=1e-3)
         assert np.allclose(dIds, dIdsh, rtol=1e-3)
+
+        assert np.allclose(bsh.K_derivs()[:, 0], bsh.dKdtheta()[:, 0])
+        assert np.allclose(bsh.K_derivs()[:, 1], bsh.dKdzeta()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 0], bsh.dRds()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 1], bsh.dRdtheta()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 2], bsh.dRdzeta()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 0], bsh.dZds()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 1], bsh.dZdtheta()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 2], bsh.dZdzeta()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 0], bsh.dnuds()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 1], bsh.dnudtheta()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 2], bsh.dnudzeta()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 0], bsh.dmodBds()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 1], bsh.dmodBdtheta()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 2], bsh.dmodBdzeta()[:, 0])
 
     def test_interpolatedboozerfield_no_sym(self):
         """
@@ -588,6 +633,21 @@ class TestingVmec(unittest.TestCase):
         assert np.allclose(diotads, diotadsh, rtol=1e-3)
         assert np.allclose(dGds, dGdsh, rtol=1e-3)
         assert np.allclose(dIds, dIdsh, rtol=1e-3)
+
+        assert np.allclose(bsh.K_derivs()[:, 0], bsh.dKdtheta()[:, 0])
+        assert np.allclose(bsh.K_derivs()[:, 1], bsh.dKdzeta()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 0], bsh.dRds()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 1], bsh.dRdtheta()[:, 0])
+        assert np.allclose(bsh.R_derivs()[:, 2], bsh.dRdzeta()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 0], bsh.dZds()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 1], bsh.dZdtheta()[:, 0])
+        assert np.allclose(bsh.Z_derivs()[:, 2], bsh.dZdzeta()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 0], bsh.dnuds()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 1], bsh.dnudtheta()[:, 0])
+        assert np.allclose(bsh.nu_derivs()[:, 2], bsh.dnudzeta()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 0], bsh.dmodBds()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 1], bsh.dmodBdtheta()[:, 0])
+        assert np.allclose(bsh.modB_derivs()[:, 2], bsh.dmodBdzeta()[:, 0])
 
     def test_interpolatedboozerfield_convergence_rate(self):
         """

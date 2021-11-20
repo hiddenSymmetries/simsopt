@@ -27,6 +27,10 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _dKdzeta_impl, data);
         }
 
+        virtual void _K_derivs_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
+            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _K_derivs_impl, data);
+        }
+
         virtual void _nu_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _nu_impl, data);
         }
@@ -41,6 +45,10 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
 
         virtual void _dnuds_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _dnuds_impl, data);
+        }
+
+        virtual void _nu_derivs_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
+            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _nu_derivs_impl, data);
         }
 
         virtual void _R_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
@@ -71,6 +79,14 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _dZds_impl, data);
         }
 
+        virtual void _R_derivs_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
+            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _R_derivs_impl, data);
+        }
+
+        virtual void _Z_derivs_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
+            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _Z_derivs_impl, data);
+        }
+
         virtual void _Z_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _Z_impl, data);
         }
@@ -89,6 +105,10 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
 
         virtual void _dmodBds_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _dmodBds_impl, data);
+        }
+
+        virtual void _modB_derivs_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
+            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _modB_derivs_impl, data);
         }
 
         virtual void _G_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
