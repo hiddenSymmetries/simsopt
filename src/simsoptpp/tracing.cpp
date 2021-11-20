@@ -118,9 +118,9 @@ class GuidingCenterVacuumBoozerRHS {
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
             double iota = field->iota_ref()(0);
-            double dmodBds = field->dmodBds_ref()(0);
-            double dmodBdtheta = field->dmodBdtheta_ref()(0);
-            double dmodBdzeta = field->dmodBdzeta_ref()(0);
+            double dmodBds = field->modB_derivs_ref()(0);
+            double dmodBdtheta = field->modB_derivs_ref()(1);
+            double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
 
@@ -234,7 +234,7 @@ class GuidingCenterBoozerRHS {
             double modB = field->modB_ref()(0);
             double K = field->K_ref()(0);
             double dKdtheta = field->K_derivs_ref()(0);
-            double dKdzeta = field->K_derivs_ref()(0);
+            double dKdzeta = field->K_derivs_ref()(1);
 
             double G = field->G_ref()(0);
             double I = field->I_ref()(0);
