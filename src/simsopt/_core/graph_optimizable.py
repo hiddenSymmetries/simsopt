@@ -512,7 +512,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         # instances of same class
         self._id = ImmutableId(next(self.__class__._ids))
         self.name = self.__class__.__name__ + str(self._id.id)
-        self._children = []  # This gets populated when the object is passed
+        self._children = set()  # This gets populated when the object is passed
         # as argument to another Optimizable object
         self.return_fns = WeakKeyDefaultDict(list)  # Store return fn's required by each child
 
@@ -686,7 +686,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         weakref_child = weakref.ref(child)
         if weakref_child not in self._children:
-            self._children.append(weakref_child)
+            self._children.add(weakref_child)
 
     def _remove_child(self, other: Optimizable) -> None:
         """
