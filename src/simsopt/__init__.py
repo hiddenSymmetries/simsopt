@@ -21,6 +21,5 @@ __version__ = metadata.version('simsopt')
 from ._core import make_optimizable
 from .objectives import LeastSquaresProblem
 from .solve import least_squares_serial_solve
-from mpi4py import MPI  # This line is temporary, to check the new MPI test. MJL 20211121
 
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
