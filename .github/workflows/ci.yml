@@ -161,6 +161,9 @@ jobs:
     - name: Install simsopt package
       run: pip install -v .[MPI,SPEC]
 
+    - name: Verify that importing simsopt does not automatically initialize MPI
+      run: ./tests/verify_MPI_not_initialized.py
+
     - name: Run examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated')
       run: |
