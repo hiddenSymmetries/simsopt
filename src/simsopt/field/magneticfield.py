@@ -87,7 +87,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         Z = Z
 
         RPhiZ = np.zeros((R.size, 3))
-        RPhiZ[:, 0] = Phi.flatten() # ordering (phi,z,r) to match mgrid netCDF, maybe rename this array PhiZR then?
+        RPhiZ[:, 0] = Phi.flatten()  # ordering (phi,z,r) to match mgrid netCDF, maybe rename this array PhiZR then?
         RPhiZ[:, 1] = Z.flatten()
         RPhiZ[:, 2] = R.flatten()
 
@@ -97,11 +97,12 @@ class MagneticField(sopp.MagneticField, Optimizable):
         #vals = self.B().reshape((R.shape[0], R.shape[1], R.shape[2], 3))
         # appears to return a 1D array which is unravelled from (N_R, N_phi, N_Z, 3), where the last number is (Bx, By, Bz)
 
-        mgrid = mg.MGRID( fname=filename, nfp=nfp, \
-                      nr=nr, nz=nz, nphi=nphi, \
-                      rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax )
-        mgrid.add_field(B, name='simsopt_coils') # expects an array (N_phi, N_Z, N_R, 3) (!)
-        mgrid.write(filename) # perhaps mgrid.filename.nc
+        mgrid = mg.MGRID(fname=filename, nfp=nfp, \
+                         nr=nr, nz=nz, nphi=nphi, \
+                         rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
+        mgrid.add_field(B, name='simsopt_coils')  # expects an array (N_phi, N_Z, N_R, 3) (!)
+        mgrid.write(filename)  # perhaps mgrid.filename.nc
+
 
 class MagneticFieldMultiply(MagneticField):
     """
