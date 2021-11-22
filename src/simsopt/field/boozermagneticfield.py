@@ -334,7 +334,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             # Determine if radial grid for Boozer needs to be updated
 
             # Grid not initialized
-            if len(self.booz.bx.s_in)==0:
+            if len(self.booz.bx.s_in) == 0:
                 self.booz.register(self.booz.equil.s_half_grid)
             # Grid does not have correct size
             elif (len(self.booz.bx.s_in) != len(self.booz.bx.s_b)):
@@ -418,7 +418,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         ds = self.booz.bx.s_in[1]-self.booz.bx.s_in[0]
 
-        s_full = np.linspace(0,1,self.booz.bx.ns_in+1)
+        s_full = np.linspace(0, 1, self.booz.bx.ns_in+1)
 
         psip = self.booz.equil.wout.chi/(2*np.pi)
         iota[1:-1] = self.booz.bx.iota
