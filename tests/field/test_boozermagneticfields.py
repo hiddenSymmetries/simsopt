@@ -1,4 +1,5 @@
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField, BoozerAnalytic
+from simsopt.mhd.boozer import Boozer
 import numpy as np
 import unittest
 from pathlib import Path
@@ -134,8 +135,51 @@ class TestingVmec(unittest.TestCase):
         thetas_flat = thetas.flatten()
         zetas_flat = zetas.flatten()
 
+        vmec.run()
+
+        # The following tests different initializations of BoozerRadialInterpolant
         for rescale in [True, False]:
-            bri = BoozerRadialInterpolant(vmec, order, rescale=rescale,
+            # First, do not initialize grid
+            booz = Boozer(vmec, mpol=1, ntor=1)
+            bri = BoozerRadialInterpolant(booz, order, rescale=rescale,
+                                          ns_delete=ns_delete, mpol=1, ntor=1)
+
+            s_0 = np.copy(bri.s_half_ext)
+            G_0 = bri.G_spline(0.5)
+
+            # Next, initialize wrong size of radial grid
+            booz = Boozer(vmec, mpol=1, ntor=1)
+            booz.register(vmec.s_half_grid[0:5])
+            booz.run()
+            bri = BoozerRadialInterpolant(booz, order, rescale=False,
+                                          ns_delete=ns_delete, mpol=1, ntor=1)
+
+            s_1 = np.copy(bri.s_half_ext)
+            G_1 = bri.G_spline(0.5)
+
+            # Next, intialize correct size, but wrong values
+            booz = Boozer(vmec, mpol=1, ntor=1)
+            s_grid = np.asarray(vmec.s_half_grid)
+            s_grid[0] = s_grid[0]*0.5
+            booz.register(s_grid)
+            booz.run()
+            bri = BoozerRadialInterpolant(booz, order, rescale=False,
+                                          ns_delete=ns_delete, mpol=1, ntor=1)
+
+            s_2 = np.copy(bri.s_half_ext)
+            G_2 = bri.G_spline(0.5)
+
+            assert np.allclose(s_0,s_1)
+            assert np.allclose(s_0,s_2)
+            assert G_0 == G_1
+            assert G_0 == G_2
+
+        # Compute full boozer transformation once
+        booz = Boozer(vmec, mpol=15, ntor=10)
+        booz.register(vmec.s_half_grid)
+        booz.run()
+        for rescale in [True, False]:
+            bri = BoozerRadialInterpolant(booz, order, rescale=rescale,
                                           ns_delete=ns_delete, mpol=15, ntor=10)
             isurf = round(0.75*len(vmec.s_full_grid))
 
