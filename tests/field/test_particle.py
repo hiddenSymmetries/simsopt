@@ -8,7 +8,7 @@ from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClas
     MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
     compute_poloidal_transits, compute_toroidal_transits, trace_particles, compute_resonances
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.field.boozermagneticfield import BoozerAnalytic, BoozerRadialInterpolant, InterpolatedBoozerField
+from simsopt.field.boozermagneticfield import BoozerAnalytic
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.geo.curverzfourier import CurveRZFourier
