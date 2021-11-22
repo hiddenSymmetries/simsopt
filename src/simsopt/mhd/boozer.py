@@ -37,7 +37,7 @@ if MPI is not None:
 from .._core.graph_optimizable import Optimizable
 
 # Temporarily commenting out the decorator till __instancecheck__ method is made working
-# @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
+# @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform"
 
 
 class Boozer(Optimizable):
