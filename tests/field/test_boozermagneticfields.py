@@ -169,8 +169,8 @@ class TestingVmec(unittest.TestCase):
             s_2 = np.copy(bri.s_half_ext)
             G_2 = bri.G_spline(0.5)
 
-            assert np.allclose(s_0,s_1)
-            assert np.allclose(s_0,s_2)
+            assert np.allclose(s_0, s_1)
+            assert np.allclose(s_0, s_2)
             assert G_0 == G_1
             assert G_0 == G_2
 
