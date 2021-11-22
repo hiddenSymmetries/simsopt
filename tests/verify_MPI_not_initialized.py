@@ -14,17 +14,11 @@ unit tests, because otherwise one of the unit tests that uses MPI
 would initialize MPI.
 """
 
+import sys
 import simsopt
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
-import mpi4py
-# The next line tells mpi4py to not initialize MPI when mpi4py.MPI is imported:
-mpi4py.rc.initialize = False
+assert "mpi4py.MPI" not in sys.modules, \
+    "Importing simsopt should not initialize MPI"
 
-from mpi4py import MPI
-
-if mpi4py.MPI.Is_initialized():
-    print("ERROR! Importing simsopt should not initialize MPI")
-    exit(1)
-else:
-    print("Verified that importing simsopt does not initialize MPI")
+print("Verified that importing simsopt does not initialize MPI")

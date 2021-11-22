@@ -21,5 +21,5 @@ __version__ = metadata.version('simsopt')
 from ._core import make_optimizable
 from .objectives import LeastSquaresProblem
 from .solve import least_squares_serial_solve
-
+from mpi4py import MPI
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
