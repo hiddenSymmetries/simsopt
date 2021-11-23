@@ -20,6 +20,7 @@ if MPI is not None:
         Boozer = None
         logger.warning(str(e))
 
+
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""
     Generic class that represents a magnetic field in Boozer coordinates
