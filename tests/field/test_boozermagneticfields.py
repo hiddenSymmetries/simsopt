@@ -1,5 +1,4 @@
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField, BoozerAnalytic
-from simsopt.mhd.boozer import Boozer
 import numpy as np
 import unittest
 from pathlib import Path
@@ -20,7 +19,7 @@ except ImportError as e:
 
 if (MPI is not None) and (vmec is not None):
     from simsopt.mhd.vmec import Vmec
-
+    from simsopt.mhd.boozer import Boozer
 
 class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
