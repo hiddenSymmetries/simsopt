@@ -2,6 +2,7 @@ from scipy.optimize import minimize, least_squares
 from scipy.linalg import lu
 import numpy as np
 
+import simsoptpp as sopp
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_dB
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt.geo.surfaceobjectives import boozer_surface_residual_accumulate
@@ -379,7 +380,9 @@ class BoozerSurface():
             r, J = self.boozer_penalty_constraints(
                 x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
             b = J.T@r
-            JTJ = J.T@J
+            #JTJ = J.T@J
+            JTJ = sopp.JTJ(J)
+            #print(JTJ.shape, J.shape)
             norm = np.linalg.norm(b, ord=np.inf)
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
@@ -392,7 +395,8 @@ class BoozerSurface():
                 r, J = self.boozer_penalty_constraints(
                     x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
-                JTJ = J.T@J
+                #JTJ = J.T@J
+                JTJ = sopp.JTJ(J)
                 norm = np.linalg.norm(b, ord=np.inf)
                 lam *= 1/3
                 i += 1
@@ -522,6 +526,7 @@ class BoozerSurface():
         res['iota'] = iota
         return res
     
+#    @profile
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For

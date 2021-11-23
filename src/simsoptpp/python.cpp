@@ -5,6 +5,7 @@
 PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
 
 
@@ -75,7 +76,20 @@ PYBIND11_MODULE(simsoptpp, m) {
             delete[] B_dB_dc;
             return res;
         } );
-   
+  
+
+        m.def("JTJ", [](PyArray& J) {
+                // Compute J.T @ J for a mxn matrix J. (J.T is a nxm matrix, so J.T@J is a nxn matrix)
+                int m = J.shape(0);
+                int n = J.shape(1);
+                PyArray JTJ = xt::zeros<double>({n, n});
+
+                Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigJ(const_cast<double*>(J.data()), m, n);
+                Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigJTJ(const_cast<double*>(JTJ.data()), n, n);
+                eigJTJ = eigJ.transpose()*eigJ;
+                return JTJ;
+            });
+ 
     //resd2B_dcdc = np.einsum('ijkpl,ijpn,ijkm,ijl->mn', d2B_by_dXdX, dx_dc, dx_dc, residual, optimize=True)
     //m.def("res_dot_d2B_dcdc", [](PyArray& d2B_dXdX, PyArray& dX_dc, PyArray& residual){
     //        int nphi = dX_dc.shape(0);

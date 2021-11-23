@@ -88,6 +88,113 @@ def forward_backward(P, L, U, rhs):
 #        return [0. for c in self.stellarator.coils]
 
 sDIM = 10
+class BoozerResidual(object):
+    r"""
+    """
+    def __init__(self, boozer_surface, bs, constraint_weight):
+        in_surface=boozer_surface.surface
+        self.boozer_surface = boozer_surface
+        
+        phis   = in_surface.quadpoints_phi
+        thetas = in_surface.quadpoints_theta
+        s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(in_surface.get_dofs())
+
+        self.constraint_weight=constraint_weight
+        self.in_surface = in_surface
+        self.surface = s
+        self.biotsavart = bs
+        self.clear_cached_properties()
+
+    def clear_cached_properties(self):
+        self._J = None
+        self._dJ_by_dcoefficients = None
+        self._dJ_by_dcoilcurrents = None
+
+    def compute(self, compute_derivatives=0):
+
+
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        self.biotsavart.set_points(self.surface.gamma().reshape((-1,3)))
+        
+        # compute J
+        surface = self.surface
+        iota = self.boozer_surface.res['iota']
+        G = self.boozer_surface.res['G']
+        r, = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=0)
+        r = np.concatenate((r, [np.sqrt(self.constraint_weight)*(self.boozer_surface.label.J()-self.boozer_surface.targetlabel)] ) )
+        self._J = 0.5*np.sum(r*r)
+        if compute_derivatives > 0:
+            r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1)
+            
+            booz_surf = self.boozer_surface
+            iota = booz_surf.res['iota']
+            G = booz_surf.res['G']
+#            P, L, U = booz_surf.res['PLU']
+#            dconstraint_dcoils_vjp = booz_surf.res['dconstraint_dcoils_vjp']
+            
+            dJ_by_dB = self.dJ_by_dB()
+            dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+
+            # dJ_diota, dJ_dG  to the end of dJ_ds are on the end
+#            r = np.concatenate((r, [np.sqrt(self.constraint_weight)*(self.boozer_surface.label.J()-self.boozer_surface.targetlabel)] ) )
+#            dl = np.zeros((J.shape[1],))
+#            dl[:-2] = self.boozer_surface.label.dJ_by_dsurfacecoefficients()
+#            J = np.concatenate((J, np.sqrt(self.constraint_weight) * dl[None, :]), axis=0)
+#            
+#            dJ_ds = J.T@r
+#            adj = forward_backward(P, L, U, dJ_ds)
+#            
+#            adj_times_dg_dcoil, adj_times_dg_dcurr = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, booz_surf.bs)
+#            self._dJ_by_dcoefficients = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoils, adj_times_dg_dcoil)]
+#            
+#            dB_by_dcoilcurrents = self.biotsavart.dB_by_dcoilcurrents()
+#            dJ_by_dcoilcurrents = [np.sum(dJ_by_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
+#            self._dJ_by_dcoilcurrents = [dj_dc - adj_dg_dc for dj_dc, adj_dg_dc in zip(dJ_by_dcoilcurrents, adj_times_dg_dcurr)]
+
+            self._dJ_by_dcoefficients = dJ_by_dcoils
+            dB_by_dcoilcurrents = self.biotsavart.dB_by_dcoilcurrents()
+            dJ_by_dcoilcurrents = [np.sum(dJ_by_dB*dB_dcurr) for dB_dcurr in dB_by_dcoilcurrents]
+            self._dJ_by_dcoilcurrents = dJ_by_dcoilcurrents
+
+
+
+
+
+    def J(self, compute_derivatives=0):
+        assert compute_derivatives >= 0
+        if self._J is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._J
+
+    def dJ_by_dcoefficients(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoefficients is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoefficients
+
+    def dJ_by_dcoilcurrents(self, compute_derivatives=1):
+        assert compute_derivatives >= 1
+        if self._dJ_by_dcoilcurrents is None:
+            self.compute(compute_derivatives=compute_derivatives)
+        return self._dJ_by_dcoilcurrents
+
+    def dJ_by_dB(self):
+        """
+        Return the partial derivative of the objective with respect to the magnetic field
+        """
+        
+        surface = self.surface
+        r, r_dB = boozer_surface_residual_dB(surface, self.boozer_surface.res['iota'], self.boozer_surface.res['G'], self.biotsavart, derivatives=0)
+        dJ_by_dB = r[:, None]*r_dB
+        dJ_by_dB = np.sum(dJ_by_dB.reshape((-1, 3, 3)), axis=1)
+        return dJ_by_dB
+
+
+
+
+
+
 class NonQuasiAxisymmetricComponent(object):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
