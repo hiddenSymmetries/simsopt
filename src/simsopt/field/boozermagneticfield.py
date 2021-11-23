@@ -3,6 +3,8 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
 import logging
 
+logger = logging.getLogger(__name__)
+
 try:
     from mpi4py import MPI
 except ImportError as e:
