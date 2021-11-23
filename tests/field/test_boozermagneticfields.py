@@ -21,6 +21,7 @@ if (MPI is not None) and (vmec is not None):
     from simsopt.mhd.vmec import Vmec
     from simsopt.mhd.boozer import Boozer
 
+
 class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
         etabar = 1.1
