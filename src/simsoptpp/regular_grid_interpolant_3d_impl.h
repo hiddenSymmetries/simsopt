@@ -30,9 +30,10 @@ void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, doub
 template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
     int degree = rule.degree;
-    Vec xcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
-    Vec ycoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
-    Vec zcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
+    int n = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
+    Vec xcoords(n, 0.);
+    Vec ycoords(n, 0.);
+    Vec zcoords(n, 0.);
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
             for (int k = 0; k <= nz*degree; ++k) {
@@ -43,7 +44,23 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
             }
         }
     }
-    Vec fxyz  = f(xcoords, ycoords, zcoords);
+    Vec fxyz(n * value_size);
+    int BATCH_SIZE = 16384;
+    int NUM_BATCHES = n/BATCH_SIZE + (n % BATCH_SIZE != 0);
+    for (int i = 0; i < NUM_BATCHES; ++i) {
+        int first = i * BATCH_SIZE;
+        int last = std::min((i+1) * BATCH_SIZE, n);
+        Vec xsub(xcoords.begin() + first, xcoords.begin() + last);
+        Vec ysub(ycoords.begin() + first, ycoords.begin() + last);
+        Vec zsub(zcoords.begin() + first, zcoords.begin() + last);
+        Vec fxyzsub  = f(xsub, ysub, zsub);
+        for (int j = 0; j < last-first; ++j) {
+            for (int l = 0; l < value_size; ++l) {
+                fxyz[first * value_size + j * value_size + l] = fxyzsub[j * value_size + l];
+            }
+        }
+    }
+    //Vec fxyz  = f(xcoords, ycoords, zcoords);
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
             for (int k = 0; k <= nz*degree; ++k) {
