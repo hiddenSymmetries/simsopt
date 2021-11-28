@@ -167,6 +167,7 @@ class RegularGridInterpolant3D {
 
         void interpolate(std::function<Vec(double, double, double)> &f);
         void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f);
+        void interpolate_batch_with_skip(std::function<Vec(Vec, Vec, Vec)> &f, std::function<std::vector<bool>(Vec, Vec, Vec)> &skip);
         void build_local_vals();
 
         inline int idx_dof(int i, int j, int k){
