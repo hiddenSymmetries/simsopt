@@ -70,6 +70,7 @@ void init_magneticfields(py::module_ &m){
             )pbdoc")
         .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
         .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch, "Interpolate a function by evaluating the function on all interpolation nodes simultanuously.")
+        .def("interpolate_batch_with_skip", &RegularGridInterpolant3D<PyTensor>::interpolate_batch_with_skip, "Interpolate a function by evaluating the function on a subset of the interpolation nodes (given by the skip function) simultanuously.")
         .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate, "Evaluate the interpolant at a point.")
         .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
@@ -106,8 +107,8 @@ void init_magneticfields(py::module_ &m){
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
-        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)
