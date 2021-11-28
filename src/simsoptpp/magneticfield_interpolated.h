@@ -11,9 +11,9 @@ class InterpolatedField : public MagneticField<T> {
     private:
 
         CachedTensor<T, 2> points_cyl_sym;
-        std::function<Vec(double, double, double)> f_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_B;
         std::function<Vec(Vec, Vec, Vec)> fbatch_GradAbsB;
+        std::function<std::vector<bool>(Vec, Vec, Vec)> skip;
         shared_ptr<RegularGridInterpolant3D<Tensor2>> interp_B, interp_GradAbsB;
         bool status_B = false;
         bool status_GradAbsB = false;
@@ -145,8 +145,9 @@ class InterpolatedField : public MagneticField<T> {
         InterpolatedField(
                 shared_ptr<MagneticField<T>> field, InterpolationRule rule,
                 RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range,
-                bool extrapolate, int nfp, bool stellsym) :
-            field(field), rule(rule), r_range(r_range), phi_range(phi_range), z_range(z_range), extrapolate(extrapolate), nfp(nfp), stellsym(stellsym)
+                bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+            field(field), rule(rule), r_range(r_range), phi_range(phi_range), z_range(z_range), extrapolate(extrapolate), nfp(nfp), stellsym(stellsym),
+            skip(skip)
              
         {
             fbatch_B = [this](Vec r, Vec phi, Vec z) {
@@ -183,14 +184,14 @@ class InterpolatedField : public MagneticField<T> {
         InterpolatedField(
                 shared_ptr<MagneticField<T>> field, int degree,
                 RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range,
-                bool extrapolate, int nfp, bool stellsym) : InterpolatedField(field, UniformInterpolationRule(degree), r_range, phi_range, z_range, extrapolate, nfp, stellsym) {}
+                bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) : InterpolatedField(field, UniformInterpolationRule(degree), r_range, phi_range, z_range, extrapolate, nfp, stellsym, skip) {}
 
         std::pair<double, double> estimate_error_B(int samples) {
             if(!interp_B)
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_B) {
                 Tensor2 old_points = this->field->get_points_cart();
-                interp_B->interpolate_batch(fbatch_B);
+                interp_B->interpolate_batch_with_skip(fbatch_B, skip);
                 this->field->set_points_cart(old_points);
                 status_B = true;
             }
@@ -201,7 +202,7 @@ class InterpolatedField : public MagneticField<T> {
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_GradAbsB) {
                 Tensor2 old_points = this->field->get_points_cart();
-                interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
+                interp_GradAbsB->interpolate_batch_with_skip(fbatch_GradAbsB, skip);
                 this->field->set_points_cart(old_points);
                 status_GradAbsB = true;
             }

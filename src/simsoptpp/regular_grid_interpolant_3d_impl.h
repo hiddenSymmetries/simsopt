@@ -29,10 +29,20 @@ void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, doub
 
 template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
+    std::function<std::vector<bool>(Vec, Vec, Vec)> skip = [](Vec x, Vec y, Vec z){
+        return std::vector<bool>(x.size(), false);
+    };
+    return interpolate_batch_with_skip(f, skip);
+}
+
+template<class Array>
+void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<Vec(Vec, Vec, Vec)> &f, std::function<std::vector<bool>(Vec, Vec, Vec)> &skip) {
     int degree = rule.degree;
-    Vec xcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
-    Vec ycoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
-    Vec zcoords((nx*degree+1)*(ny*degree+1)*(nz*degree+1), 0.);
+    int n =  (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
+    // Begin by building interpolation points in x, y, and z
+    Vec xcoords(n, 0.);
+    Vec ycoords(n, 0.);
+    Vec zcoords(n, 0.);
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
             for (int k = 0; k <= nz*degree; ++k) {
@@ -43,7 +53,47 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
             }
         }
     }
-    Vec fxyz  = f(xcoords, ycoords, zcoords);
+
+    // Now build a list of dofs that are outside of our domain of interest, so
+    // that we now that we don't have to evaluate the bfield for those
+    std::vector<bool> skip_dof = skip(xcoords, ycoords, zcoords);
+    // Count how many dofs are skipped in total, and how many to keep
+    int total_to_skip = 0;
+    for (int i = 0; i < n; ++i) {
+        total_to_skip += skip_dof[i];
+    }
+    int total_to_keep = n - total_to_skip;
+    // Build a map that maps indices from the reduced set of interpolation
+    // points to the full set
+    std::vector<int> reduced_to_full_map(total_to_keep, 0);
+    int ctr = 0;
+    for (int i = 0; i < n; ++i) {
+        if(skip_dof[i])
+            ctr++;
+        else {
+            reduced_to_full_map[i-ctr] = i;
+        }
+    }
+
+    // build the reduced list of interpolation points
+    Vec xcoords_reduced(total_to_keep, 0.);
+    Vec ycoords_reduced(total_to_keep, 0.);
+    Vec zcoords_reduced(total_to_keep, 0.);
+    for (int i = 0; i < total_to_keep; ++i) {
+        xcoords_reduced[i] = xcoords[reduced_to_full_map[i]];
+        ycoords_reduced[i] = ycoords[reduced_to_full_map[i]];
+        zcoords_reduced[i] = zcoords[reduced_to_full_map[i]];
+    }
+    // now evaluate the bfield there
+    Vec fxyz_reduced  = f(xcoords_reduced, ycoords_reduced, zcoords_reduced);
+    // and then fill the global list of interpolation points
+    Vec fxyz(value_size*n, 0.);
+    for (int i = 0; i < total_to_keep; ++i) {
+        for (int l = 0; l < value_size; ++l) {
+            fxyz[value_size * reduced_to_full_map[i] + l] = fxyz_reduced[i * value_size + l];
+        }
+    }
+
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
             for (int k = 0; k <= nz*degree; ++k) {
