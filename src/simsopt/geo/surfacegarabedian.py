@@ -183,6 +183,33 @@ class SurfaceGarabedian(sopp.Surface, Surface):
 
         return s
 
+    # TODO: Reimplement by passing all Delta values once
+    @classmethod
+    def from_RZFourier(cls, surf):
+        """
+        Create a `SurfaceGarabedian` from a `SurfaceRZFourier` object of the identical shape.
+
+        For a derivation of the transformation here, see
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        """
+        if not surf.stellsym:
+            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian '
+                               'objects have not been implemented')
+        mmax = surf.mpol + 1
+        mmin = np.min((0, 1 - surf.mpol))
+        s = cls(nfp=surf.nfp, mmin=mmin, mmax=mmax,
+                nmin=-surf.ntor, nmax=surf.ntor)
+        for n in range(-surf.ntor, surf.ntor + 1):
+            for m in range(mmin, mmax + 1):
+                Delta = 0
+                if m - 1 >= 0:
+                    Delta = 0.5 * (surf.get_rc(m - 1, n) - surf.get_zs(m - 1, n))
+                if 1 - m >= 0:
+                    Delta += 0.5 * (surf.get_rc(1 - m, -n) + surf.get_zs(1 - m, -n))
+                s.set_Delta(m, n, Delta)
+
+        return s
+
     def area_volume(self):
         """
         Compute the surface area and the volume enclosed by the surface.

@@ -78,7 +78,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     sf1 = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
                     # Set all dofs to random numbers in [-2, 2]:
                     sf1.set_dofs((np.random.rand(len(sf1.get_dofs())) - 0.5) * 4)
-                    sg = sf1.to_Garabedian()
+                    sg = SurfaceGarabedian.from_RZFourier(sf1)
                     sf2 = sg.to_RZFourier()
                     np.testing.assert_allclose(sf1.rc, sf2.rc)
                     np.testing.assert_allclose(sf1.zs, sf2.zs)
