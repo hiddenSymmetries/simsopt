@@ -97,33 +97,32 @@ class RegularGridInterpolant3D {
         double hx, hy, hz;
         const int value_size;
         int padded_value_size;
-        AlignedVec vals;
-        Vec xs;
-        Vec ys;
-        Vec zs;
-        Vec xsmesh;
-        Vec ysmesh;
-        Vec zsmesh;
-        AlignedVec all_local_vals;
+        Vec vals;
+        Vec xdof, ydof, zdof;
+        Vec xmesh, ymesh, zmesh;
+        Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
         std::unordered_map<int, AlignedVec> all_local_vals_map;
         std::vector<bool> skip_cell;
         std::vector<uint32_t> reduced_to_full_map, full_to_reduced_map;
 
+        uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep;
         int local_vals_size;
         static const int simdcount = xsimd::simd_type<double>::size;
+        //static const std::function<std::vector<bool>(Vec, Vec, Vec)> skipnothing = ;
         const InterpolationRule rule;
         Vec pkxs, pkys, pkzs;
 
     public:
         bool extrapolate;
 
-        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate) :
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
             rule(rule), 
             xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)),
             ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)),
             zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)),
             value_size(value_size), extrapolate(extrapolate)
         {
+    //std::function<std::vector<bool>(Vec, Vec, Vec)> skip = ;
             int degree = rule.degree;
             pkxs = Vec(degree+1, 0.);
             pkys = Vec(degree+1, 0.);
@@ -132,45 +131,153 @@ class RegularGridInterpolant3D {
             hy = (ymax-ymin)/ny;
             hz = (zmax-zmin)/nz;
 
-            xsmesh = linspace(xmin, xmax, nx+1, true);
-            ysmesh = linspace(ymin, ymax, ny+1, true);
-            zsmesh = linspace(zmin, zmax, nz+1, true);
-            xs = Vec(nx*degree+1, 0.);
-            ys = Vec(ny*degree+1, 0.);
-            zs = Vec(nz*degree+1, 0.);
+            // build a regular mesh on [xmin, xmax] x [ymin, ymax] x [zmin, zmax]
+            xmesh = linspace(xmin, xmax, nx+1, true);
+            ymesh = linspace(ymin, ymax, ny+1, true);
+            zmesh = linspace(zmin, zmax, nz+1, true);
+
+            int nmesh = (nx+1)*(ny+1)*(nz+1);
+            Vec xmeshtensor(nmesh, 0.);
+            Vec ymeshtensor(nmesh, 0.);
+            Vec zmeshtensor(nmesh, 0.);
+
+            for (int i = 0; i <= nx; ++i) {
+                for (int j = 0; j <= ny; ++j) {
+                    for (int k = 0; k <= nz; ++k) {
+                        int offset = idx_mesh(i, j, k);
+                        xmeshtensor[offset] = xmesh[i];
+                        ymeshtensor[offset] = ymesh[j];
+                        zmeshtensor[offset] = zmesh[k];
+                    }
+                }
+            }
+            // for each node in the mesh, check whether it is in the domain, or
+            // outside of it (i.e. should be skipped)
+            std::vector<bool> skip_mesh = skip(xmeshtensor, ymeshtensor, zmeshtensor);
+            // cells are entirely ignored if *all* of its eight corners are
+            // outside the domain
+            skip_cell = std::vector<bool>(nx*ny*nz, false);
+            cells_to_skip = 0;
+            for (int i = 0; i < nx; ++i) {
+                for (int j = 0; j < ny; ++j) {
+                    for (int k = 0; k < nz; ++k) {
+                        bool skip_this_one = (
+                                skip_mesh[idx_mesh(i  , j  , k)] && skip_mesh[idx_mesh(i  , j  , k+1)] &&
+                                skip_mesh[idx_mesh(i  , j+1, k)] && skip_mesh[idx_mesh(i  , j+1, k+1)] &&
+                                skip_mesh[idx_mesh(i+1, j  , k)] && skip_mesh[idx_mesh(i+1, j  , k+1)] &&
+                                skip_mesh[idx_mesh(i+1, j+1, k)] && skip_mesh[idx_mesh(i+1, j+1, k+1)]
+                                );
+                        if(skip_this_one) {
+                            skip_cell[idx_cell(i, j, k)] = true;
+                            cells_to_skip++;
+                        }
+                    }
+                }
+            }
+            cells_to_keep = nx*ny*nz - cells_to_skip;
+
+            // now build the interpolation points in 1d.
+            xdof = Vec(nx*degree+1, 0.);
+            ydof = Vec(ny*degree+1, 0.);
+            zdof = Vec(nz*degree+1, 0.);
             int i, j;
             for (i = 0; i < nx; ++i) {
                 for (j = 0; j < degree+1; ++j) {
-                    xs[i*degree+j] = xsmesh[i] + rule.nodes[j]*hx;
+                    xdof[i*degree+j] = xmesh[i] + rule.nodes[j]*hx;
                 }
             }
             for (i = 0; i < ny; ++i) {
                 for (j = 0; j < degree+1; ++j) {
-                    ys[i*degree+j] = ysmesh[i] + rule.nodes[j]*hy;
+                    ydof[i*degree+j] = ymesh[i] + rule.nodes[j]*hy;
                 }
             }
             for (i = 0; i < nz; ++i) {
                 for (j = 0; j < degree+1; ++j) {
-                    zs[i*degree+j] = zsmesh[i] + rule.nodes[j]*hz;
+                    zdof[i*degree+j] = zmesh[i] + rule.nodes[j]*hz;
                 }
             }
+            uint32_t n =  (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
+            // turn these into a tensor product grid
+            Vec xdoftensor(n, 0.);
+            Vec ydoftensor(n, 0.);
+            Vec zdoftensor(n, 0.);
+            for (int i = 0; i <= nx*degree; ++i) {
+                for (int j = 0; j <= ny*degree; ++j) {
+                    for (int k = 0; k <= nz*degree; ++k) {
+                        uint32_t offset = idx_dof(i, j, k);
+                        xdoftensor[offset] = xdof[i];
+                        ydoftensor[offset] = ydof[j];
+                        zdoftensor[offset] = zdof[k];
+                    }
+                }
+            }
+            // now we need to figure out which of these dofs we keep, and which
+            // to discard.  to do this, we loop over the cells, and mark all
+            // dofs in cells that should not be skipped.
+
+            std::vector<bool> skip_dof(n, true);
+            for (int i = 0; i < nx; ++i) {
+                for (int j = 0; j < ny; ++j) {
+                    for (int k = 0; k < nz; ++k) {
+                        if(!skip_cell[idx_cell(i, j, k)]){
+                            for (int ii = 0; ii <= degree; ++ii) {
+                                for (int jj = 0; jj <= degree; ++jj) {
+                                    for (int kk = 0; kk <= degree; ++kk) {
+                                        skip_dof[idx_dof(i*degree + ii, j*degree + jj, k*degree + kk)] = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Count how many dofs are skipped in total, and how many to keep
+            dofs_to_skip = 0;
+            for (uint32_t i = 0; i < n; ++i) {
+                dofs_to_skip += skip_dof[i];
+            }
+            dofs_to_keep = n - dofs_to_skip;
+            // Build a map that maps indices from the reduced set of interpolation
+            // points to the full set, and its inverse
+            reduced_to_full_map = std::vector<uint32_t>(dofs_to_keep, 0);
+            full_to_reduced_map = std::vector<uint32_t>(n, 0);
+            uint32_t ctr = 0;
+            for (uint32_t i = 0; i < n; ++i) {
+                full_to_reduced_map[i] = i - ctr;
+                if(skip_dof[i])
+                    ctr++;
+                else {
+                    reduced_to_full_map[i-ctr] = i;
+                }
+            }
+
+            // build the reduced list of interpolation points
+            xdoftensor_reduced = Vec(dofs_to_keep, 0.);
+            ydoftensor_reduced = Vec(dofs_to_keep, 0.);
+            zdoftensor_reduced = Vec(dofs_to_keep, 0.);
+            for (long i = 0; i < dofs_to_keep; ++i) {
+                xdoftensor_reduced[i] = xdoftensor[reduced_to_full_map[i]];
+                ydoftensor_reduced[i] = ydoftensor[reduced_to_full_map[i]];
+                zdoftensor_reduced[i] = zdoftensor[reduced_to_full_map[i]];
+            }
+            vals = Vec(dofs_to_keep * value_size, 0.);
 
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
             //int nsimdblocks = padded_value_size/simdcount;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             //vals = AlignedVec(nnodes*padded_value_size, 0.);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
-
         }
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate) :
+            RegularGridInterpolant3D(rule, xrange, yrange, zrange, value_size, extrapolate, [](Vec x, Vec y, Vec z){ return std::vector<bool>(x.size(), false); })
+            {}
+        //RegularGridInterpolant3D(InterpolationRule rule, int nx, int ny, int nz, int value_size) : 
+        //    RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size, true) {
 
-        RegularGridInterpolant3D(InterpolationRule rule, int nx, int ny, int nz, int value_size) : 
-            RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size, true) {
-
-        }
+        //}
 
         void interpolate(std::function<Vec(double, double, double)> &f);
         void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f);
-        void interpolate_batch_with_skip(std::function<Vec(Vec, Vec, Vec)> &f, std::function<std::vector<bool>(Vec, Vec, Vec)> &skip);
         void build_local_vals();
 
         inline int idx_dof(int i, int j, int k){
