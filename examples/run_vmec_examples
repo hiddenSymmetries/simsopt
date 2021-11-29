@@ -35,6 +35,7 @@ mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
 
 ./2_Intermediate/vmec_adjoint.py
+./2_Intermediate/tracing_boozer.py
 
 ./stellarator_benchmarks/7dof.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/7dof.py
