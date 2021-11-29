@@ -11,147 +11,15 @@ template<class Array>
 const int RegularGridInterpolant3D<Array>::simdcount;
 
 template<class Array>
-void RegularGridInterpolant3D<Array>::interpolate(std::function<Vec(double, double, double)> &f) {
-    int degree = rule.degree;
-    Vec t;
-    for (int i = 0; i <= nx*degree; ++i) {
-        for (int j = 0; j <= ny*degree; ++j) {
-            for (int k = 0; k <= nz*degree; ++k) {
-                int offset = padded_value_size*idx_dof(i, j, k);
-                t = f(xs[i], ys[j], zs[k]);
-                for (int l = 0; l < value_size; ++l) {
-                    vals[offset + l] = t[l];
-                }
-            }
-        }
-    }
-    build_local_vals();
-}
-
-template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
-    std::function<std::vector<bool>(Vec, Vec, Vec)> skip = [](Vec x, Vec y, Vec z){
-        return std::vector<bool>(x.size(), false);
-    };
-    return interpolate_batch_with_skip(f, skip);
-}
-
-template<class Array>
-void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<Vec(Vec, Vec, Vec)> &f, std::function<std::vector<bool>(Vec, Vec, Vec)> &skip) {
-    int degree = rule.degree;
-
-    int nmesh = (nx+1)*(ny+1)*(nz+1);
-    Vec xcoordsmesh(nmesh, 0.);
-    Vec ycoordsmesh(nmesh, 0.);
-    Vec zcoordsmesh(nmesh, 0.);
-
-    for (int i = 0; i <= nx; ++i) {
-        for (int j = 0; j <= ny; ++j) {
-            for (int k = 0; k <= nz; ++k) {
-                int offset = idx_mesh(i, j, k);
-                xcoordsmesh[offset] = xsmesh[i];
-                ycoordsmesh[offset] = ysmesh[j];
-                zcoordsmesh[offset] = zsmesh[k];
-            }
-        }
-    }
-    std::vector<bool> skip_mesh = skip(xcoordsmesh, ycoordsmesh, zcoordsmesh);
-    skip_cell = std::vector<bool>(nx*ny*nz, false);
-    for (int i = 0; i < nx; ++i) {
-        for (int j = 0; j < ny; ++j) {
-            for (int k = 0; k < nz; ++k) {
-                skip_cell[idx_cell(i, j, k)] = (
-                        skip_mesh[idx_mesh(i  , j  , k)] && skip_mesh[idx_mesh(i  , j  , k+1)] &&
-                        skip_mesh[idx_mesh(i  , j+1, k)] && skip_mesh[idx_mesh(i  , j+1, k+1)] &&
-                        skip_mesh[idx_mesh(i+1, j  , k)] && skip_mesh[idx_mesh(i+1, j  , k+1)] &&
-                        skip_mesh[idx_mesh(i+1, j+1, k)] && skip_mesh[idx_mesh(i+1, j+1, k+1)]
-                        );
-            }
-        }
-    }
-
-
-
-    uint32_t n =  (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
-    // Begin by building interpolation points in x, y, and z
-    Vec xcoords(n, 0.);
-    Vec ycoords(n, 0.);
-    Vec zcoords(n, 0.);
-    for (int i = 0; i <= nx*degree; ++i) {
-        for (int j = 0; j <= ny*degree; ++j) {
-            for (int k = 0; k <= nz*degree; ++k) {
-                uint32_t offset = idx_dof(i, j, k);
-                xcoords[offset] = xs[i];
-                ycoords[offset] = ys[j];
-                zcoords[offset] = zs[k];
-            }
-        }
-    }
-
-    // Now build a list of dofs that are outside of our domain of interest, so
-    // that we now that we don't have to evaluate the bfield for those
-    //std::vector<bool> skip_dof = skip(xcoords, ycoords, zcoords);
-    std::vector<bool> skip_dof(n, true);
-    for (int i = 0; i < nx; ++i) {
-        for (int j = 0; j < ny; ++j) {
-            for (int k = 0; k < nz; ++k) {
-                if(!skip_cell[idx_cell(i, j, k)]){
-                    for (int ii = 0; ii <= rule.degree; ++ii) {
-                        for (int jj = 0; jj <= rule.degree; ++jj) {
-                            for (int kk = 0; kk <= rule.degree; ++kk) {
-                                skip_dof[idx_dof(
-                                        i*rule.degree + ii,
-                                        j*rule.degree + jj,
-                                        k*rule.degree + kk
-                                        )] = false;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    // Count how many dofs are skipped in total, and how many to keep
-    uint32_t total_to_skip = 0;
-    for (uint32_t i = 0; i < n; ++i) {
-        total_to_skip += skip_dof[i];
-    }
-    uint32_t total_to_keep = n - total_to_skip;
-    // Build a map that maps indices from the reduced set of interpolation
-    // points to the full set
-    reduced_to_full_map = std::vector<uint32_t>(total_to_keep, 0);
-    full_to_reduced_map = std::vector<uint32_t>(n, 0);
-    uint32_t ctr = 0;
-    for (uint32_t i = 0; i < n; ++i) {
-        full_to_reduced_map[i] = i - ctr;
-        if(skip_dof[i])
-            ctr++;
-        else {
-            reduced_to_full_map[i-ctr] = i;
-        }
-    }
-
-    // build the reduced list of interpolation points
-    Vec xcoords_reduced(total_to_keep, 0.);
-    Vec ycoords_reduced(total_to_keep, 0.);
-    Vec zcoords_reduced(total_to_keep, 0.);
-    for (long i = 0; i < total_to_keep; ++i) {
-        xcoords_reduced[i] = xcoords[reduced_to_full_map[i]];
-        ycoords_reduced[i] = ycoords[reduced_to_full_map[i]];
-        zcoords_reduced[i] = zcoords[reduced_to_full_map[i]];
-    }
-    // now evaluate the bfield there
-    vals = AlignedVec(total_to_keep * value_size, 0.);
     int BATCH_SIZE = 16384;
-    int NUM_BATCHES = total_to_keep/BATCH_SIZE + (total_to_keep % BATCH_SIZE != 0);
+    int NUM_BATCHES = dofs_to_keep/BATCH_SIZE + (dofs_to_keep % BATCH_SIZE != 0);
     for (int i = 0; i < NUM_BATCHES; ++i) {
         uint32_t first = i * BATCH_SIZE;
-        uint32_t last = std::min((uint32_t)((i+1) * BATCH_SIZE), total_to_keep);
-        Vec xsub(xcoords_reduced.begin() + first, xcoords_reduced.begin() + last);
-        Vec ysub(ycoords_reduced.begin() + first, ycoords_reduced.begin() + last);
-        Vec zsub(zcoords_reduced.begin() + first, zcoords_reduced.begin() + last);
+        uint32_t last = std::min((uint32_t)((i+1) * BATCH_SIZE), dofs_to_keep);
+        Vec xsub(xdoftensor_reduced.begin() + first, xdoftensor_reduced.begin() + last);
+        Vec ysub(ydoftensor_reduced.begin() + first, ydoftensor_reduced.begin() + last);
+        Vec zsub(zdoftensor_reduced.begin() + first, zdoftensor_reduced.begin() + last);
         Vec fxyzsub  = f(xsub, ysub, zsub);
         for (int j = 0; j < last-first; ++j) {
             for (int l = 0; l < value_size; ++l) {
@@ -159,14 +27,10 @@ void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<
             }
         }
     }
-    build_local_vals();
-}
-
-template<class Array>
-void RegularGridInterpolant3D<Array>::build_local_vals(){
     int degree = rule.degree;
-
     all_local_vals_map = std::unordered_map<int, AlignedVec>();
+    all_local_vals_map.reserve(dofs_to_keep);
+
     for (int xidx = 0; xidx < nx; ++xidx) {
         for (int yidx = 0; yidx < ny; ++yidx) {
             for (int zidx = 0; zidx < nz; ++zidx) {
@@ -192,6 +56,10 @@ void RegularGridInterpolant3D<Array>::build_local_vals(){
 }
 
 template<class Array>
+void RegularGridInterpolant3D<Array>::build_local_vals(){
+}
+
+template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_batch(Array& xyz, Array& fxyz){
     if(fxyz.layout() != xt::layout_type::row_major)
           throw std::runtime_error("fxyz needs to be in row-major storage order");
@@ -211,7 +79,7 @@ Vec RegularGridInterpolant3D<Array>::evaluate(double x, double y, double z){
 
 template<class Array>
 int RegularGridInterpolant3D<Array>::locate_unsafe(double x, double y, double z){
-    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
+    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
     return idx_cell(xidx, yidx, zidx);
@@ -231,7 +99,7 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
         if(z < zmin || z >= zmax)
             throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
     }
-    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
+    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
     if(xidx < 0 || xidx >= nx)
@@ -242,9 +110,9 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
         throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
 
 
-    double xlocal = (x-xsmesh[xidx])/hx;
-    double ylocal = (y-ysmesh[yidx])/hy;
-    double zlocal = (z-zsmesh[zidx])/hz;
+    double xlocal = (x-xmesh[xidx])/hx;
+    double ylocal = (y-ymesh[yidx])/hy;
+    double zlocal = (z-zmesh[zidx])/hz;
     if(xlocal < 0.-_EPS_ || xlocal > 1.+_EPS_)
         throw std::runtime_error(fmt::format("xlocal={} not within [0, 1]", xlocal));
     if(ylocal < 0.-_EPS_ || ylocal > 1.+_EPS_)
@@ -259,8 +127,10 @@ template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
 {
     int degree = rule.degree;
-    //double* vals_local = all_local_vals.data()+cell_idx*local_vals_size;
-    double* vals_local = all_local_vals_map[cell_idx].data();
+    auto got = all_local_vals_map.find(cell_idx);
+    if (got == all_local_vals_map.end())
+        return;
+    double* vals_local = got->second.data();
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;
         xyz[0] = x;
