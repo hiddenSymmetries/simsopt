@@ -542,9 +542,9 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
         if nfp > 1 and abs(phirange[1] - 2*np.pi/nfp) > 1e-14:
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
-        # if skip is None:
-        #     def skip(xs, ys, zs):
-        #         return [False for _ in xs]
+        if skip is None:
+            def skip(xs, ys, zs):
+                return [False for _ in xs]
 
         sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym, skip)
         self.__field = field
