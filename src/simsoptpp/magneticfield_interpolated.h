@@ -28,7 +28,7 @@ class InterpolatedField : public MagneticField<T> {
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_B) {
                 Tensor2 old_points = this->field->get_points_cart();
-                interp_B->interpolate_batch(fbatch_B);
+                interp_B->interpolate_batch_with_skip(fbatch_B, skip);
                 this->field->set_points_cart(old_points);
                 status_B = true;
             }
@@ -48,7 +48,7 @@ class InterpolatedField : public MagneticField<T> {
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate);
             if(!status_GradAbsB) {
                 Tensor2 old_points = this->field->get_points_cart();
-                interp_GradAbsB->interpolate_batch(fbatch_GradAbsB);
+                interp_GradAbsB->interpolate_batch_with_skip(fbatch_GradAbsB, skip);
                 this->field->set_points_cart(old_points);
                 status_GradAbsB = true;
             }

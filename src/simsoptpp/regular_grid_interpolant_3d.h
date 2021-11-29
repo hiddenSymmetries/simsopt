@@ -4,11 +4,13 @@
 #include <vector>
 #include <functional>
 
+#include  <unordered_map>
 #include <tuple>
 #include <random>
 #include <stdexcept>
 #include <algorithm>
 #include <fmt/core.h>
+#include <stdint.h>
 #include "simdhelpers.h"
 
 using simd_t = xs::simd_type<double>;
@@ -103,6 +105,10 @@ class RegularGridInterpolant3D {
         Vec ysmesh;
         Vec zsmesh;
         AlignedVec all_local_vals;
+        std::unordered_map<int, AlignedVec> all_local_vals_map;
+        std::vector<bool> skip_cell;
+        std::vector<uint32_t> reduced_to_full_map, full_to_reduced_map;
+
         int local_vals_size;
         static const int simdcount = xsimd::simd_type<double>::size;
         const InterpolationRule rule;
@@ -152,11 +158,8 @@ class RegularGridInterpolant3D {
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
             //int nsimdblocks = padded_value_size/simdcount;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
-            vals = AlignedVec(nnodes*padded_value_size, 0.);
+            //vals = AlignedVec(nnodes*padded_value_size, 0.);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
-            //vals_local = Vec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.);
-            //fmt::print("Memory usage of interpolant={:E} bytes \n", double(vals.size()*sizeof(double)));
-            //fmt::print("{} function evaluations required\n", nnodes);
 
         }
 
