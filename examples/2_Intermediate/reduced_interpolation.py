@@ -32,7 +32,7 @@ print("=====================================")
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nfieldlines = 3 if ci else 30
 tmax_fl = 10000 if ci else 40000
-degree = 2 if ci else 3
+degree = 2 if ci else 5
 
 
 """
@@ -69,21 +69,21 @@ def skip(rs, phis, zs):
     # skip = [p < 0.5 for p in phis]
     return skip
 
-n = 150
+n = 50
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2*np.pi/nfp, n)
-zrange = (0., np.max(zs), n)
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True, skip=skip
-)
 # rrange = (np.min(rs), np.max(rs), n)
-# phirange = (0, 2*np.pi, n*8)
-# zrange = (np.min(zs), np.max(zs), n)
+# phirange = (0, 2*np.pi/nfp, n)
+# zrange = (0., np.max(zs), n)
 # bsh = InterpolatedField(
-    # bs, degree, rrange, phirange, zrange, True, nfp=1, stellsym=False, skip=skip
+#     bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True, skip=skip
 # )
+rrange = (np.min(rs), np.max(rs), n)
+phirange = (0, 2*np.pi, 4*n)
+zrange = (np.min(zs), np.max(zs), n)
+bsh = InterpolatedField(
+    bs, degree, rrange, phirange, zrange, True, nfp=1, stellsym=False, skip=skip
+)
 import time
 t1 = time.time()
 # bsh.estimate_error_B(100)
