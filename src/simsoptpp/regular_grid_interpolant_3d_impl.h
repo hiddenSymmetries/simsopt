@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+
 #define _EPS_ 1e-13
 
 template<class Array>
@@ -38,7 +39,40 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
 template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<Vec(Vec, Vec, Vec)> &f, std::function<std::vector<bool>(Vec, Vec, Vec)> &skip) {
     int degree = rule.degree;
-    int n =  (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
+
+    int nmesh = (nx+1)*(ny+1)*(nz+1);
+    Vec xcoordsmesh(nmesh, 0.);
+    Vec ycoordsmesh(nmesh, 0.);
+    Vec zcoordsmesh(nmesh, 0.);
+
+    for (int i = 0; i <= nx; ++i) {
+        for (int j = 0; j <= ny; ++j) {
+            for (int k = 0; k <= nz; ++k) {
+                int offset = idx_mesh(i, j, k);
+                xcoordsmesh[offset] = xsmesh[i];
+                ycoordsmesh[offset] = ysmesh[j];
+                zcoordsmesh[offset] = zsmesh[k];
+            }
+        }
+    }
+    std::vector<bool> skip_mesh = skip(xcoordsmesh, ycoordsmesh, zcoordsmesh);
+    skip_cell = std::vector<bool>(nx*ny*nz, false);
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            for (int k = 0; k < nz; ++k) {
+                skip_cell[idx_cell(i, j, k)] = (
+                        skip_mesh[idx_mesh(i  , j  , k)] && skip_mesh[idx_mesh(i  , j  , k+1)] &&
+                        skip_mesh[idx_mesh(i  , j+1, k)] && skip_mesh[idx_mesh(i  , j+1, k+1)] &&
+                        skip_mesh[idx_mesh(i+1, j  , k)] && skip_mesh[idx_mesh(i+1, j  , k+1)] &&
+                        skip_mesh[idx_mesh(i+1, j+1, k)] && skip_mesh[idx_mesh(i+1, j+1, k+1)]
+                        );
+            }
+        }
+    }
+
+
+
+    uint32_t n =  (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
     // Begin by building interpolation points in x, y, and z
     Vec xcoords(n, 0.);
     Vec ycoords(n, 0.);
@@ -46,7 +80,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<
     for (int i = 0; i <= nx*degree; ++i) {
         for (int j = 0; j <= ny*degree; ++j) {
             for (int k = 0; k <= nz*degree; ++k) {
-                int offset = idx_dof(i, j, k);
+                uint32_t offset = idx_dof(i, j, k);
                 xcoords[offset] = xs[i];
                 ycoords[offset] = ys[j];
                 zcoords[offset] = zs[k];
@@ -56,18 +90,42 @@ void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<
 
     // Now build a list of dofs that are outside of our domain of interest, so
     // that we now that we don't have to evaluate the bfield for those
-    std::vector<bool> skip_dof = skip(xcoords, ycoords, zcoords);
+    //std::vector<bool> skip_dof = skip(xcoords, ycoords, zcoords);
+    std::vector<bool> skip_dof(n, true);
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            for (int k = 0; k < nz; ++k) {
+                if(!skip_cell[idx_cell(i, j, k)]){
+                    for (int ii = 0; ii <= rule.degree; ++ii) {
+                        for (int jj = 0; jj <= rule.degree; ++jj) {
+                            for (int kk = 0; kk <= rule.degree; ++kk) {
+                                skip_dof[idx_dof(
+                                        i*rule.degree + ii,
+                                        j*rule.degree + jj,
+                                        k*rule.degree + kk
+                                        )] = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
     // Count how many dofs are skipped in total, and how many to keep
-    int total_to_skip = 0;
-    for (int i = 0; i < n; ++i) {
+    uint32_t total_to_skip = 0;
+    for (uint32_t i = 0; i < n; ++i) {
         total_to_skip += skip_dof[i];
     }
-    int total_to_keep = n - total_to_skip;
+    uint32_t total_to_keep = n - total_to_skip;
     // Build a map that maps indices from the reduced set of interpolation
     // points to the full set
-    std::vector<int> reduced_to_full_map(total_to_keep, 0);
-    int ctr = 0;
-    for (int i = 0; i < n; ++i) {
+    reduced_to_full_map = std::vector<uint32_t>(total_to_keep, 0);
+    full_to_reduced_map = std::vector<uint32_t>(n, 0);
+    uint32_t ctr = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        full_to_reduced_map[i] = i - ctr;
         if(skip_dof[i])
             ctr++;
         else {
@@ -79,29 +137,25 @@ void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<
     Vec xcoords_reduced(total_to_keep, 0.);
     Vec ycoords_reduced(total_to_keep, 0.);
     Vec zcoords_reduced(total_to_keep, 0.);
-    for (int i = 0; i < total_to_keep; ++i) {
+    for (long i = 0; i < total_to_keep; ++i) {
         xcoords_reduced[i] = xcoords[reduced_to_full_map[i]];
         ycoords_reduced[i] = ycoords[reduced_to_full_map[i]];
         zcoords_reduced[i] = zcoords[reduced_to_full_map[i]];
     }
     // now evaluate the bfield there
-    Vec fxyz_reduced  = f(xcoords_reduced, ycoords_reduced, zcoords_reduced);
-    // and then fill the global list of interpolation points
-    Vec fxyz(value_size*n, 0.);
-    for (int i = 0; i < total_to_keep; ++i) {
-        for (int l = 0; l < value_size; ++l) {
-            fxyz[value_size * reduced_to_full_map[i] + l] = fxyz_reduced[i * value_size + l];
-        }
-    }
-
-    for (int i = 0; i <= nx*degree; ++i) {
-        for (int j = 0; j <= ny*degree; ++j) {
-            for (int k = 0; k <= nz*degree; ++k) {
-                int offset = value_size*idx_dof(i, j, k);
-                int offset_padded = padded_value_size*idx_dof(i, j, k);
-                for (int l = 0; l < value_size; ++l) {
-                    vals[offset_padded + l] = fxyz[offset+l];
-                }
+    vals = AlignedVec(total_to_keep * value_size, 0.);
+    int BATCH_SIZE = 16384;
+    int NUM_BATCHES = total_to_keep/BATCH_SIZE + (total_to_keep % BATCH_SIZE != 0);
+    for (int i = 0; i < NUM_BATCHES; ++i) {
+        uint32_t first = i * BATCH_SIZE;
+        uint32_t last = std::min((uint32_t)((i+1) * BATCH_SIZE), total_to_keep);
+        Vec xsub(xcoords_reduced.begin() + first, xcoords_reduced.begin() + last);
+        Vec ysub(ycoords_reduced.begin() + first, ycoords_reduced.begin() + last);
+        Vec zsub(zcoords_reduced.begin() + first, zcoords_reduced.begin() + last);
+        Vec fxyzsub  = f(xsub, ysub, zsub);
+        for (int j = 0; j < last-first; ++j) {
+            for (int l = 0; l < value_size; ++l) {
+                vals[first * value_size + j * value_size + l] = fxyzsub[j * value_size + l];
             }
         }
     }
@@ -111,22 +165,27 @@ void RegularGridInterpolant3D<Array>::interpolate_batch_with_skip(std::function<
 template<class Array>
 void RegularGridInterpolant3D<Array>::build_local_vals(){
     int degree = rule.degree;
-    //all_local_vals = std::vector<AlignedVec>(
-    //        nx*ny*nz,
-    //        AlignedVec((degree+1)*(degree+1)*(degree+1)*padded_value_size, 0.)
-    //        );
-    all_local_vals = AlignedVec(nx*ny*nz*local_vals_size, 0.);
+
+    all_local_vals_map = std::unordered_map<int, AlignedVec>();
     for (int xidx = 0; xidx < nx; ++xidx) {
         for (int yidx = 0; yidx < ny; ++yidx) {
             for (int zidx = 0; zidx < nz; ++zidx) {
                 int meshidx = idx_cell(xidx, yidx, zidx);
+                if(skip_cell[meshidx])
+                    continue;
+                AlignedVec local_vals(local_vals_size, 0.);
                 for (int i = 0; i < degree+1; ++i) {
                     for (int j = 0; j < degree+1; ++j) {
-                        int offset = padded_value_size*idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+0);
-                        int offset_local = padded_value_size*idx_dof_local(i, j, 0);
-                        memcpy(all_local_vals.data()+meshidx*local_vals_size + offset_local, vals.data()+offset, (degree+1)*padded_value_size*sizeof(double));
+                        for (int k = 0; k < degree+1; ++k) {
+                            int offset = value_size*full_to_reduced_map[idx_dof(xidx*degree+i, yidx*degree+j, zidx*degree+k)];
+                            int offset_local = padded_value_size * idx_dof_local(i, j, k);
+                            for (int l = 0; l < value_size; ++l) {
+                                local_vals[offset_local + l] = vals[offset + l];
+                            }
+                        }
                     }
                 }
+                all_local_vals_map.insert({meshidx, local_vals});
             }
         }
     }
@@ -138,21 +197,6 @@ void RegularGridInterpolant3D<Array>::evaluate_batch(Array& xyz, Array& fxyz){
           throw std::runtime_error("fxyz needs to be in row-major storage order");
     int npoints = xyz.shape(0);
     for (int i = 0; i < npoints; ++i) {
-        if(i < npoints-1){
-            int idx = locate_unsafe(xyz(i+1, 0), xyz(i+1, 1), xyz(i+1, 2));
-            double* ptr = all_local_vals.data()+idx*local_vals_size;
-            __builtin_prefetch(ptr+(0*8), 0, 0);
-            __builtin_prefetch(ptr+(1*8), 0, 0);
-            __builtin_prefetch(ptr+(2*8), 0, 0);
-            __builtin_prefetch(ptr+(3*8), 0, 0);
-            __builtin_prefetch(ptr+(4*8), 0, 0);
-            __builtin_prefetch(ptr+(5*8), 0, 0);
-            __builtin_prefetch(ptr+(6*8), 0, 0);
-            __builtin_prefetch(ptr+(7*8), 0, 0);
-            __builtin_prefetch(ptr+(8*8), 0, 0);
-            __builtin_prefetch(ptr+(9*8), 0, 0);
-            __builtin_prefetch(ptr+(10*8), 0, 0);
-        }
         evaluate_inplace(xyz(i, 0), xyz(i, 1), xyz(i, 2), fxyz.data() + value_size*i);
     }
 }
@@ -215,7 +259,8 @@ template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double z, int cell_idx, double* res)
 {
     int degree = rule.degree;
-    double* vals_local = all_local_vals.data()+cell_idx*local_vals_size;
+    //double* vals_local = all_local_vals.data()+cell_idx*local_vals_size;
+    double* vals_local = all_local_vals_map[cell_idx].data();
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;
         xyz[0] = x;

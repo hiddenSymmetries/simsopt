@@ -32,7 +32,7 @@ print("=====================================")
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 nfieldlines = 3 if ci else 30
 tmax_fl = 10000 if ci else 40000
-degree = 2 if ci else 2
+degree = 2 if ci else 3
 
 
 """
@@ -41,7 +41,7 @@ guiding center trajectories of particles
 """
 
 
-curves, currents, ma = get_ncsx_data()
+curves, currents, ma = get_ncsx_data(Nt_coils=10)
 coils = coils_via_symmetries(curves, currents, 3, True)
 curves = [c.curve for c in coils]
 bs = BiotSavart(coils)
@@ -49,8 +49,8 @@ print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(
 print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 curves_to_vtk(curves + [ma], '/tmp/coils')
 
-mpol = 10
-ntor = 10
+mpol = 5
+ntor = 5
 stellsym = True
 nfp = 3
 phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
@@ -64,18 +64,19 @@ sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 def skip(rs, phis, zs):
     rphiz = np.asarray([rs, phis, zs]).T.copy()
     dists = sc_fieldline.evaluate_rphiz(rphiz)
-    skip = list((dists < -0.04).flatten())
+    skip = list((dists < -0.01).flatten())
+    print("sum(skip) =", sum(skip), "out of ", len(skip), flush=True)
     # skip = [p < 0.5 for p in phis]
     return skip
 
-n = 16
+n = 150
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2*np.pi/nfp, n*8)
+phirange = (0, 2*np.pi/nfp, n)
 zrange = (0., np.max(zs), n)
 bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True, skip=None
+    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True, skip=skip
 )
 # rrange = (np.min(rs), np.max(rs), n)
 # phirange = (0, 2*np.pi, n*8)
@@ -85,12 +86,7 @@ bsh = InterpolatedField(
 # )
 import time
 t1 = time.time()
-bsh.estimate_error_B(100)
-t2 = time.time()
-print(t2-t1)
-bsh.to_vtk("/tmp/interp")
-s.to_vtk("/tmp/surf")
-sc_fieldline.to_vtk("/tmp/class")
+# bsh.estimate_error_B(100)
 
 def compute_error_on_surface(s):
     bsh.set_points(s.gamma().reshape((-1, 3)))
@@ -104,3 +100,10 @@ def compute_error_on_surface(s):
     logger.info("∇|B| errors on surface %s" % np.sort(np.abs(dB-dBh).flatten()))
 
 compute_error_on_surface(s)
+t2 = time.time()
+print(t2-t1)
+import sys; sys.exit()
+
+bsh.to_vtk("/tmp/interp")
+s.to_vtk("/tmp/surf")
+sc_fieldline.to_vtk("/tmp/class")
