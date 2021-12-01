@@ -298,10 +298,14 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
             int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
+                simd_t sinterm, costerm;
+                xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
                 for (int n = -ntor; n <= ntor; ++n) {
-                    simd_t sinterm, costerm;
-                    xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                    //simd_t sinterm, costerm;
+                    //xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
 
                     if(!(m==0 && n<0)){
                         resptr[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
@@ -318,6 +322,12 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                         resptr[counter+shift3] += xsimd::hadd((-n*nfp)*costerm * v2);
                     }
                     counter++;
+                    // sin(a + b) = cos(b) sin(a) + cos(a) sin(b)
+                    // cos(a + b) = cos(a) cos(b) - sin(a) sin(b)
+                    simd_t sinterm_old = sinterm;
+                    simd_t costerm_old = costerm;
+                    sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                    costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
                 }
             }
         }
@@ -406,10 +416,14 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
             int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
+                simd_t sinterm, costerm;
+                xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
                 for (int n = -ntor; n <= ntor; ++n) {
-                    simd_t sinterm, costerm;
-                    xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                    //simd_t sinterm, costerm;
+                    //xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
 
                     if(!(m==0 && n<0)){
                         resptr[counter+shift0] -= (cosphi * m) * xsimd::hadd(sinterm * v0);
@@ -426,6 +440,12 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                         resptr[counter+shift3] += m * xsimd::hadd(costerm * v2);
                     }
                     counter++;
+                    // sin(a + b) = cos(b) sin(a) + cos(a) sin(b)
+                    // cos(a + b) = cos(a) cos(b) - sin(a) sin(b)
+                    simd_t sinterm_old = sinterm;
+                    simd_t costerm_old = costerm;
+                    sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                    costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
                 }
             }
         }
