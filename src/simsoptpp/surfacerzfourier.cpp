@@ -361,8 +361,6 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                     simd_t sinterm, costerm;
                     xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
                     for (int n = -ntor; n <= ntor; ++n) {
-                        //simd_t sinterm, costerm;
-                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
                         if(!(m==0 && n<0)){
                             resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
                             resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
