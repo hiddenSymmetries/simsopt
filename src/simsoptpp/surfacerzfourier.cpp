@@ -200,56 +200,69 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto resptr = &(res(0));
-#pragma omp parallel for
-    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
-        double sinphi = sin(phi);
-        double cosphi = cos(phi);
+#pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+#pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
 
-        for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-            simd_t theta(0.);
-            simd_t v0(0.);
-            simd_t v1(0.);
-            simd_t v2(0.);
-            for (int l = 0; l < simd_size; ++l) {
-                if(i + l >= numquadpoints_theta)
-                    break;
-                v0[l] = v(k1, i+l, 0);
-                v1[l] = v(k1, i+l, 1);
-                v2[l] = v(k1, i+l, 2);
-                theta[l] = 2*M_PI * quadpoints_theta[i+l];
-            }
-            int counter = 0;
-            int shift0 = -ntor;
-            int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
-            int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
-            int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
-            for (int m = 0; m <= mpol; ++m) {
-                simd_t sinterm, costerm;
-                xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
-                for (int n = -ntor; n <= ntor; ++n) {
-                    if(!(m==0 && n<0)){
-                        resptr[counter+shift0] += cosphi * xsimd::hadd(costerm * v0);
-                        resptr[counter+shift0] += sinphi * xsimd::hadd(costerm * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<=0)){
-                        resptr[counter+shift1] += cosphi * xsimd::hadd(sinterm * v0);
-                        resptr[counter+shift1] += sinphi * xsimd::hadd(sinterm * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<0)){
-                        resptr[counter+shift2] += xsimd::hadd(costerm * v2);
-                    }
-                    if(!(m==0 && n<=0)){
-                        resptr[counter+shift3] += xsimd::hadd(sinterm * v2);
-                    }
-                    counter++;
-                    simd_t sinterm_old = sinterm;
-                    simd_t costerm_old = costerm;
-                    sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
-                    costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                simd_t theta(0.);
+                simd_t v0(0.);
+                simd_t v1(0.);
+                simd_t v2(0.);
+                for (int l = 0; l < simd_size; ++l) {
+                    if(i + l >= numquadpoints_theta)
+                        break;
+                    v0[l] = v(k1, i+l, 0);
+                    v1[l] = v(k1, i+l, 1);
+                    v2[l] = v(k1, i+l, 2);
+                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    simd_t sinterm, costerm;
+                    xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] += cosphi * xsimd::hadd(costerm * v0);
+                            resptr_private[counter+shift0] += sinphi * xsimd::hadd(costerm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += cosphi * xsimd::hadd(sinterm * v0);
+                            resptr_private[counter+shift1] += sinphi * xsimd::hadd(sinterm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] += xsimd::hadd(costerm * v2);
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += xsimd::hadd(sinterm * v2);
+                        }
+                        counter++;
+                        simd_t sinterm_old = sinterm;
+                        simd_t costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+        }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
         }
     }
@@ -311,57 +324,72 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto resptr = &(res(0));
-#pragma omp parallel for
-    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
-        double sinphi = sin(phi);
-        double cosphi = cos(phi);
+#pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+#pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
 
-        for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-            simd_t theta(0.);
-            simd_t v0(0.);
-            simd_t v1(0.);
-            simd_t v2(0.);
-            for (int l = 0; l < simd_size; ++l) {
-                if(i + l >= numquadpoints_theta)
-                    break;
-                v0[l] = v(k1, i+l, 0);
-                v1[l] = v(k1, i+l, 1);
-                v2[l] = v(k1, i+l, 2);
-                theta[l] = 2*M_PI * quadpoints_theta[i+l];
-            }
-            int counter = 0;
-            int shift0 = -ntor;
-            int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
-            int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
-            int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
-
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
-            for (int m = 0; m <= mpol; ++m) {
-                simd_t sinterm, costerm;
-                xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
-                for (int n = -ntor; n <= ntor; ++n) {
-                    if(!(m==0 && n<0)){
-                        resptr[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
-                        resptr[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<=0)){
-                        resptr[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*cosphi) - sinterm * sinphi) * v0);
-                        resptr[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*sinphi) + sinterm * cosphi) * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<0)){
-                        resptr[counter+shift2] += xsimd::hadd((n*nfp)*sinterm * v2);
-                    }
-                    if(!(m==0 && n<=0)){
-                        resptr[counter+shift3] += xsimd::hadd((-n*nfp)*costerm * v2);
-                    }
-                    counter++;
-                    simd_t sinterm_old = sinterm;
-                    simd_t costerm_old = costerm;
-                    sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
-                    costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                simd_t theta(0.);
+                simd_t v0(0.);
+                simd_t v1(0.);
+                simd_t v2(0.);
+                for (int l = 0; l < simd_size; ++l) {
+                    if(i + l >= numquadpoints_theta)
+                        break;
+                    v0[l] = v(k1, i+l, 0);
+                    v1[l] = v(k1, i+l, 1);
+                    v2[l] = v(k1, i+l, 2);
+                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    simd_t sinterm, costerm;
+                    xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        //simd_t sinterm, costerm;
+                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
+                            resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*cosphi) - sinterm * sinphi) * v0);
+                            resptr_private[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*sinphi) + sinterm * cosphi) * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] += xsimd::hadd((n*nfp)*sinterm * v2);
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += xsimd::hadd((-n*nfp)*costerm * v2);
+                        }
+                        counter++;
+                        simd_t sinterm_old = sinterm;
+                        simd_t costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+        }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
         }
     }
@@ -423,58 +451,71 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto resptr = &(res(0));
-#pragma omp parallel for
-    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
-        double sinphi = sin(phi);
-        double cosphi = cos(phi);
+#pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+#pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
 
-        for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-            simd_t theta(0.);
-            simd_t v0(0.);
-            simd_t v1(0.);
-            simd_t v2(0.);
-            for (int l = 0; l < simd_size; ++l) {
-                if(i + l >= numquadpoints_theta)
-                    break;
-                v0[l] = v(k1, i+l, 0);
-                v1[l] = v(k1, i+l, 1);
-                v2[l] = v(k1, i+l, 2);
-                theta[l] = 2*M_PI * quadpoints_theta[i+l];
-            }
-            int counter = 0;
-            int shift0 = -ntor;
-            int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
-            int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
-            int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
-
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
-            for (int m = 0; m <= mpol; ++m) {
-                simd_t sinterm, costerm;
-                xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
-                for (int n = -ntor; n <= ntor; ++n) {
-
-                    if(!(m==0 && n<0)){
-                        resptr[counter+shift0] -= (cosphi * m) * xsimd::hadd(sinterm * v0);
-                        resptr[counter+shift0] -= (sinphi * m) * xsimd::hadd(sinterm * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<=0)){
-                        resptr[counter+shift1] += (cosphi * m) * xsimd::hadd(costerm * v0);
-                        resptr[counter+shift1] += (sinphi * m) * xsimd::hadd(costerm * v1);
-                    }
-                    if(!(stellsym) && !(m==0 && n<0)){
-                        resptr[counter+shift2] -= m * xsimd::hadd(sinterm * v2);
-                    }
-                    if(!(m==0 && n<=0)){
-                        resptr[counter+shift3] += m * xsimd::hadd(costerm * v2);
-                    }
-                    counter++;
-                    simd_t sinterm_old = sinterm;
-                    simd_t costerm_old = costerm;
-                    sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
-                    costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                simd_t theta(0.);
+                simd_t v0(0.);
+                simd_t v1(0.);
+                simd_t v2(0.);
+                for (int l = 0; l < simd_size; ++l) {
+                    if(i + l >= numquadpoints_theta)
+                        break;
+                    v0[l] = v(k1, i+l, 0);
+                    v1[l] = v(k1, i+l, 1);
+                    v2[l] = v(k1, i+l, 2);
+                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    simd_t sinterm, costerm;
+                    xsimd::sincos(m*theta+ntor*nfp*phi, sinterm, costerm);
+                    for (int n = -ntor; n <= ntor; ++n) {
+
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] -= (cosphi * m) * xsimd::hadd(sinterm * v0);
+                            resptr_private[counter+shift0] -= (sinphi * m) * xsimd::hadd(sinterm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += (cosphi * m) * xsimd::hadd(costerm * v0);
+                            resptr_private[counter+shift1] += (sinphi * m) * xsimd::hadd(costerm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] -= m * xsimd::hadd(sinterm * v2);
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += m * xsimd::hadd(costerm * v2);
+                        }
+                        counter++;
+                        simd_t sinterm_old = sinterm;
+                        simd_t costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+        }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
         }
     }
