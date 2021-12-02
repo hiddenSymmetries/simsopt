@@ -45,7 +45,8 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                     //simd_t sinterm, costerm;
-                    xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                    if(i % 4 == 0)
+                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
                     r += rc(m, i) * costerm;
                     if(!stellsym) {
                         r += rs(m, i) * sinterm;
