@@ -473,7 +473,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         via_matvec = np.sum(s.dgamma_by_dcoeff()*h[..., None], axis=(0, 1, 2))
         assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
-
         via_vjp = s.dgammadash1_by_dcoeff_vjp(h)
         via_matvec = np.sum(s.dgammadash1_by_dcoeff()*h[..., None], axis=(0, 1, 2))
         assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
@@ -481,6 +480,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         via_vjp = s.dgammadash2_by_dcoeff_vjp(h)
         via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
         assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
 
 if __name__ == "__main__":
     unittest.main()
