@@ -462,6 +462,25 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
 
+    def test_vjps(self):
+        mpol = 10
+        ntor = 10
+        nfp = 1
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        h = np.random.standard_normal(size=s.gamma().shape)
+
+        via_vjp = s.dgamma_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgamma_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+
+        via_vjp = s.dgammadash1_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgammadash1_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+        via_vjp = s.dgammadash2_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
 if __name__ == "__main__":
     unittest.main()
