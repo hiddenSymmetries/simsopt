@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-r"""
+
+"""
 In this example we solve a FOCUS like Stage II coil optimisation problem: the
 goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
@@ -50,7 +51,7 @@ BETA = 10
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if ci else 800
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
