@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - master
-      - conda_recipe
+      - conda_package
   pull_request:
 
 jobs:
@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest] # , macos-latest]
-        python-version: ["3.8", "3.9"]
+        platform: [ubuntu-latest,  macos-10.15]
+        python-version: ["3.7", "3.8", "3.9", "3.10"]
 
     runs-on: ${{ matrix.platform }}
 
