@@ -64,3 +64,6 @@ compile_commands.json
 # Tests output
 tests/*.dat
 tests/boundary*
+
+# Version file
+src/simsopt/_version.py
