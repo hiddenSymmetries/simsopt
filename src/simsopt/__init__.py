@@ -10,13 +10,14 @@
 # "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is 
 # imported
 
-try:
-    from importlib import metadata
-except ImportError:
-    # Running on pre-3.8 Python; use importlib-metadata package
-    import importlib_metadata as metadata
+# try:
+#     from importlib import metadata
+# except ImportError:
+#     # Running on pre-3.8 Python; use importlib-metadata package
+#     import importlib_metadata as metadata
 
-__version__ = metadata.version('simsopt')
+# __version__ = metadata.version('simsopt')
+from ._version import version as  __version__
 
 from ._core import make_optimizable
 from .objectives import LeastSquaresProblem
