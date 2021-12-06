@@ -1,8 +1,9 @@
 {% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
+{% set version = data.get('version') %}
 
 package:
   name: simsopt
-  version: {{ data.get('version') }}
+  version: {{ version }}
 
 source:
   path: ..
@@ -10,7 +11,7 @@ source:
 build:
   include_recipe: False
   number: 0
-  script: python -m pip install . -vvv
+  script: python -m pip install --no-deps --ignore-installed .
 
 requirements:
   build:
@@ -18,18 +19,21 @@ requirements:
     - {{ compiler('cxx') }}
     - cmake
     - ninja
+    - llvm-openmp  # [osx]
+    - libgomp      # [linux]
 
   host:
     - python
     - pip
     - wheel
     - setuptools
-    - numpy {{ numpy }}
-    - boost {{ boost }}
+    - numpy >=1.19.0
+    - boost >=1.70.0
+    - "setuptools_scm[toml]"
 
   run:
     - python
-    - numpy {{ numpy }}
+    - {{ pin_compatible('numpy') }}
     - boost {{ boost }}
     - jax >=0.2.4
     - jaxlib >=0.1.56
@@ -39,6 +43,9 @@ requirements:
     - pandas >=1.1.4
     - monty >=2021.6.10 
     - ruamel.yaml
+    - matplotlib
+    - sympy
+    - f90nml
 
 about:
   home: {{ data.get('url') }}
