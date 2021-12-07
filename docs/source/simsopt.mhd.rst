@@ -11,7 +11,6 @@ simsopt.mhd.boozer module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.mhd.spec module
 -----------------------
@@ -20,7 +19,6 @@ simsopt.mhd.spec module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.mhd.vmec module
 -----------------------
@@ -29,16 +27,14 @@ simsopt.mhd.vmec module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
-simsopt.mhd.vmec_diagnostics module
------------------------------------
+simsopt.mhd.vmec\_diagnostics module
+------------------------------------
 
 .. automodule:: simsopt.mhd.vmec_diagnostics
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 Module contents
 ---------------
@@ -47,4 +43,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
