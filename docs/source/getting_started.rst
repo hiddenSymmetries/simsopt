@@ -1,6 +1,9 @@
 Getting started
 ===============
 
+This page provides general information on installation.  Detailed
+installation instructions for some specific systems can also be found
+on `the wiki <https://github.com/hiddenSymmetries/simsopt/wiki>`_.
 
 Requirements
 ^^^^^^^^^^^^

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 try:
     from mpi4py import MPI
 except ImportError as e:
-    MPI = None 
+    MPI = None
     logger.warning(str(e))
 
 try:
@@ -36,8 +36,10 @@ if MPI is not None:
 
 from .._core.graph_optimizable import Optimizable
 
+# Temporarily commenting out the decorator till __instancecheck__ method is made working
+# @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform"
 
-@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform")
+
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -228,7 +230,7 @@ class Boozer(Optimizable):
                                    bsubvmns)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
-            self.bx.nboz = self.ntor            
+            self.bx.nboz = self.ntor
 
         else:
             # Cases for SPEC, GVEC, etc could be added here.
@@ -296,7 +298,7 @@ class Quasisymmetry(Optimizable):
         Carry out the calculation of the quasisymmetry error.
 
         Returns:
-            1D numpy array listing all the normalized mode amplitudes of 
+            1D numpy array listing all the normalized mode amplitudes of
             symmetry-breaking Fourier modes of ``|B|``.
         """
 
