@@ -2,7 +2,6 @@ import numpy as np
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
 from sympy import Symbol, lambdify, exp
-import jax.numpy as jnp
 
 
 class GaussianSampler():
@@ -117,13 +116,10 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def resample(self):
         self.sample.resample()
-        self.invalidate_cache()
+        self.recompute_bell()
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
-
-    def get_dofs(self):
-        return np.asarray([])
 
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
