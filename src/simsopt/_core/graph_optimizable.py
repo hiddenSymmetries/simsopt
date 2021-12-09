@@ -18,6 +18,7 @@ from numbers import Real, Integral
 from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
 from functools import lru_cache
+import logging
 
 import numpy as np
 from deprecated import deprecated
@@ -26,6 +27,7 @@ from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 
+log = logging.getLogger(__name__)
 
 class DOFs:
     """
@@ -716,7 +718,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self._update_full_dof_size_indices()
             self._set_new_x()
         else:
-            print("The given Optimizable object is already a parent")
+            log.debug("The given Optimizable object is already a parent")
 
     def append_parent(self, other: Optimizable) -> None:
         """
@@ -733,7 +735,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self._update_full_dof_size_indices()
             self._set_new_x()
         else:
-            print("The given Optimizable object is already a parent")
+            log.debug("The given Optimizable object is already a parent")
 
     def pop_parent(self, index: int = -1) -> Optimizable:
         """
@@ -1284,7 +1286,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                 else:
                     raise ValueError
                 j += 1
-            print(f'reassembled args len is {len(args)}')
+            log.info(f'reassembled args len is {len(args)}')
 
             return self.func(*args, **kwargs)
 
