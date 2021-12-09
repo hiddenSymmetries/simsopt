@@ -7,6 +7,8 @@ on:
       - master
       - conda_package
   pull_request:
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -14,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest,  macos-10.15]
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
+        python-version: ["3.8"]
 
     runs-on: ${{ matrix.platform }}
 
@@ -39,13 +41,42 @@ jobs:
           channel-priority: strict
 
       - name: Prepare
-        run: conda install conda-build conda-verify
+        run: conda install conda-build conda-verify setuptools_scm
 
-      - name: Build
-        run: conda build conda.recipe
+      - name: Build and Install
+        run: |
+          conda build conda.recipe
+          conda install -c ${CONDA_PREFIX}/conda-bld/ simsopt
+          mv ${CONDA_PREFIX}/conda-bld ./
 
-      - name: Install
-        run: conda install -c ${CONDA_PREFIX}/conda-bld/ simsopt
+      - name: Upload artifact
+        if: github.event_name == 'release' && github.event.action == 'published'
+        uses: actions/upload-artifact@v2
+        with:
+          name: package-${{ github.sha }}
+          path: ./conda-bld
 
       # - name: Test
       #   run: ./run_tests
+
+  upload_conda:
+    needs: [build]
+    runs-on: ubuntu-latest
+    # Publish to anaconda for releases
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+    steps:
+    - name: Download the build artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: package-${{ github.sha }}
+        path: conda-bld
+    - name: Get conda
+      uses: conda-incubator/setup-miniconda@v2.1.1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Upload to anaconda.org
+      env:
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        conda install -y anaconda-client
+        anaconda --verbose --token $ANACONDA_TOKEN upload --user hiddensymmetries LABEL conda-bld/*/*.tar.bz2 --force
