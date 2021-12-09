@@ -36,22 +36,16 @@ class MGRID():
 
         print('Initialized mgrid file: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(nr, nphi, nz, nfp))
 
-    # takes 3D vector field (N,3) as well as coil group label (up to 30 char)
-    def add_field(self, B, name='default'):
+    # Expects B in (r,phi,z) components, with positions spaced in a (phi,z,r) ravel.
+    def add_field_cyl(self, B, name='default'):
 
         # structure Bfield data into arrays (phi,z,r) arrays
-        bx, by, bz = B.T
-        shape = (self.nr, self.nz, self.nphi) 
-        bx_arr = np.reshape(bx, shape).T
-        by_arr = np.reshape(by, shape).T
-        bz_arr = np.reshape(bz, shape).T
-
-        # pass from cartesian to cylindrical coordinates
-        phi = self.export_phi()
-        cos = np.cos(phi)[:, np.newaxis, np.newaxis]
-        sin = np.sin(phi)[:, np.newaxis, np.newaxis]
-        br_arr = cos*bx_arr + sin*by_arr
-        bp_arr = -sin*bx_arr + cos*by_arr
+        br, bp, bz = B.T
+        
+        shape = (self.nphi, self.nz, self.nr)
+        br_arr = np.reshape(br, shape)
+        bp_arr = np.reshape(bp, shape)
+        bz_arr = np.reshape(bz, shape)
 
         self.br_arr.append(br_arr)
         self.bz_arr.append(bz_arr)
