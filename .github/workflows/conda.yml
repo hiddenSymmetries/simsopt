@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - master
-      - conda_package
+      - mbk/conda_package
   pull_request:
   release:
     types: [published]
@@ -63,7 +63,6 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     # Publish to anaconda for releases
-    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
     steps:
     - name: Download the build artifact
       uses: actions/download-artifact@v2
@@ -74,9 +73,15 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2.1.1
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install Anaconda client
+      run: conda install -y anaconda-client
     - name: Upload to anaconda.org
+      if: github.event_name == 'release' && github.event.action == 'published'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-      run: |
-        conda install -y anaconda-client
-        anaconda --verbose --token $ANACONDA_TOKEN upload --user hiddensymmetries LABEL conda-bld/*/*.tar.bz2 --force
+      run: anaconda --verbose --token $ANACONDA_TOKEN upload --user hiddensymmetries LABEL conda-bld/*/*.tar.bz2 --force
+    - name: Upload to anaconda.org
+      if: github.event_name == 'push'
+      env:
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: anaconda --verbose --token $ANACONDA_TOKEN upload --user mbkumar LABEL conda-bld/*/*.tar.bz2 --force
