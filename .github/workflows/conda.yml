@@ -50,7 +50,6 @@ jobs:
           mv ${CONDA_PREFIX}/conda-bld ./
 
       - name: Upload artifact
-        if: github.event_name == 'release' && github.event.action == 'published'
         uses: actions/upload-artifact@v2
         with:
           name: package-${{ github.sha }}
