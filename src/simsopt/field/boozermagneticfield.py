@@ -9,7 +9,7 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 if MPI is not None:
     try:
@@ -18,7 +18,7 @@ if MPI is not None:
     except ImportError as e:
         Vmec = None
         Boozer = None
-        logger.warning(str(e))
+        logger.debug(str(e))
 
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
