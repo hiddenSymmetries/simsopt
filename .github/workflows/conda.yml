@@ -5,16 +5,18 @@ on:
   push:
     branches:
       - master
-      - conda_recipe
+      - mbk/conda_package
   pull_request:
+  release:
+    types: [published]
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest] # , macos-latest]
-        python-version: ["3.8", "3.9"]
+        platform: [ubuntu-latest,  macos-10.15]
+        python-version: ["3.8"]
 
     runs-on: ${{ matrix.platform }}
 
@@ -39,13 +41,22 @@ jobs:
           channel-priority: strict
 
       - name: Prepare
-        run: conda install conda-build conda-verify
+        run: conda install -y conda-build conda-verify setuptools_scm anaconda-client
 
-      - name: Build
-        run: conda build conda.recipe
+      - name: Build and upload
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          conda config --set anaconda_upload yes
+          conda build --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
 
-      - name: Install
-        run: conda install -c ${CONDA_PREFIX}/conda-bld/ simsopt
+      - name: Build and upload to test
+        if: github.event_name == 'push' && github.ref == 'refs/heads/mbk/conda_package'
+        run: |
+          conda config --set anaconda_upload yes
+          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} conda.recipe
 
-      # - name: Test
-      #   run: ./run_tests
+      - name: Build 
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          conda build conda.recipe
+
