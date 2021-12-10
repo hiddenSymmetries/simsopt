@@ -71,7 +71,6 @@ jobs:
   # upload_conda:
   #   needs: [build]
   #   runs-on: ubuntu-latest
-  #   # Publish to anaconda for releases
   #   steps:
   #   - name: Download the build artifact
   #     uses: actions/download-artifact@v2
