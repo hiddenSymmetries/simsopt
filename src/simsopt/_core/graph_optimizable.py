@@ -29,6 +29,7 @@ from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
 
 log = logging.getLogger(__name__)
 
+
 class DOFs:
     """
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
