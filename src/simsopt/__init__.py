@@ -17,4 +17,4 @@ from .solve import least_squares_serial_solve
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
 
 # VERSION info
-from ._version import version as  __version__
+from ._version import version as __version__
