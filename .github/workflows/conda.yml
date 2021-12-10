@@ -68,9 +68,6 @@ jobs:
   #        name: package-${{ github.sha }}
   #        path: ./conda-bld
 
-      # - name: Test
-      #   run: ./run_tests
-
   # upload_conda:
   #   needs: [build]
   #   runs-on: ubuntu-latest
