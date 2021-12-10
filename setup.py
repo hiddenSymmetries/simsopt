@@ -4,9 +4,10 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+
+import setuptools_scm
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -104,8 +105,22 @@ class CMakeBuild(build_ext):
         )
 
 
+def my_local_scheme(version: setuptools_scm.version.ScmVersion) -> str:
+    """My local node and date version."""
+    node_and_date = setuptools_scm.version.get_local_node_and_date(version)
+    dirty = ".dirty" if version.dirty else ""
+    return str(node_and_date) + dirty
+
+version = setuptools_scm.get_version(
+    write_to=Path(".") / "src" / "simsopt" / "_version.py",
+    version_scheme="post-release",
+    local_scheme=my_local_scheme,
+)
+
+
 setup(
-    use_scm_version=True,
+    # use_scm_version=True,
+    version=version,
     setup_requires=["setuptools_scm"],
     ext_modules=[CMakeExtension("simsoptpp")],
     cmdclass={"build_ext": CMakeBuild}
