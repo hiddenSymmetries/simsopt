@@ -48,51 +48,15 @@ jobs:
         run: |
           conda config --set anaconda_upload yes
           conda build --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
-          # conda install -c ${CONDA_PREFIX}/conda-bld/ simsopt
-          # mv ${CONDA_PREFIX}/conda-bld ./
 
       - name: Build and upload to test
         if: github.event_name == 'push' && github.ref == 'refs/heads/mbk/conda_package'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
+          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} conda.recipe
 
       - name: Build 
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           conda build conda.recipe
 
-  #    - name: Upload artifact
-  #      uses: actions/upload-artifact@v2
-  #      with:
-  #        name: package-${{ github.sha }}
-  #        path: ./conda-bld
-
-  # upload_conda:
-  #   needs: [build]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Download the build artifact
-  #     uses: actions/download-artifact@v2
-  #     with:
-  #       name: package-${{ github.sha }}
-  #       path: conda-bld
-  #   - name: Get conda
-  #     uses: conda-incubator/setup-miniconda@v2.1.1
-  #     with:
-  #       python-version: ${{ matrix.python-version }}
-
-  #   - name: Install Anaconda client
-  #     run: conda install -y anaconda-client
-
-  #   - name: Upload to anaconda.org
-  #     if: github.event_name == 'release' && github.event.action == 'published'
-  #     env:
-  #       ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-  #     run: anaconda --verbose --token $ANACONDA_TOKEN upload --user hiddensymmetries conda-bld/*/*.tar.bz2 --force
-
-  #   - name: Upload to anaconda.org
-  #     if: github.event_name == 'push' && github.ref == 'refs/heads/mbk/conda_package'
-  #     env:
-  #       ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-  #     run: anaconda --verbose --token $MBK_ANACONDA_TOKEN upload --user mbkumar conda-bld/*/*.tar.bz2 --force
