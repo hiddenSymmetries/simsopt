@@ -7,10 +7,11 @@ from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.plot import plot
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+
 
 class PlotTests(unittest.TestCase):
 
@@ -48,7 +49,7 @@ class PlotTests(unittest.TestCase):
             engines.append("plotly")
 
         logger.info(f'Testing these plotting engines: {engines}')
-        
+
         nphi = 32
         ntheta = 32
         filename = TEST_DIR / "input.LandremanPaul2021_QA"
@@ -66,10 +67,14 @@ class PlotTests(unittest.TestCase):
         base_currents = [Current(1e5) for i in range(ncoils)]
         base_currents[0].fix_all()
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        items_to_plot = [c.curve for c in coils] + [s]
+        items_to_plot = coils + [s]  # Coils and surface together
+        items_to_plot2 = [c.curve for c in coils] + [s]  # Curves and surface together
 
         for engine in engines:
             plot(items_to_plot, engine=engine, show=show)
+            # Try adding a keyword argument:
+            plot(items_to_plot2, engine=engine, show=show, close=True)
+
 
 if __name__ == "__main__":
     unittest.main()

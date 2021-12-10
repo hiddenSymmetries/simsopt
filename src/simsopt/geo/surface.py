@@ -137,17 +137,19 @@ class Surface(Optimizable):
             normal = np.array([[[1.0]]])
 
         if close:
-            gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
+            # Always close in theta:
             gamma = np.concatenate((gamma, gamma[:, :1, :]), axis=1)
-
-            dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
             dg1 = np.concatenate((dg1, dg1[:, :1, :]), axis=1)
-
-            dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
             dg2 = np.concatenate((dg2, dg2[:, :1, :]), axis=1)
-
-            normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
             normal = np.concatenate((normal, normal[:, :1, :]), axis=1)
+
+            # Only close in phi if range == 'full torus':
+            dphi = self.quadpoints_phi[1] - self.quadpoints_phi[0]
+            if 1 - self.quadpoints_phi[-1] < 1.1 * dphi:
+                gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
+                dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
+                dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
+                normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
