@@ -527,7 +527,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :], k=self.order))
             self.d_mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, d_mn_factor[im, :], k=self.order))
             if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
-                self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, 0*bmnc[im, :], k=self.order))
+                self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_bmnc, 0*bmnc[im, :], k=self.order))
                 self.dbmncds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], 0*dbmncds[im, :], k=self.order))
             else:
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*bmnc[im, :], k=self.order))
@@ -595,6 +595,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
+        s_unique = np.unique(s)
         K[:, 0] = 0.
         if self.enforce_vacuum:
             return
@@ -602,16 +603,21 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.booz.mpi.proc0_groups:
                 self.compute_K()
             self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_odd(K[:, 0, ], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        kmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                kmns[im, ip] = self.kmns_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_kmns = kmns[:, index]
+            K[ip, 0] = sopp.inverse_fourier_transform_odd_0d(kmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dKdtheta_impl(self, dKdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
+        s_unique = np.unique(s)
         dKdtheta[:, 0] = 0.
         if self.enforce_vacuum:
             return
@@ -619,16 +625,21 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.booz.mpi.proc0_groups:
                 self.compute_K()
             self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        kmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                kmns[im, ip] = self.kmns_splines[im](s_unique[ip]) * self.xm_b[im]/self.mn_factor_splines[im](s_unique[ip])
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_kmns = kmns[:, index]
+            dKdtheta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_kmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dKdzeta_impl(self, dKdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
+        s_unique = np.unique(s)
         dKdzeta[:, 0] = 0.
         if self.enforce_vacuum:
             return
@@ -638,149 +649,215 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             else:
                 self.kmns_splines = None
             self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        kmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                kmns[im, ip] = -self.kmns_splines[im](s_unique[ip]) * self.xn_b[im]/self.mn_factor_splines[im](s_unique[ip])
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_kmns = kmns[:, index]
+            dKdzeta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_kmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _nu_impl(self, nu):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = self.numns_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        numns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                numns[im, ip] = self.numns_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
         nu[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(nu[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_numns = numns[:, index]
+            nu[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_numns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dnudtheta_impl(self, dnudtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = self.numns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        numns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                numns[im, ip] = self.numns_splines[im](s_unique[ip])*self.xm_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dnudtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_numns = numns[:, index]
+            dnudtheta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_numns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dnudzeta_impl(self, dnudzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = -self.numns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        numns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                numns[im, ip] = -self.numns_splines[im](s_unique[ip])*self.xn_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dnudzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_numns = numns[:, index]
+            dnudzeta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_numns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dnuds_impl(self, dnuds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            d_mn_factor = self.d_mn_factor_splines[im](s)
-            mn_factor = self.mn_factor_splines[im](s)
-            numns[im, :] = ((self.dnumnsds_splines[im](s) - self.numns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-
+        s_unique = np.unique(s)
+        numns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                d_mn_factor = self.d_mn_factor_splines[im](s_unique[ip])
+                mn_factor = self.mn_factor_splines[im](s_unique[ip])
+                numns[im, ip] = ((self.dnumnsds_splines[im](s_unique[ip]) \
+                                  - self.numns_splines[im](s_unique[ip])*d_mn_factor/mn_factor)/mn_factor)
         dnuds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dnuds[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_numns = numns[:, index]
+            dnuds[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_numns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dRdtheta_impl(self, dRdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = -self.rmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        rmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                rmnc[im, ip] = -self.rmnc_splines[im](s_unique[ip])*self.xm_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dRdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_rmnc = rmnc[:, index]
+            dRdtheta[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_rmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dRdzeta_impl(self, dRdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = self.rmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        rmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                rmnc[im, ip] = self.rmnc_splines[im](s_unique[ip])*self.xn_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dRdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_rmnc = rmnc[:, index]
+            dRdzeta[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_rmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dRds_impl(self, dRds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            d_mn_factor = self.d_mn_factor_splines[im](s)
-            mn_factor = self.mn_factor_splines[im](s)
-            rmnc[im, :] = ((self.drmncds_splines[im](s) - self.rmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        s_unique = np.unique(s)
+        rmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                d_mn_factor = self.d_mn_factor_splines[im](s_unique[ip])
+                mn_factor = self.mn_factor_splines[im](s_unique[ip])
+                rmnc[im, ip] = ((self.drmncds_splines[im](s_unique[ip]) \
+                                 - self.rmnc_splines[im](s_unique[ip])*d_mn_factor/mn_factor)/mn_factor)
         dRds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dRds[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_rmnc = rmnc[:, index]
+            dRds[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_rmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _R_impl(self, R):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = self.rmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        rmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                rmnc[im, ip] = self.rmnc_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
         R[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(R[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_rmnc = rmnc[:, index]
+            R[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_rmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dZdtheta_impl(self, dZdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = self.zmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        zmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                zmns[im, ip] = self.zmns_splines[im](s_unique[ip])*self.xm_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dZdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_zmns = zmns[:, index]
+            dZdtheta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_zmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dZdzeta_impl(self, dZdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = -self.zmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        zmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                zmns[im, ip] = -self.zmns_splines[im](s_unique[ip])*self.xn_b[im]/self.mn_factor_splines[im](s_unique[ip])
         dZdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_zmns = zmns[:, index]
+            dZdzeta[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_zmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dZds_impl(self, dZds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            d_mn_factor = self.d_mn_factor_splines[im](s)
-            mn_factor = self.mn_factor_splines[im](s)
-            zmns[im, :] = ((self.dzmnsds_splines[im](s) - self.zmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        s_unique = np.unique(s)
+        zmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                d_mn_factor = self.d_mn_factor_splines[im](s_unique[ip])
+                mn_factor = self.mn_factor_splines[im](s_unique[ip])
+                zmns[im, ip] = ((self.dzmnsds_splines[im](s_unique[ip]) \
+                                 - self.zmns_splines[im](s_unique[ip])*d_mn_factor/mn_factor)/mn_factor)
         dZds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dZds[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_zmns = zmns[:, index]
+            dZds[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_zmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _Z_impl(self, Z):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = self.zmns_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        zmns = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                zmns[im, ip] = self.zmns_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
         Z[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(Z[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_zmns = zmns[:, index]
+            Z[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_zmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
@@ -822,46 +899,67 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
         modB[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(modB[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        bmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                bmnc[im, ip] = self.bmnc_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_bmnc = bmnc[:, index]
+            modB[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_bmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = -self.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        bmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                bmnc[im, ip] = -self.xm_b[im]*self.bmnc_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
         dmodBdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_bmnc = bmnc[:, index]
+            dmodBdtheta[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_bmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = self.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        s_unique = np.unique(s)
+        bmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                bmnc[im, ip] = self.xn_b[im]*self.bmnc_splines[im](s_unique[ip])/self.mn_factor_splines[im](s_unique[ip])
         dmodBdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_bmnc = bmnc[:, index]
+            dmodBdzeta[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_bmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            mn_factor = self.mn_factor_splines[im](s)
-            d_mn_factor = self.d_mn_factor_splines[im](s)
-            bmnc[im, :] = ((self.dbmncds_splines[im](s) - self.bmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        s_unique = np.unique(s)
+        bmnc = np.zeros((len(self.xm_b), len(s_unique)))
+        for ip in range(len(s_unique)):
+            for im in range(len(self.xm_b)):
+                mn_factor = self.mn_factor_splines[im](s_unique[ip])
+                d_mn_factor = self.d_mn_factor_splines[im](s_unique[ip])
+                bmnc[im, ip] = ((self.dbmncds_splines[im](s_unique[ip]) \
+                                 - self.bmnc_splines[im](s_unique[ip])*d_mn_factor/mn_factor)/mn_factor)
         dmodBds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        for ip in range(len(s)):
+            index = np.argwhere(s[ip] == s_unique)[0][0]
+            this_bmnc = bmnc[:, index]
+            dmodBds[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_bmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):

@@ -146,3 +146,13 @@ void inverse_fourier_transform_even(Array& K, Array& kmns, Array& xm, Array& xn,
       }
     }
 }
+
+double inverse_fourier_transform_even_0d(Array& kmns, Array& xm, Array& xn, double thetas, double zetas) {
+    int num_modes = xm.shape(0);
+    double K = 0;
+    #pragma omp parallel for
+    for (int im=0; im < num_modes; ++im) {
+      K += kmns(im)*cos(xm(im)*thetas-xn(im)*zetas);
+    }
+    return K;
+}
