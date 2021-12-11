@@ -50,6 +50,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_even", &inverse_fourier_transform_even);
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("inverse_fourier_transform_even_0d", &inverse_fourier_transform_even_0d);
+    m.def("inverse_fourier_transform_odd_0d", &inverse_fourier_transform_odd_0d);
     m.def("compute_kmns",&compute_kmns);
 
     // the computation below is used in boozer_surface_residual.

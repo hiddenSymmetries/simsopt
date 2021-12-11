@@ -610,7 +610,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for ip in range(len(s)):
             index = np.argwhere(s[ip] == s_unique)[0][0]
             this_kmns = kmns[:, index]
-            K[ip, 0] = sopp.inverse_fourier_transform_odd_0d(kmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
+            K[ip, 0] = sopp.inverse_fourier_transform_odd_0d(this_kmns, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
 
     def _dKdtheta_impl(self, dKdtheta):
         points = self.get_points_ref()
@@ -960,7 +960,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             index = np.argwhere(s[ip] == s_unique)[0][0]
             this_bmnc = bmnc[:, index]
             dmodBds[ip, 0] = sopp.inverse_fourier_transform_even_0d(this_bmnc, self.xm_b, self.xn_b, thetas[ip], zetas[ip])
-
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
