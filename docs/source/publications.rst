@@ -47,3 +47,9 @@ Here is a list of publications in which simsopt results appear:
      *Submitted*, (2021).
      `[arXiv version] <https://arxiv.org/pdf/2108.03711>`__
    |
+
+#. | A Baillod, J Loizu, J P Graves, and M Landreman,
+     "Stellarator optimization for good magnetic surfaces at finite β and toroidal current",
+     *Submitted*, (2021).
+     `[arXiv version] <https://arxiv.org/pdf/2111.15564>`__
+   |

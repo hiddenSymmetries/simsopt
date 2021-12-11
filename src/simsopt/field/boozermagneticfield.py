@@ -9,7 +9,7 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 if MPI is not None:
     try:
@@ -18,7 +18,7 @@ if MPI is not None:
     except ImportError as e:
         Vmec = None
         Boozer = None
-        logger.warning(str(e))
+        logger.debug(str(e))
 
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
@@ -527,7 +527,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :], k=self.order))
             self.d_mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, d_mn_factor[im, :], k=self.order))
             if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
-                self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_bmnc, 0*bmnc[im, :], k=self.order))
+                self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, 0*bmnc[im, :], k=self.order))
                 self.dbmncds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], 0*dbmncds[im, :], k=self.order))
             else:
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*bmnc[im, :], k=self.order))
