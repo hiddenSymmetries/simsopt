@@ -131,6 +131,7 @@ First we need to add conda-forge as one of the channels.
 Then install simsopt by running
 
 .. code-block::
+
     conda install -c hiddensymmetries simsopt
 
 
