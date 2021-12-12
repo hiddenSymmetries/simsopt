@@ -71,7 +71,7 @@ Activate the newly created virtual environmnet (for bash shell)
     . <path/to/new/virtual/environment>/bin/activate
 
 If you are on a different shell, use the ``activate`` file with an appropriate extension reflecting the shell type.
-More information, please refer to `venv official documentation <https://https://docs.python.org/3/library/venv.html>`_.
+For more information, please refer to `venv official documentation <https://https://docs.python.org/3/library/venv.html>`_.
 
 conda
 +++++++
