@@ -73,6 +73,7 @@ Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
         assert isinstance(other, numbers.Number)
         for i in range(len(self.__sample)):
             self.__sample[i] *= other
+        return self
 
 
 class CurvePerturbed(sopp.Curve, Curve):
