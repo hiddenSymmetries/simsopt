@@ -3,6 +3,7 @@ import simsoptpp as sopp
 from simsopt.geo.curve import Curve
 from sympy import Symbol, lambdify, exp
 import jax.numpy as jnp
+import numbers
 
 
 class GaussianSampler():
@@ -67,6 +68,11 @@ The sample on has {len(self.__sample)-1} derivatives.
 Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
 """)
         return self.__sample[deriv]
+
+    def __imul__(self, other):
+        assert isinstance(other, numbers.Number)
+        for i in range(len(self.__sample)):
+            self.__sample[i] *= other
 
 
 class CurvePerturbed(sopp.Curve, Curve):
