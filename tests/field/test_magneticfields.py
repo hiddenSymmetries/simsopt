@@ -620,7 +620,6 @@ class Testing(unittest.TestCase):
         with self.assertRaises(ValueError):
             bsbs.set_points_cyl(f_contig.flatten())
 
-
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
         curves, currents, ma = get_ncsx_data()
