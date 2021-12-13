@@ -594,7 +594,7 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
 
-        points_xyz = np.asarray([[0.5, 0.6, 0.7]])
+        points_xyz = np.asarray([[0.5, 0.6, 0.7], [0.4, 0.1, 0.6]])
         points_rphiz = np.zeros_like(points_xyz)
         points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
         points_rphiz[:, 1] = np.mod(np.arctan2(points_xyz[:, 1], points_xyz[:, 0]), 2*np.pi)
@@ -608,6 +608,18 @@ class Testing(unittest.TestCase):
         bs.set_points_cart(points_xyz)
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
+
+        f_contig = np.asfortranarray(points_xyz)
+        bsbs = 2*bs
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cart(f_contig)
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cyl(f_contig)
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cart(f_contig.flatten())
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cyl(f_contig.flatten())
+
 
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
