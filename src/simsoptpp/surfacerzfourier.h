@@ -109,4 +109,7 @@ class SurfaceRZFourier : public Surface<Array> {
         void dgammadash1_by_dcoeff_impl(Array& data) override;
         void dgammadash2_by_dcoeff_impl(Array& data) override;
 
+        Array dgamma_by_dcoeff_vjp(Array& v) override;
+        Array dgammadash1_by_dcoeff_vjp(Array& v) override;
+        Array dgammadash2_by_dcoeff_vjp(Array& v) override;
 };
