@@ -190,7 +190,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
-        Bfield.set_points([[0.1, 0.2, 0.3]])
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3]]))
         Afield = Bfield.A()
         assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
         # use normal=[1,0,0]
@@ -339,7 +339,7 @@ class Testing(unittest.TestCase):
             np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
 
     def test_helicalcoil_Bfield(self):
-        point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        point = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         field = [[-0.00101961, 0.20767292, -0.00224908]]
         derivative = [[[0.47545098, 0.01847397, 1.10223595], [0.01847426, -2.66700072, 0.01849548], [1.10237535, 0.01847085, 2.19154973]]]
         curves = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
@@ -357,7 +357,7 @@ class Testing(unittest.TestCase):
         mn = [[10, 2], [15, 3]]
         coeffs = [[-2.18, -2.18], [25.8, -25.8]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        Bfield.set_points([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(np.asarray([[0.9231, 0.8423, -0.1123]]))
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify B
@@ -434,7 +434,7 @@ class Testing(unittest.TestCase):
         B2 = np.array(np.vstack((Bx, By, Bz)).T)
         assert np.allclose(B1, B2)
         # Derivative
-        points = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        points = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         Bfield.set_points(points)
         dB1 = np.array(Bfield.dB_by_dX()[0])
         dB2 = np.array([[1.68810242e-03, -1.11110794e+00, 3.11091859e-04],
@@ -633,10 +633,10 @@ class Testing(unittest.TestCase):
         R0 = 1.2
         q = 1.3
         # point locations
-        points = [
+        points = np.asarray([
             [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
             [0.1231, 2.4123, 0.002341],
-        ]
+        ])
         # Bfield from class
         Bfield = PoloidalField(R0=R0, B0=B0, q=q)
         Bfield.set_points(points)
