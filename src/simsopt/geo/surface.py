@@ -56,7 +56,8 @@ class Surface(Optimizable):
               Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
               to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
               Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
-              to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+              to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
+              of the grid spacing in order to provide spectral convergence of integrals.
               If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
             quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
@@ -83,6 +84,9 @@ class Surface(Optimizable):
                 quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
             elif range == Surface.RANGE_HALF_PERIOD:
                 quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
+                # Shift by half of the grid spacing:
+                dphi = quadpoints_phi[1] - quadpoints_phi[0]
+                quadpoints_phi += 0.5 * dphi
             else:
                 raise ValueError("Invalid setting for range")
 
