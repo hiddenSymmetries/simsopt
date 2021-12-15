@@ -26,6 +26,23 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     '''
 
+    def set_points(self, xyz):
+        return self.set_points_cart(xyz)
+
+    def set_points_cart(self, xyz):
+        if len(xyz.shape) != 2 or xyz.shape[1] != 3:
+            raise ValueError(f"xyz array should have shape (n, 3), but has shape {xyz.shape}")
+        if not xyz.flags['C_CONTIGUOUS']:
+            raise ValueError("xyz array should be C contiguous. Consider using `numpy.ascontiguousarray`.")
+        return sopp.MagneticField.set_points_cart(self, xyz)
+
+    def set_points_cyl(self, rphiz):
+        if len(rphiz.shape) != 2 or rphiz.shape[1] != 3:
+            raise ValueError(f"rphiz array should have shape (n, 3), but has shape {rphiz.shape}")
+        if not rphiz.flags['C_CONTIGUOUS']:
+            raise ValueError("rphiz array should be C contiguous. Consider using `numpy.ascontiguousarray`.")
+        return sopp.MagneticField.set_points_cyl(self, rphiz)
+
     def __init__(self, **kwargs):
         sopp.MagneticField.__init__(self)
         Optimizable.__init__(self, **kwargs)
