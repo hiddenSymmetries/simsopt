@@ -31,6 +31,30 @@ can be initialized using a standard VMEC ``input.*`` input file, and a
 SPEC ``*.sp`` input file.
 
 
+Optimization stages
+-------------------
+
+Recent optimized stellarators have been designed using two stages,
+both of which can be solved using simsopt. In the first stage, the
+parameter space is the shape of a toroidal boundary flux
+surface. Coils are not considered explicitly in this stage.  The
+objective function involves surrogates for confinement and stability
+in the plasma inside the boundary surface.  In the second optimization
+stage, coil shapes are optimized to produce the plasma shape that
+resulted from stage 1.  The parameter space for stage 2 represents the
+space of coil shapes. The objective function for stage 2 usually
+involves several terms.  One term is the deviation between the
+magnetic field produced by the coils and the magnetic field desired at
+the plasma boundary, given the stage 1 solution. Other terms in the
+objective function introduce regularization on the coil shapes, such
+as the coil length and/or curvature, and reflect other engineering
+considerations such as the distance between coils. In the future, we
+aim to introduce alternative optimization strategies in simsopt
+besides this two-stage approach, such as combined single-stage
+methods.
+
+
+
 Optimization
 ------------
 

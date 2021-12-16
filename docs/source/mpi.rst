@@ -1,4 +1,4 @@
-MPI Partitions and worker groups
+MPI partitions and worker groups
 --------------------------------
 
 To use MPI parallelization with simsopt, you must install the
