@@ -1,4 +1,4 @@
-Magnetic Fields
+Magnetic fields
 ---------------
 
 Simsopt contains several magnetic field classes available to be called

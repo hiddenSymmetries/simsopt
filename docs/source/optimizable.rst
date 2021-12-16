@@ -1,5 +1,40 @@
-Optimizable objects and objective functions
-===========================================
+Defining optimization problems
+==============================
+
+The Optimizable class
+---------------------
+
+A basic tool for defining optimization problems in simsopt is the
+class :obj:`~simsopt._core.graph_optimizable.Optimizable`. Many
+classes in simsopt are subclasses of this class.  This parent class
+provides several functions.  First, it accounts for dependencies
+between objects.  For example, if an MHD equilibrium depends on a
+:obj:`~simsopt.geo.surface.Surface` object representing the boundary,
+the equilibrium object will know it needs to recompute the equilibrium
+if the :obj:`~simsopt.geo.surface.Surface` changes.  Second, the
+:obj:`~simsopt._core.graph_optimizable.Optimizable` class allows for
+the parameters of an object to be either fixed or varied in an
+optimization, for a useful name string to be associated with each such
+degree of freedom, and for box constraints on each parameter to be
+set.  Third, when a set of objects with dependencies is combined into
+an objective function, the
+:obj:`~simsopt._core.graph_optimizable.Optimizable` class
+automatically combines the non-fixed degrees of freedom into a global
+state vector, which can be passed to numerical optimization
+algorithms.
+
+Users can create their own optimizable objects in two ways. One method
+is to create a standard python function, and apply the
+:obj:`simsopt.make_optimizable()` function to it, as explained
+below. Or, you can directly subclass
+:obj:`simsopt._core.graph_optimizable.Optimizable`.
+
+
+The dependency graph
+--------------------
+
+Dependencies between
+
 
 Optimizable objects
 -------------------
