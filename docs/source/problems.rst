@@ -131,12 +131,13 @@ numpy array, with each element True or False. You can also query the free/fixed
 status of individual status by :meth:``is_free`` or :meth:``is_fixed`` methods by using the array index
 of the dof or by using the name of the dof as key.
 
-There are several ways you can manipulate the fixed/free status of the dofs.
-  You can set all entries to True or False using the
-:meth:``fix_all`` or :meth:``unfix_all`` methods from :obj:``simsopt.Optimizable``.
-You can set individual entries using the
-string names or arry indices of each dof via the :meth:``fix`` or
-:meth:``unfix`` methods, e.g. :meth:``fix("phiedge")`` or :meth:``unfix("2")``.
+There are several ways you can manipulate the fixed/free status of the
+dofs.  You can set all entries to True or False using the
+:meth:``fix_all`` or :meth:``unfix_all`` methods from
+:obj:``simsopt.Optimizable``.  You can set individual entries using
+the string names or arry indices of each dof via the :meth:``fix`` or
+:meth:``unfix`` methods, e.g. :meth:``fix("phiedge")`` or
+:meth:``unfix("2")``.
 
 
 Dependencies
