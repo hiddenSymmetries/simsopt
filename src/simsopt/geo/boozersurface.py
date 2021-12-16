@@ -418,7 +418,7 @@ class BoozerSurface():
         surfaces of type SurfaceXYZTensorFourier right now.
 
         Given ntor, mpol, nfp and stellsym, the surface is expected to be
-        created in the following way:
+        created in the following way::
 
             phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
             thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -426,14 +426,17 @@ class BoozerSurface():
                 mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
                 quadpoints_phi=phis, quadpoints_theta=thetas)
 
-        Or the following two are also possible in the stellsym case
+        Or the following two are also possible in the stellsym case::
+
             phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
             thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
-        or
+
+        or::
+
             phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
             thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 
-        and then
+        and then::
 
             s = SurfaceXYZTensorFourier(
                 mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
@@ -442,43 +445,37 @@ class BoozerSurface():
         For the stellsym case, there is some redundancy between dofs.  This is
         taken care of inside this function.
 
-        Not stellsym:
-            The surface has (2*ntor+1)*(2*mpol+1) many quadrature points and
-            3*(2*ntor+1)*(2*mpol+1) many dofs.
-            Equations:
-                - Boozer residual in x, y, and z at all quadrature points
-                - z(0, 0) = 0
-                - label constraint (e.g. volume or flux)
-            Unknowns:
-                - Surface dofs
-                - iota
-                - G
-            So we end up having 3*(2*ntor+1)*(2*mpol+1) + 2 equations and the
-            same number of unknowns.
+        In the non-stellarator-symmetric case, the surface has
+        ``(2*ntor+1)*(2*mpol+1)`` many quadrature points and
+        ``3*(2*ntor+1)*(2*mpol+1)`` many dofs.
 
-        Stellsym:
-            In this case we have
+        Equations:
+            - Boozer residual in x, y, and z at all quadrature points
+            - z(0, 0) = 0
+            - label constraint (e.g. volume or flux)
 
-                D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
-                  = 6*ntor*mpol + 3*ntor + 3*mpol + 1
+        Unknowns:
+            - Surface dofs
+            - iota
+            - G
 
-            many dofs in the surface. After calling surface.get_stellsym_mask() we have kicked out
+        So we end up having ``3*(2*ntor+1)*(2*mpol+1) + 2`` equations and the
+        same number of unknowns.
 
-                2*ntor*mpol + ntor + mpol
-
-            quadrature points, i.e. we have
-
-                2*ntor*mpol + ntor + mpol + 1
-
-            quadrature points remaining. In addition we know that the x coordinate of the
-            residual at phi=0=theta is also always satisfied. In total this
-            leaves us with
-
-                3*(2*ntor*mpol + ntor + mpol) + 2 equations for the boozer residual.
-                1 equation for the label
-
-            which is the same as the number of surface dofs + 2 extra unknowns
-            given by iota and G.
+        In the stellarator-symmetric case, we have
+        ``D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
+        = 6*ntor*mpol + 3*ntor + 3*mpol + 1``
+        many dofs in the surface. After calling ``surface.get_stellsym_mask()`` we have kicked out
+        ``2*ntor*mpol + ntor + mpol``
+        quadrature points, i.e. we have
+        ``2*ntor*mpol + ntor + mpol + 1``
+        quadrature points remaining. In addition we know that the x coordinate of the
+        residual at phi=0=theta is also always satisfied. In total this
+        leaves us with
+        ``3*(2*ntor*mpol + ntor + mpol) + 2`` equations for the boozer residual, plus
+        1 equation for the label,
+        which is the same as the number of surface dofs + 2 extra unknowns
+        given by iota and G.
         """
 
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
