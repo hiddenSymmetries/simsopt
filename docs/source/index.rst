@@ -60,10 +60,14 @@ optimization.  Others include `STELLOPT
    :maxdepth: 2
    :caption: Contents
 
-   getting_started
+   overview
+   installation
    docker
-   concepts
-   problems
+   optimizable
+   geo
+   fields
+   tracing
+   mpi
    testing
    source
    publications

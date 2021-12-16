@@ -40,7 +40,7 @@ gradients. As explained below, this particular problem has 24
 independent variables, so we can take advantage of 24 + 1 = 25 concurrent
 function evaluations for one-sided differences. It is therefore
 optimal to divide the MPI processes into 25 worker groups. For more
-information about MPI and worker groups, see :ref:`mpi` or
+information about MPI and worker groups, see :doc:`mpi` or
 :obj:`~simsopt.util.mpi.MpiPartition`.  In our script, we therefore
 use::
 
