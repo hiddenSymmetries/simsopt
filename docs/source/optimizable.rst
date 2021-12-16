@@ -1,5 +1,5 @@
-Defining optimization problems
-==============================
+Optimizable objects and objective functions
+===========================================
 
 Optimizable objects
 -------------------
