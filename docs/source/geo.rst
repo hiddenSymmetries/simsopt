@@ -7,6 +7,8 @@ available in a variety of parameterizations, and several derivatives
 are provided.  The curve and surface objects can all be found in the
 :obj:`simsopt.geo` module.
 
+.. _curves:
+     
 Curves
 ~~~~~~
 

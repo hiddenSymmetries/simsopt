@@ -86,3 +86,17 @@ For the solution step, two functions are provided presently,
 :meth:`simsopt.solve.graph_mpi.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
+
+
+Modules
+-------
+
+Classes and functions in simsopt are organized into several modules:
+
+- :obj:`simsopt.geo` contains several representations of curves and surfaces.
+- :obj:`simsopt.field` contains machinery for the Biot-Savart law and other magnetic field representations.
+- :obj:`simsopt.mhd` contains interfaces to MHD equilibrium codes and tools for diagnosing their output.
+- :obj:`simsopt.objectives` contains tools for some common objective functions.
+- :obj:`simsopt.solve` contains wrappers for some optimization algorithms.
+- :obj:`simsopt.util` contains other utility functions.
+- :obj:`simsopt._core` defines the ``Optimizable`` class and other tools used internally in simsopt.

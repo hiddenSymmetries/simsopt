@@ -43,7 +43,7 @@ For instance, to tell a Vmec object to use four worker groups, one could write
 
 .. code-block::
 
-   from simsopt.mhd import Vmec
+   from simsopt.mhd.vmec import Vmec
    from simsopt.util.mpi import MpiPartition
    
    mpi = MpiPartition(4)
