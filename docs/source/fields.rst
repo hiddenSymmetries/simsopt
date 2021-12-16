@@ -12,6 +12,9 @@ query the field B, the vector potential A, and their derivatives with
 respect to position or the field parameters.
 
 
+Field types
+^^^^^^^^^^^
+
 Coils and BiotSavart
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -36,6 +39,25 @@ implementation of the Biot-Savart law
 where :math:`\mu_0=4\pi \times 10^{-7}` is the vacuum permitivity,
 :math:`\Gamma_k` is the position vector of coil :math:`k`, and :math:`I_k`
 indicates the electric currents.
+
+Example::
+
+  import numpy as np
+  from simsopt.geo.curvexyzfourier import CurveXYZFourier
+  from simsopt.field.coil import Current, Coil
+  from simsopt.field.biotsavart import BiotSavart
+
+  curve = CurveXYZFourier(100, 1)  # 100 = Number of quadrature points, 1 = max Fourier mode number
+  curve.x = [0, 0, 1., 0., 1., 0., 0., 0., 0.]  # Set Fourier amplitudes
+  coil = Coil(curve, Current(1.0e4))  # 10 kAmpere-turns
+  field = BiotSavart([coil])  # Multiple coils can be included in the list 
+  field.set_points(np.array([[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]]))
+  print(field.B())
+
+For a more complex example of a
+:obj:`~simsopt.field.biotsavart.BiotSavart` object used in coil
+optimization, see
+``examples/2_Intermediate/stage_two_optimization.py``.
 
 ToroidalField
 ~~~~~~~~~~~~~
@@ -88,15 +110,11 @@ class initializes a vacuum magnetic field :math:`\mathbf B = \nabla
 coordinates :math:`(R,Z,\phi)`. The field :math:`\Phi` is specified as
 an analytical expression via a string argument. Simsopt performs the
 necessary partial derivatives in order find :math:`\mathbf B` and its
-derivatives. Example: the function
-
-.. code-block::
-
-   ScalarPotentialRZMagneticField("2*phi")
-
-represents a toroidal magnetic field :math:`\mathbf B = \nabla
-(2\phi)=2/R \mathbf e_\phi`.  Note: this functions needs the library
-``sympy`` for the analytical derivatives.
+derivatives. For example, the function
+``ScalarPotentialRZMagneticField("2*phi")`` represents a toroidal
+magnetic field :math:`\mathbf B = \nabla (2\phi)=2/R \mathbf e_\phi`.
+Note: this functions needs the library ``sympy`` for the analytical
+derivatives.
 
 CircularCoil
 ~~~~~~~~~~~~
@@ -159,40 +177,66 @@ particle trajectories.
 Scaling and summing fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Below is an example that prints the components of a magnetic
-field and its derivatives of a sum of a circular coil in the xy-plane
-with current ``I=1.e7`` and a radius ``r0=1`` and a toroidal field
-with a magnetic field ``B0=1`` at major radius ``R0=1``. This field is
-evaluated at the set of ``points=[[0.5, 0.5, 0.1],[0.1, 0.1, -0.3]]``.
+Magnetic field objects can be added together, either by using the
+``+`` operator, or by creating an instance of the class
+:obj:`simsopt.field.magneticfield.MagneticFieldSum`. (The ``+``
+operator creates the latter.)
 
-.. code-block::
+Magnetic fields can also be scaled by a constant. This can be accomplished either using the ``*`` operator,
+or by creating an instance of the class
+:obj:`simsopt.field.magneticfield.MagneticFieldMultiply`. (The ``*``
+operator creates the latter.)
+
+Example::
 
    from simsopt.field.magneticfieldclasses import ToroidalField, CircularCoil
    
-   Bfield1 = CircularCoil(I=1.e7, r0=1.)
-   Bfield2 = ToroidalField(R0=1., B0=1.)
-   Bfield = Bfield1 + Bfield2
-   points=[[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]]
-   Bfield.set_points(points)
-   print(Bfield.B())
-   print(Bfield.dB_by_dX())
+   field1 = CircularCoil(I=1.e7, r0=1.)
+   field2 = ToroidalField(R0=1., B0=1.)
+   total_field = field1 + 2.5 * field2
 
-Below is a similar example where, instead of calculating the magnetic
-field using analytical functions from the circular coil class, it is
-calculated using the BiotSavart class
+Common operations
+^^^^^^^^^^^^^^^^^
+
+Magnetic field objects have a large number of functions available. Before evaluating the field, you must
+set the evaluation points. This can be done using either Cartesian or cylindrical coordinates.
+Let ``m`` be a :obj:`~simsopt.field.magneticfield.MagneticField` object, and suppose there are ``n`` points
+at which you wish to evaluate the field.
+
+- ``m.set_points_cart()`` takes a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
+- ``m.set_points_cyl()`` takes a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
+- ``m.set_points()`` is shorthand for ``m.set_points_cart()``.
+- ``m.get_points_cart()`` returns a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
+- ``m.get_points_cyl()`` returns a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
+
+A variety of functions are available to return the magnetic field
+:math:`B`, vector potential :math:`A`, and their gradients.  The most
+commonly used ones are the following:
+
+- ``m.B()`` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`B`.
+- ``m.B_cyl()`` returns an array of size ``(n, 3)`` with the cylindrical ``(r, phi, z)`` coordinates of :math:`B`.
+- ``m.A()`` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`A`.
+- ``m.AbsB()`` returns an array of size ``(n, 1)`` with the field magnitude :math:`|B|`.
+- ``m.dB_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla B`. Denoting the indices
+  by :math:`(i,j,l)`, the result contains  :math:`\partial_j B_l(x_i)`.
+- ``m.d2B_by_dXdX()`` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla B`. Denoting the indices
+  by :math:`(i,j,k,l)`, the result contains  :math:`\partial_k \partial_j B_l(x_i)`.
+- ``m.dA_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla A`. Denoting the indices
+  by :math:`(i,j,l)`, the result contains  :math:`\partial_j A_l(x_i)`.
+- ``m.d2A_by_dXdX()`` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla A`. Denoting the indices
+  by :math:`(i,j,k,l)`, the result contains  :math:`\partial_k \partial_j A_l(x_i)`.
+- ``m.GradAbsB()`` returns an array of size ``(n, 3)`` with the Cartesian components of :math:`\nabla |B|`.
+
+Example:
 
 .. code-block::
 
-   from simsopt.field.magneticfieldclasses import ToroidalField
-   from simsopt.field.biotsavart import BiotSavart
-   from simsopt.geo.curvexyzfourier import CurveXYZFourier
+   import numpy as np
+   from simsopt.field.magneticfieldclasses import CircularCoil
+   
+   field = CircularCoil(I=1.e7, r0=1.)
+   points = np.array([[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]])
+   field.set_points(points)
+   print(field.B())
+   print(field.dB_by_dX())
 
-   coil = CurveXYZFourier(300, 1)
-   coil.set_dofs([0, 0, 1., 0., 1., 0., 0., 0., 0.])
-   Bfield1 = BiotSavart([coil], [1.e7])
-   Bfield2 = ToroidalField(R0=1., B0=1.)
-   Bfield = Bfield1 + Bfield2
-   points=[[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]]
-   Bfield.set_points(points)
-   print(Bfield.B())
-   print(Bfield.dB_by_dX())
