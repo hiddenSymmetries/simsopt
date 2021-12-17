@@ -215,15 +215,20 @@ for the result shown here.
 
 Dynamic resolution
 ------------------
+..
+   This example was run on IPP-Cobra in /ptmp/mlan/20211217-01-simsopt_docs_tutorials/20211217-01-003_QA_dynamic_resolution
+   The final configuration is also available at
+   ~/Box Sync/work21/wout_20211217-01-003_simsopt_docs_tutorials_QA_dynamic_resolution_000_000205.nc
 
 Since simsopt optimization problems are defined using a python script,
-you are free to add other scripting. Here we show how this capability
-can be used to increase the numerical resolution of codes such as VMEC
-during the optimization. At the same time, we will increase the number
-of Fourier modes in the parameter space during the optimization. This
-example can also be found in the ``examples/2_Intermediate`` directory
-as ``resolution_increase.py``. This example is very similar to the
-quasi-axisymmetry optimization shown in `arXiv:2108.03711                                                               
+you are free to add other scripting in your problem definition. Here
+we show how this capability can be used to increase the numerical
+resolution of codes such as VMEC during the optimization. At the same
+time, we will increase the number of Fourier modes in the parameter
+space during the optimization. This example can also be found in the
+``examples/2_Intermediate`` directory as
+``resolution_increase.py``. This example is very similar to the
+quasi-axisymmetry optimization shown in `arXiv:2108.03711
 <https://arxiv.org/pdf/2108.03711>`__.
 
 As usual, we begin with the necessary imports::
@@ -268,7 +273,10 @@ axisymmetric::
                                           (qs, 0, 1)])
 
 It can be seen here that we are seeking a configuration with aspect
-ratio 6, and average iota slightly above 2 / 5 = 0.4.
+ratio 6, and average iota of 0.42, slightly above the resonance at 2 /
+5 = 0.4. The function :func:`simsopt.mhd.vmec.Vmec.mean_iota()` used
+here returns :math:`\int_0^1 \iota\, ds` where :math:`s` is the
+toroidal flux normalized by its value at the VMEC boundary.
 
 Now, we set up a loop over several optimization steps. At each step,
 the resolution parameters ``mpol`` and ``ntor`` for VMEC increase. At
@@ -320,7 +328,7 @@ is the following configuration:
 .. image:: example_quasisymmetry_QA_after_Boozer.png
    :width: 400
 ..
-   Figure produced by ~/Box Sync/work21/boozPlotHalfFluxUnfilled simsopt_nfp2_QA_20210328-01-020_000_000251/wout_simsopt_nfp2_QA_20210328-01-020_000_000251_scaled.nc
+   Figure produced by ~/Box Sync/work21/boozPlotHalfFluxUnfilled wout_20211217-01-003_simsopt_docs_tutorials_QA_dynamic_resolution_000_000205.nc
 
 
 Bmn objective
@@ -348,7 +356,8 @@ initialize a ``Vmec`` object as in the previous example::
   mpi = MpiPartition()
   vmec = Vmec("input.nfp2_QA", mpi=mpi)
 
-This input file can be found in the ``examples/2_Intermediate/inputs``
+This input file, corresponding to an axisymmetric torus with circular
+cross-section, can be found in the ``examples/2_Intermediate/inputs``
 directory. Next, this alternative quasisymmetry objective can be
 created as follows::
 
@@ -427,19 +436,19 @@ as the radial resolution or number of iterations in VMEC, the solver
 tolerances, or the maximum number of iteration of the optimization
 algorithm.
 
-As in the previous section, the final result of this optimization can
-be sensitive to small changes in simsopt, VMEC, or the packages they
-depend on. Therefore you will not necessarily obtain exactly the
+As with the previous examples, the final result of this optimization
+can be sensitive to small changes in simsopt, VMEC, or the packages
+they depend on. Therefore you will not necessarily obtain exactly the
 result shown here. But one result produced by this optimization script
 is the following configuration:
 
-.. image:: example_quasisymmetry_QA_after.png
+.. image:: example_quasisymmetry_QA_Bmn_after.png
    :width: 400
-.. image:: example_quasisymmetry_QA_after_3D.png
+.. image:: example_quasisymmetry_QA_Bmn_after_3D.png
    :width: 400
 ..
    Figure produced by ~/Box Sync/MATLAB/m20210207_plotVMECWout.m
-.. image:: example_quasisymmetry_QA_after_Boozer.png
+.. image:: example_quasisymmetry_QA_Bmn_after_Boozer.png
    :width: 400
 ..
    Figure produced by ~/Box Sync/work21/boozPlotHalfFluxUnfilled simsopt_nfp2_QA_20210328-01-020_000_000251/wout_simsopt_nfp2_QA_20210328-01-020_000_000251_scaled.nc
