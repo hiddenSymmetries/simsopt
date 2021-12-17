@@ -2,11 +2,23 @@ Optimizing for quasisymmetry
 ============================
 
 In this tutorial it is shown how to optimize the boundary shape of a
-VMEC configuration to achieve quasisymmetry on an interior flux
-surface. First we will show the standard approach of optimizing with
-fixed numerical resolution parameters. In the second section we show a
-more advanced example in which the numerical resolution and size of
-the parameter space are adjusted during the optimization.
+VMEC configuration to achieve quasisymmetry.  Several variants of this
+problem are shown here, including both quasi-helical symmetry and
+quasi-axisymmetry.  There are two objective functions available in
+simsopt to achieve quasisymmetry, and both are demonstrated here.  One
+objective function is
+:obj:`simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`, based
+on the fact that :math:`(\vec{B}\times\nabla B
+\cdot\nabla\psi)/(\vec{B}\cdot\nabla B)` is a flux function in
+quasisymmetry, and used in the paper `arXiv:2108.03711
+<https://arxiv.org/pdf/2108.03711>`__.  The other objective function,
+using :obj:`simsopt.mhd.boozer.Quasisymmetry`,
+is a more traditional one based on the Fourier modes in Boozer
+coordinates :math:`B_{m,n}` that break the symmetry. The recommended
+approach is to use
+:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`, since
+it has the modest advantage of not requiring a transformation to
+Boozer coordinates, although both methods are effective.
 
 For these optimization examples, you probably want to write a script
 that is submitted to the queue on a computing cluster, where they are
@@ -24,14 +36,16 @@ Fixed resolution
    The final configuration is also available at
    ~/Box Sync/work21/wout_20210421-01-005_QH_example_nfp4_QH_warm_start_000_000165.nc
 
-This example is also available as ``QH_fixed_resolution`` in the
+This example is also available as ``QH_fixed_resolution.py`` in the
 ``examples/2_Intermediate`` directory.  As usual, a driver script begins with
 imports of the classes and functions we will need::
 
   #!/usr/bin/env python
 
+  import numpy as np
   from simsopt.util.mpi import MpiPartition
-  from simsopt.mhd import Vmec, Boozer, Quasisymmetry
+  from simsopt.mhd.vmec import Vmec
+  from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
   from simsopt.objectives.graph_least_squares import LeastSquaresProblem
   from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
@@ -61,7 +75,7 @@ We next initialize a VMEC object from an input file::
 This file can be found in the ``examples/2_Intermediate/inputs`` directory. The file
 describes a configuration that has already been partially optimized
 for quasi-helical symmetry in a very small parameter space, keeping
-poloidal and toroidal mode numbers only up through 1:
+poloidal and toroidal mode numbers (the latter divided by the number of field periods) only up through 1:
 
 .. image:: example_quasisymmetry_QH_before.png
    :width: 400
@@ -84,29 +98,50 @@ the mode numbers greater than 2 to all be fixed. Then the desired
 range of modes is set to be not fixed. This range includes the m=n=0
 mode which is essentially the mean major radius. We don't need or want
 to vary the overall scale of the configuration, so it is convenient to
-remove this mode from the parameter space.
+remove this mode from the parameter space. To confirm which modes will be varied, you can print out the names of the free degrees of freedom (dofs)::
+
+  print('Parameter space:', surf.dof_names)
+
+The result is
+
+.. code-block::
+
+   Parameter space: ['SurfaceRZFourier1:rc(0,1)', 'SurfaceRZFourier1:rc(0,2)',
+   'SurfaceRZFourier1:rc(1,-2)', 'SurfaceRZFourier1:rc(1,-1)',
+   'SurfaceRZFourier1:rc(1,0)', 'SurfaceRZFourier1:rc(1,1)',
+   'SurfaceRZFourier1:rc(1,2)', 'SurfaceRZFourier1:rc(2,-2)',
+   'SurfaceRZFourier1:rc(2,-1)', 'SurfaceRZFourier1:rc(2,0)',
+   'SurfaceRZFourier1:rc(2,1)', 'SurfaceRZFourier1:rc(2,2)',
+   'SurfaceRZFourier1:zs(0,1)', 'SurfaceRZFourier1:zs(0,2)',
+   'SurfaceRZFourier1:zs(1,-2)', 'SurfaceRZFourier1:zs(1,-1)',
+   'SurfaceRZFourier1:zs(1,0)', 'SurfaceRZFourier1:zs(1,1)',
+   'SurfaceRZFourier1:zs(1,2)', 'SurfaceRZFourier1:zs(2,-2)',
+   'SurfaceRZFourier1:zs(2,-1)', 'SurfaceRZFourier1:zs(2,0)',
+   'SurfaceRZFourier1:zs(2,1)', 'SurfaceRZFourier1:zs(2,2)']
 
 Next, we need to configure a term in the objective function to
 represent the departure from quasisymmetry. This can be done as
 follows::
 
   # Configure quasisymmetry objective:
-  qs = Quasisymmetry(Boozer(vmec),
-                     0.5, # Radius to target
-                     1, 1) # (M, N) you want in |B|
+  qs = QuasisymmetryRatioResidual(vmec,
+                                  np.arange(0, 1.01, 0.1),  # Radii to target
+				  helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 There are several adjustable options, the details of which can be
-found in the API documentation for :obj:`~simsopt.mhd.boozer.Boozer`
-and :obj:`~simsopt.mhd.boozer.Quasisymmetry`. The numerical resolution
-of the Boozer-coordinate transformation can be adjusted by passing
-parameters to the :obj:`~simsopt.mhd.boozer.Boozer` constructor, as in
-``Boozer(vmec, mpol=64, ntor=32)``. The second argument to
-``Quasisymmetry`` above sets the quasisymmetry objective to be
-evaluated at normalized toroidal flux of 0.5, but you are free to
-provide different values.  Or, a list of values can be provided to
-target quasisymmetry on multiple surfaces. The
-:obj:`~simsopt.mhd.boozer.Quasisymmetry` also has optional arguments
-to adjust the normalization and weighting of different Fourier modes.
+found in the API documentation for
+:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`.
+There you can also find the mathematical expression for the objective
+function.  The second argument to
+:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual` above
+sets the quasisymmetry objective to be evaluated at a uniform grid of
+11 surfaces ``[0, 0.1, 0.2, ..., 1]`` in the normalized toroidal flux
+:math:`s`, with the result that quasisymmetry is targeted throughout
+the volume.  You are free to provide different values, or a single
+float if you only want to target quasisymmetry on a single
+surface. There is also an optional argument ``weights`` if you wish to
+have different weights in the objective function for quasisymmetry on
+different surfaces.
 
 We are now ready to define the total objective function. Here we will
 include quasisymmetry and aspect ratio. Aspect ratio must be included
@@ -116,12 +151,17 @@ function is defined as follows::
 
   # Define objective function
   prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
-                                          (qs, 0, 1)])
+                                          (qs.residuals, 0, 1)])
 
 It can be seen that we are targeting an aspect ratio of 7. This
-objective function will be a sum of 2017 least-squares terms, 2016 of
-which correspond to symmetry-breaking Fourier modes of the Boozer
-spectrum, plus one additional term ``(vmec.aspect - 7) ** 2``.
+objective function will be a sum of 44,353 least-squares terms, 44,352
+of which correspond to the quasisymmetry residual on 63x64 grid points
+on the 11 flux surfaces targeted, plus one additional term
+``(vmec.aspect - 7) ** 2``. (The 63x62 resolution is a default in
+:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`.)  This
+large number of residual terms is no problem - it introduces
+negligible computational cost compared to the cost of the equilibrium
+calculations, so we may as well use this high resolution.
 
 Finally, we solve the optimization problem::
 
