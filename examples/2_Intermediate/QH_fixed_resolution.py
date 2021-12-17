@@ -43,15 +43,17 @@ qs = QuasisymmetryRatioResidual(vmec,
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
                                         (qs.residuals, 0, 1)])
 
-print(f"Quasisymmetry objective before optimization: {qs.total()}")
+print("Quasisymmetry objective before optimization:", qs.total())
+print("Total objective before optimization:", prob.objective())
 
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
 least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=1)
 
-print(f"Final aspect ratio is {vmec.aspect()}")
-print(f"Quasisymmetry objective after optimization: {qs.total()}")
+print("Final aspect ratio:", vmec.aspect())
+print("Quasisymmetry objective after optimization:", qs.total())
+print("Total objective after optimization:", prob.objective())
 
 print("End of 2_Intermediate/QH_fixed_resolution.py")
 print("============================================")
