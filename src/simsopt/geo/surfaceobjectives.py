@@ -87,7 +87,7 @@ def forward_backward(P, L, U, rhs):
 #    def dJ_by_dcoilcurrents(self):
 #        return [0. for c in self.stellarator.coils]
 
-sDIM = 10
+sDIM = 25
 class BoozerResidual(object):
     r"""
     """
@@ -399,6 +399,30 @@ class Area(object):
         return [0. for c in self.stellarator.coils]
 
 
+
+class Aspect_ratio(object):
+    """
+    Wrapper class for volume label.
+    """
+
+    def __init__(self, in_surface, stellarator):
+        phis = np.linspace(0, 1/(2*in_surface.nfp), sDIM, endpoint=False)
+        phis += phis[1]/2
+
+        thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
+        s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.set_dofs(in_surface.get_dofs())
+
+        self.in_surface = in_surface
+        self.surface = s
+        self.stellarator = stellarator
+
+    def J(self):
+        """
+        Compute the volume enclosed by the surface.
+        """
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        return self.surface.aspect_ratio()
 
 
 
