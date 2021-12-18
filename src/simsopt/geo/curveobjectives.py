@@ -15,7 +15,7 @@ def curve_msc_pure(kappa, gammadash):
 class MeanSquareCurvature(Optimizable):
 
     def __init__(self, curve, threshold):
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve])
+        #Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve])
         self.curve = curve
         self.threshold = threshold
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
