@@ -95,6 +95,9 @@ class PerturbationSample():
         self.__sample = self.sampler.draw_sample(self.randomgen)
 
     def __getitem__(self, deriv):
+        """
+        Get the perturbation (if `deriv=0`) or its `deriv`-th derivative.
+        """
         assert isinstance(deriv, int)
         if deriv >= len(self.__sample):
             raise ValueError("""
