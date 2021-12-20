@@ -58,7 +58,7 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
 OUT_DIR = "./output/"
-os.makedirs(OUT_DIR, exists_ok=True)
+os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
 # End of input parameters.

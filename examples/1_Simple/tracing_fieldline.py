@@ -36,7 +36,7 @@ degree = 2 if ci else 4
 
 # Directory for output
 OUT_DIR = "./output/"
-os.makedirs(OUT_DIR, exists_ok=True)
+os.makedirs(OUT_DIR, exist_ok=True)
 
 """
 This examples demonstrate how to use SIMSOPT to compute Poincare plots and
