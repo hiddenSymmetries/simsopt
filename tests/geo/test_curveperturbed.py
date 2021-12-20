@@ -84,8 +84,8 @@ class CurvePerturbationTesting(unittest.TestCase):
             err = err_new
 
     def test_perturbed_objective_distance(self):
-        # test the torsion objective as that covers all derivatives (up to
-        # third) of a curve
+        # test the distance objective as that covers the position and the first
+        # derivative of the curve
         sigma = 1
         length_scale = 0.2
         points = np.linspace(0, 1, 200, endpoint=False)

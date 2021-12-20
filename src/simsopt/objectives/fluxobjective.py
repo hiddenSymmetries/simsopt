@@ -62,23 +62,34 @@ class SquaredFlux(Optimizable):
 
 class CoilOptObjective(Optimizable):
     r"""
-    Objective combining a
+    Objective combining a single or a list of
     :obj:`simsopt.objectives.fluxobjective.SquaredFlux` with a list of
     curve objectives and a distance objective to form the basis of a
-    classic Stage II optimization problem. The objective functions are
+    classic Stage II optimization problem.     The objective functions are
     combined into a single scalar function using weights ``alpha`` and
     ``beta``, so the overall objective is
+
+    If a single :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
+    is given, then the objective is
 
     .. math::
         J = \mathrm{Jflux} + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
 
+    If a `n` :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
+    are given, then the objective is
+
+    .. math::
+        J = \frac1n \sum_{i=1}^n \mathrm{Jflux}_i + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
+
+    this is useful for stochastic optimization.
+
     Args:
-        Jflux: A :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
+        Jfluxs: A single :obj:`simsopt.objectives.fluxobjective.SquaredFlux` or a list of them
         Jcls: Typically a list of
           :obj:`simsopt.geo.curveobjectives.CurveLength`, though any list of objectives
           that have a ``J()`` and ``dJ()`` function is fine.
         alpha: The scalar weight in front of the objectives in ``Jcls``.
-        Jdist: Typically a 
+        Jdist: Typically a
           :obj:`simsopt.geo.curveobjectives.MinimumDistance`, though any objective
           that has a ``J()`` and ``dJ()`` function is fine.
         beta: The scalar weight in front of the objective in ``Jdist``.
