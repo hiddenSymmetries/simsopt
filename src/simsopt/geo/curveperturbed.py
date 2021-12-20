@@ -5,15 +5,34 @@ from sympy import Symbol, lambdify, exp
 
 
 class GaussianSampler():
-    """
-    Generate a periodic gaussian process on the interval [0, 1] on a given list of quadrature points.
-    The process has standard deviation ``sigma`` a correlation length scale ``length_scale``. 
-    Large values of ``length_scale`` correspond to smooth processes, small values result in highly oscillatory
-    functions.
-    Also has the ability to sample the derivatives of the function.
-    """
 
     def __init__(self, points, sigma, length_scale, n_derivs=1):
+        r"""
+        Generate a periodic gaussian process on the interval [0, 1] on a given list of quadrature points.
+        The process has standard deviation ``sigma`` a correlation length scale ``length_scale``. 
+        Large values of ``length_scale`` correspond to smooth processes, small values result in highly oscillatory
+        functions.
+        Also has the ability to sample the derivatives of the function.
+
+        We consider the kernel
+        ..math:
+            \kappa(d) = \sigma^2 \exp(-d^2/l^2)
+
+        and then consider a Gaussian process with covariance
+
+        ..math:
+            Cov(X(s), X(t)) = \sum_{i=-\infty}^\infty \sigma^2 \exp(-(s-t+i)^2/l^2)
+
+        the sum is used to make the kernel periodic and in practice the infinite sum is truncated.
+
+        Args:
+            points: the quadrature points along which the perturbation should be computed.
+            sigma: standard deviation of the underlying gaussian process
+                   (measure for the magnitude of the perturbation).
+            length_scale: length scale of the underlying gaussian process
+                          (measure for the smoothness of the perturbation).
+            n_derivs: number of derivatives of the gaussian process to sample.
+        """
         self.points = points
         xs = self.points
         n = len(xs)
@@ -39,6 +58,10 @@ class GaussianSampler():
         self.L = np.real(sqrtm(cov_mat))
 
     def draw_sample(self, randomgen=None):
+        """
+        Returns a list of `n_derivs+1` arrays of size `(len(points), 3)`, containing the
+        perturbation and the derivatives.
+        """
         n = len(self.points)
         n_derivs = self.n_derivs
         if randomgen is None:
@@ -49,6 +72,19 @@ class GaussianSampler():
 
 
 class PerturbationSample():
+    """
+    This class represents a single sample of a perturbation.  The point of
+    having a dedicated class for this is so that we can apply the same
+    perturbation to multipe curves (e.g. in the case of multifilament
+    approximations to finite build coils).
+    The main way to interact with this class is via the overloaded ``__getitem__``
+    (i.e. ``[ ]`` indexing).
+    For example
+    .. code-block::
+        sample = PerturbationSample(...)
+        g = sample[0] # get the values of the perturbation
+        gd = sample[1] # get the first derivative of the perturbation
+    """
 
     def __init__(self, sampler, randomgen=None):
         self.sampler = sampler
@@ -74,7 +110,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def __init__(self, curve, sample):
         r"""
-        Perturb a underlying :mod:`simsopt.geo.curve.Curve` object by drawing a perturbation from a 
+        Perturb a underlying :mod:`simsopt.geo.curve.Curve` object by drawing a perturbation from a
         ``GaussianSampler``.
 
         Comment:
@@ -86,15 +122,14 @@ class CurvePerturbed(sopp.Curve, Curve):
         However, then we get different results depending on the number of MPI ranks that we run on. Not ideal.
         Instead, we should pick a new seed for each :math:`1\le i\le N`. e.g.
 
-        .. code-block::
+        .. code-block:: python
+
             from randomgen import SeedSequence, PCG64
             import numpy as np
             curves = ...
-
             sigma = 0.01
             length_scale = 0.2
             sampler = GaussianSampler(curves[0].quadpoints, sigma, length_scale, n_derivs=1)
-
             globalseed = 1
             N = 10 # number of perturbed stellarators
             seeds = SeedSequence(globalseed).spawn(N)
@@ -107,7 +142,6 @@ class CurvePerturbed(sopp.Curve, Curve):
                     pert = PerturbationSample(sampler_systematic, randomgen=rg)
                     stell.append(CurvePerturbed(c, pert))
                 perturbed_curves.append(stell)
-
         """
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
