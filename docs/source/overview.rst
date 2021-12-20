@@ -35,7 +35,7 @@ Optimization stages
 -------------------
 
 Recent optimized stellarators have been designed using two stages,
-both of which can be solved using simsopt. In the first stage, the
+both of which can be performed using simsopt. In the first stage, the
 parameter space is the shape of a toroidal boundary flux
 surface. Coils are not considered explicitly in this stage.  The
 objective function involves surrogates for confinement and stability
@@ -65,7 +65,7 @@ To do optimization using simsopt, there are four basic steps:
 3. Define an objective function.
 4. Solve the optimization problem that has been defined.
 
-This pattern is evident in the examples in this documentation
+This pattern is evident in the tutorials in this documentation
 and in the ``examples`` directory of the repository.
 
 Some typical objects are a MHD equilibrium represented by the VMEC or

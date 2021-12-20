@@ -13,7 +13,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     .. code-block::
 
-        bfield = BiotSavart(coils, currents) # An instance of a MagneticField
+        bfield = BiotSavart(coils) # An instance of a MagneticField
         points = ... # points is a (n, 3) numpy array
         bfield.set_points(points)
         B = bfield.B() # returns the Magnetic field at `points`

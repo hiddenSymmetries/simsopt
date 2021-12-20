@@ -18,16 +18,16 @@ the base class :obj:`simsopt.geo.curve.Curve`.  A simsopt curve is
 modelled as a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.  Note
 that the curve parameter goes up to 1, not to :math:`2\pi`.  Curves in
 simsopt are assumed to be periodic in the parameter. A curve object
-stores a list of :math:`n_\phi` "quadrature points" :math:`\{\phi_1,
-\ldots, \phi_{n_\phi}\} \subset [0, 1]`.  A variety of class methods
+stores a list of :math:`n_\theta` "quadrature points" :math:`\{\theta_1,
+\ldots, \theta_{n_\theta}\} \subset [0, 1]`.  A variety of class methods
 return information about the curve at these quadrature points. Some of
 the available methods are the following:
 
-- ``Curve.gamma()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns a list of XYZ coordinates along the curve.
-- ``Curve.gammadash()``: returns a ``(n_phi, 3)`` array containing :math:`\Gamma'(\phi_i)` for :math:`i\in\{1, \ldots, n_\phi\}`, i.e. returns the (non-unit-length) tangent vector along the curve.
-- ``Curve.kappa()``: returns a ``(n_phi, 1)`` array containing the curvature :math:`\kappa` of the curve at the quadrature points.
-- ``Curve.torsion()``: returns a ``(n_phi, 1)`` array containing the torsion :math:`\tau` of the curve at the quadrature points.
-- ``Curve.frenet_frame()``: returns a 3-element tuple. The leading element is a ``(n_phi, 3)`` array containing the Cartesian components of the unit tangent vector at the quadrature points. Similarly, the remaining two entries of the tuple give the unit normal and binormal vectors.
+- ``Curve.gamma()``: returns a ``(n_theta, 3)`` array containing :math:`\Gamma(\theta_i)` for :math:`i\in\{1, \ldots, n_\theta\}`, i.e. returns a list of XYZ coordinates along the curve.
+- ``Curve.gammadash()``: returns a ``(n_theta, 3)`` array containing :math:`\Gamma'(\theta_i)` for :math:`i\in\{1, \ldots, n_\theta\}`, i.e. returns the (non-unit-length) tangent vector along the curve.
+- ``Curve.kappa()``: returns a ``(n_theta, 1)`` array containing the curvature :math:`\kappa` of the curve at the quadrature points.
+- ``Curve.torsion()``: returns a ``(n_theta, 1)`` array containing the torsion :math:`\tau` of the curve at the quadrature points.
+- ``Curve.frenet_frame()``: returns a 3-element tuple. The leading element is a ``(n_theta, 3)`` array containing the Cartesian components of the unit tangent vector at the quadrature points. Similarly, the remaining two entries of the tuple give the unit normal and binormal vectors.
 
 The different curve classes, such as
 :obj:`simsopt.geo.curverzfourier.CurveRZFourier` and
@@ -46,7 +46,7 @@ shape of the curve. Simsopt is able to compute derivatives of all
 relevant quantities with respect to the discretization parameters.
 For example, to compute the derivative of the coordinates of the curve
 at quadrature points, one calls ``Curve.dgamma_by_dcoeff()``.  One
-obtains a numpy array of shape ``(n_phi, 3, n_dofs)``, containing the
+obtains a numpy array of shape ``(n_theta, 3, n_dofs)``, containing the
 derivative of the position at every quadrature point with respect to
 every degree of freedom of the curve.  In the same way one can compute
 the derivative of quantities such as curvature (via

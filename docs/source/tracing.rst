@@ -1,7 +1,26 @@
 Field line and particle tracing
 ===============================
 
-Simsopt is able to follow particles in a magnetic field. The main function to use in this case is :obj:`simsopt.field.tracing.trace_particles` (click the link for more information on the input and output parameters) and it is able to use two different sets of equations depending on the input parameter ``mode``:
+The :obj:`simsopt.field.tracing` module provides tools for tracing
+field lines, and for following particle motion in magnetic fields.
+For the latter, full orbits (including gyromotion) or guiding center
+trajectories can be followed in cylindrical coordinates, or guiding
+center motion can be followed in Boozer coordinates.  Examples of
+these various tracing features can be found in
+``examples/1_Simple/tracing_fieldline.py``,
+``examples/1_Simple/tracing_particle.py``, and
+``examples/2_Intermediate/tracing_boozer.py``,
+
+
+
+Particle motion in cylindrical coordinates
+------------------------------------------
+
+The main function to use in this case is
+:obj:`simsopt.field.tracing.trace_particles` (click the link for more
+information on the input and output parameters) and it is able to use
+two different sets of equations depending on the input parameter
+``mode``:
 
 - In the case of ``mode='full'`` it solves
 
@@ -45,7 +64,9 @@ Below is an example of the vertical drift experienced by two particles in a simp
     print(z_particle_2)
 
 
-We note that SIMSOPT draws initial data for particles consisting of the guiding center position, the parallel, and the perpendicular speed.
+We note that SIMSOPT draws initial data for particles consisting of
+the guiding center position, the parallel velocity, and the
+perpendicular speed.
 
 * To compute the speed, the user specifies the total kinetic energy and an interval of pitch-angles :math:`[u_\min, u_\max]`. Given a pitch angle :math:`u` and total speed :math:`v` (computed from the kinetic energy and the particle mass), the parallel speed is given by :math:`v_{||} = u v` and, and :math:`v_\perp = \sqrt{v^2-v_{||}^2}`.
 * In the case of full orbit simulations, we need velocity initial data and hence this only defines the initial data up to the phase. To specify the phase, one can pass the ``phase_angle`` variable to the tracing functions. A value in :math:`[0, 2\pi]` is expected.
