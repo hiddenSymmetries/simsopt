@@ -72,6 +72,10 @@ MAXITER = 50 if ci else 400
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
+# Directory for output
+OUT_DIR = "./output/"
+os.makedirs(OUT_DIR, exists_ok=True)
+
 #######################################################
 # End of input parameters.
 #######################################################
@@ -94,9 +98,9 @@ bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, "/tmp/curves_init")
+curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_init", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 
 Jf = SquaredFlux(s, bs)
@@ -115,7 +119,7 @@ for i in range(N_SAMPLES):
     Jfs.append(SquaredFlux(s, bs_pert))
 
 for i in range(len(curves_pert)):
-    curves_to_vtk(curves_pert[i], f"/tmp/curves_init_{i}")
+    curves_to_vtk(curves_pert[i], OUT_DIR + f"curves_init_{i}")
 
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
@@ -166,11 +170,11 @@ print("""
 ### Evaluate the obtained coils ################################################
 ################################################################################
 """)
-curves_to_vtk(curves, "/tmp/curves_opt")
+curves_to_vtk(curves, OUT_DIR + "curves_opt")
 for i in range(len(curves_pert)):
-    curves_to_vtk(curves_pert[i], f"/tmp/curves_opt_{i}")
+    curves_to_vtk(curves_pert[i], OUT_DIR + f"curves_opt_{i}")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_opt", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 Jf.x = res.x
 print(f"Mean Flux Objective across perturbed coils: {np.mean([J.J() for J in Jfs]):.3e}")
 print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
