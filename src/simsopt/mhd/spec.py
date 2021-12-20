@@ -19,25 +19,25 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None 
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import spec.spec as spec
 except ImportError as e:
     spec = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import py_spec
 except ImportError as e:
     py_spec = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import pyoculus
 except ImportError as e:
     pyoculus = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 from .._core.graph_optimizable import Optimizable
 from .._core.util import ObjectiveFailure
