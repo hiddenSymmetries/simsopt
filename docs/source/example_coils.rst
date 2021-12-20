@@ -84,7 +84,7 @@ Here we will consider a case with four unique coil shapes, each of which is repe
 stellarator symmetry and two-field-period symmetry, giving a total of 16 coils.
 The four unique coil shapes are called the "base coils". Each copy of a coil also carries the same current,
 but we will allow the unique coil shapes to have different current from each other,
-as is allowed in W7-X. For this tutorial we will consider the coils to be infinitesmally thin filaments.
+as is allowed in W7-X. For this tutorial we will consider the coils to be infinitesimally thin filaments.
 In simsopt, such a coil is represented with the :obj:`simsopt.field.coil.Coil` class,
 which is essentially a curve paired with a current, represented using
 :obj:`simsopt.geo.curve.Curve` and :obj:`simsopt.field.coil.Current` respectively.
