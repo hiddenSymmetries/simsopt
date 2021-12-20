@@ -9,13 +9,13 @@ Requirements
 ^^^^^^^^^^^^
 
 ``simsopt`` is a python package focused on stellarator optimization and requires
-python 3.6+.  ``simsopt``
+python version 3.7 or higher.  ``simsopt``
 also requires some mandatory python packages, listed in
 ``requirements.txt``.  These packages are all installed automatically
-when you install using ``pip``, as discussed below.  If you prefer to
+when you install using ``pip`` or another python package manager such as ``conda``, as discussed below.  If you prefer to
 install via ``python setup.py install`` or ``python setup.py
 develop``, you will need to install these python packages manually
-using ``pip`` or another python package manager such as ``conda``.
+using ``pip`` or ``conda``.
 
 Mandatory Packages
 ------------------
@@ -25,7 +25,6 @@ Mandatory Packages
 - scipy
 - nptyping
 - ruamel.yaml
-- importlib_metadata if python version is less than 3.8
 
 Optional Packages
 -----------------
@@ -48,9 +47,59 @@ documentation of the module you wish to use.
 Installation
 ^^^^^^^^^^^^
 
-From PyPi
+Virtual Environment
+-------------------
+
+
+This is an optional step, but users are strongly encouraged to use a python virtual environment
+to install simsopt. There are two popular ways to create a python virtual environment using 
+either ``venv`` module supplied with python or the conda virtual environment.
+
+venv
++++++++
+
+A python virtual envionment can be created with venv using
+
+.. code-block::
+
+    python3 -m venv <path/to/new/virtual/environment>
+
+Activate the newly created virtual environmnet (for bash shell)
+
+.. code-block::
+   
+    . <path/to/new/virtual/environment>/bin/activate
+
+If you are on a different shell, use the ``activate`` file with an appropriate extension reflecting the shell type.
+For more information, please refer to `venv official documentation <https://https://docs.python.org/3/library/venv.html>`_.
+
+conda
++++++++
+Install either `miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ or `anaconda <https://www.anaconda.com/>`_.
+If you are on a HPC system, anaconda is either available by default or via a module.
+
+A conda python virtual environment can be created by running
+
+.. code-block::
+
+    conda create -n <your_virtual_env_name> python=3.8
+
+For the new virtual environment, python version 3.8 was chosen in the above command, but you are free to choose any version you want. 
+The newly created virtual environment can be activated with a simple command
+
+.. code-block::
+
+    conda activate <your_virtual_env_name>
+
+After activating the conda virtual environment, the name of the environment should appear in the shell prompt.
+
+Install
 ---------
-This is the easiest and preferred method. 
+
+From PyPi
++++++++++
+
+This works for both venv and conda virtual environments.
 
 .. code-block::
 
@@ -69,8 +118,26 @@ so the package can be installed for your user only::
 
     pip install --user simsopt
     
+From Conda
+++++++++++
+This works only with conda virtual environments.
+First we need to add conda-forge as one of the channels.
+
+.. code-block::
+
+    conda config --add channels conda-forge
+    conda config --set channel_priority strict
+
+Then install simsopt by running
+
+.. code-block::
+
+    conda install -c hiddensymmetries simsopt
+
+
 From Source
------------
++++++++++++
+This works for both venv and conda virtual environments.
 First, install ``git`` if not already installed. Then clone the repository using
 
 .. code-block::
