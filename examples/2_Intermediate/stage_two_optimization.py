@@ -7,7 +7,7 @@ just zero.
 
 The objective is given by
 
-    J = \int |Bn|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = (1/2) \int |B dot n|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
 if alpha or beta are increased, the coils are more regular and better
 separated, but the target normal field may not be achieved as well.
