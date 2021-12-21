@@ -142,7 +142,18 @@ class DerivativeTests(unittest.TestCase):
         assert np.allclose(dj1p2(opt1), 3*dj1(opt1))
         assert np.allclose(dj1p2(opt2), dj2(opt2))
 
-    def test_iadd_imul(self):
+    def test_sub_mul(self):
+        opt1 = Opt(n=3)
+        opt2 = Opt(n=2)
+
+        dj1 = opt1.dfoo_vjp(np.ones(3))
+        dj2 = opt2.dfoo_vjp(np.ones(2))
+
+        dj1m2 = dj1 - dj2 - 2*dj1
+        assert np.allclose(dj1m2(opt1), -1*dj1(opt1))
+        assert np.allclose(dj1m2(opt2), -dj2(opt2))
+
+    def test_iadd_isub_imul(self):
         opt1 = Opt(n=3)
         opt2 = Opt(n=2)
 
@@ -152,10 +163,12 @@ class DerivativeTests(unittest.TestCase):
 
         dj1 += dj2
         assert np.allclose(dj1(opt2), dj2(opt2))
-        dj1 += dj1_
+        dj1 += dj1
         assert np.allclose(dj1(opt1), 2*dj1_(opt1))
+        dj1 -= 3*dj2
+        assert np.allclose(dj1(opt2), -1*dj2(opt2))
         dj1 *= 1.5
-        assert np.allclose(dj1(opt2), 1.5*dj2(opt2))
+        assert np.allclose(dj1(opt2), -1.5*dj2(opt2))
         assert np.allclose(dj1(opt1), 3*dj1_(opt1))
 
     def test_zero_when_not_found(self):
