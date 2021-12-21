@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from simsopt._core.graph_optimizable import Optimizable
-from simsopt._core.derivative import Derivative
+from simsopt._core.derivative import Derivative, derivative_dec
 
 
 class Opt(Optimizable):
@@ -79,6 +79,7 @@ class Obj(Optimizable):
     def J(self):
         return self.inter_a.bar() * self.inter_b.bar()
 
+    @derivative_dec
     def dJ(self):
         return self.inter_a.dbar_vjp([self.inter_b.bar()]) + self.inter_b.dbar_vjp([self.inter_a.bar()])
 
@@ -103,7 +104,7 @@ class DerivativeTests(unittest.TestCase):
         h = np.random.standard_normal(size=x.shape)
         f = obj.J()
         df = obj.dJ()
-        dfh = np.sum(df(obj)*h)
+        dfh = np.sum(df * h)
         err_old = 1e9
         for i in range(5, 11):
             eps = 0.5**i
@@ -130,6 +131,91 @@ class DerivativeTests(unittest.TestCase):
             # err = np.abs(dfhest - dfh)
             # print(err_old/err)
             # err_old = err
+
+    def test_scale_add_optimizables(self):
+        """
+        Check that derivatives are accurate when Optimizable objects are
+        scaled and added together.
+        """
+        np.random.seed(1)
+
+        opt1 = Opt(n=3)
+        opt2 = Opt(n=5)
+
+        intersum = InterSum(opt1, opt2)
+        interprod = InterProd(opt1, opt2)
+        obj1 = Obj(intersum, interprod)
+        x = obj1.x + 0.05 * np.random.standard_normal(size=obj1.x.shape)
+        obj1.x = x
+
+        # Try scaling by a constant:
+        factor = 1.7
+        obj2 = factor * obj1
+        np.testing.assert_allclose(obj2.J(), factor * obj1.J())
+        np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
+
+        # Try adding two objects:
+        obj3 = obj1 + obj2
+        np.testing.assert_allclose(obj3.J(), obj1.J() + obj2.J())
+        np.testing.assert_allclose(obj3.dJ(), obj1.dJ() + obj2.dJ())
+
+        # Try combining objects with sum():
+        for n in range(1, 4):
+            obj4 = sum([obj1] * n)
+            np.testing.assert_allclose(obj4.J(), n * obj1.J())
+            np.testing.assert_allclose(obj4.dJ(), n * obj1.dJ())
+
+    def test_taylor_scaled_summed(self):
+        """
+        Perform a Taylor test for a case in which Optimizable objects are
+        scaled and added together.
+        """
+        np.random.seed(1)
+
+        opt1a = Opt(n=3)
+        opt1b = Opt(n=2)
+        intersum1 = InterSum(opt1a, opt1b)
+        interprod1 = InterProd(opt1a, opt1b)
+        obj1 = Obj(intersum1, interprod1)
+
+        opt2a = Opt(n=4)
+        opt2b = Opt(n=5)
+        intersum2 = InterSum(opt2a, opt2b)
+        interprod2 = InterProd(opt2a, opt2b)
+        obj2 = Obj(intersum2, interprod2)
+
+        # Scale and sum the objects to get the total objective:
+        factor = 1.3
+        obj = obj1 + factor * obj2
+
+        x = obj.x + 0.05 * np.random.standard_normal(size=obj.x.shape)
+        obj.x = x
+        x = obj.x
+        h = np.random.standard_normal(size=x.shape)
+        f = obj.J()
+        df = obj.dJ()
+        dfh = np.sum(df * h)
+        err_old = 1e9
+        for i in range(5, 11):
+            eps = 0.5**i
+            obj.x = x + 3 * eps * h
+            fppp = obj.J()
+            obj.x = x + 2 * eps * h
+            fpp = obj.J()
+            obj.x = x + eps * h
+            fp = obj.J()
+            obj.x = x - eps * h
+            fm = obj.J()
+            obj.x = x - 2 * eps * h
+            fmm = obj.J()
+            obj.x = x - 3 * eps * h
+            fmmm = obj.J()
+            # print(np.abs((fp-fm)/(2*eps) - dfh))
+            dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
+            err = np.abs(dfhest - dfh)
+            assert err < (0.6)**4 * err_old
+            print(err_old/err)
+            err_old = err
 
     def test_add_mul(self):
         opt1 = Opt(n=3)

@@ -313,7 +313,7 @@ class Testing(unittest.TestCase):
                     B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
                     coils.append(B)
 
-            B_field = MagneticFieldSum(coils)
+            B_field = sum(coils)
 
             ### setup target points
             N_points = 100
