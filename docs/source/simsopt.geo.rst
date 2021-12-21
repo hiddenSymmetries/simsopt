@@ -36,6 +36,14 @@ simsopt.geo.curvehelical module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curveperturbed module
+---------------------------------
+
+.. automodule:: simsopt.geo.curveperturbed
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.curveobjectives module
 ----------------------------------
 
