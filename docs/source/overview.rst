@@ -60,8 +60,8 @@ Optimization
 
 To do optimization using simsopt, there are four basic steps:
 
-1. Create some objects that will participate in the optimization.
-2. Define the independent variables for the optimization, by choosing which degrees of freedom of the objects are free vs fixed.
+1. Define the physical entities in the optimization problem (coils, MHD equilibria, etc.) by creating instances of the relevant simsopt classes.
+2. Define the independent variables for the optimization, by choosing which degrees of freedom of these objects are free vs fixed.
 3. Define an objective function.
 4. Solve the optimization problem that has been defined.
 

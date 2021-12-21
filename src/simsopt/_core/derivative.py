@@ -118,11 +118,27 @@ class Derivative():
 
         return Derivative(z)
 
+    def __sub__(self, other):
+        x = self.data
+        y = other.data
+        z = copy_numpy_dict(x)
+        for k in y:
+            z[k] -= y[k]
+
+        return Derivative(z)
+
     def __iadd__(self, other):
         x = self.data
         y = other.data
         for k in y:
             x[k] += y[k]
+        return self
+
+    def __isub__(self, other):
+        x = self.data
+        y = other.data
+        for k in y:
+            x[k] -= y[k]
         return self
 
     def __mul__(self, other):

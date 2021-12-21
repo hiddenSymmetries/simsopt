@@ -21,6 +21,7 @@ print("=============================================")
 
 mpi = MpiPartition(25)
 
+# For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
 vmec = Vmec(filename, mpi=mpi)
 

@@ -82,7 +82,7 @@ void init_magneticfields(py::module_ &m){
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
 
     py::class_<ScaledCurrent<PyArray>, shared_ptr<ScaledCurrent<PyArray>>, CurrentBase<PyArray>>(m, "ScaledCurrent", "Multiply a current object with a scalar (e.g. to flip its sign).")
-        .def(py::init<shared_ptr<Current<PyArray>>, double>())
+        .def(py::init<shared_ptr<CurrentBase<PyArray>>, double>())
         .def("get_value", &ScaledCurrent<PyArray>::get_value, "Get the current.")
         .def_readonly("scale", &ScaledCurrent<PyArray>::scale, "Get the scaling factor.");
         
