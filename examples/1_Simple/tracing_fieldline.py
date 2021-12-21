@@ -34,6 +34,9 @@ nfieldlines = 3 if ci else 30
 tmax_fl = 10000 if ci else 40000
 degree = 2 if ci else 4
 
+# Directory for output
+OUT_DIR = "./output/"
+os.makedirs(OUT_DIR, exist_ok=True)
 
 """
 This examples demonstrate how to use SIMSOPT to compute Poincare plots and
@@ -47,7 +50,7 @@ curves = [c.curve for c in coils]
 bs = BiotSavart(coils)
 print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
-curves_to_vtk(curves + [ma], '/tmp/coils')
+curves_to_vtk(curves + [ma], OUT_DIR + 'coils')
 
 mpol = 5
 ntor = 5
@@ -59,9 +62,9 @@ s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
 s.fit_to_curve(ma, 0.70, flip_theta=False)
 
-s.to_vtk('/tmp/surface')
+s.to_vtk(OUT_DIR + 'surface')
 sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
-sc_fieldline.to_vtk('/tmp/levelset', h=0.02)
+sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 
 def trace_fieldlines(bfield, label):
@@ -75,8 +78,8 @@ def trace_fieldlines(bfield, label):
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     if comm is None or comm.rank == 0:
-        particles_to_vtk(fieldlines_tys, f'/tmp/fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, f'/tmp/poincare_fieldline_{label}.png', dpi=150)
+        particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=150)
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)
