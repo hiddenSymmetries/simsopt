@@ -14,7 +14,7 @@ The objective function we will minimize is
 
 .. math::
 
-   J = \int |\vec{B}\cdot\vec{n}|^2 ds + \alpha \sum_j L_j  + \beta J_{dist}
+   J = \frac{1}{2} \int |\vec{B}\cdot\vec{n}|^2 ds + \alpha \sum_j L_j  + \beta J_{dist}
 
 The first right-hand-side term is the "quadratic flux", the area
 integral over the target plasma surface of the square of the magnetic
