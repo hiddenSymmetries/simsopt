@@ -1,18 +1,4 @@
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, Coil, coils_via_symmetries
-from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
-from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
-import numpy as np
-from pathlib import Path
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
-
-import os
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-
+#!/usr/bin/env python
 
 r"""
 In this example we solve a stochastic version of the FOCUS like Stage II coil
@@ -22,7 +8,7 @@ field, so the target is just zero.
 
 The objective is given by
 
-    J = Mean(\int |Bn|^2 ds) + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = (1/2) Mean(\int |B dot n|^2 ds) + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
 where the Mean is approximated by a sample average over perturbed coils.
 
@@ -33,48 +19,88 @@ The coil perturbations for each coil are the sum of a 'systematic error' and a
 the latter is independent for each coil.
 """
 
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import Current, Coil, coils_via_symmetries
+from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
+from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
+import numpy as np
+import os
+from pathlib import Path
 
-MAXITER = 10 if ci else 400
-
-nfp = 3
-nphi = 32
-ntheta = 32
-phis = np.linspace(0, 1./(2*nfp), nphi, endpoint=False)
-thetas = np.linspace(0, 1., ntheta, endpoint=False)
-s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=phis, quadpoints_theta=thetas)
-
+# Number of unique coil shapes, i.e. the number of coils per half field period:
+# (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
 ncoils = 4
-R0 = 1.5
-R1 = 0.8
-order = 6
-PPP = 15
+
+# Major radius for the initial circular coils:
+R0 = 1.0
+
+# Minor radius for the initial circular coils:
+R1 = 0.5
+
+# Number of Fourier modes describing each Cartesian component of each coil:
+order = 5
+
+# Weight on the curve lengths in the objective function:
 ALPHA = 1e-6
-MIN_DIST = 0.2
+
+# Threshhold for the coil-to-coil distance penalty in the objective function:
+MIN_DIST = 0.1
+
+# Weight on the coil-to-coil distance penalty term in the objective function:
 BETA = 10
-SIGMA = 0.005
+
+# Standard deviation for the coil errors
+SIGMA = 1e-3
+
+# Length scale for the coil errors
 L = 0.5
-N_SAMPLES = 32 # how many samples to use to approximate the mean of the objective
-N_OOS = 256 # how many samples to use for the post-optimization out-of-sample evaluation
 
-base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=PPP*order)
-base_currents = []
-for i in range(ncoils):
-    curr = Current(1e5)
-    # since the target field is zero, one possible solution is just to set all
-    # currents to 0. to avoid the minimizer finding that solution, we fix one
-    # of the currents
-    if i == 0:
-        curr.fix_all()
-    base_currents.append(curr)
+# Number of samples to approximate the mean
+N_SAMPLES = 16
 
-coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+# Number of samples for out-of-sample evaluation
+N_OOS = 256
+
+# Number of iterations to perform:
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+MAXITER = 50 if ci else 400
+
+# File for the desired boundary magnetic surface:
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+
+# Directory for output
+OUT_DIR = "./output/"
+os.makedirs(OUT_DIR, exist_ok=True)
+
+#######################################################
+# End of input parameters.
+#######################################################
+
+# Initialize the boundary magnetic surface; errors break symmetries, so consider the full torus
+nphi = 64
+ntheta = 16
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+
+# Create the initial coils:
+base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+base_currents = [Current(1e5) for i in range(ncoils)]
+# Since the target field is zero, one possible solution is just to set all
+# currents to 0. To avoid the minimizer finding that solution, we fix one
+# of the currents:
+base_currents[0].fix_all()
+
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, "/tmp/curves_init")
+curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_init", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 
 Jf = SquaredFlux(s, bs)
@@ -85,7 +111,7 @@ curves_pert = []
 for i in range(N_SAMPLES):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
     base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
-    coils = coils_via_symmetries(base_curves_perturbed, base_currents, nfp, True)
+    coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
     # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
     coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
@@ -93,7 +119,7 @@ for i in range(N_SAMPLES):
     Jfs.append(SquaredFlux(s, bs_pert))
 
 for i in range(len(curves_pert)):
-    curves_to_vtk(curves_pert[i], f"/tmp/curves_init_{i}")
+    curves_to_vtk(curves_pert[i], OUT_DIR + f"curves_init_{i}")
 
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
@@ -144,11 +170,11 @@ print("""
 ### Evaluate the obtained coils ################################################
 ################################################################################
 """)
-curves_to_vtk(curves, "/tmp/curves_opt")
+curves_to_vtk(curves, OUT_DIR + "curves_opt")
 for i in range(len(curves_pert)):
-    curves_to_vtk(curves_pert[i], f"/tmp/curves_opt_{i}")
+    curves_to_vtk(curves_pert[i], OUT_DIR + f"curves_opt_{i}")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_opt", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 Jf.x = res.x
 print(f"Mean Flux Objective across perturbed coils: {np.mean([J.J() for J in Jfs]):.3e}")
 print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
@@ -158,12 +184,12 @@ val = 0
 for i in range(N_OOS):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
     base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
-    coils = coils_via_symmetries(base_curves_perturbed, base_currents, nfp, True)
+    coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
     # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
     coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
     val += SquaredFlux(s, bs_pert).J()
 
-val *= 1./256
+val *= 1./N_OOS
 print(f"Out-of-sample flux value                  : {val:.3e}")

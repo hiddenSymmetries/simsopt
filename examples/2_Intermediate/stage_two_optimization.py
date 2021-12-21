@@ -7,7 +7,7 @@ just zero.
 
 The objective is given by
 
-    J = \int |Bn|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = (1/2) \int |B dot n|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
 if alpha or beta are increased, the coils are more regular and better
 separated, but the target normal field may not be achieved as well.
@@ -21,7 +21,7 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
@@ -56,6 +56,10 @@ MAXITER = 50 if ci else 400
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
+# Directory for output
+OUT_DIR = "./output/"
+os.makedirs(OUT_DIR, exist_ok=True)
+
 #######################################################
 # End of input parameters.
 #######################################################
@@ -78,9 +82,9 @@ bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, "/tmp/curves_init")
+curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_init", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the objective function:
 Jf = SquaredFlux(s, bs)
@@ -126,6 +130,6 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
-curves_to_vtk(curves, "/tmp/curves_opt")
+curves_to_vtk(curves, OUT_DIR + "curves_opt")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk("/tmp/surf_opt", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)

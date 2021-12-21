@@ -309,13 +309,11 @@ class MPIFiniteDifference:
         logger.debug('mpi workers task')
 
         # x is a buffer for receiving the state vector:
-        print(f"worker loop  dofsize is {self.opt.dof_size}")
         x = np.empty(self.opt.dof_size, dtype='d')
         # If we make it here, we must be doing a fd_jac_par
         # calculation, so receive the state vector: mpi4py has
         # separate bcast and Bcast functions!!  comm.Bcast(x, root=0)
         x = self.mpi.comm_groups.bcast(x, root=0)
-        print(f"worker loop x is {x}")
         logger.debug(f'worker loop worker x={x}')
         self.opt.x = x
 
