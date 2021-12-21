@@ -15,12 +15,15 @@ class GaussianSampler():
         Also has the ability to sample the derivatives of the function.
 
         We consider the kernel
-        ..math:
+
+        .. math::
+
             \kappa(d) = \sigma^2 \exp(-d^2/l^2)
 
         and then consider a Gaussian process with covariance
 
-        ..math:
+        .. math::
+
             Cov(X(s), X(t)) = \sum_{i=-\infty}^\infty \sigma^2 \exp(-(s-t+i)^2/l^2)
 
         the sum is used to make the kernel periodic and in practice the infinite sum is truncated.
@@ -59,7 +62,7 @@ class GaussianSampler():
 
     def draw_sample(self, randomgen=None):
         """
-        Returns a list of `n_derivs+1` arrays of size `(len(points), 3)`, containing the
+        Returns a list of ``n_derivs+1`` arrays of size ``(len(points), 3)``, containing the
         perturbation and the derivatives.
         """
         n = len(self.points)
@@ -79,8 +82,8 @@ class PerturbationSample():
     approximations to finite build coils).
     The main way to interact with this class is via the overloaded ``__getitem__``
     (i.e. ``[ ]`` indexing).
-    For example
-    .. code-block::
+    For example::
+
         sample = PerturbationSample(...)
         g = sample[0] # get the values of the perturbation
         gd = sample[1] # get the first derivative of the perturbation
@@ -96,7 +99,7 @@ class PerturbationSample():
 
     def __getitem__(self, deriv):
         """
-        Get the perturbation (if `deriv=0`) or its `deriv`-th derivative.
+        Get the perturbation (if ``deriv=0``) or its ``deriv``-th derivative.
         """
         assert isinstance(deriv, int)
         if deriv >= len(self.__sample):
@@ -114,12 +117,12 @@ class CurvePerturbed(sopp.Curve, Curve):
     def __init__(self, curve, sample):
         r"""
         Perturb a underlying :mod:`simsopt.geo.curve.Curve` object by drawing a perturbation from a
-        ``GaussianSampler``.
+        :obj:`GaussianSampler`.
 
         Comment:
         Doing anything involving randomness in a reproducible way requires care.
         Even more so, when doing things in parallel.
-        Let's say we have a list of :mod:`simsopt.field.curve.Curve`s ``curves`` that represent a stellarator,
+        Let's say we have a list of :mod:`simsopt.geo.curve.Curve` objects ``curves`` that represent a stellarator,
         and now we want to consider ``N`` perturbed stellarators. Let's also say we have multiple MPI ranks.
         To avoid the same thing happening on the different MPI ranks, we could pick a different seed on each rank.
         However, then we get different results depending on the number of MPI ranks that we run on. Not ideal.

@@ -8,7 +8,7 @@ field, so the target is just zero.
 
 The objective is given by
 
-    J = Mean(\int |Bn|^2 ds) + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = (1/2) Mean(\int |B dot n|^2 ds) + alpha * (sum CurveLength) + beta * MininumDistancePenalty
 
 where the Mean is approximated by a sample average over perturbed coils.
 

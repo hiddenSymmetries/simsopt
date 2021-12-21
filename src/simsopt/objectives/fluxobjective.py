@@ -67,21 +67,21 @@ class CoilOptObjective(Optimizable):
     curve objectives and a distance objective to form the basis of a
     classic Stage II optimization problem.     The objective functions are
     combined into a single scalar function using weights ``alpha`` and
-    ``beta``, so the overall objective is
+    ``beta``.
 
     If a single :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
     is given, then the objective is
 
     .. math::
-        J = \mathrm{Jflux} + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
+        J = \mathrm{Jflux} + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}.
 
-    If a `n` :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
+    If a list of `n` :obj:`simsopt.objectives.fluxobjective.SquaredFlux` objects
     are given, then the objective is
 
     .. math::
-        J = \frac1n \sum_{i=1}^n \mathrm{Jflux}_i + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
+        J = \frac1n \sum_{i=1}^n \mathrm{Jflux}_i + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}.
 
-    this is useful for stochastic optimization.
+    This latter case is useful for stochastic optimization.
 
     Args:
         Jfluxs: A single :obj:`simsopt.objectives.fluxobjective.SquaredFlux` or a list of them
