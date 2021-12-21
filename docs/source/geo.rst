@@ -121,14 +121,17 @@ setting the ``range`` keyword argument of the surface subclasses to
 Equivalently, you can set ``range`` to the constants
 ``S.RANGE_FULL_TORUS``, ``S.RANGE_FIELD_PERIOD``, or
 ``S.RANGE_HALF_PERIOD``, where ``S`` can be
-:obj:`simsopt.geo.surface.Surface` or any of its subclasses.  For all
-of these cases, the ``nphi`` keyword argument can be set to the
-desired number of :math:`\phi` grid points. Alternatively, you can
-pass a list or array to the ``quadpoints_phi`` keyword argument of the
-constructor for any Surface subclass to specify the :math:`\phi_j`
-points directly.  An exception will be raised if both ``nphi`` and
-``quadpoints_phi`` are specified.  For more information about these
-arguments, see the
+:obj:`simsopt.geo.surface.Surface` or any of its subclasses.  Note
+that the :math:`\phi` grid points begin at 0 for ``"full torus"`` and
+``"field period"``, whereas for ``"half period"`` the :math:`\phi`
+grid is shifted by half of the grid spacing to preserve spectral
+accuracy of integration.  For all three cases, the ``nphi`` keyword
+argument can be set to the desired number of :math:`\phi` grid
+points. Alternatively, you can pass a list or array to the
+``quadpoints_phi`` keyword argument of the constructor for any Surface
+subclass to specify the :math:`\phi_j` points directly.  An exception
+will be raised if both ``nphi`` and ``quadpoints_phi`` are specified.
+For more information about these arguments, see the
 :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` API
 documentation.
 
