@@ -205,6 +205,15 @@ class Surface(Optimizable):
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, extra_data=None):
+        """
+        Export the surface to a VTK format file, which can be read with
+        Paraview. This function requires the ``pyevtk`` python
+        package, which can be installed using ``pip install pyevtk``.
+
+        Args:
+            filename: Name of the file to write
+            extra_data: An optional data field on the surface, which can be associated with a colormap in Paraview.
+        """
         g = self.gamma()
         ntor = g.shape[0]
         npol = g.shape[1]

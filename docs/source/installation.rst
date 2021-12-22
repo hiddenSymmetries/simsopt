@@ -1,5 +1,5 @@
-Getting started
-===============
+Installation
+============
 
 This page provides general information on installation.  Detailed
 installation instructions for some specific systems can also be found
@@ -44,11 +44,8 @@ For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
 
 
-Installation
-^^^^^^^^^^^^
-
-Virtual Environment
--------------------
+Virtual Environments
+^^^^^^^^^^^^^^^^^^^^
 
 
 This is an optional step, but users are strongly encouraged to use a python virtual environment
@@ -56,7 +53,7 @@ to install simsopt. There are two popular ways to create a python virtual enviro
 either ``venv`` module supplied with python or the conda virtual environment.
 
 venv
-+++++++
+----
 
 A python virtual envionment can be created with venv using
 
@@ -74,7 +71,7 @@ If you are on a different shell, use the ``activate`` file with an appropriate e
 For more information, please refer to `venv official documentation <https://https://docs.python.org/3/library/venv.html>`_.
 
 conda
-+++++++
+-----
 Install either `miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ or `anaconda <https://www.anaconda.com/>`_.
 If you are on a HPC system, anaconda is either available by default or via a module.
 
@@ -93,11 +90,11 @@ The newly created virtual environment can be activated with a simple command
 
 After activating the conda virtual environment, the name of the environment should appear in the shell prompt.
 
-Install
----------
+Installation methods
+^^^^^^^^^^^^^^^^^^^^
 
-From PyPi
-+++++++++
+PyPi
+----
 
 This works for both venv and conda virtual environments.
 
@@ -118,9 +115,11 @@ so the package can be installed for your user only::
 
     pip install --user simsopt
     
-From Conda
-++++++++++
-This works only with conda virtual environments.
+conda
+-----
+
+A pre-compiled conda package for simsopt is available. This
+installation approach works only with conda virtual environments.
 First we need to add conda-forge as one of the channels.
 
 .. code-block::
@@ -135,9 +134,10 @@ Then install simsopt by running
     conda install -c hiddensymmetries simsopt
 
 
-From Source
-+++++++++++
-This works for both venv and conda virtual environments.
+From source
+-----------
+
+This approach works for both venv and conda virtual environments.
 First, install ``git`` if not already installed. Then clone the repository using
 
 .. code-block::
@@ -181,8 +181,8 @@ you'll need to run instead
     pip install --user -e ".[MPI,SPEC]"
 
 
-From docker container
----------------------
+Docker container
+----------------
 
 A docker image with simsopt along with its dependencies, VMEC, SPEC,
 and BOOZ_XFORM pre-installed is available from docker hub. This
@@ -201,7 +201,7 @@ downloaded automatically, so be patient. More information about using
 simsopt with Docker can be found :doc:`here <docker>`.
 
 Post-Installation
------------------
+^^^^^^^^^^^^^^^^^
 
 If the installation is successful, ``simsopt`` will be added to your
 python environment. You should now be able to import the module from
