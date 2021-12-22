@@ -82,7 +82,7 @@ reset_jacdt_flag = 32
 # Temporarily commenting out the decorator till __instancecheck__ method is made working
 #@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
-    """
+    r"""
     This class represents the VMEC equilibrium code.
 
     The input parameters to VMEC are all accessible as attributes of
@@ -99,7 +99,7 @@ class Vmec(Optimizable):
     (:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
     each run of VMEC. You can replace ``boundary`` with a new surface
     object, of any type that implements the conversion function
-    ``to_RZFourier()`.
+    ``to_RZFourier()``.
 
     VMEC is run either when the :meth:`run()` function is called, or when
     any of the output functions like :meth:`aspect()` or :meth:`iota_axis()`
