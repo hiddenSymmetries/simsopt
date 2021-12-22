@@ -946,7 +946,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     def get(self, key: Key) -> Real:
         """
-        Get the value of specified DOF
+        Get the value of specified DOF.
         Even fixed dofs can be obtained individually.
 
         Args:
@@ -1186,9 +1186,12 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             dof_indicators. Another important thing to consider is dofs related
             to optimizable objects supplied as arguments should not be given.
         kwargs: Keyword arguments to pass to "func".
-    Returns: Optimizable object to be used in the graph based optimization.
-             if `obj` is the returned object, pass obj.J to the
-             LeastSquaresProblem
+    Returns:
+        Optimizable object to be used in the graph based optimization.
+        This object has a bound function ``J()`` that calls the originally
+        supplied ``func()``.
+        If ``obj`` is the returned object, pass ``obj.J`` to the
+        ``LeastSquaresProblem``
     """
     class TempOptimizable(Optimizable):
         """

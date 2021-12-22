@@ -125,7 +125,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         stz_inits: A ``(nparticles, 3)`` array with the initial positions of
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
-                         direction of the B field for each particle.
+            direction of the B field for each particle.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -133,18 +133,18 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that zeta should be computed
+            corresponding to that zeta should be computed
         stopping_criteria: list of stopping criteria, mostly used in
-                           combination with the ``LevelsetStoppingCriterion``
-                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        mode: how to trace the particles. options are
-            `gc`: general guiding center equations,
+            combination with the ``LevelsetStoppingCriterion``
+            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. Options are
+            `gc`: general guiding center equations.
             `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
-                           :math:`I = 0`, and :math:`K = 0`.
+            :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
-                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
-                           interest or one wants to reduce memory usage.
+            particle for the ``res_tys``. To be used when only res_zeta_hits is of
+            interest or one wants to reduce memory usage.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -665,7 +665,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         field: the magnetic field :math:`B`
         R0: list of radial components of initial points
         Z0: list of vertical components of initial points
-        tmax: for how long to trace. will do roughly |B|*tmax/(2*pi*r0) revolutions of the device
+        tmax: for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
         tol: tolerance for the adaptive ode solver
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed
