@@ -198,6 +198,8 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
+        self.wout = Struct()
+
         if self.runnable:
             if MPI is None:
                 raise RuntimeError("mpi4py needs to be installed for running VMEC")
@@ -215,9 +217,6 @@ class Vmec(Optimizable):
             comm = self.mpi.comm_groups
             self.fcomm = comm.py2f()
 
-        self.wout = Struct()
-
-        if self.runnable:
             self.ictrl = np.zeros(5, dtype=np.int32)
             self.iter = -1
             self.keep_all_files = keep_all_files
@@ -287,7 +286,6 @@ class Vmec(Optimizable):
             self.output_file = filename
             self.load_wout()
 
-        if not self.runnable:
             # This next line must come after Optimizable.__init__
             # since that calls recompute_bell()
             self.need_to_run_code = False
