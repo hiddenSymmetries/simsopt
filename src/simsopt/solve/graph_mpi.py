@@ -84,18 +84,18 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
     Args:
         prob: Optimizable object defining the objective function(s) and
-              parameter space.
+             parameter space.
         mpi: A MpiPartition object, storing the information about how
              the pool of MPI processes is divided into worker groups.
         grad: Whether to use a gradient-based optimization algorithm, as
-              opposed to a gradient-free algorithm. If unspecified, a
-              a gradient-free algorithm
-              will be used by default. If you set ``grad=True``
-              finite-difference gradients will be used.
+             opposed to a gradient-free algorithm. If unspecified, a
+             a gradient-free algorithm
+             will be used by default. If you set ``grad=True``
+             finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
         diff_method: Differentiation strategy. Options are "centered", and
-            "forward". If ``centered``, centered finite differences will
+             "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
         kwargs: Any arguments to pass to

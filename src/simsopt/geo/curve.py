@@ -807,10 +807,21 @@ class RotatedCurve(sopp.Curve, Curve):
 
 
 def curves_to_vtk(curves, filename, close=False):
+    """
+    Export a list of Curve objects in VTK format, so they can be
+    viewed using Paraview. This function requires the python package ``pyevtk``,
+    which can be installed using ``pip install pyevtk``.
+
+    Args:
+        curves: A python list of Curve objects.
+        filename: Name of the file to write.
+        close: Whether to draw the segment from the last quadrature point back to the first.
+    """
     from pyevtk.hl import polyLinesToVTK
 
     def wrap(data):
         return np.concatenate([data, [data[0]]])
+
     if close:
         x = np.concatenate([wrap(c.gamma()[:, 0]) for c in curves])
         y = np.concatenate([wrap(c.gamma()[:, 1]) for c in curves])
