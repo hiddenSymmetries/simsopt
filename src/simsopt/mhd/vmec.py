@@ -180,13 +180,6 @@ class Vmec(Optimizable):
                  keep_all_files: bool = False,
                  ntheta=50,
                  nphi=50):
-        if MPI is None:
-            raise RuntimeError("mpi4py needs to be installed for running VMEC")
-        if vmec is None:
-            raise RuntimeError(
-                "Running VMEC from simsopt requires VMEC python extension. "
-                "Install the VMEC python extension from "
-                "https://https://github.com/hiddenSymmetries/VMEC2000")
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -205,23 +198,34 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
-        # Get MPI communicator:
-        if mpi is None:
-            self.mpi = MpiPartition(ngroups=1)
-        else:
-            self.mpi = mpi
-        comm = self.mpi.comm_groups
-        self.fcomm = comm.py2f()
+        if self.runnable:
+            if MPI is None:
+                raise RuntimeError("mpi4py needs to be installed for running VMEC")
+            if vmec is None:
+                raise RuntimeError(
+                    "Running VMEC from simsopt requires VMEC python extension. "
+                    "Install the VMEC python extension from "
+                    "https://https://github.com/hiddenSymmetries/VMEC2000")
 
-        self.ictrl = np.zeros(5, dtype=np.int32)
-        self.iter = -1
-        self.keep_all_files = keep_all_files
-        self.files_to_delete = []
+            # Get MPI communicator:
+            if mpi is None:
+                self.mpi = MpiPartition(ngroups=1)
+            else:
+                self.mpi = mpi
+            comm = self.mpi.comm_groups
+            self.fcomm = comm.py2f()
+
         self.wout = Struct()
-        self.indata = vmec.vmec_input  # Shorthand
-        vi = vmec.vmec_input  # Shorthand
 
         if self.runnable:
+            self.ictrl = np.zeros(5, dtype=np.int32)
+            self.iter = -1
+            self.keep_all_files = keep_all_files
+            self.files_to_delete = []
+
+            self.indata = vmec.vmec_input  # Shorthand
+            vi = vmec.vmec_input  # Shorthand
+
             self.ictrl[0] = restart_flag + readin_flag
             self.ictrl[1] = 0  # ierr
             self.ictrl[2] = 0  # numsteps
@@ -270,18 +274,18 @@ class Vmec(Optimizable):
             # Handle a few variables that are not Parameters:
             self.need_to_run_code = True
 
+            x0 = self.get_dofs()
+            fixed = np.full(len(x0), True)
+            names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+            super().__init__(x0=x0, fixed=fixed, names=names,
+                             depends_on=[self._boundary],
+                             external_dof_setter=Vmec.set_dofs)
+
         else:
             # Initialized from a wout file, so not runnable.
             self._boundary = SurfaceRZFourier.from_wout(filename)
             self.output_file = filename
             self.load_wout()
-
-        x0 = self.get_dofs()
-        fixed = np.full(len(x0), True)
-        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
-        super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=[self._boundary],
-                         external_dof_setter=Vmec.set_dofs)
 
         if not self.runnable:
             # This next line must come after Optimizable.__init__
@@ -302,11 +306,17 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
 
     def get_dofs(self):
+        if not self.runnable:
+            raise RuntimeError('Cannot get_dofs for a Vmec object that was initialized from a wout file.')
+
         return np.array([self.indata.delt, self.indata.tcon0,
                          self.indata.phiedge, self.indata.curtor,
                          self.indata.gamma])
 
     def set_dofs(self, x):
+        if not self.runnable:
+            raise RuntimeError('Cannot set_dofs for a Vmec object that was initialized from a wout file.')
+
         self.need_to_run_code = True
         self.indata.delt = x[0]
         self.indata.tcon0 = x[1]
