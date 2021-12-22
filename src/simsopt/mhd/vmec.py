@@ -82,7 +82,7 @@ reset_jacdt_flag = 32
 # Temporarily commenting out the decorator till __instancecheck__ method is made working
 #@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
-    """
+    r"""
     This class represents the VMEC equilibrium code.
 
     You can initialize this class either from a VMEC
