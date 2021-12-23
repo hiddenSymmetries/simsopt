@@ -303,7 +303,7 @@ def B_cartesian(vmec):
     ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
-    if vmec.runnable():
+    if vmec.runnable:
         vmec.run()
     bsupumnc = 1.5 * vmec.wout.bsupumnc[:, -1] - 0.5 * vmec.wout.bsupumnc[:, -2]
     bsupvmnc = 1.5 * vmec.wout.bsupvmnc[:, -1] - 0.5 * vmec.wout.bsupvmnc[:, -2]
@@ -353,7 +353,7 @@ class IotaTargetMetric(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        if self.vmec.runnable():
+        if self.vmec.runnable:
             self.vmec.need_to_run_code = True
             self.vmec.run()
         return 0.5 * np.sum((self.vmec.wout.iotas[1::]
