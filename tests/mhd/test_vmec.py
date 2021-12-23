@@ -17,12 +17,22 @@ except ImportError:
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
-if (MPI is not None) and vmec_found:
-    from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
+
+
+@unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
+class VmecTestsWithoutMPIorvmec(unittest.TestCase):
+    def test_runnable_raises(self):
+        """
+        Test that RuntimeError is raised if Vmec initialized from
+        input file without vmec or MPI
+        """
+        with self.assertRaises(RuntimeError):
+            v = Vmec()
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
