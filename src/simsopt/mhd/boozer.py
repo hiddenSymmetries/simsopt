@@ -127,7 +127,8 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
-            self.equil.run()
+            if self.equil.runnable:
+                self.equil.run()
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
