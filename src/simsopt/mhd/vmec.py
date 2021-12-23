@@ -281,10 +281,6 @@ class Vmec(Optimizable):
             self.output_file = filename
             self.load_wout()
 
-            # This next line must come after Optimizable.__init__
-            # since that calls recompute_bell()
-            self.need_to_run_code = False
-
         # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
@@ -292,6 +288,11 @@ class Vmec(Optimizable):
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
+
+        if not self.runnable:
+            # This next line must come after Optimizable.__init__
+            # since that calls recompute_bell()
+            self.need_to_run_code = False
 
     @property
     def boundary(self):
@@ -491,32 +492,28 @@ class Vmec(Optimizable):
         """
         Return the plasma aspect ratio.
         """
-        if self.runnable:
-            self.run()
+        self.run()
         return self.wout.aspect
 
     def volume(self):
         """
         Return the volume inside the VMEC last closed flux surface.
         """
-        if self.runnable:
-            self.run()
+        self.run()
         return self.wout.volume
 
     def iota_axis(self):
         """
         Return the rotational transform on axis
         """
-        if self.runnable:
-            self.run()
+        self.run()
         return self.wout.iotaf[0]
 
     def iota_edge(self):
         """
         Return the rotational transform at the boundary
         """
-        if self.runnable:
-            self.run()
+        self.run()
         return self.wout.iotaf[-1]
 
     def mean_iota(self):
@@ -524,8 +521,7 @@ class Vmec(Optimizable):
         Return the mean rotational transform. The average is taken over
         the normalized toroidal flux s.
         """
-        if self.runnable:
-            self.run()
+        self.run()
         return np.mean(self.wout.iotas[1:])
 
     def mean_shear(self):
@@ -535,8 +531,7 @@ class Vmec(Optimizable):
         rotational transform to a linear (plus constant) function in
         s. The slope of this fit function is returned.
         """
-        if self.runnable:
-            self.run()
+        self.run()
 
         # Fit a linear polynomial:
         poly = np.polynomial.Polynomial.fit(self.s_half_grid,
@@ -604,8 +599,7 @@ class Vmec(Optimizable):
         half mesh, we extrapolate by half of a radial grid point to s
         = 0 and 1.
         """
-        if self.runnable:
-            self.run()
+        self.run()
 
         # gmnc is on the half mesh, so drop the 0th radial entry:
         dVds = 4 * np.pi * np.pi * np.abs(self.wout.gmnc[0, 1:])
