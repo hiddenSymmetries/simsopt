@@ -491,7 +491,7 @@ class Vmec(Optimizable):
         """
         Return the plasma aspect ratio.
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
         return self.wout.aspect
 
@@ -499,7 +499,7 @@ class Vmec(Optimizable):
         """
         Return the volume inside the VMEC last closed flux surface.
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
         return self.wout.volume
 
@@ -507,7 +507,7 @@ class Vmec(Optimizable):
         """
         Return the rotational transform on axis
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
         return self.wout.iotaf[0]
 
@@ -515,7 +515,7 @@ class Vmec(Optimizable):
         """
         Return the rotational transform at the boundary
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
         return self.wout.iotaf[-1]
 
@@ -524,7 +524,7 @@ class Vmec(Optimizable):
         Return the mean rotational transform. The average is taken over
         the normalized toroidal flux s.
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
         return np.mean(self.wout.iotas[1:])
 
@@ -535,7 +535,7 @@ class Vmec(Optimizable):
         rotational transform to a linear (plus constant) function in
         s. The slope of this fit function is returned.
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
 
         # Fit a linear polynomial:
@@ -604,7 +604,7 @@ class Vmec(Optimizable):
         half mesh, we extrapolate by half of a radial grid point to s
         = 0 and 1.
         """
-        if self.runnable():
+        if self.runnable:
             self.run()
 
         # gmnc is on the half mesh, so drop the 0th radial entry:
