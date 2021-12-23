@@ -316,7 +316,7 @@ class Vmec(Optimizable):
                              self.indata.gamma])
 
     def set_dofs(self, x):
-        if self.runnable:    
+        if self.runnable:
             self.need_to_run_code = True
             self.indata.delt = x[0]
             self.indata.tcon0 = x[1]
@@ -491,28 +491,32 @@ class Vmec(Optimizable):
         """
         Return the plasma aspect ratio.
         """
-        self.run()
+        if self.runnable():
+            self.run()
         return self.wout.aspect
 
     def volume(self):
         """
         Return the volume inside the VMEC last closed flux surface.
         """
-        self.run()
+        if self.runnable():
+            self.run()
         return self.wout.volume
 
     def iota_axis(self):
         """
         Return the rotational transform on axis
         """
-        self.run()
+        if self.runnable():
+            self.run()
         return self.wout.iotaf[0]
 
     def iota_edge(self):
         """
         Return the rotational transform at the boundary
         """
-        self.run()
+        if self.runnable():
+            self.run()
         return self.wout.iotaf[-1]
 
     def mean_iota(self):
@@ -520,7 +524,8 @@ class Vmec(Optimizable):
         Return the mean rotational transform. The average is taken over
         the normalized toroidal flux s.
         """
-        self.run()
+        if self.runnable():
+            self.run()
         return np.mean(self.wout.iotas[1:])
 
     def mean_shear(self):
@@ -530,7 +535,8 @@ class Vmec(Optimizable):
         rotational transform to a linear (plus constant) function in
         s. The slope of this fit function is returned.
         """
-        self.run()
+        if self.runnable():
+            self.run()
 
         # Fit a linear polynomial:
         poly = np.polynomial.Polynomial.fit(self.s_half_grid,
@@ -598,8 +604,8 @@ class Vmec(Optimizable):
         half mesh, we extrapolate by half of a radial grid point to s
         = 0 and 1.
         """
-
-        self.run()
+        if self.runnable():
+            self.run()
 
         # gmnc is on the half mesh, so drop the 0th radial entry:
         dVds = 4 * np.pi * np.pi * np.abs(self.wout.gmnc[0, 1:])
