@@ -21,7 +21,6 @@ from functools import lru_cache
 import logging
 
 import numpy as np
-from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
