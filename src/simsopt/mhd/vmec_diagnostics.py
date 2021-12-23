@@ -145,7 +145,8 @@ class QuasisymmetryRatioResidual(Optimizable):
         used. However, this function can be useful if users wish to
         inspect the quantities going into the calculation.
         """
-        self.vmec.run()
+        if (self.vmec.runnable):
+            self.vmec.run()
         if self.vmec.wout.lasym:
             raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
@@ -302,7 +303,8 @@ def B_cartesian(vmec):
     ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
-    vmec.run()
+    if vmec.runnable():
+        vmec.run()
     bsupumnc = 1.5 * vmec.wout.bsupumnc[:, -1] - 0.5 * vmec.wout.bsupumnc[:, -2]
     bsupvmnc = 1.5 * vmec.wout.bsupvmnc[:, -1] - 0.5 * vmec.wout.bsupvmnc[:, -2]
     angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
@@ -351,8 +353,9 @@ class IotaTargetMetric(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.need_to_run_code = True
-        self.vmec.run()
+        if self.vmec.runnable():
+            self.vmec.need_to_run_code = True
+            self.vmec.run()
         return 0.5 * np.sum((self.vmec.wout.iotas[1::]
                              - self.iota_target(self.vmec.s_half_grid))**2) * self.vmec.ds
 
@@ -461,8 +464,9 @@ class IotaWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.need_to_run_code = True
-        self.vmec.run()
+        if (self.vmec.runnable):
+            self.vmec.need_to_run_code = True
+            self.vmec.run()
         return np.sum(self.weight_function(self.vmec.s_half_grid) * self.vmec.wout.iotas[1:]) \
             / np.sum(self.weight_function(self.vmec.s_half_grid))
 
@@ -580,9 +584,9 @@ class WellWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-
-        self.vmec.need_to_run_code = True
-        self.vmec.run()
+        if self.vmec.runnable:
+            self.vmec.need_to_run_code = True
+            self.vmec.run()
         return np.sum((self.weight_function1(self.vmec.s_half_grid)-self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:]) \
             / np.sum((self.weight_function1(self.vmec.s_half_grid)+self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:])
 
