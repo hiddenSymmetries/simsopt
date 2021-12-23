@@ -145,8 +145,7 @@ class QuasisymmetryRatioResidual(Optimizable):
         used. However, this function can be useful if users wish to
         inspect the quantities going into the calculation.
         """
-        if (self.vmec.runnable):
-            self.vmec.run()
+        self.vmec.run()
         if self.vmec.wout.lasym:
             raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
@@ -303,8 +302,7 @@ def B_cartesian(vmec):
     ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
-    if vmec.runnable:
-        vmec.run()
+    vmec.run()
     bsupumnc = 1.5 * vmec.wout.bsupumnc[:, -1] - 0.5 * vmec.wout.bsupumnc[:, -2]
     bsupvmnc = 1.5 * vmec.wout.bsupvmnc[:, -1] - 0.5 * vmec.wout.bsupvmnc[:, -2]
     angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
