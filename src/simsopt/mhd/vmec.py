@@ -200,6 +200,15 @@ class Vmec(Optimizable):
 
         self.wout = Struct()
 
+        # Get MPI communicator:
+        if (mpi is None):
+            if (MPI is not None):
+                self.mpi = MpiPartition(ngroups=1)
+            else:
+                self.mpi = None
+        else:
+            self.mpi = mpi
+
         if self.runnable:
             if MPI is None:
                 raise RuntimeError("mpi4py needs to be installed for running VMEC")
@@ -209,11 +218,6 @@ class Vmec(Optimizable):
                     "Install the VMEC python extension from "
                     "https://https://github.com/hiddenSymmetries/VMEC2000")
 
-            # Get MPI communicator:
-            if mpi is None:
-                self.mpi = MpiPartition(ngroups=1)
-            else:
-                self.mpi = mpi
             comm = self.mpi.comm_groups
             self.fcomm = comm.py2f()
 
@@ -270,16 +274,7 @@ class Vmec(Optimizable):
                         self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
             self._boundary.local_full_x = self._boundary.get_dofs()
 
-            # Handle a few variables that are not Parameters:
             self.need_to_run_code = True
-
-            x0 = self.get_dofs()
-            fixed = np.full(len(x0), True)
-            names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
-            super().__init__(x0=x0, fixed=fixed, names=names,
-                             depends_on=[self._boundary],
-                             external_dof_setter=Vmec.set_dofs)
-
         else:
             # Initialized from a wout file, so not runnable.
             self._boundary = SurfaceRZFourier.from_wout(filename)
@@ -289,6 +284,14 @@ class Vmec(Optimizable):
             # This next line must come after Optimizable.__init__
             # since that calls recompute_bell()
             self.need_to_run_code = False
+
+        # Handle a few variables that are not Parameters:
+        x0 = self.get_dofs()
+        fixed = np.full(len(x0), True)
+        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        super().__init__(x0=x0, fixed=fixed, names=names,
+                         depends_on=[self._boundary],
+                         external_dof_setter=Vmec.set_dofs)
 
     @property
     def boundary(self):
@@ -305,22 +308,21 @@ class Vmec(Optimizable):
 
     def get_dofs(self):
         if not self.runnable:
-            raise RuntimeError('Cannot get_dofs for a Vmec object that was initialized from a wout file.')
-
-        return np.array([self.indata.delt, self.indata.tcon0,
-                         self.indata.phiedge, self.indata.curtor,
-                         self.indata.gamma])
+            # Use default values from vmec_input
+            return np.array([1, 1, 1, 0, 0])
+        else:
+            return np.array([self.indata.delt, self.indata.tcon0,
+                             self.indata.phiedge, self.indata.curtor,
+                             self.indata.gamma])
 
     def set_dofs(self, x):
-        if not self.runnable:
-            raise RuntimeError('Cannot set_dofs for a Vmec object that was initialized from a wout file.')
-
-        self.need_to_run_code = True
-        self.indata.delt = x[0]
-        self.indata.tcon0 = x[1]
-        self.indata.phiedge = x[2]
-        self.indata.curtor = x[3]
-        self.indata.gamma = x[4]
+        if self.runnable:    
+            self.need_to_run_code = True
+            self.indata.delt = x[0]
+            self.indata.tcon0 = x[1]
+            self.indata.phiedge = x[2]
+            self.indata.curtor = x[3]
+            self.indata.gamma = x[4]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
