@@ -12,6 +12,7 @@ from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize
 from scipy.integrate import quad
 from .._core.util import Struct
+from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
 
 logger = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
         jdotB:
         details: An object with intermediate quantities as attributes
     """
-    if Zeff == None:
+    if Zeff is None:
         Zeff = ProfilePolynomial(1.0)
     if not isinstance(Zeff, Profile):
         # Zeff is presumably a number. Convert it to a constant profile.
@@ -179,7 +180,7 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
 
     # Redl eq (11):
     X31 = f_t / (1 + (0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e)) / (0.56 + 0.44 * Zeff_s) \
-                 + (0.52 * 0.086 * np.sqrt(nu_e)) * (1 + 0.87 * f_t) * nu_e / (1 + 1.13 * np.sqrt(Zeff_s - 1)))
+                 + (0.52 + 0.086 * np.sqrt(nu_e)) * (1 + 0.87 * f_t) * nu_e / (1 + 1.13 * np.sqrt(Zeff_s - 1)))
 
     # Redl eq (10):
     Zfac = Zeff_s ** 1.2 - 0.71
@@ -223,13 +224,19 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
              - 0.002 * nu_i * nu_i * (f_t ** 6)) \
         / (1 + 0.004 * nu_i * nu_i * (f_t ** 6))
 
-    dnds_term = -G * (ne_s * Te_s + ni_s + Ti_s) * L31 * (d_ne_d_s / ne_s) / (psi_edge * (iota - helicity_N))
-    dTeds_term = -G * pe_s * (L31 + L32) * (d_Te_d_s / Te_s) / (psi_edge * (iota - helicity_N))
-    dTids_term = -G * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s / Ti_s) / (psi_edge * (iota - helicity_N))
+    # Factor of ELEMENTARY_CHARGE is included below to convert temperatures from eV to J
+    dnds_term = -G * ELEMENTARY_CHARGE * (ne_s * Te_s + ni_s * Ti_s) * L31 * (d_ne_d_s / ne_s) / (psi_edge * (iota - helicity_N))
+    dTeds_term = -G * ELEMENTARY_CHARGE * pe_s * (L31 + L32) * (d_Te_d_s / Te_s) / (psi_edge * (iota - helicity_N))
+    dTids_term = -G * ELEMENTARY_CHARGE * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s / Ti_s) / (psi_edge * (iota - helicity_N))
     jdotB = dnds_term + dTeds_term + dTids_term
 
     details = Struct()
-    variables = ['ln_Lambda_e', 'ln_Lambda_ii', 'nu_e', 'nu_i',
+    nu_e_star = nu_e
+    nu_i_star = nu_i
+    variables = ['ne_s', 'ni_s', 'Zeff_s', 'Te_s', 'Ti_s',
+                 'd_ne_d_s', 'd_Te_d_s', 'd_Ti_d_s',
+                 'ln_Lambda_e', 'ln_Lambda_ii', 'nu_e_star', 'nu_i_star',
+                 'X31', 'X32e', 'X32ei', 'F32ee', 'F32ei',
                  'L31', 'L32', 'L34', 'alpha0', 'alpha',
                  'dnds_term', 'dTeds_term', 'dTids_term']
     for v in variables:
@@ -238,9 +245,12 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
     return jdotB, details
 
 
-def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, nphi=65):
+def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, nphi=65, plot=False):
     """
     Evaluate the Redl bootstrap current formula for a vmec configuration.
+
+    Args:
+        plot: Make a plot of many of the quantities computed.
     """
     vmec.run()
 
@@ -283,4 +293,32 @@ def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, n
 
     Bmin, Bmax, epsilon, fsa_B2, f_t = compute_trapped_fraction(modB, sqrtg)
 
-    return j_dot_B_Redl(surfaces, ne, Te, Ti, Zeff, vmec.wout.Rmajor_p, iota, G, epsilon, f_t, psi_edge, helicity_N)
+    jdotB, details = j_dot_B_Redl(surfaces, ne, Te, Ti, Zeff, vmec.wout.Rmajor_p, iota, G, epsilon, f_t, psi_edge, helicity_N)
+
+    # Add extra info to the return structure
+    variables = ['Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'f_t',
+                 'modB', 'sqrtg', 'G', 'iota', 'surfaces', 'psi_edge', 'theta1d', 'phi1d']
+    for v in variables:
+        details.__setattr__(v, eval(v))
+
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(14, 7))
+        plt.rcParams.update({'font.size': 8})
+        nrows = 4
+        ncols = 6
+        variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'f_t', 'iota', 'G',
+                     'details.ne_s', 'details.ni_s', 'details.Zeff_s', 'details.Te_s', 'details.Ti_s',
+                     'details.ln_Lambda_e', 'details.ln_Lambda_ii',
+                     'details.nu_e_star', 'details.nu_i_star',
+                     'details.dnds_term', 'details.dTeds_term', 'details.dTids_term',
+                     'details.L31', 'details.L32', 'details.alpha', 'jdotB']
+        for j, variable in enumerate(variables):
+            plt.subplot(nrows, ncols, j + 1)
+            plt.plot(surfaces, eval(variable))
+            plt.title(variable)
+            plt.xlabel('s')
+        plt.tight_layout()
+        plt.show()
+
+    return jdotB, details
