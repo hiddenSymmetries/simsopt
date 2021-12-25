@@ -1,5 +1,5 @@
 # Test ideas:
-# * Reproduce figs 4, 5, 6 from Redl paper
+# * Reproduce fig 6 from Redl paper
 # * Evaluate Redl's <j dot B> for Wistell-A and LDRD QA configs for which I already have self-consistent SFINCS calculations
 
 import unittest
@@ -321,6 +321,152 @@ class BootstrapTests(unittest.TestCase):
                 assert np.min(details.L32) < -0.13
                 assert details.alpha[0] < -0.9
             assert details.alpha[-1] > -0.1 
+
+    def test_Redl_figures_4_5(self):
+        """
+        Make sure the implementation here can roughly recover the plots
+        from figures 4 and 5 in the Redl paper.
+        """
+        for Zeff in [1, 1.8]:
+            n_nu_star = 30
+            n_f_t = 3
+            target_nu_stars = 10.0 ** np.linspace(-4, 4, n_nu_star)
+            f_ts = np.array([0.24, 0.45, 0.63])
+            L31s = np.zeros((n_nu_star, n_f_t))
+            L32s = np.zeros((n_nu_star, n_f_t))
+            alphas = np.zeros((n_nu_star, n_f_t))
+            nu_e_stars = np.zeros((n_nu_star, n_f_t))
+            nu_i_stars = np.zeros((n_nu_star, n_f_t))
+            for j_nu_star, target_nu_star in enumerate(target_nu_stars):
+                target_nu_e_star = target_nu_star
+                target_nu_i_star = target_nu_star
+                # Make up some profiles
+                ne = ProfilePolynomial([1.0e17])
+                Te = ProfilePolynomial([1.0e5])
+                Ti_over_Te = np.sqrt(4.9 * Zeff * Zeff * target_nu_e_star / (6.921 * target_nu_i_star))
+                Ti = ProfilePolynomial([1.0e5 * Ti_over_Te])
+                s = np.ones(n_f_t)
+                G = 32.0 - s
+                epsilon = s  # Doesn't matter
+                f_t = f_ts
+                R = 6.0 + 0.3 * s
+                psi_edge = 68 / (2 * np.pi)
+                # Redl uses fixed values of nu_e*. To match this, I'll use
+                # a contrived iota profile that is chosen just to give the
+                # desired nu_*.
+
+                ne_s = ne(s)
+                Te_s = Te(s)
+                Zeff_s = Zeff
+
+                # Sauter eq (18d):
+                ln_Lambda_e = 31.3 - np.log(np.sqrt(ne_s) / Te_s)
+
+                # Sauter eq (18b), but without the q = 1/iota factor:
+                nu_e_without_iota = (6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
+                    / (1 * (Te_s ** 2) * (epsilon ** 1.5))
+
+                iota = nu_e_without_iota / target_nu_e_star
+                # End of determining the iota profile that gives the desired nu*.
+
+                jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G,
+                                              epsilon, f_t, psi_edge, helicity_N=0)
+
+                L31s[j_nu_star, :] = details.L31
+                L32s[j_nu_star, :] = details.L32
+                alphas[j_nu_star, :] = details.alpha
+                nu_e_stars[j_nu_star, :] = details.nu_e_star
+                nu_i_stars[j_nu_star, :] = details.nu_i_star
+                #np.testing.assert_allclose(details.nu_e_star, target_nu_e_star)
+                #np.testing.assert_allclose(details.nu_i_star, target_nu_i_star)
+
+            if False:
+                # Make a plot, matching the axis ranges of Redl's
+                # figures 4 and 5 as best as possible.
+                import matplotlib.pyplot as plt
+                plt.figure(figsize=(6.5, 5.5))
+                nrows = 2
+                ncols = 2
+                xlim = [3.0e-5, 1.5e4]
+
+                plt.subplot(nrows, ncols, 2)
+                for j in range(n_f_t):
+                    plt.semilogx(nu_e_stars[:, j], L31s[:, j], label=f'f_t={f_ts[j]}')
+                plt.legend(loc=0, fontsize=8)
+                plt.title(f'L31, Zeff={Zeff}')
+                plt.xlabel('nu_{*e}')
+                plt.xlim(xlim)
+                if Zeff == 1:
+                    plt.ylim(-0.05, 0.85)
+                else:
+                    plt.ylim(-0.05, 0.75)
+
+                plt.subplot(nrows, ncols, 3)
+                for j in range(n_f_t):
+                    plt.semilogx(nu_e_stars[:, j], L32s[:, j], label=f'f_t={f_ts[j]}')
+                plt.legend(loc=0, fontsize=8)
+                plt.title(f'L32, Zeff={Zeff}')
+                plt.xlabel('nu_{*e}')
+                plt.xlim(xlim)
+                if Zeff == 1:
+                    plt.ylim(-0.26, 0.21)
+                else:
+                    plt.ylim(-0.18, 0.2)
+
+                plt.subplot(nrows, ncols, 4)
+                for j in range(n_f_t):
+                    plt.semilogx(nu_i_stars[:, j], alphas[:, j], label=f'f_t={f_ts[j]}')
+                plt.legend(loc=0, fontsize=8)
+                plt.title(f'alpha, Zeff={Zeff}')
+                plt.xlabel('nu_{*i}')
+                plt.xlim(xlim)
+                if Zeff == 1:
+                    plt.ylim(-1.1, 2.2)
+                else:
+                    plt.ylim(-1.1, 2.35)
+
+                plt.tight_layout()
+                plt.show()
+
+            # Make sure L31, L32, and alpha are within the right range:
+            if Zeff == 1:
+                np.testing.assert_array_less(L31s, 0.71)
+                np.testing.assert_array_less(0, L31s)
+                np.testing.assert_array_less(L31s[-1, :], 1.0e-5)
+                np.testing.assert_array_less(L32s, 0.2)
+                np.testing.assert_array_less(-0.23, L32s)
+                np.testing.assert_array_less(L32s[-1, :], 3.0e-5)
+                np.testing.assert_array_less(-3.0e-5, L32s[-1, :])
+                np.testing.assert_array_less(L32s[0, :], -0.17)
+                np.testing.assert_array_less(alphas, 1.2)
+                np.testing.assert_array_less(alphas[0, :], -0.58)
+                np.testing.assert_array_less(-1.05, alphas)
+                np.testing.assert_array_less(0.8, np.max(alphas, axis=0))
+                np.testing.assert_array_less(L31s[:, 0], 0.33)
+                assert L31s[0, 0] > 0.3
+                np.testing.assert_array_less(L31s[0, 1], 0.55)
+                assert L31s[0, 1] > 0.51
+                np.testing.assert_array_less(L31s[0, 2], 0.7)
+                assert L31s[0, 2] > 0.68
+            else:
+                np.testing.assert_array_less(L31s, 0.66)
+                np.testing.assert_array_less(0, L31s)
+                np.testing.assert_array_less(L31s[-1, :], 1.5e-5)
+                np.testing.assert_array_less(L32s, 0.19)
+                np.testing.assert_array_less(-0.15, L32s)
+                np.testing.assert_array_less(L32s[-1, :], 5.0e-5)
+                np.testing.assert_array_less(0, L32s[-1, :])
+                np.testing.assert_array_less(L32s[0, :], -0.11)
+                np.testing.assert_array_less(alphas, 2.3)
+                np.testing.assert_array_less(alphas[0, :], -0.4)
+                np.testing.assert_array_less(-0.9, alphas)
+                np.testing.assert_array_less(1.8, np.max(alphas, axis=0))
+                np.testing.assert_array_less(L31s[:, 0], 0.27)
+                assert L31s[0, 0] > 0.24
+                np.testing.assert_array_less(L31s[0, 1], 0.49)
+                assert L31s[0, 1] > 0.45
+                np.testing.assert_array_less(L31s[0, 2], 0.66)
+                assert L31s[0, 2] > 0.63
 
     def test_vmec_j_dot_B_Redl(self):
         ne = ProfilePolynomial(1.0e20 * np.array([1, 0, -0.8]))
