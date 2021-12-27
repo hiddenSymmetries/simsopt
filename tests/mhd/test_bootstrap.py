@@ -134,10 +134,10 @@ class BootstrapTests(unittest.TestCase):
         ln_Lambda_ii = 30.0 - np.log((Zeff_s ** 3) * np.sqrt(ni_s) / (Ti_s ** 1.5))
 
         # Sauter eq (18b)-(18c):
-        nu_e = (6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
-            / (iota * (Te_s ** 2) * (epsilon ** 1.5))
-        nu_i = (4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
-            / (iota * (Ti_s ** 2) * (epsilon ** 1.5))
+        nu_e = abs((6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
+                   / ((iota - helicity_N) * (Te_s ** 2) * (epsilon ** 1.5)))
+        nu_i = abs((4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
+                   / ((iota - helicity_N) * (Ti_s ** 2) * (epsilon ** 1.5)))
 
         # Redl eq (11):
         X31 = f_t / (1 + 0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e) / (0.56 + 0.44 * Zeff_s) \
@@ -468,16 +468,61 @@ class BootstrapTests(unittest.TestCase):
                 np.testing.assert_array_less(L31s[0, 2], 0.66)
                 assert L31s[0, 2] > 0.63
 
-    def test_vmec_j_dot_B_Redl(self):
-        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, -0.8]))
-        Te = ProfilePolynomial(25e3 * np.array([1, -0.9]))
+    def test_Redl_sfincs_benchmark(self):
+        """
+        Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
+
+        The SFINCS calculation is on Matt Landreman's laptop in
+        /Users/mattland/Box Sync/work21/20211225-01-sfincs_tokamak_bootstrap_for_Redl_benchmark
+        """
+        ne = ProfilePolynomial(5.0e20 * np.array([1, 0, 0, 0, -1]))
+        Te = ProfilePolynomial(8e3 * np.array([1, -1]))
         Ti = Te
         Zeff = 1
-        surfaces = np.linspace(0, 1, 20)
+        surfaces = np.linspace(0.01, 0.99, 99)
         helicity_N = 0
         filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
         vmec = Vmec(filename)
         jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
+
+        jdotB_sfincs = np.array([-577720.30718026, -737097.14851563, -841877.1731213, -924690.37927967,
+                                 -996421.14965534, -1060853.54247997, -1120000.15051496, -1175469.30096585,
+                                 -1228274.42232883, -1279134.94084881, -1328502.74017954, -1376746.08281939,
+                                 -1424225.7135264, -1471245.54499716, -1518022.59582135, -1564716.93168823,
+                                 -1611473.13548435, -1658436.14166984, -1705743.3966606, -1753516.75354018,
+                                 -1801854.51072685, -1850839.64964612, -1900546.86009713, -1951047.40424607,
+                                 -2002407.94774638, -2054678.30773555, -2107880.19135161, -2162057.48184046,
+                                 -2217275.94462326, -2273566.0131982, -2330938.65226651, -2389399.44803491,
+                                 -2448949.45267694, -2509583.82212581, -2571290.69542303, -2634050.8642164,
+                                 -2697839.22372799, -2762799.43321187, -2828566.29269343, -2895246.32116721,
+                                 -2962784.4499046, -3031117.70888815, -3100173.19345621, -3169866.34773162,
+                                 -3240095.93569359, -3310761.89170199, -3381738.85511963, -3452893.53199984,
+                                 -3524079.68661978, -3595137.36934266, -3665892.0942594, -3736154.01439094,
+                                 -3805717.10211429, -3874383.57672975, -3941857.83476556, -4007909.78112076,
+                                 -4072258.58610167, -4134609.67635966, -4194641.53357309, -4252031.55214378,
+                                 -4306378.23970987, -4357339.70206557, -4404503.4788238, -4447364.62100875,
+                                 -4485559.83633318, -4518524.39965094, -4545649.39588513, -4566517.96382113,
+                                 -4580487.82371991, -4586917.13595789, -4585334.66419017, -4574935.10788554,
+                                 -4555027.85929442, -4524904.81212564, -4483819.87563906, -4429820.99499252,
+                                 -4364460.04545626, -4285813.80804979, -4193096.44129549, -4085521.92933703,
+                                 -3962389.92116629, -3822979.23919869, -3666751.38186485, -3493212.37971975,
+                                 -3302099.71461769, -3093392.43317121, -2867475.54470152, -2625108.03673121,
+                                 -2367586.06128219, -2096921.32817857, -1815701.10075496, -1527523.11762782,
+                                 -1237077.39816553, -950609.3080458, -677002.74349353, -429060.85924996,
+                                 -224317.60933134, -82733.32462396, -22233.12804732])
+
+        # The relative error is a bit larger at s \approx 1, where the
+        # absolute magnitude is quite small, so drop those points.
+        np.testing.assert_allclose(jdotB[:-5], jdotB_sfincs[:-5], rtol=0.1)
+
+        if False:
+            import matplotlib.pyplot as plt
+            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
+            plt.xlabel('s')
+            plt.title('J dot B')
+            plt.legend(loc=0)
+            plt.show()
 
         if False:
             import matplotlib.pyplot as plt
@@ -491,4 +536,119 @@ class BootstrapTests(unittest.TestCase):
                 plt.title(f'modB, s={surfaces[j]}')
                 plt.colorbar()
             plt.tight_layout()
+            plt.show()
+
+    @unittest.skip("")
+    def test_Redl_sfincs_WistellA(self):
+        """
+        Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
+
+        The SFINCS calculation is on Matt Landreman's laptop in
+        /Users/mattland/Box Sync/work21/20211225-01-sfincs_tokamak_bootstrap_for_Redl_benchmark
+        """
+        ne = ProfilePolynomial(0.9e20 * np.array([1, 0, 0, 0, 0, -1]))
+        #Te = ProfilePolynomial(1.3e3 * np.array([1, -1]))
+        #Te = ProfilePolynomial(2.5e3 * np.array([1, -1]))
+        Te = ProfilePolynomial(3.5e3 * np.array([1, -1]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = 4
+        #filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
+        #filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_0.71.00000.nc'
+        #filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_1.39.00000.nc'
+        filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_1.97.00000.nc'
+        vmec = Vmec(filename)
+        surfaces = vmec.s_full_grid[1:-1]  # Drop points on the axis and edge to avoid divide-by-0
+        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
+
+        # The current profile in this vmec file was computed using SFINCS:
+        jdotB_sfincs = vmec.wout.jdotb[1:-1]
+
+        # The relative error is a bit larger at s \approx 1, where the
+        # absolute magnitude is quite small, so drop those points.
+        #np.testing.assert_allclose(jdotB[:-5], jdotB_sfincs[:-5], rtol=0.1)
+
+        if True:
+            import matplotlib.pyplot as plt
+            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
+            plt.legend(loc=0)
+            plt.xlabel('s')
+            plt.title('J dot B')
+            plt.show()
+
+    @unittest.skip("")
+    def test_Redl_sfincs_precise_QA(self):
+        """
+        Compare the Redl <j dot B> to a SFINCS calculation for the precise QA.
+
+        The SFINCS calculation is on cobra in
+        /ptmp/mlan/20211226-01-sfincs_for_precise_QS_for_Redl_benchmark/20211226-01-012_QA_Ntheta25_Nzeta39_Nxi60_Nx7_manySurfaces
+        """
+        ne = ProfilePolynomial(4.13e20 * np.array([1, 0, 0, 0, 0, -1]))
+        Te = ProfilePolynomial(12.0e3 * np.array([1, -1]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = 0
+        filename = os.path.join(TEST_DIR, 'wout_new_QA_aScaling.nc')
+        vmec = Vmec(filename)
+        surfaces = np.linspace(0.025, 0.975, 39)
+        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
+
+        jdotB_sfincs = np.array([-2164875.78234086, -3010997.004258, -3586912.40439179, -4025873.78974165,
+                                 -4384855.40656673, -4692191.91608418, -4964099.33007648, -5210508.61474677,
+                                 -5442946.68999908, -5657799.82786579, -5856450.57370037, -6055808.19817868,
+                                 -6247562.80014873, -6431841.43078959, -6615361.81912527, -6793994.01503932,
+                                 -6964965.34953497, -7127267.47873969, -7276777.92844458, -7409074.62499181,
+                                 -7518722.07866914, -7599581.37772525, -7644509.67670812, -7645760.36382036,
+                                 -7594037.38147436, -7481588.70786642, -7299166.08742784, -7038404.20002745,
+                                 -6691596.45173419, -6253955.52847633, -5722419.58059673, -5098474.47777983,
+                                 -4390147.20699043, -3612989.71633149, -2793173.34162084, -1967138.17518374,
+                                 -1192903.42248978, -539990.088677, -115053.37380415])
+
+        if True:
+            import matplotlib.pyplot as plt
+            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
+            plt.legend(loc=0)
+            plt.xlabel('s')
+            plt.title('J dot B')
+            plt.show()
+
+    @unittest.skip("")
+    def test_Redl_sfincs_precise_QH(self):
+        """
+        Compare the Redl <j dot B> to a SFINCS calculation for the precise QH.
+
+        The SFINCS calculation is on cobra in
+        /ptmp/mlan/20211226-01-sfincs_for_precise_QS_for_Redl_benchmark/20211226-01-019_QH_Ntheta25_Nzeta39_Nxi60_Nx7_manySurfaces
+        """
+        ne = ProfilePolynomial(4.13e20 * np.array([1, 0, 0, 0, 0, -1]))
+        Te = ProfilePolynomial(12.0e3 * np.array([1, -1]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = -4
+        filename = os.path.join(TEST_DIR, 'wout_new_QH_aScaling.nc')
+        vmec = Vmec(filename)
+        surfaces = np.linspace(0.025, 0.975, 39)
+        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
+
+        jdotB_sfincs = np.array([-1086092.9561775, -1327299.73501589, -1490400.04894085, -1626634.32037339,
+                                 -1736643.64671843, -1836285.33939607, -1935027.3099312, -2024949.13178129,
+                                 -2112581.50178861, -2200196.92359437, -2289400.72956248, -2381072.32897262,
+                                 -2476829.87345286, -2575019.97938908, -2677288.45525839, -2783750.09013764,
+                                 -2894174.68898196, -3007944.74771214, -3123697.37793226, -3240571.57445779,
+                                 -3356384.98579004, -3468756.64908024, -3574785.02500657, -3671007.37469685,
+                                 -3753155.07811322, -3816354.48636373, -3856198.2242986, -3866041.76391937,
+                                 -3839795.40512069, -3770065.26594065, -3649660.76253605, -3471383.501417,
+                                 -3228174.23182819, -2914278.54799143, -2525391.54652021, -2058913.26485519,
+                                 -1516843.60879267, -912123.395174, -315980.89711036])
+
+        if True:
+            import matplotlib.pyplot as plt
+            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
+            plt.legend(loc=0)
+            plt.xlabel('s')
+            plt.title('J dot B')
             plt.show()
