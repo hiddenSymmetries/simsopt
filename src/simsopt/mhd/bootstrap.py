@@ -173,10 +173,10 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
     logging.debug(f'ln Lambda_ii: {ln_Lambda_ii}')
 
     # Eq (18b)-(18c) in Sauter:
-    nu_e = (6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
-        / (iota * Te_s * Te_s * (epsilon ** 1.5))
-    nu_i = (4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
-        / (iota * Ti_s * Ti_s * (epsilon ** 1.5))
+    nu_e = np.abs((6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
+                  / ((iota - helicity_N) * Te_s * Te_s * (epsilon ** 1.5)))
+    nu_i = np.abs((4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
+                  / ((iota - helicity_N) * Ti_s * Ti_s * (epsilon ** 1.5)))
 
     # Redl eq (11):
     X31 = f_t / (1 + (0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e)) / (0.56 + 0.44 * Zeff_s) \
