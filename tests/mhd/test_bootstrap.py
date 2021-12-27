@@ -36,9 +36,10 @@ class BootstrapTests(unittest.TestCase):
         modB[:, :, 0] = 13.0 + 2.6 * np.cos(theta)
         modB[:, :, 1] = 9.0 + 3.7 * np.sin(theta - nfp * phi)
 
-        Bmin, Bmax, epsilon, fsa_b2, f_t = compute_trapped_fraction(modB, sqrtg)
+        Bmin, Bmax, epsilon, fsa_b2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
         # The average of (b0 + b1 cos(theta))^2 is b0^2 + (1/2) * b1^2
         np.testing.assert_allclose(fsa_b2, [13.0 ** 2 + 0.5 * 2.6 ** 2, 9.0 ** 2 + 0.5 * 3.7 ** 2])
+        np.testing.assert_allclose(fsa_1overB, [1 / np.sqrt(13.0 ** 2 - 2.6 ** 2), 1 / np.sqrt(9.0 ** 2 - 3.7 ** 2)])
         np.testing.assert_allclose(Bmin, [13.0 - 2.6, 9.0 - 3.7], rtol=1e-4)
         np.testing.assert_allclose(Bmax, [13.0 + 2.6, 9.0 + 3.7], rtol=1e-4)
         np.testing.assert_allclose(epsilon, [2.6 / 13.0, 3.7 / 9.0], rtol=1e-3)
@@ -66,7 +67,7 @@ class BootstrapTests(unittest.TestCase):
             # For Jacobian, use eq (A7) for the theta dependence,
             # times an arbitrary overall scale factor
             sqrtg[:, :, js] = 6.7 * (1 + epsilon_in[js] * np.cos(theta))
-        Bmin, Bmax, epsilon_out, fsa_B2, f_t = compute_trapped_fraction(modB, sqrtg)
+        Bmin, Bmax, epsilon_out, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 
         f_t_Kim = 1.46 * np.sqrt(epsilon_in) - 0.46 * epsilon_in  # Eq (C18) in Kim et al
 
@@ -76,6 +77,7 @@ class BootstrapTests(unittest.TestCase):
         # Eq (A8):
         np.testing.assert_allclose(fsa_B2, B0 * B0 / np.sqrt(1 - epsilon_in ** 2), rtol=1e-6)
         np.testing.assert_allclose(f_t, f_t_Kim, rtol=0.1, atol=0.07)  # We do not expect precise agreement. 
+        np.testing.assert_allclose(fsa_1overB, (2 + epsilon_in ** 2) / (2 * B0))
 
         if False:
             import matplotlib.pyplot as plt
@@ -113,11 +115,11 @@ class BootstrapTests(unittest.TestCase):
         s = s[1:]  # Avoid divide-by-0 on axis
         helicity_N = 4
         G = 32.0 - s
+        iota = 0.95 - 0.7 * s
+        R = 6.0 - 0.1 * s
         epsilon = 0.3 * np.sqrt(s)
         f_t = 1.46 * np.sqrt(epsilon)
-        R = 6.0 + 0.3 * s
         psi_edge = 68 / (2 * np.pi)
-        iota = 0.95 - 0.7 * s
 
         # Evaluate profiles on the s grid:
         ne_s = ne(s)
@@ -134,9 +136,9 @@ class BootstrapTests(unittest.TestCase):
         ln_Lambda_ii = 30.0 - np.log((Zeff_s ** 3) * np.sqrt(ni_s) / (Ti_s ** 1.5))
 
         # Sauter eq (18b)-(18c):
-        nu_e = abs((6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
+        nu_e = abs(R * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
                    / ((iota - helicity_N) * (Te_s ** 2) * (epsilon ** 1.5)))
-        nu_i = abs((4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
+        nu_i = abs(R * (4.90e-18) * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
                    / ((iota - helicity_N) * (Ti_s ** 2) * (epsilon ** 1.5)))
 
         # Redl eq (11):
@@ -199,7 +201,7 @@ class BootstrapTests(unittest.TestCase):
         dTids_term = factors * (L31 * p / pe * (ni_s * d_Ti_d_s_J) / p + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J))
         jdotB_pass2 = -G * pe * (L31 * p / pe * (d_p_d_s / p) + L32 * (d_Te_d_s_J / Te_J) + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J)) / (psi_edge * (iota - helicity_N))
 
-        jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helicity_N)
+        jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
 
         atol = 1e-13
         rtol = 1e-13
@@ -233,11 +235,12 @@ class BootstrapTests(unittest.TestCase):
             Ti = ProfilePolynomial([1.0e5 * Ti_over_Te])
             s = np.linspace(0, 1, 100) ** 4
             s = s[1:]  # Avoid divide-by-0 on axis
-            G = 32.0 - s
+            helicity_N = 0
             epsilon = np.sqrt(s)
             f_t = 1.46 * np.sqrt(epsilon) - 0.46 * epsilon
-            R = 6.0 + 0.3 * s
             psi_edge = 68 / (2 * np.pi)
+            G = 32.0 - s  # Doesn't matter
+            R = 5.0 + 0.1 * s  # Doesn't matter
             # Redl uses fixed values of nu_e*. To match this, I'll use
             # a contrived iota profile that is chosen just to give the
             # desired nu_*.
@@ -249,15 +252,15 @@ class BootstrapTests(unittest.TestCase):
             # Sauter eq (18d):
             ln_Lambda_e = 31.3 - np.log(np.sqrt(ne_s) / Te_s)
 
-            # Sauter eq (18b), but without the q = 1/iota factor:
-            nu_e_without_iota = (6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
-                / (1 * (Te_s ** 2) * (epsilon ** 1.5))
+            # Sauter eq (18b), but without the iota factor:
+            nu_e_without_iota = R * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
+                / ((Te_s ** 2) * (epsilon ** 1.5))
 
             iota = nu_e_without_iota / target_nu_e_star
-            # End of determining the iota profile that gives the desired nu*.
+            # End of determining the qR profile that gives the desired nu*.
 
-            jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G,
-                                          epsilon, f_t, psi_edge, helicity_N=0)
+            jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota,
+                                          epsilon, f_t, psi_edge, helicity_N)
 
             if False:
                 # Make a plot, matching the axis ranges of Redl's
@@ -346,10 +349,11 @@ class BootstrapTests(unittest.TestCase):
                 Ti_over_Te = np.sqrt(4.9 * Zeff * Zeff * target_nu_e_star / (6.921 * target_nu_i_star))
                 Ti = ProfilePolynomial([1.0e5 * Ti_over_Te])
                 s = np.ones(n_f_t)
-                G = 32.0 - s
+                helicity_N = 0
+                G = 32.0 - s  # Doesn't matter
+                R = 5.0 + 0.1 * s  # Doesn't matter
                 epsilon = s  # Doesn't matter
                 f_t = f_ts
-                R = 6.0 + 0.3 * s
                 psi_edge = 68 / (2 * np.pi)
                 # Redl uses fixed values of nu_e*. To match this, I'll use
                 # a contrived iota profile that is chosen just to give the
@@ -363,14 +367,14 @@ class BootstrapTests(unittest.TestCase):
                 ln_Lambda_e = 31.3 - np.log(np.sqrt(ne_s) / Te_s)
 
                 # Sauter eq (18b), but without the q = 1/iota factor:
-                nu_e_without_iota = (6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
-                    / (1 * (Te_s ** 2) * (epsilon ** 1.5))
+                nu_e_without_iota = R * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
+                    / ((Te_s ** 2) * (epsilon ** 1.5))
 
                 iota = nu_e_without_iota / target_nu_e_star
-                # End of determining the iota profile that gives the desired nu*.
+                # End of determining the qR profile that gives the desired nu*.
 
-                jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G,
-                                              epsilon, f_t, psi_edge, helicity_N=0)
+                jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota,
+                                              epsilon, f_t, psi_edge, helicity_N)
 
                 L31s[j_nu_star, :] = details.L31
                 L32s[j_nu_star, :] = details.L32
@@ -468,7 +472,7 @@ class BootstrapTests(unittest.TestCase):
                 np.testing.assert_array_less(L31s[0, 2], 0.66)
                 assert L31s[0, 2] > 0.63
 
-    def test_Redl_sfincs_benchmark(self):
+    def test_Redl_sfincs_tokamak_benchmark(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
 
@@ -606,13 +610,14 @@ class BootstrapTests(unittest.TestCase):
                                  -4390147.20699043, -3612989.71633149, -2793173.34162084, -1967138.17518374,
                                  -1192903.42248978, -539990.088677, -115053.37380415])
 
-        if True:
+        if False:
             import matplotlib.pyplot as plt
             plt.plot(surfaces, jdotB, '.-', label='Redl')
             plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
             plt.legend(loc=0)
             plt.xlabel('s')
-            plt.title('J dot B')
+            plt.ylabel('J dot B [SI units]')
+            plt.title('Bootstrap current for the precise QA (Landreman & Paul (2021))')
             plt.show()
 
     @unittest.skip("")
@@ -644,11 +649,12 @@ class BootstrapTests(unittest.TestCase):
                                  -3228174.23182819, -2914278.54799143, -2525391.54652021, -2058913.26485519,
                                  -1516843.60879267, -912123.395174, -315980.89711036])
 
-        if True:
+        if False:
             import matplotlib.pyplot as plt
             plt.plot(surfaces, jdotB, '.-', label='Redl')
             plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
             plt.legend(loc=0)
             plt.xlabel('s')
-            plt.title('J dot B')
+            plt.ylabel('J dot B [SI units]')
+            plt.title('Bootstrap current for the precise QH (Landreman & Paul (2021))')
             plt.show()
