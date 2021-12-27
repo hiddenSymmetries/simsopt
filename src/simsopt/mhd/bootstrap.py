@@ -45,6 +45,7 @@ def compute_trapped_fraction(modB, sqrtg):
             Bmax: maximum of |B| on each surface
             epsilon: A measure of the inverse aspect ratio
             fsa_B2: <B^2>, where < > denotes a flux surface average.
+            fsa_1overB: <1/B>, where < > denotes a flux surface average.
             f_t: The effective trapped fraction
     """
     ntheta = modB.shape[0]
@@ -53,6 +54,7 @@ def compute_trapped_fraction(modB, sqrtg):
     fourpisq = 4 * np.pi * np.pi
     dVds = np.mean(sqrtg, axis=(0, 1)) / fourpisq
     fsa_B2 = np.mean(modB * modB * sqrtg, axis=(0, 1)) / (fourpisq * dVds)
+    fsa_1overB = np.mean(sqrtg / modB, axis=(0, 1)) / (fourpisq * dVds)
 
     epsilon = np.zeros(ns)
     f_t = np.zeros(ns)
@@ -93,7 +95,7 @@ def compute_trapped_fraction(modB, sqrtg):
         integral = quad(integrand, 0, 1 / modBmax)
         f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
 
-    return Bmin, Bmax, epsilon, fsa_B2, f_t
+    return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
 def quasisymmetry_filtered_trapped_fraction(booz, helicity_m, helicity_n):
@@ -113,7 +115,7 @@ def quasisymmetry_filtered_trapped_fraction(booz, helicity_m, helicity_n):
     pass
 
 
-def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helicity_N):
+def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N):
     """
     Compute the bootstrap current (specifically
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
@@ -173,10 +175,11 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, R, iota, G, epsilon, f_t, psi_edge, helici
     logging.debug(f'ln Lambda_ii: {ln_Lambda_ii}')
 
     # Eq (18b)-(18c) in Sauter:
-    nu_e = np.abs((6.921e-18) * R * ne_s * Zeff_s * ln_Lambda_e \
-                  / ((iota - helicity_N) * Te_s * Te_s * (epsilon ** 1.5)))
-    nu_i = np.abs((4.90e-18) * R * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
-                  / ((iota - helicity_N) * Ti_s * Ti_s * (epsilon ** 1.5)))
+    geometry_factor = abs(R / (iota - helicity_N))
+    nu_e = geometry_factor * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
+        / (Te_s * Te_s * (epsilon ** 1.5))
+    nu_i = geometry_factor * (4.90e-18) * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
+        / (Ti_s * Ti_s * (epsilon ** 1.5))
 
     # Redl eq (11):
     X31 = f_t / (1 + (0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e)) / (0.56 + 0.44 * Zeff_s) \
@@ -267,6 +270,9 @@ def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, n
     interp = interp1d(vmec.s_half_grid, vmec.wout.bvco[1:], fill_value="extrapolate")
     G = interp(surfaces)
 
+    interp = interp1d(vmec.s_half_grid, vmec.wout.buco[1:], fill_value="extrapolate")
+    I = interp(surfaces)
+
     interp = interp1d(vmec.s_half_grid, vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
     gmnc = interp(surfaces)
 
@@ -291,13 +297,16 @@ def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, n
         modB += np.kron(bmnc[jmn, :].reshape((1, 1, ns)), cosangle)
         sqrtg += np.kron(gmnc[jmn, :].reshape((1, 1, ns)), cosangle)
 
-    Bmin, Bmax, epsilon, fsa_B2, f_t = compute_trapped_fraction(modB, sqrtg)
+    Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 
-    jdotB, details = j_dot_B_Redl(surfaces, ne, Te, Ti, Zeff, vmec.wout.Rmajor_p, iota, G, epsilon, f_t, psi_edge, helicity_N)
+    # There are several ways we could define an effective R for shaped geometry:
+    R = (G + iota * I) * fsa_1overB
+    #R = vmec.wout.RMajor_p
+    jdotB, details = j_dot_B_Redl(surfaces, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
 
     # Add extra info to the return structure
-    variables = ['Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'f_t',
-                 'modB', 'sqrtg', 'G', 'iota', 'surfaces', 'psi_edge', 'theta1d', 'phi1d']
+    variables = ['Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t',
+                 'modB', 'sqrtg', 'G', 'I', 'iota', 'surfaces', 'psi_edge', 'theta1d', 'phi1d']
     for v in variables:
         details.__setattr__(v, eval(v))
 
@@ -307,7 +316,7 @@ def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, n
         plt.rcParams.update({'font.size': 8})
         nrows = 4
         ncols = 6
-        variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'f_t', 'iota', 'G',
+        variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t', 'iota', 'G', 'I', 'R',
                      'details.ne_s', 'details.ni_s', 'details.Zeff_s', 'details.Te_s', 'details.Ti_s',
                      'details.ln_Lambda_e', 'details.ln_Lambda_ii',
                      'details.nu_e_star', 'details.nu_i_star',
