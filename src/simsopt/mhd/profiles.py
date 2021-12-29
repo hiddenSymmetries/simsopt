@@ -127,6 +127,24 @@ class ProfileSpline(Profile):
         """ Return the d/ds derivative of the profile at specified points in s. """
         return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree).derivative()(s)
 
+    def resample(self, new_s, degree=None):
+        """
+        Return a new ``ProfileSpline`` object that has different grid points (spline nodes).
+        The data from the old s grid will be interpolated onto the new s grid.
+
+        Args:
+            new_s: A 1d array representing the x coordinates of the new ``ProfileSpline``.
+            degree: The polynomial degree used for the new ``ProfileSpline`` object.
+                If ``None``, the degree of the original ``ProfileSpline`` will be used.
+
+        Returns:
+            A new ``ProfileSpline`` object, in which the data have been resampled onto ``new_s``.
+        """
+        new_degree = self.degree
+        if degree is not None:
+            new_degree = degree
+        return ProfileSpline(new_s, self.f(new_s), degree=new_degree)
+
 
 class ProfilePressure(Profile):
     r"""

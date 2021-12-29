@@ -69,15 +69,33 @@ class ProfilesTests(unittest.TestCase):
         np.testing.assert_allclose(profile(s_fine), f2_fine)
         np.testing.assert_allclose(profile.dfds(s_fine), -0.4 + 2 * 0.7 * s_fine)
 
+        profile2 = profile.resample(s_fine)
+        self.assertEqual(profile2.degree, profile.degree)
+        np.testing.assert_allclose(profile2.full_x, f2_fine)
+        np.testing.assert_allclose(profile2(s_fine), f2_fine)
+        np.testing.assert_allclose(profile2.dfds(s_fine), -0.4 + 2 * 0.7 * s_fine)
+
+        profile2 = profile.resample(s_fine, degree=4)
+        self.assertEqual(profile2.degree, 4)
+        np.testing.assert_allclose(profile2.full_x, f2_fine)
+        np.testing.assert_allclose(profile2(s_fine), f2_fine)
+        np.testing.assert_allclose(profile2.dfds(s_fine), -0.4 + 2 * 0.7 * s_fine)
+
         # Try a case with extrapolation
         s = np.linspace(0.1, 0.9, 2)
         f = 0.3 - 0.5 * s
         f_fine = 0.3 - 0.5 * s_fine
-        profile2 = ProfileSpline(s, f, degree=1)
-        np.testing.assert_allclose(profile2(s), f)
-        np.testing.assert_allclose(profile2.dfds(s), -0.5 * np.ones_like(s))
-        np.testing.assert_allclose(profile2(s_fine), f_fine)
-        np.testing.assert_allclose(profile2.dfds(s_fine), -0.5 * np.ones_like(s_fine))
+        profile3 = ProfileSpline(s, f, degree=1)
+        np.testing.assert_allclose(profile3(s), f)
+        np.testing.assert_allclose(profile3.dfds(s), -0.5 * np.ones_like(s))
+        np.testing.assert_allclose(profile3(s_fine), f_fine)
+        np.testing.assert_allclose(profile3.dfds(s_fine), -0.5 * np.ones_like(s_fine))
+
+        profile4 = profile3.resample(s_fine)
+        self.assertEqual(profile4.degree, 1)
+        np.testing.assert_allclose(profile4.full_x, f_fine)
+        np.testing.assert_allclose(profile4(s_fine), f_fine)
+        np.testing.assert_allclose(profile4.dfds(s_fine), -0.5 * np.ones_like(s_fine))
 
     def test_pressure(self):
         """
