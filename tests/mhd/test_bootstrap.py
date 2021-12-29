@@ -7,14 +7,14 @@ import logging
 import os
 import numpy as np
 from simsopt.mhd.bootstrap import compute_trapped_fraction, j_dot_B_Redl, \
-    vmec_j_dot_B_Redl
+    vmec_j_dot_B_Redl, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
 from simsopt.util.constants import ELEMENTARY_CHARGE
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.INFO)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -659,3 +659,52 @@ class BootstrapTests(unittest.TestCase):
             plt.show()
 
         np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
+
+    def test_VmecRedlBootstrapMismatch_1(self):
+        """
+        The VmecRedlBootstrapMismatch objective function should be
+        approximately 1.0 if the vmec configuration is a vacuum
+        field. (It will not be exactly 1.0 since there is numerical
+        noise in vmec's jdotb.)
+        """
+        ne = ProfilePolynomial(5.0e20 * np.array([1, 0, 0, 0, -1]))
+        Te = ProfilePolynomial(8e3 * np.array([1, -1]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = 0
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
+        vmec = Vmec(filename)
+        obj = VmecRedlBootstrapMismatch(vmec, ne, Te, Ti, Zeff, helicity_N)
+        obj1 = obj.J()
+        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj1:.3e} '
+                     f'and should be approximately 1.0. Diff: {obj1 - 1.0}')
+        np.testing.assert_allclose(obj1, 1.0, rtol=1e-6)
+
+    def test_VmecRedlBootstrapMismatch_independent_of_ns(self):
+        """
+        Confirm that the VmecRedlBootstrapMismatch objective function is
+        approximately independent of the radial resolution ns.
+        """
+        ne = ProfilePolynomial(5.0e20 * np.array([1, 0, 0, 0, -1]))
+        Te = ProfilePolynomial(8e3 * np.array([1, -1]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = 0
+        filename = os.path.join(TEST_DIR, 'input.ITERModel')
+        vmec = Vmec(filename)
+        obj = VmecRedlBootstrapMismatch(vmec, ne, Te, Ti, Zeff, helicity_N, nphi=3)
+        # Resolution 1:
+        vmec.indata.ns_array[:3] = [13, 25, 0]
+        vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
+        vmec.indata.niter_array[:3] = [500, 2000, 0]
+        obj1 = obj.J()
+        # Resolution 2:
+        vmec.indata.ns_array[:3] = [13, 25, 51]
+        vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 1e-15]
+        vmec.indata.niter_array[:3] = [500, 800, 2000]
+        vmec.need_to_run_code = True
+        obj2 = obj.J()
+        rel_diff = (obj1 - obj2) / (0.5 * (obj1 + obj2))
+        logging.info(f'resolution1: {obj1:.4e}  resolution2: {obj2:.4e}  rel diff: {rel_diff}')
+        np.testing.assert_allclose(obj1, obj2, rtol=0.003)
+
