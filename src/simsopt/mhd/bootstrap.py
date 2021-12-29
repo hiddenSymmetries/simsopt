@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def compute_trapped_fraction(modB, sqrtg):
-    """
+    r"""
     Compute the effective fraction of trapped particles, which enters
     several formulae for neoclassical transport, as well as several
     quantities that go into its calculation.  The input data can be
@@ -37,16 +37,17 @@ def compute_trapped_fraction(modB, sqrtg):
     \epsilon \cos\theta) R_0`.
 
     Args:
-        modB: 3D array of size (ntheta, nphi, ns) representing |B|.
+        modB: 3D array of size (ntheta, nphi, ns) representing :math:`|B|`.
         sqrtg: 3D array of size (ntheta, nphi, ns) representing the Jacobian.
     Returns:
-        3-element tuple containing three 1D arrays, corresponding to radial grid points
-            Bmin: minimum of |B| on each surface
-            Bmax: maximum of |B| on each surface
-            epsilon: A measure of the inverse aspect ratio
-            fsa_B2: <B^2>, where < > denotes a flux surface average.
-            fsa_1overB: <1/B>, where < > denotes a flux surface average.
-            f_t: The effective trapped fraction
+        Tuple containing the following 1D arrays, corresponding to radial grid points:
+
+        - Bmin: minimum of :math:`|B|` on each surface
+        - Bmax: maximum of :math:`|B|` on each surface
+        - epsilon: A measure of the inverse aspect ratio
+        - fsa_B2: <B^2>, where < > denotes a flux surface average.
+        - fsa_1overB: <1/B>, where < > denotes a flux surface average.
+        - f_t: The effective trapped fraction
     """
     ntheta = modB.shape[0]
     nphi = modB.shape[1]
@@ -116,7 +117,7 @@ def quasisymmetry_filtered_trapped_fraction(booz, helicity_m, helicity_n):
 
 
 def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N):
-    """
+    r"""
     Compute the bootstrap current (specifically
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
     Redl et al, Physics of Plasmas (2021).

@@ -10,6 +10,7 @@ temperature, pressure, and other quantities that are flux functions.
 import logging
 import numpy as np
 import numpy.polynomial.polynomial as poly
+from scipy.interpolate import InterpolatedUnivariateSpline
 from .._core.graph_optimizable import Optimizable
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class ProfileScaled(Profile):
 
     def __init__(self, base, scalefac):
         self.base = base
-        super().__init__(x0=np.array([scalefac]), names=['scalefac'])
+        super().__init__(x0=np.array([scalefac]), names=['scalefac'], depends_on=[base])
         self.fix_all()
 
     def f(self, s):
@@ -96,3 +97,79 @@ class ProfileScaled(Profile):
     def dfds(self, s):
         """ Return the d/ds derivative of the profile at specified points in s. """
         return self.local_full_x[0] * self.base.dfds(s)
+
+
+class ProfileSpline(Profile):
+    """
+    A Profile that uses spline interpolation via
+    `scipy.interpolate.InterpolatedUnivariateSpline
+    <https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.InterpolatedUnivariateSpline.html>`_
+
+    The ``f`` data are optimizable dofs, which are fixed by default.
+
+    Args:
+        s: A 1d array with the x coordinates for the spline.
+        f: A 1d array with the y coordinates for the spline.
+        degree: The polynomial degree of the spline. Must be in ``[1, 2, 3, 4, 5]``.
+    """
+
+    def __init__(self, s, f, degree=3):
+        self.s = s
+        self.degree = degree
+        super().__init__(x0=f)
+        self.fix_all()
+
+    def f(self, s):
+        """ Return the value of the profile at specified points in s. """
+        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree)(s)
+
+    def dfds(self, s):
+        """ Return the d/ds derivative of the profile at specified points in s. """
+        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree).derivative()(s)
+
+
+class ProfilePressure(Profile):
+    r"""
+    A Profile :math:`f(s)` which is determined by other profiles :math:`f_j(s)` as follows:
+
+    .. math::
+
+        f(s) = \sum_j f_{2j}(s) f_{2j+1}(s).
+
+    This is useful for creating a pressure profile in terms of density
+    and temperature profiles, with any number of species. Typical
+    usage is as follows::
+
+        ne = ProfilePolynomial(1.0e20 * np.array([1.0, 0.0, 0.0, 0.0, -1.0]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1.0, -1.0]))
+        nH = ne
+        TH = ProfilePolynomial(7.0e3 * np.array([1.0, -1.0]))
+        pressure = ProfilePressure(ne, Te, nH, TH)
+
+    This class does not have any optimizable dofs.
+
+    Args:
+        args: An even number of Profile objects.
+    """
+
+    def __init__(self, *args):
+        if len(args) == 0:
+            raise ValueError('At least one density and temperature profile must be provided.')
+        if len(args) % 2 == 1:
+            raise ValueError('The number of input profiles for a ProfilePressure object must be even')
+        super().__init__(depends_on=args)
+
+    def f(self, s):
+        """ Return the value of the profile at specified points in s. """
+        total = 0
+        for j in range(int(len(self.parents) / 2)):
+            total += self.parents[2 * j](s) * self.parents[2 * j + 1](s)
+        return total
+
+    def dfds(self, s):
+        """ Return the d/ds derivative of the profile at specified points in s. """
+        total = 0
+        for j in range(int(len(self.parents) / 2)):
+            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s) \
+                + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
+        return total
