@@ -545,10 +545,7 @@ class BootstrapTests(unittest.TestCase):
     @unittest.skip("")
     def test_Redl_sfincs_WistellA(self):
         """
-        Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
-
-        The SFINCS calculation is on Matt Landreman's laptop in
-        /Users/mattland/Box Sync/work21/20211225-01-sfincs_tokamak_bootstrap_for_Redl_benchmark
+        Compare the Redl <j dot B> to a SFINCS calculation for Wistell-A.
         """
         ne = ProfilePolynomial(0.9e20 * np.array([1, 0, 0, 0, 0, -1]))
         #Te = ProfilePolynomial(1.3e3 * np.array([1, -1]))
@@ -581,7 +578,6 @@ class BootstrapTests(unittest.TestCase):
             plt.title('J dot B')
             plt.show()
 
-    @unittest.skip("")
     def test_Redl_sfincs_precise_QA(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for the precise QA.
@@ -594,7 +590,8 @@ class BootstrapTests(unittest.TestCase):
         Ti = Te
         Zeff = 1
         helicity_N = 0
-        filename = os.path.join(TEST_DIR, 'wout_new_QA_aScaling.nc')
+        # filename = os.path.join(TEST_DIR, 'wout_new_QA_aScaling.nc')  # High resolution
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
         surfaces = np.linspace(0.025, 0.975, 39)
         jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
@@ -620,7 +617,8 @@ class BootstrapTests(unittest.TestCase):
             plt.title('Bootstrap current for the precise QA (Landreman & Paul (2021))')
             plt.show()
 
-    @unittest.skip("")
+        np.testing.assert_allclose(jdotB[1:-1], jdotB_sfincs[1:-1], rtol=0.1)
+
     def test_Redl_sfincs_precise_QH(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for the precise QH.
@@ -633,7 +631,8 @@ class BootstrapTests(unittest.TestCase):
         Ti = Te
         Zeff = 1
         helicity_N = -4
-        filename = os.path.join(TEST_DIR, 'wout_new_QH_aScaling.nc')
+        #filename = os.path.join(TEST_DIR, 'wout_new_QH_aScaling.nc')  # High resolution
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
         surfaces = np.linspace(0.025, 0.975, 39)
         jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
@@ -658,3 +657,5 @@ class BootstrapTests(unittest.TestCase):
             plt.ylabel('J dot B [SI units]')
             plt.title('Bootstrap current for the precise QH (Landreman & Paul (2021))')
             plt.show()
+
+        np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
