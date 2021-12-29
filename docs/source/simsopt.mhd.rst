@@ -4,10 +4,26 @@ simsopt.mhd package
 Submodules
 ----------
 
+simsopt.mhd.bootstrap module
+----------------------------
+
+.. automodule:: simsopt.mhd.bootstrap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.boozer module
 -------------------------
 
 .. automodule:: simsopt.mhd.boozer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.mhd.profiles module
+---------------------------
+
+.. automodule:: simsopt.mhd.profiles
    :members:
    :undoc-members:
    :show-inheritance:
