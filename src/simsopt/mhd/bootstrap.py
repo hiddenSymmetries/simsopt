@@ -11,6 +11,7 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize
 from scipy.integrate import quad
+from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct
 from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
@@ -120,7 +121,7 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helici
     r"""
     Compute the bootstrap current (specifically
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
-    Redl et al, Physics of Plasmas (2021).
+    Redl et al, Physics of Plasmas 28, 022502 (2021).
 
     The quantity <j dot B> is computed at all surfaces s that are
     available in the booz object.
@@ -332,3 +333,98 @@ def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, n
         plt.show()
 
     return jdotB, details
+
+
+class VmecRedlBootstrapMismatch(Optimizable):
+    r"""
+    This class is used to obtain quasi-axisymmetric or quasi-helically
+    symmetric VMEC configurations with self-consistent bootstrap
+    current. This class represents the objective function
+
+    .. math::
+
+        f = \frac{\int ds \left[\left<\vec{J}\cdot\vec{B}\right>_{vmec}
+                                - \left<\vec{J}\cdot\vec{B}\right>_{Redl} \right]^2}
+                 {\int ds \left[\left<\vec{J}\cdot\vec{B}\right>_{vmec}
+                                + \left<\vec{J}\cdot\vec{B}\right>_{Redl} \right]^2}
+
+    where :math:`\left<\vec{J}\cdot\vec{B}\right>_{vmec}` is the
+    bootstrap current profile in a VMEC equilibrium, and
+    :math:`\left<\vec{J}\cdot\vec{B}\right>_{Redl}` is the bootstrap
+    current profile computed from the fit formulae in Redl et al,
+    Physics of Plasmas 28, 022502 (2021).
+
+    Args:
+        vmec: An instance of :obj:`simsopt.mhd.vmec.Vmec`
+        ne: A :obj:`~simsopt.mhd.profiles.Profile` object representing the electron density profile.
+        Te: A :obj:`~simsopt.mhd.profiles.Profile` object representing the electron temperature profile.
+        Ti: A :obj:`~simsopt.mhd.profiles.Profile` object representing the ion temperature profile.
+        Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object representing the :math:`Z_{eff}` profile.
+            A singl number can also be provided, in which case a constant :math:`Z_{eff}` profile will be used.
+        helicity_N: 0 for quasi-axisymmetry, or +/- nfp for quasi-helical symmetry.
+        ntheta: Number of grid points in the poloidal angle for evaluating quantities in the Redl formulae.
+        nphi: Number of grid points in the toroidal angle for evaluating quantities in the Redl formulae.
+    """
+
+    def __init__(self, vmec, ne, Te, Ti, Zeff, helicity_N, ntheta=64, nphi=65):
+        if not isinstance(Zeff, Profile):
+            # Zeff is presumably a number. Convert it to a constant profile.
+            Zeff = ProfilePolynomial([Zeff])
+        self.vmec = vmec
+        self.ne = ne
+        self.Te = Te
+        self.Ti = Ti
+        self.Zeff = Zeff
+        self.helicity_N = helicity_N
+        self.ntheta = ntheta
+        self.nphi = nphi
+        super().__init__(depends_on=[vmec, ne, Te, Ti, Zeff])
+
+    def residuals(self):
+        r"""
+        This function returns a 1d array of residuals, useful for
+        representing the objective function as a nonlinear
+        least-squares problem.  This is the function handle to use
+        with a
+        :obj:`~simsopt.objectives.graph_least_squares.LeastSquaresProblem`.
+
+        Specifically, this function returns
+
+        .. math::
+
+            R_j = \frac{\left<\vec{J}\cdot\vec{B}\right>_{vmec}(s_j)
+                      - \left<\vec{J}\cdot\vec{B}\right>_{Redl}(s_j)}
+                       {\sqrt{\sum_{k=1}^N \left[\left<\vec{J}\cdot\vec{B}\right>_{vmec}(s_k)
+                                    + \left<\vec{J}\cdot\vec{B}\right>_{Redl}(s_k) \right]^2}}
+
+        where :math:`j` and :math:`k` range over the half-grid points
+        for the VMEC configuration, :math:`j, k \in \{1, 2, \ldots, N\}`
+        with :math:`N=` ``ns-1``. This corresponds to approximating the
+        :math:`\int ds` integrals in the objective function with
+        Riemann integration. The vector of residuals returned has
+        length :math:`N`.
+
+        The sum of the squares of these residuals equals the objective
+        function.
+        """
+        self.vmec.run()
+        j_dot_B_Redl, _ = vmec_j_dot_B_Redl(self.vmec,
+                                            self.vmec.s_half_grid,
+                                            self.ne,
+                                            self.Te,
+                                            self.Ti,
+                                            self.Zeff,
+                                            self.helicity_N,
+                                            ntheta=self.ntheta,
+                                            nphi=self.nphi)
+        # Interpolate vmec's <J dot B> profile from the full grid to the half grid:
+        j_dot_B_vmec = 0.5 * (self.vmec.wout.jdotb[1:] + self.vmec.wout.jdotb[:-1])
+        denominator = np.sum((j_dot_B_vmec + j_dot_B_Redl) ** 2) / (self.vmec.wout.ns - 1)
+        return (j_dot_B_vmec - j_dot_B_Redl) / np.sqrt((self.vmec.wout.ns - 1) * denominator)
+
+    def J(self):
+        """
+        Return the scalar objective function, given by the sum of the
+        squares of the residuals.
+        """
+        return np.sum(self.residuals() ** 2)
