@@ -6,8 +6,8 @@ import unittest
 import logging
 import os
 import numpy as np
-from simsopt.mhd.bootstrap import compute_trapped_fraction, compute_trapped_fraction_booz, \
-    j_dot_B_Redl, vmec_j_dot_B_Redl, VmecRedlBootstrapMismatch
+from simsopt.mhd.bootstrap import compute_trapped_fraction, j_dot_B_Redl_fits, \
+    j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.boozer import Boozer
@@ -15,35 +15,63 @@ from simsopt.util.constants import ELEMENTARY_CHARGE
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.DEBUG)
 #logging.basicConfig(level=logging.INFO)
 
 
 class BootstrapTests(unittest.TestCase):
     def test_compute_trapped_fraction(self):
+        """
+        Confirm that the quantities computed by compute_trapped_fraction()
+        match analytic results for a model magnetic field.
+        """
         ns = 2
         ntheta = 15
         nphi = 7
         nfp = 3
-        modB = np.zeros((ntheta, nphi, ns))
-        sqrtg = np.zeros((ntheta, nphi, ns))
+        results = []
+        for jdim in [2, 3]:
+            if jdim == 2:
+                # Try 2D input arrays:
+                modB = np.zeros((ntheta, ns))
+                sqrtg = np.zeros((ntheta, ns))
 
-        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-        phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
-        phi, theta = np.meshgrid(phi1d, theta1d)
+                theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
 
-        sqrtg[:, :, 0] = 10.0
-        sqrtg[:, :, 1] = -25.0
+                sqrtg[:, 0] = 10.0
+                sqrtg[:, 1] = -25.0
 
-        modB[:, :, 0] = 13.0 + 2.6 * np.cos(theta)
-        modB[:, :, 1] = 9.0 + 3.7 * np.sin(theta - nfp * phi)
+                modB[:, 0] = 13.0 + 2.6 * np.cos(theta)
+                modB[:, 1] = 9.0 + 3.7 * np.sin(theta)
 
-        Bmin, Bmax, epsilon, fsa_b2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
-        # The average of (b0 + b1 cos(theta))^2 is b0^2 + (1/2) * b1^2
-        np.testing.assert_allclose(fsa_b2, [13.0 ** 2 + 0.5 * 2.6 ** 2, 9.0 ** 2 + 0.5 * 3.7 ** 2])
-        np.testing.assert_allclose(fsa_1overB, [1 / np.sqrt(13.0 ** 2 - 2.6 ** 2), 1 / np.sqrt(9.0 ** 2 - 3.7 ** 2)])
-        np.testing.assert_allclose(Bmin, [13.0 - 2.6, 9.0 - 3.7], rtol=1e-4)
-        np.testing.assert_allclose(Bmax, [13.0 + 2.6, 9.0 + 3.7], rtol=1e-4)
-        np.testing.assert_allclose(epsilon, [2.6 / 13.0, 3.7 / 9.0], rtol=1e-3)
+            else:
+                # Try 3D input arrays:
+                modB = np.zeros((ntheta, nphi, ns))
+                sqrtg = np.zeros((ntheta, nphi, ns))
+
+                theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+                phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+                phi, theta = np.meshgrid(phi1d, theta1d)
+
+                sqrtg[:, :, 0] = 10.0
+                sqrtg[:, :, 1] = -25.0
+
+                modB[:, :, 0] = 13.0 + 2.6 * np.cos(theta)
+                modB[:, :, 1] = 9.0 + 3.7 * np.sin(theta - nfp * phi)
+
+            result = compute_trapped_fraction(modB, sqrtg)
+            results.append(result)
+            Bmin, Bmax, epsilon, fsa_b2, fsa_1overB, f_t = result
+            # The average of (b0 + b1 cos(theta))^2 is b0^2 + (1/2) * b1^2
+            np.testing.assert_allclose(fsa_b2, [13.0 ** 2 + 0.5 * 2.6 ** 2, 9.0 ** 2 + 0.5 * 3.7 ** 2])
+            np.testing.assert_allclose(fsa_1overB, [1 / np.sqrt(13.0 ** 2 - 2.6 ** 2), 1 / np.sqrt(9.0 ** 2 - 3.7 ** 2)])
+            np.testing.assert_allclose(Bmin, [13.0 - 2.6, 9.0 - 3.7], rtol=1e-4)
+            np.testing.assert_allclose(Bmax, [13.0 + 2.6, 9.0 + 3.7], rtol=1e-4)
+            np.testing.assert_allclose(epsilon, [2.6 / 13.0, 3.7 / 9.0], rtol=1e-3)
+
+        # Verify the 2D and 3D calculations agree:
+        for j in range(len(result)):
+            np.testing.assert_allclose(results[0][j], results[1][j], rtol=2e-4)
 
     def test_trapped_fraction_Kim(self):
         """
@@ -57,110 +85,63 @@ class BootstrapTests(unittest.TestCase):
         epsilon_in = np.linspace(0, 1, ns, endpoint=False)  # Avoid divide-by-0 when epsilon=1
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
         nfp = 3
-        phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
-        #phi1d = np.array([0])
-        phi, theta = np.meshgrid(phi1d, theta1d)
-        modB = np.zeros((ntheta, nphi, ns))
-        sqrtg = np.zeros((ntheta, nphi, ns))
-        for js in range(ns):
-            # Eq (A6)
-            modB[:, :, js] = B0 / (1 + epsilon_in[js] * np.cos(theta))
-            # For Jacobian, use eq (A7) for the theta dependence,
-            # times an arbitrary overall scale factor
-            sqrtg[:, :, js] = 6.7 * (1 + epsilon_in[js] * np.cos(theta))
-        Bmin, Bmax, epsilon_out, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
+        for jdim in [2, 3]:
+            if jdim == 2:
+                # Try 2D input arrays:
+                theta = theta1d
+                modB = np.zeros((ntheta, ns))
+                sqrtg = np.zeros((ntheta, ns))
+                for js in range(ns):
+                    # Eq (A6)
+                    modB[:, js] = B0 / (1 + epsilon_in[js] * np.cos(theta))
+                    # For Jacobian, use eq (A7) for the theta dependence,
+                    # times an arbitrary overall scale factor
+                    sqrtg[:, js] = 6.7 * (1 + epsilon_in[js] * np.cos(theta))
+            else:
+                # Try 3D input arrays:
+                phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+                phi, theta = np.meshgrid(phi1d, theta1d)
+                modB = np.zeros((ntheta, nphi, ns))
+                sqrtg = np.zeros((ntheta, nphi, ns))
+                for js in range(ns):
+                    # Eq (A6)
+                    modB[:, :, js] = B0 / (1 + epsilon_in[js] * np.cos(theta))
+                    # For Jacobian, use eq (A7) for the theta dependence,
+                    # times an arbitrary overall scale factor
+                    sqrtg[:, :, js] = 6.7 * (1 + epsilon_in[js] * np.cos(theta))
 
-        f_t_Kim = 1.46 * np.sqrt(epsilon_in) - 0.46 * epsilon_in  # Eq (C18) in Kim et al
+            Bmin, Bmax, epsilon_out, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 
-        np.testing.assert_allclose(Bmin, B0 / (1 + epsilon_in))
-        np.testing.assert_allclose(Bmax, B0 / (1 - epsilon_in))
-        np.testing.assert_allclose(epsilon_in, epsilon_out)
-        # Eq (A8):
-        np.testing.assert_allclose(fsa_B2, B0 * B0 / np.sqrt(1 - epsilon_in ** 2), rtol=1e-6)
-        np.testing.assert_allclose(f_t, f_t_Kim, rtol=0.1, atol=0.07)  # We do not expect precise agreement. 
-        np.testing.assert_allclose(fsa_1overB, (2 + epsilon_in ** 2) / (2 * B0))
+            f_t_Kim = 1.46 * np.sqrt(epsilon_in) - 0.46 * epsilon_in  # Eq (C18) in Kim et al
 
-        if False:
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(14, 5))
-            plt.subplot(1, 2, 1)
-            #plt.plot(epsilon_in, f_t, label='simsopt')
-            #plt.plot(epsilon_in, f_t_Kim, label='Kim')
-            plt.plot(np.sqrt(epsilon_in), f_t, label='simsopt')
-            plt.plot(np.sqrt(epsilon_in), f_t_Kim, label='Kim')
-            plt.xlabel('sqrt(epsilon)')
-            plt.title('Trapped fraction $f_t$')
-            plt.legend(loc=0)
+            np.testing.assert_allclose(Bmin, B0 / (1 + epsilon_in))
+            np.testing.assert_allclose(Bmax, B0 / (1 - epsilon_in))
+            np.testing.assert_allclose(epsilon_in, epsilon_out)
+            # Eq (A8):
+            np.testing.assert_allclose(fsa_B2, B0 * B0 / np.sqrt(1 - epsilon_in ** 2), rtol=1e-6)
+            np.testing.assert_allclose(f_t, f_t_Kim, rtol=0.1, atol=0.07)  # We do not expect precise agreement. 
+            np.testing.assert_allclose(fsa_1overB, (2 + epsilon_in ** 2) / (2 * B0))
 
-            plt.subplot(1, 2, 2)
-            #plt.plot(epsilon_in, (f_t_Kim - f_t) / (1 - f_t))
-            plt.plot(epsilon_in, f_t_Kim - f_t)
-            plt.title('Relative difference in $f_c$')
-            plt.xlabel('epsilon')
-            #plt.plot(epsilon_in, epsilon_out, 'r')
-            #plt.plot(epsilon_in, epsilon_in, ':k')
-            plt.show()
+            if False:
+                import matplotlib.pyplot as plt
+                plt.figure(figsize=(14, 5))
+                plt.subplot(1, 2, 1)
+                #plt.plot(epsilon_in, f_t, label='simsopt')
+                #plt.plot(epsilon_in, f_t_Kim, label='Kim')
+                plt.plot(np.sqrt(epsilon_in), f_t, label='simsopt')
+                plt.plot(np.sqrt(epsilon_in), f_t_Kim, label='Kim')
+                plt.xlabel('sqrt(epsilon)')
+                plt.title('Trapped fraction $f_t$')
+                plt.legend(loc=0)
 
-    def test_compute_trapped_fraction_booz_tokamak(self):
-        """
-        """
-        filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
-        vmec = Vmec(filename)
-        booz = Boozer(vmec, mpol=32, ntor=0)
-        booz.register([0.1, 1.0])
-        Bmin_b, Bmax_b, epsilon_b, fsa_B2_b, fsa_1overB_b, f_t_b = compute_trapped_fraction_booz(booz, 0, 64)
-
-        ne = ProfilePolynomial(5.0e20 * np.array([1, -0.9]))
-        Te = ProfilePolynomial(8e3 * np.array([1, -0.9]))
-        Ti = Te
-        Zeff = 1
-        helicity_N = 0
-        jdotB, details = vmec_j_dot_B_Redl(vmec, booz.bx.s_b, ne, Te, Ti, Zeff, helicity_N)
-        #Bmin_v, Bmax_v, epsilon_v, fsa_B2_v, fsa_1overB_v, f_t_v = compute_trapped_fraction(vmec, 0, 20)
-        logging.info(f'booz.s: {booz.s}  booz.s_used: {booz.s_used}  booz.bx.s_b: {booz.bx.s_b}')
-        logging.info(f'Bmin:  vmec={details.Bmin}  booz={Bmin_b}  diff={details.Bmin-Bmin_b}')
-        logging.info(f'Bmax:  vmec={details.Bmax}  booz={Bmax_b}  diff={details.Bmax-Bmax_b}')
-        logging.info(f'epsilon:  vmec={details.epsilon}  booz={epsilon_b}  diff={details.epsilon-epsilon_b}')
-        logging.info(f'fsa_B2:  vmec={details.fsa_B2}  booz={fsa_B2_b}  diff={details.fsa_B2-fsa_B2_b}')
-        logging.info(f'fsa_1overB:  vmec={details.fsa_1overB}  booz={fsa_1overB_b}  diff={details.fsa_1overB-fsa_1overB_b}')
-        logging.info(f'f_t:  vmec={details.f_t}  booz={f_t_b}  diff={details.f_t-f_t_b}')
-        np.testing.assert_allclose(details.Bmin, Bmin_b, rtol=1e-6)
-        np.testing.assert_allclose(details.Bmax, Bmax_b, rtol=1e-6)
-        np.testing.assert_allclose(details.epsilon, epsilon_b, rtol=1e-6)
-        np.testing.assert_allclose(details.fsa_B2, fsa_B2_b, rtol=1e-6)
-        np.testing.assert_allclose(details.fsa_1overB, fsa_1overB_b, rtol=1e-6)
-        np.testing.assert_allclose(details.f_t, f_t_b, rtol=1e-6)
-
-    def test_compute_trapped_fraction_booz_QH(self):
-        """
-        """
-        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
-        vmec = Vmec(filename)
-        booz = Boozer(vmec, mpol=16, ntor=16)
-        booz.register([0.1, 1.0])
-        helicity_n = -1
-        Bmin_b, Bmax_b, epsilon_b, fsa_B2_b, fsa_1overB_b, f_t_b = compute_trapped_fraction_booz(booz, helicity_n, 64)
-
-        ne = ProfilePolynomial(5.0e20 * np.array([1, -0.9]))
-        Te = ProfilePolynomial(8e3 * np.array([1, -0.9]))
-        Ti = Te
-        Zeff = 1
-        helicity_N = helicity_n * vmec.wout.nfp
-        jdotB, details = vmec_j_dot_B_Redl(vmec, booz.bx.s_b, ne, Te, Ti, Zeff, helicity_N)
-        #Bmin_v, Bmax_v, epsilon_v, fsa_B2_v, fsa_1overB_v, f_t_v = compute_trapped_fraction(vmec, 0, 20)
-        logging.info(f'booz.s: {booz.s}  booz.s_used: {booz.s_used}  booz.bx.s_b: {booz.bx.s_b}')
-        logging.info(f'Bmin:  vmec={details.Bmin}  booz={Bmin_b}  diff={details.Bmin-Bmin_b}')
-        logging.info(f'Bmax:  vmec={details.Bmax}  booz={Bmax_b}  diff={details.Bmax-Bmax_b}')
-        logging.info(f'epsilon:  vmec={details.epsilon}  booz={epsilon_b}  diff={details.epsilon-epsilon_b}')
-        logging.info(f'fsa_B2:  vmec={details.fsa_B2}  booz={fsa_B2_b}  diff={details.fsa_B2-fsa_B2_b}')
-        logging.info(f'fsa_1overB:  vmec={details.fsa_1overB}  booz={fsa_1overB_b}  diff={details.fsa_1overB-fsa_1overB_b}')
-        logging.info(f'f_t:  vmec={details.f_t}  booz={f_t_b}  diff={details.f_t-f_t_b}')
-        np.testing.assert_allclose(details.Bmin, Bmin_b, rtol=1e-2)
-        np.testing.assert_allclose(details.Bmax, Bmax_b, rtol=1e-2)
-        np.testing.assert_allclose(details.epsilon, epsilon_b, rtol=1e-2)
-        np.testing.assert_allclose(details.fsa_B2, fsa_B2_b, rtol=1e-2)
-        np.testing.assert_allclose(details.fsa_1overB, fsa_1overB_b, rtol=1e-2)
-        np.testing.assert_allclose(details.f_t, f_t_b, rtol=1e-2)
+                plt.subplot(1, 2, 2)
+                #plt.plot(epsilon_in, (f_t_Kim - f_t) / (1 - f_t))
+                plt.plot(epsilon_in, f_t_Kim - f_t)
+                plt.title('Relative difference in $f_c$')
+                plt.xlabel('epsilon')
+                #plt.plot(epsilon_in, epsilon_out, 'r')
+                #plt.plot(epsilon_in, epsilon_in, ':k')
+                plt.show()
 
     def test_Redl_second_pass(self):
         """
@@ -263,7 +244,7 @@ class BootstrapTests(unittest.TestCase):
         dTids_term = factors * (L31 * p / pe * (ni_s * d_Ti_d_s_J) / p + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J))
         jdotB_pass2 = -G * pe * (L31 * p / pe * (d_p_d_s / p) + L32 * (d_Te_d_s_J / Te_J) + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J)) / (psi_edge * (iota - helicity_N))
 
-        jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
+        jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
 
         atol = 1e-13
         rtol = 1e-13
@@ -321,8 +302,8 @@ class BootstrapTests(unittest.TestCase):
             iota = nu_e_without_iota / target_nu_e_star
             # End of determining the qR profile that gives the desired nu*.
 
-            jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota,
-                                          epsilon, f_t, psi_edge, helicity_N)
+            jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
+                                               epsilon, f_t, psi_edge, helicity_N)
 
             if False:
                 # Make a plot, matching the axis ranges of Redl's
@@ -435,8 +416,8 @@ class BootstrapTests(unittest.TestCase):
                 iota = nu_e_without_iota / target_nu_e_star
                 # End of determining the qR profile that gives the desired nu*.
 
-                jdotB, details = j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota,
-                                              epsilon, f_t, psi_edge, helicity_N)
+                jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
+                                                   epsilon, f_t, psi_edge, helicity_N)
 
                 L31s[j_nu_star, :] = details.L31
                 L32s[j_nu_star, :] = details.L32
@@ -534,6 +515,68 @@ class BootstrapTests(unittest.TestCase):
                 np.testing.assert_array_less(L31s[0, 2], 0.66)
                 assert L31s[0, 2] > 0.63
 
+    def test_compare_geometry_methods_tokamak(self):
+        """
+        Compare the different methods for computing the trapped fraction
+        etc and make sure they agree for a VMEC tokamak equilibrium.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
+        vmec = Vmec(filename)
+        booz = Boozer(vmec, mpol=32, ntor=0)
+        # The surfaces used here are exact points on vmec's half grid,
+        # so there are no issues with radial interpolation.
+        surfaces = vmec.s_half_grid[10:-1:10]
+        helicity_N = 0
+
+        geom_obj1 = RedlGeomVmec(vmec, surfaces)
+        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_N)
+        geom1 = geom_obj1()
+        geom2 = geom_obj2()
+
+        logging.info(f'Bmin:  vmec={geom1.Bmin}  booz={geom2.Bmin}  diff={geom1.Bmin-geom2.Bmin}')
+        logging.info(f'Bmax:  vmec={geom1.Bmax}  booz={geom2.Bmax}  diff={geom1.Bmax-geom2.Bmax}')
+        logging.info(f'epsilon:  vmec={geom1.epsilon}  booz={geom2.epsilon}  diff={geom1.epsilon-geom2.epsilon}')
+        logging.info(f'fsa_B2:  vmec={geom1.fsa_B2}  booz={geom2.fsa_B2}  diff={geom1.fsa_B2-geom2.fsa_B2}')
+        logging.info(f'fsa_1overB:  vmec={geom1.fsa_1overB}  booz={geom2.fsa_1overB}  diff={geom1.fsa_1overB-geom2.fsa_1overB}')
+        logging.info(f'f_t:  vmec={geom1.f_t}  booz={geom2.f_t}  diff={geom1.f_t-geom2.f_t}')
+        np.testing.assert_allclose(geom1.Bmin, geom2.Bmin, rtol=1e-6)
+        np.testing.assert_allclose(geom1.Bmax, geom2.Bmax, rtol=1e-6)
+        np.testing.assert_allclose(geom1.epsilon, geom2.epsilon, rtol=1e-6)
+        np.testing.assert_allclose(geom1.fsa_B2, geom2.fsa_B2, rtol=1e-6)
+        np.testing.assert_allclose(geom1.fsa_1overB, geom2.fsa_1overB, rtol=1e-6)
+        np.testing.assert_allclose(geom1.f_t, geom2.f_t, rtol=1e-6)
+
+    def test_compare_geometry_methods_QH(self):
+        """
+        Compare the different methods for computing the trapped fraction
+        etc and make sure they agree for a precise QH VMEC equilibrium.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
+        vmec = Vmec(filename)
+        booz = Boozer(vmec, mpol=16, ntor=16)
+        # The surfaces used here are exact points on vmec's half grid,
+        # so there are no issues with radial interpolation.
+        surfaces = vmec.s_half_grid[10:-1:10]
+        helicity_N = -4
+
+        geom_obj1 = RedlGeomVmec(vmec, surfaces)
+        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_N)
+        geom1 = geom_obj1()
+        geom2 = geom_obj2()
+
+        logging.info(f'Bmin:  vmec={geom1.Bmin}  booz={geom2.Bmin}  diff={geom1.Bmin-geom2.Bmin}')
+        logging.info(f'Bmax:  vmec={geom1.Bmax}  booz={geom2.Bmax}  diff={geom1.Bmax-geom2.Bmax}')
+        logging.info(f'epsilon:  vmec={geom1.epsilon}  booz={geom2.epsilon}  diff={geom1.epsilon-geom2.epsilon}')
+        logging.info(f'fsa_B2:  vmec={geom1.fsa_B2}  booz={geom2.fsa_B2}  diff={geom1.fsa_B2-geom2.fsa_B2}')
+        logging.info(f'fsa_1overB:  vmec={geom1.fsa_1overB}  booz={geom2.fsa_1overB}  diff={geom1.fsa_1overB-geom2.fsa_1overB}')
+        logging.info(f'f_t:  vmec={geom1.f_t}  booz={geom2.f_t}  diff={geom1.f_t-geom2.f_t}')
+        np.testing.assert_allclose(geom1.Bmin, geom2.Bmin, rtol=1e-3)
+        np.testing.assert_allclose(geom1.Bmax, geom2.Bmax, rtol=1e-3)
+        np.testing.assert_allclose(geom1.epsilon, geom2.epsilon, rtol=1e-2)
+        np.testing.assert_allclose(geom1.fsa_B2, geom2.fsa_B2, rtol=1e-3)
+        np.testing.assert_allclose(geom1.fsa_1overB, geom2.fsa_1overB, rtol=1e-3)
+        np.testing.assert_allclose(geom1.f_t, geom2.f_t, rtol=1e-2)
+
     def test_Redl_sfincs_tokamak_benchmark(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
@@ -549,8 +592,7 @@ class BootstrapTests(unittest.TestCase):
         helicity_N = 0
         filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
         vmec = Vmec(filename)
-        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
-
+        boozer = Boozer(vmec, mpol=32, ntor=0)
         jdotB_sfincs = np.array([-577720.30718026, -737097.14851563, -841877.1731213, -924690.37927967,
                                  -996421.14965534, -1060853.54247997, -1120000.15051496, -1175469.30096585,
                                  -1228274.42232883, -1279134.94084881, -1328502.74017954, -1376746.08281939,
@@ -577,13 +619,24 @@ class BootstrapTests(unittest.TestCase):
                                  -1237077.39816553, -950609.3080458, -677002.74349353, -429060.85924996,
                                  -224317.60933134, -82733.32462396, -22233.12804732])
 
-        # The relative error is a bit larger at s \approx 1, where the
-        # absolute magnitude is quite small, so drop those points.
-        np.testing.assert_allclose(jdotB[:-5], jdotB_sfincs[:-5], rtol=0.1)
+        jdotB_history = []
+        for geom_method in range(2):
+            if geom_method == 0:
+                geom = RedlGeomVmec(vmec, surfaces)
+            else:
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB_history.append(jdotB)
+
+            # The relative error is a bit larger at s \approx 1, where the
+            # absolute magnitude is quite small, so drop those points.
+            np.testing.assert_allclose(jdotB[:-5], jdotB_sfincs[:-5], rtol=0.1)
 
         if False:
             import matplotlib.pyplot as plt
-            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_history[0], '+-', label='Redl, f_t from vmec')
+            plt.plot(surfaces, jdotB_history[1], 'x-', label='Redl, f_t from Boozer')
             plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
             plt.xlabel('s')
             plt.title('J dot B')
@@ -604,42 +657,6 @@ class BootstrapTests(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
-    @unittest.skip("")
-    def test_Redl_sfincs_WistellA(self):
-        """
-        Compare the Redl <j dot B> to a SFINCS calculation for Wistell-A.
-        """
-        ne = ProfilePolynomial(0.9e20 * np.array([1, 0, 0, 0, 0, -1]))
-        #Te = ProfilePolynomial(1.3e3 * np.array([1, -1]))
-        #Te = ProfilePolynomial(2.5e3 * np.array([1, -1]))
-        Te = ProfilePolynomial(3.5e3 * np.array([1, -1]))
-        Ti = Te
-        Zeff = 1
-        helicity_N = 4
-        #filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
-        #filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_0.71.00000.nc'
-        #filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_1.39.00000.nc'
-        filename = '/Users/mattland/Box Sync/work19/20191229-01-wistell_self_consistent_current_profiles/wout_wista_15_beta_1.97.00000.nc'
-        vmec = Vmec(filename)
-        surfaces = vmec.s_full_grid[1:-1]  # Drop points on the axis and edge to avoid divide-by-0
-        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
-
-        # The current profile in this vmec file was computed using SFINCS:
-        jdotB_sfincs = vmec.wout.jdotb[1:-1]
-
-        # The relative error is a bit larger at s \approx 1, where the
-        # absolute magnitude is quite small, so drop those points.
-        #np.testing.assert_allclose(jdotB[:-5], jdotB_sfincs[:-5], rtol=0.1)
-
-        if True:
-            import matplotlib.pyplot as plt
-            plt.plot(surfaces, jdotB, '.-', label='Redl')
-            plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
-            plt.legend(loc=0)
-            plt.xlabel('s')
-            plt.title('J dot B')
-            plt.show()
-
     def test_Redl_sfincs_precise_QA(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for the precise QA.
@@ -655,9 +672,8 @@ class BootstrapTests(unittest.TestCase):
         # filename = os.path.join(TEST_DIR, 'wout_new_QA_aScaling.nc')  # High resolution
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
+        boozer = Boozer(vmec, mpol=16, ntor=16)
         surfaces = np.linspace(0.025, 0.975, 39)
-        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
-
         jdotB_sfincs = np.array([-2164875.78234086, -3010997.004258, -3586912.40439179, -4025873.78974165,
                                  -4384855.40656673, -4692191.91608418, -4964099.33007648, -5210508.61474677,
                                  -5442946.68999908, -5657799.82786579, -5856450.57370037, -6055808.19817868,
@@ -669,17 +685,27 @@ class BootstrapTests(unittest.TestCase):
                                  -4390147.20699043, -3612989.71633149, -2793173.34162084, -1967138.17518374,
                                  -1192903.42248978, -539990.088677, -115053.37380415])
 
+        jdotB_history = []
+        for geom_method in range(2):
+            if geom_method == 0:
+                geom = RedlGeomVmec(vmec, surfaces)
+            else:
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB_history.append(jdotB)
+            np.testing.assert_allclose(jdotB[1:-1], jdotB_sfincs[1:-1], rtol=0.1)
+
         if False:
             import matplotlib.pyplot as plt
-            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_history[0], '+-', label='Redl, f_t from vmec')
+            plt.plot(surfaces, jdotB_history[1], 'x-', label='Redl, f_t from Boozer')
             plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
             plt.legend(loc=0)
             plt.xlabel('s')
             plt.ylabel('J dot B [SI units]')
             plt.title('Bootstrap current for the precise QA (Landreman & Paul (2021))')
             plt.show()
-
-        np.testing.assert_allclose(jdotB[1:-1], jdotB_sfincs[1:-1], rtol=0.1)
 
     def test_Redl_sfincs_precise_QH(self):
         """
@@ -696,8 +722,8 @@ class BootstrapTests(unittest.TestCase):
         #filename = os.path.join(TEST_DIR, 'wout_new_QH_aScaling.nc')  # High resolution
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
+        boozer = Boozer(vmec, mpol=16, ntor=16)
         surfaces = np.linspace(0.025, 0.975, 39)
-        jdotB, details = vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, plot=False)
 
         jdotB_sfincs = np.array([-1086092.9561775, -1327299.73501589, -1490400.04894085, -1626634.32037339,
                                  -1736643.64671843, -1836285.33939607, -1935027.3099312, -2024949.13178129,
@@ -710,17 +736,27 @@ class BootstrapTests(unittest.TestCase):
                                  -3228174.23182819, -2914278.54799143, -2525391.54652021, -2058913.26485519,
                                  -1516843.60879267, -912123.395174, -315980.89711036])
 
+        jdotB_history = []
+        for geom_method in range(2):
+            if geom_method == 0:
+                geom = RedlGeomVmec(vmec, surfaces)
+            else:
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB_history.append(jdotB)
+            np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
+
         if False:
             import matplotlib.pyplot as plt
-            plt.plot(surfaces, jdotB, '.-', label='Redl')
+            plt.plot(surfaces, jdotB_history[0], '+-', label='Redl, f_t from vmec')
+            plt.plot(surfaces, jdotB_history[1], 'x-', label='Redl, f_t from Boozer')
             plt.plot(surfaces, jdotB_sfincs, '.-', label='sfincs')
             plt.legend(loc=0)
             plt.xlabel('s')
             plt.ylabel('J dot B [SI units]')
             plt.title('Bootstrap current for the precise QH (Landreman & Paul (2021))')
             plt.show()
-
-        np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
 
     def test_VmecRedlBootstrapMismatch_1(self):
         """
@@ -736,11 +772,22 @@ class BootstrapTests(unittest.TestCase):
         helicity_N = 0
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
-        obj = VmecRedlBootstrapMismatch(vmec, ne, Te, Ti, Zeff, helicity_N)
-        obj1 = obj.J()
-        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj1:.3e} '
-                     f'and should be approximately 1.0. Diff: {obj1 - 1.0}')
-        np.testing.assert_allclose(obj1, 1.0, rtol=1e-6)
+        geom = RedlGeomVmec(vmec)
+        obj1 = VmecRedlBootstrapMismatch(geom, ne, Te, Ti, Zeff, helicity_N)
+        obj1J = obj1.J()
+        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj1J:.3e} '
+                     f'and should be approximately 1.0. Diff: {obj1J - 1.0}')
+        np.testing.assert_allclose(obj1J, 1.0, rtol=1e-6)
+        np.testing.assert_allclose(geom.surfaces, vmec.s_half_grid)
+
+        # Try again with a non-default set of surfaces:
+        surfaces = np.linspace(0.1, 0.9, 9)
+        geom2 = RedlGeomVmec(vmec, surfaces)
+        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_N)
+        obj2J = obj2.J()
+        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj2J:.3e} '
+                     f'and should be approximately 1.0. Diff: {obj2J - 1.0}')
+        np.testing.assert_allclose(obj2J, 1.0, rtol=1e-6)
 
     def test_VmecRedlBootstrapMismatch_independent_of_ns(self):
         """
@@ -754,19 +801,22 @@ class BootstrapTests(unittest.TestCase):
         helicity_N = 0
         filename = os.path.join(TEST_DIR, 'input.ITERModel')
         vmec = Vmec(filename)
-        obj = VmecRedlBootstrapMismatch(vmec, ne, Te, Ti, Zeff, helicity_N, nphi=3)
         # Resolution 1:
         vmec.indata.ns_array[:3] = [13, 25, 0]
         vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
         vmec.indata.niter_array[:3] = [500, 2000, 0]
-        obj1 = obj.J()
+        geom1 = RedlGeomVmec(vmec, nphi=3)
+        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_N)
+        obj1J = obj1.J()
         # Resolution 2:
         vmec.indata.ns_array[:3] = [13, 25, 51]
         vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 1e-15]
         vmec.indata.niter_array[:3] = [500, 800, 2000]
         vmec.need_to_run_code = True
-        obj2 = obj.J()
-        rel_diff = (obj1 - obj2) / (0.5 * (obj1 + obj2))
-        logging.info(f'resolution1: {obj1:.4e}  resolution2: {obj2:.4e}  rel diff: {rel_diff}')
-        np.testing.assert_allclose(obj1, obj2, rtol=0.003)
-
+        geom2 = RedlGeomVmec(vmec, nphi=3)
+        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_N)
+        obj2J = obj2.J()
+        rel_diff = (obj1J - obj2J) / (0.5 * (obj1J + obj2J))
+        logging.info(f'resolution1: {obj1J:.4e}  resolution2: {obj2J:.4e}  rel diff: {rel_diff}')
+        np.testing.assert_allclose(obj1J, obj2J, rtol=0.003)
+        self.assertNotEqual(obj1J, obj2J)  # There should be some small difference
