@@ -27,6 +27,14 @@ def compute_trapped_fraction(modB, sqrtg):
     provided on a uniform grid of arbitrary toroidal and poloidal
     angles that need not be straight-field-line angles.
 
+    The trapped fraction ``f_t`` has a standard definition in neoclassical theory:
+
+    .. math::
+        f_t = 1 - \frac{3}{4} \left< B^2 \right> \int_0^{1/Bmax}
+            \frac{\lambda\; d\lambda}{\left< \sqrt{1 - \lambda B} \right>}
+
+    where :math:`\left< \ldots \right>` is a flux surface average.
+
     The effective inverse aspect ratio epsilon is defined by
 
     .. math::
@@ -38,142 +46,123 @@ def compute_trapped_fraction(modB, sqrtg):
     \epsilon \cos\theta) R_0`.
 
     Args:
-        modB: 3D array of size (ntheta, nphi, ns) representing :math:`|B|`.
-        sqrtg: 3D array of size (ntheta, nphi, ns) representing the Jacobian.
+        modB: 2D array of size (ntheta, ns) or 3D array of size
+            (ntheta, nphi, ns) with :math:`|B|` on the grid points.
+        sqrtg: 2D array of size (ntheta, ns) or 3D array of size
+            (ntheta, nphi, ns) with the Jacobian
+            :math:`1/(\nabla s \times\nabla\theta\cdot\nabla\phi)`
+            on the grid points.
     Returns:
         Tuple containing the following 1D arrays, corresponding to radial grid points:
 
         - Bmin: minimum of :math:`|B|` on each surface
         - Bmax: maximum of :math:`|B|` on each surface
         - epsilon: A measure of the inverse aspect ratio
-        - fsa_B2: <B^2>, where < > denotes a flux surface average.
-        - fsa_1overB: <1/B>, where < > denotes a flux surface average.
+        - fsa_B2: :math:`\left<B^2\right>`, where :math:`\left< \ldots \right>` denotes a flux surface average.
+        - fsa_1overB: :math:`\left<1/B\right>`, where :math:`\left< \ldots \right>` denotes a flux surface average.
         - f_t: The effective trapped fraction
     """
+    assert modB.shape == sqrtg.shape
     ntheta = modB.shape[0]
-    nphi = modB.shape[1]
-    ns = modB.shape[2]
-    fourpisq = 4 * np.pi * np.pi
-    dVds = np.mean(sqrtg, axis=(0, 1)) / fourpisq
-    fsa_B2 = np.mean(modB * modB * sqrtg, axis=(0, 1)) / (fourpisq * dVds)
-    fsa_1overB = np.mean(sqrtg / modB, axis=(0, 1)) / (fourpisq * dVds)
-
+    ns = modB.shape[-1]
     epsilon = np.zeros(ns)
     f_t = np.zeros(ns)
     Bmin = np.zeros(ns)
     Bmax = np.zeros(ns)
 
-    # Make a slightly enlarged version of the input array with the
-    # first row and column appended at the ends, for periodicity.
-    modB_big = np.zeros((ntheta + 1, nphi + 1, ns))
-    modB_big[:ntheta, :nphi, :] = modB
-    modB_big[-1, :nphi, :] = modB[0, :, :]
-    modB_big[:, -1, :] = modB_big[:, 0, :]
+    if modB.ndim == 3:
+        # Input arrays are 3D, with phi dependence.
 
-    theta = np.arange(ntheta + 1)
-    phi = np.arange(nphi + 1)
-    for js in range(ns):
-        index_of_min = np.unravel_index(np.argmin(modB_big[:, :, js]), modB_big.shape[:2])
-        index_of_max = np.unravel_index(np.argmax(modB_big[:, :, js]), modB_big.shape[:2])
-        modB_spline = RectBivariateSpline(theta, phi, modB_big[:, :, js])
-        soln = minimize(lambda x: np.ravel(modB_spline(x[0], x[1])),
-                        index_of_min,
-                        bounds=((0, ntheta), (0, nphi)))
-        modBmin = soln.fun
-        soln = minimize(lambda x: -np.ravel(modB_spline(x[0], x[1])),
-                        index_of_max,
-                        bounds=((0, ntheta), (0, nphi)))
-        modBmax = -soln.fun
-        Bmin[js] = modBmin
-        Bmax[js] = modBmax
-        w = modBmax / modBmin
-        epsilon[js] = (w - 1) / (w + 1)
+        nphi = modB.shape[1]
+        fourpisq = 4 * np.pi * np.pi
+        dVds = np.mean(sqrtg, axis=(0, 1)) / fourpisq
+        fsa_B2 = np.mean(modB * modB * sqrtg, axis=(0, 1)) / (fourpisq * dVds)
+        fsa_1overB = np.mean(sqrtg / modB, axis=(0, 1)) / (fourpisq * dVds)
 
-        def integrand(lambd):
-            # This function gives lambda / <sqrt(1 - lambda B)>:
-            return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js]) * sqrtg[:, :, js]) \
-                            / (fourpisq * dVds[js]))
+        # Make a slightly enlarged version of the input array with the
+        # first row and column appended at the ends, for periodicity.
+        modB_big = np.zeros((ntheta + 1, nphi + 1, ns))
+        modB_big[:ntheta, :nphi, :] = modB
+        modB_big[-1, :nphi, :] = modB[0, :, :]
+        modB_big[:, -1, :] = modB_big[:, 0, :]
 
-        integral = quad(integrand, 0, 1 / modBmax)
-        f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
+        theta = np.arange(ntheta + 1)
+        phi = np.arange(nphi + 1)
+        for js in range(ns):
+            index_of_min = np.unravel_index(np.argmin(modB_big[:, :, js]), modB_big.shape[:2])
+            index_of_max = np.unravel_index(np.argmax(modB_big[:, :, js]), modB_big.shape[:2])
+            modB_spline = RectBivariateSpline(theta, phi, modB_big[:, :, js])
+            soln = minimize(lambda x: np.ravel(modB_spline(x[0], x[1])),
+                            index_of_min,
+                            bounds=((0, ntheta), (0, nphi)))
+            modBmin = soln.fun
+            soln = minimize(lambda x: -np.ravel(modB_spline(x[0], x[1])),
+                            index_of_max,
+                            bounds=((0, ntheta), (0, nphi)))
+            modBmax = -soln.fun
+            Bmin[js] = modBmin
+            Bmax[js] = modBmax
+            w = modBmax / modBmin
+            epsilon[js] = (w - 1) / (w + 1)
 
+            def integrand(lambd):
+                # This function gives lambda / <sqrt(1 - lambda B)>:
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js]) * sqrtg[:, :, js]) \
+                                / (fourpisq * dVds[js]))
+
+            integral = quad(integrand, 0, 1 / modBmax)
+            f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
+
+    elif modB.ndim == 2:
+        # Input arrays are 2D, with no phi dependence.
+
+        twopi = 2 * np.pi
+        dVds = np.mean(sqrtg, axis=0) / twopi
+        fsa_B2 = np.mean(modB * modB * sqrtg, axis=0) / (twopi * dVds)
+        fsa_1overB = np.mean(sqrtg / modB, axis=0) / (twopi * dVds)
+
+        # Make a slightly enlarged version of the input array with the
+        # first row and column appended at the ends, for periodicity.
+        modB_big = np.zeros((ntheta + 1, ns))
+        modB_big[:ntheta, :] = modB
+        modB_big[-1, :] = modB[0, :]
+
+        theta = np.arange(ntheta + 1)
+        for js in range(ns):
+            index_of_min = np.argmin(modB_big[:, js])
+            index_of_max = np.argmax(modB_big[:, js])
+            modB_spline = interp1d(theta, modB_big[:, js], kind='cubic')
+            bounds = Bounds(0, ntheta)
+            soln = minimize(modB_spline,
+                            [index_of_min],
+                            bounds=bounds)
+            modBmin = soln.fun
+            soln = minimize(lambda x: -modB_spline(x[0]),
+                            [index_of_max],
+                            bounds=bounds)
+            modBmax = -soln.fun
+            Bmin[js] = modBmin
+            Bmax[js] = modBmax
+            w = modBmax / modBmin
+            epsilon[js] = (w - 1) / (w + 1)
+
+            def integrand(lambd):
+                # This function gives lambda / <sqrt(1 - lambda B)>:
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js]) \
+                                / (twopi * dVds[js]))
+
+            integral = quad(integrand, 0, 1 / modBmax)
+            f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
+
+    else:
+        raise ValueError('Input arrays must be 2D or 3D')
+
+    logging.debug(f'Bmin: {Bmin}  Bmax: {Bmax}  epsilon: {epsilon}  '
+                  f'fsa_B2: {fsa_B2}  fsa_1overB: {fsa_1overB}  f_t: {f_t}')
     return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
-def compute_trapped_fraction_booz(booz, helicity_n, ntheta=64):
-    """
-    Compute quantities needed for the Redl bootstrap current formula.
-
-    Args:
-        booz: An instance of :obj:`simsopt.mhd.boozer.Boozer`
-        helicity_m: The poloidal mode number of the desired symmetry, usually 1.
-        helicity_n: The toroidal mode number of the desired symmetry.
-    Returns:
-        3-element tuple containing three 1D arrays, corresponding to radial grid points
-            epsilon: A measure of the inverse aspect ratio
-            fsa_B2: <B^2>, where < > denotes a flux surface average.
-            f_t: The effective trapped fraction
-    """
-    booz.run()
-    ns = booz.bx.ns_b
-    modB = np.zeros((ntheta, ns))
-    sqrtg = np.zeros((ntheta, ns))
-    theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-    s, theta = np.meshgrid(booz.s, theta1d)
-    for jmn in range(booz.bx.mnboz):
-        if booz.bx.xm_b[jmn] * booz.bx.nfp * helicity_n == booz.bx.xn_b[jmn]:
-            # modB += cos(m * theta) * bmnc:
-            modB += np.cos(booz.bx.xm_b[jmn] * theta) \
-                * np.kron(np.ones((ntheta, 1)), booz.bx.bmnc_b[jmn, None, :])
-            sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
-                * np.kron(np.ones((ntheta, 1)), booz.bx.gmnc_b[jmn, None, :])
-    twopi = 2 * np.pi
-    dVds = np.mean(sqrtg, axis=0) / twopi
-    fsa_B2 = np.mean(modB * modB * sqrtg, axis=0) / (twopi * dVds)
-    fsa_1overB = np.mean(sqrtg / modB, axis=0) / (twopi * dVds)
-
-    epsilon = np.zeros(ns)
-    f_t = np.zeros(ns)
-    Bmin = np.zeros(ns)
-    Bmax = np.zeros(ns)
-
-    # Make a slightly enlarged version of the input array with the
-    # first row and column appended at the ends, for periodicity.
-    modB_big = np.zeros((ntheta + 1, ns))
-    modB_big[:ntheta, :] = modB
-    modB_big[-1, :] = modB[0, :]
-
-    theta = np.arange(ntheta + 1)
-    for js in range(ns):
-        index_of_min = np.argmin(modB_big[:, js])
-        index_of_max = np.argmax(modB_big[:, js])
-        modB_spline = interp1d(theta, modB_big[:, js], kind='cubic')
-        bounds = Bounds(0, ntheta)
-        soln = minimize(modB_spline,
-                        [index_of_min],
-                        bounds=bounds)
-        modBmin = soln.fun
-        soln = minimize(lambda x: -modB_spline(x[0]),
-                        [index_of_max],
-                        bounds=bounds)
-        modBmax = -soln.fun
-        Bmin[js] = modBmin
-        Bmax[js] = modBmax
-        w = modBmax / modBmin
-        epsilon[js] = (w - 1) / (w + 1)
-
-        def integrand(lambd):
-            # This function gives lambda / <sqrt(1 - lambda B)>:
-            return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js]) \
-                            / (twopi * dVds[js]))
-
-        integral = quad(integrand, 0, 1 / modBmax)
-        f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
-
-    return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
-
-
-def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N):
+def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N):
     r"""
     Compute the bootstrap current (specifically
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
@@ -182,18 +171,24 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helici
     The quantity <j dot B> is computed at all surfaces s that are
     available in the booz object.
 
-    The profiles of ne, Te, Ti, and Zeff should all be Profile
-    objects, meaning they have ``__call__`` and ``dfds()`` functions. If
-    Zeff==None, a constant 1 is assumed. If Zeff is a float, a
-    constant profile will be assumed.
+    The profiles of ne, Te, Ti, and Zeff should all be instances of
+    subclasses of :obj:`simsopt.mhd.profile.Profile`, i.e. they should
+    have ``__call__`` and ``dfds()`` functions. If Zeff==None, a
+    constant 1 is assumed. If Zeff is a float, a constant profile will
+    be assumed.
 
     ne should have units of 1/m^3. Ti and Te should have units of eV.
 
-    epsilon, f_t, iota, and R should be 1d arrays evaluated on the s grid.
+    The input arrays ``G``, ``R``, ``iota``, ``epsilon``, and ``f_t``,
+    should be 1d arrays evaluated on the s grid.
 
     Args:
-        booz: An instance of :obj:`simsopt.mhd.boozer.Boozer`
-        ne: A
+        s: A 1D array of values of normalized toroidal flux.
+        ne: A :obj:`~simsopt.mhd.profile.Profile` object with the electron density profile.
+        Te: A :obj:`~simsopt.mhd.profile.Profile` object with the electron temperature profile.
+        Ti: A :obj:`~simsopt.mhd.profile.Profile` object with the ion temperature profile.
+        Zeff: A :obj:`~simsopt.mhd.profile.Profile` object with the profile of the average
+            impurity charge :math:`Z_eff`, or a number if this profile is constant.
         psi_edge: The toroidal flux in Webers divided by (2pi) at the boundary s=1
     Returns:
         jdotB:
@@ -220,7 +215,7 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helici
     # Profiles may go to 0 at s=1, so exclude the last 2 grid points:
     if np.any(ne_s[:-2] < 1e17):
         logging.warning('ne is surprisingly low. It should have units 1/meters^3')
-    if np.any(Te_s[:-2] < 500):
+    if np.any(Te_s[:-2] < 50):
         logging.warning('Te is surprisingly low. It should have units of eV')
     if np.any(Ti_s[:-2] < 50):
         logging.warning('Ti is surprisingly low. It should have units of eV')
@@ -299,96 +294,269 @@ def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helici
                  'ln_Lambda_e', 'ln_Lambda_ii', 'nu_e_star', 'nu_i_star',
                  'X31', 'X32e', 'X32ei', 'F32ee', 'F32ei',
                  'L31', 'L32', 'L34', 'alpha0', 'alpha',
-                 'dnds_term', 'dTeds_term', 'dTids_term']
+                 'dnds_term', 'dTeds_term', 'dTids_term', 'jdotB']
     for v in variables:
         details.__setattr__(v, eval(v))
 
     return jdotB, details
 
 
-def vmec_j_dot_B_Redl(vmec, surfaces, ne, Te, Ti, Zeff, helicity_N, ntheta=64, nphi=65, plot=False):
+def j_dot_B_Redl(geom_obj, ne, Te, Ti, Zeff, helicity_N, plot=False):
     """
-    Evaluate the Redl bootstrap current formula for a vmec configuration.
+    Evaluate the Redl bootstrap current formula. This function differs
+    from :func:`j_dot_B_Redl_fits` in that this version takes as input
+    ``geom_obj``, an object that evaluates geometry data for the
+    "nearest quasisymmetric configuration" to a given MHD equilibrium,
+    in some sense. Specifically, ``geom_obj`` must evaluate the
+    following geometric quantities: ``surfaces``, ``G``, ``R``,
+    ``iota``, ``epsilon``, ``f_t``, and ``psi_edge``. Typically
+    ``geom_obj`` is an instance of either :obj:`RedlGeomVmec` or
+    :obj:`RedlGeomBoozer`.
 
     Args:
         plot: Make a plot of many of the quantities computed.
     """
-    vmec.run()
+    geom_data = geom_obj()
+    jdotB, details = j_dot_B_Redl_fits(geom_data.surfaces, ne, Te, Ti, Zeff,
+                                       geom_data.G, geom_data.R, geom_data.iota,
+                                       geom_data.epsilon, geom_data.f_t,
+                                       geom_data.psi_edge, helicity_N)
 
-    ns = len(surfaces)
-    nfp = vmec.wout.nfp
-    psi_edge = -vmec.wout.phi[-1] / (2 * np.pi)
-
-    # First, interpolate in s to get the quantities we need on the surfaces we need.
-    method = 'linear'
-
-    interp = interp1d(vmec.s_half_grid, vmec.wout.iotas[1:], fill_value="extrapolate")
-    iota = interp(surfaces)
-
-    interp = interp1d(vmec.s_half_grid, vmec.wout.bvco[1:], fill_value="extrapolate")
-    G = interp(surfaces)
-
-    interp = interp1d(vmec.s_half_grid, vmec.wout.buco[1:], fill_value="extrapolate")
-    I = interp(surfaces)
-
-    interp = interp1d(vmec.s_half_grid, vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
-    gmnc = interp(surfaces)
-
-    interp = interp1d(vmec.s_half_grid, vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
-    bmnc = interp(surfaces)
-
-    theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-    phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
-    phi2d, theta2d = np.meshgrid(phi1d, theta1d)
-    phi3d = phi2d.reshape((ntheta, nphi, 1))
-    theta3d = theta2d.reshape((ntheta, nphi, 1))
-
-    myshape = (ntheta, nphi, ns)
-    modB = np.zeros(myshape)
-    sqrtg = np.zeros(myshape)
-    for jmn in range(len(vmec.wout.xm_nyq)):
-        m = vmec.wout.xm_nyq[jmn]
-        n = vmec.wout.xn_nyq[jmn]
-        angle = m * theta3d - n * phi3d
-        cosangle = np.cos(angle)
-        sinangle = np.sin(angle)
-        modB += np.kron(bmnc[jmn, :].reshape((1, 1, ns)), cosangle)
-        sqrtg += np.kron(gmnc[jmn, :].reshape((1, 1, ns)), cosangle)
-
-    Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
-
-    # There are several ways we could define an effective R for shaped geometry:
-    R = (G + iota * I) * fsa_1overB
-    #R = vmec.wout.RMajor_p
-    jdotB, details = j_dot_B_Redl(surfaces, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
-
-    # Add extra info to the return structure
-    variables = ['Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t',
-                 'modB', 'sqrtg', 'G', 'I', 'iota', 'surfaces', 'psi_edge', 'theta1d', 'phi1d']
-    for v in variables:
-        details.__setattr__(v, eval(v))
+    # Copy geom_data into details:
+    for v in dir(geom_data):
+        if v[0] != '_':
+            details.__setattr__(v, eval("geom_data." + v))
 
     if plot:
         import matplotlib.pyplot as plt
         plt.figure(figsize=(14, 7))
         plt.rcParams.update({'font.size': 8})
-        nrows = 4
-        ncols = 6
-        variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t', 'iota', 'G', 'I', 'R',
-                     'details.ne_s', 'details.ni_s', 'details.Zeff_s', 'details.Te_s', 'details.Ti_s',
-                     'details.ln_Lambda_e', 'details.ln_Lambda_ii',
-                     'details.nu_e_star', 'details.nu_i_star',
-                     'details.dnds_term', 'details.dTeds_term', 'details.dTids_term',
-                     'details.L31', 'details.L32', 'details.alpha', 'jdotB']
+        nrows = 5
+        ncols = 5
+        variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'fsa_1overB',
+                     'f_t', 'iota', 'G', 'R',
+                     'ne_s', 'ni_s', 'Zeff_s', 'Te_s', 'Ti_s',
+                     'ln_Lambda_e', 'ln_Lambda_ii',
+                     'nu_e_star', 'nu_i_star',
+                     'dnds_term', 'dTeds_term', 'dTids_term',
+                     'L31', 'L32', 'alpha', 'jdotB']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
-            plt.plot(surfaces, eval(variable))
+            plt.plot(details.surfaces, eval("details." + variable))
             plt.title(variable)
             plt.xlabel('s')
         plt.tight_layout()
         plt.show()
 
     return jdotB, details
+
+
+class RedlGeomVmec(Optimizable):
+    """
+    Evaluate geometry data needed to evaluate the Redl bootstrap
+    current formula from a vmec configuration, without transforming to
+    Boozer coordinates.
+
+    Args:
+        vmec: An instance of :obj:`simsopt.mhd.vmec.Vmec`.
+        surfaces: A 1d array of values of s (normalized toroidal flux) on which
+            to compute the geometric quantities. If ``None``, the half grid points will be used.
+        ntheta: Number of grid points in the poloidal angle for evaluating quantities in the Redl formulae.
+        nphi: Number of grid points in the toroidal angle for evaluating quantities in the Redl formulae.
+        plot: Make a plot of many of the quantities computed.
+    """
+
+    def __init__(self, vmec, surfaces=None, ntheta=64, nphi=65, plot=False):
+        self.vmec = vmec
+        self.surfaces = surfaces
+        self.ntheta = ntheta
+        self.nphi = nphi
+        self.plot = plot
+        super().__init__(depends_on=[vmec])
+
+    def __call__(self):
+        self.vmec.run()
+
+        if self.surfaces is None:
+            self.surfaces = self.vmec.s_half_grid
+        surfaces = self.surfaces
+        ntheta = self.ntheta
+        nphi = self.nphi
+
+        ns = len(surfaces)
+        nfp = self.vmec.wout.nfp
+        psi_edge = -self.vmec.wout.phi[-1] / (2 * np.pi)
+
+        # First, interpolate in s to get the quantities we need on the surfaces we need.
+        method = 'linear'
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
+        iota = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
+        G = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
+        I = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
+        gmnc = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
+        bmnc = interp(surfaces)
+
+        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+        phi2d, theta2d = np.meshgrid(phi1d, theta1d)
+        phi3d = phi2d.reshape((ntheta, nphi, 1))
+        theta3d = theta2d.reshape((ntheta, nphi, 1))
+
+        myshape = (ntheta, nphi, ns)
+        modB = np.zeros(myshape)
+        sqrtg = np.zeros(myshape)
+        for jmn in range(len(self.vmec.wout.xm_nyq)):
+            m = self.vmec.wout.xm_nyq[jmn]
+            n = self.vmec.wout.xn_nyq[jmn]
+            angle = m * theta3d - n * phi3d
+            cosangle = np.cos(angle)
+            sinangle = np.sin(angle)
+            modB += np.kron(bmnc[jmn, :].reshape((1, 1, ns)), cosangle)
+            sqrtg += np.kron(gmnc[jmn, :].reshape((1, 1, ns)), cosangle)
+
+        Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
+
+        # There are several ways we could define an effective R for shaped geometry:
+        R = (G + iota * I) * fsa_1overB
+        #R = self.vmec.wout.RMajor_p
+
+        # Pack data into a return structure
+        data = Struct()
+        data.vmec = self.vmec
+        variables = ['surfaces', 'Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t',
+                     'modB', 'sqrtg', 'G', 'R', 'I', 'iota', 'psi_edge', 'theta1d', 'phi1d']
+        for v in variables:
+            data.__setattr__(v, eval(v))
+
+        if self.plot:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(14, 7))
+            plt.rcParams.update({'font.size': 8})
+            nrows = 3
+            ncols = 4
+            variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t', 'iota', 'G', 'I', 'R']
+            for j, variable in enumerate(variables):
+                plt.subplot(nrows, ncols, j + 1)
+                plt.plot(surfaces, eval(variable))
+                plt.title(variable)
+                plt.xlabel('s')
+            plt.tight_layout()
+            plt.show()
+
+        return data
+
+
+class RedlGeomBoozer(Optimizable):
+    """
+    Evaluate geometry data needed to evaluate the Redl bootstrap
+    current formula from a vmec configuration, by transforming to
+    Boozer coordinates, then discarding all the symmetry-breaking Bmn
+    harmonics.
+
+    Note: The first time the geometry is evaluated, ``surfaces`` will
+    be over-written with the set of s values that booz_xform is
+    actually run on.
+
+    Args:
+        plot: Make a plot of many of the quantities computed.
+    """
+
+    def __init__(self, booz, surfaces, helicity_N, ntheta=64, plot=False):
+        booz.register(surfaces)
+        self.booz = booz
+        self.surfaces = surfaces
+        self.helicity_N = helicity_N
+        self.ntheta = ntheta
+        self.plot = plot
+        super().__init__(depends_on=[booz])
+
+    def __call__(self):
+        booz = self.booz
+        booz.run()
+
+        # self.surfaces = self.booz.bx.s_b
+        surfaces = self.surfaces
+        ns = len(surfaces)
+        ntheta = self.ntheta
+        vmec = self.booz.equil
+        self.vmec = vmec
+        nfp = vmec.wout.nfp
+        psi_edge = -vmec.wout.phi[-1] / (2 * np.pi)
+        logger.info(f'Surfaces from booz_xform: {self.booz.bx.s_b}  '
+                    f'Surfaces for RedlGeomBoozer: {surfaces}')
+
+        # First, interpolate in s to get the quantities we need on the surfaces we need.
+        method = 'linear'
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
+        iota = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
+        G = interp(surfaces)
+
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
+        I = interp(surfaces)
+
+        interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
+        bmnc_b = interp(surfaces)
+        logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
+
+        interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
+        gmnc_b = interp(surfaces)
+
+        # Evaluate modB and sqrtg on a uniform grid in theta,
+        # including only the modes that match the desired symmetry:
+        modB = np.zeros((ntheta, ns))
+        sqrtg = np.zeros((ntheta, ns))
+        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        s, theta = np.meshgrid(surfaces, theta1d)
+        for jmn in range(booz.bx.mnboz):
+            if booz.bx.xm_b[jmn] * self.helicity_N == booz.bx.xn_b[jmn]:
+                # modB += cos(m * theta) * bmnc:
+                modB += np.cos(booz.bx.xm_b[jmn] * theta) \
+                    * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
+                sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
+                    * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :])
+
+        Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
+
+        # There are several ways we could define an effective R for shaped geometry:
+        R = (G + iota * I) * fsa_1overB
+        #R = self.vmec.wout.RMajor_p
+
+        # Pack data into a return structure
+        data = Struct()
+        data.vmec = vmec
+        variables = ['surfaces', 'Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t',
+                     'modB', 'sqrtg', 'G', 'R', 'I', 'iota', 'psi_edge', 'theta1d']
+        for v in variables:
+            data.__setattr__(v, eval(v))
+
+        if self.plot:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(14, 7))
+            plt.rcParams.update({'font.size': 8})
+            nrows = 3
+            ncols = 4
+            variables = ['Bmax', 'Bmin', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t', 'iota', 'G', 'I', 'R']
+            for j, variable in enumerate(variables):
+                plt.subplot(nrows, ncols, j + 1)
+                plt.plot(surfaces, eval(variable))
+                plt.title(variable)
+                plt.xlabel('s')
+            plt.tight_layout()
+            plt.show()
+
+        return data
 
 
 class VmecRedlBootstrapMismatch(Optimizable):
@@ -418,23 +586,19 @@ class VmecRedlBootstrapMismatch(Optimizable):
         Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object representing the :math:`Z_{eff}` profile.
             A singl number can also be provided, in which case a constant :math:`Z_{eff}` profile will be used.
         helicity_N: 0 for quasi-axisymmetry, or +/- nfp for quasi-helical symmetry.
-        ntheta: Number of grid points in the poloidal angle for evaluating quantities in the Redl formulae.
-        nphi: Number of grid points in the toroidal angle for evaluating quantities in the Redl formulae.
     """
 
-    def __init__(self, vmec, ne, Te, Ti, Zeff, helicity_N, ntheta=64, nphi=65):
+    def __init__(self, geom, ne, Te, Ti, Zeff, helicity_N):
         if not isinstance(Zeff, Profile):
-            # Zeff is presumably a number. Convert it to a constant profile.
+            # If we get here then Zeff is presumably a number. Convert it to a constant profile.
             Zeff = ProfilePolynomial([Zeff])
-        self.vmec = vmec
+        self.geom = geom
         self.ne = ne
         self.Te = Te
         self.Ti = Ti
         self.Zeff = Zeff
         self.helicity_N = helicity_N
-        self.ntheta = ntheta
-        self.nphi = nphi
-        super().__init__(depends_on=[vmec, ne, Te, Ti, Zeff])
+        super().__init__(depends_on=[geom, ne, Te, Ti, Zeff])
 
     def residuals(self):
         r"""
@@ -463,20 +627,19 @@ class VmecRedlBootstrapMismatch(Optimizable):
         The sum of the squares of these residuals equals the objective
         function.
         """
-        self.vmec.run()
-        j_dot_B_Redl, _ = vmec_j_dot_B_Redl(self.vmec,
-                                            self.vmec.s_half_grid,
-                                            self.ne,
-                                            self.Te,
-                                            self.Ti,
-                                            self.Zeff,
-                                            self.helicity_N,
-                                            ntheta=self.ntheta,
-                                            nphi=self.nphi)
-        # Interpolate vmec's <J dot B> profile from the full grid to the half grid:
-        j_dot_B_vmec = 0.5 * (self.vmec.wout.jdotb[1:] + self.vmec.wout.jdotb[:-1])
-        denominator = np.sum((j_dot_B_vmec + j_dot_B_Redl) ** 2) / (self.vmec.wout.ns - 1)
-        return (j_dot_B_vmec - j_dot_B_Redl) / np.sqrt((self.vmec.wout.ns - 1) * denominator)
+        jdotB_Redl, _ = j_dot_B_Redl(self.geom,
+                                     self.ne,
+                                     self.Te,
+                                     self.Ti,
+                                     self.Zeff,
+                                     self.helicity_N)
+        # Interpolate vmec's <J dot B> profile from the full grid to the desired surfaces:
+        vmec = self.geom.vmec
+        interp = interp1d(vmec.s_full_grid, vmec.wout.jdotb)  # VMEC's "jdotb" is on the full grid.
+        jdotB_vmec = interp(self.geom.surfaces)
+
+        denominator = np.sum((jdotB_vmec + jdotB_Redl) ** 2)
+        return (jdotB_vmec - jdotB_Redl) / np.sqrt(denominator)
 
     def J(self):
         """
