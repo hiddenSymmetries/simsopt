@@ -9,7 +9,7 @@ This module provides functions to compute the bootstrap current
 import logging
 import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from scipy.integrate import quad
 from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct
@@ -100,7 +100,7 @@ def compute_trapped_fraction(modB, sqrtg):
     return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
-def quasisymmetry_filtered_trapped_fraction(booz, helicity_m, helicity_n):
+def compute_trapped_fraction_booz(booz, helicity_n, ntheta=64):
     """
     Compute quantities needed for the Redl bootstrap current formula.
 
@@ -114,7 +114,63 @@ def quasisymmetry_filtered_trapped_fraction(booz, helicity_m, helicity_n):
             fsa_B2: <B^2>, where < > denotes a flux surface average.
             f_t: The effective trapped fraction
     """
-    pass
+    booz.run()
+    ns = booz.bx.ns_b
+    modB = np.zeros((ntheta, ns))
+    sqrtg = np.zeros((ntheta, ns))
+    theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+    s, theta = np.meshgrid(booz.s, theta1d)
+    for jmn in range(booz.bx.mnboz):
+        if booz.bx.xm_b[jmn] * booz.bx.nfp * helicity_n == booz.bx.xn_b[jmn]:
+            # modB += cos(m * theta) * bmnc:
+            modB += np.cos(booz.bx.xm_b[jmn] * theta) \
+                * np.kron(np.ones((ntheta, 1)), booz.bx.bmnc_b[jmn, None, :])
+            sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
+                * np.kron(np.ones((ntheta, 1)), booz.bx.gmnc_b[jmn, None, :])
+    twopi = 2 * np.pi
+    dVds = np.mean(sqrtg, axis=0) / twopi
+    fsa_B2 = np.mean(modB * modB * sqrtg, axis=0) / (twopi * dVds)
+    fsa_1overB = np.mean(sqrtg / modB, axis=0) / (twopi * dVds)
+
+    epsilon = np.zeros(ns)
+    f_t = np.zeros(ns)
+    Bmin = np.zeros(ns)
+    Bmax = np.zeros(ns)
+
+    # Make a slightly enlarged version of the input array with the
+    # first row and column appended at the ends, for periodicity.
+    modB_big = np.zeros((ntheta + 1, ns))
+    modB_big[:ntheta, :] = modB
+    modB_big[-1, :] = modB[0, :]
+
+    theta = np.arange(ntheta + 1)
+    for js in range(ns):
+        index_of_min = np.argmin(modB_big[:, js])
+        index_of_max = np.argmax(modB_big[:, js])
+        modB_spline = interp1d(theta, modB_big[:, js], kind='cubic')
+        bounds = Bounds(0, ntheta)
+        soln = minimize(modB_spline,
+                        [index_of_min],
+                        bounds=bounds)
+        modBmin = soln.fun
+        soln = minimize(lambda x: -modB_spline(x[0]),
+                        [index_of_max],
+                        bounds=bounds)
+        modBmax = -soln.fun
+        Bmin[js] = modBmin
+        Bmax[js] = modBmax
+        w = modBmax / modBmin
+        epsilon[js] = (w - 1) / (w + 1)
+
+        def integrand(lambd):
+            # This function gives lambda / <sqrt(1 - lambda B)>:
+            return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js]) \
+                            / (twopi * dVds[js]))
+
+        integral = quad(integrand, 0, 1 / modBmax)
+        f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
+
+    return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
 def j_dot_B_Redl(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N):

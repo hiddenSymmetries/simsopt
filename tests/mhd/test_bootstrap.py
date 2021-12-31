@@ -6,10 +6,11 @@ import unittest
 import logging
 import os
 import numpy as np
-from simsopt.mhd.bootstrap import compute_trapped_fraction, j_dot_B_Redl, \
-    vmec_j_dot_B_Redl, VmecRedlBootstrapMismatch
+from simsopt.mhd.bootstrap import compute_trapped_fraction, compute_trapped_fraction_booz, \
+    j_dot_B_Redl, vmec_j_dot_B_Redl, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.boozer import Boozer
 from simsopt.util.constants import ELEMENTARY_CHARGE
 from . import TEST_DIR
 
@@ -99,6 +100,67 @@ class BootstrapTests(unittest.TestCase):
             #plt.plot(epsilon_in, epsilon_out, 'r')
             #plt.plot(epsilon_in, epsilon_in, ':k')
             plt.show()
+
+    def test_compute_trapped_fraction_booz_tokamak(self):
+        """
+        """
+        filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
+        vmec = Vmec(filename)
+        booz = Boozer(vmec, mpol=32, ntor=0)
+        booz.register([0.1, 1.0])
+        Bmin_b, Bmax_b, epsilon_b, fsa_B2_b, fsa_1overB_b, f_t_b = compute_trapped_fraction_booz(booz, 0, 64)
+
+        ne = ProfilePolynomial(5.0e20 * np.array([1, -0.9]))
+        Te = ProfilePolynomial(8e3 * np.array([1, -0.9]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = 0
+        jdotB, details = vmec_j_dot_B_Redl(vmec, booz.bx.s_b, ne, Te, Ti, Zeff, helicity_N)
+        #Bmin_v, Bmax_v, epsilon_v, fsa_B2_v, fsa_1overB_v, f_t_v = compute_trapped_fraction(vmec, 0, 20)
+        logging.info(f'booz.s: {booz.s}  booz.s_used: {booz.s_used}  booz.bx.s_b: {booz.bx.s_b}')
+        logging.info(f'Bmin:  vmec={details.Bmin}  booz={Bmin_b}  diff={details.Bmin-Bmin_b}')
+        logging.info(f'Bmax:  vmec={details.Bmax}  booz={Bmax_b}  diff={details.Bmax-Bmax_b}')
+        logging.info(f'epsilon:  vmec={details.epsilon}  booz={epsilon_b}  diff={details.epsilon-epsilon_b}')
+        logging.info(f'fsa_B2:  vmec={details.fsa_B2}  booz={fsa_B2_b}  diff={details.fsa_B2-fsa_B2_b}')
+        logging.info(f'fsa_1overB:  vmec={details.fsa_1overB}  booz={fsa_1overB_b}  diff={details.fsa_1overB-fsa_1overB_b}')
+        logging.info(f'f_t:  vmec={details.f_t}  booz={f_t_b}  diff={details.f_t-f_t_b}')
+        np.testing.assert_allclose(details.Bmin, Bmin_b, rtol=1e-6)
+        np.testing.assert_allclose(details.Bmax, Bmax_b, rtol=1e-6)
+        np.testing.assert_allclose(details.epsilon, epsilon_b, rtol=1e-6)
+        np.testing.assert_allclose(details.fsa_B2, fsa_B2_b, rtol=1e-6)
+        np.testing.assert_allclose(details.fsa_1overB, fsa_1overB_b, rtol=1e-6)
+        np.testing.assert_allclose(details.f_t, f_t_b, rtol=1e-6)
+
+    def test_compute_trapped_fraction_booz_QH(self):
+        """
+        """
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
+        vmec = Vmec(filename)
+        booz = Boozer(vmec, mpol=16, ntor=16)
+        booz.register([0.1, 1.0])
+        helicity_n = -1
+        Bmin_b, Bmax_b, epsilon_b, fsa_B2_b, fsa_1overB_b, f_t_b = compute_trapped_fraction_booz(booz, helicity_n, 64)
+
+        ne = ProfilePolynomial(5.0e20 * np.array([1, -0.9]))
+        Te = ProfilePolynomial(8e3 * np.array([1, -0.9]))
+        Ti = Te
+        Zeff = 1
+        helicity_N = helicity_n * vmec.wout.nfp
+        jdotB, details = vmec_j_dot_B_Redl(vmec, booz.bx.s_b, ne, Te, Ti, Zeff, helicity_N)
+        #Bmin_v, Bmax_v, epsilon_v, fsa_B2_v, fsa_1overB_v, f_t_v = compute_trapped_fraction(vmec, 0, 20)
+        logging.info(f'booz.s: {booz.s}  booz.s_used: {booz.s_used}  booz.bx.s_b: {booz.bx.s_b}')
+        logging.info(f'Bmin:  vmec={details.Bmin}  booz={Bmin_b}  diff={details.Bmin-Bmin_b}')
+        logging.info(f'Bmax:  vmec={details.Bmax}  booz={Bmax_b}  diff={details.Bmax-Bmax_b}')
+        logging.info(f'epsilon:  vmec={details.epsilon}  booz={epsilon_b}  diff={details.epsilon-epsilon_b}')
+        logging.info(f'fsa_B2:  vmec={details.fsa_B2}  booz={fsa_B2_b}  diff={details.fsa_B2-fsa_B2_b}')
+        logging.info(f'fsa_1overB:  vmec={details.fsa_1overB}  booz={fsa_1overB_b}  diff={details.fsa_1overB-fsa_1overB_b}')
+        logging.info(f'f_t:  vmec={details.f_t}  booz={f_t_b}  diff={details.f_t-f_t_b}')
+        np.testing.assert_allclose(details.Bmin, Bmin_b, rtol=1e-2)
+        np.testing.assert_allclose(details.Bmax, Bmax_b, rtol=1e-2)
+        np.testing.assert_allclose(details.epsilon, epsilon_b, rtol=1e-2)
+        np.testing.assert_allclose(details.fsa_B2, fsa_B2_b, rtol=1e-2)
+        np.testing.assert_allclose(details.fsa_1overB, fsa_1overB_b, rtol=1e-2)
+        np.testing.assert_allclose(details.f_t, f_t_b, rtol=1e-2)
 
     def test_Redl_second_pass(self):
         """
