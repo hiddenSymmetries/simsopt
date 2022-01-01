@@ -220,6 +220,12 @@ class Vmec(Optimizable):
         self.wout = Struct()
         self.indata = vmec.vmec_input  # Shorthand
         vi = vmec.vmec_input  # Shorthand
+        self._pressure_profile = None
+        self._current_profile = None
+        self._iota_profile = None
+        self.n_pressure = 10
+        self.n_current = 10
+        self.n_iota = 10
 
         if self.runnable:
             self.ictrl[0] = restart_flag + readin_flag
@@ -301,6 +307,51 @@ class Vmec(Optimizable):
             self.append_parent(boundary)
             self.need_to_run_code = True
 
+    @property
+    def pressure_profile(self):
+        return self._pressure_profile
+
+    @pressure_profile.setter
+    def pressure_profile(self, pressure_profile):
+        if not pressure_profile is self._pressure_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._pressure_profile is not None:
+                self.remove_parent(self._pressure_profile)
+            self._pressure_profile = pressure_profile
+            if pressure_profile is not None:
+                self.append_parent(pressure_profile)
+                self.need_to_run_code = True
+
+    @property
+    def current_profile(self):
+        return self._current_profile
+
+    @current_profile.setter
+    def current_profile(self, current_profile):
+        if not current_profile is self._current_profile:
+            logging.debug('Replacing current_profile in setter')
+            if self._current_profile is not None:
+                self.remove_parent(self._current_profile)
+            self._current_profile = current_profile
+            if current_profile is not None:
+                self.append_parent(current_profile)
+                self.need_to_run_code = True
+
+    @property
+    def iota_profile(self):
+        return self._iota_profile
+
+    @iota_profile.setter
+    def iota_profile(self, iota_profile):
+        if not iota_profile is self._iota_profile:
+            logging.debug('Replacing iota_profile in setter')
+            if self._iota_profile is not None:
+                self.remove_parent(self._iota_profile)
+            self._iota_profile = iota_profile
+            if iota_profile is not None:
+                self.append_parent(iota_profile)
+                self.need_to_run_code = True
+
     def get_dofs(self):
         return np.array([self.indata.delt, self.indata.tcon0,
                          self.indata.phiedge, self.indata.curtor,
@@ -316,6 +367,43 @@ class Vmec(Optimizable):
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
+
+    def set_profile(self, longname, shortname, letter):
+        """
+        This function is used to set the pressure, current, and/or iota
+        profiles.
+        """
+        profile = self.__getattribute__(longname + "_profile")
+        if profile is None:
+            return
+
+        n = self.__getattribute__("n_" + longname)
+        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type")
+        if vmec_profile_type[:12] == b'power_series':
+            # Evaluate the new Profile on a Gauss-Legendre grid in s,
+            # so the polynomial fit is well conditioned.
+            nodes, weights = np.polynomial.legendre.leggauss(n)
+            x = nodes * 0.5 + 0.5  # So x is in (0, 1)
+            y = profile(x)
+            poly = np.polynomial.polynomial.Polynomial.fit(x, y, n - 1, domain=[0, 1]).convert().coef
+            logger.debug('Setting vmec ' + longname + f' profile using power series.  x: {x}  y: {y}  poly: {poly}')
+            ax = self.indata.__getattribute__("a" + letter)
+            ax[:] = 0.0
+            ax[:n] = poly
+
+        elif vmec_profile_type[:12] == b'cubic_spline':
+            x = np.linspace(0, 1, n)
+            y = profile(x)
+            logger.debug('Setting vmec ' + longname + f' profile using splines. x: {x}  y: {y}')
+            aux_s = self.indata.__getattribute__("a" + letter + "_aux_s")
+            aux_f = self.indata.__getattribute__("a" + letter + "_aux_f")
+            aux_s[:] = 0.0
+            aux_f[:] = 0.0
+            aux_s[:n] = x
+            aux_f[:n] = y
+
+        else:
+            raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series or cubic_spline')
 
     def run(self):
         """
@@ -358,6 +446,13 @@ class Vmec(Optimizable):
         vi.raxis_cs[:] = 0
         vi.zaxis_cc[:] = 0
         vi.zaxis_cs[:] = 0
+
+        # Set profiles, if they are not None:
+        self.set_profile("pressure", "mass", "m")
+        self.set_profile("current", "curr", "c")
+        self.set_profile("iota", "iota", "i")
+        if self.pressure_profile is not None:
+            vi.pres_scale = 1.0
 
         self.iter += 1
         input_file = self.input_file + '_{:03d}_{:06d}'.format(
