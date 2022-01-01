@@ -52,15 +52,18 @@ def compute_trapped_fraction(modB, sqrtg):
             (ntheta, nphi, ns) with the Jacobian
             :math:`1/(\nabla s \times\nabla\theta\cdot\nabla\phi)`
             on the grid points.
-    Returns:
-        Tuple containing the following 1D arrays, corresponding to radial grid points:
 
-        - Bmin: minimum of :math:`|B|` on each surface
-        - Bmax: maximum of :math:`|B|` on each surface
-        - epsilon: A measure of the inverse aspect ratio
-        - fsa_B2: :math:`\left<B^2\right>`, where :math:`\left< \ldots \right>` denotes a flux surface average.
-        - fsa_1overB: :math:`\left<1/B\right>`, where :math:`\left< \ldots \right>` denotes a flux surface average.
-        - f_t: The effective trapped fraction
+    Returns:
+        Tuple containing
+
+        - **Bmin**: A 1D array, with the minimum of :math:`|B|` on each surface.
+        - **Bmax**: A 1D array, with the maximum of :math:`|B|` on each surface.
+        - **epsilon**: A 1D array, with the effective inverse aspect ratio on each surface.
+        - **fsa_B2**: A 1D array with :math:`\left<B^2\right>` on each surface,
+          where :math:`\left< \ldots \right>` denotes a flux surface average.
+        - **fsa_1overB**: A 1D array with :math:`\left<1/B\right>` on each surface,
+          where :math:`\left< \ldots \right>` denotes a flux surface average.
+        - **f_t**: A 1D array, with the effective trapped fraction on each surface.
     """
     assert modB.shape == sqrtg.shape
     ntheta = modB.shape[0]
@@ -168,32 +171,52 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, h
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
     Redl et al, Physics of Plasmas 28, 022502 (2021).
 
-    The quantity <j dot B> is computed at all surfaces s that are
-    available in the booz object.
-
     The profiles of ne, Te, Ti, and Zeff should all be instances of
-    subclasses of :obj:`simsopt.mhd.profile.Profile`, i.e. they should
-    have ``__call__`` and ``dfds()`` functions. If Zeff==None, a
-    constant 1 is assumed. If Zeff is a float, a constant profile will
+    subclasses of :obj:`simsopt.mhd.profiles.Profile`, i.e. they should
+    have ``__call__()`` and ``dfds()`` functions. If ``Zeff == None``, a
+    constant 1 is assumed. If ``Zeff`` is a float, a constant profile will
     be assumed.
 
-    ne should have units of 1/m^3. Ti and Te should have units of eV.
+    ``ne`` should have units of 1/m^3. ``Ti`` and ``Te`` should have
+    units of eV.
 
-    The input arrays ``G``, ``R``, ``iota``, ``epsilon``, and ``f_t``,
-    should be 1d arrays evaluated on the s grid.
+    The input variable ``s`` is a 1D array of values of normalized
+    toroidal flux.  The input arrays ``G``, ``R``, ``iota``,
+    ``epsilon``, and ``f_t``, should be 1d arrays evaluated on this
+    same ``s`` grid. The bootstrap current
+    :math:`\left<\vec{J}\cdot\vec{B}\right>` will be computed on this
+    same set of flux surfaces.
 
     Args:
         s: A 1D array of values of normalized toroidal flux.
-        ne: A :obj:`~simsopt.mhd.profile.Profile` object with the electron density profile.
-        Te: A :obj:`~simsopt.mhd.profile.Profile` object with the electron temperature profile.
-        Ti: A :obj:`~simsopt.mhd.profile.Profile` object with the ion temperature profile.
-        Zeff: A :obj:`~simsopt.mhd.profile.Profile` object with the profile of the average
-            impurity charge :math:`Z_eff`, or a number if this profile is constant.
-        psi_edge: The toroidal flux in Webers divided by (2pi) at the boundary s=1
+        ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
+        Te: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron temperature profile.
+        Ti: A :obj:`~simsopt.mhd.profiles.Profile` object with the ion temperature profile.
+        Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object with the profile of the average
+            impurity charge :math:`Z_{eff}`. Or, a single number can be provided if this profile is constant.
+            Or, if ``None``, Zeff = 1 will be used.
+        G: A 1D array with the flux function multiplying :math:`\nabla\varphi` in the Boozer covariant representation,
+            equivalent to :math:`R B_{toroidal}` in axisymmetry.
+        R: A 1D array with the effective major radius to use when evaluating
+            the collisionality in the Sauter/Redl formulae.
+        iota: A 1D array with the rotational transform.
+        epsilon: A 1D array with the effective inverse aspect ratio to use for
+            evaluating the collisionality in the Sauter/Redl formulae.
+        f_t: A 1D array with the effective trapped fraction.
+        psi_edge: The toroidal flux (in Webers) divided by (2pi) at the boundary s=1
+        helicity_N: 0 for quasi-axisymmetry, or +/- the number of field periods for quasi-helical symmetry.
+            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
+            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
+
     Returns:
-        jdotB:
-        details: An object with intermediate quantities as attributes
+        Tuple containing
+
+        - **jdotB**: A 1D array containing the bootstrap current :math:`\left<\vec{J}\cdot\vec{B}\right>`
+          on the specified flux surfaces.
+        - **details**: An object holding intermediate quantities from the computation
+          (e.g. L31, L32, alpha) as attributes
     """
+
     if Zeff is None:
         Zeff = ProfilePolynomial(1.0)
     if not isinstance(Zeff, Profile):
@@ -302,19 +325,46 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, h
 
 
 def j_dot_B_Redl(geom_obj, ne, Te, Ti, Zeff, helicity_N, plot=False):
-    """
-    Evaluate the Redl bootstrap current formula. This function differs
-    from :func:`j_dot_B_Redl_fits` in that this version takes as input
-    ``geom_obj``, an object that evaluates geometry data for the
-    "nearest quasisymmetric configuration" to a given MHD equilibrium,
-    in some sense. Specifically, ``geom_obj`` must evaluate the
-    following geometric quantities: ``surfaces``, ``G``, ``R``,
-    ``iota``, ``epsilon``, ``f_t``, and ``psi_edge``. Typically
-    ``geom_obj`` is an instance of either :obj:`RedlGeomVmec` or
-    :obj:`RedlGeomBoozer`.
+    r"""
+    Compute the bootstrap current (specifically
+    :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
+    Redl et al, Physics of Plasmas 28, 022502 (2021).
+
+    The functions :func:`j_dot_B_Redl_fits` and :func:`j_dot_B_Redl`
+    differ slightly in their inputs.  The function
+    :func:`j_dot_B_Redl_fits` takes quantities like the effective
+    trapped fraction ``f_t`` as input. The function
+    :func:`j_dot_B_Redl` instead takes as input ``geom_obj``, an
+    object that evaluates geometry data for the "nearest
+    quasisymmetric configuration" to a given MHD equilibrium, in some
+    sense.
+
+    The profiles of ne, Te, Ti, and Zeff should all be instances of
+    subclasses of :obj:`simsopt.mhd.profiles.Profile`, i.e. they should
+    have ``__call__()`` and ``dfds()`` functions. If ``Zeff == None``, a
+    constant 1 is assumed. If ``Zeff`` is a float, a constant profile will
+    be assumed.
+
+    ``ne`` should have units of 1/m^3. ``Ti`` and ``Te`` should have
+    units of eV.
+
+    The input ``geom_obj`` is typically an instance of
+    :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`. This object must
+    evaluate the following geometric quantities: ``surfaces``, ``G``,
+    ``R``, ``iota``, ``epsilon``, ``f_t``, and ``psi_edge``.
 
     Args:
-        plot: Make a plot of many of the quantities computed.
+        geom_obj: An instance of either :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`.
+        ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
+        Te: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron temperature profile.
+        Ti: A :obj:`~simsopt.mhd.profiles.Profile` object with the ion temperature profile.
+        Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object with the profile of the average
+            impurity charge :math:`Z_{eff}`. Or, a single number can be provided if this profile is constant.
+            Or, if ``None``, Zeff = 1 will be used.
+        helicity_N: 0 for quasi-axisymmetry, or +/- the number of field periods for quasi-helical symmetry.
+            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
+            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
+        plot: Whether to make a plot of many of the quantities computed.
     """
     geom_data = geom_obj()
     jdotB, details = j_dot_B_Redl_fits(geom_data.surfaces, ne, Te, Ti, Zeff,
@@ -353,17 +403,21 @@ def j_dot_B_Redl(geom_obj, ne, Te, Ti, Zeff, helicity_N, plot=False):
 
 class RedlGeomVmec(Optimizable):
     """
-    Evaluate geometry data needed to evaluate the Redl bootstrap
-    current formula from a vmec configuration, without transforming to
-    Boozer coordinates.
+    This class evaluates geometry data needed to evaluate the Redl
+    bootstrap current formula from a vmec configuration, such as the
+    effective fraction of trapped particles.  The advantage of this
+    class over :obj:`RedlGeomBoozer` is that no transformation to
+    Boozer coordinates is involved in this method. However, the
+    approach here may over-estimate ``epsilon``.
 
     Args:
         vmec: An instance of :obj:`simsopt.mhd.vmec.Vmec`.
-        surfaces: A 1d array of values of s (normalized toroidal flux) on which
-            to compute the geometric quantities. If ``None``, the half grid points will be used.
-        ntheta: Number of grid points in the poloidal angle for evaluating quantities in the Redl formulae.
-        nphi: Number of grid points in the toroidal angle for evaluating quantities in the Redl formulae.
-        plot: Make a plot of many of the quantities computed.
+        surfaces: A 1D array of values of s (normalized toroidal flux) on which
+            to compute the geometric quantities. If ``None``, the half grid points from the
+            VMEC solution will be used.
+        ntheta: Number of grid points in the poloidal angle for evaluating geometric quantities in the Redl formulae.
+        nphi: Number of grid points in the toroidal angle for evaluating geometric quantities in the Redl formulae.
+        plot: Whether to make a plot of many of the quantities computed.
     """
 
     def __init__(self, vmec, surfaces=None, ntheta=64, nphi=65, plot=False):
@@ -375,6 +429,10 @@ class RedlGeomVmec(Optimizable):
         super().__init__(depends_on=[vmec])
 
     def __call__(self):
+        """
+        Evaluate the geometric quantities needed for the Redl bootstrap
+        current formula.
+        """
         self.vmec.run()
 
         if self.surfaces is None:
@@ -458,15 +516,18 @@ class RedlGeomVmec(Optimizable):
 class RedlGeomBoozer(Optimizable):
     """
     Evaluate geometry data needed to evaluate the Redl bootstrap
-    current formula from a vmec configuration, by transforming to
-    Boozer coordinates, then discarding all the symmetry-breaking Bmn
-    harmonics.
-
-    Note: The first time the geometry is evaluated, ``surfaces`` will
-    be over-written with the set of s values that booz_xform is
-    actually run on.
+    current formula, such as the effective fraction of trapped
+    particles.  In the approach here, Boozer coordinates are computed,
+    and all the symmetry-breaking Bmn harmonics are discarded to
+    obtain an effectively perfectly quasisymmetric configuration.
 
     Args:
+        booz: An instance of :obj:`simsopt.mhd.boozer.Boozer`
+        surfaces: A 1D array with the values of normalized toroidal flux
+            to use for the bootstrap current calculation.
+        helicity_N: 0 for quasi-axisymmetry, or +/- the number of field periods for quasi-helical symmetry.
+            This quantity is used to discard symmetry-breaking :math:`B_{mn}` harmonics.
+        ntheta: Number of grid points in the poloidal angle for evaluating geometric quantities in the Redl formulae.
         plot: Make a plot of many of the quantities computed.
     """
 
@@ -480,6 +541,10 @@ class RedlGeomBoozer(Optimizable):
         super().__init__(depends_on=[booz])
 
     def __call__(self):
+        """
+        Evaluate the geometric quantities needed for the Redl bootstrap
+        current formula.
+        """
         booz = self.booz
         booz.run()
 
@@ -579,13 +644,13 @@ class VmecRedlBootstrapMismatch(Optimizable):
     Physics of Plasmas 28, 022502 (2021).
 
     Args:
-        vmec: An instance of :obj:`simsopt.mhd.vmec.Vmec`
+        geom: An instance of either :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`.
         ne: A :obj:`~simsopt.mhd.profiles.Profile` object representing the electron density profile.
         Te: A :obj:`~simsopt.mhd.profiles.Profile` object representing the electron temperature profile.
         Ti: A :obj:`~simsopt.mhd.profiles.Profile` object representing the ion temperature profile.
         Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object representing the :math:`Z_{eff}` profile.
-            A singl number can also be provided, in which case a constant :math:`Z_{eff}` profile will be used.
-        helicity_N: 0 for quasi-axisymmetry, or +/- nfp for quasi-helical symmetry.
+            A single number can also be provided, in which case a constant :math:`Z_{eff}` profile will be used.
+        helicity_N: 0 for quasi-axisymmetry, or +/- the number of field periods for quasi-helical symmetry.
     """
 
     def __init__(self, geom, ne, Te, Ti, Zeff, helicity_N):
@@ -617,15 +682,18 @@ class VmecRedlBootstrapMismatch(Optimizable):
                        {\sqrt{\sum_{k=1}^N \left[\left<\vec{J}\cdot\vec{B}\right>_{vmec}(s_k)
                                     + \left<\vec{J}\cdot\vec{B}\right>_{Redl}(s_k) \right]^2}}
 
-        where :math:`j` and :math:`k` range over the half-grid points
-        for the VMEC configuration, :math:`j, k \in \{1, 2, \ldots, N\}`
-        with :math:`N=` ``ns-1``. This corresponds to approximating the
+        where :math:`j` and :math:`k` range over the surfaces for the
+        supplied ``geom`` object (typically the half-grid points for
+        the VMEC configuration), :math:`j, k \in \{1, 2, \ldots, N\}`
+        and :math:`N` is the number of surfaces for the supplied
+        ``geom`` object. This corresponds to approximating the
         :math:`\int ds` integrals in the objective function with
         Riemann integration. The vector of residuals returned has
         length :math:`N`.
 
         The sum of the squares of these residuals equals the objective
-        function.
+        function. The total scalar objective is approximately
+        independent of the number of surfaces.
         """
         jdotB_Redl, _ = j_dot_B_Redl(self.geom,
                                      self.ne,

@@ -138,7 +138,7 @@ class ProfileSpline(Profile):
                 If ``None``, the degree of the original ``ProfileSpline`` will be used.
 
         Returns:
-            A new ``ProfileSpline`` object, in which the data have been resampled onto ``new_s``.
+            A new :obj:`ProfileSpline` object, in which the data have been resampled onto ``new_s``.
         """
         new_degree = self.degree
         if degree is not None:
