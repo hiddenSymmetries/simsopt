@@ -17,8 +17,9 @@ except ImportError:
 from simsopt._core.graph_optimizable import make_optimizable
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled
+from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
 from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.util.constants import ELEMENTARY_CHARGE
 
 if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
@@ -490,6 +491,25 @@ class VmecTests(unittest.TestCase):
         vmec.indata.pmass_type = 'two_power'
         with self.assertRaises(RuntimeError):
             vmec.run()
+
+    def test_profile_demo(self):
+        """
+        Run an example from the Vmec docstring.
+        """
+        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+        Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+        ni = ne
+        pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+        pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.pressure_profile = pressure_Pa
+        vmec.indata.pmass_type = "cubic_spline"
+        vmec.n_pressure = 8  # Use 8 spline nodes
+        vmec.run()
+        logging.info(f'betatotal: {vmec.wout.betatotal}')
+        np.testing.assert_allclose(vmec.wout.betatotal, 0.0127253894792956)
 
     def test_profile_optimization(self):
         """

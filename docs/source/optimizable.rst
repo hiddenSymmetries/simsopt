@@ -184,7 +184,10 @@ also manipulate the fixed/free status of dofs using the functions
   >>> c.x
 
   array([ 1. ,  0.1,  0. , -2. ,  0. ,  0.3,  3. , -0.5,  0.4])
-  
+
+
+.. _dependecies:
+
 Dependencies
 ------------
 

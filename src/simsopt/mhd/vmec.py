@@ -143,6 +143,60 @@ class Vmec(Optimizable):
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
+    To run VMEC, two input profiles must be specified: pressure and
+    either iota or toroidal current.  Each of these profiles can be
+    specified in several ways. One way is to specify the profile in
+    the input file used to initialize the ``Vmec`` object. For
+    instance, the pressure profile is determined by the variables
+    ``pmass_type``, ``am``, ``am_aux_s``, and ``am_aux_f``. You can
+    also modify these variables from python via the ``indata``
+    attribute, e.g. ``vmec.indata.am = [1.0e5, -1.0e5]``. Another
+    option is to assign a :obj:`simsopt.mhd.profiles.Profile` object
+    to the attributes ``pressure_profile``, ``current_profile``, or
+    ``iota_profile``. This approach allows for the profiles to be
+    optimized, and it allows you to use profile shapes defined in
+    python that are not available in the fortran VMEC code. To explain
+    this approach we focus here on the pressure profile; the iota and
+    current profiles are analogous. If the ``pressure_profile``
+    attribute of a ``Vmec`` object is ``None`` (the default), then a
+    simsopt :obj:`~simsopt.mhd.profiles.Profile` object is not used,
+    and instead the settings from ``Vmec.indata`` (initialized from
+    the input file) are used. If a
+    :obj:`~simsopt.mhd.profiles.Profile` object is assigned to the
+    ``pressure_profile`` attribute, then an :ref:`edge in the
+    dependency graph <dependecies>` is introduced, so the ``Vmec``
+    object then depends on the dofs of the
+    :obj:`~simsopt.mhd.profiles.Profile` object. Whenever VMEC is run,
+    the simsopt :obj:`~simsopt.mhd.profiles.Profile` is converted to
+    either a polynomial (power series) or cubic spline in the
+    normalized toroidal flux :math:`s`, depending on whether
+    ``indata.pmass_type`` is ``"power_series"`` or
+    ``"cubic_spline"``. (The current profile is different in that
+    either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
+    instead of ``"cubic_spline"``.) The number of terms in the power
+    series or number of spline nodes is determined by the attributes
+    ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
+    is used, the spline nodes are uniformly spaced from :math:`s=0` to
+    1. Note that the choice of whether a polynomial or spline is used
+    for the VMEC calculation is independent of the subclass of
+    :obj:`~simsopt.mhd.profiles.Profile` used. Also, whether the iota
+    or current profile is used is always determined by the
+    ``indata.ncurr`` attribute: 0 for iota, 1 for current. Example::
+
+        from sismopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfilePressure, ProfileScaled
+        from simsopt.util.constants import ELEMENTARY_CHARGE
+
+        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+        Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+        ni = ne
+        pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+        pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+        vmec = Vmec(filename)
+        vmec.pressure_profile = pressure_Pa
+        vmec.indata.pmass_type = "cubic_spline"
+        vmec.n_pressure = 8  # Use 8 spline nodes
+
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
     most recent iteration on worker group 0. If you wish to keep all
