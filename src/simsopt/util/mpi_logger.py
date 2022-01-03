@@ -35,6 +35,8 @@ try:
 except ImportError:
     MPI = None
 
+from .dev import SimsoptRequires
+
 
 # Maximum length of message in characters
 _message_maxlen = 2048
@@ -58,7 +60,8 @@ def _destroy_log_comm():
 # Internal variable for keeping track of the log communicators.
 _log_comm_list = []
 
-
+@SimsoptRequires(MPI is not None,
+                 "mpi4py is needed by MPILogHandler, but not installed")
 class MPILogHandler(logging.Handler):
     """A Handler which logs messages over MPI to a single process
     which then write them to a file.

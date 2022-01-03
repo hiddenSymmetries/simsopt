@@ -22,9 +22,9 @@ class TestClass(Optimizable):
     return_fn_map = {'J': J}
 
 class SimsoptRequiresTest(unittest.TestCase):
-    def test_instance_check(self):
+    def test_subclass_check(self):
         tf = TestClass()
-        self.assertIsInstance(tf, TestClass)
+        self.assertTrue(issubclass(type(tf), Optimizable))
 
 
 if __name__ == '__main__':
