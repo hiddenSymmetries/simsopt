@@ -8,6 +8,7 @@ except ImportError:
 from simsopt.util.dev import SimsoptRequires, deprecated
 from simsopt._core.graph_optimizable import Optimizable
 
+
 @SimsoptRequires(np is not None, "numpy is not installed.")
 class TestClass(Optimizable):
     def __init__(self):
@@ -20,6 +21,7 @@ class TestClass(Optimizable):
                       + np.sin(self.full_x[2]))
 
     return_fn_map = {'J': J}
+
 
 class SimsoptRequiresTest(unittest.TestCase):
     def test_instance_check(self):
