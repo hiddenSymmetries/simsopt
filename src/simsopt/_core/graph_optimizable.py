@@ -714,7 +714,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             self.parents.insert(index, other)
             other._add_child(self)
             # self.ancestors = self._get_ancestors()
-            self._update_full_dof_size_indices() # Updates ancestors as well
+            self._update_full_dof_size_indices()  # Updates ancestors as well
             self._update_free_dof_size_indices()
             self._set_new_x()
         else:
@@ -751,7 +751,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
         # self.ancestors = self._get_ancestors()
-        self._update_full_dof_size_indices() # Updates ancestors as well
+        self._update_full_dof_size_indices()  # Updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
 
@@ -767,7 +767,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self.parents.remove(other)
         other._remove_child(self)
         # self.ancestors = self._get_ancestors()
-        self._update_full_dof_size_indices() # updates ancestors as well
+        self._update_full_dof_size_indices()  # updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
 
