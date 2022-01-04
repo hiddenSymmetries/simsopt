@@ -60,6 +60,7 @@ def _destroy_log_comm():
 # Internal variable for keeping track of the log communicators.
 _log_comm_list = []
 
+
 @SimsoptRequires(MPI is not None,
                  "mpi4py is needed by MPILogHandler, but not installed")
 class MPILogHandler(logging.Handler):
