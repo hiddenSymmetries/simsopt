@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.graph_optimizable import Optimizable, ScaledOptimizable, OptimizableSum
 from simsopt._core.derivative import Derivative, derivative_dec
 
 
@@ -84,10 +84,46 @@ class Obj(Optimizable):
         return self.inter_a.dbar_vjp([self.inter_b.bar()]) + self.inter_b.dbar_vjp([self.inter_a.bar()])
 
 
+def taylor_test(obj):
+    np.random.seed(1)
+    x = obj.x + 0.05 * np.random.standard_normal(size=obj.x.shape)
+    obj.x = x
+    x = obj.x
+    h = np.random.standard_normal(size=x.shape)
+    f = obj.J()
+    df = obj.dJ()
+    dfh = np.sum(df * h)
+    err_old = 1e9
+    for i in range(5, 11):
+        eps = 0.5**i
+        obj.x = x + 3 * eps * h
+        fppp = obj.J()
+        obj.x = x + 2 * eps * h
+        fpp = obj.J()
+        obj.x = x + eps * h
+        fp = obj.J()
+        obj.x = x - eps * h
+        fm = obj.J()
+        obj.x = x - 2 * eps * h
+        fmm = obj.J()
+        obj.x = x - 3 * eps * h
+        fmmm = obj.J()
+        # print(np.abs((fp-fm)/(2*eps) - dfh))
+        dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
+        err = np.abs(dfhest - dfh)
+        assert err < (0.6)**4 * err_old
+        print(err_old/err)
+        err_old = err
+
+        # dfhest = ((-1/60)*fmmm + (3/20)*fmm -(3/4)*fm+(3/4)*fp-(3/20)*fpp + (1/60)*fppp)/eps
+        # err = np.abs(dfhest - dfh)
+        # print(err_old/err)
+        # err_old = err
+
+
 class DerivativeTests(unittest.TestCase):
 
     def test_taylor_graph(self):
-        np.random.seed(1)
         # built a reasonably complex graph of two inputs, that both feed into
         # two intermediary results and then are combined into a final result.
         # i.e. f(g(x, y), h(x, y))
@@ -98,80 +134,106 @@ class DerivativeTests(unittest.TestCase):
         intersum = InterSum(opt1, opt2)
         interprod = InterProd(opt1, opt2)
         obj = Obj(intersum, interprod)
-        x = obj.x + 0.05 * np.random.standard_normal(size=obj.x.shape)
-        obj.x = x
-        x = obj.x
-        h = np.random.standard_normal(size=x.shape)
-        f = obj.J()
-        df = obj.dJ()
-        dfh = np.sum(df * h)
-        err_old = 1e9
-        for i in range(5, 11):
-            eps = 0.5**i
-            obj.x = x + 3 * eps * h
-            fppp = obj.J()
-            obj.x = x + 2 * eps * h
-            fpp = obj.J()
-            obj.x = x + eps * h
-            fp = obj.J()
-            obj.x = x - eps * h
-            fm = obj.J()
-            obj.x = x - 2 * eps * h
-            fmm = obj.J()
-            obj.x = x - 3 * eps * h
-            fmmm = obj.J()
-            # print(np.abs((fp-fm)/(2*eps) - dfh))
-            dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
-            err = np.abs(dfhest - dfh)
-            assert err < (0.6)**4 * err_old
-            print(err_old/err)
-            err_old = err
+        taylor_test(obj)
 
-            # dfhest = ((-1/60)*fmmm + (3/20)*fmm -(3/4)*fm+(3/4)*fp-(3/20)*fpp + (1/60)*fppp)/eps
-            # err = np.abs(dfhest - dfh)
-            # print(err_old/err)
-            # err_old = err
-
-    def test_scale_add_optimizables(self):
+    def test_scaled_optimizable(self):
         """
-        Check that derivatives are accurate when Optimizable objects are
-        scaled and added together.
+        Confirm that values and derivatives behave correctly for the
+        ScaledOptimizable class
         """
-        np.random.seed(1)
+        opt1a = Opt(n=3)
+        opt1b = Opt(n=2)
+        intersum1 = InterSum(opt1a, opt1b)
+        interprod1 = InterProd(opt1a, opt1b)
+        obj1 = Obj(intersum1, interprod1)
 
-        opt1 = Opt(n=3)
-        opt2 = Opt(n=5)
-
-        intersum = InterSum(opt1, opt2)
-        interprod = InterProd(opt1, opt2)
-        obj1 = Obj(intersum, interprod)
-        x = obj1.x + 0.05 * np.random.standard_normal(size=obj1.x.shape)
-        obj1.x = x
-
-        # Try scaling by a constant:
-        factor = 1.7
-        obj2 = factor * obj1
+        factor = 1.3
+        obj2 = ScaledOptimizable(factor, obj1)
+        taylor_test(obj2)
         np.testing.assert_allclose(obj2.J(), factor * obj1.J())
         np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
 
-        # Try adding two objects:
-        obj3 = obj1 + obj2
+    def test_scaled_optimizable_operator(self):
+        """
+        Confirm that values and derivatives behave correctly when an
+        Optimizable object is scaled by a constant, overloading the *
+        operator.
+        """
+        opt1a = Opt(n=2)
+        opt1b = Opt(n=5)
+        intersum1 = InterSum(opt1a, opt1b)
+        interprod1 = InterProd(opt1a, opt1b)
+        obj1 = Obj(intersum1, interprod1)
+
+        factor = -10
+        obj2 = factor * obj1
+        taylor_test(obj2)
+        np.testing.assert_allclose(obj2.J(), factor * obj1.J())
+        np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
+
+    def test_optimizable_sum(self):
+        """
+        Confirm that values and derivatives behave correctly for the
+        OptimizableSum class
+        """
+        opt1a = Opt(n=3)
+        opt1b = Opt(n=2)
+        intersum1 = InterSum(opt1a, opt1b)
+        interprod1 = InterProd(opt1a, opt1b)
+        obj1 = Obj(intersum1, interprod1)
+
+        opt2a = Opt(n=4)
+        opt2b = Opt(n=5)
+        intersum2 = InterSum(opt2a, opt2b)
+        interprod2 = InterProd(opt2a, opt2b)
+        obj2 = Obj(intersum2, interprod2)
+
+        obj3 = OptimizableSum((obj1, obj2))
+        taylor_test(obj3)
         np.testing.assert_allclose(obj3.J(), obj1.J() + obj2.J())
-        np.testing.assert_allclose(obj3.dJ(), obj1.dJ() + obj2.dJ())
+
+        for n in range(1, 4):
+            obj4 = OptimizableSum([obj1] * n)
+            np.testing.assert_allclose(obj4.J(), n * obj1.J())
+            np.testing.assert_allclose(obj4.dJ(), n * obj1.dJ())
+
+    def test_optimizable_sum_operator(self):
+        """
+        Confirm that values and derivatives behave correctly when
+        Optimizable objects are summed using the overloaded +
+        operator.
+        """
+        opt1a = Opt(n=3)
+        opt1b = Opt(n=2)
+        intersum1 = InterSum(opt1a, opt1b)
+        interprod1 = InterProd(opt1a, opt1b)
+        obj1 = Obj(intersum1, interprod1)
+
+        opt2a = Opt(n=4)
+        opt2b = Opt(n=5)
+        intersum2 = InterSum(opt2a, opt2b)
+        interprod2 = InterProd(opt2a, opt2b)
+        obj2 = Obj(intersum2, interprod2)
+
+        obj3 = obj1 + obj2
+        taylor_test(obj3)
+        np.testing.assert_allclose(obj3.J(), obj1.J() + obj2.J())
+
+        obj4 = obj1 + obj2 + obj1
+        taylor_test(obj4)
+        np.testing.assert_allclose(obj4.J(), 2 * obj1.J() + obj2.J())
 
         # Try combining objects with sum():
         for n in range(1, 4):
-            obj4 = sum([obj1] * n)
-            np.testing.assert_allclose(obj4.J(), n * obj1.J())
-            np.testing.assert_allclose(obj4.dJ(), n * obj1.dJ())
+            obj5 = sum([obj1] * n)
+            np.testing.assert_allclose(obj5.J(), n * obj1.J())
+            np.testing.assert_allclose(obj5.dJ(), n * obj1.dJ())
 
     def test_taylor_scaled_summed(self):
         """
         Perform a Taylor test for a case in which Optimizable objects are
         scaled and added together.
         """
-        np.random.seed(1)
-
         opt1a = Opt(n=3)
         opt1b = Opt(n=2)
         intersum1 = InterSum(opt1a, opt1b)
@@ -187,35 +249,7 @@ class DerivativeTests(unittest.TestCase):
         # Scale and sum the objects to get the total objective:
         factor = 1.3
         obj = obj1 + factor * obj2
-
-        x = obj.x + 0.05 * np.random.standard_normal(size=obj.x.shape)
-        obj.x = x
-        x = obj.x
-        h = np.random.standard_normal(size=x.shape)
-        f = obj.J()
-        df = obj.dJ()
-        dfh = np.sum(df * h)
-        err_old = 1e9
-        for i in range(5, 11):
-            eps = 0.5**i
-            obj.x = x + 3 * eps * h
-            fppp = obj.J()
-            obj.x = x + 2 * eps * h
-            fpp = obj.J()
-            obj.x = x + eps * h
-            fp = obj.J()
-            obj.x = x - eps * h
-            fm = obj.J()
-            obj.x = x - 2 * eps * h
-            fmm = obj.J()
-            obj.x = x - 3 * eps * h
-            fmmm = obj.J()
-            # print(np.abs((fp-fm)/(2*eps) - dfh))
-            dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
-            err = np.abs(dfhest - dfh)
-            assert err < (0.6)**4 * err_old
-            print(err_old/err)
-            err_old = err
+        taylor_test(obj)
 
     def test_add_mul(self):
         opt1 = Opt(n=3)

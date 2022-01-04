@@ -67,13 +67,6 @@ class MagneticField(sopp.MagneticField, Optimizable):
         """Multiply a field with a scalar."""
         return MagneticFieldMultiply(other, self)
 
-    # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
-    def __radd__(self, other):
-        # This allows sum() to work (the default start value is zero)
-        if other == 0:
-            return self
-        return self.__add__(other)
-
     def to_vtk(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         from pyevtk.hl import gridToVTK
