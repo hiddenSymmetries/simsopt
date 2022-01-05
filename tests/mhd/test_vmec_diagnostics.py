@@ -55,7 +55,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         The total quasisymmetry error should be nearly independent of the
         resolution parameters used.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
 
         ss = [[0.5], [0.7], [0.3, 0.6], [0.2, 0.4, 0.7]]
         weightss = [None, [1], None, [2.2, 5.5, 0.9]]
@@ -156,7 +156,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         objects that return the quasisymmetry error for just a single
         surface.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
         surfs = [0, 0.4, 1]
         weights = [0.2, 0.7, 1.3]
         m = 1
@@ -183,7 +183,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         Check that several fields returned by ``compute()`` can be
         accessed.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
         qs = QuasisymmetryRatioResidual(vmec, 0.5, 1, 1)
         r = qs.compute()
         np.testing.assert_allclose(r.bsupu * r.d_B_d_theta + r.bsupv * r.d_B_d_phi, r.B_dot_grad_B)

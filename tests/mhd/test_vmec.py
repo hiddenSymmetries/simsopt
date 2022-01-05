@@ -17,13 +17,12 @@ except ImportError:
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
-# from simsopt.mhd.vmec import vmec_found
 if (MPI is not None) and vmec_found:
     from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
@@ -74,7 +73,7 @@ class VmecTests(unittest.TestCase):
         self.assertFalse(v.free_boundary)
         self.assertTrue(v.need_to_run_code)
 
-    def test_surface_3_ways(self):
+    def test_surface_4_ways(self):
         """
         If we initialize a Vmec object, the boundary surface object should
         be (almost) the same as if we initialize a SurfaceRZFourier
@@ -83,37 +82,48 @@ class VmecTests(unittest.TestCase):
         that mpol, ntor, and the quadrature points may be different.
         """
 
+        def compare_surfaces_sym(s1, s2):
+            logger.debug('compare_surfaces_sym called')
+            mpol = min(s1.mpol, s2.mpol)
+            ntor = min(s1.ntor, s2.ntor)
+            places = 13
+            for m in range(mpol + 1):
+                nmin = 0 if m == 0 else -ntor
+                for n in range(nmin, ntor + 1):
+                    self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                    self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+
+        def compare_surfaces_asym(s1, s2, places):
+            logger.debug('compare_surfaces_asym called')
+            self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
+            self.assertAlmostEqual(s1.area(), s2.area(), places=7)
+            mpol = min(s1.mpol, s2.mpol)
+            ntor = min(s1.ntor, s2.ntor)
+            for m in range(mpol + 1):
+                nmin = 0 if m == 0 else -ntor
+                for n in range(nmin, ntor + 1):
+                    self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                    self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                    self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                    self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+
         # First try a stellarator-symmetric example:
         filename1 = os.path.join(TEST_DIR, 'input.li383_low_res')
         filename2 = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
         v = Vmec(filename1)
         s1 = v.boundary
+        # Compare initializing a Vmec object from an input file vs from a wout file:
+        v2 = Vmec(filename2)
+        s2 = v2.boundary
+        compare_surfaces_sym(s1, s2)
+        # Compare to initializing a surface using from_wout()
         s2 = SurfaceRZFourier.from_wout(filename2)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
-        for m in range(mpol + 1):
-            nmin = 0 if m == 0 else -ntor
-            for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+        compare_surfaces_sym(s1, s2)
         # Now try from_vmec_input() instead of from_wout():
         s2 = SurfaceRZFourier.from_vmec_input(filename1)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
-        for m in range(mpol + 1):
-            nmin = 0 if m == 0 else -ntor
-            for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+        compare_surfaces_sym(s1, s2)
 
-        # Now try a non-stellarator-symmetric example:
-        filename1 = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
-        filename2 = os.path.join(TEST_DIR, 'wout_LandremanSenguptaPlunk_section5p3_reference.nc')
-        v = Vmec(filename1)
-        s1 = v.boundary
-        s2 = SurfaceRZFourier.from_wout(filename2)
+        # Now try a non-stellarator-symmetric example.
         # For non-stellarator-symmetric cases, we must be careful when
         # directly comparing the rc/zs/rs/zc coefficients, because
         # VMEC shifts the poloidal angle in readin.f upon loading the
@@ -123,33 +133,63 @@ class VmecTests(unittest.TestCase):
         # specific input file used here has a boundary that should not
         # be shifted by the hiddenSymmetries VMEC2000 module.  For any
         # input file and version of VMEC, we can compare
-        # coordinate-independent properties like the volume and area.
-        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
-        self.assertAlmostEqual(s1.area(), s2.area(), places=7)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
-        for m in range(mpol + 1):
-            nmin = 0 if m == 0 else -ntor
-            for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
-        # Now try from_vmec_input() instead of from_wout():
+        # coordinate-independent properties like the volume.
+        filename1 = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
+        filename2 = os.path.join(TEST_DIR, 'wout_LandremanSenguptaPlunk_section5p3_reference.nc')
+        v = Vmec(filename1)
+        s1 = v.boundary
+
+        # Compare initializing a Vmec object from an input file vs from a wout file:
+        v2 = Vmec(filename2)
+        s2 = v2.boundary
+        compare_surfaces_asym(s1, s2, 13)
+
+        s2 = SurfaceRZFourier.from_wout(filename2)
+        compare_surfaces_asym(s1, s2, 13)
+
         s2 = SurfaceRZFourier.from_vmec_input(filename1)
-        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
-        self.assertAlmostEqual(s1.area(), s2.area(), places=7)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
-        for m in range(mpol + 1):
-            nmin = 0 if m == 0 else -ntor
-            for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+        compare_surfaces_asym(s1, s2, 13)
+
+    def test_2_init_methods(self):
+        """
+        If we initialize a Vmec object from an input file, or initialize a
+        Vmec object from the corresponding wout file, physics quantities
+        should be the same.
+        """
+        for jsym in range(2):
+            if jsym == 0:
+                # Try a stellarator-symmetric scenario:
+                filename1 = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
+                filename2 = os.path.join(TEST_DIR, 'input.li383_low_res')
+            else:
+                # Try a non-stellarator-symmetric scenario:
+                filename1 = os.path.join(TEST_DIR, 'wout_LandremanSenguptaPlunk_section5p3_reference.nc')
+                filename2 = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
+
+            vmec1 = Vmec(filename1)
+            iota1 = vmec1.wout.iotaf
+            bmnc1 = vmec1.wout.bmnc
+
+            vmec2 = Vmec(filename2)
+            vmec2.run()
+            iota2 = vmec2.wout.iotaf
+            bmnc2 = vmec2.wout.bmnc
+
+            np.testing.assert_allclose(iota1, iota2, atol=1e-10)
+            np.testing.assert_allclose(bmnc1, bmnc2, atol=1e-10)
+
+    def test_error_on_rerun(self):
+        """
+        If a vmec object is initialized from a wout file, and if the dofs
+        are then changed, vmec output functions should raise an
+        exception.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
+        vmec = Vmec(filename)
+        iota = vmec.mean_iota()
+        vmec.boundary.set_rc(1, 0, 2.0)
+        with self.assertRaises(RuntimeError):
+            iota2 = vmec.mean_iota()
 
     def test_vmec_failure(self):
         """
@@ -229,7 +269,7 @@ class VmecTests(unittest.TestCase):
         are correct.
 
         """
-        filename = os.path.join(TEST_DIR, 'input.LandremanSengupta2019_section5.4_B2_A80')
+        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
         vmec = Vmec(filename)
 
         well_vmec = vmec.vacuum_well()
@@ -247,14 +287,14 @@ class VmecTests(unittest.TestCase):
         # See also "20210504-01 Computing magnetic well from VMEC.docx" by MJL
         well_analytic = -abs_psi_a * B0 * B0 * d2_volume_d_psi2 / (4 * np.pi * np.pi * np.abs(G0))
 
-        logger.info('well_vmec:', well_vmec, '  well_analytic:', well_analytic)
+        logger.info(f'well_vmec: {well_vmec}  well_analytic: {well_analytic}')
         np.testing.assert_allclose(well_vmec, well_analytic, rtol=2e-2, atol=0)
 
     def test_iota(self):
         """
         Test the functions related to iota.
         """
-        filename = os.path.join(TEST_DIR, 'input.LandremanSengupta2019_section5.4_B2_A80')
+        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
         vmec = Vmec(filename)
 
         iota_axis = vmec.iota_axis()
