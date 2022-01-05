@@ -25,6 +25,7 @@ import numpy as np
 from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
+from .derivative import derivative_dec
 
 log = logging.getLogger(__name__)
 
@@ -1169,6 +1170,25 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
 
+    def __add__(self, other):
+        """ Add two Optimizable objects """
+        return OptimizableSum([self, other])
+
+    def __mul__(self, other):
+        """ Multiply an Optimizable object by a scalar """
+        return ScaledOptimizable(other, self)
+
+    def __rmul__(self, other):
+        """ Multiply an Optimizable object by a scalar """
+        return ScaledOptimizable(other, self)
+
+    # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
+    def __radd__(self, other):
+        # This allows sum() to work (the default start value is zero)
+        if other == 0:
+            return self
+        return self.__add__(other)
+
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
@@ -1296,3 +1316,57 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             return self.func(*args, **kwargs)
 
     return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
+
+
+class ScaledOptimizable(Optimizable):
+    """
+    Represents an :obj:`~simsopt._core.graph_optimizable.Optimizable`
+    object scaled by a constant factor. This class is useful for
+    including a weight in front of terms in an objective function. For
+    now, this feature works on classes for which ``.J()`` returns an
+    objective value and ``.dJ()`` returns the gradient, e.g. coil
+    optimization.
+
+    Args:
+        factor: (float) The constant scale factor.
+        opt: An :obj:`~simsopt._core.graph_optimizable.Optimizable` object to scale.
+    """
+
+    def __init__(self, factor, opt):
+        self.factor = factor
+        self.opt = opt
+        super().__init__(depends_on=[opt])
+
+    def J(self):
+        return self.factor * self.opt.J()
+
+    @derivative_dec
+    def dJ(self):
+        # Next line uses __rmul__ function for the Derivative class
+        return self.factor * self.opt.dJ(partials=True)
+
+
+class OptimizableSum(Optimizable):
+    """
+    Represents a sum of
+    :obj:`~simsopt._core.graph_optimizable.Optimizable` objects. This
+    class is useful for combining terms in an objective function. For
+    now, this feature works on classes for which ``.J()`` returns an
+    objective value and ``.dJ()`` returns the gradient, e.g. coil
+    optimization.
+
+    Args:
+        opts: A python list of :obj:`~simsopt._core.graph_optimizable.Optimizable` object to sum.
+    """
+
+    def __init__(self, opts):
+        self.opts = opts
+        super().__init__(depends_on=opts)
+
+    def J(self):
+        return sum([opt.J() for opt in self.opts])
+
+    @derivative_dec
+    def dJ(self):
+        # Next line uses __add__ function for the Derivative class
+        return sum(opt.dJ(partials=True) for opt in self.opts)
