@@ -297,6 +297,21 @@ class OptClassWith2LevelParents(Optimizable):
     return_fn_map = {'f': f}
 
 
+class OptWithInputParent(Optimizable):
+    def __init__(self, obj):
+        super().__init__(depends_on=[obj])
+
+
+class ThreeDofOpt(Optimizable):
+    def __init__(self):
+        super().__init__(x0=[1, 2, 3])
+
+
+class TwoDofOpt(Optimizable):
+    def __init__(self):
+        super().__init__(x0=[10, 20])
+
+
 class OptimizableTests(unittest.TestCase):
     def setUp(self) -> None:
         self.iden = Identity(x=10)
@@ -342,6 +357,23 @@ class OptimizableTests(unittest.TestCase):
 
         opt_with_parents.append_parent(opt2)
         self.assertAlmostEqual(opt_with_parents(), 28.0/13.0)
+
+    def test_append_parent_dof_sizes(self):
+        # vmec is the parent, prob is the child
+        three_dof_opt = ThreeDofOpt()
+        opt_with_inp_parent = OptWithInputParent(three_dof_opt)
+
+        # Test dof sizes before adding grandparent
+        self.assertEqual(three_dof_opt.dof_size, 3)
+        self.assertEqual(opt_with_inp_parent.dof_size, 3)
+
+        two_dof_opt = TwoDofOpt()
+        three_dof_opt.append_parent(two_dof_opt)
+        # Now two_dof_opt is the grandparent
+
+        # Test dof sizes after adding grandparent
+        self.assertEqual(three_dof_opt.dof_size, 5)
+        self.assertEqual(three_dof_opt.dof_size, 5)
 
     def test_pop_parent(self):
         opt1 = Adder(3, x0=[2, 3, 4])

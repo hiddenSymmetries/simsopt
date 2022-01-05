@@ -21,7 +21,6 @@ from functools import lru_cache
 import logging
 
 import numpy as np
-from deprecated import deprecated
 
 from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
@@ -715,9 +714,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if other not in self.parents:
             self.parents.insert(index, other)
             other._add_child(self)
-            self.ancestors = self._get_ancestors()
+            # self.ancestors = self._get_ancestors()
+            self._update_full_dof_size_indices()  # Updates ancestors as well
             self._update_free_dof_size_indices()
-            self._update_full_dof_size_indices()
             self._set_new_x()
         else:
             log.debug("The given Optimizable object is already a parent")
@@ -729,15 +728,16 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         Args:
             other: New parent Optimizable object
         """
-        if other not in self.parents:
-            self.parents.append(other)
-            other._add_child(self)
-            self.ancestors = self._get_ancestors()
-            self._update_free_dof_size_indices()
-            self._update_full_dof_size_indices()
-            self._set_new_x()
-        else:
-            log.debug("The given Optimizable object is already a parent")
+        self.add_parent(len(self.parents), other)
+        # if other not in self.parents:
+        #     self.parents.append(other)
+        #     other._add_child(self)
+        #     self.ancestors = self._get_ancestors()
+        #     self._update_free_dof_size_indices()
+        #     self._update_full_dof_size_indices()
+        #     self._set_new_x()
+        # else:
+        #     log.debug("The given Optimizable object is already a parent")
 
     def pop_parent(self, index: int = -1) -> Optimizable:
         """
@@ -751,9 +751,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
-        self.ancestors = self._get_ancestors()
+        # self.ancestors = self._get_ancestors()
+        self._update_full_dof_size_indices()  # Updates ancestors as well
         self._update_free_dof_size_indices()
-        self._update_full_dof_size_indices()
         self._set_new_x()
 
         return discarded_parent
@@ -767,10 +767,77 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         self.parents.remove(other)
         other._remove_child(self)
-        self.ancestors = self._get_ancestors()
+        # self.ancestors = self._get_ancestors()
+        self._update_full_dof_size_indices()  # updates ancestors as well
         self._update_free_dof_size_indices()
-        self._update_full_dof_size_indices()
         self._set_new_x()
+
+    def _get_ancestors(self) -> list[Optimizable]:
+        """
+        Get all the ancestors of the current Optimizable object
+
+        Returns:
+            List of Optimizable objects that are parents of current
+            Optimizable objects
+        """
+        ancestors = []
+        for parent in self.parents:
+            ancestors += parent.ancestors
+        ancestors += self.parents
+        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
+
+    def _update_free_dof_size_indices(self) -> None:
+        """
+        Updates the DOFs lengths for the Optimizable object as well as
+        those of the descendent (dependent) Optimizable objects.
+
+        Call this function whenever DOFs are fixed or unfixed or when parents
+        are added/deleted. Recursively calls the same function in children
+        """
+        # TODO: This is slow because it walks through the graph repeatedly
+        # TODO: Develop a faster scheme.
+        # TODO: Alternatively ask the user to call this manually from the end
+        # TODO: node after fixing/unfixing any DOF
+        dof_indices = [0]
+        free_dof_size = 0
+        for opt in (self.ancestors + [self]):
+            size = opt.local_dof_size
+            free_dof_size += size
+            dof_indices.append(free_dof_size)
+        self._free_dof_size = free_dof_size
+        self.dof_indices = dict(zip(self.ancestors + [self],
+                                    zip(dof_indices[:-1], dof_indices[1:])))
+
+        # Update the reduced dof length of children
+        for weakref_child in self._children:
+            child = weakref_child()
+            if child is not None:
+                child._update_free_dof_size_indices()
+
+    def _update_full_dof_size_indices(self) -> None:
+        """
+        Updates the full DOFs lengths for this instance and
+        those of the children. Updates the ancestors attribute as well.
+
+        Call this function whenever parents are added or removed. Recursively
+        calls the same function in children.
+        """
+
+        # TODO: This is slow because it walks through the graph repeatedly
+        # TODO: Develop a faster scheme.
+        # TODO: Alternatively ask the user to call this manually from the end
+        # TODO: node after fixing/unfixing any DOF
+        full_dof_size = 0
+        self.ancestors = self._get_ancestors()
+        for opt in (self.ancestors + [self]):
+            full_dof_size += opt.local_full_dof_size
+        self._full_dof_size = full_dof_size
+
+        # Update the full dof length of children
+        for weakref_child in self._children:
+            child = weakref_child()
+            if child is not None:
+                child._update_full_dof_size_indices()
 
     @property
     def full_dof_size(self) -> Integral:
@@ -809,58 +876,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             Number of free DOFs associated with the Optimizable object.
         """
         return self._dofs.reduced_len
-
-    def _update_free_dof_size_indices(self) -> None:
-        """
-        Updates the DOFs lengths for the Optimizable object as well as
-        those of the descendent (dependent) Optimizable objects.
-
-        Call this function whenever DOFs are fixed or unfixed or when parents
-        are added/deleted. Recursively calls the same function in children
-        """
-        # TODO: This is slow because it walks through the graph repeatedly
-        # TODO: Develop a faster scheme.
-        # TODO: Alternatively ask the user to call this manually from the end
-        # TODO: node after fixing/unfixing any DOF
-        dof_indices = [0]
-        free_dof_size = 0
-        for opt in (self.ancestors + [self]):
-            size = opt.local_dof_size
-            free_dof_size += size
-            dof_indices.append(free_dof_size)
-        self._free_dof_size = free_dof_size
-        self.dof_indices = dict(zip(self.ancestors + [self],
-                                    zip(dof_indices[:-1], dof_indices[1:])))
-
-        # Update the reduced dof length of children
-        for weakref_child in self._children:
-            child = weakref_child()
-            if child is not None:
-                child._update_free_dof_size_indices()
-
-    def _update_full_dof_size_indices(self) -> None:
-        """
-        Updates the full DOFs lengths for this instance and
-        those of the children.
-
-        Call this function whenever parents are added or removed. Recursively
-        calls the same function in children.
-        """
-
-        # TODO: This is slow because it walks through the graph repeatedly
-        # TODO: Develop a faster scheme.
-        # TODO: Alternatively ask the user to call this manually from the end
-        # TODO: node after fixing/unfixing any DOF
-        full_dof_size = 0
-        for opt in (self.ancestors + [self]):
-            full_dof_size += opt.local_full_dof_size
-        self._full_dof_size = full_dof_size
-
-        # Update the full dof length of children
-        for weakref_child in self._children:
-            child = weakref_child()
-            if child is not None:
-                child._update_full_dof_size_indices()
 
     @property
     def x(self) -> RealArray:
@@ -1154,20 +1169,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
-
-    def _get_ancestors(self) -> list[Optimizable]:
-        """
-        Get all the ancestors of the current Optimizable object
-
-        Returns:
-            List of Optimizable objects that are parents of current
-            Optimizable objects
-        """
-        ancestors = []
-        for parent in self.parents:
-            ancestors += parent.ancestors
-        ancestors += self.parents
-        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
 
     def __add__(self, other):
         """ Add two Optimizable objects """
