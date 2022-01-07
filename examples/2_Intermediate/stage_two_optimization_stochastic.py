@@ -19,16 +19,16 @@ The coil perturbations for each coil are the sum of a 'systematic error' and a
 the latter is independent for each coil.
 """
 
+import os
+from pathlib import Path
+import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, Coil, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
 from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
-import numpy as np
-import os
-from pathlib import Path
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -124,19 +124,23 @@ for i in range(len(curves_pert)):
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
 
-JF = CoilOptObjective(Jfs, Jls, ALPHA, Jdist, BETA)
-
+# Form the total objective function. To do this, we can exploit the
+# fact that Optimizable objects with J() and dJ() functions can be
+# multiplied by scalars and added:
+JF = (1.0 / N_SAMPLES) * sum(Jfs) + ALPHA * sum(Jls) + BETA * Jdist
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
-    jf = sum(J.J() for J in JF.Jfluxs)/len(JF.Jfluxs)
+    jf = sum(J.J() for J in Jfs) / N_SAMPLES
     print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
     return J, grad
 
