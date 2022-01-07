@@ -40,6 +40,7 @@ class CurveLength(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
+
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 

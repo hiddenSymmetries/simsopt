@@ -64,3 +64,6 @@ class FluxObjectiveTests(unittest.TestCase):
         Jls = [CurveLength(c) for c in base_curves]
         JF = CoilOptObjective(Jf, Jls, ALPHA)
         check_taylor_test(JF)
+
+        JF_scaled_summed = Jf + ALPHA * sum(Jls)
+        check_taylor_test(JF_scaled_summed)
