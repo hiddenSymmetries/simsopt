@@ -24,6 +24,7 @@ from . import TEST_DIR
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
+
 class InitializedFromWout(unittest.TestCase):
     def test_vacuum_well(self):
         """
@@ -96,6 +97,7 @@ class InitializedFromWout(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             iota2 = vmec.mean_iota()
 
+
 @unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
 class VmecTestsWithoutMPIorvmec(unittest.TestCase):
     def test_runnable_raises(self):
@@ -106,6 +108,7 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
         from simsopt.mhd.vmec import Vmec
         with self.assertRaises(RuntimeError):
             v = Vmec()
+
 
 @unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
