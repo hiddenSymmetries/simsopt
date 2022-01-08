@@ -27,12 +27,7 @@ except ImportError as e:
     booz_xform = None
     logger.debug(str(e))
 
-if MPI is not None:
-    try:
-        from .vmec import Vmec
-    except ImportError as e:
-        Vmec = None
-        logger.debug(str(e))
+from .vmec import Vmec
 
 from .._core.graph_optimizable import Optimizable
 
@@ -127,8 +122,7 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
-            if self.equil.runnable:
-                self.equil.run()
+            self.equil.run()
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
