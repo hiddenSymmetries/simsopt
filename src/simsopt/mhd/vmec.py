@@ -201,11 +201,8 @@ class Vmec(Optimizable):
         self.wout = Struct()
 
         # Get MPI communicator:
-        if (mpi is None):
-            if (MPI is not None):
-                self.mpi = MpiPartition(ngroups=1)
-            else:
-                self.mpi = None
+        if (mpi is None and MPI is not None):
+            self.mpi = MpiPartition(ngroups=1)
         else:
             self.mpi = mpi
 
