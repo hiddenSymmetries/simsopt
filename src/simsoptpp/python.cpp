@@ -5,7 +5,8 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
-
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 
 
 #include "biot_savart_py.h"
@@ -13,6 +14,7 @@ typedef xt::pyarray<double> PyArray;
 #include "dommaschk.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
+#include "bounce.h"
 
 namespace py = pybind11;
 
@@ -51,6 +53,38 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_even", &inverse_fourier_transform_even);
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("compute_kmns",&compute_kmns);
+
+    m.def("vprime", &vprime<xt::pytensor>,
+        py::arg("field"),
+        py::arg("s"),
+        py::arg("theta0"),
+        py::arg("nzeta"),
+        py::arg("nfp"),
+        py::arg("nmax"),
+        py::arg("step_size"),
+        py::arg("int digits")
+        );
+
+    m.def("bounce_integral", &bounce_integral<xt::pytensor>,
+        py::arg("field"),
+        py::arg("s"),
+        py::arg("theta0"),
+        py::arg("nzeta"),
+        py::arg("lam"),
+        py::arg("nfp"),
+        py::arg("nmax"),
+        py::arg("ntransitmax"), 
+        py::arg("jpar"),
+        py::arg("psidot"),
+        py::arg("alphadot"),
+        py::arg("ihat"),
+        py::arg("khat"),
+        py::arg("dkhatdalpha"),
+        py::arg("tau"),
+        py::arg("step_size"),
+        py::arg("int digits"),
+        py::arg("tol")
+        );
 
     // the computation below is used in boozer_surface_residual.
     //
