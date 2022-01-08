@@ -24,6 +24,7 @@ from . import TEST_DIR
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
 
+
 class InitializedFromWout(unittest.TestCase):
     def test_independent_of_resolution(self):
         """
@@ -80,6 +81,7 @@ class InitializedFromWout(unittest.TestCase):
         np.testing.assert_allclose(r.bsupu * r.d_B_d_theta + r.bsupv * r.d_B_d_phi, r.B_dot_grad_B)
         np.testing.assert_allclose(r.B_cross_grad_B_dot_grad_psi,
                                    r.d_psi_d_s * (r.bsubu * r.d_B_d_phi - r.bsubv * r.d_B_d_theta) / r.sqrtg)
+
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class QuasisymmetryRatioResidualTests(unittest.TestCase):
