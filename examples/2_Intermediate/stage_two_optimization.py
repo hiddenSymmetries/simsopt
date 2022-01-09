@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, coils_via_symmetries
@@ -91,12 +91,16 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
 
-JF = CoilOptObjective(Jf, Jls, ALPHA, Jdist, BETA)
-
+# Form the total objective function. To do this, we can exploit the
+# fact that Optimizable objects with J() and dJ() functions can be
+# multiplied by scalars and added:
+JF = Jf + ALPHA * sum(Jls) + BETA * Jdist
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
