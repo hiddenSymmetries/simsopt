@@ -27,7 +27,6 @@ except ImportError as e:
     vmec = None
     logger.debug(str(e))
 
-from ..util.dev import SimsoptRequires
 from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -79,8 +78,6 @@ reset_jacdt_flag = 32
 #                        control its own run history
 
 
-# Temporarily commenting out the decorator till __instancecheck__ method is made working
-#@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
     r"""
     This class represents the VMEC equilibrium code.
