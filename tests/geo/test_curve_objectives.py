@@ -7,7 +7,7 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
-    LpCurveTorsion, MinimumDistance
+    LpCurveTorsion, MinimumDistance, ArclengthVariation, MeanSquaredCurvature
 
 parameters['jit'] = False
 
@@ -154,6 +154,64 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_minimum_distance_taylor_test(curve)
+
+    def subtest_curve_arclengthvariation_taylor_test(self, curve):
+        if isinstance(curve, CurveXYZFourier):
+            J = ArclengthVariation(curve)
+        else:
+            J = ArclengthVariation(curve, nintervals=2)
+
+        curve_dofs = curve.x
+        h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        dJ = J.dJ()
+        deriv = np.sum(dJ * h)
+        assert np.abs(deriv) > 1e-10
+        err = 1e6
+        for i in range(1, 10):
+            eps = 0.5**i
+            curve.x = curve_dofs + eps * h
+            Jp = J.J()
+            curve.x = curve_dofs - eps * h
+            Jm = J.J()
+            deriv_est = (Jp-Jm)/(2*eps)
+            err_new = np.linalg.norm(deriv_est-deriv)
+            # print("err_new %s" % (err_new))
+            assert err_new < 0.3 * err
+            err = err_new
+
+    def test_curve_arclengthvariation_taylor_test(self):
+        for curvetype in self.curvetypes:
+            for rotated in [True, False]:
+                with self.subTest(curvetype=curvetype, rotated=rotated):
+                    curve = self.create_curve(curvetype, rotated)
+                    self.subtest_curve_arclengthvariation_taylor_test(curve)
+
+    def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
+        J = MeanSquaredCurvature(curve)
+        curve_dofs = curve.x
+        h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        dJ = J.dJ()
+        deriv = np.sum(dJ * h)
+        assert np.abs(deriv) > 1e-10
+        err = 1e6
+        for i in range(5, 10):
+            eps = 0.5**i
+            curve.x = curve_dofs + eps * h
+            Jp = J.J()
+            curve.x = curve_dofs - eps * h
+            Jm = J.J()
+            deriv_est = (Jp-Jm)/(2*eps)
+            err_new = np.linalg.norm(deriv_est-deriv)
+            # print("err_new %s" % (err_new))
+            assert err_new < 0.3 * err
+            err = err_new
+
+    def test_curve_meansquaredcurvature_taylor_test(self):
+        for curvetype in self.curvetypes:
+            for rotated in [True, False]:
+                with self.subTest(curvetype=curvetype, rotated=rotated):
+                    curve = self.create_curve(curvetype, rotated)
+                    self.subtest_curve_meansquaredcurvature_taylor_test(curve)
 
 
 if __name__ == "__main__":
