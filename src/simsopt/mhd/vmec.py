@@ -232,13 +232,6 @@ class Vmec(Optimizable):
                  keep_all_files: bool = False,
                  ntheta=50,
                  nphi=50):
-        if MPI is None:
-            raise RuntimeError("mpi4py needs to be installed for running VMEC")
-        if vmec is None:
-            raise RuntimeError(
-                "Running VMEC from simsopt requires VMEC python extension. "
-                "Install the VMEC python extension from "
-                "https://https://github.com/hiddenSymmetries/VMEC2000")
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -257,21 +250,14 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
+        self.wout = Struct()
+
         # Get MPI communicator:
-        if mpi is None:
+        if (mpi is None and MPI is not None):
             self.mpi = MpiPartition(ngroups=1)
         else:
             self.mpi = mpi
-        comm = self.mpi.comm_groups
-        self.fcomm = comm.py2f()
 
-        self.ictrl = np.zeros(5, dtype=np.int32)
-        self.iter = -1
-        self.keep_all_files = keep_all_files
-        self.files_to_delete = []
-        self.wout = Struct()
-        self.indata = vmec.vmec_input  # Shorthand
-        vi = vmec.vmec_input  # Shorthand
         self._pressure_profile = None
         self._current_profile = None
         self._iota_profile = None
@@ -280,6 +266,25 @@ class Vmec(Optimizable):
         self.n_iota = 10
 
         if self.runnable:
+            if MPI is None:
+                raise RuntimeError("mpi4py needs to be installed for running VMEC")
+            if vmec is None:
+                raise RuntimeError(
+                    "Running VMEC from simsopt requires VMEC python extension. "
+                    "Install the VMEC python extension from "
+                    "https://https://github.com/hiddenSymmetries/VMEC2000")
+
+            comm = self.mpi.comm_groups
+            self.fcomm = comm.py2f()
+
+            self.ictrl = np.zeros(5, dtype=np.int32)
+            self.iter = -1
+            self.keep_all_files = keep_all_files
+            self.files_to_delete = []
+
+            self.indata = vmec.vmec_input  # Shorthand
+            vi = vmec.vmec_input  # Shorthand
+
             self.ictrl[0] = restart_flag + readin_flag
             self.ictrl[1] = 0  # ierr
             self.ictrl[2] = 0  # numsteps
@@ -325,15 +330,14 @@ class Vmec(Optimizable):
                         self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
             self._boundary.local_full_x = self._boundary.get_dofs()
 
-            # Handle a few variables that are not Parameters:
             self.need_to_run_code = True
-
         else:
             # Initialized from a wout file, so not runnable.
             self._boundary = SurfaceRZFourier.from_wout(filename)
             self.output_file = filename
             self.load_wout()
 
+        # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
@@ -405,17 +409,22 @@ class Vmec(Optimizable):
                 self.need_to_run_code = True
 
     def get_dofs(self):
-        return np.array([self.indata.delt, self.indata.tcon0,
-                         self.indata.phiedge, self.indata.curtor,
-                         self.indata.gamma])
+        if not self.runnable:
+            # Use default values from vmec_input
+            return np.array([1, 1, 1, 0, 0])
+        else:
+            return np.array([self.indata.delt, self.indata.tcon0,
+                             self.indata.phiedge, self.indata.curtor,
+                             self.indata.gamma])
 
     def set_dofs(self, x):
-        self.need_to_run_code = True
-        self.indata.delt = x[0]
-        self.indata.tcon0 = x[1]
-        self.indata.phiedge = x[2]
-        self.indata.curtor = x[3]
-        self.indata.gamma = x[4]
+        if self.runnable:
+            self.need_to_run_code = True
+            self.indata.delt = x[0]
+            self.indata.tcon0 = x[1]
+            self.indata.phiedge = x[2]
+            self.indata.curtor = x[3]
+            self.indata.gamma = x[4]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -738,7 +747,6 @@ class Vmec(Optimizable):
         half mesh, we extrapolate by half of a radial grid point to s
         = 0 and 1.
         """
-
         self.run()
 
         # gmnc is on the half mesh, so drop the 0th radial entry:

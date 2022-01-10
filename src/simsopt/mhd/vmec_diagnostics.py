@@ -351,7 +351,8 @@ class IotaTargetMetric(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.need_to_run_code = True
+        # if self.vmec.runnable:
+        #     self.vmec.need_to_run_code = True
         self.vmec.run()
         return 0.5 * np.sum((self.vmec.wout.iotas[1::]
                              - self.iota_target(self.vmec.s_half_grid))**2) * self.vmec.ds
@@ -461,7 +462,6 @@ class IotaWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.need_to_run_code = True
         self.vmec.run()
         return np.sum(self.weight_function(self.vmec.s_half_grid) * self.vmec.wout.iotas[1:]) \
             / np.sum(self.weight_function(self.vmec.s_half_grid))
@@ -580,8 +580,6 @@ class WellWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-
-        self.vmec.need_to_run_code = True
         self.vmec.run()
         return np.sum((self.weight_function1(self.vmec.s_half_grid)-self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:]) \
             / np.sum((self.weight_function1(self.vmec.s_half_grid)+self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:])
