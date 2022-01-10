@@ -12,6 +12,7 @@ from typing import Union
 
 import numpy as np
 from scipy.io import netcdf
+from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
 
@@ -504,6 +505,9 @@ class Vmec(Optimizable):
         self.set_profile("iota", "iota", "i")
         if self.pressure_profile is not None:
             vi.pres_scale = 1.0
+        if self.current_profile is not None:
+            integral, _ = quad(self.current_profile, 0, 1)
+            vi.curtor = integral
 
         self.iter += 1
         input_file = self.input_file + '_{:03d}_{:06d}'.format(

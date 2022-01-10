@@ -806,7 +806,8 @@ class BootstrapTests(unittest.TestCase):
         vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
         vmec.indata.niter_array[:3] = [500, 2000, 0]
         geom1 = RedlGeomVmec(vmec, nphi=3)
-        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_N)
+        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_N,
+                                         logfile='testVmecRedlBootstrapMismatch.log')
         obj1J = obj1.J()
         # Resolution 2:
         vmec.indata.ns_array[:3] = [13, 25, 51]

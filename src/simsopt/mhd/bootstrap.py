@@ -653,7 +653,7 @@ class VmecRedlBootstrapMismatch(Optimizable):
         helicity_N: 0 for quasi-axisymmetry, or +/- the number of field periods for quasi-helical symmetry.
     """
 
-    def __init__(self, geom, ne, Te, Ti, Zeff, helicity_N):
+    def __init__(self, geom, ne, Te, Ti, Zeff, helicity_N, logfile=None):
         if not isinstance(Zeff, Profile):
             # If we get here then Zeff is presumably a number. Convert it to a constant profile.
             Zeff = ProfilePolynomial([Zeff])
@@ -663,6 +663,9 @@ class VmecRedlBootstrapMismatch(Optimizable):
         self.Ti = Ti
         self.Zeff = Zeff
         self.helicity_N = helicity_N
+        self.iteration = 0
+        self.logfile = logfile
+
         super().__init__(depends_on=[geom, ne, Te, Ti, Zeff])
 
     def residuals(self):
@@ -706,6 +709,26 @@ class VmecRedlBootstrapMismatch(Optimizable):
         interp = interp1d(vmec.s_full_grid, vmec.wout.jdotb)  # VMEC's "jdotb" is on the full grid.
         jdotB_vmec = interp(self.geom.surfaces)
 
+        if self.logfile is not None:
+            if self.iteration == 0:
+                # Write header
+                with open(self.logfile, 'w') as f:
+                    f.write('s\n')
+                    f.write(str(self.geom.surfaces[0]))
+                    for j in range(1, len(self.geom.surfaces)):
+                        f.write(', ' + str(self.geom.surfaces[j]))
+                    f.write('\n')
+                    f.write('iteration, j dot B Redl, j dot B vmec\n')
+
+            with open(self.logfile, 'a') as f:
+                f.write(str(self.iteration))
+                for j in range(len(self.geom.surfaces)):
+                    f.write(', ' + str(jdotB_Redl[j]))
+                for j in range(len(self.geom.surfaces)):
+                    f.write(', ' + str(jdotB_vmec[j]))
+                f.write('\n')
+
+        self.iteration += 1
         denominator = np.sum((jdotB_vmec + jdotB_Redl) ** 2)
         return (jdotB_vmec - jdotB_Redl) / np.sqrt(denominator)
 
