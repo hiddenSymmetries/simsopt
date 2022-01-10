@@ -382,33 +382,38 @@ class VmecTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
         vmec = Vmec(filename)
         vmec.indata.ncurr = 1
-        vmec.indata.curtor = 5e6
-        current = ProfilePolynomial(np.array([1, 1, -1.5]))
+        vmec.indata.curtor = -3e6  # This value should be over-written
+        factor = 5.0e6
+        current = ProfilePolynomial(factor * np.array([1, 1, -1.5]))
+        # Integral of that current profile is 1.0 * factor
         vmec.current_profile = current
         vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor, rtol=1e-2)
         s = vmec.s_full_grid
-        # The actual current profile used is scaled by vmec so the
-        # total current is curtor, so we can't directly compare the
-        # input and output profiles. Instead we will make sure their
-        # ratio is constant. Also, the first and last points of VMEC's
-        # jcurv are inaccurate, so drop them in the comparison.
-        ratio = vmec.wout.jcurv / (1 + s - 1.5 * s * s)
-        np.testing.assert_allclose(ratio[1:-1], np.mean(ratio[1:-1]), rtol=1e-3)
+        s_test = s[1:-1]
+        # Vmec's jcurv is (dI/ds) / (2pi) where I(s) is the current enclosed by the surface s.
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + s_test - 1.5 * s_test ** 2), rtol=1e-3)
+        return
         # Change the Profile dofs, and confirm that the output current from VMEC is updated:
         current.unfix_all()
-        current.x = [1, 2, -2.2]
+        current.x = factor * np.array([1, 2, -2.2])
+        # Now the total (s-integrated) current is factor * 1.2666666666
         vmec.run()
-        ratio = vmec.wout.jcurv / (1 + 2 * s - 2.2 * s * s)
-        np.testing.assert_allclose(ratio[1:-1], np.mean(ratio[1:-1]), rtol=1e-3)
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.266666666, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
         self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:12]), 'power_series')
 
         # Now try a spline Profile with vmec using a power series:
         s_spline = np.linspace(0, 1, 5)
-        current2 = ProfileSpline(s_spline, (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2))
+        current2 = ProfileSpline(s_spline, factor * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2))
+        # Now the total (s-integrated) current is factor * 1.8
         vmec.current_profile = current2
         vmec.run()
-        ratio = vmec.wout.jcurv / (2.0 + 0.6 * s - 1.5 * s * s)
-        np.testing.assert_allclose(ratio[1:-1], np.mean(ratio[1:-1]), rtol=1e-3)
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.8, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (2.0 + 0.6 * s_test - 1.5 * s_test ** 2), rtol=1e-3)
         self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:12]), 'power_series')
 
         # Now try a spline Profile with vmec using splines. Note that
@@ -417,20 +422,21 @@ class VmecTests(unittest.TestCase):
         # "cubic_spline_ip" or "cubic_spline_i"
         vmec.indata.pcurr_type = 'cubic_spline_ip'
         current2.unfix_all()
-        newx = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
-        current2.x = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
+        current2.x = factor * (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
         vmec.run()
-        ratio = vmec.wout.jcurv / (2.2 - 0.7 * s - 1.1 * s * s)
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.8, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (2.2 - 0.7 * s_test - 1.1 * s_test ** 2), rtol=1e-3)
         self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
-        np.testing.assert_allclose(ratio[1:-1], np.mean(ratio[1:-1]), rtol=1e-3)
 
         # Now try a polynomial Profile with vmec using splines:
         vmec.current_profile = current
         # Try lowering the number of spline nodes:
         vmec.n_current = 7
         vmec.run()
-        ratio = vmec.wout.jcurv / (1 + 2 * s - 2.2 * s * s)
-        np.testing.assert_allclose(ratio[1:-1], np.mean(ratio[1:-1]), rtol=1e-3)
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.266666666, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
         self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
 
     def test_iota_profile(self):
