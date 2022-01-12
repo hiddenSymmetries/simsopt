@@ -53,6 +53,9 @@ class Current(sopp.Current, Optimizable):
     def __neg__(self):
         return ScaledCurrent(self, -1.)
 
+    def __add__(self, other):
+        return CurrentSum(self, other)
+
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
     """
@@ -70,6 +73,30 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
 
     def __neg__(self):
         return ScaledCurrent(self, -1.)
+
+    def __add__(self, other):
+        return CurrentSum(self, other)
+
+
+class CurrentSum(sopp.CurrentSum, Optimizable):
+    """
+    Take the sum of two :mod:`Current` objects.
+    """
+
+    def __init__(self, current_A, current_B):
+        self.__current_A = current_A
+        self.__current_B = current_B
+        sopp.CurrentSum.__init__(self, current_A, current_B)
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[current_A, current_B])
+
+    def vjp(self, v_current):
+        return self.__current_A.vjp(v_current) + self.__current_B.vjp(v_current)
+
+    def __neg__(self):
+        return ScaledCurrent(self, -1.)
+
+    def __add__(self, other):
+        return CurrentSum(self, other)
 
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):

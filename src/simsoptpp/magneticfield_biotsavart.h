@@ -68,7 +68,9 @@ class BiotSavart : public MagneticField<T> {
 
         }
 
-        void compute(int derivatives);       virtual void invalidate_cache() override {
+        void compute(int derivatives);
+
+        virtual void invalidate_cache() override {
             MagneticField<T>::invalidate_cache();
             this->field_cache.invalidate_cache();
         }

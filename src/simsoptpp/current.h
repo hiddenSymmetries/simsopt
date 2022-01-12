@@ -29,3 +29,14 @@ class ScaledCurrent : public CurrentBase<Array> {
         ScaledCurrent(std::shared_ptr<CurrentBase<Array>> current, double scale) : current(current), scale(scale) {}
         double get_value() override { return scale * (current->get_value()); }
 };
+
+template<class Array>
+class CurrentSum : public CurrentBase<Array> {
+    private:
+        const std::shared_ptr<CurrentBase<Array>> current_A;
+        const std::shared_ptr<CurrentBase<Array>> current_B;
+    public:
+        CurrentSum(std::shared_ptr<CurrentBase<Array>> current_A, std::shared_ptr<CurrentBase<Array>> current_B) : current_A(current_A), current_B(current_B) {};
+        double get_value() override { return  (current_A->get_value() + current_B->get_value()); }
+};
+

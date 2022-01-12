@@ -86,6 +86,10 @@ void init_magneticfields(py::module_ &m){
         .def(py::init<shared_ptr<CurrentBase<PyArray>>, double>())
         .def("get_value", &ScaledCurrent<PyArray>::get_value, "Get the current.")
         .def_readonly("scale", &ScaledCurrent<PyArray>::scale, "Get the scaling factor.");
+
+    py::class_<CurrentSum<PyArray>, shared_ptr<CurrentSum<PyArray>>, CurrentBase<PyArray>>(m, "CurrentSum", "Sum two currents.")
+        .def(py::init<shared_ptr<CurrentBase<PyArray>>, shared_ptr<CurrentBase<PyArray>>>())
+        .def("get_value", &CurrentSum<PyArray>::get_value, "Get the current.");
         
 
     py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
