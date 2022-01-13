@@ -76,6 +76,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
+        self._make_mn()
 
     def get_dofs(self):
         """
@@ -105,6 +106,23 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         for m in range(1, self.mpol + 1):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
+
+    def _make_mn(self):
+        """
+        Make the list of m and n values.
+        """
+        m1d = np.arange(self.mpol + 1)
+        n1d = np.arange(-self.ntor, self.ntor + 1)
+        n2d, m2d = np.meshgrid(n1d, m1d)
+        m0 = m2d.flatten()[self.ntor:]
+        n0 = n2d.flatten()[self.ntor:]
+        m = np.concatenate((m0, m0[1:]))
+        n = np.concatenate((n0, n0[1:]))
+        if not self.stellsym:
+            m = np.concatenate((m, m))
+            n = np.concatenate((n, n))
+        self.m = m
+        self.n = n
 
     @classmethod
     def from_wout(cls,

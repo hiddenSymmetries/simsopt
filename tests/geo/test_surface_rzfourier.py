@@ -481,6 +481,30 @@ class SurfaceRZFourierTests(unittest.TestCase):
         via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
         assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
+    def test_mn(self):
+        """
+        Test the arrays of mode numbers m and n.
+        """
+        mpol = 3
+        ntor = 2
+        nfp = 4
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        print('m:', s.m)
+        print('n:', s.n)
+        m_correct = [0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3,
+                     0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3]
+        n_correct = [0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2,
+                     1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]
+        np.testing.assert_array_equal(s.m, m_correct)
+        np.testing.assert_array_equal(s.n, n_correct)
+
+        # Now try a non-stellarator-symmetric case
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        print('m:', s.m)
+        print('n:', s.n)
+        np.testing.assert_array_equal(s.m, m_correct + m_correct)
+        np.testing.assert_array_equal(s.n, n_correct + n_correct)
+
 
 if __name__ == "__main__":
     unittest.main()
