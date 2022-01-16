@@ -615,10 +615,20 @@ class SurfaceScaled(Optimizable):
     def __init__(self, surf, scale_factors):
         self.surf = surf
         self.scale_factors = scale_factors
-        super().__init__(x0=surf.x / scale_factors, names=surf.dof_names)
+        super().__init__(x0=surf.x / scale_factors, names=surf.local_dof_names)
 
     def recompute_bell(self, parent=None):
-        self.surf.x = self.x * self.scale_factors
+        self.surf.local_full_x = self.local_full_x * self.scale_factors
 
     def to_RZFourier(self):
         return self.surf.to_RZFourier()
+
+    def update_fixed(self):
+        """
+        Copy the fixed status from self.surf to self.
+        """
+        for j, is_free in enumerate(self.surf.local_dofs_free_status):
+            if is_free:
+                self.unfix(j)
+            else:
+                self.fix(j)

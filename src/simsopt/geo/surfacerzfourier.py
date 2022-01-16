@@ -387,6 +387,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not self.stellsym:
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
+        self._make_mn()
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
