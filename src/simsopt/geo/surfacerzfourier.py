@@ -89,11 +89,18 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def _make_names(self):
         """
-        Form a list of names of the `rc`, `zs`, `rs`, or `zc` array elements.
+        Form a list of names of the ``rc``, ``zs``, ``rs``, or ``zc``
+        array elements.  The order of these four arrays here must
+        match the order in ``set_dofs_impl()`` and ``get_dofs()`` in
+        ``src/simsoptpp/surfacerzfourier.h``.
         """
-        names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
-        if not self.stellsym:
-            names += self._make_names_helper('rs', False) + self._make_names_helper('zc', True)
+        if self.stellsym:
+            names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
+        else:
+            names = self._make_names_helper('rc', True) \
+                + self._make_names_helper('rs', False) \
+                + self._make_names_helper('zc', True) \
+                + self._make_names_helper('zs', False)
         return names
 
     def _make_names_helper(self, prefix, include0):
