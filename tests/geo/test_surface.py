@@ -263,6 +263,31 @@ class SurfaceScaledTests(unittest.TestCase):
 
         self.assertEqual(surf_scaled.to_RZFourier(), surf1)
 
+    def test_names(self):
+        """
+        The dof names should be the same for the SurfaceScaled as for the
+        original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        self.assertEqual(surf1.local_full_dof_names, surf_scaled.local_full_dof_names)
+
+    def test_fixed(self):
+        """
+        Verify that the fixed/free property for a SurfaceScaled can be
+        matched to the original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        surf1.fix_all()
+        surf1.fixed_range(mmin=0, mmax=1,
+                          nmin=-2, nmax=3, fixed=False)
+        surf1.fix("rc(0,0)")  # Major radius
+        surf_scaled.update_fixed()
+        np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
+
 
 if __name__ == "__main__":
     unittest.main()
