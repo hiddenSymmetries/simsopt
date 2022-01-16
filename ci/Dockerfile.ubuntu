@@ -11,14 +11,13 @@ RUN apt update && \
 WORKDIR /src
 ARG mpich=3.3
 ARG mpich_prefix=mpich-$mpich
-ARG NPROC=$(expr `nproc` \* 2)
 
 RUN \
     wget https://www.mpich.org/static/downloads/$mpich/$mpich_prefix.tar.gz && \
     tar xvzf $mpich_prefix.tar.gz   && \
     cd $mpich_prefix                && \
     ./configure                     && \
-    make -j $NPROC                  && \
+    make -j 4                       && \
     make install                    && \
     make clean                      && \
     cd ..                           && \
@@ -34,7 +33,7 @@ RUN \
     cd /src/scalapack && \
     CC=mpicc F77=mpif77 FC=mpif90 CXX=mpicxx cmake -DBUILD_SHARED_LIBS=ON -S . -B build && \
     cd build && \
-    make -j $NPROC && \
+    make -j 4 && \
     cmake --install . && \
     cd ../..  && \
     rm -rf scalapack
