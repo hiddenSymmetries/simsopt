@@ -53,7 +53,7 @@ class MPIObjective(Optimizable):
     def dJ(self):
         if len(self.objectives) == 0:
             raise NotImplementedError("`MPIObjective.dJ` currently requires that there is at least one objective per process.")
-        local_derivs = sum([J.dJ(partials=True) for J in self.objectives], start=Derivative({}))
+        local_derivs = sum([J.dJ(partials=True) for J in self.objectives])
         all_derivs = sum_across_comm(local_derivs, self.comm)
         all_derivs *= 1./self.n
         return all_derivs
