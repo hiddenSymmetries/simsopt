@@ -61,7 +61,7 @@ class MPIObjective(Optimizable):
 
 class QuadraticPenalty(Optimizable):
 
-    def __init__(self, obj, threshold):
+    def __init__(self, obj, threshold=0.):
         r"""
         A penalty function of the form :math:`\max(J - \text{threshold}, 0)^2` for an underlying objective `J`.
         Args:

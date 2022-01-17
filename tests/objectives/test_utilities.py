@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curveobjectives import CurveLength
+from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
 parameters['jit'] = False
@@ -54,21 +54,24 @@ class UtilityObjectiveTesting(unittest.TestCase):
 
     def test_mpi_objective(self):
         if MPI is None:
+            print("skip test_mpi_objective")
             return
         comm = MPI.COMM_WORLD
 
-        n = 5
-        curves = [self.create_curve for _ in range(n)]
-        for i in range(n):
-            x = curves.x
-            x += np.random.standard_normal(size=x.shape)
-        Js0 = [CurveLength(c) for c in curves]
-        Js1 = [CurveLength(c) for c in curves]
-        Js2 = [CurveLength(c) for c in curves]
+        c = self.create_curve()
+        Js = [
+            CurveLength(c),
+            QuadraticPenalty(CurveLength(c)),
+            LpCurveTorsion(c, p=2),
+            LpCurveTorsion(c, p=2)
+        ]
+        n = len(Js)
 
-        Jmpi0 = MPIObjective(Js0, comm, needs_splitting=True)
-        assert abs(Jmpi0.J() - sum(J.J() for J in Js2)/n) < 1e-14
+        Jmpi0 = MPIObjective(Js, comm, needs_splitting=True)
+        assert abs(Jmpi0.J() - sum(J.J() for J in Js)/n) < 1e-14
+        assert np.sum(np.abs(Jmpi0.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
         if comm.size == 2:
-            Js1subset = Js1[:2] if comm.rank == 0 else Js1[2:]
+            Js1subset = Js[:2] if comm.rank == 0 else Js[2:]
             Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
-            assert abs(Jmpi1.J() - sum(J.J() for J in Js2)/n) < 1e-14
+            assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
+            assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
