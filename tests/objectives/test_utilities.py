@@ -7,6 +7,10 @@ from simsopt.geo.curveobjectives import CurveLength
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
 parameters['jit'] = False
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
 
 
 class UtilityObjectiveTesting(unittest.TestCase):
@@ -39,7 +43,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
             print("err_new %s" % (err_new))
-            # assert err_new < 0.55 * err or err_new < 1e-13
+            assert err_new < 0.55 * err or err_new < 1e-13
             err = err_new
 
     def test_quadratic_penalty(self):
@@ -47,3 +51,24 @@ class UtilityObjectiveTesting(unittest.TestCase):
         J = CurveLength(curve)
         self.subtest_quadratic_penalty(curve, J.J()+0.1)
         self.subtest_quadratic_penalty(curve, J.J()-0.1)
+
+    def test_mpi_objective(self):
+        if MPI is None:
+            return
+        comm = MPI.COMM_WORLD
+
+        n = 5
+        curves = [self.create_curve for _ in range(n)]
+        for i in range(n):
+            x = curves.x
+            x += np.random.standard_normal(size=x.shape)
+        Js0 = [CurveLength(c) for c in curves]
+        Js1 = [CurveLength(c) for c in curves]
+        Js2 = [CurveLength(c) for c in curves]
+
+        Jmpi0 = MPIObjective(Js0, comm, needs_splitting=True)
+        assert abs(Jmpi0.J() - sum(J.J() for J in Js2)/n) < 1e-14
+        if comm.size == 2:
+            Js1subset = Js1[:2] if comm.rank == 0 else Js1[2:]
+            Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
+            assert abs(Jmpi1.J() - sum(J.J() for J in Js2)/n) < 1e-14

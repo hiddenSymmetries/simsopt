@@ -321,7 +321,7 @@ class ArclengthVariation(Optimizable):
 @jit
 def curve_msc_pure(kappa, gammadash):
     """
-    This function is used in a Python+Jax implementation of the curve arclength variation.
+    This function is used in a Python+Jax implementation of the mean squared curvature objective.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return jnp.mean(kappa**2 * arc_length)/jnp.mean(arc_length)
@@ -332,6 +332,13 @@ class MeanSquaredCurvature(Optimizable):
     def __init__(self, curve):
         r"""
         Compute the mean of the squared curvature of a curve.
+
+        ..math::
+            J = (1/L) \int \kappa^2 \ell d\phi
+
+        where :math:`L` is the curve length, :math:`\ell` is the incremental
+        arclength, and :math:`\kappa` is the curvature.
+
         Args:
             curve: the curve of which the curvature should be computed.
         """
