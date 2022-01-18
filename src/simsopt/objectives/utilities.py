@@ -42,11 +42,12 @@ class MPIObjective(Optimizable):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=objectives)
         self.objectives = objectives
         self.comm = comm
-        self.n = np.sum(self.comm.allgather(len(self.objectives)))
+        self.n = len(self.objectives) if comm is None else np.sum(self.comm.allgather(len(self.objectives)))
 
     def J(self):
         local_vals = [J.J() for J in self.objectives]
-        res = np.sum([i for o in self.comm.allgather(local_vals) for i in o])
+        global_vals = local_vals if self.comm is None else [i for o in self.comm.allgather(local_vals) for i in o]
+        res = np.sum(global_vals)
         return res/self.n
 
     @derivative_dec
@@ -54,7 +55,7 @@ class MPIObjective(Optimizable):
         if len(self.objectives) == 0:
             raise NotImplementedError("`MPIObjective.dJ` currently requires that there is at least one objective per process.")
         local_derivs = sum([J.dJ(partials=True) for J in self.objectives])
-        all_derivs = sum_across_comm(local_derivs, self.comm)
+        all_derivs = local_derivs if self.comm is None else sum_across_comm(local_derivs, self.comm)
         all_derivs *= 1./self.n
         return all_derivs
 
