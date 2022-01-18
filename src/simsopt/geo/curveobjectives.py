@@ -65,20 +65,13 @@ class LpCurveCurvature(Optimizable):
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \text{max}(\kappa - \kappa_0, 0)^p ~dl
 
-    where :math:`\kappa_0` is a threshold curvature.  When ``desired_length`` is
-    provided, :math:`\kappa_0 = 2 \pi / \text{desired_length}`, otherwise :math:`\kappa_0=0`.
+    where :math:`\kappa_0` is a threshold curvature.
     """
 
-    def __init__(self, curve, p, desired_length=None):
+    def __init__(self, curve, p, threshold=0.):
         self.curve = curve
         super().__init__(depends_on=[curve])
-        if desired_length is None:
-            self.desired_kappa = 0
-        else:
-            radius = desired_length/(2*np.pi)
-            self.desired_kappa = 1/radius
-
-        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, self.desired_kappa))
+        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
@@ -101,12 +94,12 @@ class LpCurveCurvature(Optimizable):
 
 
 @jit
-def Lp_torsion_pure(torsion, gammadash, p):
+def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
     This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
-    return (1./p)*jnp.mean(jnp.abs(torsion)**p * arc_length)
+    return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
 
 
 class LpCurveTorsion(Optimizable):
@@ -120,10 +113,9 @@ class LpCurveTorsion(Optimizable):
 
     """
 
-    def __init__(self, curve, p):
+    def __init__(self, curve, p, threshold=0.):
         self.curve = curve
-
-        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p))
+        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
         super().__init__(depends_on=[curve])
@@ -194,6 +186,21 @@ class MinimumDistance(Optimizable):
             self.trees = []
             for i in range(len(self.curves)):
                 self.trees.append(KDTree(self.curves[i].gamma()))
+
+    def shortest_distance(self):
+        dist = 1e10
+        for i in range(len(self.curves)):
+            tree1 = self.trees[i]
+            for j in range(i):
+                tree2 = self.trees[j]
+                dists = tree1.sparse_distance_matrix(tree2, dist)
+                if len(dists) == 0:
+                    continue
+                gamma2 = self.curves[j].gamma()
+                dists, _ = tree1.query(gamma2, k=1)
+                dist = min(dist, np.min(dists))
+        return dist
+
 
     def J(self):
         """
