@@ -29,6 +29,19 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, Coil, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
 from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
+from simsopt.objectives.utilities import QuadraticPenalty, MPIObjective
+from randomgen import PCG64
+
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+
+    def pprint(*args, **kwargs):
+        if comm.rank == 0:  # only print on rank 0
+            print(*args, **kwargs)
+except ImportError:
+    comm = None
+    pprint = print
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -105,15 +118,18 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 Jf = SquaredFlux(s, bs)
 
+seed = 0
+rg = np.random.Generator(PCG64(seed, inc=0))
+
 sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
 Jfs = []
 curves_pert = []
 for i in range(N_SAMPLES):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
-    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
+    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler, randomgen=rg)) for c in base_curves]
     coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
     # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
-    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
+    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler, randomgen=rg)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
     Jfs.append(SquaredFlux(s, bs_pert))
@@ -123,11 +139,12 @@ for i in range(len(curves_pert)):
 
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, MIN_DIST)
+Jmpi = MPIObjective(Jfs, comm, needs_splitting=True)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = (1.0 / N_SAMPLES) * sum(Jfs) + ALPHA * sum(Jls) + BETA * Jdist
+JF = Jmpi + ALPHA * sum(Jls) + BETA * Jdist
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -140,12 +157,12 @@ def fun(dofs):
     grad = JF.dJ()
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
-    jf = sum(J.J() for J in Jfs) / N_SAMPLES
-    print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
+    jf = Jmpi.J()
+    pprint(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}", flush=True)
     return J, grad
 
 
-print("""
+pprint("""
 ################################################################################
 ### Perform a Taylor test ######################################################
 ################################################################################
@@ -159,9 +176,9 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)
+    pprint("err", (J1-J2)/(2*eps) - dJh)
 
-print("""
+pprint("""
 ################################################################################
 ### Run the optimisation #######################################################
 ################################################################################
@@ -169,7 +186,7 @@ print("""
 from scipy.optimize import minimize
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
 
-print("""
+pprint("""
 ################################################################################
 ### Evaluate the obtained coils ################################################
 ################################################################################
@@ -180,20 +197,21 @@ for i in range(len(curves_pert)):
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 Jf.x = res.x
-print(f"Mean Flux Objective across perturbed coils: {np.mean([J.J() for J in Jfs]):.3e}")
-print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
+pprint(f"Mean Flux Objective across perturbed coils: {Jmpi.J():.3e}")
+pprint(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
 
 # now draw some fresh samples to evaluate the out-of-sample error
+rg = np.random.Generator(PCG64(seed+1, inc=0))
 val = 0
 for i in range(N_OOS):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
-    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler)) for c in base_curves]
+    base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler, randomgen=rg)) for c in base_curves]
     coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
     # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
-    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler)), c.current) for c in coils]
+    coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler, randomgen=rg)), c.current) for c in coils]
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
     val += SquaredFlux(s, bs_pert).J()
 
 val *= 1./N_OOS
-print(f"Out-of-sample flux value                  : {val:.3e}")
+pprint(f"Out-of-sample flux value                  : {val:.3e}")
