@@ -201,7 +201,6 @@ class MinimumDistance(Optimizable):
                 dist = min(dist, np.min(dists))
         return dist
 
-
     def J(self):
         """
         This returns the value of the quantity.
