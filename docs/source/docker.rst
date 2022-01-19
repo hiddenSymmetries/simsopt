@@ -1,9 +1,16 @@
+.. _docker_doc:
+
 Docker container
 ================
 
 A Docker container for simsopt is available, allowing you to use
 simsopt without having to compile any code yourself.  The container
 includes VMEC, SPEC, and BOOZ_XFORM.
+
+.. warning::
+
+   Docker is not generally allowed to run on computers at HPC centers due to security issues.
+   For those wishing to run simsopt on NERSC machines, please refer to :ref:`shifter_doc`.
 
 Requirements
 ^^^^^^^^^^^^
