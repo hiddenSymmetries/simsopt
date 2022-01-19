@@ -20,10 +20,10 @@ simsopt.util.dev module
    :undoc-members:
    :show-inheritance:
 
-simsopt.util.logging module
----------------------------
+simsopt.util.log module
+-----------------------
 
-.. automodule:: simsopt.util.logging
+.. automodule:: simsopt.util.log
    :members:
    :undoc-members:
    :show-inheritance:
