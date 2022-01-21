@@ -14,66 +14,160 @@ warnings.catch_warnings()
 
 logger = logging.getLogger(__name__)
 
-def find_sigma_minus(field, s, nzeta, ntheta, nfp, rtol=1e-3):
+def find_sigma_minus(field, s, ngrid, nfp, rtol=1e-3, tmax = 100, toroidal=False, theta0=0, zeta0=0):
     """
     This assumes that curves of b dot grad B = 0 close poloidally.
-    1. First find points on theta = 0 curves that satisfy b dot grad B = 0. Each
+    1. First find points on theta = theta0 curves that satisfy b dot grad B = 0. Each
        of these correspond with an initial condition for a curve corresponding to
        the intersection of Sigma^- with this flux surface.
     2. Now integrate with respect to theta to obtain zeta(theta) such that
        bdotgradB = 0.
     """
-    zetas = np.linspace(0,2*np.pi/nfp,nzeta)
-    thetas = np.linspace(0,2*np.pi,ntheta)
-    points = np.zeros((nzeta,3))
+    points = np.zeros((ngrid,3))
     points[:,0] = s
-    points[:,1] = 0
-    points[:,2] = zetas
+    # Contours close toroidally
+    if (toroidal):
+        thetas = np.linspace(0,2*np.pi,ngrid)
+        points[:,1] = thetas
+        points[:,2] = zeta0
+    else:
+        zetas = np.linspace(0,2*np.pi/nfp,ngrid)
+        points[:,1] = thet0
+        points[:,2] = zetas
     field.set_points(points)
+
     bdotgradB = (field.iota()[:,0]*field.dmodBdtheta()[:,0] + field.dmodBdzeta()[:,0])/field.modB()[:,0]
+
     # Find points in zeta that bracket b dot grad B = 0.
     points_left = []
     points_right = []
-    for i in range(nzeta-1):
+    for i in range(ngrid-1):
+        # Find points that bracket bdotgradB = 0
         if ((bdotgradB[i] > 0) == (bdotgradB[i+1] < 0)):
-            points_left.append(zetas[i])
-            points_right.append(zetas[i+1])
+            if toroidal:
+                points_left.append(thetas[i])
+                points_right.append(thetas[i+1])
+            else:
+                points_left.append(zetas[i])
+                points_right.append(zetas[i+1])
 
     point = np.zeros((1,3))
     point[:,0] = s
-    def bdotgradBf(zeta):
-        point[:,1] = 0
-        point[:,2] = zeta
+    def bdotgradBf(param):
+        if (toroidal):
+            point[:,1] = param
+            point[:,2] = zeta0
+        else:
+            point[:,1] = theta0
+            point[:,2] = param
         field.set_points(point)
         return field.iota()[0,0]*field.dmodBdtheta()[0,0] + field.dmodBdzeta()[0,0]
 
-    # For each root, now integrate to find zeta(theta)
-    # rhs = -(d(BdotgradB)/dzeta)/(d(BdotgradB)/dtheta)
-    # BdotgradB = iota dBdtheta + dBdzeta
-    def rhs(theta,zeta):
-        point[:,1] = theta
-        point[:,2] = zeta
+    def rhs(t,y):
+        point[:,1] = y[0]
+        point[:,2] = y[1]
         field.set_points(point)
         d2modBdtheta2 = field.d2modBdtheta2()[0,0]
         d2modBdzeta2 = field.d2modBdzeta2()[0,0]
         d2modBdthetadzeta = field.d2modBdthetadzeta()[0,0]
-        dmodBdtheta = field.dmodBdtheta()[0,0]
-        dmodBdzeta = field.dmodBdzeta()[0,0]
         iota = field.iota()[0,0]
+        G = field.G()[0,0]
+        I = field.I()[0,0]
+        modB = field.modB()[0,0]
+        sqrtginv = modB*modB/(G+iota*I)
         dBdotgradBdtheta = iota*d2modBdtheta2 + d2modBdthetadzeta
         dBdotgradBdzeta = iota*d2modBdthetadzeta + d2modBdzeta2
-        return -dBdotgradBdzeta/dBdotgradBdtheta
+        dthetadt = dBdotgradBdzeta/np.sqrt(dBdotgradBdzeta**2 + dBdotgradBdtheta**2)
+        dzetadt = -dBdotgradBdtheta/np.sqrt(dBdotgradBdzeta**2 + dBdotgradBdtheta**2)
+        return [dthetadt,dzetadt]
+
+    def event1(t, y):
+        theta = y[0]
+        zeta = y[1]
+        if t>0:
+            if (theta-theta0 > 0):
+                # Cross in positive direction
+                return   theta-theta0 - 2*np.pi
+            elif (theta-theta0 < 0):
+                return -(theta-theta0) - 2*np.pi
+            else:
+                return 1
+        else:
+            return 1
+
+    def event2(t, y):
+        theta = y[0]
+        zeta = y[1]
+        if (t>0):
+            if (zeta - sol.root > 0):
+                return  zeta-sol.root - 2*np.pi/nfp
+            elif (zeta-sol.root < 0):
+                return -(zeta-sol.root) - 2*np.pi/nfp
+            else:
+                return 1
+        else:
+            return 1
+
+    event1.terminal = True
+    event1.direction = +1
+    event2.terminal = True
+    event2.direction = +1
+
+    point = np.zeros((1,3))
+    point[:,0] = s
 
     # Now iterate over possible brackets and perform a root solve
-    t_span = (0,2*np.pi)
+    t_span = (0,tmax)
+    sigmaminus_spline = []
     sigmaminus = []
+    t_events = []
+    y = np.zeros((2,))
     for i in range(len(points_left)):
+        print('Point left: ', i)
         sol = root_scalar(bdotgradBf, x0=points_left[i], x1=points_right[i], rtol=rtol)
-        print(bdotgradBf(sol.root))
-        sol = solve_ivp(rhs,t_span,[sol.root],t_eval=thetas, rtol=rtol, atol=rtol)
-        sigmaminus.append((sol.t,sol.y))
+        print('Converged: ',sol.converged)
+        print('root: ', sol.root)
 
-    return sigmaminus
+        if (toroidal):
+            point[:,1] = sol.root
+            point[:,2] = zeta0
+        else:
+            point[:,1] = theta0
+            point[:,2] = sol.root
+        field.set_points(point)
+        bdotgradB = field.iota()[:,0] * field.dmodBdtheta()[:,0] + field.dmodBdzeta()[:,0]
+        print('BdotgradB: ',bdotgradB)
+        bdotgrad2B = field.iota()[:,0]**2 * field.d2modBdtheta2()[:,0] + field.d2modBdzeta2()[:,0] \
+            + 2 * field.iota()[:,0] * field.d2modBdthetadzeta()[:,0]
+        print('bdotgrad2B: ',bdotgrad2B)
+        modB = field.modB()[0,0]
+
+        if (toroidal):
+            point[:,1] = points_left[i]
+            point[:,2] = zeta0
+        else:
+            point[:,1] = theta0
+            point[:,2] = points_left[i]
+        field.set_points(point)
+        modBleft = field.modB()[0,0]
+        print('modB: ', modB)
+        print('modBleft: ',modBleft)
+        if (bdotgrad2B < 0 or modB > modBleft):
+            y[0:1] = point[0,1:2]
+            sol = solve_ivp(rhs, t_span, y, dense_output=True, rtol=rtol, atol=rtol, events=[event1,event2])
+            # print(np.shape(sol.t))
+            # print(np.shape(sol.y))
+            print(sol.message)
+
+            output = np.zeros((len(sol.t),3))
+            output[:,0] = sol.t
+            output[:,1] = sol.y[0]
+            output[:,2] = sol.y[1]
+            sigmaminus_spline.append(sol.sol)
+            sigmaminus.append(output)
+            t_events.append(sol.t_events)
+
+    return sigmaminus_spline, sigmaminus, t_events
 
 def gamma_c(field, s, nlam, nalpha, nzeta, nfp=1, nmax=10, limit=50, eps=1e-8):
 

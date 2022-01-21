@@ -65,15 +65,32 @@ PYBIND11_MODULE(simsoptpp, m) {
         py::arg("int digits")
         );
 
-    m.def("bounce_integral", &bounce_integral<xt::pytensor>,
+
+    m.def("find_bounce_points", &find_bounce_points<xt::pytensor>,
         py::arg("field"),
         py::arg("s"),
         py::arg("theta0"),
+        py::arg("zeta0"),
         py::arg("nzeta"),
         py::arg("lam"),
         py::arg("nfp"),
         py::arg("nmax"),
-        py::arg("ntransitmax"), 
+        py::arg("digits"),
+        py::arg("option"),
+        py::arg("derivative_tol"),
+        py::arg("argmin_tol"),
+        py::arg("root_tol")
+    );
+
+    m.def("bounce_integral", &bounce_integral<xt::pytensor>,
+        py::arg("bouncel"),
+        py::arg("bouncer"),
+        py::arg("field"),
+        py::arg("s"),
+        py::arg("theta0"),
+        py::arg("lam"),
+        py::arg("nfp"),
+        py::arg("ntransitmax"),
         py::arg("jpar"),
         py::arg("psidot"),
         py::arg("alphadot"),
@@ -82,8 +99,9 @@ PYBIND11_MODULE(simsoptpp, m) {
         py::arg("dkhatdalpha"),
         py::arg("tau"),
         py::arg("step_size"),
-        py::arg("int digits"),
-        py::arg("tol")
+        py::arg("tol"),
+        py::arg("dt_max"),
+        py::arg("adjust")
         );
 
     // the computation below is used in boozer_surface_residual.
