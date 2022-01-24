@@ -188,6 +188,7 @@ class MinimumDistance(Optimizable):
                 self.trees.append(KDTree(self.curves[i].gamma()))
 
     def shortest_distance(self):
+        self.compute_trees()
         dist = 1e10
         for i in range(len(self.curves)):
             tree1 = self.trees[i]
