@@ -130,6 +130,13 @@ class Testing(unittest.TestCase):
         curve_t = curve.curve.__class__.__name__ if isinstance(curve, RotatedCurve) else curve.__class__.__name__
         curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
         J = MinimumDistance(curves, 0.2)
+        mindist = 1e10
+        for i in range(len(curves)):
+            for j in range(i):
+                mindist = min(mindist, np.min(np.linalg.norm(curves[i].gamma()[:, None, :] - curves[j].gamma()[None, :, :], axis=2)))
+        assert abs(J.shortest_distance() - mindist) < 1e-14
+        assert mindist > 1e-10
+
         for k in range(ncurves):
             curve_dofs = curves[k].x
             h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
