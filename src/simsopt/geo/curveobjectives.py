@@ -268,23 +268,25 @@ def curve_arclengthvariation_pure(l, mat):
 
 class ArclengthVariation(Optimizable):
 
-    def __init__(self, curve, nintervals=None):
+    def __init__(self, curve, nintervals="full"):
         r"""
         This class penalizes variation of the arclength along a curve.
         The idea of this class is to avoid ill-posedness of curve objectives due to
         non-uniqueness of the underlying parametrization. Essentially we want to
-        achieve constant arclength along the curve. That is too strict of a
-        requirement, so instead we compute the average arclength on :math:`l` sub
-        intervals, and then penalise the variance of these :math:`l` values. As
-        :math:`l` and the penalty factor are increased, that enforces uniform
-        arclength. The key question is now the choice of :math:`l`. Enforcing zero
-        variance of :math:`l` value essentially corresponds to :math:`l-1`
-        constraints. If we pick :math:`l` too small, the objective is still
-        ill-posed, if we pick the value to high, then the constraint is too strong
-        and limits what sort of curves we can represent.
+        achieve constant arclength along the curve. Since we can not expect
+        perfectly constant arclength along the entire curve, this class has
+        some support to relax this notion. Consider a partition of the :math:`[0, 1]`
+        interval into intervals :math:`\{I_i\}_{i=1}^L`, and tenote the average incremental arclength
+        on interval :math:`I_i` by :math:`\ell_i`. This objective then penalises the variance
 
-        The argument blow provides some intuition for the choice of :math:`l`. A
-        curve in 3d space is defined uniquely by an initial point, an initial
+        .. math::
+            J = \mathrm{Var}(\ell_i)
+
+        it remains to choose the number of intervals :math:`L` that :math:`[0, 1]` is split into.
+        If `nintervals="full"`, then the number of intervals :math:`L` is equal to the number of quadrature
+        points of the curve. If `nintervals="partial"`, then the argument is as follows:
+
+        A curve in 3d space is defined uniquely by an initial point, an initial
         direction, and the arclength, curvature, and torsion along the curve. For a
         :mod:`simsopt.geo.curvexyzfourier.CurveXYZFourier`, the intuition is now as
         follows: assuming that the curve has order :math:`p`, that means we have
@@ -292,18 +294,26 @@ class ArclengthVariation(Optimizable):
         required for both the initial position and direction, :math:`6p-3` are left
         over for curvature, torsion, and arclength. We want to fix the arclength,
         so we can afford :math:`2p-1` constraints, which corresponds to
-        :math:`l=2p`.
+        :math:`L=2p`.
+
+        Finally, the user can also provide an integer value for `nintervals`
+        and thus specify the number of intervals directly.
         """
         super().__init__(depends_on=[curve])
+        assert nintervals in ["full", "partial"] \
+            or (isinstance(nintervals, int) and 0 < nintervals <= curve.gamma().shape[0])
         self.curve = curve
         nquadpoints = len(curve.quadpoints)
-        if nintervals is None:
+        if nintervals == "full":
+            nintervals = curve.gamma().shape[0]
+        elif nintervals == "partial":
             from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
             if isinstance(curve, CurveXYZFourier) or isinstance(curve, JaxCurveXYZFourier):
                 nintervals = 2*curve.order
             else:
-                raise RuntimeError("Please provide a value for `nintervals`. We only have a default for `CurveXYZFourier` and `JaxCurveXYZFourier`.")
-        self.nintervals = nintervals
+                raise RuntimeError("Please provide a value other than `partial` for `nintervals`. We only have a default for `CurveXYZFourier` and `JaxCurveXYZFourier`.")
+        else:
+            self.nintervals = nintervals
         indices = np.floor(np.linspace(0, nquadpoints, nintervals+1, endpoint=True)).astype(int)
         mat = np.zeros((nintervals, nquadpoints))
         for i in range(nintervals):
@@ -340,7 +350,7 @@ class MeanSquaredCurvature(Optimizable):
         r"""
         Compute the mean of the squared curvature of a curve.
 
-        ..math::
+        .. math::
             J = (1/L) \int \kappa^2 \ell d\phi
 
         where :math:`L` is the curve length, :math:`\ell` is the incremental
