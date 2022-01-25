@@ -103,7 +103,6 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jdist = MinimumDistance(curves, DISTANCE_THRESHOLD)
-
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
@@ -111,8 +110,11 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = Jf + LENGTH_WEIGHT * sum(Jls) + DISTANCE_WEIGHT * Jdist \
-    + CURVATURE_WEIGHT * sum(Jcs) + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
+JF = Jf \
+    + LENGTH_WEIGHT * sum(Jls) \
+    + DISTANCE_WEIGHT * Jdist \
+    + CURVATURE_WEIGHT * sum(Jcs) \
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -129,7 +131,7 @@ def fun(dofs):
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], <ϰ²>=[{msc_string}], C-C-Sep={Jdist.shortest_distance():.2f}"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], C-C-Sep={Jdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad

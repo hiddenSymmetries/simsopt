@@ -162,9 +162,9 @@ class Testing(unittest.TestCase):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_minimum_distance_taylor_test(curve)
 
-    def subtest_curve_arclengthvariation_taylor_test(self, curve):
+    def subtest_curve_arclengthvariation_taylor_test(self, curve, nintervals):
         if isinstance(curve, CurveXYZFourier):
-            J = ArclengthVariation(curve)
+            J = ArclengthVariation(curve, nintervals=nintervals)
         else:
             J = ArclengthVariation(curve, nintervals=2)
 
@@ -188,10 +188,10 @@ class Testing(unittest.TestCase):
 
     def test_curve_arclengthvariation_taylor_test(self):
         for curvetype in self.curvetypes:
-            for rotated in [True, False]:
-                with self.subTest(curvetype=curvetype, rotated=rotated):
-                    curve = self.create_curve(curvetype, rotated)
-                    self.subtest_curve_arclengthvariation_taylor_test(curve)
+            for nintervals in ["full", "partial", 2]:
+                with self.subTest(curvetype=curvetype, nintervals=nintervals):
+                    curve = self.create_curve(curvetype, False)
+                    self.subtest_curve_arclengthvariation_taylor_test(curve, nintervals)
 
     def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
         J = MeanSquaredCurvature(curve)
