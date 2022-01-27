@@ -198,7 +198,7 @@ container directly from the docker image uploaded to Docker Hub.
 The above command should load the python shell that comes with the
 simsopt docker container. When you run it first time, the image is
 downloaded automatically, so be patient. More information about using
-simsopt with Docker can be found :doc:`here <docker>`.
+simsopt with Docker can be found :doc:`here <containers>`.
 
 Post-Installation
 ^^^^^^^^^^^^^^^^^
