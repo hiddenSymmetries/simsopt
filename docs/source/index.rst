@@ -62,8 +62,7 @@ optimization.  Others include `STELLOPT
 
    overview
    installation
-   docker
-   shifter
+   containers
    optimizable
    geo
    fields
