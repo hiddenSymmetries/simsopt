@@ -57,7 +57,7 @@ jobs:
       - name: Build Container
         run: |
           ls ${SINGULARITY_ROOT}
-          sudo -E singularity build simsopt.sif ci/singularity.def
+          sudo -E ${SINGULARITY_ROOT}/bin/singularity build simsopt.sif ci/singularity.def
 
       - name: Login and Deploy Container
         if: (github.event_name != 'pull_request')
