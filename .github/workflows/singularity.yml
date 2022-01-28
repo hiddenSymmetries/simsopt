@@ -32,18 +32,23 @@ jobs:
 
       - name: Step to get tag name
         if: startsWith(github.event.ref, 'refs/tags/v')
-        id: vars
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-      
+        #id: vars
+        #run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+        run: |
+          tag = $(echo "${GITHUB_REF#refs/*/}")
+          echo "tag=$tag" >> $GITHUB_ENV
+
       - name: Step to get tag name
         if: ${{ startsWith(github.ref, 'refs/heads') && github.ref == 'refs/heads/master' }}
-        id: vars
-        run: echo ::set-output name=tag::"latest"
+        #id: vars
+        #run: echo ::set-output name=tag::"latest"
+        run: echo "tag=latest" >> $GITHUB_ENV
       
       - name: Step to get tag name
         if: ${{ startsWith(github.ref, 'refs/heads') && github.ref != 'refs/heads/master' }}
-        id: vars
-        run: echo ::set-output name=tag::"test"
+        #id: vars
+        #run: echo ::set-output name=tag::"test"
+        run: echo "tag=test" >> $GITHUB_ENV
       
       - name: Build Container
         run: |
@@ -54,4 +59,4 @@ jobs:
         if: (github.event_name != 'pull_request')
         run: |         
           echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${{steps.vars.outputs.tag}}
+          singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
