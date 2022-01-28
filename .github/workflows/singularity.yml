@@ -14,10 +14,11 @@ on:
   pull_request: []
 
 jobs:
-  build-test-containers:
+  build-containers:
     runs-on: ubuntu-latest
     container:
-      image: quay.io/singularity/singularity:v3.8.3
+      image: quay.io/singularity/singularity:v3.9.3
+      options: --security-opt seccomp=unconfined --security-opt systempaths=unconfined
     strategy:
       fail-fast: true
 
@@ -53,7 +54,7 @@ jobs:
       - name: Build Container
         run: |
           ls 
-          sudo singularity build simsopt.sif ci/singularity.def
+          sudo -E singularity build simsopt.sif ci/singularity.def
 
       - name: Login and Deploy Container
         if: (github.event_name != 'pull_request')
