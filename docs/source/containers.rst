@@ -127,129 +127,10 @@ Shifter container
 `Shifter <https://docs.nersc.gov/development/shifter/>`_ is the
 container technology deployed at NERSC to circumvent the security
 issues associated with Docker containers. Shifter allows to you use
-the simsopt Docker image files hosted on Docker Hub. This page
-explains on how to take advantage of the simsopt Shifter container so
-you can use simsopt at NERSC without compiling any code.
-
-Shifter Images
-^^^^^^^^^^^^^^
-
-Shifter converts Docker images and virtual machines into a common
-format.  `After connecting to a NERSC login node
-<https://docs.nersc.gov/connect/>`_ check for the simsopt shifter
-images.
-
-.. code-block::
-
-   shifterimg images | grep simsopt 
-
-You should see multiple images similar to
-``hiddensymmetries/simsopt:v0.7.0``. If the version you are interested
-in is not available, you can pull it by running
-
-.. code-block::
-
-   shifterimg -v pull docker:hiddensymmetries/simsopt:<version_no>
-
-where ``<version_no>`` is the version of your choice, which is
-referred to as tag in docker parlance. Once the image is pulled, the
-corresponding shifter image is made available to all users at NERSC.
-
-.. warning::
-
-   The ``master`` branch has the tag ``latest``. The image shown by
-   ``shifterimg images`` may be stale becaues master branch is always
-   changing.  Always re-pull the image if you want to use ``master``
-   branch, but keep in mind the results may not be reproducible. For
-   reproducible data, users are strongly encouraged to use a container
-   with specific version number.
-
-Simsopt Specifics
-^^^^^^^^^^^^^^^^^
-
-Simsopt is installed inside a python virtual environment within the
-simsopt Docker container. On entry, the Docker container automatically
-activates the python virtual environment. However, the Shifter
-container does not run entrypoint commands unless explicitly told, so
-the virtual environment is not activated. The full path for the python
-executable installed inside the virtual environment
-``/venv/bin/python`` has to be used.
-
-
-Running the Shifter Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Login Nodes
------------
-
-One can run Shifter on login nodes for small serial jobs. To run a
-simsopt python driver script (located in your usual filesystem), you
-can type
-
-.. code-block::
-
-   shifter --image=docker:hiddensymmetries/simsopt:latest /venv/bin/python <script_name>
-
-You can also run the simsopt Shifter container interactively, with
-
-.. code-block::
-
-   shifter --image=docker:hiddensymmetries/simsopt:latest /venv/bin/python
-
-to enter the python interpreter, or
-
-.. code-block::
-
-   shifter --image=docker:hiddensymmetries/simsopt:latest /bin/bash
-
-for a shell. In the latter scenario, even though you enter the
-container, the prompt may not change.  To check if you are inside the
-simsopt Shifter container, you can run
-
-.. code-block::
-
-   cat /etc/lsb-release
-
-The output should show ``DISTRIB_ID=Ubuntu`` along with some other lines.
-
-.. warning::
-
-   Do not abuse the interactive capability by running large scale jobs on login nodes.
-
-Compute Nodes
--------------
-
-The main reason for using Shifter is to run simsopt in parallel with
-multiple MPI processes on NERSC.  Here an interactive slurm job with
-``salloc`` is shown, but you can use the same logic to submit slurm
-batch jobs.
-
-Run salloc to get an interactive session:
-
-.. code-block::
-   
-   salloc --constraint=haswell -N 1 -p debug --image=hiddensymmetries/simsopt:latest -t 00:30:00
-
-In the above command, the ``image`` option is passed to the slurm
-commands directly. The ``--constraint=haswell`` option means we want
-to run our job on Haswell nodes on cori. The ``-N 1`` option specifies
-that we want one Haswell node, ``-p debug`` implies debug queue, and
-``-t 00:30:00`` specifies 30 minutes of allocation time for this job.
-After some time, resources are allocated and you can run your jobs. If
-you have navigated to a clone of the simsopt repository, you
-can run the one of the examples as
- 
-.. code-block::
-   
-   srun -n 4 shifter  /venv/bin/python examples/1_Simple/tracing_fieldline.py 
-
-One cori Haswell node has 32 cores, so you can use any number up to 32
-in place of 4 in the above command.  You can also run the parallel
-unit tests by entering
- 
-.. code-block::
-   
-   srun -n 4 shifter  /venv/bin/python -m unittest discover -v -k mpi -s tests
+the simsopt Docker image files hosted on Docker Hub.  Detailed
+instructions for using Shifter can be found at the `NERSC page on the
+simsopt wiki
+<https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Cori>`_.
 
 
 .. _singularity_doc:
@@ -260,7 +141,7 @@ Singularity container
 `Singularity <https://en.wikipedia.org/wiki/Singularity_(software)>`_ is the
 container technology developed at Lawrence Berkeley National Lab to run containers on HPC centers.
 There are two versions of Singularity, the community version now renamed as Apptainer, and the commercial
-version from sylabs.io. Singularity has its own image format and Singularity images are given `.sif` extension. 
+version from sylabs.io. Singularity has its own image format and Singularity images are given ``.sif`` extension. 
 Singularity also allows one to use the Docker image files hosted on Docker Hub or other registries. 
  For simsopt, we developed a native Singularity image, whih is hosted as a Github package.
 This sections
@@ -272,22 +153,22 @@ Singularity Images
 
 Here we describe how to use simsopt Singularity container on `Stellar cluster located at Princeton University <https://researchcomputing.princeton.edu/systems/stellar>`_. The steps to run simopt Singularity container at other HPC centers shuould be similar to the ones described here. 
 format.  `After logging to a Stellar login node
-<https://researchcomputing.princeton.edu/systems/stellar#access>`_ check for  Singularity
-images.
+<https://researchcomputing.princeton.edu/systems/stellar#access>`_ check for  singularity
+executable.
 
 .. code-block::
 
    which singularity
 
-Pull simsopt singularity container from GitHub by running
+Pull simsopt Singularity image file from GitHub by running
 
 .. code-block::
 
    singularity pull oras://ghcr.io/hiddensymmetries/simsopt:<version_no>
 
 where ``<version_no>`` is the version of your choice, which is
-referred to as tag in docker parlance. Once the image is pulled, the
-corresponding singularity image can be found by typing
+referred to as tag in docker parlance. Once the image is pulled, it
+can be found by typing
 
 .. code-block::
 
@@ -371,7 +252,10 @@ can run the one of the examples as
    module load openmpi/gcc/4.1.0
    PMIX_MCA_psec=native  mpirun -n 4 singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> /venv/bin/python examples/1_Simple/tracing_fieldline.py 
 
-Pay attention to the PMIx specific environment variable ``PMIX_MCA_psec``. Specifying ``native`` allows mpirun to use the PMIx installed on the cluster. Because of this, the same example can be executed by launching the mpirun from inside the container.
+Pay attention to the PMIx specific environment variable ``PMIX_MCA_psec``.
+Specifying ``native`` allows mpirun to use the PMIx installed on the cluster.
+Because of this, the same example can be executed by launching the mpirun from
+inside the container.
 
 .. code-block::
 
@@ -379,9 +263,24 @@ Pay attention to the PMIx specific environment variable ``PMIX_MCA_psec``. Speci
    module load openmpi/gcc/4.1.0
    PMIX_MCA_psec=native  singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> mpirun -n 4 /venv/bin/python examples/1_Simple/tracing_fieldline.py 
 
-Both approaches take similar time. Similarly to run the tests, you can run the below command.
+Both approaches take similar time. Alternatively, one can also use ``srun`` command from slurm without loading the openmpi module.
+To use srun, we have to specify the PMI standard using the ``mpi`` flag. On Stellar, the following command works.
+
+.. code-block::
+
+   cd <SIMSOPT_ROOT>
+   PMIX_MCA_psec=native srun -n 4 --mpi=pmix_v3 singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> /venv/bin/python examples/1_Simple/tracing_fieldline.py 
+
+To know the options that can be supplied for ``mpi`` flag, you can execute
+
+.. code-block::
+
+   srun --mpi=list
+
+which will give a list of PMI standards supported by slurm.
+Similarly to run the tests, you can run the below command.
 
 .. code-block::
    
-   PMIX_MCA_psec=native  mpirun -n 4 singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> /venv/bin/python -m unittest discover -v -k mpi -s tests
+   PMIX_MCA_psec=native srun -n 4 --mpi=pmix_v3 singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> /venv/bin/python -m unittest discover -v -k mpi -s tests
 
