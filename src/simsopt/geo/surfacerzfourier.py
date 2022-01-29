@@ -543,3 +543,165 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
+
+
+class SurfaceRZPseudospectral(Optimizable):
+    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0):
+        self.mpol = mpol
+        self.ntor = ntor
+        self.nfp = nfp
+        self.r_shift = r_shift
+        self.a_scale = a_scale
+        ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
+        super().__init__(x0=np.zeros(ndofs), names=self._make_names())
+
+    def _make_names(self):
+        names = ['r(0,0)']
+        for dimension in ['r', 'z']:
+            for jtheta in range(1, self.mpol + 1):
+                names.append(dimension + f'(0,{jtheta})')
+            for jphi in range(1, self.ntor + 1):
+                for jtheta in range(2 * self.mpol + 1):
+                    names.append(dimension + f'({jphi},{jtheta})')
+        return names
+
+    @classmethod
+    def from_RZFourier(cls, surff, **kwargs):
+        if not surff.stellsym:
+            raise RuntimeError('SurfaceRZPseudospectral presently only supports stellarator-symmetric surfaces')
+
+        # shorthand:
+        mpol = surff.mpol
+        ntor = surff.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        # Make a copy of surff with the desired theta and phi points.
+        surf_copy = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=surff.nfp,
+                                     range='field period',
+                                     ntheta=ntheta, nphi=nphi)
+        surf_copy.x = surff.local_full_x
+
+        surf_new = cls(mpol=mpol, ntor=ntor, nfp=surff.nfp, **kwargs)
+        gamma = surf_copy.gamma()
+        r0 = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2)
+        r = (r0 - surf_new.r_shift) / surf_new.a_scale
+        z = gamma[:, :, 2] / surf_new.a_scale
+
+        dofs = np.zeros_like(surf_new.full_x)
+        ndofs = len(dofs)
+        index = 0
+        for jtheta in range(mpol + 1):
+            dofs[index] = r[0, jtheta]
+            index += 1
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                dofs[index] = r[jphi, jtheta]
+                index += 1
+        for jtheta in range(1, mpol + 1):
+            dofs[index] = z[0, jtheta]
+            index += 1
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                dofs[index] = z[jphi, jtheta]
+                index += 1
+        assert index == ndofs
+        surf_new.x = dofs
+        return surf_new
+
+    def _complete_grid(self):
+        """
+        Using stellarator symmetry, copy the real-space dofs to cover a full 2d grid.
+        """
+
+        # shorthand:
+        mpol = self.mpol
+        ntor = self.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        r = np.zeros((ntheta, nphi))
+        z = np.zeros((ntheta, nphi))
+        r[0, 0] = self.x[0]
+        shift = mpol + ntor * (2 * mpol + 1)  # = mpol + ntor + 2 * mpol * ntor
+        assert 2 * shift + 1 == len(self.x)
+        for jtheta in range(1, mpol + 1):
+            r[jtheta, 0] = self.x[jtheta]
+            r[ntheta - jtheta, 0] = self.x[jtheta]
+            assert self.local_dof_names[jtheta + shift] == f'z(0,{jtheta})'
+            z[jtheta, 0] = self.x[jtheta + shift]
+            z[ntheta - jtheta, 0] = -self.x[jtheta + shift]
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                index = (jphi - 1) * ntheta + jtheta + mpol + 1
+                assert self.local_dof_names[index] == f'r({jphi},{jtheta})'
+                assert self.local_dof_names[index + shift] == f'z({jphi},{jtheta})'
+                r[jtheta, jphi] = self.x[index]
+                z[jtheta, jphi] = self.x[index + shift]
+                if jtheta == 0:
+                    r[0, nphi - jphi] = self.x[index]
+                    z[0, nphi - jphi] = -self.x[index + shift]
+                else:
+                    r[ntheta - jtheta, nphi - jphi] = self.x[index]
+                    z[ntheta - jtheta, nphi - jphi] = -self.x[index + shift]
+
+        """
+        np.set_printoptions(linewidth=300)
+        print('r:')
+        print(r)
+        print('z:')
+        print(z)
+        """
+
+        """
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(14, 5))
+        plt.subplot(1,2,1)
+        plt.contourf(r)
+        plt.title('r')
+        plt.subplot(1,2,2)
+        plt.contourf(z)
+        plt.title('z')
+        plt.show()
+        """
+
+        r2 = self.r_shift + self.a_scale * r
+        z2 = self.a_scale * z
+        return r2, z2
+
+    def to_RZFourier(self, **kwargs):
+        """
+        Convert to a SurfaceRZFourier describing the same shape.
+        """
+        # shorthand:
+        mpol = self.mpol
+        ntor = self.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        r, z = self._complete_grid()
+        surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=self.nfp, **kwargs)
+        surf.set_rc(0, 0, np.mean(r))
+        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi1d = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+        phi, theta = np.meshgrid(phi1d, theta1d)
+        for n in range(1, ntor + 1):
+            surf.set_rc(0, n, 2 * np.mean(r * np.cos(-n * phi)))
+            surf.set_zs(0, n, 2 * np.mean(z * np.sin(-n * phi)))
+        for m in range(1, mpol + 1):
+            for n in range(-ntor, ntor + 1):
+                surf.set_rc(m, n, 2 * np.mean(r * np.cos(m * theta - n * phi)))
+                surf.set_zs(m, n, 2 * np.mean(z * np.sin(m * theta - n * phi)))
+
+        return surf
+
+    def change_resolution(self, mpol, ntor):
+        """
+        Increase or decrease the number of degrees of freedom.
+        """
+        surf2 = self.to_RZFourier()
+        surf2.change_resolution(mpol=mpol, ntor=ntor)
+        surf3 = SurfaceRZPseudospectral.from_RZFourier(surf2,
+                                                       r_shift=self.r_shift,
+                                                       a_scale=self.a_scale)
+        return surf3
