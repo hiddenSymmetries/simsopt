@@ -484,6 +484,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
+        """
+        Check that dof names are correct.
+        """
         surf = SurfaceRZPseudospectral(mpol=2, ntor=1, nfp=3)
         names = ['r(0,0)', 'r(0,1)', 'r(0,2)',
                  'r(1,0)', 'r(1,1)', 'r(1,2)', 'r(1,3)', 'r(1,4)',
@@ -492,13 +495,18 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         self.assertEqual(surf.local_dof_names, names)
 
     def test_from_RZFourier(self):
+        """
+        Create a SurfaceRZPseudospectral object by converting a
+        SurfaceRZFourier object, and make sure the real-space dofs
+        have the correct values.
+        """
         surf1 = SurfaceRZFourier(mpol=1, ntor=2, nfp=5)
         surf1.set('rc(0,0)', 2000.0)
         surf1.set('rc(1,0)', 30.0)
         surf1.set('zs(1,0)', 20.0)
         surf1.set('rc(0,1)', 50.0)
         surf1.set('zs(0,1)', 40.0)
-        surf1.fix('zs(1,0)')  # This should not affect anything
+        surf1.fix('zs(1,0)')  # The from_RZFourier function should work even if some dofs are fixed.
         surf2 = SurfaceRZPseudospectral.from_RZFourier(surf1, r_shift=2000.0, a_scale=100.0)
         #for name, x in zip(surf2.local_dof_names, surf2.x):
         #    print(name, x)
@@ -518,6 +526,11 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         assert nasserts == len(surf2.x)
 
     def test_complete_grid(self):
+        """
+        Make sure the _complete_grid() function of SurfaceRZPseudospectral
+        returns values that agree with the gamma() function for a
+        SurfaceRZFourier object describing the same shape.
+        """
         filename = TEST_DIR / 'input.li383_low_res'
         s0 = SurfaceRZFourier.from_vmec_input(filename)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range='field period',
@@ -534,6 +547,12 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         np.testing.assert_allclose(z1, z2.T)
 
     def test_convert_back(self):
+        """
+        Start with a SurfaceRZFourier object, convert to a
+        SurfaceRZPseudospectral object, and convert back to a new
+        SurfaceRZFourier object. The dofs of the initial and final
+        object should match.
+        """
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         #print('Original SurfaceRZFourier dofs:', s1.x)
@@ -546,6 +565,10 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         np.testing.assert_allclose(s1.full_x, s3.full_x)
 
     def test_change_resolution(self):
+        """
+        If we refine the resolution, then coarsen the grid back to the
+        original resolution, the initial and final dofs should match.
+        """
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
