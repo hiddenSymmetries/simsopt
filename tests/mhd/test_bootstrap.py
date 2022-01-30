@@ -1,7 +1,3 @@
-# Test ideas:
-# * Reproduce fig 6 from Redl paper
-# * Evaluate Redl's <j dot B> for Wistell-A and LDRD QA configs for which I already have self-consistent SFINCS calculations
-
 import unittest
 import logging
 import os
@@ -13,6 +9,16 @@ from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.boozer import Boozer
 from simsopt.util.constants import ELEMENTARY_CHARGE
 from . import TEST_DIR
+
+try:
+    import booz_xform
+except ImportError as e:
+    booz_xform = None
+
+try:
+    import vmec as vmec_extension
+except ImportError as e:
+    vmec_extension = None
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
@@ -515,6 +521,7 @@ class BootstrapTests(unittest.TestCase):
                 np.testing.assert_array_less(L31s[0, 2], 0.66)
                 assert L31s[0, 2] > 0.63
 
+    @unittest.skipIf(booz_xform is None, "booz_xform not found")
     def test_compare_geometry_methods_tokamak(self):
         """
         Compare the different methods for computing the trapped fraction
@@ -546,6 +553,7 @@ class BootstrapTests(unittest.TestCase):
         np.testing.assert_allclose(geom1.fsa_1overB, geom2.fsa_1overB, rtol=1e-6)
         np.testing.assert_allclose(geom1.f_t, geom2.f_t, rtol=1e-6)
 
+    @unittest.skipIf(booz_xform is None, "booz_xform not found")
     def test_compare_geometry_methods_QH(self):
         """
         Compare the different methods for computing the trapped fraction
@@ -577,6 +585,7 @@ class BootstrapTests(unittest.TestCase):
         np.testing.assert_allclose(geom1.fsa_1overB, geom2.fsa_1overB, rtol=1e-3)
         np.testing.assert_allclose(geom1.f_t, geom2.f_t, rtol=1e-2)
 
+    @unittest.skipIf(booz_xform is None, "booz_xform not found")
     def test_Redl_sfincs_tokamak_benchmark(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for a tokamak.
@@ -657,6 +666,7 @@ class BootstrapTests(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
+    @unittest.skipIf(booz_xform is None, "booz_xform not found")
     def test_Redl_sfincs_precise_QA(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for the precise QA.
@@ -707,6 +717,7 @@ class BootstrapTests(unittest.TestCase):
             plt.title('Bootstrap current for the precise QA (Landreman & Paul (2021))')
             plt.show()
 
+    @unittest.skipIf(booz_xform is None, "booz_xform not found")
     def test_Redl_sfincs_precise_QH(self):
         """
         Compare the Redl <j dot B> to a SFINCS calculation for the precise QH.
@@ -789,6 +800,7 @@ class BootstrapTests(unittest.TestCase):
                      f'and should be approximately 1.0. Diff: {obj2J - 1.0}')
         np.testing.assert_allclose(obj2J, 1.0, rtol=1e-6)
 
+    @unittest.skipIf(vmec_extension is None, "vmec python extension not found")
     def test_VmecRedlBootstrapMismatch_independent_of_ns(self):
         """
         Confirm that the VmecRedlBootstrapMismatch objective function is
