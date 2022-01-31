@@ -25,14 +25,15 @@ class MPIObjective(Optimizable):
     def __init__(self, objectives, comm, needs_splitting=False):
         r"""
         Compute the mean of a list of objectives in parallel using MPI.
+
         Args:
             objectives: A python list of objectives that provide `.J()` and `.dJ()` functions.
             comm: The MPI communicator to use.
             needs_splitting: if set to `True`, then the list of objectives is
-                split into disjoint partitions and only one part is worked on per
-                mpi rank. If set to `False`, then we assume that the user
-                constructed the list of `objectives` so that it only contains the
-                objectives relevant to that mpi rank.
+                             split into disjoint partitions and only one part is worked on per
+                             mpi rank. If set to `False`, then we assume that the user
+                             constructed the list of `objectives` so that it only contains the
+                             objectives relevant to that mpi rank.
         """
 
         if needs_splitting:
@@ -65,6 +66,7 @@ class QuadraticPenalty(Optimizable):
     def __init__(self, obj, threshold=0.):
         r"""
         A penalty function of the form :math:`\max(J - \text{threshold}, 0)^2` for an underlying objective `J`.
+
         Args:
             obj: the underlying objective. It should provide a `.J()` and `.dJ()` function.
             threshold: the threshold past which values should be penalized.
