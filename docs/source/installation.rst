@@ -8,37 +8,39 @@ on `the wiki <https://github.com/hiddenSymmetries/simsopt/wiki>`_.
 Requirements
 ^^^^^^^^^^^^
 
-``simsopt`` is a python package focused on stellarator optimization and requires
-python version 3.7 or higher.  ``simsopt``
-also requires some mandatory python packages, listed in
-``requirements.txt``.  These packages are all installed automatically
-when you install using ``pip`` or another python package manager such as ``conda``, as discussed below.  If you prefer to
-install via ``python setup.py install`` or ``python setup.py
-develop``, you will need to install these python packages manually
-using ``pip`` or ``conda``.
-
-Mandatory Packages
-------------------
-- numpy
-- jax
-- jaxlib
-- scipy
-- nptyping
-- ruamel.yaml
+``simsopt`` is a python package focused on stellarator optimization
+and requires python version 3.7 or higher.  ``simsopt`` also requires
+some mandatory python packages, listed in
+`requirements.txt <https://github.com/hiddenSymmetries/simsopt/blob/master/requirements.txt>`_
+and in the ``[options]`` section of
+`setup.cfg <https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
+These packages are all installed automatically when you install using
+``pip`` or another python package manager such as ``conda``, as
+discussed below.  If you prefer to install via ``python setup.py
+install`` or ``python setup.py develop``, you will need to install
+these python packages manually using ``pip`` or ``conda``, e.g.
+with ``pip install -r requirements.txt``.
 
 Optional Packages
 -----------------
+
+Several other optional packages are needed for certain aspects of
+simsopt, such as visualization/graphics and building the documentation.  These
+requirements can be found in the ``[options.extras_require]`` section
+of
+`setup.cfg <https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
+Also,
+
 - For MPI support:
     * mpi4py
-- For SPEC support:
-    * py_spec
-    * pyoculus
-    * h5py
-    * f90nml
 - For VMEC support:
     * https://github.com/hiddenSymmetries/vmec2000
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
+- For SPEC support:
+    * py_spec
+    * pyoculus
+    * h5py
 
 For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
@@ -198,7 +200,7 @@ container directly from the docker image uploaded to Docker Hub.
 The above command should load the python shell that comes with the
 simsopt docker container. When you run it first time, the image is
 downloaded automatically, so be patient. More information about using
-simsopt with Docker can be found :doc:`here <docker>`.
+simsopt with Docker can be found :doc:`here <containers>`.
 
 Post-Installation
 ^^^^^^^^^^^^^^^^^
