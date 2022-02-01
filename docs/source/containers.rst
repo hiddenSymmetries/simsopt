@@ -1,9 +1,19 @@
+Containers
+**********
+
+.. _docker_doc:
+
 Docker container
 ================
 
 A Docker container for simsopt is available, allowing you to use
 simsopt without having to compile any code yourself.  The container
 includes VMEC, SPEC, and BOOZ_XFORM.
+
+.. warning::
+
+   Docker is not generally allowed to run on computers at HPC centers due to security issues.
+   For those wishing to run simsopt on NERSC machines, please refer to :ref:`shifter_doc`.
 
 Requirements
 ^^^^^^^^^^^^
@@ -104,3 +114,19 @@ And to restart and rejoin the container:
     docker start mycontainer
     docker exec -it mycontainer /bin/bash
     <container ###> source /venv/bin/activate
+
+
+
+.. _shifter_doc:
+
+Shifter container
+=================
+
+`Shifter <https://docs.nersc.gov/development/shifter/>`_ is the
+container technology deployed at NERSC to circumvent the security
+issues associated with Docker containers. Shifter allows to you use
+the simsopt Docker image files hosted on Docker Hub.  Detailed
+instructions for using Shifter can be found at the `NERSC page on the
+simsopt wiki
+<https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Cori>`_.
+
