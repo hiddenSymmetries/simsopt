@@ -193,6 +193,15 @@ class Testing(unittest.TestCase):
                     curve = self.create_curve(curvetype, False)
                     self.subtest_curve_arclengthvariation_taylor_test(curve, nintervals)
 
+    def test_arclength_variation_circle(self):
+        """ For a circle, the arclength variation should be 0. """
+        c = CurveXYZFourier(16, 1)
+        c.set('xc(1)', 4.0)
+        c.set('ys(1)', 4.0)
+        for nintervals in ["full", "partial", 2]:
+            a = ArclengthVariation(c, nintervals=nintervals)
+            assert np.abs(a.J()) < 1.0e-12
+
     def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
         J = MeanSquaredCurvature(curve)
         curve_dofs = curve.x
