@@ -12,7 +12,7 @@ import simsoptpp as sopp
 class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     r"""
-       CurveXYZFourier is a curve that is represented in Cartesian
+       ``CurveXYZFourier`` is a curve that is represented in Cartesian
        coordinates using the following Fourier series:
 
         .. math::

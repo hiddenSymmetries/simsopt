@@ -61,11 +61,10 @@ class LpCurveCurvature(Optimizable):
     This class computes a penalty term based on the :math:`L_p` norm
     of the curve's curvature, and penalizes where the local curve curvature exceeds a threshold
 
-
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \text{max}(\kappa - \kappa_0, 0)^p ~dl
 
-    where :math:`\kappa_0` is a threshold curvature.
+    where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
 
     def __init__(self, curve, p, threshold=0.):
@@ -106,7 +105,6 @@ class LpCurveTorsion(Optimizable):
     r"""
     LpCurveTorsion is a class that computes a penalty term based on the :math:`L_p` norm
     of the curve's torsion:
-
 
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \tau^p ~dl.
@@ -283,8 +281,8 @@ class ArclengthVariation(Optimizable):
             J = \mathrm{Var}(\ell_i)
 
         it remains to choose the number of intervals :math:`L` that :math:`[0, 1]` is split into.
-        If `nintervals="full"`, then the number of intervals :math:`L` is equal to the number of quadrature
-        points of the curve. If `nintervals="partial"`, then the argument is as follows:
+        If ``nintervals="full"``, then the number of intervals :math:`L` is equal to the number of quadrature
+        points of the curve. If ``nintervals="partial"``, then the argument is as follows:
 
         A curve in 3d space is defined uniquely by an initial point, an initial
         direction, and the arclength, curvature, and torsion along the curve. For a
