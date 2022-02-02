@@ -65,15 +65,15 @@ order = 24
 # Weight on the curve lengths in the objective function:
 LENGTH_WEIGHT = 1e-6
 
-# Threshhold and Weight for the coil-to-coil distance penalty in the objective function:
+# Threshold and weight for the coil-to-coil distance penalty in the objective function:
 DISTANCE_THRESHOLD = 0.1
 DISTANCE_WEIGHT = 10
 
-# Threshhold and Weight for the curvature penalty in the objective function:
+# Threshold and weight for the curvature penalty in the objective function:
 CURVATURE_THRESHOLD = 5.
 CURVATURE_WEIGHT = 1e-6
 
-# Threshhold and Weight for the mean squared curvature penalty in the objective function:
+# Threshold and weight for the mean squared curvature penalty in the objective function:
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
