@@ -136,14 +136,14 @@ simsopt wiki
 .. _singularity_doc:
 
 Singularity container
-=================
+=====================
 
 `Singularity <https://en.wikipedia.org/wiki/Singularity_(software)>`_ is the
 container technology developed at Lawrence Berkeley National Lab to run containers on HPC centers.
 There are two versions of Singularity, the community version now renamed as Apptainer, and the commercial
 version from sylabs.io. Singularity has its own image format and Singularity images are given ``.sif`` extension. 
 Singularity also allows one to use the Docker image files hosted on Docker Hub or other registries. 
- For simsopt, we developed a native Singularity image, whih is hosted as a Github package.
+For simsopt, we developed a native Singularity image, which is hosted as a Github package.
 This sections
 explains on how to take advantage of the simsopt Singularity container so
 you can use simsopt at HPC centers that support Singularity without compiling any code.
@@ -153,8 +153,8 @@ Singularity Images
 
 Here we describe how to use simsopt Singularity container on `Stellar cluster located at Princeton University <https://researchcomputing.princeton.edu/systems/stellar>`_. The steps to run simopt Singularity container at other HPC centers shuould be similar to the ones described here. 
 format.  `After logging to a Stellar login node
-<https://researchcomputing.princeton.edu/systems/stellar#access>`_ check for  singularity
-executable.
+<https://researchcomputing.princeton.edu/systems/stellar#access>`_ check for the singularity
+executable:
 
 .. code-block::
 
@@ -188,13 +188,13 @@ Simsopt Specifics
 
 Simsopt is installed inside a python virtual environment within the
 simsopt Singularity container.  The full path for the python executable
- installed inside the virtual environment
+installed inside the virtual environment
 ``/venv/bin/python`` has to be used. Singularity container comes pre-installed with
 OpenMPI v4.1.2, which communicates with resource managers such as slurm via PMIx. 
 
 
 Running the Singularity Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Serial Jobs
 -----------
@@ -248,6 +248,7 @@ you have navigated to a clone of the simsopt repository, you
 can run the one of the examples as
 
 .. code-block::
+   
    cd <SIMSOPT_ROOT>
    module load openmpi/gcc/4.1.0
    PMIX_MCA_psec=native  mpirun -n 4 singularity run <PATH_TO_SINGULARITY_IMAGE_FILE> /venv/bin/python examples/1_Simple/tracing_fieldline.py 
