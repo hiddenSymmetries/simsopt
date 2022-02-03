@@ -349,7 +349,7 @@ class MeanSquaredCurvature(Optimizable):
         Compute the mean of the squared curvature of a curve.
 
         .. math::
-            J = (1/L) \int \kappa^2 \ell d\phi
+            J = (1/L) \int_{\text{curve}} \kappa^2 ~dl
 
         where :math:`L` is the curve length, :math:`\ell` is the incremental
         arclength, and :math:`\kappa` is the curvature.
