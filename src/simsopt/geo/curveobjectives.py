@@ -107,7 +107,7 @@ class LpCurveTorsion(Optimizable):
     of the curve's torsion:
 
     .. math::
-        J = \frac{1}{p} \int_{\text{curve}} \tau^p ~dl.
+        J = \frac{1}{p} \int_{\text{curve}} \max(|\tau|-\tau_0, 0)^p ~dl.
 
     """
 
