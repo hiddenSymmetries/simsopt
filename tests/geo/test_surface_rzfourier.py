@@ -293,8 +293,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
-        s1.write_nml()
+        nml_str = s1.write_nml()  # This time, cover the case in which a string is returned
         new_filename = 'boundary'
+        with open(new_filename, 'w') as f:
+            f.write(nml_str)
         s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
