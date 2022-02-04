@@ -328,6 +328,28 @@ class VmecTests(unittest.TestCase):
             print(f)
             np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
+    def test_write_input(self):
+        """
+        Check that working input files can be written
+        """
+        configs = ['li383_low_res', 'LandremanSenguptaPlunk_section5p3', 'circular_tokamak']
+        for config in configs:
+            infilename = os.path.join(TEST_DIR, 'input.' + config)
+            outfilename = os.path.join(TEST_DIR, 'wout_' + config + '_reference.nc')
+            vmec1 = Vmec(infilename)
+            newfile = 'input.test'
+            vmec1.write_input(newfile)
+            # Now read in the newly created input file and run:
+            vmec2 = Vmec(newfile)
+            vmec2.run()
+            # Make a copy of the output, just in case we later change
+            # the implementation so vmec.wout points to the Fortran
+            # module directly, where vmec3 would overwrite it
+            rmnc = np.copy(vmec2.wout.rmnc)
+            # Read in reference values and compare:
+            vmec3 = Vmec(outfilename)
+            np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
+
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
