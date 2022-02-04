@@ -95,7 +95,8 @@ void init_curves(py::module_ &m) {
 
     auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, shared_ptr<PyCurveXYZFourier>, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
         .def(py::init<vector<double>, int>())
-        .def_readonly("dofs", &PyCurveXYZFourier::dofs);
+        .def_readonly("dofs", &PyCurveXYZFourier::dofs)
+        .def_readonly("order", &PyCurveXYZFourier::order);
     register_common_curve_methods<PyCurveXYZFourier>(pycurvexyzfourier);
 
     auto pycurverzfourier = py::class_<PyCurveRZFourier, shared_ptr<PyCurveRZFourier>, PyCurveRZFourierTrampoline<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
