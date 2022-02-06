@@ -532,39 +532,44 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return self.dvolume_by_dcoeff()
 
-    def write_nml(self, filename: str = 'boundary'):
+    def write_nml(self, filename: str = None):
         """
         Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
         coefficients, in the form used in VMEC and SPEC input files.
 
         Args:
-            filename: Name of the file to write.
+            filename: Name of the file to write. If ``None``, the contents
+              will be returned as a string.
         """
-        with open(filename, 'w') as f:
-            f.write('&INDATA\n')
-            if self.stellsym:
-                f.write('LASYM = .FALSE.\n')
-            else:
-                f.write('LASYM = .TRUE.\n')
-            f.write('NFP = ' + str(self.nfp) + '\n')
+        nml = ''
+        nml += '&INDATA\n'
+        if self.stellsym:
+            nml += 'LASYM = .FALSE.\n'
+        else:
+            nml += 'LASYM = .TRUE.\n'
+        nml += 'NFP = ' + str(self.nfp) + '\n'
 
-            for m in range(self.mpol + 1):
-                nmin = -self.ntor
-                if m == 0:
-                    nmin = 0
-                for n in range(nmin, self.ntor + 1):
-                    rc = self.get_rc(m, n)
-                    zs = self.get_zs(m, n)
-                    if np.abs(rc) > 0 or np.abs(zs) > 0:
-                        f.write("RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
-                                .format(n, m, rc, n, m, zs))
-                    if (not self.stellsym):
-                        rs = self.get_rs(m, n)
-                        zc = self.get_zc(m, n)
-                        if np.abs(rs) > 0 or np.abs(zc) > 0:
-                            f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
-                                    .format(n, m, rs, n, m, zc))
-            f.write('/\n')
+        for m in range(self.mpol + 1):
+            nmin = -self.ntor
+            if m == 0:
+                nmin = 0
+            for n in range(nmin, self.ntor + 1):
+                rc = self.get_rc(m, n)
+                zs = self.get_zs(m, n)
+                if np.abs(rc) > 0 or np.abs(zs) > 0:
+                    nml += "RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
+                        .format(n, m, rc, n, m, zs)
+                if (not self.stellsym):
+                    rs = self.get_rs(m, n)
+                    zc = self.get_zc(m, n)
+                    if np.abs(rs) > 0 or np.abs(zc) > 0:
+                        nml += "RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
+                            .format(n, m, rs, n, m, zc)
+        nml += '/\n'
+        if filename is None:
+            return nml
+        with open(filename, 'w') as f:
+            f.write(nml)
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
