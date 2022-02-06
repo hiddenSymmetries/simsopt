@@ -498,8 +498,9 @@ class Vmec(Optimizable):
             os.getcwd(),
             os.path.basename(base_filename).replace('input.', 'jxbout_') + '.nc')
 
+        file_to_write = input_file if self.mpi.proc0_world else None
         # This next line also calls set_indata():
-        self.write_input(input_file)
+        self.write_input(file_to_write)
 
         logger.info("Calling VMEC reinit().")
         vmec.reinit()
