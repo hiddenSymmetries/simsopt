@@ -53,6 +53,11 @@ def to_namelist_bool(bool_in):
 
 
 def array_to_namelist(arr, aux_s=False):
+    """
+    This routine writes an array to a string, stopping after the last
+    nonzero or nonnegative entry.  This is used for writing the array
+    data in vmec input files.
+    """
     if aux_s:
         if np.all(arr < 0):
             index = 0
