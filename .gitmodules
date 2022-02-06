@@ -15,7 +15,7 @@
 	url = https://github.com/xtensor-stack/xsimd.git
 [submodule "thirdparty/eigen"]
 	path = thirdparty/eigen
-	url = https://gitlab.com/cantonios/eigen.git
+	url = https://gitlab.com/libeigen/eigen.git
 [submodule "thirdparty/fmt"]
 	path = thirdparty/fmt
 	url = https://github.com/fmtlib/fmt.git
