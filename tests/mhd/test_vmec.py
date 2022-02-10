@@ -408,7 +408,7 @@ class VmecTests(unittest.TestCase):
         # Vmec's jcurv is (dI/ds) / (2pi) where I(s) is the current enclosed by the surface s.
         np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
                                    factor * (1 + s_test - 1.5 * s_test ** 2), rtol=1e-3)
-        return
+
         # Change the Profile dofs, and confirm that the output current from VMEC is updated:
         current.unfix_all()
         current.x = factor * np.array([1, 2, -2.2])
@@ -436,11 +436,11 @@ class VmecTests(unittest.TestCase):
         # "cubic_spline_ip" or "cubic_spline_i"
         vmec.indata.pcurr_type = 'cubic_spline_ip'
         current2.unfix_all()
-        current2.x = factor * (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
+        current2.x = factor * (1.0 + 1.0 * s_spline - 1.5 * s_spline ** 2)
         vmec.run()
-        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.8, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.0, rtol=1e-2)
         np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
-                                   factor * (2.2 - 0.7 * s_test - 1.1 * s_test ** 2), rtol=1e-3)
+                                   factor * (1.0 + 1.0 * s_test - 1.5 * s_test ** 2), rtol=1e-3)
         self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
 
         # Now try a polynomial Profile with vmec using splines:

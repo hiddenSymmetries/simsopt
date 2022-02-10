@@ -534,7 +534,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def write_nml(self, filename: str = None):
         """
-        Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
+        Writes a fortran namelist file containing the RBC/RBS/ZBC/ZBS
         coefficients, in the form used in VMEC and SPEC input files.
 
         Args:
