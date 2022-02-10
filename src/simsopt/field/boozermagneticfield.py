@@ -376,15 +376,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         BoozerMagneticField.__init__(self, self.booz.equil.wout.phi[-1]/(2*np.pi))
 
-        print('Beginning splines')
-        # self.booz.mpi.comm_world.Barrier()
         if self.mpi is not None:
             if self.mpi.proc0_groups:
                 self.init_splines()
-                print('Finished init_splines')
                 if (not self.no_K):
                     self.compute_K()
-                print('Finished compute_K')
             else:
                 self.psip_spline = None
                 self.G_spline = None
@@ -427,11 +423,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
         else:
             self.init_splines()
-            print('Finished init_splines')
-            if (not self.no_K): 
+            if (not self.no_K):
                 self.compute_K()
-            print('Finished compute_K')
-        print('Finished splines')
 
     def init_splines(self):
         self.xm_b = self.booz.bx.xm_b
@@ -615,17 +608,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         K[:, 0] = 0.
         if self.no_K:
             return
-        #if self.kmns_splines is None:
-            #f = open('kmns_none.txt',mode='w')
-            #if (self.booz.mpi.proc0_groups or (self.booz.mpi is None)):
-            #    f = open('beginning_kmns.txt',mode='w')
-            #    print(0,f)
-            #    self.compute_K()
-            #elif (self.booz.mpi is not None):
-            #    self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
-            #f = open('kmns.txt',mode='w')
-            #print(self.kmns_splines[0],f)
-            #self.compute_K()
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
@@ -639,12 +621,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         dKdtheta[:, 0] = 0.
         if self.no_K:
             return
-        #if self.kmns_splines is None:
-          #  self.compute_K()
-            #if (self.booz.mpi.proc0_groups or (self.booz.mpi is None)):
-            #    self.compute_K()
-            #elif (self.booz.mpi is not None):
-            #    self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
@@ -658,12 +634,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         dKdzeta[:, 0] = 0.
         if (self.no_K):
             return
-        #if self.kmns_splines is None:
-            #self.compute_K()
-            #if (self.booz.mpi.proc0_groups or (self.booz.mpi is None)):
-            #    self.compute_K()
-            #elif (self.booz.mpi is not None):
-            #    self.kmns_splines = self.booz.mpi.comm_world.bcast(self.kmns_splines, root=0)
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
