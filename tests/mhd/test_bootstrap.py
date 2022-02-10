@@ -162,7 +162,9 @@ class BootstrapTests(unittest.TestCase):
         Zeff = ProfilePolynomial(np.array([1.5, 0.5]))
         s = np.linspace(0, 1, 20)
         s = s[1:]  # Avoid divide-by-0 on axis
-        helicity_N = 4
+        nfp = 4
+        helicity_n = 1
+        helicity_N = nfp * helicity_n
         G = 32.0 - s
         iota = 0.95 - 0.7 * s
         R = 6.0 - 0.1 * s
@@ -250,7 +252,7 @@ class BootstrapTests(unittest.TestCase):
         dTids_term = factors * (L31 * p / pe * (ni_s * d_Ti_d_s_J) / p + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J))
         jdotB_pass2 = -G * pe * (L31 * p / pe * (d_p_d_s / p) + L32 * (d_Te_d_s_J / Te_J) + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J)) / (psi_edge * (iota - helicity_N))
 
-        jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, helicity_N)
+        jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, nfp, helicity_n)
 
         atol = 1e-13
         rtol = 1e-13
@@ -284,7 +286,8 @@ class BootstrapTests(unittest.TestCase):
             Ti = ProfilePolynomial([1.0e5 * Ti_over_Te])
             s = np.linspace(0, 1, 100) ** 4
             s = s[1:]  # Avoid divide-by-0 on axis
-            helicity_N = 0
+            nfp = 1
+            helicity_n = 0
             epsilon = np.sqrt(s)
             f_t = 1.46 * np.sqrt(epsilon) - 0.46 * epsilon
             psi_edge = 68 / (2 * np.pi)
@@ -309,7 +312,7 @@ class BootstrapTests(unittest.TestCase):
             # End of determining the qR profile that gives the desired nu*.
 
             jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
-                                               epsilon, f_t, psi_edge, helicity_N)
+                                               epsilon, f_t, psi_edge, nfp, helicity_n)
 
             if False:
                 # Make a plot, matching the axis ranges of Redl's
@@ -398,7 +401,8 @@ class BootstrapTests(unittest.TestCase):
                 Ti_over_Te = np.sqrt(4.9 * Zeff * Zeff * target_nu_e_star / (6.921 * target_nu_i_star))
                 Ti = ProfilePolynomial([1.0e5 * Ti_over_Te])
                 s = np.ones(n_f_t)
-                helicity_N = 0
+                nfp = 0
+                helicity_n = 0
                 G = 32.0 - s  # Doesn't matter
                 R = 5.0 + 0.1 * s  # Doesn't matter
                 epsilon = s  # Doesn't matter
@@ -423,7 +427,7 @@ class BootstrapTests(unittest.TestCase):
                 # End of determining the qR profile that gives the desired nu*.
 
                 jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
-                                                   epsilon, f_t, psi_edge, helicity_N)
+                                                   epsilon, f_t, psi_edge, nfp, helicity_n)
 
                 L31s[j_nu_star, :] = details.L31
                 L32s[j_nu_star, :] = details.L32
@@ -533,10 +537,10 @@ class BootstrapTests(unittest.TestCase):
         # The surfaces used here are exact points on vmec's half grid,
         # so there are no issues with radial interpolation.
         surfaces = vmec.s_half_grid[10:-1:10]
-        helicity_N = 0
+        helicity_n = 0
 
         geom_obj1 = RedlGeomVmec(vmec, surfaces)
-        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_N)
+        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_n)
         geom1 = geom_obj1()
         geom2 = geom_obj2()
 
@@ -565,10 +569,10 @@ class BootstrapTests(unittest.TestCase):
         # The surfaces used here are exact points on vmec's half grid,
         # so there are no issues with radial interpolation.
         surfaces = vmec.s_half_grid[10:-1:10]
-        helicity_N = -4
+        helicity_n = -1
 
         geom_obj1 = RedlGeomVmec(vmec, surfaces)
-        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_N)
+        geom_obj2 = RedlGeomBoozer(booz, surfaces, helicity_n)
         geom1 = geom_obj1()
         geom2 = geom_obj2()
 
@@ -598,7 +602,7 @@ class BootstrapTests(unittest.TestCase):
         Ti = Te
         Zeff = 1
         surfaces = np.linspace(0.01, 0.99, 99)
-        helicity_N = 0
+        helicity_n = 0
         filename = os.path.join(TEST_DIR, 'wout_ITERModel_reference.nc')
         vmec = Vmec(filename)
         boozer = Boozer(vmec, mpol=32, ntor=0)
@@ -633,9 +637,9 @@ class BootstrapTests(unittest.TestCase):
             if geom_method == 0:
                 geom = RedlGeomVmec(vmec, surfaces)
             else:
-                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
             jdotB_history.append(jdotB)
 
             # The relative error is a bit larger at s \approx 1, where the
@@ -678,7 +682,7 @@ class BootstrapTests(unittest.TestCase):
         Te = ProfilePolynomial(12.0e3 * np.array([1, -1]))
         Ti = Te
         Zeff = 1
-        helicity_N = 0
+        helicity_n = 0
         # filename = os.path.join(TEST_DIR, 'wout_new_QA_aScaling.nc')  # High resolution
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
@@ -700,9 +704,9 @@ class BootstrapTests(unittest.TestCase):
             if geom_method == 0:
                 geom = RedlGeomVmec(vmec, surfaces)
             else:
-                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
             jdotB_history.append(jdotB)
             np.testing.assert_allclose(jdotB[1:-1], jdotB_sfincs[1:-1], rtol=0.1)
 
@@ -729,7 +733,7 @@ class BootstrapTests(unittest.TestCase):
         Te = ProfilePolynomial(12.0e3 * np.array([1, -1]))
         Ti = Te
         Zeff = 1
-        helicity_N = -4
+        helicity_n = -1
         #filename = os.path.join(TEST_DIR, 'wout_new_QH_aScaling.nc')  # High resolution
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
@@ -752,9 +756,9 @@ class BootstrapTests(unittest.TestCase):
             if geom_method == 0:
                 geom = RedlGeomVmec(vmec, surfaces)
             else:
-                geom = RedlGeomBoozer(boozer, surfaces, helicity_N)
+                geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_N, plot=False)
+            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
             jdotB_history.append(jdotB)
             np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
 
@@ -780,11 +784,11 @@ class BootstrapTests(unittest.TestCase):
         Te = ProfilePolynomial(8e3 * np.array([1, -1]))
         Ti = Te
         Zeff = 1
-        helicity_N = 0
+        helicity_n = 0
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
         geom = RedlGeomVmec(vmec)
-        obj1 = VmecRedlBootstrapMismatch(geom, ne, Te, Ti, Zeff, helicity_N)
+        obj1 = VmecRedlBootstrapMismatch(geom, ne, Te, Ti, Zeff, helicity_n)
         obj1J = obj1.J()
         logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj1J:.3e} '
                      f'and should be approximately 1.0. Diff: {obj1J - 1.0}')
@@ -794,7 +798,7 @@ class BootstrapTests(unittest.TestCase):
         # Try again with a non-default set of surfaces:
         surfaces = np.linspace(0.1, 0.9, 9)
         geom2 = RedlGeomVmec(vmec, surfaces)
-        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_N)
+        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
         obj2J = obj2.J()
         logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj2J:.3e} '
                      f'and should be approximately 1.0. Diff: {obj2J - 1.0}')
@@ -810,7 +814,7 @@ class BootstrapTests(unittest.TestCase):
         Te = ProfilePolynomial(8e3 * np.array([1, -1]))
         Ti = Te
         Zeff = 1
-        helicity_N = 0
+        helicity_n = 0
         filename = os.path.join(TEST_DIR, 'input.ITERModel')
         vmec = Vmec(filename)
         # Resolution 1:
@@ -818,7 +822,7 @@ class BootstrapTests(unittest.TestCase):
         vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
         vmec.indata.niter_array[:3] = [500, 2000, 0]
         geom1 = RedlGeomVmec(vmec, nphi=3)
-        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_N,
+        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_n,
                                          logfile='testVmecRedlBootstrapMismatch.log')
         obj1J = obj1.J()
         # Resolution 2:
@@ -827,7 +831,7 @@ class BootstrapTests(unittest.TestCase):
         vmec.indata.niter_array[:3] = [500, 800, 2000]
         vmec.need_to_run_code = True
         geom2 = RedlGeomVmec(vmec, nphi=3)
-        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_N)
+        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
         obj2J = obj2.J()
         rel_diff = (obj1J - obj2J) / (0.5 * (obj1J + obj2J))
         logging.info(f'resolution1: {obj1J:.4e}  resolution2: {obj2J:.4e}  rel diff: {rel_diff}')
