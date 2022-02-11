@@ -468,7 +468,7 @@ class Vmec(Optimizable):
             return
 
         n = self.__getattribute__("n_" + longname)
-        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type")
+        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type").lower()
         if vmec_profile_type[:12] == b'power_series':
             # Evaluate the new Profile on a Gauss-Legendre grid in s,
             # so the polynomial fit is well conditioned.
@@ -481,7 +481,9 @@ class Vmec(Optimizable):
             ax[:] = 0.0
             ax[:n] = poly
 
-        elif vmec_profile_type[:12] == b'cubic_spline':
+        elif vmec_profile_type[:12] == b'cubic_spline' \
+                or vmec_profile_type[:12] == b'akima_spline' \
+                or vmec_profile_type[:12] == b'line_segment':
             x = np.linspace(0, 1, n)
             y = profile(x)
             logger.debug('Setting vmec ' + longname + f' profile using splines. x: {x}  y: {y}')
@@ -493,7 +495,8 @@ class Vmec(Optimizable):
             aux_f[:n] = y
 
         else:
-            raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series or cubic_spline')
+            raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series, '
+                               'cubic_spline, akima_spline, or line_segment. For current profiles, _i or _ip can be appended.')
 
     def set_indata(self):
         """

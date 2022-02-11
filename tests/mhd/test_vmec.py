@@ -387,6 +387,28 @@ class VmecTests(unittest.TestCase):
         np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (1 + 2 * s - 3 * s * s))
         self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'cubic_spline')
 
+        # Now try a spline Profile with vmec using Amika splines:
+        vmec.pressure_profile = pressure2
+        vmec.indata.pmass_type = 'akima_spline'
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (2.2 - 0.7 * s - 1.1 * s * s), rtol=0.02)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'akima_spline')
+
+        # Now try a polynomial Profile with vmec using splines:
+        vmec.pressure_profile = pressure
+        # Try lowering the number of spline nodes:
+        vmec.n_pressure = 7
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (1 + 2 * s - 3 * s * s), atol=250)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'akima_spline')
+
+        # Now try having vmec use line_segment:
+        vmec.pressure_profile = ProfilePolynomial([2.0e4, -1.9e4])
+        vmec.indata.pmass_type = 'line_segment'
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 2.0e4 - 1.9e4 * s)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'line_segment')
+
     def test_current_profile(self):
         """
         Set a prescribed current profile, run vmec, and check that we got
