@@ -139,7 +139,7 @@ class TestingVmec(unittest.TestCase):
         zetas_flat = zetas.flatten()
 
         # The following tests different initializations of BoozerRadialInterpolant
-        for asym in [True,False]:
+        for asym in [True, False]:
             if asym:
                 vmec = vmec_asym
             else:
@@ -180,7 +180,7 @@ class TestingVmec(unittest.TestCase):
                 assert G_0 == G_1
                 assert G_0 == G_2
 
-        for asym in [True,False]:
+        for asym in [True, False]:
             if asym:
                 vmec = vmec_asym
             else:
@@ -296,7 +296,7 @@ class TestingVmec(unittest.TestCase):
         """
         order = 3
         ns_delete = 2
-        for asym in [True,False]:
+        for asym in [True, False]:
             if asym:
                 vmec = vmec_asym
             else:
@@ -329,31 +329,31 @@ class TestingVmec(unittest.TestCase):
                 modB00_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, modB00)
 
                 rmnc_half = bri.booz.bx.rmnc_b
-                rmnc_full = 0.5*(bri.booz.bx.rmnc_b[:,0:-1] + bri.booz.bx.rmnc_b[:,1::])
+                rmnc_full = 0.5*(bri.booz.bx.rmnc_b[:, 0:-1] + bri.booz.bx.rmnc_b[:, 1::])
                 # major radius at theta = 0, zeta = 0
                 R00_half = np.sum(rmnc_half, axis=0)
                 R00_full = np.sum(rmnc_full, axis=0)
                 R00_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, R00_half)
 
-                assert np.allclose(bri.G()[:,0], G_full, rtol=1e-4)
-                assert np.allclose(bri.iota()[:,0], iota_full, rtol=1e-2)
-                assert np.allclose(bri.modB()[:,0], modB_full, rtol=1e-2)
+                assert np.allclose(bri.G()[:, 0], G_full, rtol=1e-4)
+                assert np.allclose(bri.iota()[:, 0], iota_full, rtol=1e-2)
+                assert np.allclose(bri.modB()[:, 0], modB_full, rtol=1e-2)
                 assert np.allclose(bri.R()[:, 0], R00_full, rtol=1e-2)
 
                 # Only compare away from axis since inacurracies are introduced through
                 # spline due to r ~ sqrt(s) behavior
                 if bri.asym:
-                    mean_dGds = np.mean(np.abs(bri.dGds()[5::,0]))
+                    mean_dGds = np.mean(np.abs(bri.dGds()[5::, 0]))
                 else:
                     # This is a vacuum case, so dGds is close to zero
                     mean_dGds = 1
 
-                assert np.allclose(bri.dGds()[5::,0]/mean_dGds, G_spline.derivative()(vmec.s_full_grid[6:-1])/mean_dGds, atol=1e-2)
-                mean_diotads = np.mean(np.abs(bri.diotads()[5::,0]))
-                assert np.allclose(bri.diotads()[5::,0]/mean_diotads, iota_spline.derivative()(vmec.s_full_grid[6:-1])/mean_diotads, atol=1e-2)
-                assert np.allclose(bri.dmodBds()[5::,0], modB00_spline.derivative()(vmec.s_full_grid[6:-1]), rtol=1e-2)
+                assert np.allclose(bri.dGds()[5::, 0]/mean_dGds, G_spline.derivative()(vmec.s_full_grid[6:-1])/mean_dGds, atol=1e-2)
+                mean_diotads = np.mean(np.abs(bri.diotads()[5::, 0]))
+                assert np.allclose(bri.diotads()[5::, 0]/mean_diotads, iota_spline.derivative()(vmec.s_full_grid[6:-1])/mean_diotads, atol=1e-2)
+                assert np.allclose(bri.dmodBds()[5::, 0], modB00_spline.derivative()(vmec.s_full_grid[6:-1]), rtol=1e-2)
                 mean_dRds = np.mean(np.abs(bri.dRds()))
-                assert np.allclose(bri.dRds()[5::,0]/mean_dRds, R00_spline.derivative()(vmec.s_full_grid[6:-1])/mean_dRds, atol=1e-2)
+                assert np.allclose(bri.dRds()[5::, 0]/mean_dRds, R00_spline.derivative()(vmec.s_full_grid[6:-1])/mean_dRds, atol=1e-2)
 
                 """
                 The next evaluation points test Z() and nu()
@@ -391,7 +391,7 @@ class TestingVmec(unittest.TestCase):
                 # theta + lambda + iota * nu = 0
                 def theta_diff(theta, isurf):
                     lam = np.sum(lmns_half[:, isurf] * np.sin(vmec.wout.xm*theta-vmec.wout.xn*(np.pi/3-nu[isurf, 0]))
-                              +  lmnc_half[:, isurf] * np.cos(vmec.wout.xm*theta-vmec.wout.xn*(np.pi/3-nu[isurf, 0])), axis=0)
+                                 + lmnc_half[:, isurf] * np.cos(vmec.wout.xm*theta-vmec.wout.xn*(np.pi/3-nu[isurf, 0])), axis=0)
                     return ((theta + lam) + iota[isurf, 0]*(nu[isurf, 0]))**2
 
                 from scipy.optimize import minimize
@@ -401,14 +401,14 @@ class TestingVmec(unittest.TestCase):
                     thetas_vmec[isurf] = opt.x
 
                 # Compute Z at theta_b = 0, zeta_b = pi/2  and compare with vmec result
-                Z0pi = np.sum(zmns_half * np.sin(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu[None,:,0]))
-                           +  zmnc_half * np.cos(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu[None,:,0])), axis=0)
+                Z0pi = np.sum(zmns_half * np.sin(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu[None, :, 0]))
+                              + zmnc_half * np.cos(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu[None, :, 0])), axis=0)
                 Z0pi_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, Z0pi)
 
-                mean_dZds = np.mean(np.abs(bri.dZds()[5::,0]))
+                mean_dZds = np.mean(np.abs(bri.dZds()[5::, 0]))
 
                 assert np.allclose(bri.Z()[:, 0], Z0pi, atol=1e-2)
-                assert np.allclose(bri.dZds()[5::,0]/mean_dZds, Z0pi_spline.derivative()(vmec.s_half_grid[5::])/mean_dZds, atol=5e-2)
+                assert np.allclose(bri.dZds()[5::, 0]/mean_dZds, Z0pi_spline.derivative()(vmec.s_half_grid[5::])/mean_dZds, atol=5e-2)
 
                 """
                 The next evaluation points test the derivatives of modB, R, Z, and nu
