@@ -360,7 +360,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.booz.need_to_run_code:
                 self.booz.run()
 
-        self.asym = self.booz.bx.asym # Bool for stellarator asymmetry
+        self.asym = self.booz.bx.asym  # Bool for stellarator asymmetry
         self.order = order
         self.enforce_qs = False
         self.enforce_vacuum = enforce_vacuum
@@ -692,12 +692,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         if (self.asym):
             kmnc_kmns = sopp.compute_kmnc_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
-                                     numns_half, dnumnsds_half, bmnc_half,
-                                     rmns_half, drmnsds_half, zmnc_half, dzmncds_half,
-                                     numnc_half, dnumncds_half, bmns_half,
-                                     iota_half, G_half, I_half,self.xm_b, self.xn_b, thetas, zetas)
-            kmnc = kmnc_kmns[0,:,:]
-            kmns = kmnc_kmns[1,:,:]
+                                               numns_half, dnumnsds_half, bmnc_half,
+                                               rmns_half, drmnsds_half, zmnc_half, dzmncds_half,
+                                               numnc_half, dnumncds_half, bmns_half,
+                                               iota_half, G_half, I_half, self.xm_b, self.xn_b, thetas, zetas)
+            kmnc = kmnc_kmns[0, :, :]
+            kmns = kmnc_kmns[1, :, :]
             kmnc = kmnc*dtheta*dzeta*self.booz.bx.nfp/self.psi0
         else:
             kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
@@ -1078,6 +1078,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 bmns[im, :] = ((self.dbmnsds_splines[im](s) - self.bmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
             sopp.inverse_fourier_transform_odd(dmodBds[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
