@@ -19,15 +19,14 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import vmec
 except ImportError as e:
     vmec = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
-from ..util.dev import SimsoptRequires
 from .._core.graph_optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -79,11 +78,19 @@ reset_jacdt_flag = 32
 #                        control its own run history
 
 
-# Temporarily commenting out the decorator till __instancecheck__ method is made working
-#@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running VMEC")
 class Vmec(Optimizable):
-    """
+    r"""
     This class represents the VMEC equilibrium code.
+
+    You can initialize this class either from a VMEC
+    ``input.<extension>`` file or from a ``wout_<extension>.nc`` output
+    file. If neither is provided, a default input file is used. When
+    this class is initialized from an input file, it is possible to
+    modify the input parameters and run the VMEC code. When this class
+    is initialized from a ``wout`` file, all the data from the
+    ``wout`` file is available in memory but the VMEC code cannot be
+    re-run, since some of the input data (e.g. radial multigrid
+    parameters) is not available in the wout file.
 
     The input parameters to VMEC are all accessible as attributes of
     the ``indata`` attribute. For example, if ``vmec`` is an instance
@@ -99,27 +106,29 @@ class Vmec(Optimizable):
     (:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
     each run of VMEC. You can replace ``boundary`` with a new surface
     object, of any type that implements the conversion function
-    ``to_RZFourier()`.
+    ``to_RZFourier()``.
 
     VMEC is run either when the :meth:`run()` function is called, or when
     any of the output functions like :meth:`aspect()` or :meth:`iota_axis()`
     are called.
 
     A caching mechanism is implemented, using the attribute
-    ``need_to_run_code``. Whenever VMEC is run, this attribute is set
-    to ``False``. Subsequent calls to :meth:`run()` or output
-    functions like :meth:`aspect()` will not actually run VMEC again,
-    until ``need_to_run_code`` is changed to ``True``. The attribute
-    ``need_to_run_code`` is automatically set to ``True`` whenever
-    :meth:`set_dofs()` is called. However, ``need_to_run_code`` is not
-    automatically set to ``True`` when entries of ``indata`` are
-    modified, or when ``boundary`` is modified.
+    ``need_to_run_code``. Whenever VMEC is run, or if the class is
+    initialized from a ``wout`` file, this attribute is set to
+    ``False``. Subsequent calls to :meth:`run()` or output functions
+    like :meth:`aspect()` will not actually run VMEC again, until
+    ``need_to_run_code`` is changed to ``True``. The attribute
+    ``need_to_run_code`` is automatically set to ``True`` whenever the
+    state vector ``.x`` is changed, and when dofs of the ``boundary``
+    are changed. However, ``need_to_run_code`` is not automatically
+    set to ``True`` when entries of ``indata`` are modified.
 
-    Once VMEC has run at least once, all of the quantities in the
-    ``wout`` output file are available as attributes of the ``wout``
-    attribute.  For example, if ``vmec`` is an instance of ``Vmec``,
-    then the flux surface shapes can be obtained from
-    ``vmec.wout.rmnc`` and ``vmec.wout.zmns``.
+    Once VMEC has run at least once, or if the class is initialized
+    from a ``wout`` file, all of the quantities in the ``wout`` output
+    file are available as attributes of the ``wout`` attribute.  For
+    example, if ``vmec`` is an instance of ``Vmec``, then the flux
+    surface shapes can be obtained from ``vmec.wout.rmnc`` and
+    ``vmec.wout.zmns``.
 
     Since the underlying fortran implementation of VMEC uses global
     module variables, it is not possible to have more than one python
@@ -131,15 +140,17 @@ class Vmec(Optimizable):
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
-    The default behavior is that all ``wout`` output files will be
-    deleted except for the first and most recent iteration on worker
-    group 0. If you wish to keep all the ``wout`` files, you can set
-    ``keep_all_files = True``. If you want to save the ``wout`` file
-    for a certain intermediate iteration, you can set the
-    ``files_to_delete`` attribute to ``[]`` after that run of VMEC.
+    When VMEC is run multiple times, the default behavior is that all
+    ``wout`` output files will be deleted except for the first and
+    most recent iteration on worker group 0. If you wish to keep all
+    the ``wout`` files, you can set ``keep_all_files = True``. If you
+    want to save the ``wout`` file for a certain intermediate
+    iteration, you can set the ``files_to_delete`` attribute to ``[]``
+    after that run of VMEC.
 
     Args:
-        filename: Name of a VMEC input file to use for loading the
+        filename: Name of a VMEC ``input.<extension>`` file or ``wout_<extension>.nc``
+          output file to use for loading the
           initial parameters. If ``None``, default parameters will be used.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for VMEC calculations. If ``None``,
@@ -166,95 +177,116 @@ class Vmec(Optimizable):
                  keep_all_files: bool = False,
                  ntheta=50,
                  nphi=50):
-        if MPI is None:
-            raise RuntimeError("mpi4py needs to be installed for running VMEC")
-        if vmec is None:
-            raise RuntimeError(
-                "Running VMEC from simsopt requires VMEC python extension. "
-                "Install the VMEC python extension from "
-                "https://https://github.com/hiddenSymmetries/VMEC2000")
 
         if filename is None:
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'input.default')
             logger.info(f"Initializing a VMEC object from defaults in {filename}")
+
+        basename = os.path.basename(filename)
+        if basename[:5] == 'input':
+            logger.info(f"Initializing a VMEC object from input file: {filename}")
+            self.input_file = filename
+            self.runnable = True
+        elif basename[:4] == 'wout':
+            logger.info(f"Initializing a VMEC object from wout file: {filename}")
+            self.runnable = False
         else:
-            logger.info(f"Initializing a VMEC object from file: {filename}")
-        self.input_file = filename
+            raise ValueError('Invalid filename')
+
+        self.wout = Struct()
 
         # Get MPI communicator:
-        if mpi is None:
+        if (mpi is None and MPI is not None):
             self.mpi = MpiPartition(ngroups=1)
         else:
             self.mpi = mpi
-        comm = self.mpi.comm_groups
-        self.fcomm = comm.py2f()
 
-        self.ictrl = np.zeros(5, dtype=np.int32)
-        self.iter = -1
-        self.keep_all_files = keep_all_files
-        self.files_to_delete = []
-        self.wout = Struct()
+        if self.runnable:
+            if MPI is None:
+                raise RuntimeError("mpi4py needs to be installed for running VMEC")
+            if vmec is None:
+                raise RuntimeError(
+                    "Running VMEC from simsopt requires VMEC python extension. "
+                    "Install the VMEC python extension from "
+                    "https://https://github.com/hiddenSymmetries/VMEC2000")
 
-        self.ictrl[0] = restart_flag + readin_flag
-        self.ictrl[1] = 0  # ierr
-        self.ictrl[2] = 0  # numsteps
-        self.ictrl[3] = 0  # ns_index
-        self.ictrl[4] = 0  # iseq
-        verbose = True
-        reset_file = ''
-        logger.info('About to call runvmec to readin')
-        vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
-        ierr = self.ictrl[1]
-        logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
-        # Deallocate arrays allocated by VMEC's fixaray():
-        vmec.cleanup(False)
-        if ierr != 0:
-            raise RuntimeError("Failed to initialize VMEC from input file {}. "
-                               "error code {}".format(filename, ierr))
+            comm = self.mpi.comm_groups
+            self.fcomm = comm.py2f()
 
-        objstr = " for Vmec " + str(hex(id(self)))
+            self.ictrl = np.zeros(5, dtype=np.int32)
+            self.iter = -1
+            self.keep_all_files = keep_all_files
+            self.files_to_delete = []
 
-        # Create an attribute for each VMEC input parameter in VMEC's fortran
-        # modules,
-        self.indata = vmec.vmec_input  # Shorthand
-        vi = vmec.vmec_input  # Shorthand
-        # A vmec object has mpol and ntor attributes independent of
-        # the boundary. The boundary surface object is initialized
-        # with mpol and ntor values that match those of the vmec
-        # object, but the mpol/ntor values of either the vmec object
-        # or the boundary surface object can be changed independently
-        # by the user.
-        quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
-        quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-        self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                          stellsym=not vi.lasym,
-                                          mpol=vi.mpol,
-                                          ntor=vi.ntor,
-                                          quadpoints_theta=quadpoints_theta,
-                                          quadpoints_phi=quadpoints_phi)
-        self.free_boundary = bool(vi.lfreeb)
+            self.indata = vmec.vmec_input  # Shorthand
+            vi = vmec.vmec_input  # Shorthand
 
-        # Transfer boundary shape data from fortran to the ParameterArray:
-        for m in range(vi.mpol + 1):
-            for n in range(-vi.ntor, vi.ntor + 1):
-                self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
-                self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
-                if vi.lasym:
-                    self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
-                    self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
-        self._boundary.local_full_x = self._boundary.get_dofs()
+            self.ictrl[0] = restart_flag + readin_flag
+            self.ictrl[1] = 0  # ierr
+            self.ictrl[2] = 0  # numsteps
+            self.ictrl[3] = 0  # ns_index
+            self.ictrl[4] = 0  # iseq
+            verbose = True
+            reset_file = ''
+            logger.info('About to call runvmec to readin')
+            vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
+            ierr = self.ictrl[1]
+            logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+            # Deallocate arrays allocated by VMEC's fixaray():
+            vmec.cleanup(False)
+            if ierr != 0:
+                raise RuntimeError("Failed to initialize VMEC from input file {}. "
+                                   "error code {}".format(filename, ierr))
+
+            objstr = " for Vmec " + str(hex(id(self)))
+
+            # A vmec object has mpol and ntor attributes independent of
+            # the boundary. The boundary surface object is initialized
+            # with mpol and ntor values that match those of the vmec
+            # object, but the mpol/ntor values of either the vmec object
+            # or the boundary surface object can be changed independently
+            # by the user.
+            quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
+            quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
+            self._boundary = SurfaceRZFourier(nfp=vi.nfp,
+                                              stellsym=not vi.lasym,
+                                              mpol=vi.mpol,
+                                              ntor=vi.ntor,
+                                              quadpoints_theta=quadpoints_theta,
+                                              quadpoints_phi=quadpoints_phi)
+            self.free_boundary = bool(vi.lfreeb)
+
+            # Transfer boundary shape data from fortran to the ParameterArray:
+            for m in range(vi.mpol + 1):
+                for n in range(-vi.ntor, vi.ntor + 1):
+                    self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+                    self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+                    if vi.lasym:
+                        self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
+                        self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+            self._boundary.local_full_x = self._boundary.get_dofs()
+
+            self.need_to_run_code = True
+        else:
+            # Initialized from a wout file, so not runnable.
+            self._boundary = SurfaceRZFourier.from_wout(filename)
+            self.output_file = filename
+            self.load_wout()
 
         # Handle a few variables that are not Parameters:
-        self.need_to_run_code = True
-
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
+
+        if not self.runnable:
+            # This next line must come after Optimizable.__init__
+            # since that calls recompute_bell()
+            self.need_to_run_code = False
 
     @property
     def boundary(self):
@@ -263,22 +295,29 @@ class Vmec(Optimizable):
     @boundary.setter
     def boundary(self, boundary):
         if not boundary is self._boundary:
+            logging.debug('Replacing surface in boundary setter')
             self.remove_parent(self._boundary)
             self._boundary = boundary
             self.append_parent(boundary)
+            self.need_to_run_code = True
 
     def get_dofs(self):
-        return np.array([self.indata.delt, self.indata.tcon0,
-                         self.indata.phiedge, self.indata.curtor,
-                         self.indata.gamma])
+        if not self.runnable:
+            # Use default values from vmec_input
+            return np.array([1, 1, 1, 0, 0])
+        else:
+            return np.array([self.indata.delt, self.indata.tcon0,
+                             self.indata.phiedge, self.indata.curtor,
+                             self.indata.gamma])
 
     def set_dofs(self, x):
-        self.need_to_run_code = True
-        self.indata.delt = x[0]
-        self.indata.tcon0 = x[1]
-        self.indata.phiedge = x[2]
-        self.indata.curtor = x[3]
-        self.indata.gamma = x[4]
+        if self.runnable:
+            self.need_to_run_code = True
+            self.indata.delt = x[0]
+            self.indata.tcon0 = x[1]
+            self.indata.phiedge = x[2]
+            self.indata.curtor = x[3]
+            self.indata.gamma = x[4]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -290,6 +329,10 @@ class Vmec(Optimizable):
         if not self.need_to_run_code:
             logger.info("run() called but no need to re-run VMEC.")
             return
+
+        if not self.runnable:
+            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+
         logger.info("Preparing to run VMEC.")
         # Transfer values from Parameters to VMEC's fortran modules:
         vi = vmec.vmec_input  # Shorthand
@@ -550,7 +593,6 @@ class Vmec(Optimizable):
         half mesh, we extrapolate by half of a radial grid point to s
         = 0 and 1.
         """
-
         self.run()
 
         # gmnc is on the half mesh, so drop the 0th radial entry:
