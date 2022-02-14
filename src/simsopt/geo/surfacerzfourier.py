@@ -506,14 +506,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return self.dvolume_by_dcoeff()
 
-    def write_nml(self, filename: str = None):
+    def get_nml(self):
         """
-        Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
-        coefficients, in the form used in VMEC and SPEC input files.
-
-        Args:
-            filename: Name of the file to write. If ``None``, the contents
-              will be returned as a string.
+        Generates a fortran namelist file containing the RBC/RBS/ZBC/ZBS
+        coefficients, in the form used in VMEC and SPEC input
+        files. The result will be returned as a string. For saving a
+        file, see the ``write_nml()`` function.
         """
         nml = ''
         nml += '&INDATA\n'
@@ -521,7 +519,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             nml += 'LASYM = .FALSE.\n'
         else:
             nml += 'LASYM = .TRUE.\n'
-        nml += 'NFP = ' + str(self.nfp) + '\n'
+        nml += f'NFP = {self.nfp}\n'
 
         for m in range(self.mpol + 1):
             nmin = -self.ntor
@@ -531,19 +529,27 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 rc = self.get_rc(m, n)
                 zs = self.get_zs(m, n)
                 if np.abs(rc) > 0 or np.abs(zs) > 0:
-                    nml += "RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
-                        .format(n, m, rc, n, m, zs)
+                    nml += f"RBC({n:4d},{m:4d}) ={rc:23.15e},    ZBS({n:4d},{m:4d}) ={zs:23.15e}\n"
                 if (not self.stellsym):
                     rs = self.get_rs(m, n)
                     zc = self.get_zc(m, n)
                     if np.abs(rs) > 0 or np.abs(zc) > 0:
-                        nml += "RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
-                            .format(n, m, rs, n, m, zc)
+                        nml += f"RBS({n:4d},{m:4d}) ={rs:23.15e},    ZBC({n:4d},{m:4d}) ={zc:23.15e}\n"
         nml += '/\n'
-        if filename is None:
-            return nml
+        return nml
+
+    def write_nml(self, filename: str):
+        """
+        Writes a fortran namelist file containing the RBC/RBS/ZBC/ZBS
+        coefficients, in the form used in VMEC and SPEC input
+        files. To just generate the namelist as a string without
+        saving a file, see the ``get_nml()`` function.
+
+        Args:
+            filename: Name of the file to write.
+        """
         with open(filename, 'w') as f:
-            f.write(nml)
+            f.write(self.get_nml())
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
