@@ -388,12 +388,10 @@ class Vmec(Optimizable):
 
         return boundary_RZFourier
 
-    def write_input(self, filename=None):
+    def get_input(self):
         """
-        Write a VMEC input file.
-
-        Args:
-            filename: Name of the file to write. If ``None``, the contents will be returned as a string.
+        Generate a VMEC input file. The result will be returned as a
+        string. To save a file, see the ``write_input()`` function.
         """
         boundary_RZFourier = self.set_indata()  # Transfer the boundary from simsopt to fortran.
         vi = vmec.vmec_input  # Shorthand
@@ -459,15 +457,23 @@ class Vmec(Optimizable):
         nml += f'NSTEP = {vi.nstep}\n'
 
         nml += '\n! ---- Boundary shape. Array index order is (n, m) ----\n'
-        surf_str = boundary_RZFourier.write_nml().split('\n')
+        surf_str = boundary_RZFourier.get_nml().split('\n')
         for j in range(3, len(surf_str)):
             nml += surf_str[j] + '\n'
 
-        if filename is None:
-            return nml
+        return nml
+
+    def write_input(self, filename):
+        """
+        Write a VMEC input file. To just get the result as a string
+        without saving a file, see the ``get_input()`` function.
+
+        Args:
+            filename: Name of the file to write.
+        """
         if self.mpi.proc0_groups:
             with open(filename, 'w') as f:
-                f.write(nml)
+                f.write(self.get_input())
 
     def run(self):
         """
