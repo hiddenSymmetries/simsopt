@@ -469,12 +469,13 @@ class Vmec(Optimizable):
         without saving a file, see the ``get_input()`` function.
 
         Args:
-            filename: Name of the file to write.
+            filename: Name of the file to write. Selected MPI processes can pass
+              ``None`` if you wish for these processes to not write a file.
         """
         # All procs should call self.get_input() so set_indata() gets
-        # called, even procs that do not directly write the file.
+        # called, even procs that do not directly write the file:
         input_namelist = self.get_input()
-        if self.mpi.proc0_groups:
+        if self.mpi.proc0_groups and (filename is not None):
             with open(filename, 'w') as f:
                 f.write(input_namelist)
 
