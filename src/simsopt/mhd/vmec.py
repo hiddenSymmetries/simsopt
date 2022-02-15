@@ -471,9 +471,13 @@ class Vmec(Optimizable):
         Args:
             filename: Name of the file to write.
         """
+        # All procs should call self.get_input() so set_indata() gets
+        # called, even though only proc0 typically has a valid
+        # filename:
+        input_namelist = self.get_input()
         if self.mpi.proc0_groups:
             with open(filename, 'w') as f:
-                f.write(self.get_input())
+                f.write(input_namelist)
 
     def run(self):
         """
