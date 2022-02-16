@@ -22,7 +22,7 @@ except ImportError as e:
     logger.debug(str(e))
 
 try:
-    import spec.spec as spec
+    import spec.spec_f90wrapped as spec
 except ImportError as e:
     spec = None
     logger.debug(str(e))
