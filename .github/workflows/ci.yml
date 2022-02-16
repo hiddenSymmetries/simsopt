@@ -134,7 +134,7 @@ jobs:
         # pip install dist/*.whl
 
     - name: Try import spec
-      run: python -c "import spec.spec as spec; print(spec.constants.version)"
+      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
