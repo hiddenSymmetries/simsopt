@@ -124,7 +124,7 @@ jobs:
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: python -c "import spec.spec as spec; print(spec.constants.version)"
+      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
