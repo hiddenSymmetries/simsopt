@@ -563,6 +563,7 @@ class RedlGeomBoozer(Optimizable):
         surfaces = self.surfaces
         ns = len(surfaces)
         ntheta = self.ntheta
+        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
         vmec = self.booz.equil
         self.vmec = vmec
         nfp = vmec.wout.nfp
@@ -582,26 +583,32 @@ class RedlGeomBoozer(Optimizable):
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
         I = interp(surfaces)
 
-        interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
-        bmnc_b = interp(surfaces)
-        logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
+        if self.vmec.mpi.proc0_groups:
+            interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
+            bmnc_b = interp(surfaces)
+            logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
 
-        interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
-        gmnc_b = interp(surfaces)
+            interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
+            gmnc_b = interp(surfaces)
 
-        # Evaluate modB and sqrtg on a uniform grid in theta,
-        # including only the modes that match the desired symmetry:
-        modB = np.zeros((ntheta, ns))
-        sqrtg = np.zeros((ntheta, ns))
-        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-        s, theta = np.meshgrid(surfaces, theta1d)
-        for jmn in range(booz.bx.mnboz):
-            if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn]:
-                # modB += cos(m * theta) * bmnc:
-                modB += np.cos(booz.bx.xm_b[jmn] * theta) \
-                    * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
-                sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
-                    * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :])
+            # Evaluate modB and sqrtg on a uniform grid in theta,
+            # including only the modes that match the desired symmetry:
+            modB = np.zeros((ntheta, ns))
+            sqrtg = np.zeros((ntheta, ns))
+            s, theta = np.meshgrid(surfaces, theta1d)
+            for jmn in range(booz.bx.mnboz):
+                if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn]:
+                    # modB += cos(m * theta) * bmnc:
+                    modB += np.cos(booz.bx.xm_b[jmn] * theta) \
+                        * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
+                    sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
+                        * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :])
+        else:
+            modB = 0
+            sqrtg = 0
+
+        modB = self.vmec.mpi.comm_groups.bcast(modB)
+        sqrtg = self.vmec.mpi.comm_groups.bcast(sqrtg)
 
         Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 

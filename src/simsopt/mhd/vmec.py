@@ -778,6 +778,20 @@ class Vmec(Optimizable):
 
         return ierr
 
+    def update_mpi(self, new_mpi):
+        """
+        Replace the :obj:`~simsopt.util.mpi.MpiPartition` with a new one.
+
+        Args:
+            new_mpi: A new :obj:`simsopt.util.mpi.MpiPartition` object.
+        """
+        self.mpi = new_mpi
+        self.fcomm = self.mpi.comm_groups.py2f()
+        # Synchronize iteration counters. If we don't do this,
+        # different procs within a group may have different values of
+        # ``iter``, causing them to look for different wout files.
+        self.iter = self.mpi.comm_world.bcast(self.iter)
+
     def aspect(self):
         """
         Return the plasma aspect ratio.
