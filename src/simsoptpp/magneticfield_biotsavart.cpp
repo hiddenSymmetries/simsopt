@@ -134,7 +134,7 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
                 if (derivatives == 2) {
                     biot_savart_kernel_A<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Ai, dAi, ddAi);
                 } else {
-                    throw logic_error("Only two derivatives of Biot Savart implemented");
+                    throw logic_error("Only two derivatives of Biot Savart vector potential implemented");
                 }
             }
         }
