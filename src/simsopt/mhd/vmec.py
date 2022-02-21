@@ -182,6 +182,7 @@ class Vmec(Optimizable):
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
+        verbose: Whether to print to stdout when running vmec.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -199,6 +200,7 @@ class Vmec(Optimizable):
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  keep_all_files: bool = False,
+                 verbose: bool = True,
                  ntheta=50,
                  nphi=50):
 
@@ -220,6 +222,7 @@ class Vmec(Optimizable):
             raise ValueError('Invalid filename')
 
         self.wout = Struct()
+        self.verbose = verbose
 
         # Get MPI communicator:
         if (mpi is None and MPI is not None):
@@ -252,10 +255,9 @@ class Vmec(Optimizable):
             self.ictrl[2] = 0  # numsteps
             self.ictrl[3] = 0  # ns_index
             self.ictrl[4] = 0  # iseq
-            verbose = True
             reset_file = ''
             logger.info('About to call runvmec to readin')
-            vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
+            vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
             ierr = self.ictrl[1]
             logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
             # Deallocate arrays allocated by VMEC's fixaray():
@@ -522,9 +524,8 @@ class Vmec(Optimizable):
         self.ictrl[2] = 0  # numsteps
         self.ictrl[3] = 0  # ns_index
         self.ictrl[4] = 0  # iseq
-        verbose = True
         reset_file = ''
-        vmec.runvmec(self.ictrl, input_file, verbose, self.fcomm, reset_file)
+        vmec.runvmec(self.ictrl, input_file, self.verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
 
         # Deallocate arrays, even if vmec did not converge:
