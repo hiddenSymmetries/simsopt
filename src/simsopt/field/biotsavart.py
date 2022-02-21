@@ -147,7 +147,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         self._d3A_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
         return self._d3A_by_dXdXdcoilcurrents
 
-
     def A_and_dA_vjp(self, v, vgrad):
         r"""
         Same as :obj:`simsopt.geo.biotsavart.BiotSavart.A_vjp` but returns the vector Jacobian product for :math:`A` and :math:`\nabla A`, i.e. it returns
@@ -168,7 +167,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         points = self.get_points_cart_ref()
         sopp.biot_savart_vector_potential_vjp_graph(points, gammas, gammadashs, currents, v,
-                                   res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
+                                                    res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
 
         dA_by_dcoilcurrents = self.dA_by_dcoilcurrents()
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
@@ -204,7 +203,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         points = self.get_points_cart_ref()
         sopp.biot_savart_vector_potential_vjp_graph(points, gammas, gammadashs, currents, v,
-                                   res_gamma, res_gammadash, [], [], [])
+                                                    res_gamma, res_gammadash, [], [], [])
         dA_by_dcoilcurrents = self.dA_by_dcoilcurrents()
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
