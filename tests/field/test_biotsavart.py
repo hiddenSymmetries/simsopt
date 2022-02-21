@@ -398,7 +398,7 @@ class Testing(unittest.TestCase):
             npoints = num
             angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
             t = np.concatenate((-np.sin(angles), np.cos(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
-            pts = r*np.concatenate((np.cos(angles), np.sin(angles), np.zeros((angles.size, 1))), axis=1)@ rot.T
+            pts = r*np.concatenate((np.cos(angles), np.sin(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
             bs.set_points(pts)
             A = bs.A()
             fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
