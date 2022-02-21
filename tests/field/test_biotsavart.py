@@ -4,7 +4,7 @@ import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Coil, Current
+from simsopt.field.coil import Coil, Current, ScaledCurrent
 
 
 def get_curve(num_quadrature_points=200, perturb=False):
@@ -315,23 +315,23 @@ class Testing(unittest.TestCase):
     def test_dA_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
         curve = get_curve()
-        coil = Coil(curve, Current(1e4))
+        coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
         bs.set_points(points)
-        curve_dofs = curve.x
+        coil_dofs = coil.x
         A = bs.A()
         J0 = np.sum(A**2)
-        dJ = bs.A_vjp(A)(curve)
+        dJ = bs.A_vjp(A)(coil)
 
-        h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
         err = 1e6
         for i in range(5, 10):
             eps = 0.5**i
-            curve.x = curve_dofs + eps * h
+            coil.x = coil_dofs + eps * h
             Ah = bs.A()
             Jh = np.sum(Ah**2)
             deriv_est = (Jh-J0)/eps
@@ -342,24 +342,24 @@ class Testing(unittest.TestCase):
     def test_dAdX_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
         curve = get_curve()
-        coil = Coil(curve, Current(1e4))
+        coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
         bs.set_points(points)
-        curve_dofs = curve.x
+        coil_dofs = coil.x
         A = bs.A()
         dAdX = bs.dA_by_dX()
         J0 = np.sum(dAdX**2)
-        dJ = bs.A_and_dA_vjp(A, dAdX)[1](curve)
+        dJ = bs.A_and_dA_vjp(A, dAdX)[1](coil)
 
-        h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
         err = 1e6
         for i in range(5, 10):
             eps = 0.5**i
-            curve.x = curve_dofs + eps * h
+            coil.x = coil_dofs + eps * h
             dAdXh = bs.dA_by_dX()
             Jh = np.sum(dAdXh**2)
             deriv_est = (Jh-J0)/eps
