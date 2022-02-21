@@ -56,6 +56,19 @@ class BiotSavart : public MagneticField<T> {
         void _d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) override {
             this->compute(2);
         }
+        
+        void _A_impl(Tensor2& A) override {
+            this->compute_A(0);
+        }
+        
+        void _dA_by_dX_impl(Tensor3& dA_by_dX) override {
+            this->compute_A(1);
+        }
+
+        void _d2A_by_dXdX_impl(Tensor4& d2A_by_dXdX) override {
+            this->compute_A(2);
+        }
+
 
 
     public:
@@ -63,12 +76,18 @@ class BiotSavart : public MagneticField<T> {
         using MagneticField<T>::data_B;
         using MagneticField<T>::data_dB;
         using MagneticField<T>::data_ddB;
+        using MagneticField<T>::data_A;
+        using MagneticField<T>::data_dA;
+        using MagneticField<T>::data_ddA;
+
 
         BiotSavart(vector<shared_ptr<Coil<Array>>> coils) : MagneticField<T>(), coils(coils) {
 
         }
 
-        void compute(int derivatives);       virtual void invalidate_cache() override {
+        void compute(int derivatives);
+        void compute_A(int derivatives);
+        virtual void invalidate_cache() override {
             MagneticField<T>::invalidate_cache();
             this->field_cache.invalidate_cache();
         }
