@@ -276,6 +276,17 @@ class VmecTests(unittest.TestCase):
             np.testing.assert_allclose(iota1, iota2, atol=1e-10)
             np.testing.assert_allclose(bmnc1, bmnc2, atol=1e-10)
 
+    def test_verbose(self):
+        """
+        I'm not sure how to confirm that nothing is printed if ``verbose``
+        is set to ``False``, but we can at least make sure the code
+        doesn't crash in this case.
+        """
+        for verbose in [True, False]:
+            filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+            vmec = Vmec(filename, verbose=verbose)
+            vmec.run()
+
     def test_vmec_failure(self):
         """
         Verify that failures of VMEC are correctly caught and represented
