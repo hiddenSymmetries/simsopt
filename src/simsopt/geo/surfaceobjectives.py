@@ -256,6 +256,100 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     return r, J, H
 
 
+def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives=0):
+    user_provided_G = G is not None
+    if not user_provided_G:
+        G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+
+    x = surface.gamma()
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    nphi = x.shape[0]
+    ntheta = x.shape[1]
+
+    xsemiflat = x.reshape((x.size//3, 3)).copy()
+
+    biotsavart.set_points(xsemiflat)
+
+    biotsavart.compute(derivatives)
+    B = biotsavart.B().reshape((nphi, ntheta, 3))
+
+    tang = xphi + iota * xtheta
+    B2 = np.sum(B**2, axis=2)
+    residual = G*B - B2[..., None] * tang
+
+    residual_flattened = residual.reshape((nphi*ntheta*3, ))
+    r = residual_flattened
+    val = 0.5 * np.sum(r**2)
+    if derivatives == 0:
+        return val,
+
+    dx_dc = surface.dgamma_by_dcoeff()
+    dxphi_dc = surface.dgammadash1_by_dcoeff()
+    dxtheta_dc = surface.dgammadash2_by_dcoeff()
+    nsurfdofs = dx_dc.shape[-1]
+
+    dB_by_dX = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+    dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
+
+    dresidual_dc = sopp.boozer_dresidual_dc(G, dB_dc, B, tang, B2, dxphi_dc, iota, dxtheta_dc)
+    dresidual_diota = -B2[..., None] * xtheta
+
+    dresidual_dc_flattened = dresidual_dc.reshape((nphi*ntheta*3, nsurfdofs))
+    dresidual_diota_flattened = dresidual_diota.reshape((nphi*ntheta*3, 1))
+
+    if user_provided_G:
+        dresidual_dG = B
+        dresidual_dG_flattened = dresidual_dG.reshape((nphi*ntheta*3, 1))
+        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened, dresidual_dG_flattened), axis=1)
+    else:
+        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened), axis=1)
+    
+    dval = np.sum(r[:, None]*J, axis=0)
+    if derivatives == 1:
+        return val, dval
+    
+    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
+    resd2B_dcdc = np.einsum('ijkpl,ijpn,ijkm,ijl->mn', d2B_by_dXdX, dx_dc, dx_dc, residual, optimize=True)
+    dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc, optimize=True)
+    resterm1 = np.einsum('ijlm,ijln,ijq->mn', dB_dc, dB_dc, residual*tang, optimize=True)
+    resterm2 = np.einsum('ijkpl,ijpn,ijkm,ijl,ijq->mn', d2B_by_dXdX, dx_dc, dx_dc, B, residual*tang, optimize=['einsum_path', (3, 4), (0, 3), (0, 2), (0, 1)])
+    resd2B2_dcdc = -2*(resterm1 + resterm2)
+    
+    tang_dc = dxphi_dc + iota * dxtheta_dc
+    resterm1 = -np.einsum('ijm,ijkn,ijk->mn', dB2_dc, tang_dc, residual, optimize=True)
+    resterm2 = -np.einsum('ijn,ijkm,ijk->mn', dB2_dc, tang_dc, residual, optimize=True)
+    resd2residual_by_dcdc = G * resd2B_dcdc + resterm1 + resterm2 + resd2B2_dcdc
+    
+    d2residual_by_dcdiota = -(dB2_dc[..., None, :] * xtheta[..., :, None] + B2[..., None, None] * dxtheta_dc)
+    resd2residual_by_dcdiota = np.sum(residual[...,None]*d2residual_by_dcdiota, axis=(0,1,2) )
+    resd2residual_by_diotadiota = 0.
+    
+    d2val = J.T@J 
+    if user_provided_G:
+        resd2residual_by_dcdG = np.sum(residual[...,None]*dB_dc, axis=(0,1,2))
+        resd2residual_by_diotadG = 0.
+        resd2residual_by_dGdG = 0.
+        # noqa turns out linting so that we can align everything neatly
+        d2val[:nsurfdofs, :nsurfdofs]   += resd2residual_by_dcdc        # noqa (0, 0) dcdc
+        d2val[:nsurfdofs, nsurfdofs]    += resd2residual_by_dcdiota    # noqa (0, 1) dcdiota
+        d2val[:nsurfdofs, nsurfdofs+1]  += resd2residual_by_dcdG        # noqa (0, 2) dcdG
+        d2val[nsurfdofs, :nsurfdofs]    += resd2residual_by_dcdiota     # noqa (1, 0) diotadc
+        d2val[nsurfdofs, nsurfdofs]     += resd2residual_by_diotadiota  # noqa (1, 1) diotadiota
+        d2val[nsurfdofs, nsurfdofs+1]   += resd2residual_by_diotadiota  # noqa (1, 2) diotadG
+        d2val[nsurfdofs+1, :nsurfdofs]  += resd2residual_by_dcdG        # noqa (2, 0) dGdc
+        d2val[nsurfdofs+1, nsurfdofs]   += resd2residual_by_diotadG     # noqa (2, 1) dGdiota
+        d2val[nsurfdofs+1, nsurfdofs+1] += resd2residual_by_dGdG        # noqa (2, 2) dGdG
+    else:
+        d2val[:nsurfdofs, :nsurfdofs] += resd2residual_by_dcdc        # noqa (0, 0) dcdc
+        d2val[:nsurfdofs, nsurfdofs]  += resd2residual_by_dcdiota     # noqa (0, 1) dcdiota
+        d2val[nsurfdofs, :nsurfdofs]  += resd2residual_by_dcdiota     # noqa (1, 0) diotadc
+        d2val[nsurfdofs, nsurfdofs]   += resd2residual_by_diotadiota  # noqa (1, 1) diotadiota
+
+    return val, dval, d2val
+
+
+
 def parameter_derivatives(surface: Surface,
                           shape_gradient: NDArray[(Any, Any), Float]
                           ) -> NDArray[(Any,), Float]:
