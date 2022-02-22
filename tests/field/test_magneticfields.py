@@ -116,16 +116,63 @@ class Testing(unittest.TestCase):
         Bscalar.set_points(points)
         B1 = np.array(Bscalar.B())
         dB1_by_dX = np.array(Bscalar.dB_by_dX())
+
         # Analytical Formula for B
         rphiz = [[np.sqrt(np.power(point[0], 2) + np.power(point[1], 2)), np.arctan2(point[1], point[0]), point[2]] for point in points]
         B2 = np.array([[0.2*point[2]+0.8*point[0], (0.1+0.3*point[2])/point[0], 0.2*point[0]+0.3*point[1]+point[2]] for point in rphiz])
+        # Convert to Cartesian coordinates
+        r = np.sqrt(np.power(points[:, 0], 2) + np.power(points[:, 1], 2))
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        z = points[:, 2]
+        B2_cart = np.zeros_like(B2)
+        # Bx = Br cos(phi) - Bphi sin(phi)
+        B2_cart[:, 0] = B2[:, 0] * np.cos(phi) - B2[:, 1] * np.sin(phi)
+        # By = Br sin(phi) + Bphi cos(phi)
+        B2_cart[:, 1] = B2[:, 0] * np.sin(phi) + B2[:, 1] * np.cos(phi)
+        B2_cart[:, 2] = B2[:, 2]
         dB2_by_dX = np.array([
             [[0.8*np.cos(point[1]), -(np.cos(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.cos(point[1])-0.3*np.sin(point[1])/point[0]],
              [0.8*np.sin(point[1]), -(np.sin(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.sin(point[1])+0.3*np.cos(point[1])/point[0]],
              [0.2, 0.3/point[0], 1]] for point in rphiz])
+        dBxdx = dB1_by_dX[:, 0, 0]
+        dBxdy = dB1_by_dX[:, 1, 0]
+        dBxdz = dB1_by_dX[:, 2, 0]
+        dBydx = dB1_by_dX[:, 0, 1]
+        dBydy = dB1_by_dX[:, 1, 1]
+        dBydz = dB1_by_dX[:, 2, 1]
+        dB1_by_dX_cyl = np.zeros_like(dB2_by_dX)
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        Bx = B1[:, 0]
+        By = B1[:, 1]
+        # Br = Bx cos(phi) + By sin(phi)
+        dB1_by_dX_cyl[:, 0, 0] = dBxdx * np.cos(phi) + Bx * dcosphidx + dBydx * np.sin(phi) \
+            + By * dsinphidx
+        dB1_by_dX_cyl[:, 1, 0] = dBxdy * np.cos(phi) + Bx * dcosphidy + dBydy * np.sin(phi) \
+            + By * dsinphidy
+        dB1_by_dX_cyl[:, 2, 0] = dBxdz * np.cos(phi) + dBydz * np.sin(phi)
+        # Bphi = - sin(phi) Bx + cos(phi) By
+        dB1_by_dX_cyl[:, 0, 1] = - dBxdx * np.sin(phi) - Bx * dsinphidx + dBydx * np.cos(phi) \
+            + By * dcosphidx
+        dB1_by_dX_cyl[:, 1, 1] = - dBxdy * np.sin(phi) - Bx * dsinphidy + dBydy * np.cos(phi) \
+            + By * dcosphidy
+        dB1_by_dX_cyl[:, 2, 1] = - dBxdz * np.sin(phi) + dBydz * np.cos(phi)
+        dB1_by_dX_cyl[:, :, 2] = dB1_by_dX[:, :, 2]
         # Verify
-        assert np.allclose(B1, B2)
-        assert np.allclose(dB1_by_dX, dB2_by_dX)
+        assert np.allclose(B1, B2_cart)
+        assert np.allclose(dB1_by_dX_cyl, dB2_by_dX)
+
+        # Check for divergence-free condition for dipole field
+        # Set up magnetic field scalar potential
+        PhiStr = "Z/(R*R + Z*Z)**(3/2)"
+        # Set up scalar potential B
+        Bscalar = ScalarPotentialRZMagneticField(PhiStr)
+        Bscalar.set_points(points)
+        dB1_by_dX = np.array(Bscalar.dB_by_dX())
+        divB = dB1_by_dX[:, 0, 0] + dB1_by_dX[:, 1, 1] + dB1_by_dX[:, 2, 2]
+        assert np.allclose(np.abs(divB), 0)
 
     def test_circularcoil_Bfield(self):
         current = 1.2e7
@@ -284,8 +331,8 @@ class Testing(unittest.TestCase):
         N_coils = 30
 
         N_turns = 3
-        a1 = 10 / 2 * 0.0254 
-        a2 = 19.983 / 2 * 0.0254 
+        a1 = 10 / 2 * 0.0254
+        a2 = 19.983 / 2 * 0.0254
         r_array = np.linspace(a1, a2, N_turns)
         I_amp = 433 * (33/N_turns)
 
@@ -420,16 +467,16 @@ class Testing(unittest.TestCase):
         x = points[:, 0]
         y = points[:, 1]
         z = points[:, 2]
-        Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+        Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) +
               0.06*x*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
-        By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                                0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+        By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                                0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) +
               0.06*y*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
-        Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                             0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
+        Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                             0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) -
               0.06*z*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/np.sqrt(x**2 + y**2)
         B2 = np.array(np.vstack((Bx, By, Bz)).T)
         assert np.allclose(B1, B2)
