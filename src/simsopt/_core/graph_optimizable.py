@@ -1189,6 +1189,34 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             return self
         return self.__add__(other)
 
+    def print_dag(self):
+        import networkx as nx
+        from networkx.drawing.nx_agraph import graphviz_layout
+        
+        G = nx.DiGraph(edge_layout='curved')
+        def traversal(root):
+            if root is None:
+                return
+            for p in root.parents:
+                n1 = root.name
+                n2 = p.name
+                G.add_edge(n1, n2)
+                traversal(p)
+        traversal(self)
+        
+        import matplotlib.pyplot as plt
+        options = {
+            'node_color': 'red',
+            'node_size': 100,
+            'width': 2,
+            'arrowstyle': '-|>',
+            'arrowsize': 12,
+            'font_size':5,
+        }
+        pos =graphviz_layout(G, prog='dot')
+        nx.draw_networkx(G, pos=pos, arrows=True, **options)
+        plt.show()
+
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
