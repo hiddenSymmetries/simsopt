@@ -405,6 +405,35 @@ class Testing(unittest.TestCase):
 
             assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
 
+    def test_biotsavart_vector_potential_coil_current_taylortest(self):
+        curve0 = get_curve()
+        c0 = 1e4
+        current0 = Current(c0)
+        curve1 = get_curve(perturb=True)
+        current1 = Current(1e3)
+        bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        A = bs.A()
+        J = bs.dA_by_dX()
+        H = bs.d2A_by_dXdX()
+        dA = bs.dA_by_dcoilcurrents()
+        dJ = bs.d2A_by_dXdcoilcurrents()
+        dH = bs.d3A_by_dXdXdcoilcurrents()
+
+        # the A field is linear in the current, so a small stepsize is not necessary
+        current0.x = [0]
+        A0 = bs.A()
+        J0 = bs.dA_by_dX()
+        H0 = bs.d2A_by_dXdX()
+        dA_approx = (A-A0)/(c0)
+        dJ_approx = (J-J0)/(c0)
+        dH_approx = (H-H0)/(c0)
+        assert np.linalg.norm(dA[0]-dA_approx) < 1e-15
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
+
 
 if __name__ == "__main__":
     unittest.main()
