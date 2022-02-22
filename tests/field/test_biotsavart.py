@@ -434,7 +434,6 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
 
-
 if __name__ == "__main__":
     unittest.main()
 
