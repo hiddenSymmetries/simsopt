@@ -1196,8 +1196,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         G = nx.DiGraph(edge_layout='curved')
         
         def traversal(root):
-            if root is None:
-                return
             for p in root.parents:
                 n1 = root.name
                 n2 = p.name
