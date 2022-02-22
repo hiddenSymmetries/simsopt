@@ -1213,7 +1213,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             'arrowsize': 12,
             'font_size':5,
         }
-        pos =graphviz_layout(G, prog='dot')
+        pos = graphviz_layout(G, prog='dot')
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
         plt.show()
 
