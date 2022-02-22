@@ -120,6 +120,7 @@ JF = Jf \
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
 
+JF.print_dag()
 
 def fun(dofs):
     JF.x = dofs
