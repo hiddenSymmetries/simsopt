@@ -1194,6 +1194,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         from networkx.drawing.nx_agraph import graphviz_layout
         
         G = nx.DiGraph(edge_layout='curved')
+        
         def traversal(root):
             if root is None:
                 return
@@ -1211,7 +1212,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             'width': 2,
             'arrowstyle': '-|>',
             'arrowsize': 12,
-            'font_size':5,
+            'font_size': 5,
         }
         pos = graphviz_layout(G, prog='dot')
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
