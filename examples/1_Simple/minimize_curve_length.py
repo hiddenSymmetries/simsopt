@@ -39,6 +39,7 @@ print('Initial curve length: ', obj.J())
 # A list of terms are combined to form a nonlinear-least-squares
 # problem.
 prob = LeastSquaresProblem.from_tuples([(obj.J, 0.0, 1.0)])
+prob.print_dag()
 
 # At the initial condition, get the Jacobian two ways: analytic
 # derivatives and finite differencing. The difference should be small.
