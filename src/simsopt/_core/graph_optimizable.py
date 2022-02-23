@@ -1193,7 +1193,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         import networkx as nx
         from networkx.drawing.nx_agraph import graphviz_layout
         
-        G = nx.DiGraph(edge_layout='curved')
+        G = nx.DiGraph()
         G.add_node(self.name) 
         def traversal(root):
             for p in root.parents:
