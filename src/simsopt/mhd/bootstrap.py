@@ -165,7 +165,9 @@ def compute_trapped_fraction(modB, sqrtg):
     return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
-def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, nfp, helicity_n):
+def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s=None, G=None, R=None, iota=None,
+                 epsilon=None, f_t=None, psi_edge=None, nfp=None,
+                 geom=None, plot=False):
     r"""
     Compute the bootstrap current (specifically
     :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
@@ -180,6 +182,16 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
     ``ne`` should have units of 1/m^3. ``Ti`` and ``Te`` should have
     units of eV.
 
+    Geometric data can be specified in one of two ways. In the first
+    approach, the arguments ``s``, ``G``, ``R``, ``iota``,
+    ``epsilon``, ``f_t``, ``psi_edge``, and ``nfp`` are specified,
+    while the argument ``geom`` is not. In the second approach, the
+    argument ``geom`` is set to an instance of either
+    :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`, and this object will
+    be used to set all the other geometric quantities. In this case,
+    the arguments ``s``, ``G``, ``R``, ``iota``, ``epsilon``, ``f_t``,
+    ``psi_edge``, and ``nfp`` should not be specified.
+
     The input variable ``s`` is a 1D array of values of normalized
     toroidal flux.  The input arrays ``G``, ``R``, ``iota``,
     ``epsilon``, and ``f_t``, should be 1d arrays evaluated on this
@@ -188,13 +200,16 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
     same set of flux surfaces.
 
     Args:
-        s: A 1D array of values of normalized toroidal flux.
         ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
         Te: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron temperature profile.
         Ti: A :obj:`~simsopt.mhd.profiles.Profile` object with the ion temperature profile.
         Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object with the profile of the average
             impurity charge :math:`Z_{eff}`. Or, a single number can be provided if this profile is constant.
             Or, if ``None``, Zeff = 1 will be used.
+        helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
+            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
+            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
+        s: A 1D array of values of normalized toroidal flux.
         G: A 1D array with the flux function multiplying :math:`\nabla\varphi` in the Boozer covariant representation,
             equivalent to :math:`R B_{toroidal}` in axisymmetry.
         R: A 1D array with the effective major radius to use when evaluating
@@ -206,9 +221,8 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
         psi_edge: The toroidal flux (in Webers) divided by (2pi) at the boundary s=1
         nfp: The number of field periods. Irrelevant for axisymmetry or quasi-axisymmetry;
             matters only if ``helicity_n`` is not 0.
-        helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
-            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
-            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
+        geom: Optional. An instance of either :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`.
+        plot: Whether to make a plot of many of the quantities computed.
 
     Returns:
         Tuple containing
@@ -218,6 +232,20 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
         - **details**: An object holding intermediate quantities from the computation
           (e.g. L31, L32, alpha) as attributes
     """
+    if geom is not None:
+        if (s is not None) or (G is not None) or (R is not None) \
+           or (iota is not None) or (epsilon is not None) or (psi_edge is not None) \
+           or (f_t is not None) or (nfp is not None):
+            raise ValueError('Geometry is being specified two ways. Pick one or the other.')
+        geom_data = geom()
+        s = geom_data.surfaces
+        G = geom_data.G
+        R = geom_data.R
+        iota = geom_data.iota
+        epsilon = geom_data.epsilon
+        psi_edge = geom_data.psi_edge
+        f_t = geom_data.f_t
+        nfp = geom_data.nfp
 
     helicity_N = nfp * helicity_n
     if Zeff is None:
@@ -323,7 +351,7 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
     details = Struct()
     nu_e_star = nu_e
     nu_i_star = nu_i
-    variables = ['ne_s', 'ni_s', 'Zeff_s', 'Te_s', 'Ti_s',
+    variables = ['s', 'ne_s', 'ni_s', 'Zeff_s', 'Te_s', 'Ti_s',
                  'd_ne_d_s', 'd_Te_d_s', 'd_Ti_d_s',
                  'ln_Lambda_e', 'ln_Lambda_ii', 'nu_e_star', 'nu_i_star',
                  'X31', 'X32e', 'X32ei', 'F32ee', 'F32ei',
@@ -332,61 +360,11 @@ def j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, n
     for v in variables:
         details.__setattr__(v, eval(v))
 
-    return jdotB, details
-
-
-def j_dot_B_Redl(geom_obj, ne, Te, Ti, Zeff, helicity_n, plot=False):
-    r"""
-    Compute the bootstrap current (specifically
-    :math:`\left<\vec{J}\cdot\vec{B}\right>`) using the formulae in
-    Redl et al, Physics of Plasmas 28, 022502 (2021).
-
-    The functions :func:`j_dot_B_Redl_fits` and :func:`j_dot_B_Redl`
-    differ slightly in their inputs.  The function
-    :func:`j_dot_B_Redl_fits` takes quantities like the effective
-    trapped fraction ``f_t`` as input. The function
-    :func:`j_dot_B_Redl` instead takes as input ``geom_obj``, an
-    object that evaluates geometry data for the "nearest
-    quasisymmetric configuration" to a given MHD equilibrium, in some
-    sense.
-
-    The profiles of ne, Te, Ti, and Zeff should all be instances of
-    subclasses of :obj:`simsopt.mhd.profiles.Profile`, i.e. they should
-    have ``__call__()`` and ``dfds()`` functions. If ``Zeff == None``, a
-    constant 1 is assumed. If ``Zeff`` is a float, a constant profile will
-    be assumed.
-
-    ``ne`` should have units of 1/m^3. ``Ti`` and ``Te`` should have
-    units of eV.
-
-    The input ``geom_obj`` is typically an instance of
-    :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`. This object must
-    evaluate the following geometric quantities: ``surfaces``, ``G``,
-    ``R``, ``iota``, ``epsilon``, ``f_t``, and ``psi_edge``.
-
-    Args:
-        geom_obj: An instance of either :obj:`RedlGeomVmec` or :obj:`RedlGeomBoozer`.
-        ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
-        Te: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron temperature profile.
-        Ti: A :obj:`~simsopt.mhd.profiles.Profile` object with the ion temperature profile.
-        Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object with the profile of the average
-            impurity charge :math:`Z_{eff}`. Or, a single number can be provided if this profile is constant.
-            Or, if ``None``, Zeff = 1 will be used.
-        helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
-            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
-            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
-        plot: Whether to make a plot of many of the quantities computed.
-    """
-    geom_data = geom_obj()
-    jdotB, details = j_dot_B_Redl_fits(geom_data.surfaces, ne, Te, Ti, Zeff,
-                                       geom_data.G, geom_data.R, geom_data.iota,
-                                       geom_data.epsilon, geom_data.f_t,
-                                       geom_data.psi_edge, geom_data.nfp, helicity_n)
-
-    # Copy geom_data into details:
-    for v in dir(geom_data):
-        if v[0] != '_':
-            details.__setattr__(v, eval("geom_data." + v))
+    if geom is not None:
+        # Copy geom_data into details:
+        for v in dir(geom_data):
+            if v[0] != '_':
+                details.__setattr__(v, eval("geom_data." + v))
 
     if plot:
         import matplotlib.pyplot as plt
@@ -403,7 +381,7 @@ def j_dot_B_Redl(geom_obj, ne, Te, Ti, Zeff, helicity_n, plot=False):
                      'L31', 'L32', 'alpha', 'jdotB']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
-            plt.plot(details.surfaces, eval("details." + variable))
+            plt.plot(details.s, eval("details." + variable))
             plt.title(variable)
             plt.xlabel('s')
         plt.tight_layout()
@@ -716,12 +694,12 @@ class VmecRedlBootstrapMismatch(Optimizable):
         function. The total scalar objective is approximately
         independent of the number of surfaces.
         """
-        jdotB_Redl, _ = j_dot_B_Redl(self.geom,
-                                     self.ne,
+        jdotB_Redl, _ = j_dot_B_Redl(self.ne,
                                      self.Te,
                                      self.Ti,
                                      self.Zeff,
-                                     self.helicity_n)
+                                     self.helicity_n,
+                                     geom=self.geom)
         # Interpolate vmec's <J dot B> profile from the full grid to the desired surfaces:
         vmec = self.geom.vmec
         interp = interp1d(vmec.s_full_grid, vmec.wout.jdotb)  # VMEC's "jdotb" is on the full grid.
