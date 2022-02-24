@@ -2,7 +2,7 @@ import unittest
 import logging
 import os
 import numpy as np
-from simsopt.mhd.bootstrap import compute_trapped_fraction, j_dot_B_Redl_fits, \
+from simsopt.mhd.bootstrap import compute_trapped_fraction, \
     j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
@@ -252,7 +252,7 @@ class BootstrapTests(unittest.TestCase):
         dTids_term = factors * (L31 * p / pe * (ni_s * d_Ti_d_s_J) / p + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J))
         jdotB_pass2 = -G * pe * (L31 * p / pe * (d_p_d_s / p) + L32 * (d_Te_d_s_J / Te_J) + L34 * alpha * (1 - Rpe) / Rpe * (d_Ti_d_s_J / Ti_J)) / (psi_edge * (iota - helicity_N))
 
-        jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota, epsilon, f_t, psi_edge, nfp, helicity_n)
+        jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s, G, R, iota, epsilon, f_t, psi_edge, nfp)
 
         atol = 1e-13
         rtol = 1e-13
@@ -311,8 +311,8 @@ class BootstrapTests(unittest.TestCase):
             iota = nu_e_without_iota / target_nu_e_star
             # End of determining the qR profile that gives the desired nu*.
 
-            jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
-                                               epsilon, f_t, psi_edge, nfp, helicity_n)
+            jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s, G, R, iota,
+                                          epsilon, f_t, psi_edge, nfp)
 
             if False:
                 # Make a plot, matching the axis ranges of Redl's
@@ -426,8 +426,8 @@ class BootstrapTests(unittest.TestCase):
                 iota = nu_e_without_iota / target_nu_e_star
                 # End of determining the qR profile that gives the desired nu*.
 
-                jdotB, details = j_dot_B_Redl_fits(s, ne, Te, Ti, Zeff, G, R, iota,
-                                                   epsilon, f_t, psi_edge, nfp, helicity_n)
+                jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s, G, R, iota,
+                                              epsilon, f_t, psi_edge, nfp)
 
                 L31s[j_nu_star, :] = details.L31
                 L32s[j_nu_star, :] = details.L32
@@ -639,7 +639,7 @@ class BootstrapTests(unittest.TestCase):
             else:
                 geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
+            jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, geom=geom, plot=False)
             jdotB_history.append(jdotB)
 
             # The relative error is a bit larger at s \approx 1, where the
@@ -706,7 +706,7 @@ class BootstrapTests(unittest.TestCase):
             else:
                 geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
+            jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, geom=geom, plot=False)
             jdotB_history.append(jdotB)
             np.testing.assert_allclose(jdotB[1:-1], jdotB_sfincs[1:-1], rtol=0.1)
 
@@ -758,7 +758,7 @@ class BootstrapTests(unittest.TestCase):
             else:
                 geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
 
-            jdotB, details = j_dot_B_Redl(geom, ne, Te, Ti, Zeff, helicity_n, plot=False)
+            jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, geom=geom, plot=False)
             jdotB_history.append(jdotB)
             np.testing.assert_allclose(jdotB, jdotB_sfincs, rtol=0.1)
 
