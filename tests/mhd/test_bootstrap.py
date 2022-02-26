@@ -636,10 +636,11 @@ class BootstrapTests(unittest.TestCase):
         for geom_method in range(2):
             if geom_method == 0:
                 geom = RedlGeomVmec(vmec, surfaces)
+                jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, geom=geom, plot=False)
             else:
                 geom = RedlGeomBoozer(boozer, surfaces, helicity_n)
+                jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, geom=geom, plot=False)
 
-            jdotB, details = j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, geom=geom, plot=False)
             jdotB_history.append(jdotB)
 
             # The relative error is a bit larger at s \approx 1, where the
