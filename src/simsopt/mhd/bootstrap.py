@@ -165,7 +165,7 @@ def compute_trapped_fraction(modB, sqrtg):
     return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
-def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s=None, G=None, R=None, iota=None,
+def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota=None,
                  epsilon=None, f_t=None, psi_edge=None, nfp=None,
                  geom=None, plot=False):
     r"""
@@ -198,6 +198,10 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s=None, G=None, R=None, iota=None
     same ``s`` grid. The bootstrap current
     :math:`\left<\vec{J}\cdot\vec{B}\right>` will be computed on this
     same set of flux surfaces.
+
+    If you provide a :obj:`RedlGeomBoozer` object for ``geom``, then
+    it is not necessary to specify the argument ``helicity_n`` here,
+    in which case ``helicity_n`` will be taken from ``geom``.
 
     Args:
         ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
@@ -246,6 +250,9 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n, s=None, G=None, R=None, iota=None
         psi_edge = geom_data.psi_edge
         f_t = geom_data.f_t
         nfp = geom_data.nfp
+
+    if helicity_n is None:
+        helicity_n = geom.helicity_n
 
     helicity_N = nfp * helicity_n
     if Zeff is None:
