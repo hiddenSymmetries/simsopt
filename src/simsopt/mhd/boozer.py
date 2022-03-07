@@ -243,10 +243,10 @@ class Quasisymmetry(Optimizable):
     Args:
         boozer: A Boozer object on which the calculation will be based.
         s: The normalized toroidal magnetic flux for the flux surface to analyze. Should be in the range [0, 1].
-        m: The poloidal mode number of the symmetry you want to achive.
-           The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
-        n: The toroidal mode number of the symmetry you want to achieve.
-           The departure from symmetry B(m * theta - nfp * n * zeta) will be reported.
+        helicity_m: The poloidal mode number of the symmetry you want to achive.
+           The departure from symmetry ``B(helicity_m * theta - nfp * helicity_n * zeta)`` will be reported.
+        helicity_n: The toroidal mode number of the symmetry you want to achieve.
+           The departure from symmetry ``B(helicity_m * theta - nfp * helicity_n * zeta)`` will be reported.
         normalization: A uniform normalization applied to all bmnc harmonics.
            If ``"B00"``, the symmetry-breaking modes will be divided by the m=n=0 mode amplitude
            on the same surface. If ``"symmetric"``, the symmetry-breaking modes will be
@@ -258,8 +258,8 @@ class Quasisymmetry(Optimizable):
     def __init__(self,
                  boozer: Boozer,
                  s: Union[float, Iterable[float]],
-                 m: int,
-                 n: int,
+                 helicity_m: int,
+                 helicity_n: int,
                  normalization: str = "B00",
                  weight: str = "even") -> None:
         """
@@ -267,8 +267,8 @@ class Quasisymmetry(Optimizable):
 
         """
         self.boozer = boozer
-        self.m = m
-        self.n = n
+        self.helicity_m = helicity_m
+        self.helicity_n = helicity_n
         self.normalization = normalization
         self.weight = weight
 
@@ -308,23 +308,23 @@ class Quasisymmetry(Optimizable):
             xm = self.boozer.bx.xm_b
             xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
 
-            if self.m != 0 and self.m != 1:
+            if self.helicity_m != 0 and self.helicity_m != 1:
                 raise ValueError("m for quasisymmetry should be 0 or 1.")
 
             # Find the indices of the symmetric modes:
-            if self.n == 0:
+            if self.helicity_n == 0:
                 # Quasi-axisymmetry
                 symmetric = (xn == 0)
 
-            elif self.m == 0:
+            elif self.helicity_m == 0:
                 # Quasi-poloidal symmetry
                 symmetric = (xm == 0)
 
             else:
                 # Quasi-helical symmetry
-                symmetric = (xm * self.n + xn * self.m == 0)
-                # Stellopt takes the "and" of this with mod(xm, self.m),
-                # which does not seem necessary since self.m must be 1 to
+                symmetric = (xm * self.helicity_n + xn * self.helicity_m == 0)
+                # Stellopt takes the "and" of this with mod(xm, self.helicity_m),
+                # which does not seem necessary since self.helicity_m must be 1 to
                 # get here.
             nonsymmetric = np.logical_not(symmetric)
 

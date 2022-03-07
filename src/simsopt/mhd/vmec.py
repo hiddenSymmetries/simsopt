@@ -13,6 +13,7 @@ from datetime import datetime
 
 import numpy as np
 from scipy.io import netcdf
+from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,11 @@ def to_namelist_bool(bool_in):
 
 
 def array_to_namelist(arr, aux_s=False):
+    """
+    This routine writes an array to a string, stopping after the last
+    nonzero or nonnegative entry.  This is used for writing the array
+    data in vmec input files.
+    """
     if aux_s:
         if np.all(arr < 0):
             index = 0
@@ -164,6 +170,60 @@ class Vmec(Optimizable):
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
+    To run VMEC, two input profiles must be specified: pressure and
+    either iota or toroidal current.  Each of these profiles can be
+    specified in several ways. One way is to specify the profile in
+    the input file used to initialize the ``Vmec`` object. For
+    instance, the pressure profile is determined by the variables
+    ``pmass_type``, ``am``, ``am_aux_s``, and ``am_aux_f``. You can
+    also modify these variables from python via the ``indata``
+    attribute, e.g. ``vmec.indata.am = [1.0e5, -1.0e5]``. Another
+    option is to assign a :obj:`simsopt.mhd.profiles.Profile` object
+    to the attributes ``pressure_profile``, ``current_profile``, or
+    ``iota_profile``. This approach allows for the profiles to be
+    optimized, and it allows you to use profile shapes defined in
+    python that are not available in the fortran VMEC code. To explain
+    this approach we focus here on the pressure profile; the iota and
+    current profiles are analogous. If the ``pressure_profile``
+    attribute of a ``Vmec`` object is ``None`` (the default), then a
+    simsopt :obj:`~simsopt.mhd.profiles.Profile` object is not used,
+    and instead the settings from ``Vmec.indata`` (initialized from
+    the input file) are used. If a
+    :obj:`~simsopt.mhd.profiles.Profile` object is assigned to the
+    ``pressure_profile`` attribute, then an :ref:`edge in the
+    dependency graph <dependecies>` is introduced, so the ``Vmec``
+    object then depends on the dofs of the
+    :obj:`~simsopt.mhd.profiles.Profile` object. Whenever VMEC is run,
+    the simsopt :obj:`~simsopt.mhd.profiles.Profile` is converted to
+    either a polynomial (power series) or cubic spline in the
+    normalized toroidal flux :math:`s`, depending on whether
+    ``indata.pmass_type`` is ``"power_series"`` or
+    ``"cubic_spline"``. (The current profile is different in that
+    either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
+    instead of ``"cubic_spline"``.) The number of terms in the power
+    series or number of spline nodes is determined by the attributes
+    ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
+    is used, the spline nodes are uniformly spaced from :math:`s=0` to
+    1. Note that the choice of whether a polynomial or spline is used
+    for the VMEC calculation is independent of the subclass of
+    :obj:`~simsopt.mhd.profiles.Profile` used. Also, whether the iota
+    or current profile is used is always determined by the
+    ``indata.ncurr`` attribute: 0 for iota, 1 for current. Example::
+
+        from sismopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfilePressure, ProfileScaled
+        from simsopt.util.constants import ELEMENTARY_CHARGE
+
+        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+        Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+        ni = ne
+        pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+        pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+        vmec = Vmec(filename)
+        vmec.pressure_profile = pressure_Pa
+        vmec.indata.pmass_type = "cubic_spline"
+        vmec.n_pressure = 8  # Use 8 spline nodes
+
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
     most recent iteration on worker group 0. If you wish to keep all
@@ -229,6 +289,13 @@ class Vmec(Optimizable):
             self.mpi = MpiPartition(ngroups=1)
         else:
             self.mpi = mpi
+
+        self._pressure_profile = None
+        self._current_profile = None
+        self._iota_profile = None
+        self.n_pressure = 10
+        self.n_current = 10
+        self.n_iota = 10
 
         if self.runnable:
             if MPI is None:
@@ -327,6 +394,51 @@ class Vmec(Optimizable):
             self.append_parent(boundary)
             self.need_to_run_code = True
 
+    @property
+    def pressure_profile(self):
+        return self._pressure_profile
+
+    @pressure_profile.setter
+    def pressure_profile(self, pressure_profile):
+        if not pressure_profile is self._pressure_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._pressure_profile is not None:
+                self.remove_parent(self._pressure_profile)
+            self._pressure_profile = pressure_profile
+            if pressure_profile is not None:
+                self.append_parent(pressure_profile)
+                self.need_to_run_code = True
+
+    @property
+    def current_profile(self):
+        return self._current_profile
+
+    @current_profile.setter
+    def current_profile(self, current_profile):
+        if not current_profile is self._current_profile:
+            logging.debug('Replacing current_profile in setter')
+            if self._current_profile is not None:
+                self.remove_parent(self._current_profile)
+            self._current_profile = current_profile
+            if current_profile is not None:
+                self.append_parent(current_profile)
+                self.need_to_run_code = True
+
+    @property
+    def iota_profile(self):
+        return self._iota_profile
+
+    @iota_profile.setter
+    def iota_profile(self, iota_profile):
+        if not iota_profile is self._iota_profile:
+            logging.debug('Replacing iota_profile in setter')
+            if self._iota_profile is not None:
+                self.remove_parent(self._iota_profile)
+            self._iota_profile = iota_profile
+            if iota_profile is not None:
+                self.append_parent(iota_profile)
+                self.need_to_run_code = True
+
     def get_dofs(self):
         if not self.runnable:
             # Use default values from vmec_input
@@ -347,6 +459,46 @@ class Vmec(Optimizable):
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
+
+    def set_profile(self, longname, shortname, letter):
+        """
+        This function is used to set the pressure, current, and/or iota
+        profiles.
+        """
+        profile = self.__getattribute__(longname + "_profile")
+        if profile is None:
+            return
+
+        n = self.__getattribute__("n_" + longname)
+        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type").lower()
+        if vmec_profile_type[:12] == b'power_series':
+            # Evaluate the new Profile on a Gauss-Legendre grid in s,
+            # so the polynomial fit is well conditioned.
+            nodes, weights = np.polynomial.legendre.leggauss(n)
+            x = nodes * 0.5 + 0.5  # So x is in (0, 1)
+            y = profile(x)
+            poly = np.polynomial.polynomial.Polynomial.fit(x, y, n - 1, domain=[0, 1]).convert().coef
+            logger.debug('Setting vmec ' + longname + f' profile using power series.  x: {x}  y: {y}  poly: {poly}')
+            ax = self.indata.__getattribute__("a" + letter)
+            ax[:] = 0.0
+            ax[:n] = poly
+
+        elif vmec_profile_type[:12] == b'cubic_spline' \
+                or vmec_profile_type[:12] == b'akima_spline' \
+                or vmec_profile_type[:12] == b'line_segment':
+            x = np.linspace(0, 1, n)
+            y = profile(x)
+            logger.debug('Setting vmec ' + longname + f' profile using splines. x: {x}  y: {y}')
+            aux_s = self.indata.__getattribute__("a" + letter + "_aux_s")
+            aux_f = self.indata.__getattribute__("a" + letter + "_aux_f")
+            aux_s[:] = 0.0
+            aux_f[:] = 0.0
+            aux_s[:n] = x
+            aux_f[:n] = y
+
+        else:
+            raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series, '
+                               'cubic_spline, akima_spline, or line_segment. For current profiles, _i or _ip can be appended.')
 
     def set_indata(self):
         """
@@ -387,6 +539,16 @@ class Vmec(Optimizable):
         vi.raxis_cs[:] = 0
         vi.zaxis_cc[:] = 0
         vi.zaxis_cs[:] = 0
+
+        # Set profiles, if they are not None:
+        self.set_profile("pressure", "mass", "m")
+        self.set_profile("current", "curr", "c")
+        self.set_profile("iota", "iota", "i")
+        if self.pressure_profile is not None:
+            vi.pres_scale = 1.0
+        if self.current_profile is not None:
+            integral, _ = quad(self.current_profile, 0, 1)
+            vi.curtor = integral
 
         return boundary_RZFourier
 
@@ -616,6 +778,20 @@ class Vmec(Optimizable):
         self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
 
         return ierr
+
+    def update_mpi(self, new_mpi):
+        """
+        Replace the :obj:`~simsopt.util.mpi.MpiPartition` with a new one.
+
+        Args:
+            new_mpi: A new :obj:`simsopt.util.mpi.MpiPartition` object.
+        """
+        self.mpi = new_mpi
+        self.fcomm = self.mpi.comm_groups.py2f()
+        # Synchronize iteration counters. If we don't do this,
+        # different procs within a group may have different values of
+        # ``iter``, causing them to look for different wout files.
+        self.iter = self.mpi.comm_world.bcast(self.iter)
 
     def aspect(self):
         """
