@@ -9,7 +9,7 @@ from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.geo.surface import signed_distance_from_surface
+from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled
 from simsopt.geo.curverzfourier import CurveRZFourier
 from .surface_test_helpers import get_surface
 
@@ -242,6 +242,51 @@ class SurfaceDistanceTests(unittest.TestCase):
         s.fit_to_curve(c, 0.2, flip_theta=False)
         d = signed_distance_from_surface(xyz, s)
         assert np.allclose(d, [-0.8, 0.2, -0.8])
+
+
+class SurfaceScaledTests(unittest.TestCase):
+    def test_surface_scaled(self):
+        mpol = 3
+        ntor = 2
+        nfp = 4
+        surf1 = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp)
+        ndofs = surf1.dof_size
+        surf1.x = np.random.rand(ndofs)
+
+        scale_factors = 0.1 ** np.sqrt(surf1.m ** 2 + surf1.n ** 2)
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+
+        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+
+        surf_scaled.x = np.random.rand(ndofs)
+        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+
+        self.assertEqual(surf_scaled.to_RZFourier(), surf1)
+
+    def test_names(self):
+        """
+        The dof names should be the same for the SurfaceScaled as for the
+        original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        self.assertEqual(surf1.local_full_dof_names, surf_scaled.local_full_dof_names)
+
+    def test_fixed(self):
+        """
+        Verify that the fixed/free property for a SurfaceScaled can be
+        matched to the original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        surf1.fix_all()
+        surf1.fixed_range(mmin=0, mmax=1,
+                          nmin=-2, nmax=3, fixed=False)
+        surf1.fix("rc(0,0)")  # Major radius
+        surf_scaled.update_fixed()
+        np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
 
 
 if __name__ == "__main__":

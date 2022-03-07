@@ -76,6 +76,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
+        self._make_mn()
 
     def get_dofs(self):
         """
@@ -88,11 +89,18 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def _make_names(self):
         """
-        Form a list of names of the `rc`, `zs`, `rs`, or `zc` array elements.
+        Form a list of names of the ``rc``, ``zs``, ``rs``, or ``zc``
+        array elements.  The order of these four arrays here must
+        match the order in ``set_dofs_impl()`` and ``get_dofs()`` in
+        ``src/simsoptpp/surfacerzfourier.h``.
         """
-        names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
-        if not self.stellsym:
-            names += self._make_names_helper('rs', False) + self._make_names_helper('zc', True)
+        if self.stellsym:
+            names = self._make_names_helper('rc', True) + self._make_names_helper('zs', False)
+        else:
+            names = self._make_names_helper('rc', True) \
+                + self._make_names_helper('rs', False) \
+                + self._make_names_helper('zc', True) \
+                + self._make_names_helper('zs', False)
         return names
 
     def _make_names_helper(self, prefix, include0):
@@ -105,6 +113,23 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         for m in range(1, self.mpol + 1):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
+
+    def _make_mn(self):
+        """
+        Make the list of m and n values.
+        """
+        m1d = np.arange(self.mpol + 1)
+        n1d = np.arange(-self.ntor, self.ntor + 1)
+        n2d, m2d = np.meshgrid(n1d, m1d)
+        m0 = m2d.flatten()[self.ntor:]
+        n0 = n2d.flatten()[self.ntor:]
+        m = np.concatenate((m0, m0[1:]))
+        n = np.concatenate((n0, n0[1:]))
+        if not self.stellsym:
+            m = np.concatenate((m, m))
+            n = np.concatenate((n, n))
+        self.m = m
+        self.n = n
 
     @classmethod
     def from_wout(cls,
@@ -362,6 +387,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not self.stellsym:
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
+        self._make_mn()
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
