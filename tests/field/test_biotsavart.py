@@ -417,8 +417,13 @@ class Testing(unittest.TestCase):
         A = bs.A()
         J = bs.dA_by_dX()
         H = bs.d2A_by_dXdX()
+        
+        #trigger recompute bell for code coverage of field cache
+        bs.recompute_bell()
         dA = bs.dA_by_dcoilcurrents()
+        bs.recompute_bell()
         dJ = bs.d2A_by_dXdcoilcurrents()
+        bs.recompute_bell()
         dH = bs.d3A_by_dXdXdcoilcurrents()
 
         # the A field is linear in the current, so a small stepsize is not necessary
