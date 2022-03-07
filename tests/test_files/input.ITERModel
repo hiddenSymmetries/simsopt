@@ -5,15 +5,18 @@
   DELT =  0.9
   TCON0 =  2.
   NFP =  1
-  MPOL =  8
+  MPOL =  12
   NTOR =  0
   NITER = 1000
+  
+  NS_ARRAY    =     13     25     51
+  FTOL_ARRAY  =  1e-20  1e-20  1e-20
+  NITER_ARRAY =   1000   1500   2000
+  
 !  NS_ARRAY    =     13     25     51    101    150    201
 !  FTOL_ARRAY  =  1e-20  1e-20  1e-20  1e-20  1e-20  1e-18
 !  NITER_ARRAY =   1000   1500   2000   2500   3000  30000
-  NS_ARRAY    =     17
-  FTOL_ARRAY  =  1e-20
-  NITER_ARRAY =   3000
+
   NSTEP =  200
   NVACSKIP =  3
   GAMMA =   0.00000000E+00

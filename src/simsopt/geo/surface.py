@@ -604,3 +604,31 @@ class SurfaceClassifier():
         self.dist.evaluate_batch(RPhiZ, vals)
         vals = vals.reshape(R.shape)
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
+
+
+class SurfaceScaled(Optimizable):
+    """
+    Allows you to take any Surface class and scale the dofs. This is
+    useful for stage-1 optimization.
+    """
+
+    def __init__(self, surf, scale_factors):
+        self.surf = surf
+        self.scale_factors = scale_factors
+        super().__init__(x0=surf.x / scale_factors, names=surf.local_dof_names)
+
+    def recompute_bell(self, parent=None):
+        self.surf.local_full_x = self.local_full_x * self.scale_factors
+
+    def to_RZFourier(self):
+        return self.surf.to_RZFourier()
+
+    def update_fixed(self):
+        """
+        Copy the fixed status from self.surf to self.
+        """
+        for j, is_free in enumerate(self.surf.local_dofs_free_status):
+            if is_free:
+                self.unfix(j)
+            else:
+                self.fix(j)
