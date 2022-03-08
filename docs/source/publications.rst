@@ -43,7 +43,14 @@ Here is a list of publications in which simsopt results appear:
    |
    
 #. | M Landreman and E Paul,
-     "Magnetic fields with precise quasisymmetry",
-     *Submitted*, (2021).
+     "Magnetic fields with precise quasisymmetry for plasma confinement",
+     *Physical Review Letters* **128**, 035001 (2022).
+     `[journal version] <https://doi.org/10.1103/PhysRevLett.128.035001>`__
      `[arXiv version] <https://arxiv.org/pdf/2108.03711>`__
+   |
+
+#. | A Baillod, J Loizu, J P Graves, and M Landreman,
+     "Stellarator optimization for good magnetic surfaces at finite β and toroidal current",
+     *Submitted*, (2021).
+     `[arXiv version] <https://arxiv.org/pdf/2111.15564>`__
    |

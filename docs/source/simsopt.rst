@@ -14,6 +14,7 @@ Subpackages
    simsopt.objectives
    simsopt.solve
    simsopt.util
+   simsoptpp
 
 Module contents
 ---------------
@@ -22,4 +23,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:

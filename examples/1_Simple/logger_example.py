@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from simsopt import initialize_logging
+from simsopt.util.log import initialize_logging
 
 """
 Example file for transparently logging both MPI and serial jobs
@@ -20,6 +20,7 @@ try:
     comm = MPI.COMM_WORLD
 except:
     comm = None
+    print("MPI not found")
 
 if comm is not None:
     initialize_logging(mpi=True, filename='mpi.log')

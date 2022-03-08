@@ -4,6 +4,14 @@ simsopt.mhd package
 Submodules
 ----------
 
+simsopt.mhd.bootstrap module
+----------------------------
+
+.. automodule:: simsopt.mhd.bootstrap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.boozer module
 -------------------------
 
@@ -11,7 +19,14 @@ simsopt.mhd.boozer module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
+
+simsopt.mhd.profiles module
+---------------------------
+
+.. automodule:: simsopt.mhd.profiles
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 simsopt.mhd.spec module
 -----------------------
@@ -20,7 +35,6 @@ simsopt.mhd.spec module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 simsopt.mhd.vmec module
 -----------------------
@@ -29,16 +43,14 @@ simsopt.mhd.vmec module
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
-simsopt.mhd.vmec_diagnostics module
------------------------------------
+simsopt.mhd.vmec\_diagnostics module
+------------------------------------
 
 .. automodule:: simsopt.mhd.vmec_diagnostics
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
 
 Module contents
 ---------------
@@ -47,4 +59,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:

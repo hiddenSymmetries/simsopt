@@ -245,15 +245,47 @@ class ScalarPotentialRZMagneticField(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        B[:] = np.array(self.Blambdify(r, z, phi)).T
+        B_cyl = np.array(self.Blambdify(r, z, phi)).T
+        # Bx = Br cos(phi) - Bphi sin(phi)
+        B[:, 0] = B_cyl[:, 0] * np.cos(phi) - B_cyl[:, 1] * np.sin(phi)
+        # By = Br sin(phi) + Bphi cos(phi)
+        B[:, 1] = B_cyl[:, 0] * np.sin(phi) + B_cyl[:, 1] * np.cos(phi)
+        B[:, 2] = B_cyl[:, 2]
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
-        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        dB[:] = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
+        dB_cyl = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
+        dBrdx = dB_cyl[:, 0, 0]
+        dBrdy = dB_cyl[:, 1, 0]
+        dBrdz = dB_cyl[:, 2, 0]
+        dBphidx = dB_cyl[:, 0, 1]
+        dBphidy = dB_cyl[:, 1, 1]
+        dBphidz = dB_cyl[:, 2, 1]
+        dB[:, 0, 2] = dB_cyl[:, 0, 2]
+        dB[:, 1, 2] = dB_cyl[:, 1, 2]
+        dB[:, 2, 2] = dB_cyl[:, 2, 2]
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        B_cyl = np.array(self.Blambdify(r, z, phi)).T
+        Br = B_cyl[:, 0]
+        Bphi = B_cyl[:, 1]
+        # Bx = Br cos(phi) - Bphi sin(phi)
+        dB[:, 0, 0] = dBrdx * np.cos(phi) + Br * dcosphidx - dBphidx * np.sin(phi) \
+            - Bphi * dsinphidx
+        dB[:, 1, 0] = dBrdy * np.cos(phi) + Br * dcosphidy - dBphidy * np.sin(phi) \
+            - Bphi * dsinphidy
+        dB[:, 2, 0] = dBrdz * np.cos(phi) - dBphidz * np.sin(phi)
+        # By = Br sin(phi) + Bphi cos(phi)
+        dB[:, 0, 1] = dBrdx * np.sin(phi) + Br * dsinphidx + dBphidx * np.cos(phi) \
+            + Bphi * dcosphidx
+        dB[:, 1, 1] = dBrdy * np.sin(phi) + Br * dsinphidy + dBphidy * np.cos(phi) \
+            + Bphi * dcosphidy
+        dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
 
 
 class CircularCoil(MagneticField):
@@ -292,13 +324,13 @@ class CircularCoil(MagneticField):
 
         self.rotMatrix = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
-             -np.sin(phi / 2)**2 * np.sin(2 * theta), 
+             -np.sin(phi / 2)**2 * np.sin(2 * theta),
              np.cos(theta) * np.sin(phi)],
-            [-np.sin(phi / 2)**2 * np.sin(2 * theta), 
-             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2, 
+            [-np.sin(phi / 2)**2 * np.sin(2 * theta),
+             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
              np.sin(phi) * np.sin(theta)],
             [-np.cos(theta) * np.sin(phi),
-             -np.sin(phi) * np.sin(theta), 
+             -np.sin(phi) * np.sin(theta),
              np.cos(phi)]
         ])
 
