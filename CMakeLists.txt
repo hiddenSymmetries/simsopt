@@ -92,8 +92,9 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
     src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp
     src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
-    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
-    src/simsoptpp/magneticfield_biotsavart.cpp
+    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
+    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
+    src/simsoptpp/boozerradialinterpolant.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

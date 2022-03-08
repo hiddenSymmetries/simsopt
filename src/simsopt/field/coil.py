@@ -25,6 +25,15 @@ class Coil(sopp.Coil, Optimizable):
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)
 
+    def plot(self, **kwargs):
+        """
+        Plot the coil's curve. This method is just shorthand for calling
+        the :obj:`~simsopt.geo.curve.Curve.plot()` function on the
+        underlying Curve. All arguments are passed to
+        :obj:`simsopt.geo.curve.Curve.plot()`
+        """
+        return self.curve.plot(**kwargs)
+
 
 class Current(sopp.Current, Optimizable):
     """

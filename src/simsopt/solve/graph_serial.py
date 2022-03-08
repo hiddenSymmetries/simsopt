@@ -36,17 +36,17 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     Args:
         prob: LeastSquaresProblem object defining the objective function(s)
-              and parameter space.
+             and parameter space.
         grad: Whether to use a gradient-based optimization algorithm, as
-              opposed to a gradient-free algorithm. If unspecified, a
-              a gradient-free algorithm
-              will be used by default. If you set ``grad=True`` for a problem,
-              finite-difference gradients will be used.
+             opposed to a gradient-free algorithm. If unspecified, a
+             a gradient-free algorithm
+             will be used by default. If you set ``grad=True`` for a problem,
+             finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
-        diff_method: Differentiation strategy. Options are "centered", and
-            "forward". If ``centered``, centered finite differences will
-             be used. If ``forward``, one-sided finite differences will
+        diff_method: Differentiation strategy. Options are ``"centered"``, and
+             ``"forward"``. If ``"centered"``, centered finite differences will
+             be used. If ``"forward"``, one-sided finite differences will
              be used. Else, error is raised.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
@@ -167,21 +167,21 @@ def serial_solve(prob: Union[Optimizable, Callable],
     least-squares form) using scipy.optimize.minimize, and without using any
     parallelization.
 
-    Args
+    Args:
         prob: Optimizable object defining the objective function(s)
-              and parameter space.
+             and parameter space.
         grad: Whether to use a gradient-based optimization algorithm, as
-              opposed to a gradient-free algorithm. If unspecified, a
-              gradient-based algorithm will be used if ``prob`` has gradient
-              information available, otherwise a gradient-free algorithm
-              will be used by default. If you set ``grad=True``
-              in which gradient information is not available,
-              finite-difference gradients will be used.
+             opposed to a gradient-free algorithm. If unspecified, a
+             gradient-based algorithm will be used if ``prob`` has gradient
+             information available, otherwise a gradient-free algorithm
+             will be used by default. If you set ``grad=True``
+             in which gradient information is not available,
+             finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
-        diff_method: Differentiation strategy. Options are "centered", and
-            "forward". If ``centered``, centered finite differences will
-             be used. If ``forward``, one-sided finite differences will
+        diff_method: Differentiation strategy. Options are ``"centered"``, and
+             ``"forward"``. If ``"centered"``, centered finite differences will
+             be used. If ``"forward"``, one-sided finite differences will
              be used. Else, error is raised.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.

@@ -18,7 +18,7 @@ class QfmSurface():
 
     The label constraint can be enforced with a penalty formulation, defined
     in :func:`qfm_penalty_constraints()`, and whose minimium is computed with
-    LBFGS-B by :func:`minimize_qfm_penalty_constraints_LBFGS()'.
+    LBFGS-B by :func:`minimize_qfm_penalty_constraints_LBFGS()`.
 
     Alternatively, the label constraint can be enforced with a constrained
     optimization algorithm. This constrained optimization problem is

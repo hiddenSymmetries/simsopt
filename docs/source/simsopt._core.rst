@@ -22,6 +22,15 @@ simsopt.\_core.dofs module
    :show-inheritance:
    :private-members:
 
+simsopt.\_core.finite_difference module
+---------------------------------------
+
+.. automodule:: simsopt._core.finite_difference
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.\_core.graph\_optimizable module
 ----------------------------------------
 
