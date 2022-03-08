@@ -51,6 +51,7 @@ class Curve {
         map<string, CachedArray<Array>> cache_persistent;
 
 
+    protected:
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
@@ -158,17 +159,17 @@ class Curve {
             return check_the_cache("gammadashdashdash", {numquadpoints, 3}, [this](Array& A) { return gammadashdashdash_impl(A);});
         }
 
-        Array& dgamma_by_dcoeff() {
-            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+        virtual Array& dgamma_by_dcoeff() {
+            return check_the_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
         }
-        Array& dgammadash_by_dcoeff() {
-            return check_the_persistent_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
+        virtual Array& dgammadash_by_dcoeff() {
+            return check_the_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
         }
-        Array& dgammadashdash_by_dcoeff() {
-            return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
+        virtual Array& dgammadashdash_by_dcoeff() {
+            return check_the_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
         }
-        Array& dgammadashdashdash_by_dcoeff() {
-            return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
+        virtual Array& dgammadashdashdash_by_dcoeff() {
+            return check_the_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
         virtual Array dgamma_by_dcoeff_vjp_impl(Array& v) {

@@ -633,7 +633,7 @@ class RotatedCurve(sopp.Curve, Curve):
                 [[1, 0, 0],
                  [0, -1, 0],
                  [0, 0, -1]])
-        self.rotmatT = self.rotmat.T
+        self.rotmatT = self.rotmat.T.copy()
 
     def get_dofs(self):
         """
@@ -758,8 +758,8 @@ class RotatedCurve(sopp.Curve, Curve):
         coordinates of the curve.
 
         """
-
-        return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgamma_by_dcoeff_vjp(v)
 
     def dgammadash_by_dcoeff_vjp(self, v):
         r"""
@@ -772,8 +772,8 @@ class RotatedCurve(sopp.Curve, Curve):
         coordinates of the curve.
 
         """
-
-        return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadash_by_dcoeff_vjp(v)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -787,7 +787,8 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v)
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         r"""
@@ -801,16 +802,37 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v @ self.rotmatT)
+        v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
 
-def curves_to_vtk(curves, filename):
+def curves_to_vtk(curves, filename, close=False):
+    """
+    Export a list of Curve objects in VTK format, so they can be
+    viewed using Paraview. This function requires the python package ``pyevtk``,
+    which can be installed using ``pip install pyevtk``.
+
+    Args:
+        curves: A python list of Curve objects.
+        filename: Name of the file to write.
+        close: Whether to draw the segment from the last quadrature point back to the first.
+    """
     from pyevtk.hl import polyLinesToVTK
-    x = np.concatenate([c.gamma()[:, 0] for c in curves])
-    y = np.concatenate([c.gamma()[:, 1] for c in curves])
-    z = np.concatenate([c.gamma()[:, 2] for c in curves])
-    ppl = np.asarray([c.gamma().shape[0] for c in curves])
-    data = np.concatenate([i*np.ones((curves[i].gamma().shape[0], )) for i in range(len(curves))])
+
+    def wrap(data):
+        return np.concatenate([data, [data[0]]])
+
+    if close:
+        x = np.concatenate([wrap(c.gamma()[:, 0]) for c in curves])
+        y = np.concatenate([wrap(c.gamma()[:, 1]) for c in curves])
+        z = np.concatenate([wrap(c.gamma()[:, 2]) for c in curves])
+        ppl = np.asarray([c.gamma().shape[0]+1 for c in curves])
+    else:
+        x = np.concatenate([c.gamma()[:, 0] for c in curves])
+        y = np.concatenate([c.gamma()[:, 1] for c in curves])
+        z = np.concatenate([c.gamma()[:, 2] for c in curves])
+        ppl = np.asarray([c.gamma().shape[0] for c in curves])
+    data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
 
@@ -838,12 +860,11 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     for i in range(ncurves):
         curve = CurveXYZFourier(numquadpoints, order)
         angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
-        d = curve.x
-        d[0] = cos(angle)*R0
-        d[1] = cos(angle)*R1
-        d[1*(2*order+1)+0] = sin(angle)*R0
-        d[1*(2*order+1)+1] = sin(angle)*R1
-        d[2*(2*order+1)+2] = R1
-        curve.x = d
+        curve.set("xc(0)", cos(angle)*R0)
+        curve.set("xc(1)", cos(angle)*R1)
+        curve.set("yc(0)", sin(angle)*R0)
+        curve.set("yc(1)", sin(angle)*R1)
+        curve.set("zs(1)", R1)
+        curve.x = curve.x  # need to do this to transfer data to C++
         curves.append(curve)
     return curves

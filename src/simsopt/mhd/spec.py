@@ -19,37 +19,35 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None 
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
-    import spec.spec as spec
+    import spec.spec_f90wrapped as spec
 except ImportError as e:
     spec = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import py_spec
 except ImportError as e:
     py_spec = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import pyoculus
 except ImportError as e:
     pyoculus = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 from .._core.graph_optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
-from ..util.dev import SimsoptRequires
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
 
 
-@SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running SPEC")
 class Spec(Optimizable):
     """
     This class represents the SPEC equilibrium code.

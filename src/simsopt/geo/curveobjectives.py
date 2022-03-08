@@ -1,10 +1,10 @@
 import numpy as np
-from jax import grad, vjp
+from jax import grad
 import jax.numpy as jnp
 from .jit import jit
 
 from .._core.graph_optimizable import Optimizable
-from .._core.derivative import Derivative, derivative_dec
+from .._core.derivative import derivative_dec
 
 
 @jit
@@ -40,6 +40,7 @@ class CurveLength(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
+
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
@@ -60,24 +61,16 @@ class LpCurveCurvature(Optimizable):
     This class computes a penalty term based on the :math:`L_p` norm
     of the curve's curvature, and penalizes where the local curve curvature exceeds a threshold
 
-
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \text{max}(\kappa - \kappa_0, 0)^p ~dl
 
-    where :math:`\kappa_0` is a threshold curvature.  When ``desired_length`` is
-    provided, :math:`\kappa_0 = 2 \pi / \text{desired_length}`, otherwise :math:`\kappa_0=0`.
+    where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
 
-    def __init__(self, curve, p, desired_length=None):
+    def __init__(self, curve, p, threshold=0.):
         self.curve = curve
         super().__init__(depends_on=[curve])
-        if desired_length is None:
-            self.desired_kappa = 0
-        else:
-            radius = desired_length/(2*np.pi)
-            self.desired_kappa = 1/radius
-
-        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, self.desired_kappa))
+        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
@@ -100,12 +93,12 @@ class LpCurveCurvature(Optimizable):
 
 
 @jit
-def Lp_torsion_pure(torsion, gammadash, p):
+def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
     This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
-    return (1./p)*jnp.mean(jnp.abs(torsion)**p * arc_length)
+    return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
 
 
 class LpCurveTorsion(Optimizable):
@@ -113,16 +106,14 @@ class LpCurveTorsion(Optimizable):
     LpCurveTorsion is a class that computes a penalty term based on the :math:`L_p` norm
     of the curve's torsion:
 
-
     .. math::
-        J = \frac{1}{p} \int_{\text{curve}} \tau^p ~dl.
+        J = \frac{1}{p} \int_{\text{curve}} \max(|\tau|-\tau_0, 0)^p ~dl.
 
     """
 
-    def __init__(self, curve, p):
+    def __init__(self, curve, p, threshold=0.):
         self.curve = curve
-
-        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p))
+        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
         super().__init__(depends_on=[curve])
@@ -150,7 +141,7 @@ def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     This function is used in a Python+Jax implementation of the distance formula.
     """
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
-    alen = jnp.linalg.norm(l1, axis=1) * jnp.linalg.norm(l2, axis=1)
+    alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
 
 
@@ -181,18 +172,39 @@ class MinimumDistance(Optimizable):
         self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
+        self.trees = None
         super().__init__(depends_on=curves)
 
     def recompute_bell(self, parent=None):
-        from scipy.spatial import KDTree
-        self.trees = []
+        self.trees = None
+
+    def compute_trees(self):
+        if self.trees is None:
+            from scipy.spatial import KDTree
+            self.trees = []
+            for i in range(len(self.curves)):
+                self.trees.append(KDTree(self.curves[i].gamma()))
+
+    def shortest_distance(self):
+        self.compute_trees()
+        dist = 1e10
         for i in range(len(self.curves)):
-            self.trees.append(KDTree(self.curves[i].gamma()))
+            tree1 = self.trees[i]
+            for j in range(i):
+                tree2 = self.trees[j]
+                dists = tree1.sparse_distance_matrix(tree2, dist)
+                if len(dists) == 0:
+                    continue
+                gamma2 = self.curves[j].gamma()
+                dists, _ = tree1.query(gamma2, k=1)
+                dist = min(dist, np.min(dists))
+        return dist
 
     def J(self):
         """
         This returns the value of the quantity.
         """
+        self.compute_trees()
         res = 0
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
@@ -216,6 +228,7 @@ class MinimumDistance(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
+        self.compute_trees()
         dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
         dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
         for i in range(len(self.curves)):
@@ -241,3 +254,119 @@ class MinimumDistance(Optimizable):
         return sum(res)
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
+
+@jit
+def curve_arclengthvariation_pure(l, mat):
+    """
+    This function is used in a Python+Jax implementation of the curve arclength variation.
+    """
+    return jnp.var(mat @ l)
+
+
+class ArclengthVariation(Optimizable):
+
+    def __init__(self, curve, nintervals="full"):
+        r"""
+        This class penalizes variation of the arclength along a curve.
+        The idea of this class is to avoid ill-posedness of curve objectives due to
+        non-uniqueness of the underlying parametrization. Essentially we want to
+        achieve constant arclength along the curve. Since we can not expect
+        perfectly constant arclength along the entire curve, this class has
+        some support to relax this notion. Consider a partition of the :math:`[0, 1]`
+        interval into intervals :math:`\{I_i\}_{i=1}^L`, and tenote the average incremental arclength
+        on interval :math:`I_i` by :math:`\ell_i`. This objective then penalises the variance
+
+        .. math::
+            J = \mathrm{Var}(\ell_i)
+
+        it remains to choose the number of intervals :math:`L` that :math:`[0, 1]` is split into.
+        If ``nintervals="full"``, then the number of intervals :math:`L` is equal to the number of quadrature
+        points of the curve. If ``nintervals="partial"``, then the argument is as follows:
+
+        A curve in 3d space is defined uniquely by an initial point, an initial
+        direction, and the arclength, curvature, and torsion along the curve. For a
+        :mod:`simsopt.geo.curvexyzfourier.CurveXYZFourier`, the intuition is now as
+        follows: assuming that the curve has order :math:`p`, that means we have
+        :math:`3*(2p+1)` degrees of freedom in total. Assuming that three each are
+        required for both the initial position and direction, :math:`6p-3` are left
+        over for curvature, torsion, and arclength. We want to fix the arclength,
+        so we can afford :math:`2p-1` constraints, which corresponds to
+        :math:`L=2p`.
+
+        Finally, the user can also provide an integer value for `nintervals`
+        and thus specify the number of intervals directly.
+        """
+        super().__init__(depends_on=[curve])
+        assert nintervals in ["full", "partial"] \
+            or (isinstance(nintervals, int) and 0 < nintervals <= curve.gamma().shape[0])
+        self.curve = curve
+        nquadpoints = len(curve.quadpoints)
+        if nintervals == "full":
+            nintervals = curve.gamma().shape[0]
+        elif nintervals == "partial":
+            from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+            if isinstance(curve, CurveXYZFourier) or isinstance(curve, JaxCurveXYZFourier):
+                nintervals = 2*curve.order
+            else:
+                raise RuntimeError("Please provide a value other than `partial` for `nintervals`. We only have a default for `CurveXYZFourier` and `JaxCurveXYZFourier`.")
+        else:
+            self.nintervals = nintervals
+        indices = np.floor(np.linspace(0, nquadpoints, nintervals+1, endpoint=True)).astype(int)
+        mat = np.zeros((nintervals, nquadpoints))
+        for i in range(nintervals):
+            mat[i, indices[i]:indices[i+1]] = 1/(indices[i+1]-indices[i])
+        self.mat = mat
+        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
+
+    def J(self):
+        return float(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
+
+    @derivative_dec
+    def dJ(self):
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        return self.curve.dincremental_arclength_by_dcoeff_vjp(
+            self.thisgrad(self.curve.incremental_arclength()))
+
+    return_fn_map = {'J': J, 'dJ': dJ}
+
+
+@jit
+def curve_msc_pure(kappa, gammadash):
+    """
+    This function is used in a Python+Jax implementation of the mean squared curvature objective.
+    """
+    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    return jnp.mean(kappa**2 * arc_length)/jnp.mean(arc_length)
+
+
+class MeanSquaredCurvature(Optimizable):
+
+    def __init__(self, curve):
+        r"""
+        Compute the mean of the squared curvature of a curve.
+
+        .. math::
+            J = (1/L) \int_{\text{curve}} \kappa^2 ~dl
+
+        where :math:`L` is the curve length, :math:`\ell` is the incremental
+        arclength, and :math:`\kappa` is the curvature.
+
+        Args:
+            curve: the curve of which the curvature should be computed.
+        """
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve])
+        self.curve = curve
+        self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
+        self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
+
+    def J(self):
+        return float(curve_msc_pure(self.curve.kappa(), self.curve.gammadash()))
+
+    @derivative_dec
+    def dJ(self):
+        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)

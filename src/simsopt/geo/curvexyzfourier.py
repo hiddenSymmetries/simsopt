@@ -12,13 +12,13 @@ import simsoptpp as sopp
 class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     r"""
-       CurveXYZFourier is a curve that is represented in Cartesian
+       ``CurveXYZFourier`` is a curve that is represented in Cartesian
        coordinates using the following Fourier series:
 
         .. math::
-           x(\phi) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(m\phi) \\
-           y(\phi) &= \sum_{m=0}^{\text{order}} y_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} y_{s,m}\sin(m\phi) \\
-           z(\phi) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(m\phi) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(m\phi)
+           x(\theta) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(m\theta) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(m\theta) \\
+           y(\theta) &= \sum_{m=0}^{\text{order}} y_{c,m}\cos(m\theta) + \sum_{m=1}^{\text{order}} y_{s,m}\sin(m\theta) \\
+           z(\theta) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(m\theta) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(m\theta)
 
        The dofs are stored in the order
 
@@ -120,7 +120,7 @@ class JaxCurveXYZFourier(JaxCurve):
     actually no reason why one should use this over the C++ implementation in
     :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
-    with respect to dofs and with respect to the angle :math:`\phi`) automatically.
+    with respect to dofs and with respect to the angle :math:`\theta`) automatically.
     """
 
     def __init__(self, quadpoints, order):

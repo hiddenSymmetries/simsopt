@@ -10,7 +10,7 @@ The main test suite is based on the standard ``unittest`` python module.
 Source code for the python tests is located in the ``tests`` directory.
 These tests will use the installed version of the ``simsopt`` python package,
 which may differ from the code in your local repository if you did not
-make an editable install (see :doc:`getting_started`).
+make an editable install (see :doc:`installation`).
 
 To run all of the tests in the test suite on one processor, you can type
 

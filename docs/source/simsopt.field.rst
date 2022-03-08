@@ -11,16 +11,22 @@ simsopt.field.biotsavart module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
+
+simsopt.field.boozermagneticfield module
+----------------------------------------
+
+.. automodule:: simsopt.field.boozermagneticfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 simsopt.field.coil module
--------------------------------
+-------------------------
 
 .. automodule:: simsopt.field.coil
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
 
 simsopt.field.magneticfield module
 ----------------------------------
@@ -29,7 +35,6 @@ simsopt.field.magneticfield module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
 
 simsopt.field.magneticfieldclasses module
 -----------------------------------------
@@ -38,7 +43,6 @@ simsopt.field.magneticfieldclasses module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
 
 simsopt.field.sampling module
 -----------------------------
@@ -47,7 +51,6 @@ simsopt.field.sampling module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
 
 simsopt.field.tracing module
 ----------------------------
@@ -56,7 +59,6 @@ simsopt.field.tracing module
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
 
 Module contents
 ---------------
@@ -65,5 +67,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :private-members:
-

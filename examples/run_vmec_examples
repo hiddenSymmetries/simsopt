@@ -31,10 +31,13 @@ mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVo
 mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase_boozer.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution_boozer.py
 
 ./2_Intermediate/vmec_adjoint.py
+./2_Intermediate/tracing_boozer.py
 
 ./stellarator_benchmarks/7dof.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/7dof.py

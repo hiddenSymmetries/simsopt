@@ -43,7 +43,8 @@ class SurfaceGarabedian(sopp.Surface, Surface):
           Set to ``"field period"`` (or equivalently ``SurfaceGarabedian.RANGE_FIELD_PERIOD``)
           to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
           Set to ``"half period"`` (or equivalently ``SurfaceGarabedian.RANGE_HALF_PERIOD``)
-          to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+          to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
+          of the grid spacing in order to provide spectral convergence of integrals.
           If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
@@ -180,6 +181,33 @@ class SurfaceGarabedian(sopp.Surface, Surface):
                     Delta2 = self.get_Delta(1 + m, n)
                 s.set_rc(m, n, Delta1 + Delta2)
                 s.set_zs(m, n, Delta1 - Delta2)
+
+        return s
+
+    # TODO: Reimplement by passing all Delta values once
+    @classmethod
+    def from_RZFourier(cls, surf):
+        """
+        Create a `SurfaceGarabedian` from a `SurfaceRZFourier` object of the identical shape.
+
+        For a derivation of the transformation here, see
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        """
+        if not surf.stellsym:
+            raise RuntimeError('Non-stellarator-symmetric SurfaceGarabedian '
+                               'objects have not been implemented')
+        mmax = surf.mpol + 1
+        mmin = np.min((0, 1 - surf.mpol))
+        s = cls(nfp=surf.nfp, mmin=mmin, mmax=mmax,
+                nmin=-surf.ntor, nmax=surf.ntor)
+        for n in range(-surf.ntor, surf.ntor + 1):
+            for m in range(mmin, mmax + 1):
+                Delta = 0
+                if m - 1 >= 0:
+                    Delta = 0.5 * (surf.get_rc(m - 1, n) - surf.get_zs(m - 1, n))
+                if 1 - m >= 0:
+                    Delta += 0.5 * (surf.get_rc(1 - m, -n) + surf.get_zs(1 - m, -n))
+                s.set_Delta(m, n, Delta)
 
         return s
 

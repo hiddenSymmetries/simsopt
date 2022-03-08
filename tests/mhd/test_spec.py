@@ -27,6 +27,7 @@ except:
 if (MPI is not None) and spec_found:
     from simsopt.mhd.spec import Spec, Residue
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.solve.graph_serial import least_squares_serial_solve
 from . import TEST_DIR
 
@@ -186,7 +187,7 @@ class SpecTests(unittest.TestCase):
             # We will optimize in the space of Garabedian coefficients
             # rather than RBC/ZBS coefficients. To do this, we convert the
             # boundary to the Garabedian representation:
-            surf = equil.boundary.to_Garabedian()
+            surf = SurfaceGarabedian.from_RZFourier(equil.boundary)
             equil.boundary = surf
 
             # SPEC parameters are all fixed by default, while surface
