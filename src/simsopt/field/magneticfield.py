@@ -81,11 +81,11 @@ class MagneticField(sopp.MagneticField, Optimizable):
         phis = np.linspace(0, 2*np.pi, nphi, endpoint=True)
         zs = np.linspace(zmin, zmax, nz, endpoint=True)
 
-        Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij') # check the order here (!)
+        Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')  # check the order here (!)
         X = R * np.cos(Phi)
         Y = R * np.sin(Phi)
         Z = Z
-        print( np.shape(R) )
+        print(np.shape(R))
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()
