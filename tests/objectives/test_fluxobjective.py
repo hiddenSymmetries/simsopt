@@ -5,7 +5,7 @@ from simsopt.field.coil import coils_via_symmetries, Current
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.objectives.fluxobjective import SquaredFlux
 
 
 from pathlib import Path
@@ -62,5 +62,6 @@ class FluxObjectiveTests(unittest.TestCase):
         check_taylor_test(Jf3)
 
         Jls = [CurveLength(c) for c in base_curves]
-        JF = CoilOptObjective(Jf, Jls, ALPHA)
-        check_taylor_test(JF)
+
+        JF_scaled_summed = Jf + ALPHA * sum(Jls)
+        check_taylor_test(JF_scaled_summed)

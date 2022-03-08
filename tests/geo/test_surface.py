@@ -1,14 +1,15 @@
 import unittest
 from pathlib import Path
-import numpy as np
 import os
+import logging
+import numpy as np
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.geo.surface import signed_distance_from_surface
+from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled
 from simsopt.geo.curverzfourier import CurveRZFourier
 from .surface_test_helpers import get_surface
 
@@ -24,6 +25,9 @@ except ImportError:
 
 surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
                  "SurfaceHenneberg", "SurfaceGarabedian"]
+
+logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 class QuadpointsTests(unittest.TestCase):
@@ -80,8 +84,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
             s = eval(surface_type + "(nphi=17, range='half period')")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a string, with nfp:
             s = eval(surface_type + "(nphi=17, range='full torus', nfp=3)")
@@ -91,8 +96,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 3.0, 17, endpoint=False))
             s = eval(surface_type + "(nphi=17, range='half period', nfp=3)")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a constant, with nfp:
             s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FULL_TORUS)")
@@ -102,8 +108,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 4.0, 17, endpoint=False))
             s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_HALF_PERIOD)")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying quadpoints_phi as a numpy array:
             s = eval(surface_type + "(quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
@@ -117,6 +124,31 @@ class QuadpointsTests(unittest.TestCase):
             # Specifying both nphi and quadpoints_phi should cause an error:
             with self.assertRaises(ValueError):
                 s = eval(surface_type + "(nphi=5, quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
+
+    def test_spectral(self):
+        """
+        Verify integration is accurate to around machine precision for the
+        predefined phi grid ranges.
+        """
+        ntheta = 64
+        nfp = 4
+        area_ref = 74.492696353899
+        volume_ref = 11.8435252813064
+        for range_str, nphi_fac in [("full torus", 1), ("field period", 1.0 / nfp), ("half period", 0.5 / nfp)]:
+            for nphi_base in [200, 400, 800]:
+                nphi = int(nphi_fac * nphi_base)
+                s = SurfaceRZFourier(range=range_str, nfp=nfp,
+                                     mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
+                s.set_rc(0, 0, 2.5)
+                s.set_rc(1, 0, 0.4)
+                s.set_zs(1, 0, 0.6)
+                s.set_rc(0, 1, 1.1)
+                s.set_zs(0, 1, 0.8)
+                logger.debug(f'range={range_str:13} n={nphi:5} ' \
+                             f'area={s.area():22.14} diff={area_ref - s.area():22.14} ' \
+                             f'volume={s.volume():22.15} diff={volume_ref - s.volume():22.15}')
+                np.testing.assert_allclose(s.area(), area_ref, atol=0, rtol=1e-13)
+                np.testing.assert_allclose(s.volume(), volume_ref, atol=0, rtol=1e-13)
 
 
 class ArclengthTests(unittest.TestCase):
@@ -210,6 +242,51 @@ class SurfaceDistanceTests(unittest.TestCase):
         s.fit_to_curve(c, 0.2, flip_theta=False)
         d = signed_distance_from_surface(xyz, s)
         assert np.allclose(d, [-0.8, 0.2, -0.8])
+
+
+class SurfaceScaledTests(unittest.TestCase):
+    def test_surface_scaled(self):
+        mpol = 3
+        ntor = 2
+        nfp = 4
+        surf1 = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp)
+        ndofs = surf1.dof_size
+        surf1.x = np.random.rand(ndofs)
+
+        scale_factors = 0.1 ** np.sqrt(surf1.m ** 2 + surf1.n ** 2)
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+
+        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+
+        surf_scaled.x = np.random.rand(ndofs)
+        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+
+        self.assertEqual(surf_scaled.to_RZFourier(), surf1)
+
+    def test_names(self):
+        """
+        The dof names should be the same for the SurfaceScaled as for the
+        original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        self.assertEqual(surf1.local_full_dof_names, surf_scaled.local_full_dof_names)
+
+    def test_fixed(self):
+        """
+        Verify that the fixed/free property for a SurfaceScaled can be
+        matched to the original surface.
+        """
+        surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
+        scale_factors = np.random.rand(len(surf1.x))
+        surf_scaled = SurfaceScaled(surf1, scale_factors)
+        surf1.fix_all()
+        surf1.fixed_range(mmin=0, mmax=1,
+                          nmin=-2, nmax=3, fixed=False)
+        surf1.fix("rc(0,0)")  # Major radius
+        surf_scaled.update_fixed()
+        np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
 
 
 if __name__ == "__main__":

@@ -221,17 +221,17 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
 
-        phis = np.linspace(0, 1/nfp, 30, endpoint=False)
-        thetas = np.linspace(0, 1, 30, endpoint=False)
+        phis = np.linspace(0, 1/nfp, 20, endpoint=False)
+        thetas = np.linspace(0, 1, 20, endpoint=False)
         constraint_weight = 1e0
 
-        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
-                        mpol=3)
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=4,
+                        mpol=4)
         s.fit_to_curve(ma, 0.2)
 
         vol = Volume(s)
@@ -328,14 +328,14 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
 
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
 
-        phis = np.linspace(0, 1/nfp, 30, endpoint=False)
-        thetas = np.linspace(0, 1, 30, endpoint=False)
+        phis = np.linspace(0, 1/nfp, 20, endpoint=False)
+        thetas = np.linspace(0, 1, 20, endpoint=False)
         constraint_weight = 1e0
 
         s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas, ntor=3,
