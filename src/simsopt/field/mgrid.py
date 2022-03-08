@@ -41,7 +41,7 @@ class MGRID():
 
         # structure Bfield data into arrays (phi,z,r) arrays
         br, bp, bz = B.T
-        
+
         shape = (self.nphi, self.nz, self.nr)
         br_arr = np.reshape(br, shape)
         bp_arr = np.reshape(bp, shape)
