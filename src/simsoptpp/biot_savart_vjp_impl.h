@@ -258,17 +258,6 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
             }
         }
     }
-
-
-
-
-
-
-
-
-
-
-
     for (int i = num_points - num_points % simd_size; i < num_points; ++i) {
         auto point_i = Vec3d{pointsx[i], pointsy[i], pointsz[i]};
         
@@ -323,13 +312,4 @@ void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& 
             }
         }
     }
-
-
-
-
-
-
-
-
-
 }
