@@ -54,3 +54,9 @@ Here is a list of publications in which simsopt results appear:
      *Submitted*, (2021).
      `[arXiv version] <https://arxiv.org/pdf/2111.15564>`__
    |
+
+#. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
+     "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
+     *Submitted*, (2021).
+     `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
+   |
