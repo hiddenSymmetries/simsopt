@@ -653,6 +653,7 @@ class WellWeighted(Optimizable):
 
         return deltaB_dot_B/(mu0) + perturbation[-1]
 
+
 def vmec_splines(vmec):
     """
     Initialize radial splines for a VMEC equilibrium.
@@ -674,12 +675,20 @@ def vmec_splines(vmec):
         d_rmnc_d_s.append(rmnc[-1].derivative())
         d_zmns_d_s.append(zmns[-1].derivative())
         d_lmns_d_s.append(lmns[-1].derivative())
-    results.rmnc = rmnc
-    results.zmns = zmns
-    results.lmns = lmns
-    results.d_rmnc_d_s = d_rmnc_d_s
-    results.d_zmns_d_s = d_zmns_d_s
-    results.d_lmns_d_s = d_lmns_d_s
+
+    bmnc = []
+    bsupumnc = []
+    bsupvmnc = []
+    d_bmnc_d_s = []
+    d_bsupumnc_d_s = []
+    d_bsupvmnc_d_s = []
+    for jmn in range(vmec.wout.mnmax_nyq):
+        bmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmnc[jmn, 1:]))
+        bsupumnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupumnc[jmn, 1:]))
+        bsupvmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupvmnc[jmn, 1:]))
+        d_bmnc_d_s.append(bmnc[-1].derivative())
+        d_bsupumnc_d_s.append(bsupumnc[-1].derivative())
+        d_bsupvmnc_d_s.append(bsupvmnc[-1].derivative())
 
     # Handle 1d profiles:
     results.pressure = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.pres[1:])
@@ -692,8 +701,17 @@ def vmec_splines(vmec):
     results.mnmax = vmec.wout.mnmax
     results.xm = vmec.wout.xm
     results.xn = vmec.wout.xn
+    results.mnmax_nyq = vmec.wout.mnmax_nyq
+    results.xm_nyq = vmec.wout.xm_nyq
+    results.xn_nyq = vmec.wout.xn_nyq
+
+    variables = ['rmnc', 'zmns', 'lmns', 'd_rmnc_d_s', 'd_zmns_d_s', 'd_lmns_d_s',
+                 'bmnc', 'd_bmnc_d_s', 'bsupumnc', 'bsupvmnc', 'd_bsupumnc_d_s', 'd_bsupvmnc_d_s']
+    for v in variables:
+        results.__setattr__(v, eval(v))
 
     return results
+
 
 def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
     """
@@ -701,7 +719,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
         vs = vmec_splines(vs)
-        
+
     # Make sure s is an array:
     try:
         ns = len(s)
@@ -731,7 +749,10 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
     mnmax = vs.mnmax
     xm = vs.xm
     xn = vs.xn
-    
+    mnmax_nyq = vs.mnmax_nyq
+    xm_nyq = vs.xm_nyq
+    xn_nyq = vs.xn_nyq
+
     # Now that we have an s grid, evaluate everything on that grid:
     d_pressure_d_s = vs.d_pressure_d_s(s)
     iota = vs.iota(s)
@@ -748,10 +769,18 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
         d_rmnc_d_s[:, jmn] = vs.d_rmnc_d_s[jmn](s)
         d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
         d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
-    
+
+    bmnc = np.zeros((ns, mnmax_nyq))
+    bsupumnc = np.zeros((ns, mnmax_nyq))
+    bsupvmnc = np.zeros((ns, mnmax_nyq))
+    for jmn in range(mnmax_nyq):
+        bmnc[:, jmn] = vs.bmnc[jmn](s)
+        bsupumnc[:, jmn] = vs.bsupumnc[jmn](s)
+        bsupvmnc[:, jmn] = vs.bsupvmnc[jmn](s)
+
     theta_pest = np.zeros((ns, nalpha, nl))
     phi = np.zeros((ns, nalpha, nl))
-    
+
     if theta1d is None:
         # We are given phi. Compute theta_pest:
         for js in range(ns):
@@ -777,7 +806,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
         return theta_p_target - theta_p
         """
         return theta_p_target - (theta_v + np.sum(lmns[jradius, :] * np.sin(xm * theta_v - xn * phi0)))
-    
+
     # Solve for theta_vmec corresponding to theta_pest:
     theta_vmec = np.zeros((ns, nalpha, nl))
     for js in range(ns):
@@ -785,15 +814,30 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
             for jl in range(nl):
                 theta_guess = theta_pest[js, jalpha, jl]
                 solution = root_scalar(residual,
-                                  args=(phi[js, jalpha, jl], theta_pest[js, jalpha, jl], js),
-                                  bracket=(theta_guess - 1.0, theta_guess + 1.0))
+                                       args=(phi[js, jalpha, jl], theta_pest[js, jalpha, jl], js),
+                                       bracket=(theta_guess - 1.0, theta_guess + 1.0))
                 theta_vmec[js, jalpha, jl] = solution.root
-    
+
+    # Now that we know theta_vmec, compute all the geometric quantities
+    angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
+    cosangle = np.cos(angle)
+    sinangle = np.sin(angle)
+    # Order of indices in cosangle and sinangle: mn, s, alpha, l
+    # Order of indices in rmnc, bmnc, etc: s, mn
+    R = np.einsum('ij,jikl->ikl', rmnc, cosangle)
+
+    angle = xm_nyq[:, None, None, None] * theta_vmec[None, :, :, :] - xn_nyq[:, None, None, None] * phi[None, :, :, :]
+    cosangle = np.cos(angle)
+    sinangle = np.sin(angle)
+    modB = np.einsum('ij,jikl->ikl', bmnc, cosangle)
+    B_sup_theta = np.einsum('ij,jikl->ikl', bsupumnc, cosangle)
+    B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle)
+
     # Package results into a structure to return:
     results = Struct()
     variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'alpha', 'theta1d', 'phi1d', 'phi', 'theta_pest',
-                 'theta_vmec']
+                 'theta_vmec', 'modB', 'B_sup_theta', 'B_sup_phi']
     for v in variables:
         results.__setattr__(v, eval(v))
-        
+
     return results
