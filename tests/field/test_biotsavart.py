@@ -373,13 +373,12 @@ class Testing(unittest.TestCase):
 
         from scipy.spatial.transform import Rotation as R
         rot = R.from_euler('zyx', [21.234, 8.431, -4.86392], degrees=True).as_matrix()
-        #rot = np.eye(3)
         new_n = rot @ np.array([0, 0, 1])
 
         curve = get_curve(perturb=True)
         coil = Coil(curve, Current(1e4))
         bs = BiotSavart([coil])
-        
+
         # define the disk
         def f(t, r):
             x = r * np.cos(t).reshape((-1, 1))
@@ -393,7 +392,7 @@ class Testing(unittest.TestCase):
         from scipy import integrate
         r = 0.15
         fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
-        
+
         for num in range(20, 60):
             npoints = num
             angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
@@ -417,7 +416,7 @@ class Testing(unittest.TestCase):
         A = bs.A()
         J = bs.dA_by_dX()
         H = bs.d2A_by_dXdX()
-        
+
         #trigger recompute bell for code coverage of field cache
         bs.recompute_bell()
         dA = bs.dA_by_dcoilcurrents()
@@ -441,4 +440,3 @@ class Testing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

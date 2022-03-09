@@ -1,8 +1,5 @@
 import numpy as np
-
 import simsoptpp as sopp
-from ..geo.curve import Curve
-from .._core.derivative import Derivative
 from .magneticfield import MagneticField
 
 
