@@ -4,7 +4,8 @@ import logging
 import numpy as np
 
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
-    B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted
+    B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
+    vmec_fieldlines
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 
 try:
@@ -82,6 +83,38 @@ class InitializedFromWout(unittest.TestCase):
         np.testing.assert_allclose(r.B_cross_grad_B_dot_grad_psi,
                                    r.d_psi_d_s * (r.bsubu * r.d_B_d_phi - r.bsubv * r.d_B_d_theta) / r.sqrtg)
 
+    def test_fieldline_grids(self):
+        """
+        Check the grids in theta and phi created by vmec_fieldlines().
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
+
+        # Try a case in which theta is specified:
+        s = [0, 0.5, 1]
+        alpha = [0, np.pi]
+        theta = np.linspace(-np.pi, np.pi, 5)
+        fl = vmec_fieldlines(vmec, s, alpha, theta=theta)
+        for js in range(fl.ns):
+            for jalpha in range(fl.nalpha):
+                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :], theta)
+                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :] - fl.iota[js] * fl.phi_3d[js, jalpha, :], alpha[jalpha])
+                
+        # Try a case in which phi is specified:
+        s = 1
+        alpha = -np.pi
+        phi = np.linspace(-np.pi, np.pi, 6)
+        fl = vmec_fieldlines(vmec, s, alpha, phi=phi)
+        for js in range(fl.ns):
+            for jalpha in range(fl.nalpha):
+                np.testing.assert_allclose(fl.phi_3d[js, jalpha, :], phi)
+                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :] - fl.iota[js] * fl.phi_3d[js, jalpha, :], alpha)
+
+        # Try specifying both theta and phi:
+        with self.assertRaises(ValueError):
+            fl = vmec_fieldlines(vmec, s, alpha, phi=phi, theta=theta)
+        # Try specifying neither theta nor phi:
+        with self.assertRaises(ValueError):
+            fl = vmec_fieldlines(vmec, s, alpha)
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class QuasisymmetryRatioResidualTests(unittest.TestCase):

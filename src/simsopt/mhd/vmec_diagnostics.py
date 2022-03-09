@@ -10,7 +10,7 @@ import logging
 from typing import Union
 
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 
 from .vmec import Vmec
 from .._core.util import Struct
@@ -651,3 +651,121 @@ class WellWeighted(Optimizable):
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
         return deltaB_dot_B/(mu0) + perturbation[-1]
+
+def vmec_splines(vmec):
+    """
+    Initialize radial splines for a VMEC equilibrium.
+    """
+    vmec.run()
+    results = Struct()
+    print('vmec.s_full_grid.shape:', vmec.s_full_grid.shape)
+    print('vmec.wout.rmnc.shape:', vmec.wout.rmnc.shape)
+    rmnc = []
+    zmns = []
+    lmns = []
+    d_rmnc_d_s = []
+    d_zmns_d_s = []
+    d_lmns_d_s = []
+    for jmn in range(vmec.wout.mnmax):
+        rmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmnc[jmn, :]))
+        zmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmns[jmn, :]))
+        lmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.lmns[jmn, 1:]))
+        d_rmnc_d_s.append(rmnc[-1].derivative())
+        d_zmns_d_s.append(zmns[-1].derivative())
+        d_lmns_d_s.append(lmns[-1].derivative())
+    results.rmnc = rmnc
+    results.zmns = zmns
+    results.lmns = lmns
+    results.d_rmnc_d_s = d_rmnc_d_s
+    results.d_zmns_d_s = d_zmns_d_s
+    results.d_lmns_d_s = d_lmns_d_s
+
+    # Handle 1d profiles:
+    results.pressure = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.pres[1:])
+    results.d_pressure_d_s = results.pressure.derivative()
+    results.iota = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.iotas[1:])
+    results.d_iota_d_s = results.iota.derivative()
+
+    # Save other useful quantities:
+    results.phiedge = vmec.wout.phi[-1]
+    results.mnmax = vmec.wout.mnmax
+    results.xm = vmec.wout.xm
+    results.xn = vmec.wout.xn
+
+    return results
+
+def vmec_fieldlines(vs, s, alpha, theta=None, phi=None):
+    """
+    """
+    # If given a Vmec object, convert it to vmec_splines:
+    if isinstance(vs, Vmec):
+        vs = vmec_splines(vs)
+        
+    # Make sure s is an array:
+    try:
+        ns = len(s)
+    except:
+        s = [s]
+    s = np.array(s)
+    ns = len(s)
+
+    # Make sure alpha is an array
+    try:
+        nalpha = len(alpha)
+    except:
+        alpha = [alpha]
+    alpha = np.array(alpha)
+    nalpha = len(alpha)
+
+    if (theta is not None) and (phi is not None):
+        raise ValueError('You cannot specify both theta and phi')
+    if (theta is None) and (phi is None):
+        raise ValueError('You must specify either theta or phi')
+    if theta is None:
+        nl = len(phi)
+    else:
+        nl = len(theta)
+
+    # Shorthand:
+    mnmax = vs.mnmax
+    xm = vs.xm
+    xn = vs.xn
+    
+    # Now that we have an s grid, evaluate everything on that grid:
+    d_pressure_d_s = vs.d_pressure_d_s(s)
+    iota = vs.iota(s)
+    rmnc = np.zeros((ns, mnmax))
+    zmns = np.zeros((ns, mnmax))
+    lmns = np.zeros((ns, mnmax))
+    d_rmnc_d_s = np.zeros((ns, mnmax))
+    d_zmns_d_s = np.zeros((ns, mnmax))
+    d_lmns_d_s = np.zeros((ns, mnmax))
+    for jmn in range(mnmax):
+        rmnc[:, jmn] = vs.rmnc[jmn](s)
+        zmns[:, jmn] = vs.zmns[jmn](s)
+        lmns[:, jmn] = vs.lmns[jmn](s)
+        d_rmnc_d_s[:, jmn] = vs.d_rmnc_d_s[jmn](s)
+        d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
+        d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
+    
+    theta_pest_3d = np.zeros((ns, nalpha, nl))
+    phi_3d = np.zeros((ns, nalpha, nl))
+    
+    if theta is None:
+        # We are given phi. Compute theta_pest:
+        for js in range(ns):
+            phi_3d[js, :, :] = phi[None, :]
+            theta_pest_3d[js, :, :] = alpha[:, None] + iota[js] * phi[None, :]
+    else:
+        # We are given theta_pest. Compute phi:
+        for js in range(ns):
+            theta_pest_3d[js, :, :] = theta[None, :]
+            phi_3d[js, :, :] = (theta[None, :] - alpha[:, None]) / iota[js]
+
+    # Package results into a structure to return:
+    results = Struct()
+    variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'alpha', 'phi_3d', 'theta_pest_3d']
+    for v in variables:
+        results.__setattr__(v, eval(v))
+        
+    return results
