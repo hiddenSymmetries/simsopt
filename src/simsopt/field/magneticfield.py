@@ -91,7 +91,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def to_mgrid(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=2):
         """Export the field evaluated on a regular grid for free boundary calculations."""
-        import mgrid as mg
+        import mgrid as mg          # Handles MGRID file I/O
 
         # make grid (this part is copied with VTK, could be exported to a common function)
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
@@ -106,22 +106,26 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()
-        RPhiZ[:, 1] = Phi.flatten()  # ordering (phi,z,r) to match mgrid netCDF, maybe rename this array PhiZR then?
+        RPhiZ[:, 1] = Phi.flatten()  
         RPhiZ[:, 2] = Z.flatten()
 
         # get field from simsopt
-        self.set_points_cyl(RPhiZ)
+        self.set_points_cyl(RPhiZ)  ### set_points_cyl() requires RPhiZ
         B = self.B_cyl()
-        #vals = self.B().reshape((R.shape[0], R.shape[1], R.shape[2], 3))
-        # appears to return a 1D array which is unravelled from (N_R, N_phi, N_Z, 3), where the last number is (Bx, By, Bz)
+        
+        # shape the components
+        br, bp, bz = B.T
+        br_3 = br.reshape( (nphi,nz,nr) )
+        bp_3 = bp.reshape( (nphi,nz,nr) )
+        bz_3 = bz.reshape( (nphi,nz,nr) )
 
-        import pdb
-        pdb.set_trace()
+        ## should implement multiple coil groups
 
         mgrid = mg.MGRID(fname=filename, nfp=nfp, \
                          nr=nr, nz=nz, nphi=nphi, \
                          rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
-        mgrid.add_field_cyl(B, name='simsopt_coils')  # expects an array (N_phi, N_Z, N_R, 3) (!)
+        mgrid.add_field_cylindrical(br_3,bp_3,bz_3, name='simsopt_coils')  
+
         mgrid.write(filename)  # perhaps mgrid.filename.nc
 
 

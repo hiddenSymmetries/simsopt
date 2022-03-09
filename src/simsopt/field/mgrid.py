@@ -36,20 +36,14 @@ class MGRID():
 
         print('Initialized mgrid file: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(nr, nphi, nz, nfp))
 
-    # Expects B in (r,phi,z) components, with positions spaced in a (phi,z,r) ravel.
-    def add_field_cyl(self, B, name='default'):
 
+    def add_field_cylindrical(self,br,bp,bz,name='default'):
+        
         # structure Bfield data into arrays (phi,z,r) arrays
-        br, bp, bz = B.T
 
-        shape = (self.nphi, self.nz, self.nr)
-        br_arr = np.reshape(br, shape)
-        bp_arr = np.reshape(bp, shape)
-        bz_arr = np.reshape(bz, shape)
-
-        self.br_arr.append(br_arr)
-        self.bz_arr.append(bz_arr)
-        self.bp_arr.append(bp_arr)
+        self.br_arr.append( br )
+        self.bz_arr.append( bz )
+        self.bp_arr.append( bp )
 
         # add coil label
         if (name == 'default'):
@@ -58,6 +52,7 @@ class MGRID():
             label = pad_string(name)
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
+
 
     def write(self, fout):
 
@@ -103,7 +98,7 @@ class MGRID():
         var_zmax[:] = self.zmax
 
         var_coil_group[:] = self.cur_labels
-        var_mgrid_mode[:] = 'R'  # R - Raw, S - scaled, N - none (old version)
+        var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
         var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
 
         # add fields
