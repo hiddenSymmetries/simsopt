@@ -116,6 +116,50 @@ class InitializedFromWout(unittest.TestCase):
         with self.assertRaises(ValueError):
             fl = vmec_fieldlines(vmec, s, alpha)
 
+    def test_vmec_fieldlines(self):
+        """
+        Check internal consistency of the results of vmec_fieldlines().
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'))
+        s = [0.25, 0.75]
+        ns = len(s)
+        alpha = np.linspace(0, 2 * np.pi, 3, endpoint=False)
+        phi = np.linspace(-np.pi / 2, np.pi / 2, 7)
+        fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=phi)
+        np.testing.assert_allclose(fl.sqrt_g_vmec, fl.sqrt_g_vmec_alt, rtol=3e-5, atol=1e-5)
+
+        # Verify that (B dot grad theta_pest) / (B dot grad phi) = iota
+        should_be_iota = (fl.B_sup_theta_vmec * (1 + fl.d_lambda_d_theta_vmec) + fl.B_sup_phi * fl.d_lambda_d_phi) / fl.B_sup_phi
+        for js in range(ns):
+            np.testing.assert_allclose(fl.iota[js], should_be_iota[js, :, :], rtol=1e-4, atol=1e-4)
+
+        # grad_phi_X should be -sin(phi) / R:
+        np.testing.assert_allclose(fl.grad_phi_X, -fl.sinphi / fl.R)
+        # grad_phi_Y should be cos(phi) / R:
+        np.testing.assert_allclose(fl.grad_phi_Y, fl.cosphi / fl.R)
+        # grad_phi_Z should be 0:
+        np.testing.assert_allclose(fl.grad_phi_Z, 0, atol=1e-17)
+
+        # Verify that the Jacobian equals the appropriate cross
+        # product of the basis vectors.
+        test_arr = 0 \
+            + fl.d_X_d_s * fl.d_Y_d_theta_vmec * fl.d_Z_d_phi \
+            + fl.d_Y_d_s * fl.d_Z_d_theta_vmec * fl.d_X_d_phi \
+            + fl.d_Z_d_s * fl.d_X_d_theta_vmec * fl.d_Y_d_phi \
+            - fl.d_Z_d_s * fl.d_Y_d_theta_vmec * fl.d_X_d_phi \
+            - fl.d_X_d_s * fl.d_Z_d_theta_vmec * fl.d_Y_d_phi \
+            - fl.d_Y_d_s * fl.d_X_d_theta_vmec * fl.d_Z_d_phi
+        np.testing.assert_allclose(test_arr, fl.sqrt_g_vmec)
+
+        test_arr = 0 \
+            + fl.grad_s_X * fl.grad_theta_vmec_Y * fl.grad_phi_Z \
+            + fl.grad_s_Y * fl.grad_theta_vmec_Z * fl.grad_phi_X \
+            + fl.grad_s_Z * fl.grad_theta_vmec_X * fl.grad_phi_Y \
+            - fl.grad_s_Z * fl.grad_theta_vmec_Y * fl.grad_phi_X \
+            - fl.grad_s_X * fl.grad_theta_vmec_Z * fl.grad_phi_Y \
+            - fl.grad_s_Y * fl.grad_theta_vmec_X * fl.grad_phi_Z
+        np.testing.assert_allclose(test_arr, 1 / fl.sqrt_g_vmec)
+
     def test_fieldlines_regression(self):
         """
         Test vmec_fieldlines() by comparing to calculations with the
