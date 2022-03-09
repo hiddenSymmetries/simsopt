@@ -11,6 +11,7 @@ from typing import Union
 
 import numpy as np
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
+from scipy.optimize import root_scalar
 
 from .vmec import Vmec
 from .._core.util import Struct
@@ -694,7 +695,7 @@ def vmec_splines(vmec):
 
     return results
 
-def vmec_fieldlines(vs, s, alpha, theta=None, phi=None):
+def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None):
     """
     """
     # If given a Vmec object, convert it to vmec_splines:
@@ -717,14 +718,14 @@ def vmec_fieldlines(vs, s, alpha, theta=None, phi=None):
     alpha = np.array(alpha)
     nalpha = len(alpha)
 
-    if (theta is not None) and (phi is not None):
+    if (theta1d is not None) and (phi1d is not None):
         raise ValueError('You cannot specify both theta and phi')
-    if (theta is None) and (phi is None):
+    if (theta1d is None) and (phi1d is None):
         raise ValueError('You must specify either theta or phi')
-    if theta is None:
-        nl = len(phi)
+    if theta1d is None:
+        nl = len(phi1d)
     else:
-        nl = len(theta)
+        nl = len(theta1d)
 
     # Shorthand:
     mnmax = vs.mnmax
@@ -748,23 +749,50 @@ def vmec_fieldlines(vs, s, alpha, theta=None, phi=None):
         d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
         d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
     
-    theta_pest_3d = np.zeros((ns, nalpha, nl))
-    phi_3d = np.zeros((ns, nalpha, nl))
+    theta_pest = np.zeros((ns, nalpha, nl))
+    phi = np.zeros((ns, nalpha, nl))
     
-    if theta is None:
+    if theta1d is None:
         # We are given phi. Compute theta_pest:
         for js in range(ns):
-            phi_3d[js, :, :] = phi[None, :]
-            theta_pest_3d[js, :, :] = alpha[:, None] + iota[js] * phi[None, :]
+            phi[js, :, :] = phi1d[None, :]
+            theta_pest[js, :, :] = alpha[:, None] + iota[js] * phi1d[None, :]
     else:
         # We are given theta_pest. Compute phi:
         for js in range(ns):
-            theta_pest_3d[js, :, :] = theta[None, :]
-            phi_3d[js, :, :] = (theta[None, :] - alpha[:, None]) / iota[js]
+            theta_pest[js, :, :] = theta1d[None, :]
+            phi[js, :, :] = (theta1d[None, :] - alpha[:, None]) / iota[js]
 
+    def residual(theta_v, phi0, theta_p_target, jradius):
+        """
+        This function is used for computing the value of theta_vmec that
+        gives a desired theta_pest.
+        """
+
+        """
+        theta_p = theta_v
+        for jmn in range(len(xn)):
+            angle = xm[jmn] * theta_v - xn[jmn] * phi0
+            theta_p += lmns[jradius, jmn] * np.sin(angle)
+        return theta_p_target - theta_p
+        """
+        return theta_p_target - (theta_v + np.sum(lmns[jradius, :] * np.sin(xm * theta_v - xn * phi0)))
+    
+    # Solve for theta_vmec corresponding to theta_pest:
+    theta_vmec = np.zeros((ns, nalpha, nl))
+    for js in range(ns):
+        for jalpha in range(nalpha):
+            for jl in range(nl):
+                theta_guess = theta_pest[js, jalpha, jl]
+                solution = root_scalar(residual,
+                                  args=(phi[js, jalpha, jl], theta_pest[js, jalpha, jl], js),
+                                  bracket=(theta_guess - 1.0, theta_guess + 1.0))
+                theta_vmec[js, jalpha, jl] = solution.root
+    
     # Package results into a structure to return:
     results = Struct()
-    variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'alpha', 'phi_3d', 'theta_pest_3d']
+    variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'alpha', 'theta1d', 'phi1d', 'phi', 'theta_pest',
+                 'theta_vmec']
     for v in variables:
         results.__setattr__(v, eval(v))
         

@@ -93,29 +93,51 @@ class InitializedFromWout(unittest.TestCase):
         s = [0, 0.5, 1]
         alpha = [0, np.pi]
         theta = np.linspace(-np.pi, np.pi, 5)
-        fl = vmec_fieldlines(vmec, s, alpha, theta=theta)
+        fl = vmec_fieldlines(vmec, s, alpha, theta1d=theta)
         for js in range(fl.ns):
             for jalpha in range(fl.nalpha):
-                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :], theta)
-                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :] - fl.iota[js] * fl.phi_3d[js, jalpha, :], alpha[jalpha])
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :], theta)
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha[jalpha])
                 
         # Try a case in which phi is specified:
         s = 1
         alpha = -np.pi
         phi = np.linspace(-np.pi, np.pi, 6)
-        fl = vmec_fieldlines(vmec, s, alpha, phi=phi)
+        fl = vmec_fieldlines(vmec, s, alpha, phi1d=phi)
         for js in range(fl.ns):
             for jalpha in range(fl.nalpha):
-                np.testing.assert_allclose(fl.phi_3d[js, jalpha, :], phi)
-                np.testing.assert_allclose(fl.theta_pest_3d[js, jalpha, :] - fl.iota[js] * fl.phi_3d[js, jalpha, :], alpha)
+                np.testing.assert_allclose(fl.phi[js, jalpha, :], phi)
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha)
 
         # Try specifying both theta and phi:
         with self.assertRaises(ValueError):
-            fl = vmec_fieldlines(vmec, s, alpha, phi=phi, theta=theta)
+            fl = vmec_fieldlines(vmec, s, alpha, phi1d=phi, theta1d=theta)
         # Try specifying neither theta nor phi:
         with self.assertRaises(ValueError):
             fl = vmec_fieldlines(vmec, s, alpha)
 
+    def test_fieldlines_regression(self):
+        """
+        Test vmec_fieldlines() by comparing to calculations with the
+        geometry interface in the gyrokinetic code stella.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'))
+        s = [0.5, 1.0]
+        alpha = np.linspace(0, 2 * np.pi, 3, endpoint=False)
+        phi = np.linspace(-np.pi / 2, np.pi / 2, 7)
+        fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=phi)
+        theta_vmec_reference = np.array([[-0.54696449126914626, -0.48175613245664178, -0.27486119402681097, 0.0000000000000000, 0.27486119402681097, 0.48175613245664178, 0.54696449126914626],
+                                         [1.2860600505790374  ,  1.4762629621552081 ,  1.7205057726038357 , 1.8975933573125818, 2.0499492968214290 , 2.3142882369220339 , 2.7218102365172787 ],
+                                         [3.5613750706623071  ,  3.9688970702575519 ,  4.2332360103581568 , 4.3855919498670044, 4.5626795345757500 , 4.8069223450243772 , 4.9971252566005484]])
+        # Tolerances for s=1 are a bit looser since we extrapolate lambda off the half grid:
+        np.testing.assert_allclose(fl.theta_vmec[1, :, :], theta_vmec_reference, rtol=3e-5, atol=3e-5)
+        
+        theta_vmec_reference = np.array([[-0.58175490233450466,-0.47234459364571935, -0.27187109234173445, 0.0000000000000000, 0.27187109234173445, 0.47234459364571935, 0.58175490233450466],
+                                         [1.3270163720562491  , 1.5362773754015560 ,  1.7610074217338225 , 1.9573739260757410, 2.1337336171762495 , 2.3746560860701522 , 2.7346254905898566 ],
+                                         [3.5485598165897296  , 3.9085292211094336 ,  4.1494516900033354 , 4.3258113811038443, 4.5221778855704500 , 4.7469079317780292 , 4.9561689351233360 ]])
+        np.testing.assert_allclose(fl.theta_vmec[0, :, :], theta_vmec_reference, rtol=3e-10, atol=3e-10)
+
+        
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class QuasisymmetryRatioResidualTests(unittest.TestCase):
     def test_axisymmetry(self):
