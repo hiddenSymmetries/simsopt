@@ -90,7 +90,7 @@ class InitializedFromWout(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
 
         # Try a case in which theta is specified:
-        s = [0, 0.5, 1]
+        s = [1.0e-15, 0.5, 1]
         alpha = [0, np.pi]
         theta = np.linspace(-np.pi, np.pi, 5)
         fl = vmec_fieldlines(vmec, s, alpha, theta1d=theta)
@@ -120,19 +120,21 @@ class InitializedFromWout(unittest.TestCase):
         """
         Check internal consistency of the results of vmec_fieldlines().
         """
-        filenames = ['wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc',
+        filenames = ['wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc',
+                     'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc',
                      'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc']
         for filename in filenames:
             for j_theta_phi_in in range(2):
+                logger.info(f'Testing vmec_fieldline for file {filename}, j_theta_phi_in={j_theta_phi_in}')
                 vmec = Vmec(os.path.join(TEST_DIR, filename))
                 s = [0.25, 0.75]
                 ns = len(s)
                 alpha = np.linspace(0, 2 * np.pi, 3, endpoint=False)
                 z_grid = np.linspace(-np.pi / 2, np.pi / 2, 7)
                 if j_theta_phi_in == 0:
-                    fl = vmec_fieldlines(vmec, s=s, alpha=alpha, theta1d=z_grid)
-                else:
                     fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=z_grid)
+                else:
+                    fl = vmec_fieldlines(vmec, s=s, alpha=alpha, theta1d=z_grid)
 
                 np.testing.assert_allclose(fl.sqrt_g_vmec, fl.sqrt_g_vmec_alt, rtol=1e-4, atol=1e-4)
 
@@ -146,7 +148,7 @@ class InitializedFromWout(unittest.TestCase):
                 # grad_phi_Y should be cos(phi) / R:
                 np.testing.assert_allclose(fl.grad_phi_Y, fl.cosphi / fl.R, rtol=1e-4)
                 # grad_phi_Z should be 0:
-                np.testing.assert_allclose(fl.grad_phi_Z, 0, atol=1e-17)
+                np.testing.assert_allclose(fl.grad_phi_Z, 0, atol=1e-16)
 
                 # Verify that the Jacobian equals the appropriate cross
                 # product of the basis vectors.
@@ -175,10 +177,10 @@ class InitializedFromWout(unittest.TestCase):
                 np.testing.assert_allclose(test_arr, fl.B_sub_theta_vmec, rtol=0.01, atol=0.01)
 
                 test_arr = fl.B_X * fl.d_X_d_s + fl.B_Y * fl.d_Y_d_s + fl.B_Z * fl.d_Z_d_s
-                #np.testing.assert_allclose(test_arr, fl.B_sub_s)
+                np.testing.assert_allclose(test_arr, fl.B_sub_s, rtol=2e-3, atol=0.005)
 
                 test_arr = fl.B_X * fl.d_X_d_phi + fl.B_Y * fl.d_Y_d_phi + fl.B_Z * fl.d_Z_d_phi
-                np.testing.assert_allclose(test_arr, fl.B_sub_phi, rtol=2e-4)
+                np.testing.assert_allclose(test_arr, fl.B_sub_phi, rtol=1e-3)
 
                 test_arr = fl.B_X * fl.grad_s_X + fl.B_Y * fl.grad_s_Y + fl.B_Z * fl.grad_s_Z
                 np.testing.assert_allclose(test_arr, 0, atol=1e-14)
@@ -190,10 +192,16 @@ class InitializedFromWout(unittest.TestCase):
                 np.testing.assert_allclose(test_arr, fl.B_sup_theta_vmec, rtol=2e-4)
 
                 # Check 2 ways of computing B_cross_grad_s_dot_grad_alpha:
-                np.testing.assert_allclose(fl.B_cross_grad_s_dot_grad_alpha, fl.B_cross_grad_s_dot_grad_alpha_alternate, rtol=2e-4)
+                np.testing.assert_allclose(fl.B_cross_grad_s_dot_grad_alpha, fl.B_cross_grad_s_dot_grad_alpha_alternate, rtol=1e-3)
 
                 # Check 2 ways of computing B_cross_grad_B_dot_grad_alpha:
                 np.testing.assert_allclose(fl.B_cross_grad_B_dot_grad_alpha, fl.B_cross_grad_B_dot_grad_alpha_alternate, atol=0.02)
+
+                # Check 2 ways of computing cvdrift:
+                cvdrift_alt = 2 * fl.B_reference * fl.L_reference * fl.L_reference \
+                    * np.sqrt(fl.s)[:, None, None] * fl.B_cross_kappa_dot_grad_alpha \
+                    / (fl.modB * fl.modB) * fl.toroidal_flux_sign
+                np.testing.assert_allclose(fl.cvdrift, cvdrift_alt)
 
     def test_fieldlines_regression(self):
         """
@@ -227,6 +235,29 @@ class InitializedFromWout(unittest.TestCase):
         L_reference = vmec.wout.Aminor_p
         np.testing.assert_allclose(L_reference * fl.B_sup_phi[0, :, :] / fl.modB[0, :, :],
                                    gradpar_reference, rtol=1e-11, atol=1e-11)
+
+        # Compare to an output file from the stella geometry interface
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'))
+        s = [0.5]
+        nalpha = 3
+        alpha = np.linspace(0, 2 * np.pi, nalpha, endpoint=False)
+        phi = np.linspace(-np.pi / 5, np.pi / 5, 7)
+        fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=phi)
+        with open(os.path.join(TEST_DIR, 'geometry_W7-X_without_coil_ripple_beta0p05_d23p4_tm.dat')) as f:
+            lines = f.readlines()
+        np.testing.assert_allclose(fl.alpha, np.fromstring(lines[4], sep=' '))
+        phi_stella = np.fromstring(lines[6], sep=' ')
+        for j in range(nalpha):
+            np.testing.assert_allclose(fl.phi[0, j, :], phi_stella)
+            np.testing.assert_allclose(fl.bmag[0, j, :], np.fromstring(lines[8 + j], sep=' '), rtol=1e-6)
+            np.testing.assert_allclose(fl.gradpar_phi[0, j, :], np.fromstring(lines[12 + j], sep=' '), rtol=1e-6)
+            np.testing.assert_allclose(fl.gds2[0, j, :], np.fromstring(lines[16 + j], sep=' '), rtol=2e-4)
+            np.testing.assert_allclose(fl.gds21[0, j, :], np.fromstring(lines[20 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(fl.gds22[0, j, :], np.fromstring(lines[24 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(fl.gbdrift0[0, j, :], np.fromstring(lines[32 + j], sep=' '), atol=1e-4)
+            np.testing.assert_allclose(fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(fl.cvdrift0[0, j, :], np.fromstring(lines[40 + j], sep=' '), atol=1e-4)
 
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
