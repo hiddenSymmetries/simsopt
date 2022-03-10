@@ -120,45 +120,80 @@ class InitializedFromWout(unittest.TestCase):
         """
         Check internal consistency of the results of vmec_fieldlines().
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'))
-        s = [0.25, 0.75]
-        ns = len(s)
-        alpha = np.linspace(0, 2 * np.pi, 3, endpoint=False)
-        phi = np.linspace(-np.pi / 2, np.pi / 2, 7)
-        fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=phi)
-        np.testing.assert_allclose(fl.sqrt_g_vmec, fl.sqrt_g_vmec_alt, rtol=3e-5, atol=1e-5)
+        filenames = ['wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc',
+                     'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc']
+        for filename in filenames:
+            for j_theta_phi_in in range(2):
+                vmec = Vmec(os.path.join(TEST_DIR, filename))
+                s = [0.25, 0.75]
+                ns = len(s)
+                alpha = np.linspace(0, 2 * np.pi, 3, endpoint=False)
+                z_grid = np.linspace(-np.pi / 2, np.pi / 2, 7)
+                if j_theta_phi_in == 0:
+                    fl = vmec_fieldlines(vmec, s=s, alpha=alpha, theta1d=z_grid)
+                else:
+                    fl = vmec_fieldlines(vmec, s=s, alpha=alpha, phi1d=z_grid)
 
-        # Verify that (B dot grad theta_pest) / (B dot grad phi) = iota
-        should_be_iota = (fl.B_sup_theta_vmec * (1 + fl.d_lambda_d_theta_vmec) + fl.B_sup_phi * fl.d_lambda_d_phi) / fl.B_sup_phi
-        for js in range(ns):
-            np.testing.assert_allclose(fl.iota[js], should_be_iota[js, :, :], rtol=1e-4, atol=1e-4)
+                np.testing.assert_allclose(fl.sqrt_g_vmec, fl.sqrt_g_vmec_alt, rtol=1e-4, atol=1e-4)
 
-        # grad_phi_X should be -sin(phi) / R:
-        np.testing.assert_allclose(fl.grad_phi_X, -fl.sinphi / fl.R)
-        # grad_phi_Y should be cos(phi) / R:
-        np.testing.assert_allclose(fl.grad_phi_Y, fl.cosphi / fl.R)
-        # grad_phi_Z should be 0:
-        np.testing.assert_allclose(fl.grad_phi_Z, 0, atol=1e-17)
+                # Verify that (B dot grad theta_pest) / (B dot grad phi) = iota
+                should_be_iota = (fl.B_sup_theta_vmec * (1 + fl.d_lambda_d_theta_vmec) + fl.B_sup_phi * fl.d_lambda_d_phi) / fl.B_sup_phi
+                for js in range(ns):
+                    np.testing.assert_allclose(fl.iota[js], should_be_iota[js, :, :], rtol=1e-4, atol=1e-4)
 
-        # Verify that the Jacobian equals the appropriate cross
-        # product of the basis vectors.
-        test_arr = 0 \
-            + fl.d_X_d_s * fl.d_Y_d_theta_vmec * fl.d_Z_d_phi \
-            + fl.d_Y_d_s * fl.d_Z_d_theta_vmec * fl.d_X_d_phi \
-            + fl.d_Z_d_s * fl.d_X_d_theta_vmec * fl.d_Y_d_phi \
-            - fl.d_Z_d_s * fl.d_Y_d_theta_vmec * fl.d_X_d_phi \
-            - fl.d_X_d_s * fl.d_Z_d_theta_vmec * fl.d_Y_d_phi \
-            - fl.d_Y_d_s * fl.d_X_d_theta_vmec * fl.d_Z_d_phi
-        np.testing.assert_allclose(test_arr, fl.sqrt_g_vmec)
+                # grad_phi_X should be -sin(phi) / R:
+                np.testing.assert_allclose(fl.grad_phi_X, -fl.sinphi / fl.R, rtol=1e-4)
+                # grad_phi_Y should be cos(phi) / R:
+                np.testing.assert_allclose(fl.grad_phi_Y, fl.cosphi / fl.R, rtol=1e-4)
+                # grad_phi_Z should be 0:
+                np.testing.assert_allclose(fl.grad_phi_Z, 0, atol=1e-17)
 
-        test_arr = 0 \
-            + fl.grad_s_X * fl.grad_theta_vmec_Y * fl.grad_phi_Z \
-            + fl.grad_s_Y * fl.grad_theta_vmec_Z * fl.grad_phi_X \
-            + fl.grad_s_Z * fl.grad_theta_vmec_X * fl.grad_phi_Y \
-            - fl.grad_s_Z * fl.grad_theta_vmec_Y * fl.grad_phi_X \
-            - fl.grad_s_X * fl.grad_theta_vmec_Z * fl.grad_phi_Y \
-            - fl.grad_s_Y * fl.grad_theta_vmec_X * fl.grad_phi_Z
-        np.testing.assert_allclose(test_arr, 1 / fl.sqrt_g_vmec)
+                # Verify that the Jacobian equals the appropriate cross
+                # product of the basis vectors.
+                test_arr = 0 \
+                    + fl.d_X_d_s * fl.d_Y_d_theta_vmec * fl.d_Z_d_phi \
+                    + fl.d_Y_d_s * fl.d_Z_d_theta_vmec * fl.d_X_d_phi \
+                    + fl.d_Z_d_s * fl.d_X_d_theta_vmec * fl.d_Y_d_phi \
+                    - fl.d_Z_d_s * fl.d_Y_d_theta_vmec * fl.d_X_d_phi \
+                    - fl.d_X_d_s * fl.d_Z_d_theta_vmec * fl.d_Y_d_phi \
+                    - fl.d_Y_d_s * fl.d_X_d_theta_vmec * fl.d_Z_d_phi
+                np.testing.assert_allclose(test_arr, fl.sqrt_g_vmec, rtol=1e-4)
+
+                test_arr = 0 \
+                    + fl.grad_s_X * fl.grad_theta_vmec_Y * fl.grad_phi_Z \
+                    + fl.grad_s_Y * fl.grad_theta_vmec_Z * fl.grad_phi_X \
+                    + fl.grad_s_Z * fl.grad_theta_vmec_X * fl.grad_phi_Y \
+                    - fl.grad_s_Z * fl.grad_theta_vmec_Y * fl.grad_phi_X \
+                    - fl.grad_s_X * fl.grad_theta_vmec_Z * fl.grad_phi_Y \
+                    - fl.grad_s_Y * fl.grad_theta_vmec_X * fl.grad_phi_Z
+                np.testing.assert_allclose(test_arr, 1 / fl.sqrt_g_vmec, rtol=2e-4)
+
+                # Verify that \vec{B} dot (each of the covariant and
+                # contravariant basis vectors) matches the corresponding term
+                # from VMEC.
+                test_arr = fl.B_X * fl.d_X_d_theta_vmec + fl.B_Y * fl.d_Y_d_theta_vmec + fl.B_Z * fl.d_Z_d_theta_vmec
+                np.testing.assert_allclose(test_arr, fl.B_sub_theta_vmec, rtol=0.01, atol=0.01)
+
+                test_arr = fl.B_X * fl.d_X_d_s + fl.B_Y * fl.d_Y_d_s + fl.B_Z * fl.d_Z_d_s
+                #np.testing.assert_allclose(test_arr, fl.B_sub_s)
+
+                test_arr = fl.B_X * fl.d_X_d_phi + fl.B_Y * fl.d_Y_d_phi + fl.B_Z * fl.d_Z_d_phi
+                np.testing.assert_allclose(test_arr, fl.B_sub_phi, rtol=2e-4)
+
+                test_arr = fl.B_X * fl.grad_s_X + fl.B_Y * fl.grad_s_Y + fl.B_Z * fl.grad_s_Z
+                np.testing.assert_allclose(test_arr, 0, atol=1e-14)
+
+                test_arr = fl.B_X * fl.grad_phi_X + fl.B_Y * fl.grad_phi_Y + fl.B_Z * fl.grad_phi_Z
+                np.testing.assert_allclose(test_arr, fl.B_sup_phi, rtol=1e-4)
+
+                test_arr = fl.B_X * fl.grad_theta_vmec_X + fl.B_Y * fl.grad_theta_vmec_Y + fl.B_Z * fl.grad_theta_vmec_Z
+                np.testing.assert_allclose(test_arr, fl.B_sup_theta_vmec, rtol=2e-4)
+
+                # Check 2 ways of computing B_cross_grad_s_dot_grad_alpha:
+                np.testing.assert_allclose(fl.B_cross_grad_s_dot_grad_alpha, fl.B_cross_grad_s_dot_grad_alpha_alternate, rtol=2e-4)
+
+                # Check 2 ways of computing B_cross_grad_B_dot_grad_alpha:
+                np.testing.assert_allclose(fl.B_cross_grad_B_dot_grad_alpha, fl.B_cross_grad_B_dot_grad_alpha_alternate, atol=0.02)
 
     def test_fieldlines_regression(self):
         """
