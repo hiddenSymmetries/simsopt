@@ -657,6 +657,12 @@ class WellWeighted(Optimizable):
 def vmec_splines(vmec):
     """
     Initialize radial splines for a VMEC equilibrium.
+
+    Args:
+        vmec: An instance of :obj:`simsopt.mhd.vmec.Vmec`.
+
+    Returns:
+        A structure with the splines as attributes.
     """
     vmec.run()
     results = Struct()
@@ -690,7 +696,8 @@ def vmec_splines(vmec):
         bmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmnc[jmn, 1:]))
         bsupumnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupumnc[jmn, 1:]))
         bsupvmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupvmnc[jmn, 1:]))
-        bsubsmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubsmns[jmn, 1:]))
+        # Note that bsubsmns is on the full mesh, unlike the other components:
+        bsubsmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.bsubsmns[jmn, :]))
         bsubumnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubumnc[jmn, 1:]))
         bsubvmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubvmnc[jmn, 1:]))
         d_bmnc_d_s.append(bmnc[-1].derivative())
@@ -705,12 +712,9 @@ def vmec_splines(vmec):
 
     # Save other useful quantities:
     results.phiedge = vmec.wout.phi[-1]
-    results.mnmax = vmec.wout.mnmax
-    results.xm = vmec.wout.xm
-    results.xn = vmec.wout.xn
-    results.mnmax_nyq = vmec.wout.mnmax_nyq
-    results.xm_nyq = vmec.wout.xm_nyq
-    results.xn_nyq = vmec.wout.xn_nyq
+    variables = ['Aminor_p', 'mnmax', 'xm', 'xn', 'mnmax_nyq', 'xm_nyq', 'xn_nyq', 'nfp']
+    for v in variables:
+        results.__setattr__(v, eval('vmec.wout.' + v))
 
     variables = ['rmnc', 'zmns', 'lmns', 'd_rmnc_d_s', 'd_zmns_d_s', 'd_lmns_d_s',
                  'gmnc', 'bmnc', 'd_bmnc_d_s', 'bsupumnc', 'bsupvmnc', 'd_bsupumnc_d_s', 'd_bsupvmnc_d_s',
@@ -961,7 +965,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
     d_Z_d_phi = -np.einsum('ij,jikl->ikl', zmns, ncosangle)
 
-    d_lambda_d_s = np.einsum('ij,jikl->ikl', lmns, sinangle)
+    d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
     d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
     d_lambda_d_phi = -np.einsum('ij,jikl->ikl', lmns, ncosangle)
 
@@ -988,7 +992,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
 
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
 
-    # Note the minus sign. phi in the straight-field-line relation seems to have opposite sign to vmec's phi array.
+    # Note the minus sign. psi in the straight-field-line relation seems to have opposite sign to vmec's phi array.
     edge_toroidal_flux_over_2pi = -vs.phiedge / (2 * np.pi)
 
     # *********************************************************************
@@ -1088,9 +1092,39 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
 
     B_cross_grad_B_dot_grad_psi = (B_sub_theta_vmec * d_B_d_phi - B_sub_phi * d_B_d_theta_vmec) / sqrt_g_vmec * edge_toroidal_flux_over_2pi
 
-    # These next 2 lines are WRONG and need correcting!
-    B_cross_kappa_dot_grad_psi = B_cross_grad_B_dot_grad_psi
-    B_cross_kappa_dot_grad_alpha = B_cross_grad_B_dot_grad_alpha
+    B_cross_kappa_dot_grad_psi = B_cross_grad_B_dot_grad_psi / modB
+
+    mu_0 = 4 * np.pi * (1.0e-7)
+    B_cross_kappa_dot_grad_alpha = B_cross_grad_B_dot_grad_alpha / modB + mu_0 * d_pressure_d_s[:, None, None] / edge_toroidal_flux_over_2pi
+
+    # stella / gs2 / gx quantities:
+
+    L_reference = vs.Aminor_p
+    B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (L_reference * L_reference)
+    toroidal_flux_sign = np.sign(edge_toroidal_flux_over_2pi)
+    sqrt_s = np.sqrt(s)
+
+    bmag = modB / B_reference
+
+    gradpar_theta = L_reference * B_sup_theta_vmec / modB
+
+    gradpar_phi = L_reference * B_sup_phi / modB
+
+    gds2 = grad_alpha_dot_grad_alpha * L_reference * L_reference * s[:, None, None]
+
+    gds21 = grad_alpha_dot_grad_psi * shat[:, None, None] / B_reference
+
+    gds22 = grad_psi_dot_grad_psi * shat[:, None, None] * shat[:, None, None] / (L_reference * L_reference * B_reference * B_reference * s[:, None, None])
+
+    gbdrift = 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha \
+        / (modB * modB * modB) * toroidal_flux_sign
+
+    gbdrift0 = B_cross_grad_B_dot_grad_psi * 2 * shat[:, None, None] / (modB * modB * modB * sqrt_s[:, None, None]) * toroidal_flux_sign
+
+    cvdrift = gbdrift + 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] \
+        * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
+
+    cvdrift0 = gbdrift0
 
     # Package results into a structure to return:
     results = Struct()
@@ -1102,22 +1136,25 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
                  'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
                  'd_X_d_theta_vmec', 'd_X_d_phi', 'd_X_d_s', 'd_Y_d_theta_vmec', 'd_Y_d_phi', 'd_Y_d_s',
                  'grad_s_X', 'grad_s_Y', 'grad_s_Z', 'grad_theta_vmec_X', 'grad_theta_vmec_Y', 'grad_theta_vmec_Z',
-                 'grad_phi_X', 'grad_phi_Y', 'grad_phi_Z',
+                 'grad_phi_X', 'grad_phi_Y', 'grad_phi_Z', 'grad_psi_X', 'grad_psi_Y', 'grad_psi_Z',
                  'grad_alpha_X', 'grad_alpha_Y', 'grad_alpha_Z', 'grad_B_X', 'grad_B_Y', 'grad_B_Z',
                  'B_X', 'B_Y', 'B_Z',
                  'B_cross_grad_s_dot_grad_alpha', 'B_cross_grad_s_dot_grad_alpha_alternate',
                  'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_alpha_alternate',
                  'B_cross_grad_B_dot_grad_psi', 'B_cross_kappa_dot_grad_psi', 'B_cross_kappa_dot_grad_alpha',
-                 'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi']
+                 'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
+                 'L_reference', 'B_reference', 'toroidal_flux_sign',
+                 'bmag', 'gradpar_theta', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
 
     if plot:
         import matplotlib.pyplot as plt
         plt.figure(figsize=(13, 7))
-        nrows = 3
-        ncols = 4
+        nrows = 4
+        ncols = 5
         variables = ['modB', 'B_sup_theta_vmec', 'B_sup_phi', 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_psi',
                      'B_cross_kappa_dot_grad_alpha', 'B_cross_kappa_dot_grad_psi',
-                     'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi']
+                     'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
+                     'bmag', 'gradpar_theta', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval(variable + '[0, 0, :]'))
