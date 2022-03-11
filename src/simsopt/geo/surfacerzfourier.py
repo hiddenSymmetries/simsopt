@@ -201,6 +201,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 surf.rs[m, n + ntor] = rbs[j]
                 surf.zc[m, n + ntor] = zbc[j]
 
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     @classmethod
@@ -356,6 +357,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 surf.rs[m[j], n[j] + ntor] = rs[j]
                 surf.zc[m[j], n[j] + ntor] = zc[j]
 
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     def change_resolution(self, mpol, ntor):
