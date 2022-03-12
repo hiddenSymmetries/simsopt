@@ -22,10 +22,21 @@ import logging
 
 import numpy as np
 
+from ..util.dev import SimsoptRequires
 from ..util.types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
+
+try:
+    import networkx as nx
+except ImportError:
+    nx = None
+try:
+    import pygraphviz
+    from networkx.drawing.nx_agraph import graphviz_layout
+except ImportError:
+    pygraphviz = None
 
 log = logging.getLogger(__name__)
 
@@ -1188,6 +1199,34 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if other == 0:
             return self
         return self.__add__(other)
+
+    @SimsoptRequires(nx is not None, "print method requires networkx")
+    @SimsoptRequires(pygraphviz is not None, "print method requires pygraphviz")
+    def plot(self):
+        
+        G = nx.DiGraph()
+        G.add_node(self.name) 
+        
+        def traversal(root):
+            for p in root.parents:
+                n1 = root.name
+                n2 = p.name
+                G.add_edge(n1, n2)
+                traversal(p)
+        
+        traversal(self)
+        
+        import matplotlib.pyplot as plt
+        options = {
+            'node_color': 'red',
+            'width': 2,
+            'arrowstyle': '-|>',
+            'arrowsize': 12,
+            'font_size': 8,
+        }
+        pos = graphviz_layout(G, prog='dot')
+        nx.draw_networkx(G, pos=pos, arrows=True, **options)
+        plt.show()
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
