@@ -331,6 +331,76 @@ class SurfaceTaylorTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_theta_derivative(surfacetype, stellsym)
 
+    def subtest_surface_theta2_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(5, 10)]
+        thetas = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, thetas=thetas)
+        f0 = s.gammadash2()[0, 0, :]
+        deriv = s.gammadash2dash2()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash2()[0, i+1, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_theta2_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True,False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_theta2_derivative(surfacetype, stellsym)
+
+    def subtest_surface_phi2_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, phis=phis)
+        f0 = s.gammadash1()[0, 0, :]
+        deriv = s.gammadash1dash1()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash1()[i+1, 0, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_phi2_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True,False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_phi2_derivative(surfacetype, stellsym)
+
+    def subtest_surface_thetaphi_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        thetas = np.asarray([0.3] + [0.3 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
+        f0 = s.gammadash1()[0, 0, :]
+        deriv = s.gammadash1dash2()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash1()[0, i+1, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_thetaphi_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True,False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_thetaphi_derivative(surfacetype, stellsym)
+
     def subtest_surface_conversion(self, surfacetype, stellsym):
         s = get_surface(surfacetype, stellsym)
         newsurf = s.to_RZFourier()
