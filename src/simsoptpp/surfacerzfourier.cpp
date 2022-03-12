@@ -57,9 +57,6 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
 }
 
 
-
-
-
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -69,17 +66,23 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
             double r = 0;
             double rd = 0;
             double zd = 0;
+            double rdd = 0;
+            double zdd = 0;
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
                 for (int m = 0; m <= mpol; ++m) {
-                    r  += rc(m, i) * cos(m*theta-n*nfp*phi);
-                    rd += rc(m, i) * (n*nfp) * sin(m*theta-n*nfp*phi);
+                    r  +=  rc(m, i) * cos(m*theta-n*nfp*phi);
+                    rd +=  -rc(m, i) * (-n*nfp) * sin(m*theta-n*nfp*phi);
+                    rdd +=  rc(m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi);
                     if(!stellsym) {
                         r  += rs(m, i) * sin(m*theta-n*nfp*phi);
-                        rd += rs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
-                        zd += zc(m, i) * (n*nfp)*sin(m*theta-n*nfp*phi);
+                        rd += rs(m, i) * (-n*nfp) * cos(m*theta-n*nfp*phi);
+                        rdd += - rs(m, i) * (-n*nfp) * (-n*nfp) * sin(m*theta-n*nfp*phi);
+                        zd  += -zc(m, i) * (-n*nfp) * sin(m*theta-n*nfp*phi);
+                        zdd +=  zc(m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi);
                     }
-                    zd += zs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
+                    zd += zs(m, i) * (-n*nfp) * cos(m*theta-n*nfp*phi);
+                    zdd += -zs(m, i) * (-n*nfp) * (-n*nfp) * sin(m*theta-n*nfp*phi);
                 }
             }
             data(k1, k2, 0) = 2*M_PI*(rd * cos(phi) - r * sin(phi));
@@ -88,6 +91,105 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
         }
     }
 }
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1dash1_impl(Array& data) {
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+            double theta  = 2*M_PI*quadpoints_theta[k2];
+            double r = 0;
+            double rd = 0;
+            double rdd = 0;
+            double zdd = 0;
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                for (int m = 0; m <= mpol; ++m) {
+                    r  += rc(m, i) * cos(m*theta-n*nfp*phi);
+                    rd += -rc(m, i) * (-n*nfp) * sin(m*theta-n*nfp*phi);
+                    rdd += -rc(m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi);
+                    if(!stellsym) {
+                        r  += rs(m, i) * sin(m*theta-n*nfp*phi);
+                        rd += rs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
+                        rdd += -rs(m, i) * (-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
+                        // zd += -zc(m, i) * (-n*nfp)*sin(m*theta-n*nfp*phi);
+                        zdd += -zc(m, i) * (-n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi);
+                    }
+                    // zd += zs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
+                    zdd += -zs(m, i) * (-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
+                }
+            }
+            // data(k1, k2, 0) = 2*M_PI*(rd * cos(phi) - r * sin(phi));
+            data(k1, k2, 0) = 4*M_PI*M_PI*(rdd * cos(phi) - 2 * rd * sin(phi) - r * cos(phi));
+            // data(k1, k2, 1) = 2*M_PI*(rd * sin(phi) + r * cos(phi));
+            data(k1, k2, 1) = 4*M_PI*M_PI*(rdd * sin(phi) + 2 * rd * cos(phi) - r * sin(phi));
+            // data(k1, k2, 2) = 2*M_PI*zd;
+            data(k1, k2, 2) = 4*M_PI*M_PI*zdd;
+        }
+    }
+}
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1dash2_impl(Array& data) {
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+            double theta  = 2*M_PI*quadpoints_theta[k2];
+            double rd2 = 0;
+            double rd1d2 = 0;
+            double zd1d2 = 0;
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                for (int m = 0; m <= mpol; ++m) {
+                    rd2 += -rc(m, i) * (m) * sin(m*theta-n*nfp*phi);
+                    rd1d2 += -rc(m, i) * (-n*nfp) * (m) * cos(m*theta-n*nfp*phi);
+                    if(!stellsym) {
+                        rd2 += rs(m, i) * (m) * cos(m*theta-n*nfp*phi);
+                        rd1d2 += - rs(m, i) * (-n*nfp) * (m) * sin(m*theta-n*nfp*phi);
+                        zd1d2 += -zc(m, i) * (-n*nfp) * m * cos(m*theta-n*nfp*phi);
+                    }
+                    zd1d2 += -zs(m, i) * (-n*nfp) * (m) * sin(m*theta-n*nfp*phi);
+                }
+            }
+            data(k1, k2, 0) = 4*M_PI*M_PI*(rd1d2 * cos(phi) - rd2 * sin(phi));
+            data(k1, k2, 1) = 4*M_PI*M_PI*(rd1d2 * sin(phi) + rd2 * cos(phi));
+            data(k1, k2, 2) = 4*M_PI*M_PI*zd1d2;
+        }
+    }
+}
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash2dash2_impl(Array& data) {
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+            double theta  = 2*M_PI*quadpoints_theta[k2];
+            double rd = 0;
+            double zd = 0;
+            double rdd = 0;
+            double zdd = 0;
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                for (int m = 0; m <= mpol; ++m) {
+                    rd += -rc(m, i) * (m) * sin(m*theta-n*nfp*phi);
+                    rdd += -rc(m, i) * (m) * (m) * cos(m*theta-n*nfp*phi);
+                    if(!stellsym) {
+                        rd +=    rs(m, i) * m * cos(m*theta-n*nfp*phi);
+                        rdd +=  -rs(m, i) * m * m * sin(m*theta-n*nfp*phi);
+                        zd +=  -zc(m, i) * m * sin(m*theta-n*nfp*phi);
+                        zdd += -zc(m, i) * m * m * cos(m*theta-n*nfp*phi);
+                    }
+                    zd += zs(m, i) * m * cos(m*theta-n*nfp*phi);
+                    zdd += -zs(m, i) * m * m * sin(m*theta-n*nfp*phi);
+                }
+            }
+            data(k1, k2, 0) = 4*M_PI*M_PI*rdd*cos(phi);
+            data(k1, k2, 1) = 4*M_PI*M_PI*rdd*sin(phi);
+            data(k1, k2, 2) = 4*M_PI*M_PI*zdd;
+        }
+    }
+}
+
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {

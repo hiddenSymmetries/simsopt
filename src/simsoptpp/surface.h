@@ -5,7 +5,7 @@ using std::vector;
 #include <string>
 using std::string;
 
-#include <map> 
+#include <map>
 using std::map;
 #include <stdexcept>
 using std::logic_error;
@@ -33,7 +33,7 @@ class Surface {
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first;
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -45,7 +45,7 @@ class Surface {
         Array& check_the_persistent_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache_persistent.find(key);
             if(loc == cache_persistent.end()){ // Key not found --> allocate array
-                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first;
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -57,7 +57,7 @@ class Surface {
         std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
 
     // We'd really like these to be protected, but I'm not sure that plays well
-    // with accessing them from python child classes. 
+    // with accessing them from python child classes.
     public://protected:
         int numquadpoints_phi;
         int numquadpoints_theta;
@@ -105,6 +105,9 @@ class Surface {
         virtual void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gammadash1_impl(Array& data)  { throw logic_error("gammadash1_impl was not implemented"); };
         virtual void gammadash2_impl(Array& data)  { throw logic_error("gammadash2_impl was not implemented"); };
+        virtual void gammadash1dash1_impl(Array& data)  { throw logic_error("gammadash1gammadash1_impl was not implemented"); };
+        virtual void gammadash1dash2_impl(Array& data)  { throw logic_error("gammadash1gammadash2_impl was not implemented"); };
+        virtual void gammadash2dash2_impl(Array& data)  { throw logic_error("gammadash2gammadash2_impl was not implemented"); };
 
         virtual void dgamma_by_dcoeff_impl(Array& data) { throw logic_error("dgamma_by_dcoeff_impl was not implemented"); };
         virtual void dgammadash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
@@ -137,7 +140,6 @@ class Surface {
         void dvolume_by_dcoeff_impl(Array& data);
         void d2volume_by_dcoeffdcoeff_impl(Array& data);
 
-
         Array& gamma() {
             return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
@@ -146,6 +148,15 @@ class Surface {
         }
         Array& gammadash2() {
             return check_the_cache("gammadash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2_impl(A);});
+        }
+        Array& gammadash1dash1() {
+            return check_the_cache("gammadash1dash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash1_impl(A);});
+        }
+        Array& gammadash1dash2() {
+            return check_the_cache("gammadash1dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash2_impl(A);});
+        }
+        Array& gammadash2dash2() {
+            return check_the_cache("gammadash2dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2dash2_impl(A);});
         }
         Array& dgamma_by_dcoeff() {
             return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});

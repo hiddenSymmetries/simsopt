@@ -143,6 +143,9 @@ class SurfaceXYZFourier : public Surface<Array> {
         void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void gammadash1_impl(Array& data) override;
         void gammadash2_impl(Array& data) override;
+        void gammadash1dash1_impl(Array& data) override;
+        void gammadash1dash2_impl(Array& data) override;
+        void gammadash2dash2_impl(Array& data) override;
 
         void dgamma_by_dcoeff_impl(Array& data) override;
         void dgammadash1_by_dcoeff_impl(Array& data) override;
