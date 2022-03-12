@@ -4,7 +4,7 @@ import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Coil, Current
+from simsopt.field.coil import Coil, Current, ScaledCurrent
 
 
 def get_curve(num_quadrature_points=200, perturb=False):
@@ -275,7 +275,7 @@ class Testing(unittest.TestCase):
                     second_deriv_est = (dA_dXp - dA_dXm)/(2. * eps)
 
                     new_err = np.linalg.norm(second_deriv-second_deriv_est)
-                    print("new_err", new_err)
+                    #print("new_err", new_err)
                     assert new_err < 0.30 * err
                     err = new_err
 
@@ -309,6 +309,131 @@ class Testing(unittest.TestCase):
         dJ_approx = (J-J0)/(c0)
         dH_approx = (H-H0)/(c0)
         assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
+        assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
+    def test_dA_by_dcoilcoeff_reverse_taylortest(self):
+        np.random.seed(1)
+        curve = get_curve()
+        coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
+        bs = BiotSavart([coil])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+
+        bs.set_points(points)
+        coil_dofs = coil.x
+        A = bs.A()
+        J0 = np.sum(A**2)
+        dJ = bs.A_vjp(A)(coil)
+
+        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
+        dJ_dh = 2*np.sum(dJ * h)
+        err = 1e6
+        for i in range(5, 10):
+            eps = 0.5**i
+            coil.x = coil_dofs + eps * h
+            Ah = bs.A()
+            Jh = np.sum(Ah**2)
+            deriv_est = (Jh-J0)/eps
+            err_new = np.linalg.norm(deriv_est-dJ_dh)
+            assert err_new < 0.55 * err
+            err = err_new
+
+    def test_dAdX_by_dcoilcoeff_reverse_taylortest(self):
+        np.random.seed(1)
+        curve = get_curve()
+        coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
+        bs = BiotSavart([coil])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+
+        bs.set_points(points)
+        coil_dofs = coil.x
+        A = bs.A()
+        dAdX = bs.dA_by_dX()
+        J0 = np.sum(dAdX**2)
+        dJ = bs.A_and_dA_vjp(A, dAdX)[1](coil)
+
+        h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
+        dJ_dh = 2*np.sum(dJ * h)
+        err = 1e6
+        for i in range(5, 10):
+            eps = 0.5**i
+            coil.x = coil_dofs + eps * h
+            dAdXh = bs.dA_by_dX()
+            Jh = np.sum(dAdXh**2)
+            deriv_est = (Jh-J0)/eps
+            err_new = np.linalg.norm(deriv_est-dJ_dh)
+            assert err_new < 0.55 * err
+            err = err_new
+
+    def test_flux_through_disk(self):
+        # this test makes sure that the toroidal flux through a disk (D)
+        # given by \int_D B \cdot n dB = \int_{\partial D} A \cdot dl
+
+        from scipy.spatial.transform import Rotation as R
+        rot = R.from_euler('zyx', [21.234, 8.431, -4.86392], degrees=True).as_matrix()
+        new_n = rot @ np.array([0, 0, 1])
+
+        curve = get_curve(perturb=True)
+        coil = Coil(curve, Current(1e4))
+        bs = BiotSavart([coil])
+
+        # define the disk
+        def f(t, r):
+            x = r * np.cos(t).reshape((-1, 1))
+            y = r * np.sin(t).reshape((-1, 1))
+            pts = np.concatenate((x, y, np.zeros((x.shape[1], 1))), axis=1) @ rot.T
+            bs.set_points(pts)
+            B = bs.B()
+            return np.sum(B*new_n[None, :], axis=1)*r
+
+        # int_r int_theta B int r dr dtheta
+        from scipy import integrate
+        r = 0.15
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+
+        for num in range(20, 60):
+            npoints = num
+            angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
+            t = np.concatenate((-np.sin(angles), np.cos(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
+            pts = r*np.concatenate((np.cos(angles), np.sin(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
+            bs.set_points(pts)
+            A = bs.A()
+            fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
+
+            assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
+
+    def test_biotsavart_vector_potential_coil_current_taylortest(self):
+        curve0 = get_curve()
+        c0 = 1e4
+        current0 = Current(c0)
+        curve1 = get_curve(perturb=True)
+        current1 = Current(1e3)
+        bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        A = bs.A()
+        J = bs.dA_by_dX()
+        H = bs.d2A_by_dXdX()
+
+        #trigger recompute bell for code coverage of field cache
+        bs.recompute_bell()
+        dA = bs.dA_by_dcoilcurrents()
+        bs.recompute_bell()
+        dJ = bs.d2A_by_dXdcoilcurrents()
+        bs.recompute_bell()
+        dH = bs.d3A_by_dXdXdcoilcurrents()
+
+        # the A field is linear in the current, so a small stepsize is not necessary
+        current0.x = [0]
+        A0 = bs.A()
+        J0 = bs.dA_by_dX()
+        H0 = bs.d2A_by_dXdX()
+        dA_approx = (A-A0)/(c0)
+        dJ_approx = (J-J0)/(c0)
+        dH_approx = (H-H0)/(c0)
+        assert np.linalg.norm(dA[0]-dA_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 

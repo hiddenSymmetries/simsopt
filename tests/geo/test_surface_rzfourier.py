@@ -140,6 +140,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try a stellarator-symmetric example:
         filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
         s = SurfaceRZFourier.from_wout(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up to 4 even
         # though the RBC/ZBS arrays for the input file go up to m=6,
         # since mpol is only 4.
@@ -173,6 +176,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try some stellarator-symmetric examples:
         filename = TEST_DIR / 'input.li383_low_res'
         s = SurfaceRZFourier.from_vmec_input(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up through 6,
         # even though mpol in the file is 4.
         true_volume = 2.97871721453671
@@ -322,6 +328,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'tf_only_half_tesla.plasma'
 
         s = SurfaceRZFourier.from_focus(filename)
+
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
 
         self.assertEqual(s.nfp, 3)
         self.assertTrue(s.stellsym)
