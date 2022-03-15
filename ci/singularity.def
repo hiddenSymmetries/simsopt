@@ -74,6 +74,7 @@ Stage: devel
     /venv/bin/pip install vtk==9.0.1 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
+    /venv/bin/pip install  git+https://github.com/mbkumar/virtual-casing.git@pybind
 
     CI=True
     git clone --recurse-submodules https://github.com/hiddenSymmetries/simsopt.git simsopt && \
