@@ -139,7 +139,67 @@ void Surface<Array>::extend_via_normal(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::normal_impl(Array& data)  { 
+void Surface<Array>::surface_curvature_impl(Array& data) {
+  auto drd1 = this->gammadash1();
+  auto drd2 = this->gammadash2();
+  auto d2rd1d1 = this->gammadash1dash1();
+  auto d2rd1d2 = this->gammadash1dash2();
+  auto d2rd2d2 = this->gammadash2dash2();
+  for (int i = 0; i < numquadpoints_phi; ++i) {
+      for (int j = 0; j < numquadpoints_theta; ++j) {
+          auto Nx = drd1(i,j,1) * drd2(i,j,2) - drd1(i,j,2) * drd2(i,j,1);
+          auto Ny = drd1(i,j,2) * drd2(i,j,0) - drd1(i,j,0) * drd2(i,j,2);
+          auto Nz = drd1(i,j,0) * drd2(i,j,1) - drd1(i,j,1) * drd2(i,j,0);
+          auto norm_normal = std::sqrt(Nx*Nx + Ny*Ny + Nz*Nz);
+          auto nx = Nx/norm_normal;
+          auto ny = Ny/norm_normal;
+          auto nz = Ny/norm_normal;
+          auto E = drd1(i,j,0) * drd1(i,j,0) + drd1(i,j,1) * drd1(i,j,1) + drd1(i,j,2) * drd1(i,j,2);
+          auto F = drd1(i,j,0) * drd2(i,j,0) + drd1(i,j,1) * drd2(i,j,1) + drd1(i,j,2) * drd2(i,j,2);
+          auto G = drd2(i,j,0) * drd2(i,j,0) + drd2(i,j,1) * drd2(i,j,1) + drd2(i,j,2) * drd2(i,j,2);
+          auto e = nx * d2rd1d1(i,j,0) + ny * d2rd1d1(i,j,1) + nz * d2rd1d1(i,j,2);
+          auto f = nx * d2rd1d2(i,j,0) + ny * d2rd1d2(i,j,1) + nz * d2rd1d2(i,j,2);
+          auto g = nx * d2rd2d2(i,j,0) + ny * d2rd2d2(i,j,1) + nz * d2rd2d2(i,j,2);
+          data(i, j, 0) = (e*G - 2*f*F + g*E)/(E*G - F*F); // H
+          data(i, j, 1) = (e*g - f*f)/(E*G - F*F); // K
+          data(i, j, 2) = data(i, j, 0) + std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
+          data(i, j, 3) = data(i, j, 0) - std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
+      }
+  }
+};
+
+// template<class Array>
+// void Surface<Array>::dsurface_curvature_by_dcoeff_impl(Array& data) {
+//   auto drd1 = this->gammadash1();
+//   auto drd2 = this->gammadash2();
+//   auto d2rd1d1 = this->gammadash1dash1();
+//   auto d2rd1d2 = this->gammadash1dash2();
+//   auto d2rd2d2 = this->gammadash2dash2();
+//   for (int i = 0; i < numquadpoints_phi; ++i) {
+//       for (int j = 0; j < numquadpoints_theta; ++j) {
+//           auto Nx = drd1(i,j,1) * drd2(i,j,2) - drd1(i,j,2) * drd2(i,j,1);
+//           auto Ny = drd1(i,j,2) * drd2(i,j,0) - drd1(i,j,0) * drd2(i,j,2);
+//           auto Nz = drd1(i,j,0) * drd2(i,j,1) - drd1(i,j,1) * drd2(i,j,0);
+//           auto norm_normal = std::sqrt(Nx*Nx + Ny*Ny + Nz*Nz);
+//           auto nx = Nx/norm_normal;
+//           auto ny = Ny/norm_normal;
+//           auto nz = Ny/norm_normal;
+//           auto E = drd1(i,j,0) * drd1(i,j,0) + drd1(i,j,1) * drd1(i,j,1) + drd1(i,j,2) * drd1(i,j,2);
+//           auto F = drd1(i,j,0) * drd2(i,j,0) + drd1(i,j,1) * drd2(i,j,1) + drd1(i,j,2) * drd2(i,j,2);
+//           auto G = drd2(i,j,0) * drd2(i,j,0) + drd2(i,j,1) * drd2(i,j,1) + drd2(i,j,2) * drd2(i,j,2);
+//           auto e = nx * d2rd1d1(i,j,0) + ny * d2rd1d1(i,j,1) + nz * d2rd1d1(i,j,2);
+//           auto f = nx * d2rd1d2(i,j,0) + ny * d2rd1d2(i,j,1) + nz * d2rd1d2(i,j,2);
+//           auto g = nx * d2rd2d2(i,j,0) + ny * d2rd2d2(i,j,1) + nz * d2rd2d2(i,j,2);
+//           data(i, j, 0) = (e*G - 2*f*F + g*E)/(E*G - F*F); // H
+//           data(i, j, 1) = (e*g - f*f)/(E*G - F*F); // K
+//           data(i, j, 2) = data(i, j, 0) + std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
+//           data(i, j, 3) = data(i, j, 0) - std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
+//       }
+//   }
+// };
+
+template<class Array>
+void Surface<Array>::normal_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     for (int i = 0; i < numquadpoints_phi; ++i) {
@@ -151,7 +211,7 @@ void Surface<Array>::normal_impl(Array& data)  {
     }
 };
 template<class Array>
-void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  { 
+void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     auto dg1_dc = this->dgammadash1_by_dcoeff();
@@ -184,7 +244,7 @@ void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     }
 };
 template<class Array>
-void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  { 
+void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     auto dg1_dc = this->dgammadash1_by_dcoeff();
@@ -207,7 +267,7 @@ void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
 };
 
 template<class Array>
-void Surface<Array>::unitnormal_impl(Array& data)  { 
+void Surface<Array>::unitnormal_impl(Array& data)  {
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
@@ -306,10 +366,10 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
             for (int m = 0; m < ndofs; ++m) {
                 for (int n = 0; n < ndofs; ++n) {
                     norm = sqrt(nor(i,j,0)*nor(i,j,0)
-                            + nor(i,j,1)*nor(i,j,1) 
+                            + nor(i,j,1)*nor(i,j,1)
                             + nor(i,j,2)*nor(i,j,2));
-                    dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0) 
-                            + dnor_dc(i,j,1,n)*nor(i,j,1) 
+                    dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0)
+                            + dnor_dc(i,j,1,n)*nor(i,j,1)
                             + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
                     data(m,n) +=  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
                         + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
@@ -388,8 +448,8 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m){ 
-                for (int n = 0; n < ndofs; ++n){ 
+            for (int m = 0; m < ndofs; ++m){
+                for (int n = 0; n < ndofs; ++n){
                     data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
                             +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
                             +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
