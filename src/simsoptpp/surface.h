@@ -112,6 +112,9 @@ class Surface {
         virtual void dgamma_by_dcoeff_impl(Array& data) { throw logic_error("dgamma_by_dcoeff_impl was not implemented"); };
         virtual void dgammadash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
         virtual void dgammadash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash2dash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2dash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash1dash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1dash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash1dash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1dash1_by_dcoeff_impl was not implemented"); };
 
         virtual Array dgamma_by_dcoeff_vjp(Array& v) {
             return surface_vjp_contraction<Array>(dgamma_by_dcoeff(), v);
@@ -125,6 +128,7 @@ class Surface {
             return surface_vjp_contraction<Array>(dgammadash2_by_dcoeff(), v);
         };
 
+        void surface_curvature_impl(Array& data);
         void normal_impl(Array& data);
         void dnormal_by_dcoeff_impl(Array& data);
         void d2normal_by_dcoeffdcoeff_impl(Array& data);
@@ -157,6 +161,18 @@ class Surface {
         }
         Array& gammadash2dash2() {
             return check_the_cache("gammadash2dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2dash2_impl(A);});
+        }
+        Array& dgammadash1dash1_by_dcoeff() {
+            return check_the_cache("dgammadash1dash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash1_by_dcoeff_impl(A);});
+        }
+        Array& dgammadash1dash2_by_dcoeff() {
+            return check_the_cache("dgammadash1dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash2_by_dcoeff_impl(A);});
+        }
+        Array& dgammadash2dash2_by_dcoeff() {
+            return check_the_cache("dgammadash2dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2dash2_by_dcoeff_impl(A);});
+        }
+        Array& surface_curvature() {
+            return check_the_cache("surface_curvature", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvature_impl(A);});
         }
         Array& dgamma_by_dcoeff() {
             return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});

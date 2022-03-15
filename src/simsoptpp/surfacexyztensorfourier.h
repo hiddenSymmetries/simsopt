@@ -339,6 +339,162 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             }
         }
 
+        void dgammadash1dash1_by_dcoeff_impl(Array& data) override {
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+                    double theta  = 2*M_PI*quadpoints_theta[k2];
+                    int counter = 0;
+                    for (int d = 0; d < 3; ++d) {
+                        for (int m = 0; m <= 2*mpol; ++m) {
+                            for (int n = 0; n <= 2*ntor; ++n) {
+                                if(skip(d, m, n)) continue;
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjd = basis_fun_dphi(d, n, phi, m, theta);
+                                double wivjdd = basis_fun_dphidphi(d, n, phi, m, theta);
+                                if(d==0) {
+                                    double dxhat = wivj;
+                                    double dxhatd = wivjd;
+                                    double dxhatdd = wivjdd;
+                                    double dyhat = 0.;
+                                    double dyhatd = 0.;
+                                    double dyhatdd = 0.;
+                                    // double dxd = dxhatd * cos(phi) - dxhat * sin(phi) - dyhatd * sin(phi) - dyhat * cos(phi);
+                                    double dxdd = dxhatdd * cos(phi) - 2*dxhatd * sin(phi) - dxhat * cos(phi) \
+                                                - dyhatdd * sin(phi) - 2*dyhatd * cos(phi) + dyhat * sin(phi);
+                                    // double dyd = dxhatd * sin(phi) + dxhat * cos(phi) + dyhatd * cos(phi) - dyhat * sin(phi);
+                                    double dydd = dxhatdd * sin(phi) + 2 * dxhatd * cos(phi) - dxhat * sin(phi) \
+                                                + dyhatdd * cos(phi) - 2 * dyhatd * sin(phi) - dyhat * cos(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxdd;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dydd;
+                                } else if(d==1) {
+                                    double dxhat = 0.;
+                                    double dxhatd = 0.;
+                                    double dxhatdd = 0.;
+                                    double dyhat = wivj;
+                                    double dyhatd = wivjd;
+                                    double dyhatdd = wivjdd;
+                                    // double dxd = dxhatd * cos(phi) - dxhat * sin(phi) - dyhatd * sin(phi) - dyhat * cos(phi);
+                                    double dxdd = dxhatdd * cos(phi) - 2*dxhatd * sin(phi) - dxhat * cos(phi) \
+                                                - dyhatdd * sin(phi) - 2*dyhatd * cos(phi) + dyhat * sin(phi);
+                                    // double dyd = dxhatd * sin(phi) + dxhat * cos(phi) + dyhatd * cos(phi) - dyhat * sin(phi);
+                                    double dydd = dxhatdd * sin(phi) + 2 * dxhatd * cos(phi) - dxhat * sin(phi) \
+                                                + dyhatdd * cos(phi) - 2 * dyhatd * sin(phi) - dyhat * cos(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxdd;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dydd;
+                                }else {
+                                    double dzdd = wivjdd;
+                                    data(k1, k2, 2, counter) = 4*M_PI*M_PI*dzdd;
+                                }
+                                counter++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        void dgammadash1dash2_by_dcoeff_impl(Array& data) override {
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+                    double theta  = 2*M_PI*quadpoints_theta[k2];
+                    int counter = 0;
+                    for (int d = 0; d < 3; ++d) {
+                        for (int m = 0; m <= 2*mpol; ++m) {
+                            for (int n = 0; n <= 2*ntor; ++n) {
+                                if(skip(d, m, n)) continue;
+                                double wivjd2 = basis_fun_dtheta(d, n, phi, m, theta);
+                                double wivjd1d2 = basis_fun_dthetadphi(d, n, phi, m, theta);
+                                if(d==0) {
+                                    double dxhatd2 = wivjd2;
+                                    double dxhatd1d2 = wivjd1d2;
+                                    double dyhatd2 = 0.;
+                                    double dyhatd1d2 = 0.;
+                                    // double dxd1 = dxhatd1 * cos(phi) - dxhat * sin(phi) - dyhatd1 * sin(phi) - dyhat * cos(phi);
+                                    double dxd1d2 = dxhatd1d2 * cos(phi) - dxhatd2 * sin(phi) \
+                                                  - dyhatd1d2 * sin(phi) - dyhatd2 * cos(phi);
+                                    // double dyd1 = dxhatd1 * sin(phi) + dxhat * cos(phi) + dyhatd1 * cos(phi) - dyhat * sin(phi);
+                                    double dyd1d2 = dxhatd1d2 * sin(phi) + dxhatd2 * cos(phi) \
+                                                + dyhatd1d2 * cos(phi) - dyhatd2 * sin(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxd1d2;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dyd1d2;
+                                }else if(d==1) {
+                                    double dxhatd2 = 0.;
+                                    double dxhatd1d2 = 0.;
+                                    double dyhatd2 = wivjd2;
+                                    double dyhatd1d2 = wivjd1d2;
+                                    // double dxd1 = dxhatd1 * cos(phi) - dxhat * sin(phi) - dyhatd1 * sin(phi) - dyhat * cos(phi);
+                                    double dxd1d2 = dxhatd1d2 * cos(phi) - dxhatd2 * sin(phi) \
+                                                  - dyhatd1d2 * sin(phi) - dyhatd2 * cos(phi);
+                                    // double dyd1 = dxhatd1 * sin(phi) + dxhat * cos(phi) + dyhatd1 * cos(phi) - dyhat * sin(phi);
+                                    double dyd1d2 = dxhatd1d2 * sin(phi) + dxhatd2 * cos(phi) \
+                                                  + dyhatd1d2 * cos(phi) - dyhatd2 * sin(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxd1d2;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dyd1d2;
+                                }else {
+                                    double dzd1d2 = wivjd1d2;
+                                    data(k1, k2, 2, counter) = 4*M_PI*M_PI*dzd1d2;
+                                }
+                                counter++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        void dgammadash2dash2_by_dcoeff_impl(Array& data) override {
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+                    double theta  = 2*M_PI*quadpoints_theta[k2];
+                    int counter = 0;
+                    for (int d = 0; d < 3; ++d) {
+                        for (int m = 0; m <= 2*mpol; ++m) {
+                            for (int n = 0; n <= 2*ntor; ++n) {
+                                if(skip(d, m, n)) continue;
+                                double wivj = basis_fun(d, n, phi, m, theta);
+                                double wivjd = basis_fun_dtheta(d, n, phi, m, theta);
+                                double wivjdd = basis_fun_dthetadtheta(d, n, phi, m, theta);
+                                if(d==0) {
+                                    double dxhat = wivj;
+                                    double dyhat = 0.;
+                                    double dxhatd = wivjd;
+                                    double dyhatd = 0.;
+                                    double dxhatdd = wivjdd;
+                                    double dyhatdd = 0.;
+                                    // double dxd = dxhatd * cos(phi) - dyhatd * sin(phi);
+                                    double dxdd = dxhatdd * cos(phi) - dyhatdd * sin(phi);
+                                    // double dyd = dxhatd * sin(phi) + dyhatd * cos(phi);
+                                    double dydd = dxhatdd * sin(phi) + dyhatdd * cos(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxdd;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dydd;
+                                }else if(d==1) {
+                                    double dxhat = 0.;
+                                    double dyhat = wivj;
+                                    double dxhatd = 0.;
+                                    double dyhatd = wivjd;
+                                    double dxhatdd = 0.;
+                                    double dyhatdd = wivjdd;
+                                    // double dxd = dxhatd * cos(phi) - dyhatd * sin(phi);
+                                    double dxdd = dxhatdd * cos(phi) - dyhatdd * sin(phi);
+                                    // double dyd = dxhatd * sin(phi) + dyhatd * cos(phi);
+                                    double dydd = dxhatdd * sin(phi) + dyhatdd * cos(phi);
+                                    data(k1, k2, 0, counter) = 4*M_PI*M_PI*dxdd;
+                                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*dydd;
+                                }else {
+                                    double dzdd = wivjdd;
+                                    data(k1, k2, 2, counter) = 4*M_PI*M_PI*dzdd;;
+                                }
+                                counter++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         void dgamma_by_dcoeff_impl(Array& data) override {
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
