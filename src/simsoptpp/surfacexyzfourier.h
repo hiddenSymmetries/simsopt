@@ -150,5 +150,8 @@ class SurfaceXYZFourier : public Surface<Array> {
         void dgamma_by_dcoeff_impl(Array& data) override;
         void dgammadash1_by_dcoeff_impl(Array& data) override;
         void dgammadash2_by_dcoeff_impl(Array& data) override;
+        void dgammadash1dash1_by_dcoeff_impl(Array& data) override;
+        void dgammadash1dash2_by_dcoeff_impl(Array& data) override;
+        void dgammadash2dash2_by_dcoeff_impl(Array& data) override;
 
 };

@@ -5,47 +5,7 @@ from simsopt.geo import parameters
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-
 parameters['jit'] = False
-
-
-def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
-    np.random.seed(1)
-    f0 = f(x)
-    if direction is None:
-        direction = np.random.rand(*(x.shape))-0.5
-    dfx = df(x)@direction
-    if epsilons is None:
-        epsilons = np.power(2., -np.asarray(range(8, 20)))
-    print("###################################################################")
-    err_old = 1e9
-    counter = 0
-    for eps in epsilons:
-        if counter > 8:
-            break
-        fpluseps = f(x + eps * direction)
-        fminuseps = f(x - eps * direction)
-        if order == 2:
-            fak = 0.3
-            dfest = (fpluseps-fminuseps)/(2*eps)
-        elif order == 4:
-            fplus2eps = f(x + 2*eps * direction)
-            fminus2eps = f(x - 2*eps * direction)
-            fak = 0.13
-            dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps
-                     - (1/12)*fplus2eps)/eps
-        else:
-            raise NotImplementedError
-        err = np.linalg.norm(dfest - dfx)
-        print(err)
-        assert err < 1e-9 or err < 0.3 * err_old
-        counter += 1
-        if err < 1e-9:
-            break
-        err_old = err
-    if err > 1e-10:
-        assert counter > 2
-    print("###################################################################")
 
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None):
@@ -87,6 +47,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None):
     np.random.seed(2)
     rand_scale = 0.01
     s.x = dofs + rand_scale * np.random.rand(len(dofs))  # .reshape(dofs.shape)
+    s.invalidate_cache()
     return s
 
 
@@ -109,14 +70,57 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
         fpluseps = df(x + eps * direction2) @ direction1
         d2fest = (fpluseps-df0)/eps
         err = np.abs(d2fest - d2fval)
-
-        print(err/err_old)
+        print('err: ', err)
+        print('err/err_old: ',err/err_old)
         assert err < 0.6 * err_old
         err_old = err
     print("###################################################################")
 
-
 class SurfaceTaylorTests(unittest.TestCase):
+    def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
+        np.random.seed(1)
+        f0 = f(x)
+        print('f0: ', f0)
+        if direction is None:
+            direction = np.random.rand(*(x.shape))-0.5
+        dfx = df(x)@direction
+        print('dfx: ',dfx)
+        if epsilons is None:
+            epsilons = np.power(2., -np.asarray(range(8, 20)))
+        print("###################################################################")
+        err_old = 1.e9
+        counter = 0
+        for eps in epsilons:
+            print('eps: ', eps)
+            if counter > 8:
+                break
+            fpluseps = f(x + eps * direction)
+            print('fpluseps: ', fpluseps)
+            fminuseps = f(x - eps * direction)
+            print('fminuseps: ', fminuseps)
+            if order == 2:
+                fak = 0.3
+                dfest = (fpluseps-fminuseps)/(2*eps)
+            elif order == 4:
+                fplus2eps = f(x + 2*eps * direction)
+                fminus2eps = f(x - 2*eps * direction)
+                fak = 0.13
+                dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps
+                         - (1/12)*fplus2eps)/eps
+            else:
+                raise NotImplementedError
+            print('dfest: ',dfest)
+            err = np.linalg.norm(dfest - dfx)
+            print('err: ', err)
+            # print('err/err_old: ',err/err_old)
+            self.assertTrue(err < 1.e-9 or err < 0.3 * err_old)
+            counter += 1
+            if err < 1e-9:
+                break
+            err_old = err
+        if err > 1e-10:
+            assert counter > 2
+        print("###################################################################")
 
     surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
                     "SurfaceXYZTensorFourier"]
@@ -132,7 +136,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         def df(dofs):
             s.x = dofs
             return s.dgamma_by_dcoeff()[1, 1, :, :].copy()
-        taylor_test(f, df, coeffs)
+        self.taylor_test(f, df, coeffs)
 
         def f(dofs):
             s.x = dofs
@@ -141,7 +145,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         def df(dofs):
             s.x = dofs
             return s.dgammadash1_by_dcoeff()[1, 1, :, :].copy()
-        taylor_test(f, df, coeffs)
+        self.taylor_test(f, df, coeffs)
 
         def f(dofs):
             s.x = dofs
@@ -150,11 +154,38 @@ class SurfaceTaylorTests(unittest.TestCase):
         def df(dofs):
             s.x = dofs
             return s.dgammadash2_by_dcoeff()[1, 1, :, :].copy()
-        taylor_test(f, df, coeffs)
+        self.taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash2dash2()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash2dash2_by_dcoeff()[1, 1, :, :].copy()
+        self.taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash1dash1()[2, 2, 0].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash1dash1_by_dcoeff()[2, 2, 0, :].copy()
+        self.taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash1dash2()[2, 2, 0].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash1dash2_by_dcoeff()[2, 2, 0, :].copy()
+        self.taylor_test(f, df, coeffs)
 
     def test_surface_coefficient_derivative(self):
         for surfacetype in self.surfacetypes:
-            for stellsym in [True, False]:
+            for stellsym in [True,False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_coefficient_derivative(s)
