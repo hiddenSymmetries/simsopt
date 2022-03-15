@@ -59,6 +59,7 @@ RUN /venv/bin/pip install h5py pyoculus py_spec
 RUN /venv/bin/pip install vtk==9.0.1 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
+RUN /venv/bin/pip install  git+https://github.com/mbkumar/virtual-casing.git@pybind
 
 ENV CI=True
 RUN git clone --recurse-submodules https://github.com/hiddenSymmetries/simsopt.git /src/simsopt && \

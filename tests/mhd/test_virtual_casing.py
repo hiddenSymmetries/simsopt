@@ -14,8 +14,35 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
 
 
+@unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
 class VirtualCasingTests(unittest.TestCase):
-    @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
+    def test_nphi_multiple_of_2_nfp(self):
+        """
+        nphi must be a multiple of 2 * nfp
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vmec = Vmec(filename)
+
+        with self.assertRaises(ValueError):
+            vc = VirtualCasing.from_vmec(vmec, nphi=151, ntheta=20)
+        with self.assertRaises(ValueError):
+            vc = VirtualCasing.from_vmec(vmec, nphi=150, ntheta=20)
+        vc = VirtualCasing.from_vmec(vmec, nphi=152, ntheta=20)
+
+    def test_different_initializations(self):
+        """
+        Verify the virtual casing object can be initialized from a Vmec
+        object, from a Vmec input file, or from a Vmec wout file.
+        """
+        filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+        vc = VirtualCasing.from_vmec(filename, nphi=72, ntheta=10)
+
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vc = VirtualCasing.from_vmec(filename, nphi=80, ntheta=10)
+
+        vmec = Vmec(filename)
+        vc = VirtualCasing.from_vmec(vmec, nphi=80, ntheta=10)
+
     def test_bnorm_benchmark(self):
         """
         Verify that the virtual_casing module by Malhotra et al gives
@@ -27,7 +54,7 @@ class VirtualCasingTests(unittest.TestCase):
 
         vmec = Vmec(filename)
         factor = 2
-        vc = VirtualCasing.from_vmec(vmec, nphi=factor * 150, ntheta=factor * 20)
+        vc = VirtualCasing.from_vmec(vmec, nphi=factor * 152, ntheta=factor * 20)
 
         nfp = vmec.wout.nfp
         theta, phi = np.meshgrid(2 * np.pi * vc.theta, 2 * np.pi * vc.phi)
@@ -92,3 +119,23 @@ class VirtualCasingTests(unittest.TestCase):
 
             plt.tight_layout()
             plt.show()
+
+    def test_save_load(self):
+        """
+        Save a calculation, then load it into a different object. The
+        fields of the objects should all match.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vc1 = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20, filename='vcasing.nc')
+        vc2 = VirtualCasing.load('vcasing.nc')
+        variables = ['ntheta', 'nphi', 'theta', 'phi', 'gamma', 'unit_normal', 'B_total', 'B_internal', 'B_internal_normal']
+        for variable in variables:
+            variable1 = eval('vc1.' + variable)
+            variable2 = eval('vc2.' + variable)
+            logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
+            np.testing.assert_allclose(variable1, variable2)
+
+    def test_plot(self):
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vc = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20)
+        vc.plot(show=False)

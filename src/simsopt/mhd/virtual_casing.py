@@ -9,21 +9,20 @@ surface.
 """
 
 import logging
+from datetime import datetime
 import numpy as np
+from scipy.io import netcdf_file
 from .vmec_diagnostics import B_cartesian
+from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
 # TODO:
-# * Check that quadpoints_phi is "full torus"
-# * Check that nphi is a multiple of nfp?
-# * Allow for different ntheta & nphi compared to the vmec.boundary object
 # * Routine for finding the optimal ntheta:nphi ratio
-# * Separate routine to save data in a file
-# * plotting routine
+# * Resample routine
+# * Example in examples folder
 # * Tests:
-#   - Compare to reference BNORM calculation for d23_t4
 #   - For a vacuum config, B_internal should be 0
 #   - Should have nfp and stellarator symmetry
 
@@ -51,16 +50,24 @@ class VirtualCasing:
         For now, this routine only works for stellarator symmetry.
 
         Args:
+            vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
+              Vmec ``input.*`` or ``wout*`` file.
+            nphi: Number of grid points toroidally for the calculation.
+            ntheta: Number of grid points poloidally for the calculation.
+            digits: Approximate number of digits of precision for the calculation.
             filename: If not ``None``, the Bnormal data will be saved in this file.
         """
         import virtual_casing as vc_module
+
+        if not isinstance(vmec, Vmec):
+            vmec = Vmec(vmec)
 
         vmec.run()
         nfp = vmec.wout.nfp
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
-        if nphi % 2 * nfp != 0:
-            raise ValueError('nphi must be a multiple of 2 * nfp')
+        if nphi % (2 * nfp) != 0:
+            raise ValueError(f'nphi must be a multiple of 2 * nfp. nphi={nphi}, nfp={nfp}')
 
         # The requested nphi and ntheta may not match the quadrature
         # points in vmec.boundary, and the range may not be "full torus",
@@ -142,11 +149,98 @@ class VirtualCasing:
         return vc
 
     def save(self, filename="vcasing.nc"):
-        pass
+        """
+        Save the results of a virtual casing calculation in a NetCDF file.
+
+        Args:
+            filename: Name of the file to create.
+        """
+        f = netcdf_file(filename, 'w')
+        f.history = 'This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S")
+        f.createDimension('ntheta', self.ntheta)
+        f.createDimension('nphi', self.nphi)
+        f.createDimension('xyz', 3)
+
+        ntheta = f.createVariable('ntheta', 'i', tuple())
+        ntheta.assignValue(self.ntheta)
+        ntheta.description = 'Number of grid points in the poloidal angle theta'
+        ntheta.units = 'Dimensionless'
+
+        nphi = f.createVariable('nphi', 'i', tuple())
+        nphi.assignValue(self.nphi)
+        nphi.description = 'Number of grid points in the toroidal angle phi, covering the full torus'
+        nphi.units = 'Dimensionless'
+
+        theta = f.createVariable('theta', 'd', ('ntheta',))
+        theta[:] = self.theta
+        theta.description = 'Grid points in the poloidal angle theta. Note that theta extends over [0, 1) not [0, 2pi).'
+        theta.units = 'Dimensionless'
+
+        phi = f.createVariable('phi', 'd', ('nphi',))
+        phi[:] = self.phi
+        phi.description = 'Grid points in the toroidal angle phi. Note that phi extends over [0, 1) not [0, 2pi).'
+        phi.units = 'Dimensionless'
+
+        gamma = f.createVariable('gamma', 'd', ('nphi', 'ntheta', 'xyz'))
+        gamma[:, :, :] = self.gamma
+        gamma.description = 'Position vector on the boundary surface'
+        gamma.units = 'meter'
+
+        unit_normal = f.createVariable('unit_normal', 'd', ('nphi', 'ntheta', 'xyz'))
+        unit_normal[:, :, :] = self.unit_normal
+        unit_normal.description = 'Unit-length normal vector on the boundary surface'
+        unit_normal.units = 'Dimensionless'
+
+        B_total = f.createVariable('B_total', 'd', ('nphi', 'ntheta', 'xyz'))
+        B_total[:, :, :] = self.B_total
+        B_total.description = 'Total magnetic field vector on the surface, including currents both inside and outside of the surface'
+        B_total.units = 'Tesla'
+
+        B_internal = f.createVariable('B_internal', 'd', ('nphi', 'ntheta', 'xyz'))
+        B_internal[:, :, :] = self.B_internal
+        B_internal.description = 'Contribution to the magnetic field vector on the surface due only to currents inside the surface'
+        B_internal.units = 'Tesla'
+
+        B_internal_normal = f.createVariable('B_internal_normal', 'd', ('nphi', 'ntheta'))
+        B_internal_normal[:, :] = self.B_internal_normal
+        B_internal_normal.description = 'Component of B_internal normal to the surface'
+        B_internal_normal.units = 'Tesla'
+
+        f.close()
 
     @classmethod
-    def load(filename):
-        pass
+    def load(cls, filename):
+        """
+        Load in the results of a previous virtual casing calculation,
+        previously saved in NetCDF format.
+
+        Args:
+            filename: Name of the file to load.
+        """
+        vc = cls()
+        f = netcdf_file(filename, mmap=False)
+        for key, val in f.variables.items():
+            val2 = val[()]  # Convert to numpy array
+            vc.__setattr__(key, val2)
+        return vc
 
     def resample(self, ntheta, nphi):
         pass
+
+    def plot(self, show=True):
+        """
+        Plot ``B_internal_normal``, the component normal to the surface of
+        the magnetic field generated by currents inside the surface.
+        This routine requires ``matplotlib``.
+
+        Args:
+            show: Whether to call matplotlib's ``show()`` function.
+        """
+        import matplotlib.pyplot as plt
+        plt.contourf(self.phi, self.theta, self.B_internal_normal.T, 25)
+        plt.xlabel(r'$\phi$')
+        plt.ylabel(r'$\theta$')
+        plt.title('B_internal_normal')
+        plt.tight_layout()
+        if show:
+            plt.show()
