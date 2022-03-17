@@ -603,6 +603,21 @@ class VmecFieldlinesTests(unittest.TestCase):
                                    fl.toroidal_flux_sign * (B0 / Aminor) * (-np.cos(theta) / R + phi * d_iota_d_r * eps * np.sin(theta)),
                                    atol=0.006)
 
+    def test_plot(self):
+        """
+        Test the plotting function of vmec_fieldlines()
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'))
+
+        phi = np.linspace(-np.pi / 5, np.pi / 5, 7)
+        fl = vmec_fieldlines(vmec, s=1, alpha=0, phi1d=phi, plot=True, show=False)
+
+        theta = np.linspace(-np.pi, np.pi, 100)
+        fl = vmec_fieldlines(vmec, s=0.5, alpha=np.pi, theta1d=theta, plot=True, show=False)
+
+        alpha = np.linspace(0, 2 * np.pi, 10, endpoint=False)
+        fl = vmec_fieldlines(vmec, s=[0.25, 0.5], alpha=alpha, phi1d=phi, plot=True, show=False)
+
 
 if __name__ == "__main__":
     unittest.main()
