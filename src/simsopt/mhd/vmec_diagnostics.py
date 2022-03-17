@@ -796,7 +796,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     returned: ``bmag``, ``gbdrift``, ``gbdrift0``, ``cvdrift``,
     ``cvdrift0``, ``gds2``, ``gds21``, and ``gds22``, along with
     ``L_reference`` and ``B_reference``.  Instead of ``gradpar``, two
-    variants are returned, ``gradpar_theta`` and ``gradpar_phi``,
+    variants are returned, ``gradpar_theta_pest`` and ``gradpar_phi``,
     corresponding to choosing either :math:`\theta_{pest}` or
     :math:`\phi` as the parallel coordinate.
 
@@ -997,6 +997,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle)
     B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle)
     B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle)
+    B_sup_theta_pest = iota[:, None, None] * B_sup_phi
 
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
 
@@ -1113,7 +1114,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     bmag = modB / B_reference
 
-    gradpar_theta = L_reference * B_sup_theta_vmec / modB
+    gradpar_theta_pest = L_reference * B_sup_theta_pest / modB
 
     gradpar_phi = L_reference * B_sup_phi / modB
 
@@ -1138,7 +1139,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
                  'alpha', 'theta1d', 'phi1d', 'phi', 'theta_pest',
                  'd_lambda_d_s', 'd_lambda_d_theta_vmec', 'd_lambda_d_phi', 'sqrt_g_vmec', 'sqrt_g_vmec_alt',
-                 'theta_vmec', 'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_phi',
+                 'theta_vmec', 'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_theta_pest', 'B_sup_phi',
                  'B_sub_s', 'B_sub_theta_vmec', 'B_sub_phi', 'edge_toroidal_flux_over_2pi', 'sinphi', 'cosphi',
                  'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
                  'd_X_d_theta_vmec', 'd_X_d_phi', 'd_X_d_s', 'd_Y_d_theta_vmec', 'd_Y_d_phi', 'd_Y_d_s',
@@ -1151,17 +1152,17 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
                  'B_cross_grad_B_dot_grad_psi', 'B_cross_kappa_dot_grad_psi', 'B_cross_kappa_dot_grad_alpha',
                  'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
                  'L_reference', 'B_reference', 'toroidal_flux_sign',
-                 'bmag', 'gradpar_theta', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
+                 'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
 
     if plot:
         import matplotlib.pyplot as plt
         plt.figure(figsize=(13, 7))
         nrows = 4
         ncols = 5
-        variables = ['modB', 'B_sup_theta_vmec', 'B_sup_phi', 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_psi',
+        variables = ['modB', 'B_sup_theta_pest', 'B_sup_phi', 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_psi',
                      'B_cross_kappa_dot_grad_alpha', 'B_cross_kappa_dot_grad_psi',
                      'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
-                     'bmag', 'gradpar_theta', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
+                     'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval(variable + '[0, 0, :]'))

@@ -454,6 +454,10 @@ class VmecFieldlinesTests(unittest.TestCase):
                 for js in range(ns):
                     np.testing.assert_allclose(fl.iota[js], should_be_iota[js, :, :], rtol=1e-4, atol=1e-4)
 
+                # Compare 2 methods of computing B_sup_theta_pest:
+                np.testing.assert_allclose(fl.B_sup_theta_vmec * (1 + fl.d_lambda_d_theta_vmec) + fl.B_sup_phi * fl.d_lambda_d_phi,
+                                           fl.B_sup_theta_pest, rtol=1e-4)
+
                 # grad_phi_X should be -sin(phi) / R:
                 np.testing.assert_allclose(fl.grad_phi_X, -fl.sinphi / fl.R, rtol=1e-4)
                 # grad_phi_Y should be cos(phi) / R:
