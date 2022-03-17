@@ -725,7 +725,7 @@ def vmec_splines(vmec):
     return results
 
 
-def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
+def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=False, show=True):
     r"""
     Compute field lines in a vmec configuration, and compute many
     geometric quantities of interest along the field lines. In
@@ -744,10 +744,14 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
 
     .. math::
 
-        \alpha = \theta_{pest} - \iota \phi.
+        \alpha = \theta_{pest} - \iota (\phi - \phi_{center}).
 
-    Also, wherever the term ``psi`` appears in variable names in this function and the returned arrays,
-    it means :math:`\psi =` the toroidal flux divided by :math:`2\pi`, so
+    Here, :math:`\phi_{center}` is a constant, usually 0, which can be
+    set to a nonzero value if desired so the magnetic shear
+    contribution to :math:`\nabla\alpha` vanishes at a toroidal angle
+    different than 0.  Also, wherever the term ``psi`` appears in
+    variable names in this function and the returned arrays, it means
+    :math:`\psi =` the toroidal flux divided by :math:`2\pi`, so
 
     .. math::
 
@@ -825,8 +829,12 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
           along the field line and the parallel extent of the field line.
         phi1d: 1D array of :math:`\phi` values, setting the grid points along the
           field line and the parallel extent of the field line.
+        phi_center: :math:`\phi_{center}`, an optional shift to the toroidal angle
+          in the definition of :math:`\alpha`.
         plot: Whether to create a plot of the main geometric quantities. Only one field line will
           be plotted, corresponding to the leading elements of ``s`` and ``alpha``.
+        show: Only matters if ``plot==True``. Whether to call matplotlib's ``show()`` function
+          after creating the plot.
     """
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
@@ -912,12 +920,12 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
         # We are given phi. Compute theta_pest:
         for js in range(ns):
             phi[js, :, :] = phi1d[None, :]
-            theta_pest[js, :, :] = alpha[:, None] + iota[js] * phi1d[None, :]
+            theta_pest[js, :, :] = alpha[:, None] + iota[js] * (phi1d[None, :] - phi_center)
     else:
         # We are given theta_pest. Compute phi:
         for js in range(ns):
             theta_pest[js, :, :] = theta1d[None, :]
-            phi[js, :, :] = (theta1d[None, :] - alpha[:, None]) / iota[js]
+            phi[js, :, :] = phi_center + (theta1d[None, :] - alpha[:, None]) / iota[js]
 
     def residual(theta_v, phi0, theta_p_target, jradius):
         """
@@ -1033,7 +1041,6 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
 
     # Form grad alpha = grad (theta_vmec + lambda - iota * phi)
-    phi_center = 0  # Might want to change this in the future
     grad_alpha_X = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_X
     grad_alpha_Y = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_Y
     grad_alpha_Z = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_Z
@@ -1163,7 +1170,8 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, plot=False):
 
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')
         plt.tight_layout()
-        plt.show()
+        if show:
+            plt.show()
 
     for v in variables:
         results.__setattr__(v, eval(v))
