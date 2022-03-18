@@ -2,7 +2,6 @@ from math import pi
 from itertools import chain
 
 import numpy as np
-from jax.ops import index, index_add
 import jax.numpy as jnp
 
 from .curve import Curve, JaxCurve
@@ -102,14 +101,12 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
     points = quadpoints
-    gamma = np.zeros((len(points), 3))
+    gamma = jnp.zeros((len(points), 3))
     for i in range(3):
-        gamma = index_add(gamma, index[:, i], coeffs[i][0])
+        gamma = gamma.at[:, i].add(coeffs[i][0])
         for j in range(1, order+1):
-            gamma = index_add(gamma, index[:, i],
-                              coeffs[i][2*j-1] * jnp.sin(2*pi*j*points))
-            gamma = index_add(gamma, index[:, i],
-                              coeffs[i][2*j] * jnp.cos(2*pi*j*points))
+            gamma = gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
+            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.cos(2 * pi * j * points))
     return gamma
 
 
