@@ -1203,19 +1203,19 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @SimsoptRequires(nx is not None, "print method requires networkx")
     @SimsoptRequires(pygraphviz is not None, "print method requires pygraphviz")
     def plot(self):
-        
+
         G = nx.DiGraph()
         G.add_node(self.name) 
-        
+
         def traversal(root):
             for p in root.parents:
                 n1 = root.name
                 n2 = p.name
                 G.add_edge(n1, n2)
                 traversal(p)
-        
+
         traversal(self)
-        
+
         import matplotlib.pyplot as plt
         options = {
             'node_color': 'red',
