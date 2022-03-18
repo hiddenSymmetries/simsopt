@@ -3,15 +3,16 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides routines for interacting with the virtual_casing package,
-for e.g. computing the magnetic field on a surface due to currents inside the
-surface.
+This module provides routines for interacting with the
+``virtual_casing`` package by D Malhotra et al, for e.g. computing the
+magnetic field on a surface due to currents inside the surface.
 """
 
 import logging
 from datetime import datetime
 import numpy as np
 from scipy.io import netcdf_file
+from scipy.signal import resample
 from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -20,17 +21,72 @@ logger = logging.getLogger(__name__)
 
 # TODO:
 # * Routine for finding the optimal ntheta:nphi ratio
-# * Resample routine
 # * Example in examples folder
 # * Tests:
 #   - For a vacuum config, B_internal should be 0
 #   - Should have nfp and stellarator symmetry
 
 
-class VirtualCasing:
+def resample_2D(arr, d0, d1):
     """
+    Given a 2D array, use Fourier interpolation to resample the data in both dimensions.
+
+    Args:
+        arr: An input 2D array.
+        d0: The desired dimension along axis 0 of the returned array.
+        d1: The desired dimension along axis 1 of the returned array.
+
+    Returns:
+        A 2D array of size ``(d0, d1)`` with the resampled data.
+    """
+    return resample(resample(arr, d0), d1, axis=1)
+
+
+class VirtualCasing:
+    r"""
     Use the virtual casing principle to compute the contribution to
     the total magnetic field due to current inside a bounded surface.
+
+    Usually, an instance of this class is created using the
+    :func:`from_vmec()` class method, which also drives the
+    computationally demanding part of the calculation (solving the
+    integral equation).  In the future, interfaces to other
+    equilibrium codes may be added.
+
+    In the standard 2-stage approach to stellarator optimization, the
+    virtual casing calculation is run once, at the end of stage 1
+    (optimizing the plasma shape), with the result provided as input
+    to stage 2 (optimizing the coil shapes). In this case, you can use
+    the :func:`save()` function or the ``filename`` argument of
+    :func:`from_vmec()` to save the results of the virtual casing
+    calculation.  These saved results can then be loaded in later
+    using the :func:`load()` class method, when needed for solving the
+    stage-2 problem.
+
+    A common situation is that you may wish to use a different number
+    of grid points in :math:`\theta` and :math:`\phi` on the surface
+    for the stage-2 optimization compared to the number of grid points
+    used for the virtual casing calculation. In this situation, the
+    :func:`resample()` function is provided to interpolate the virtual
+    casing results onto whatever grid you wish to use for the stage-2
+    problem.
+
+    An instance of this class has the following attributes. For all
+    vector quantites, Cartesian coordinates are used, corresponding to
+    array dimensions of size 3:
+
+    - ``nphi``: The number of grid points in the toroidal angle :math:`\phi`, for the full torus.
+    - ``ntheta``: The number of grid points in the poloidal angle :math:`\theta`.
+    - ``phi``: An array of size ``(nphi,)`` with the grid points of :math:`\phi`.
+    - ``theta``: An array of size ``(ntheta,)`` with the grid points of :math:`\theta`.
+    - ``gamma``: An array of size ``(nphi, ntheta, 3)`` with the position vector on the surface.
+    - ``unit_normal``: An array of size ``(nphi, ntheta, 3)`` with the unit normal vector on the surface.
+    - ``B_total``: An array of size ``(nphi, ntheta, 3)`` with the total magnetic field vector on the surface.
+    - ``B_internal``: An array of size ``(nphi, ntheta, 3)`` with the contribution
+      to the magnetic field due to current inside the surface.
+    - ``B_internal_normal``: An array of size ``(nphi, ntheta)`` with the contribution
+      to the magnetic field due to current inside the surface, taking just the component
+      normal to the surface.
     """
 
     @classmethod
@@ -55,7 +111,8 @@ class VirtualCasing:
             nphi: Number of grid points toroidally for the calculation.
             ntheta: Number of grid points poloidally for the calculation.
             digits: Approximate number of digits of precision for the calculation.
-            filename: If not ``None``, the Bnormal data will be saved in this file.
+            filename: If not ``None``, the results of the virtual casing calculation
+              will be saved in this file.
         """
         import virtual_casing as vc_module
 
@@ -225,7 +282,35 @@ class VirtualCasing:
         return vc
 
     def resample(self, ntheta, nphi):
-        pass
+        """
+        Return a new ``VirtualCasing`` object in which all of the data
+        have been resampled in the poloidal and toroidal angles.
+        This is useful if you wish to use a different surface resolution
+        for the stage-2 coil optimization compared to the resolution
+        used for the virtual casing calculation.
+
+        Args:
+            ntheta: New number of grid points in the poloidal angle.
+            nphi: New number of grid points in the toroidal angle (including all field periods).
+
+        Returns:
+            A new ``VirtualCasing`` object.
+        """
+        newvc = VirtualCasing()
+        newvc.ntheta = ntheta
+        newvc.nphi = nphi
+        newvc.theta = np.linspace(0, 1, ntheta, endpoint=False)
+        newvc.phi = np.linspace(0, 1, nphi, endpoint=False)
+        newvc.B_internal_normal = resample_2D(self.B_internal_normal, nphi, ntheta)
+        # Vector fields on the surface:
+        variables = ['gamma', 'unit_normal', 'B_total', 'B_internal']
+        for variable in variables:
+            oldvar = eval('self.' + variable)
+            newvar = np.zeros((nphi, ntheta, 3))
+            for j in range(3):
+                newvar[:, :, j] = resample_2D(oldvar[:, :, j], nphi, ntheta)
+            newvc.__setattr__(variable, newvar)
+        return newvc
 
     def plot(self, show=True):
         """
@@ -240,7 +325,8 @@ class VirtualCasing:
         plt.contourf(self.phi, self.theta, self.B_internal_normal.T, 25)
         plt.xlabel(r'$\phi$')
         plt.ylabel(r'$\theta$')
-        plt.title('B_internal_normal')
+        plt.title('B_internal_normal [Tesla]')
+        plt.colorbar()
         plt.tight_layout()
         if show:
             plt.show()

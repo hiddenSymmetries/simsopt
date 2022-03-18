@@ -3,7 +3,7 @@ import logging
 import os
 import numpy as np
 from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.virtual_casing import VirtualCasing
+from simsopt.mhd.virtual_casing import VirtualCasing, resample_2D
 from . import TEST_DIR
 try:
     import virtual_casing
@@ -11,11 +11,34 @@ except ImportError:
     virtual_casing = None
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
+
+
+variables = ['nphi', 'ntheta', 'phi', 'theta', 'gamma', 'unit_normal', 'B_total', 'B_internal', 'B_internal_normal']
 
 
 @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
 class VirtualCasingTests(unittest.TestCase):
+    def test_resample_2D(self):
+        """
+        Test the resample_2D() function. For sines and cosines, resampling
+        should be accurate to machine precision.
+        """
+        def populate_array(ntheta, nphi):
+            theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+            phi1d = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+            theta, phi = np.meshgrid(theta1d, phi1d)
+            return 0.3 + 0.7 * np.cos(3 * theta - 5 * phi + 0.9) - np.sin(1 * theta - 2 * phi + 0.2)
+
+        arr1 = populate_array(12, 15)
+
+        ntheta = 14
+        nphi = 11
+        arr2 = populate_array(ntheta, nphi)
+
+        arr3 = resample_2D(arr1, nphi, ntheta)
+        np.testing.assert_allclose(arr2, arr3, atol=1e-14, rtol=1e-14)
+
     def test_nphi_multiple_of_2_nfp(self):
         """
         nphi must be a multiple of 2 * nfp
@@ -128,7 +151,6 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
         vc1 = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20, filename='vcasing.nc')
         vc2 = VirtualCasing.load('vcasing.nc')
-        variables = ['ntheta', 'nphi', 'theta', 'phi', 'gamma', 'unit_normal', 'B_total', 'B_internal', 'B_internal_normal']
         for variable in variables:
             variable1 = eval('vc1.' + variable)
             variable2 = eval('vc2.' + variable)
@@ -139,3 +161,40 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
         vc = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20)
         vc.plot(show=False)
+
+    def test_resample(self):
+        """
+        If we run virtual casing at a certain resolution and resample to a
+        different resolution, we should get nearly the same answer as
+        if we ran virtual casing at the new resolution directly.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vmec = Vmec(filename)
+
+        ntheta_low = 30
+        nphi_low = 232
+
+        ntheta_high = 40
+        nphi_high = 304
+
+        vc_low_res = VirtualCasing.from_vmec(vmec, nphi=nphi_low, ntheta=ntheta_low)
+        vc_high_res = VirtualCasing.from_vmec(vmec, nphi=nphi_high, ntheta=ntheta_high)
+
+        def compare_objects(obj1, obj2, atol=1e-13, rtol=1e-13):
+            for variable in variables:
+                logger.debug(f'Comparing variables {variable}')
+                np.testing.assert_allclose(eval('obj1.' + variable), eval('obj2.' + variable), atol=atol, rtol=rtol)
+
+        # Resampling without changing resolution should not change anything:
+        compare_objects(vc_low_res, vc_low_res.resample(ntheta_low, nphi_low))
+        compare_objects(vc_high_res, vc_high_res.resample(ntheta_high, nphi_high))
+
+        # Downsample the high res:
+        vm_high_res_downsampled = vc_high_res.resample(ntheta_low, nphi_low)
+        #vc_low_res.plot()
+        #vm_high_res_downsampled.plot()
+        compare_objects(vc_low_res, vm_high_res_downsampled, atol=0.1, rtol=0.1)
+
+        # Upsample the low res:
+        vm_low_res_upsampled = vc_low_res.resample(ntheta_high, nphi_high)
+        compare_objects(vc_high_res, vm_low_res_upsampled, atol=0.1, rtol=0.1)
