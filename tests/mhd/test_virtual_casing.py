@@ -198,3 +198,15 @@ class VirtualCasingTests(unittest.TestCase):
         # Upsample the low res:
         vm_low_res_upsampled = vc_low_res.resample(ntheta_high, nphi_high)
         compare_objects(vc_high_res, vm_low_res_upsampled, atol=0.1, rtol=0.1)
+
+    def test_vacuum(self):
+        """
+        For a vacuum field, B_internal should be 0.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
+        vmec = Vmec(filename)
+        #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
+        vc = VirtualCasing.from_vmec(vmec, nphi=352, ntheta=45)
+        #vc = VirtualCasing.from_vmec(vmec, nphi=464, ntheta=60)
+        np.testing.assert_allclose(vc.B_internal, 0, atol=0.04)
+        np.testing.assert_allclose(vc.B_internal_normal, 0, atol=0.04)

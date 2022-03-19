@@ -20,10 +20,10 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 logger = logging.getLogger(__name__)
 
 # TODO:
-# * Routine for finding the optimal ntheta:nphi ratio
+# * Default filename, 'auto'
 # * Example in examples folder
+# * Mention virtual_casing in docs as external dependency
 # * Tests:
-#   - For a vacuum config, B_internal should be 0
 #   - Should have nfp and stellarator symmetry
 
 
@@ -71,6 +71,10 @@ class VirtualCasing:
     casing results onto whatever grid you wish to use for the stage-2
     problem.
 
+    To set the grid resolutions ``nphi`` and ``ntheta``, it can be
+    convenient to use the function
+    :func:`simsopt.geo.surface.best_nphi_over_ntheta`.
+
     An instance of this class has the following attributes. For all
     vector quantites, Cartesian coordinates are used, corresponding to
     array dimensions of size 3:
@@ -102,6 +106,10 @@ class VirtualCasing:
         The argument ``nphi`` refers to the number of points around the
         full torus. It must be a multiple of ``2 * nfp``, so there is an
         integer number of points per half field period.
+
+        To set the grid resolutions ``nphi`` and ``ntheta``, it can be
+        convenient to use the function
+        :func:`simsopt.geo.surface.best_nphi_over_ntheta`.
 
         For now, this routine only works for stellarator symmetry.
 
