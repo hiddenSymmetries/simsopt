@@ -9,7 +9,8 @@ from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled
+from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
+    best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
 from .surface_test_helpers import get_surface
 
@@ -287,6 +288,33 @@ class SurfaceScaledTests(unittest.TestCase):
         surf1.fix("rc(0,0)")  # Major radius
         surf_scaled.update_fixed()
         np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
+
+
+class BestNphiOverNthetaTests(unittest.TestCase):
+    def test(self):
+        """
+        Evaluate the ideal ratio of nphi / ntheta for several surfaces,
+        and confirm that the results match reference values. This test
+        is repeated for all 3 'range' options, and for several ntheta
+        and nphi values.
+        """
+        data = (('wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc', 8.58),
+                ('wout_li383_low_res_reference.nc', 5.28))
+        for filename_base, correct in data:
+            filename = os.path.join(TEST_DIR, filename_base)
+            for ntheta in [30, 31, 60, 61]:
+                for phi_range in ['full torus', 'field period', 'half period']:
+                    if phi_range == 'full torus':
+                        nphis = [200, 300]
+                    elif phi_range == 'field period':
+                        nphis = [40, 61]
+                    else:
+                        nphis = [25, 44]
+                    for nphi in nphis:
+                        surf = SurfaceRZFourier.from_wout(filename, range=phi_range, nphi=nphi, ntheta=ntheta)
+                        ratio = best_nphi_over_ntheta(surf)
+                        logger.info(f'range: {phi_range}, nphi: {nphi}, ntheta: {ntheta}, best nphi / ntheta: {ratio}')
+                        np.testing.assert_allclose(ratio, correct, rtol=0.01)
 
 
 if __name__ == "__main__":
