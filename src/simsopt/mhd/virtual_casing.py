@@ -6,8 +6,14 @@
 This module provides routines for interacting with the
 ``virtual_casing`` package by D Malhotra et al, for e.g. computing the
 magnetic field on a surface due to currents inside the surface.
+
+For details of the algorithm, see
+D Malhotra, A J Cerfon, M O'Neil, and E Toler,
+"Efficient high-order singular quadrature schemes in magnetic fusion",
+Plasma Physics and Controlled Fusion 62, 024004 (2020).
 """
 
+import os
 import logging
 from datetime import datetime
 import numpy as np
@@ -16,15 +22,9 @@ from scipy.signal import resample
 from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
+from ..geo.surface import best_nphi_over_ntheta
 
 logger = logging.getLogger(__name__)
-
-# TODO:
-# * Default filename, 'auto'
-# * Example in examples folder
-# * Mention virtual_casing in docs as external dependency
-# * Tests:
-#   - Should have nfp and stellarator symmetry
 
 
 def resample_2D(arr, d0, d1):
@@ -94,7 +94,7 @@ class VirtualCasing:
     """
 
     @classmethod
-    def from_vmec(cls, vmec, nphi, ntheta, digits=6, filename=None):
+    def from_vmec(cls, vmec, nphi, ntheta=None, digits=6, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the
         contribution to the total magnetic field due to currents inside
@@ -109,7 +109,8 @@ class VirtualCasing:
 
         To set the grid resolutions ``nphi`` and ``ntheta``, it can be
         convenient to use the function
-        :func:`simsopt.geo.surface.best_nphi_over_ntheta`.
+        :func:`simsopt.geo.surface.best_nphi_over_ntheta`. This is
+        done automatically if you omit the ``ntheta`` argument.
 
         For now, this routine only works for stellarator symmetry.
 
@@ -117,10 +118,16 @@ class VirtualCasing:
             vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
               Vmec ``input.*`` or ``wout*`` file.
             nphi: Number of grid points toroidally for the calculation.
-            ntheta: Number of grid points poloidally for the calculation.
+            ntheta: Number of grid points poloidally for the calculation. If ``None``,
+              the number of grid points will be calculated automatically using
+              :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
+              the grid anisotropy, given the specified ``nphi``.
             digits: Approximate number of digits of precision for the calculation.
             filename: If not ``None``, the results of the virtual casing calculation
-              will be saved in this file.
+              will be saved in this file. For the default value of ``"auto"``, the
+              filename will automatically be set to ``"vcasing_<extension>.nc"``
+              where ``<extension>`` is the string associated with Vmec input and output
+              files, analogous to the Vmec output file ``"wout_<extension>.nc"``.
         """
         import virtual_casing as vc_module
 
@@ -133,6 +140,10 @@ class VirtualCasing:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
         if nphi % (2 * nfp) != 0:
             raise ValueError(f'nphi must be a multiple of 2 * nfp. nphi={nphi}, nfp={nfp}')
+
+        if ntheta is None:
+            ntheta = int(nphi / best_nphi_over_ntheta(vmec.boundary))
+            logger.debug(f'new ntheta: {ntheta}')
 
         # The requested nphi and ntheta may not match the quadrature
         # points in vmec.boundary, and the range may not be "full torus",
@@ -209,6 +220,10 @@ class VirtualCasing:
         vc.B_internal_normal = Binternal_normal
 
         if filename is not None:
+            if filename == 'auto':
+                directory, basefile = os.path.split(vmec.output_file)
+                filename = os.path.join(directory, 'vcasing' + basefile[4:])
+                logger.debug(f'New filename: {filename}')
             vc.save(filename)
 
         return vc
