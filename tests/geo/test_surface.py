@@ -291,7 +291,20 @@ class SurfaceScaledTests(unittest.TestCase):
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):
-    def test(self):
+    def test_axisymm(self):
+        """
+        For an axisymmetric circular-cross-section torus at high aspect
+        ratio, the ideal nphi/ntheta ratio should match the aspect
+        ratio.
+        """
+        surf = SurfaceRZFourier(nfp=2, mpol=1, ntor=0)
+        aspect = 150
+        surf.set_rc(0, 0, aspect)
+        surf.set_rc(1, 0, 1.0)
+        surf.set_zs(1, 0, 1.0)
+        np.testing.assert_allclose(best_nphi_over_ntheta(surf), aspect, rtol=3e-5)
+
+    def test_independent_of_quadpoints(self):
         """
         Evaluate the ideal ratio of nphi / ntheta for several surfaces,
         and confirm that the results match reference values. This test

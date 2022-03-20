@@ -662,14 +662,5 @@ def best_nphi_over_ntheta(surf):
     gammadash1 = np.linalg.norm(surf.gammadash1(), axis=2)
     gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
     ratio = gammadash1 / gammadash2
-    """
-    nphi_over_nthetas = np.linspace(1, 20, 1000)
-    anisotropies = np.zeros_like(nphi_over_nthetas)
-    for j, nphi_over_ntheta in enumerate(nphi_over_nthetas):
-        ratio2 = ratio / nphi_over_ntheta
-        anisotropies[j] = np.max(np.maximum(ratio2, 1 / ratio2))
-    print('anisotropies:', anisotropies)
-    return nphi_over_nthetas[np.argmin(anisotropies)]
-    """
     return np.sqrt(np.max(ratio) / np.max(1 / ratio))
 

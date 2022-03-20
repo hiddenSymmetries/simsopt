@@ -58,13 +58,13 @@ class VirtualCasingTests(unittest.TestCase):
         object, from a Vmec input file, or from a Vmec wout file.
         """
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-        vc = VirtualCasing.from_vmec(filename, nphi=72, ntheta=10)
+        vc = VirtualCasing.from_vmec(filename, nphi=72)
 
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
         vc = VirtualCasing.from_vmec(filename, nphi=80, ntheta=10)
 
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, nphi=80, ntheta=10)
+        vc = VirtualCasing.from_vmec(vmec, nphi=80)
 
     def test_bnorm_benchmark(self):
         """
@@ -210,3 +210,27 @@ class VirtualCasingTests(unittest.TestCase):
         #vc = VirtualCasing.from_vmec(vmec, nphi=464, ntheta=60)
         np.testing.assert_allclose(vc.B_internal, 0, atol=0.04)
         np.testing.assert_allclose(vc.B_internal_normal, 0, atol=0.04)
+
+    def test_nfp(self):
+        """
+        B_internal_normal should obey nfp symmetry and stellarator symmetry.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        vmec = Vmec(filename)
+        nfp = vmec.wout.nfp
+        #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
+        vc = VirtualCasing.from_vmec(vmec, nphi=112, ntheta=15)
+        Bn_flipped = -np.rot90(np.rot90(vc.B_internal_normal))
+        Bn_flipped = np.roll(np.roll(Bn_flipped, 1, axis=0), 1, axis=1)
+        """
+        import matplotlib.pyplot as plt
+        plt.subplot(1, 2, 1)
+        plt.contourf(vc.B_internal_normal)
+        plt.subplot(1, 2, 2)
+        plt.contourf(Bn_flipped)
+        plt.tight_layout()
+        plt.show()
+        """
+        for j in range(nfp):
+            np.testing.assert_allclose(vc.B_internal_normal, np.roll(vc.B_internal_normal, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
+            np.testing.assert_allclose(vc.B_internal_normal, np.roll(Bn_flipped, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
