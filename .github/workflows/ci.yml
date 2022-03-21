@@ -93,7 +93,7 @@ jobs:
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
-      run: pip install -v git+https://github.com/mbkumar/virtual-casing.git@pybind
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
