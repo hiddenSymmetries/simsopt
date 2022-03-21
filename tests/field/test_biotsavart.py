@@ -310,6 +310,7 @@ class Testing(unittest.TestCase):
         dH_approx = (H-H0)/(c0)
         assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
+        print(f"H norm is {np.linalg.norm(dH[0]-dH_approx)}")
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
     def test_dA_by_dcoilcoeff_reverse_taylortest(self):
