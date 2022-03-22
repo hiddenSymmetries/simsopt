@@ -16,9 +16,11 @@ Plasma Physics and Controlled Fusion 62, 024004 (2020).
 import os
 import logging
 from datetime import datetime
+
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.signal import resample
+
 from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -235,58 +237,57 @@ class VirtualCasing:
         Args:
             filename: Name of the file to create.
         """
-        f = netcdf_file(filename, 'w')
-        f.history = 'This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S")
-        f.createDimension('ntheta', self.ntheta)
-        f.createDimension('nphi', self.nphi)
-        f.createDimension('xyz', 3)
+        with netcdf_file(filename, 'w') as f:
+            f.history = 'This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S")
+            f.createDimension('ntheta', self.ntheta)
+            f.createDimension('nphi', self.nphi)
+            f.createDimension('xyz', 3)
 
-        ntheta = f.createVariable('ntheta', 'i', tuple())
-        ntheta.assignValue(self.ntheta)
-        ntheta.description = 'Number of grid points in the poloidal angle theta'
-        ntheta.units = 'Dimensionless'
+            ntheta = f.createVariable('ntheta', 'i', tuple())
+            ntheta.assignValue(self.ntheta)
+            ntheta.description = 'Number of grid points in the poloidal angle theta'
+            ntheta.units = 'Dimensionless'
 
-        nphi = f.createVariable('nphi', 'i', tuple())
-        nphi.assignValue(self.nphi)
-        nphi.description = 'Number of grid points in the toroidal angle phi, covering the full torus'
-        nphi.units = 'Dimensionless'
+            nphi = f.createVariable('nphi', 'i', tuple())
+            nphi.assignValue(self.nphi)
+            nphi.description = 'Number of grid points in the toroidal angle phi, covering the full torus'
+            nphi.units = 'Dimensionless'
 
-        theta = f.createVariable('theta', 'd', ('ntheta',))
-        theta[:] = self.theta
-        theta.description = 'Grid points in the poloidal angle theta. Note that theta extends over [0, 1) not [0, 2pi).'
-        theta.units = 'Dimensionless'
+            theta = f.createVariable('theta', 'd', ('ntheta',))
+            theta[:] = self.theta
+            theta.description = 'Grid points in the poloidal angle theta. Note that theta extends over [0, 1) not [0, 2pi).'
+            theta.units = 'Dimensionless'
 
-        phi = f.createVariable('phi', 'd', ('nphi',))
-        phi[:] = self.phi
-        phi.description = 'Grid points in the toroidal angle phi. Note that phi extends over [0, 1) not [0, 2pi).'
-        phi.units = 'Dimensionless'
+            phi = f.createVariable('phi', 'd', ('nphi',))
+            phi[:] = self.phi
+            phi.description = 'Grid points in the toroidal angle phi. Note that phi extends over [0, 1) not [0, 2pi).'
+            phi.units = 'Dimensionless'
 
-        gamma = f.createVariable('gamma', 'd', ('nphi', 'ntheta', 'xyz'))
-        gamma[:, :, :] = self.gamma
-        gamma.description = 'Position vector on the boundary surface'
-        gamma.units = 'meter'
+            gamma = f.createVariable('gamma', 'd', ('nphi', 'ntheta', 'xyz'))
+            gamma[:, :, :] = self.gamma
+            gamma.description = 'Position vector on the boundary surface'
+            gamma.units = 'meter'
 
-        unit_normal = f.createVariable('unit_normal', 'd', ('nphi', 'ntheta', 'xyz'))
-        unit_normal[:, :, :] = self.unit_normal
-        unit_normal.description = 'Unit-length normal vector on the boundary surface'
-        unit_normal.units = 'Dimensionless'
+            unit_normal = f.createVariable('unit_normal', 'd', ('nphi', 'ntheta', 'xyz'))
+            unit_normal[:, :, :] = self.unit_normal
+            unit_normal.description = 'Unit-length normal vector on the boundary surface'
+            unit_normal.units = 'Dimensionless'
 
-        B_total = f.createVariable('B_total', 'd', ('nphi', 'ntheta', 'xyz'))
-        B_total[:, :, :] = self.B_total
-        B_total.description = 'Total magnetic field vector on the surface, including currents both inside and outside of the surface'
-        B_total.units = 'Tesla'
+            B_total = f.createVariable('B_total', 'd', ('nphi', 'ntheta', 'xyz'))
+            B_total[:, :, :] = self.B_total
+            B_total.description = 'Total magnetic field vector on the surface, including currents both inside and outside of the surface'
+            B_total.units = 'Tesla'
 
-        B_internal = f.createVariable('B_internal', 'd', ('nphi', 'ntheta', 'xyz'))
-        B_internal[:, :, :] = self.B_internal
-        B_internal.description = 'Contribution to the magnetic field vector on the surface due only to currents inside the surface'
-        B_internal.units = 'Tesla'
+            B_internal = f.createVariable('B_internal', 'd', ('nphi', 'ntheta', 'xyz'))
+            B_internal[:, :, :] = self.B_internal
+            B_internal.description = 'Contribution to the magnetic field vector on the surface due only to currents inside the surface'
+            B_internal.units = 'Tesla'
 
-        B_internal_normal = f.createVariable('B_internal_normal', 'd', ('nphi', 'ntheta'))
-        B_internal_normal[:, :] = self.B_internal_normal
-        B_internal_normal.description = 'Component of B_internal normal to the surface'
-        B_internal_normal.units = 'Tesla'
+            B_internal_normal = f.createVariable('B_internal_normal', 'd', ('nphi', 'ntheta'))
+            B_internal_normal[:, :] = self.B_internal_normal
+            B_internal_normal.description = 'Component of B_internal normal to the surface'
+            B_internal_normal.units = 'Tesla'
 
-        f.close()
 
     @classmethod
     def load(cls, filename):
@@ -298,10 +299,10 @@ class VirtualCasing:
             filename: Name of the file to load.
         """
         vc = cls()
-        f = netcdf_file(filename, mmap=False)
-        for key, val in f.variables.items():
-            val2 = val[()]  # Convert to numpy array
-            vc.__setattr__(key, val2)
+        with netcdf_file(filename, mmap=False) as f:
+            for key, val in f.variables.items():
+                val2 = val[()]  # Convert to numpy array
+                vc.__setattr__(key, val2)
         return vc
 
     def resample(self, ntheta, nphi):
