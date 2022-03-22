@@ -38,9 +38,8 @@ jobs:
         if: startsWith(github.event.ref, 'refs/tags/v')
         #id: vars
         #run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-        run: |
-          tag = $(echo "${GITHUB_REF#refs/*/}")
-          echo "tag=$tag" >> $GITHUB_ENV
+        run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          # tag = $(echo "${GITHUB_REF#refs/*/}")
 
       - name: Step to get tag name
         if: ${{ startsWith(github.ref, 'refs/heads') && github.ref == 'refs/heads/master' }}
