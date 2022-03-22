@@ -288,7 +288,6 @@ class VirtualCasing:
             B_internal_normal.description = 'Component of B_internal normal to the surface'
             B_internal_normal.units = 'Tesla'
 
-
     @classmethod
     def load(cls, filename):
         """
