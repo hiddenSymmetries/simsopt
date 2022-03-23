@@ -49,6 +49,12 @@ Here is a list of publications in which simsopt results appear:
      `[arXiv version] <https://arxiv.org/pdf/2108.03711>`__
    |
 
+#. | F Wechsung and M Landreman and A Giuliani and A Cerfon and G Stadler,
+     "Precise stellarator quasi-symmetry can be achieved with electromagnetic coils",
+     *Proceedings of the National Academy of Sciences* **119**, e2202084119 (2022).
+     `[journal version] <https://doi.org/10.1073/pnas.2202084119>`__
+   |
+
 #. | A Baillod, J Loizu, J P Graves, and M Landreman,
      "Stellarator optimization for good magnetic surfaces at finite β and toroidal current",
      *Submitted*, (2021).
