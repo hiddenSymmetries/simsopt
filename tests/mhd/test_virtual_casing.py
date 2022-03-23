@@ -43,7 +43,7 @@ class VirtualCasingTests(unittest.TestCase):
         """
         nphi must be a multiple of 2 * nfp
         """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
 
         with self.assertRaises(ValueError):
@@ -60,7 +60,7 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
         vc = VirtualCasing.from_vmec(filename, nphi=72)
 
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc = VirtualCasing.from_vmec(filename, nphi=80, ntheta=10)
 
         vmec = Vmec(filename)
@@ -72,7 +72,7 @@ class VirtualCasingTests(unittest.TestCase):
         results that match a reference calculation by the old fortran
         BNORM code.
         """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         bnorm_filename = os.path.join(TEST_DIR, 'bnorm.20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs')
 
         vmec = Vmec(filename)
@@ -148,7 +148,7 @@ class VirtualCasingTests(unittest.TestCase):
         Save a calculation, then load it into a different object. The
         fields of the objects should all match.
         """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc1 = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20, filename='vcasing.nc')
         vc2 = VirtualCasing.load('vcasing.nc')
         for variable in variables:
@@ -158,7 +158,7 @@ class VirtualCasingTests(unittest.TestCase):
             np.testing.assert_allclose(variable1, variable2)
 
     def test_plot(self):
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20)
         vc.plot(show=False)
 
@@ -168,7 +168,7 @@ class VirtualCasingTests(unittest.TestCase):
         different resolution, we should get nearly the same answer as
         if we ran virtual casing at the new resolution directly.
         """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
 
         ntheta_low = 30
@@ -215,7 +215,7 @@ class VirtualCasingTests(unittest.TestCase):
         """
         B_internal_normal should obey nfp symmetry and stellarator symmetry.
         """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc')
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
         nfp = vmec.wout.nfp
         #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
