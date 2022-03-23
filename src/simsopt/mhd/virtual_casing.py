@@ -207,7 +207,6 @@ class VirtualCasing:
                     index += 1
         """
 
-        Btotal_normal = np.sum(B3d * unit_normal, axis=2)
         Binternal_normal = np.sum(Binternal3d * unit_normal, axis=2)
 
         vc = cls()
