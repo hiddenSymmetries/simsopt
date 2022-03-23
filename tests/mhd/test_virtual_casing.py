@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
 
-variables = ['nphi', 'ntheta', 'phi', 'theta', 'gamma', 'unit_normal', 'B_total', 'B_internal', 'B_internal_normal']
+variables = ['nphi', 'ntheta', 'phi', 'theta', 'gamma', 'unit_normal', 'B_total', 'B_external', 'B_external_normal']
 
 
 @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
@@ -81,7 +81,7 @@ class VirtualCasingTests(unittest.TestCase):
 
         nfp = vmec.wout.nfp
         theta, phi = np.meshgrid(2 * np.pi * vc.theta, 2 * np.pi * vc.phi)
-        B_internal_normal_bnorm = np.zeros((vc.nphi, vc.ntheta))
+        B_external_normal_bnorm = np.zeros((vc.nphi, vc.ntheta))
 
         # Read BNORM output file:
         with open(bnorm_filename, 'r') as f:
@@ -94,23 +94,23 @@ class VirtualCasingTests(unittest.TestCase):
             m = int(splitline[0])
             n = int(splitline[1])
             amplitude = float(splitline[2])
-            B_internal_normal_bnorm += amplitude * np.sin(m * theta + n * nfp * phi)
+            B_external_normal_bnorm += amplitude * np.sin(m * theta + n * nfp * phi)
             # To see that it should be (mu+nv) rather than (mu-nv) in the above line, you can examine
             # BNORM/Sources/bn_fouri.f (where the arrays in the bnorm files are computed)
             # or NESCOIL/Sources/bnfld.f (where bnorm files are read)
 
         # The BNORM code divides Bnormal by curpol. Undo this scaling now:
         curpol = (2 * np.pi / nfp) * (1.5 * vmec.wout.bsubvmnc[0, -1] - 0.5 * vmec.wout.bsubvmnc[0, -2])
-        B_internal_normal_bnorm *= -curpol
+        B_external_normal_bnorm *= curpol
 
-        difference = B_internal_normal_bnorm - vc.B_internal_normal
-        avg = 0.5 * (B_internal_normal_bnorm + vc.B_internal_normal)
+        difference = B_external_normal_bnorm - vc.B_external_normal
+        avg = 0.5 * (B_external_normal_bnorm + vc.B_external_normal)
         rms = np.sqrt(np.mean(avg ** 2))
         rel_difference = difference / rms
-        logger.info(f'root mean squared of B_internal_normal: {rms}')
+        logger.info(f'root mean squared of B_external_normal: {rms}')
         logger.info('Diff between BNORM and virtual_casing: '
                     f'abs={np.max(np.abs(difference))}, rel={np.max(np.abs(rel_difference))}')
-        np.testing.assert_allclose(B_internal_normal_bnorm, vc.B_internal_normal, atol=0.006)
+        np.testing.assert_allclose(B_external_normal_bnorm, vc.B_external_normal, atol=0.006)
 
         if 0:
             import matplotlib.pyplot as plt
@@ -120,21 +120,21 @@ class VirtualCasingTests(unittest.TestCase):
             contours = np.linspace(-0.2, 0.2, 25)
 
             plt.subplot(nrows, ncols, 1)
-            plt.contourf(phi, theta, B_internal_normal_bnorm, contours)
+            plt.contourf(phi, theta, B_external_normal_bnorm, contours)
             plt.colorbar()
             plt.xlabel('phi')
             plt.ylabel('theta')
-            plt.title('B_internal_normal from BNORM')
+            plt.title('B_external_normal from BNORM')
 
             plt.subplot(nrows, ncols, 2)
-            plt.contourf(phi, theta, vc.B_internal_normal, contours)
+            plt.contourf(phi, theta, vc.B_external_normal, contours)
             plt.colorbar()
             plt.xlabel('phi')
             plt.ylabel('theta')
-            plt.title('B_internal_normal from virtual_casing')
+            plt.title('B_external_normal from virtual_casing')
 
             plt.subplot(nrows, ncols, 3)
-            plt.contourf(phi, theta, B_internal_normal_bnorm - vc.B_internal_normal, 25)
+            plt.contourf(phi, theta, B_external_normal_bnorm - vc.B_external_normal, 25)
             plt.colorbar()
             plt.xlabel('phi')
             plt.ylabel('theta')
@@ -208,29 +208,29 @@ class VirtualCasingTests(unittest.TestCase):
         #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
         vc = VirtualCasing.from_vmec(vmec, nphi=352, ntheta=45)
         #vc = VirtualCasing.from_vmec(vmec, nphi=464, ntheta=60)
-        np.testing.assert_allclose(vc.B_internal, 0, atol=0.04)
-        np.testing.assert_allclose(vc.B_internal_normal, 0, atol=0.04)
+        np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.04)
+        np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.04)
 
     def test_nfp(self):
         """
-        B_internal_normal should obey nfp symmetry and stellarator symmetry.
+        B_external_normal should obey nfp symmetry and stellarator symmetry.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
         nfp = vmec.wout.nfp
         #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
         vc = VirtualCasing.from_vmec(vmec, nphi=112, ntheta=15)
-        Bn_flipped = -np.rot90(np.rot90(vc.B_internal_normal))
+        Bn_flipped = -np.rot90(np.rot90(vc.B_external_normal))
         Bn_flipped = np.roll(np.roll(Bn_flipped, 1, axis=0), 1, axis=1)
         """
         import matplotlib.pyplot as plt
         plt.subplot(1, 2, 1)
-        plt.contourf(vc.B_internal_normal)
+        plt.contourf(vc.B_external_normal)
         plt.subplot(1, 2, 2)
         plt.contourf(Bn_flipped)
         plt.tight_layout()
         plt.show()
         """
         for j in range(nfp):
-            np.testing.assert_allclose(vc.B_internal_normal, np.roll(vc.B_internal_normal, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
-            np.testing.assert_allclose(vc.B_internal_normal, np.roll(Bn_flipped, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
+            np.testing.assert_allclose(vc.B_external_normal, np.roll(vc.B_external_normal, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
+            np.testing.assert_allclose(vc.B_external_normal, np.roll(Bn_flipped, j * int(vc.nphi / nfp), axis=0), atol=1e-12)

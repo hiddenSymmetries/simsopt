@@ -311,7 +311,7 @@ class BestNphiOverNthetaTests(unittest.TestCase):
         is repeated for all 3 'range' options, and for several ntheta
         and nphi values.
         """
-        data = (('wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs.nc', 8.58),
+        data = (('wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc', 8.58),
                 ('wout_li383_low_res_reference.nc', 5.28))
         for filename_base, correct in data:
             filename = os.path.join(TEST_DIR, filename_base)

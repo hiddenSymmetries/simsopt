@@ -5,7 +5,7 @@
 """
 This module provides routines for interacting with the
 ``virtual_casing`` package by D Malhotra et al, for e.g. computing the
-magnetic field on a surface due to currents inside the surface.
+magnetic field on a surface due to currents outside the surface.
 
 For details of the algorithm, see
 D Malhotra, A J Cerfon, M O'Neil, and E Toler,
@@ -47,7 +47,7 @@ def resample_2D(arr, d0, d1):
 class VirtualCasing:
     r"""
     Use the virtual casing principle to compute the contribution to
-    the total magnetic field due to current inside a bounded surface.
+    the total magnetic field due to current outside a bounded surface.
 
     Usually, an instance of this class is created using the
     :func:`from_vmec()` class method, which also drives the
@@ -88,10 +88,10 @@ class VirtualCasing:
     - ``gamma``: An array of size ``(nphi, ntheta, 3)`` with the position vector on the surface.
     - ``unit_normal``: An array of size ``(nphi, ntheta, 3)`` with the unit normal vector on the surface.
     - ``B_total``: An array of size ``(nphi, ntheta, 3)`` with the total magnetic field vector on the surface.
-    - ``B_internal``: An array of size ``(nphi, ntheta, 3)`` with the contribution
-      to the magnetic field due to current inside the surface.
-    - ``B_internal_normal``: An array of size ``(nphi, ntheta)`` with the contribution
-      to the magnetic field due to current inside the surface, taking just the component
+    - ``B_external``: An array of size ``(nphi, ntheta, 3)`` with the contribution
+      to the magnetic field due to current outside the surface.
+    - ``B_external_normal``: An array of size ``(nphi, ntheta)`` with the contribution
+      to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
     """
 
@@ -99,7 +99,7 @@ class VirtualCasing:
     def from_vmec(cls, vmec, nphi, ntheta=None, digits=6, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the
-        contribution to the total magnetic field due to currents inside
+        contribution to the total magnetic field due to currents outside
         the plasma.
 
         This function requires the python ``virtual_casing`` package to be
@@ -189,13 +189,12 @@ class VirtualCasing:
         vcasing.set_surface(nphi, ntheta, gamma1d)
         vcasing.set_accuracy(digits)
         # This next line launches the main computation:
-        Bexternal = np.array(vcasing.compute_external_B(B1d))
+        Bexternal1d = np.array(vcasing.compute_external_B(B1d))
 
         # Unpack 1D array results:
-        Binternal1d = B1d - Bexternal
-        Binternal3d = np.zeros((nphi, ntheta, 3))
+        Bexternal3d = np.zeros((nphi, ntheta, 3))
         for jxyz in range(3):
-            Binternal3d[:, :, jxyz] = Binternal1d[jxyz * nphi * ntheta: (jxyz + 1) * nphi * ntheta].reshape((nphi, ntheta), order='C')
+            Bexternal3d[:, :, jxyz] = Bexternal1d[jxyz * nphi * ntheta: (jxyz + 1) * nphi * ntheta].reshape((nphi, ntheta), order='C')
 
         """
         # Check order:
@@ -203,11 +202,11 @@ class VirtualCasing:
         for jxyz in range(3):
             for jphi in range(nphi):
                 for jtheta in range(ntheta):
-                    np.testing.assert_allclose(Binternal1d[index], Binternal3d[jphi, jtheta, jxyz])
+                    np.testing.assert_allclose(Bexternal1d[index], Bexternal3d[jphi, jtheta, jxyz])
                     index += 1
         """
 
-        Binternal_normal = np.sum(Binternal3d * unit_normal, axis=2)
+        Bexternal_normal = np.sum(Bexternal3d * unit_normal, axis=2)
 
         vc = cls()
         vc.ntheta = ntheta
@@ -217,8 +216,8 @@ class VirtualCasing:
         vc.B_total = B3d
         vc.gamma = gamma
         vc.unit_normal = unit_normal
-        vc.B_internal = Binternal3d
-        vc.B_internal_normal = Binternal_normal
+        vc.B_external = Bexternal3d
+        vc.B_external_normal = Bexternal_normal
 
         if filename is not None:
             if filename == 'auto':
@@ -277,15 +276,15 @@ class VirtualCasing:
             B_total.description = 'Total magnetic field vector on the surface, including currents both inside and outside of the surface'
             B_total.units = 'Tesla'
 
-            B_internal = f.createVariable('B_internal', 'd', ('nphi', 'ntheta', 'xyz'))
-            B_internal[:, :, :] = self.B_internal
-            B_internal.description = 'Contribution to the magnetic field vector on the surface due only to currents inside the surface'
-            B_internal.units = 'Tesla'
+            B_external = f.createVariable('B_external', 'd', ('nphi', 'ntheta', 'xyz'))
+            B_external[:, :, :] = self.B_external
+            B_external.description = 'Contribution to the magnetic field vector on the surface due only to currents outside the surface'
+            B_external.units = 'Tesla'
 
-            B_internal_normal = f.createVariable('B_internal_normal', 'd', ('nphi', 'ntheta'))
-            B_internal_normal[:, :] = self.B_internal_normal
-            B_internal_normal.description = 'Component of B_internal normal to the surface'
-            B_internal_normal.units = 'Tesla'
+            B_external_normal = f.createVariable('B_external_normal', 'd', ('nphi', 'ntheta'))
+            B_external_normal[:, :] = self.B_external_normal
+            B_external_normal.description = 'Component of B_external normal to the surface'
+            B_external_normal.units = 'Tesla'
 
     @classmethod
     def load(cls, filename):
@@ -323,9 +322,9 @@ class VirtualCasing:
         newvc.nphi = nphi
         newvc.theta = np.linspace(0, 1, ntheta, endpoint=False)
         newvc.phi = np.linspace(0, 1, nphi, endpoint=False)
-        newvc.B_internal_normal = resample_2D(self.B_internal_normal, nphi, ntheta)
+        newvc.B_external_normal = resample_2D(self.B_external_normal, nphi, ntheta)
         # Vector fields on the surface:
-        variables = ['gamma', 'unit_normal', 'B_total', 'B_internal']
+        variables = ['gamma', 'unit_normal', 'B_total', 'B_external']
         for variable in variables:
             oldvar = eval('self.' + variable)
             newvar = np.zeros((nphi, ntheta, 3))
@@ -336,18 +335,18 @@ class VirtualCasing:
 
     def plot(self, show=True):
         """
-        Plot ``B_internal_normal``, the component normal to the surface of
-        the magnetic field generated by currents inside the surface.
+        Plot ``B_external_normal``, the component normal to the surface of
+        the magnetic field generated by currents outside the surface.
         This routine requires ``matplotlib``.
 
         Args:
             show: Whether to call matplotlib's ``show()`` function.
         """
         import matplotlib.pyplot as plt
-        plt.contourf(self.phi, self.theta, self.B_internal_normal.T, 25)
+        plt.contourf(self.phi, self.theta, self.B_external_normal.T, 25)
         plt.xlabel(r'$\phi$')
         plt.ylabel(r'$\theta$')
-        plt.title('B_internal_normal [Tesla]')
+        plt.title('B_external_normal [Tesla]')
         plt.colorbar()
         plt.tight_layout()
         if show:
