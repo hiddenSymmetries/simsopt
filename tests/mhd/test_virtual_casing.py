@@ -4,6 +4,7 @@ import os
 import numpy as np
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.virtual_casing import VirtualCasing, resample_2D
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from . import TEST_DIR
 try:
     import virtual_casing
@@ -24,20 +25,29 @@ class VirtualCasingTests(unittest.TestCase):
         Test the resample_2D() function. For sines and cosines, resampling
         should be accurate to machine precision.
         """
-        def populate_array(ntheta, nphi):
-            theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-            phi1d = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+        def populate_array(phi1d, theta1d):
             theta, phi = np.meshgrid(theta1d, phi1d)
             return 0.3 + 0.7 * np.cos(3 * theta - 5 * phi + 0.9) - np.sin(1 * theta - 2 * phi + 0.2)
 
-        arr1 = populate_array(12, 15)
+        for phi_shift in [0, 0.3]:
+            for theta_shift in [0, 0.6]:
+                logger.debug(f'phi_shift: {phi_shift}   theta_shift: {theta_shift}')
+                nphi1 = 15
+                ntheta1 = 12
+                phi1d = np.linspace(0, 2 * np.pi, nphi1, endpoint=False)
+                theta1d = np.linspace(0, 2 * np.pi, ntheta1, endpoint=False)
+                arr1 = populate_array(phi1d, theta1d)
 
-        ntheta = 14
-        nphi = 11
-        arr2 = populate_array(ntheta, nphi)
+                ntheta2 = 14
+                nphi2 = 11                
+                phi1d = np.linspace(0, 2 * np.pi, nphi2, endpoint=False)
+                theta1d = np.linspace(0, 2 * np.pi, ntheta2, endpoint=False)
+                phi1d += phi_shift * (phi1d[1] - phi1d[0])
+                theta1d += theta_shift * (theta1d[1] - theta1d[0])
+                arr2 = populate_array(phi1d, theta1d)
 
-        arr3 = resample_2D(arr1, nphi, ntheta)
-        np.testing.assert_allclose(arr2, arr3, atol=1e-14, rtol=1e-14)
+                arr3 = resample_2D(arr1, phi1d, theta1d)
+                np.testing.assert_allclose(arr2, arr3, atol=1e-14, rtol=1e-14)
 
     def test_nphi_multiple_of_2_nfp(self):
         """
@@ -186,17 +196,22 @@ class VirtualCasingTests(unittest.TestCase):
                 np.testing.assert_allclose(eval('obj1.' + variable), eval('obj2.' + variable), atol=atol, rtol=rtol)
 
         # Resampling without changing resolution should not change anything:
-        compare_objects(vc_low_res, vc_low_res.resample(ntheta_low, nphi_low))
-        compare_objects(vc_high_res, vc_high_res.resample(ntheta_high, nphi_high))
+        compare_objects(vc_low_res, vc_low_res.resample(nphi=nphi_low, ntheta=ntheta_low))
+        compare_objects(vc_high_res, vc_high_res.resample(nphi=nphi_high, ntheta=ntheta_high))
+        # Try setting the new quadrature points from a surface:
+        surf = SurfaceRZFourier.from_wout(filename, nphi=nphi_low, ntheta=ntheta_low, range="full torus")
+        compare_objects(vc_low_res, vc_low_res.resample(surf=surf))
+        # Try setting the new resolution from arrays:
+        compare_objects(vc_low_res, vc_low_res.resample(phi=surf.quadpoints_phi, theta=surf.quadpoints_theta))
 
         # Downsample the high res:
-        vm_high_res_downsampled = vc_high_res.resample(ntheta_low, nphi_low)
+        vm_high_res_downsampled = vc_high_res.resample(nphi=nphi_low, ntheta=ntheta_low)
         #vc_low_res.plot()
         #vm_high_res_downsampled.plot()
         compare_objects(vc_low_res, vm_high_res_downsampled, atol=0.1, rtol=0.1)
 
         # Upsample the low res:
-        vm_low_res_upsampled = vc_low_res.resample(ntheta_high, nphi_high)
+        vm_low_res_upsampled = vc_low_res.resample(nphi=nphi_high, ntheta=ntheta_high)
         compare_objects(vc_high_res, vm_low_res_upsampled, atol=0.1, rtol=0.1)
 
     def test_vacuum(self):
@@ -234,3 +249,25 @@ class VirtualCasingTests(unittest.TestCase):
         for j in range(nfp):
             np.testing.assert_allclose(vc.B_external_normal, np.roll(vc.B_external_normal, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
             np.testing.assert_allclose(vc.B_external_normal, np.roll(Bn_flipped, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
+
+    def test_resample_onto_surface(self):
+        """
+        Check the behavior of the resample() function when resampling onto
+        a surface.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
+        vc1 = VirtualCasing.from_vmec(filename, nphi=72)
+
+        for surf_range in ['half period', 'field period']:
+            surf = SurfaceRZFourier.from_wout(filename, nphi=50, ntheta=20, range=surf_range)
+            vc2 = vc1.resample(surf=surf)
+            np.testing.assert_allclose(vc2.theta, surf.quadpoints_theta)
+            np.testing.assert_allclose(vc2.phi, surf.quadpoints_phi)
+
+            # Resampling from the original grid should be fine...
+            vc3 = vc1.resample(nphi=10, ntheta=5)
+            with self.assertRaises(AssertionError):
+                # But resampling from the resampled grid should fail:
+                vc3 = vc2.resample(nphi=10, ntheta=5)
+
+

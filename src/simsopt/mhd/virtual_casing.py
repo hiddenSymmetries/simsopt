@@ -19,29 +19,44 @@ from datetime import datetime
 
 import numpy as np
 from scipy.io import netcdf_file
-from scipy.signal import resample
 
 from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..geo.surface import best_nphi_over_ntheta
+from ..util.fourier_interpolation import fourier_interpolation
 
 logger = logging.getLogger(__name__)
 
 
-def resample_2D(arr, d0, d1):
+def resample_2D(arr, x0, x1):
     """
-    Given a 2D array, use Fourier interpolation to resample the data in both dimensions.
+    Given a 2D array, use Fourier interpolation to resample the data
+    in both dimensions.
+
+    It is assumed that each dimension of ``arr`` refers to uniform
+    grid points ``np.linspace(0, 2 * np.pi, N, endpoint=False)`` for a
+    number of grid points ``N``. The new grid points ``x0`` and ``x1``
+    should refer to period :math:`2\pi`, not period 1.
 
     Args:
         arr: An input 2D array.
-        d0: The desired dimension along axis 0 of the returned array.
-        d1: The desired dimension along axis 1 of the returned array.
+        x0: The desired points along axis 0 of the returned array.
+        x1: The desired points along axis 1 of the returned array.
 
     Returns:
-        A 2D array of size ``(d0, d1)`` with the resampled data.
+        A 2D array of size ``(len(x0), len(x1))`` with the resampled data.
     """
-    return resample(resample(arr, d0), d1, axis=1)
+    n = arr.shape[0]
+    n0 = len(x0)
+    n1 = len(x1)
+    intermed = np.zeros((n, n1))
+    for j in range(n):
+        intermed[j, :] = fourier_interpolation(arr[j, :], x1)
+    result = np.zeros((n0, n1))
+    for j in range(n1):
+        result[:, j] = fourier_interpolation(intermed[:, j], x0)
+    return result
 
 
 class VirtualCasing:
@@ -302,7 +317,7 @@ class VirtualCasing:
                 vc.__setattr__(key, val2)
         return vc
 
-    def resample(self, ntheta, nphi):
+    def resample(self, nphi=None, ntheta=None, phi=None, theta=None, surf=None):
         """
         Return a new ``VirtualCasing`` object in which all of the data
         have been resampled in the poloidal and toroidal angles.
@@ -310,26 +325,77 @@ class VirtualCasing:
         for the stage-2 coil optimization compared to the resolution
         used for the virtual casing calculation.
 
+        There are three methods of specifying the new resolution:
+
+        1. You can specify ``surf`` to be a Surface object, in which case
+        the quadrature points of this Surface will be used.
+
+        2. You can specify ``ntheta`` and ``nphi``, in which case the points
+        ``theta = np.linspace(0, 1, ntheta, endpoint=False)`` and
+        ``phi = np.linspace(0, 1, nphi, endpoint=False)`` will be used.
+
+        3. You can specify ``theta`` and ``phi`` arrays directly.
+
+        An error will be raised if you attempt to use more than one of
+        these methods at the same time.
+
+        This routine can only be used for a ``VirtualCasing`` object in which
+        the original grid points satisfy
+        ``theta = np.linspace(0, 1, ntheta, endpoint=False)`` and
+        ``phi = np.linspace(0, 1, nphi, endpoint=False)``. If not,
+        ``RuntimeError`` will be raised.
+
         Args:
-            ntheta: New number of grid points in the poloidal angle.
+            phi: Array of new grid points in the toroidal angle (periodic with period 1, not 2pi).
+            theta: Array of new grid points in the poloidal angle (periodic with period 1, not 2pi).
             nphi: New number of grid points in the toroidal angle (including all field periods).
+            ntheta: New number of grid points in the poloidal angle.
+            surf: A Surface object. If specified, the virtual casing results will be resampled onto the
+              quadrature points of this Surface.
 
         Returns:
             A new ``VirtualCasing`` object.
         """
+        # The resample_2D only works if the original grid satisfies the following:
+        np.testing.assert_allclose(self.theta, np.linspace(0, 1, self.ntheta, endpoint=False), rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(self.phi, np.linspace(0, 1, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
+
+        if surf is not None:
+            assert ntheta is None
+            assert nphi is None
+            assert theta is None
+            assert phi is None
+            theta = surf.quadpoints_theta
+            phi = surf.quadpoints_phi
+        elif theta is not None:
+            assert surf is None
+            assert ntheta is None
+            assert nphi is None
+            assert phi is not None
+        else:
+            assert surf is None
+            assert phi is None
+            assert ntheta is not None
+            assert nphi is not None
+            theta = np.linspace(0, 1, ntheta, endpoint=False)
+            phi = np.linspace(0, 1, nphi, endpoint=False)
+
+        ntheta = len(theta)
+        nphi = len(phi)
+
         newvc = VirtualCasing()
         newvc.ntheta = ntheta
         newvc.nphi = nphi
-        newvc.theta = np.linspace(0, 1, ntheta, endpoint=False)
-        newvc.phi = np.linspace(0, 1, nphi, endpoint=False)
-        newvc.B_external_normal = resample_2D(self.B_external_normal, nphi, ntheta)
+        newvc.theta = theta
+        newvc.phi = phi
+        newvc.B_external_normal = resample_2D(self.B_external_normal, phi * 2 * np.pi, theta * 2 * np.pi)
         # Vector fields on the surface:
         variables = ['gamma', 'unit_normal', 'B_total', 'B_external']
         for variable in variables:
             oldvar = eval('self.' + variable)
             newvar = np.zeros((nphi, ntheta, 3))
             for j in range(3):
-                newvar[:, :, j] = resample_2D(oldvar[:, :, j], nphi, ntheta)
+                newvar[:, :, j] = resample_2D(oldvar[:, :, j], phi * 2 * np.pi, theta * 2 * np.pi)
             newvc.__setattr__(variable, newvar)
         return newvc
 
