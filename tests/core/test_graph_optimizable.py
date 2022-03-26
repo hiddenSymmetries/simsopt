@@ -941,15 +941,15 @@ class OptimizableTests(unittest.TestCase):
         try:
             import matplotlib
         except ImportError:
-            pass
+            return
         try:
             import networkx
         except ImportError:
-            pass
+            return
         try:
             import pygraphviz
         except ImportError:
-            pass
+            return
         
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])

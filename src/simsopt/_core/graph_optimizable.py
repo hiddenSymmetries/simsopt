@@ -37,6 +37,10 @@ try:
     from networkx.drawing.nx_agraph import graphviz_layout
 except ImportError:
     pygraphviz = None
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 log = logging.getLogger(__name__)
 
@@ -1200,8 +1204,9 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             return self
         return self.__add__(other)
 
-    @SimsoptRequires(nx is not None, "print method requires networkx")
-    @SimsoptRequires(pygraphviz is not None, "print method requires pygraphviz")
+    @SimsoptRequires(nx is not None, "print method for DAG requires networkx")
+    @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
+    @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
     def plot(self, show=True):
         G = nx.DiGraph()
         G.add_node(self.name) 
@@ -1215,7 +1220,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         traversal(self)
        
-        import matplotlib.pyplot as plt
         # this command generates sensible positions for nodes of the DAG
         # using the "dot" program
         pos = graphviz_layout(G, prog='dot')
