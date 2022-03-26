@@ -1202,8 +1202,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
     @SimsoptRequires(nx is not None, "print method requires networkx")
     @SimsoptRequires(pygraphviz is not None, "print method requires pygraphviz")
-    def plot(self):
-
+    def plot(self, show=True):
         G = nx.DiGraph()
         G.add_node(self.name) 
 
@@ -1215,18 +1214,20 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 traversal(p)
 
         traversal(self)
-
+       
         import matplotlib.pyplot as plt
+        # this command generates sensible positions for nodes of the DAG
+        # using the "dot" program
+        pos = graphviz_layout(G, prog='dot')
         options = {
-            'node_color': 'red',
-            'width': 2,
+            'node_color': 'white',
+            'width': 3,
             'arrowstyle': '-|>',
             'arrowsize': 12,
-            'font_size': 8,
-        }
-        pos = graphviz_layout(G, prog='dot')
+            'font_size': 12}
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
-        plt.show()
+        if show:
+            plt.show()
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
