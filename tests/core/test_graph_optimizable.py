@@ -930,7 +930,7 @@ class OptimizableTests(unittest.TestCase):
     def test_plot(self):
         """
         Verify that a DAG can be plotted.
-        together.  The ``show`` argument is set to ``False`` so the
+        The ``show`` argument is set to ``False`` so the
         tests do not require human intervention to close plot windows.
         However, if you do want to actually display the figure, you
         can change ``show`` to ``True`` in the first line of this
