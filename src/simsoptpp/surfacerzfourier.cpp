@@ -328,7 +328,7 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                     data(k1, k2, 0, counter) = 4*M_PI*M_PI*(m * (n*nfp) * cos(m*theta-n*nfp*phi) * cos(phi) \
                                                             + m * sin(m*theta-n*nfp*phi) * sin(phi));
                     // data(k1, k2, 1, counter) = 2*M_PI*((n*nfp) * sin(m*theta-n*nfp*phi) * sin(phi) + cos(m*theta-n*nfp*phi) * cos(phi));
-                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*( - m * (n*nfp) * (m*theta-n*nfp*phi) * sin(phi) \
+                    data(k1, k2, 1, counter) = 4*M_PI*M_PI*(   m * (n*nfp) * cos(m*theta-n*nfp*phi) * sin(phi) \
                                                              - m * sin(m*theta-n*nfp*phi) * cos(phi));
                     data(k1, k2, 2, counter) = 0;
                     counter++;
