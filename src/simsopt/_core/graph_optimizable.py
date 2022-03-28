@@ -1240,7 +1240,6 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         pos = graphviz_layout(G, prog='dot')
         options = {
             'node_color': 'white',
-            'width': 3,
             'arrowstyle': '-|>',
             'arrowsize': 12,
             'font_size': 12}
