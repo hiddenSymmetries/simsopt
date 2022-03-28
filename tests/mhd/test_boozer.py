@@ -18,7 +18,7 @@ try:
 except ImportError as e:
     MPI = None
 
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 if MPI is not None:
     from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
     from simsopt.mhd.vmec import Vmec  # , vmec_found

@@ -13,7 +13,7 @@ class OptimizableDefaultDict(collections.defaultdict):
         super().__init__(None, d)
 
     def __missing__(self, key):
-        from .graph_optimizable import Optimizable  # Import here to avoid circular import
+        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(key, Optimizable)
         self[key] = value = np.zeros((key.local_full_dof_size, ))
         return value
@@ -162,7 +162,7 @@ class Derivative():
         Args:
             optim: An Optimizable object
         """
-        from .graph_optimizable import Optimizable  # Import here to avoid circular import
+        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
         deps = optim.ancestors + [optim]
         derivs = []

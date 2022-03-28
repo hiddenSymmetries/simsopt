@@ -43,8 +43,8 @@ imports of the classes and functions we will need::
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd.vmec import Vmec
   from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.solve.mpi import least_squares_mpi_solve
 
 For this problem we will want MPI for parallelized finite difference
 gradients. As explained below, this particular problem has 24
@@ -237,8 +237,8 @@ As usual, we begin with the necessary imports::
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd.vmec import Vmec
   from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.solve.mpi import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups. Here, for
 simplicity, we make each process its own worker group, by omitting the
@@ -347,8 +347,8 @@ In this case, the imports needed are::
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd.vmec import Vmec
   from simsopt.mhd.boozer import Boozer, Quasisymmetry
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.solve.mpi import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups and
 initialize a ``Vmec`` object as in the previous example::

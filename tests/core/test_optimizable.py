@@ -3,8 +3,8 @@ import re
 
 import numpy as np
 
-from simsopt._core.graph_optimizable import Optimizable, make_optimizable
-from simsopt.objectives.graph_functions import Identity, Rosenbrock, TestObject2
+from simsopt._core.optimizable import Optimizable, make_optimizable
+from simsopt.objectives.functions import Identity, Rosenbrock, TestObject2
 
 
 class Adder(Optimizable):
