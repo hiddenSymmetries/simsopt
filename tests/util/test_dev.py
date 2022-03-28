@@ -6,7 +6,7 @@ except ImportError:
     np = None
 
 from simsopt.util.dev import SimsoptRequires, deprecated
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 
 
 @SimsoptRequires(np is not None, "numpy is not installed.")

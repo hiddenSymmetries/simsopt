@@ -13,14 +13,14 @@ from typing import Sequence
 
 import numpy as np
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.types import RealArray
 
 
 class Identity(Optimizable):
     """
     Represents a term in an objective function which is just
-    the identity. It has one degree of freedom. Conforms to the experimental
+    the identity. It has one degree of freedom. Conforms to the 
     graph based Optimizable framework.
 
     The output of the method `f` is equal to this degree of freedom.

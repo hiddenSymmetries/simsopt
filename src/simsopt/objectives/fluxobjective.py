@@ -1,4 +1,4 @@
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 import numpy as np
 

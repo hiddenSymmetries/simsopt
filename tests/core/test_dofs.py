@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 
-from simsopt._core.graph_optimizable import DOFs
-from simsopt.objectives.graph_functions import Identity, Adder, Rosenbrock
+from simsopt._core.optimizable import DOFs
+from simsopt.objectives.functions import Identity, Adder, Rosenbrock
 from simsopt._core.util import DofLengthMismatchError
 
 

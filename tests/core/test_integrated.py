@@ -10,11 +10,11 @@ except:
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
-    from simsopt.solve.graph_mpi import least_squares_mpi_solve
+    from simsopt.solve.mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
