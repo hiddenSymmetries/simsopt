@@ -206,6 +206,70 @@ class SurfaceTaylorTests(unittest.TestCase):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_normal_coefficient_derivative(s)
 
+    def subtest_fund_form_coefficient_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.first_fund_form()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dfirst_fund_form_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+        def f(dofs):
+            s.x = dofs
+            return s.second_fund_form()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dsecond_fund_form_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+        def f(dofs):
+            s.x = dofs
+            return s.surface_curvature()[1, 1, 2].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dsurface_curvature_by_dcoeff()[1, 1, 2, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+    def test_fund_form_coefficient_derivative(self):
+        """
+        Taylor test for the first derivative of the surface normal w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_fund_form_coefficient_derivative(s)
+
+    def subtest_unit_normal_coefficient_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.unitnormal()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dunitnormal_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=2)
+
+    def test_unit_normal_coefficient_derivative(self):
+        """
+        Taylor test for the first derivative of the surface normal w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_unit_normal_coefficient_derivative(s)
+
     def subtest_surface_area_coefficient_derivative(self, s):
         coeffs = s.x
         s.invalidate_cache()
