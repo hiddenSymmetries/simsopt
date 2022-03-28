@@ -1207,7 +1207,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @SimsoptRequires(nx is not None, "print method for DAG requires networkx")
     @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
     @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
-    def plot(self, show=True):
+    def plot_graph(self, show=True):
         """
         Plot the directed acyclical graph that represents the dependencies of an 
         ``Optimizable`` on its parents. The workflow is as follows: generate a ``networkx``
