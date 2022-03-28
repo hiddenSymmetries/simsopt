@@ -1208,6 +1208,21 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
     @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
     @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
     def plot(self, show=True):
+        """
+        Plot the directed acyclical graph that represents the dependencies of an 
+        ``Optimizable`` on its parents. The workflow is as follows: generate a ``networkx``
+        ``DiGraph`` using the ``traversal()`` function defined below.  Next, call ``graphviz_layout``
+        which determines sensible positions for the nodes of the graph using the ``dot``
+        program of ``graphviz``. Finally, ``networkx`` plots the graph using ``matplotlib``.
+        
+        Note that the tool ``network2tikz`` at `https://github.com/hackl/network2tikz <https://github.com/hackl/network2tikz>`_
+        can be used to convert the networkx ``DiGraph`` and layout to a 
+        latex file for publication.
+
+        Args:
+            show: Whether to call the ``show()`` function of matplotlib.
+        """
+
         G = nx.DiGraph()
         G.add_node(self.name) 
 
