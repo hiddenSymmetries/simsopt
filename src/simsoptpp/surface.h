@@ -129,12 +129,18 @@ class Surface {
         };
 
         void surface_curvature_impl(Array& data);
+        void dsurface_curvature_by_dcoeff_impl(Array& data);
+        void first_fund_form_impl(Array& data);
+        void dfirst_fund_form_by_dcoeff_impl(Array& data);
+        void second_fund_form_impl(Array& data);
+        void dsecond_fund_form_by_dcoeff_impl(Array& data);
         void normal_impl(Array& data);
         void dnormal_by_dcoeff_impl(Array& data);
         void d2normal_by_dcoeffdcoeff_impl(Array& data);
         Array dnormal_by_dcoeff_vjp(Array& v);
 
         void unitnormal_impl(Array& data);
+        void dunitnormal_by_dcoeff_impl(Array& data);
 
         double area();
         void darea_by_dcoeff_impl(Array& data);
@@ -174,6 +180,21 @@ class Surface {
         Array& surface_curvature() {
             return check_the_cache("surface_curvature", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvature_impl(A);});
         }
+        Array& dsurface_curvature_by_dcoeff() {
+            return check_the_cache("dsurface_curvature_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,4,num_dofs()}, [this](Array& A) { return dsurface_curvature_by_dcoeff_impl(A);});
+        }
+        Array& first_fund_form() {
+            return check_the_cache("first_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return first_fund_form_impl(A);});
+        }
+        Array& dfirst_fund_form_by_dcoeff() {
+            return check_the_cache("dfirst_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dfirst_fund_form_by_dcoeff_impl(A);});
+        }
+        Array& second_fund_form() {
+            return check_the_cache("second_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return second_fund_form_impl(A);});
+        }
+        Array& dsecond_fund_form_by_dcoeff() {
+            return check_the_cache("dsecond_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dsecond_fund_form_by_dcoeff_impl(A);});
+        }
         Array& dgamma_by_dcoeff() {
             return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
         }
@@ -194,6 +215,9 @@ class Surface {
         }
         Array& unitnormal() {
             return check_the_cache("unitnormal", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return unitnormal_impl(A);});
+        }
+        Array& dunitnormal_by_dcoeff() {
+            return check_the_cache("dunitnormal_by_dcoeff", {numquadpoints_phi, numquadpoints_theta, 3, num_dofs()}, [this](Array& A) { return dunitnormal_by_dcoeff_impl(A);});
         }
         Array& darea_by_dcoeff() {
             return check_the_cache("darea_by_dcoeff", {num_dofs()}, [this](Array& A) { return darea_by_dcoeff_impl(A);});
