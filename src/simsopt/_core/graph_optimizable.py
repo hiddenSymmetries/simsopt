@@ -1211,7 +1211,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         """
         Plot the directed acyclical graph that represents the dependencies of an 
         ``Optimizable`` on its parents. The workflow is as follows: generate a ``networkx``
-        ``DiGraph`` using the ``traversal()`` function defined below.  Next, call ``graphviz_layout``
+        ``DiGraph`` using the ``traversal`` function defined below.  Next, call ``graphviz_layout``
         which determines sensible positions for the nodes of the graph using the ``dot``
         program of ``graphviz``. Finally, ``networkx`` plots the graph using ``matplotlib``.
         
@@ -1246,7 +1246,8 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
         if show:
             plt.show()
-
+        
+        return G
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
