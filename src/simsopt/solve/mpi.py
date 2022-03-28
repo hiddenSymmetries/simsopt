@@ -21,12 +21,12 @@ try:
 except ImportError as err:
     MPI = None
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from ..util.types import RealArray
 from .._core.util import finite_difference_steps
 from .._core.finite_difference import MPIFiniteDifference
-from ..objectives.graph_least_squares import LeastSquaresProblem
+from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
 

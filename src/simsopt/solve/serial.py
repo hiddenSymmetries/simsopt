@@ -16,8 +16,8 @@ import logging
 import numpy as np
 from scipy.optimize import least_squares, minimize
 
-from ..objectives.graph_least_squares import LeastSquaresProblem
-from .._core.graph_optimizable import Optimizable
+from ..objectives.least_squares import LeastSquaresProblem
+from .._core.optimizable import Optimizable
 from .._core.finite_difference import FiniteDifference
 
 
