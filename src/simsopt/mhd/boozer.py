@@ -28,7 +28,7 @@ except ImportError as e:
 
 from .vmec import Vmec
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 
 
 class Boozer(Optimizable):
