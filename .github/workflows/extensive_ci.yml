@@ -96,7 +96,7 @@ jobs:
       run: env
 
     - name: Install python dependencies
-      run: pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja  plotly
+      run: pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
