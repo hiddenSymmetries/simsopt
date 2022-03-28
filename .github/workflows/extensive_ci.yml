@@ -97,7 +97,7 @@ jobs:
 
     - name: Install python dependencies
       run: |
-           sudo apt-get install graphviz
+           sudo apt-get install graphviz graphviz-dev
            pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform

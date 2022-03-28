@@ -936,7 +936,7 @@ class OptimizableTests(unittest.TestCase):
         can change ``show`` to ``True`` in the first line of this
         function.
         """
-        show = True
+        show = False
         
         try:
             import matplotlib
