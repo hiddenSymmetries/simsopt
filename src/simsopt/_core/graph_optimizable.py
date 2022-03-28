@@ -1216,15 +1216,15 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         program of ``graphviz``. Finally, ``networkx`` plots the graph using ``matplotlib``.
         
         Note that the tool ``network2tikz`` at `https://github.com/hackl/network2tikz <https://github.com/hackl/network2tikz>`_
-        can be used to convert the networkx ``DiGraph`` and layout to a 
+        can be used to convert the networkx ``DiGraph`` and positions to a 
         latex file for publication.
 
         Args:
             show: Whether to call the ``show()`` function of matplotlib.
-        
+
         Returns:
-            G: the networkx graph corresponding to this ``Optimizable``'s directed acyclical graph
-            pos: a dictionary of sensible x, y positions determined by ``graphviz`` indexed by node
+            The ``networkx`` graph corresponding to this ``Optimizable``'s directed acyclical graph
+            and a dictionary of sensible x, y positions determined by ``graphviz`` indexed by node
         """
 
         G = nx.DiGraph()
