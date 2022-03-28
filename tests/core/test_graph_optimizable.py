@@ -953,15 +953,15 @@ class OptimizableTests(unittest.TestCase):
         
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
-        adder.plot_graph(show=show)
+        G1 = adder.plot_graph(show=show)
         
         # optimizable with two parents
         opt1 = OptClassWithParentsReturnFns(10)
-        opt1.plot_graph(show=show)
+        G2 = opt1.plot_graph(show=show)
 
         # optimizable with many parents
         opt2 = OptClassWith2LevelParents(10, 20)
-        opt2.plot_graph(show=show)
+        G3 = opt2.plot_graph(show=show)
 
 
 class OptClassExternalDofs(Optimizable):
