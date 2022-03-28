@@ -1221,6 +1221,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         Args:
             show: Whether to call the ``show()`` function of matplotlib.
+        
+        Returns:
+            G: the networkx graph corresponding to this ``Optimizable``'s directed acyclical graph
+            pos: a dictionary of sensible x, y positions determined by ``graphviz`` indexed by node
         """
 
         G = nx.DiGraph()
@@ -1247,7 +1251,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         if show:
             plt.show()
         
-        return G
+        return G, pos
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
