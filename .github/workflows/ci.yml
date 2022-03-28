@@ -87,7 +87,7 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
