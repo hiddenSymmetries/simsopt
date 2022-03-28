@@ -1224,7 +1224,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         Returns:
             The ``networkx`` graph corresponding to this ``Optimizable``'s directed acyclical graph
-            and a dictionary of sensible x, y positions determined by ``graphviz`` indexed by node
+            and a dictionary of node names that map to sensible x, y positions determined by ``graphviz``
         """
 
         G = nx.DiGraph()
@@ -1252,6 +1252,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             plt.show()
         
         return G, pos
+
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
