@@ -76,7 +76,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
+        self.quadpoints_phi = quadpoints_phi
+        self.quadpoints_theta = quadpoints_theta
         self._make_mn()
+        self._make_quadpoints_rz()
 
     def get_dofs(self):
         """
@@ -130,6 +133,28 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             n = np.concatenate((n, n))
         self.m = m
         self.n = n
+
+    def _make_quadpoints_rz(self):
+        """
+        Make (r, z) quadrature points from the 
+        (phi, theta) quadrature points using the following Fourier series:
+        .. math::
+            r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}}
+               \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
+               r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
+               + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
+        and similarly for z(theta, phi).
+        """
+        self.quadpoints_r = self.rc * np.cos(
+                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
+            ) + self.rs * np.sin(
+                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
+            )
+        self.quadpoints_z = self.zc * np.cos(
+                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
+            ) + self.zs * np.sin(
+                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
+            )
 
     @classmethod
     def from_wout(cls,
@@ -388,6 +413,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
         self._make_mn()
+        self._make_quadpoints_rz()
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
