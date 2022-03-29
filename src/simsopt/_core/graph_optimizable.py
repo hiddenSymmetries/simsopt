@@ -37,6 +37,10 @@ try:
     from networkx.drawing.nx_agraph import graphviz_layout
 except ImportError:
     pygraphviz = None
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 log = logging.getLogger(__name__)
 
@@ -1200,9 +1204,28 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
             return self
         return self.__add__(other)
 
-    @SimsoptRequires(nx is not None, "print method requires networkx")
-    @SimsoptRequires(pygraphviz is not None, "print method requires pygraphviz")
-    def plot(self):
+    @SimsoptRequires(nx is not None, "print method for DAG requires networkx")
+    @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
+    @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
+    def plot_graph(self, show=True):
+        """
+        Plot the directed acyclical graph that represents the dependencies of an 
+        ``Optimizable`` on its parents. The workflow is as follows: generate a ``networkx``
+        ``DiGraph`` using the ``traversal`` function defined below.  Next, call ``graphviz_layout``
+        which determines sensible positions for the nodes of the graph using the ``dot``
+        program of ``graphviz``. Finally, ``networkx`` plots the graph using ``matplotlib``.
+        
+        Note that the tool ``network2tikz`` at `https://github.com/hackl/network2tikz <https://github.com/hackl/network2tikz>`_
+        can be used to convert the networkx ``DiGraph`` and positions to a 
+        latex file for publication.
+
+        Args:
+            show: Whether to call the ``show()`` function of matplotlib.
+
+        Returns:
+            The ``networkx`` graph corresponding to this ``Optimizable``'s directed acyclical graph
+            and a dictionary of node names that map to sensible x, y positions determined by ``graphviz``
+        """
 
         G = nx.DiGraph()
         G.add_node(self.name) 
@@ -1215,18 +1238,20 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 traversal(p)
 
         traversal(self)
-
-        import matplotlib.pyplot as plt
+       
+        # this command generates sensible positions for nodes of the DAG
+        # using the "dot" program
+        pos = graphviz_layout(G, prog='dot')
         options = {
-            'node_color': 'red',
-            'width': 2,
+            'node_color': 'white',
             'arrowstyle': '-|>',
             'arrowsize': 12,
-            'font_size': 8,
-        }
-        pos = graphviz_layout(G, prog='dot')
+            'font_size': 12}
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
-        plt.show()
+        if show:
+            plt.show()
+        
+        return G, pos
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
