@@ -76,8 +76,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
-        self.quadpoints_phi = quadpoints_phi
-        self.quadpoints_theta = quadpoints_theta
+        # self.quadpoints_phi = quadpoints_phi
+        # self.quadpoints_theta = quadpoints_theta
         self._make_mn()
         self._make_quadpoints_rz()
 
@@ -145,16 +145,27 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
         and similarly for z(theta, phi).
         """
-        self.quadpoints_r = self.rc * np.cos(
-                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
-            ) + self.rs * np.sin(
-                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
-            )
-        self.quadpoints_z = self.zc * np.cos(
-                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
-            ) + self.zs * np.sin(
-                self.m * quadpoints_theta - self.nfp * self.n * quadpoints_phi
-            )
+        Ntheta = len(self.quadpoints_theta)
+        Nphi = len(self.quadpoints_phi)
+        Nm = self.mpol + 1
+        Nn = self.ntor * 2 + 1
+        self.quadpoints_r = np.zeros((Ntheta, Nphi))
+        self.quadpoints_z = np.zeros((Ntheta, Nphi))
+        quadpoints_grid_theta, quadpoints_grid_phi = np.meshgrid(
+            self.quadpoints_theta, self.quadpoints_phi
+        )
+        for m in range(Nm):
+            for n in range(Nn):
+                self.quadpoints_r += self.rc[m, n] * np.cos(
+                    m * quadpoints_grid_theta - self.nfp * n * quadpoints_grid_phi
+                ) + self.rs[m, n] * np.sin(
+                    m * quadpoints_grid_theta - self.nfp * n * quadpoints_grid_phi
+                )
+                self.quadpoints_z += self.zc[m, n] * np.cos(
+                    m * quadpoints_grid_theta - self.nfp * n * quadpoints_grid_phi
+                ) + self.zs[m, n] * np.sin(
+                    m * quadpoints_grid_theta - self.nfp * n * quadpoints_grid_phi
+                )
 
     @classmethod
     def from_wout(cls,
