@@ -100,6 +100,7 @@ JF = Jf
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
 
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()

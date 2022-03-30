@@ -26,9 +26,9 @@ class volume_between_two_RZsurfaces():
     """
 
     def __init__(
-            self, plasma_boundary, rz_inner_surface=None, 
-            rz_outer_surface=None, plasma_offset=None, coil_offset=None,
-        ):
+        self, plasma_boundary, rz_inner_surface=None, 
+        rz_outer_surface=None, plasma_offset=None, coil_offset=None,
+    ):
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
         if not isinstance(plasma_boundary, SurfaceRZFourier):
@@ -37,7 +37,7 @@ class volume_between_two_RZsurfaces():
             )
         else:
             self.plasma_boundary = plasma_boundary
-        
+
         # If the inner surface is not specified, make default surface.
         if rz_inner_surface is None:
             print(
@@ -54,7 +54,7 @@ class volume_between_two_RZsurfaces():
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
-       
+
         # If the outer surface is not specified, make default surface. 
         if rz_outer_surface is None:
             print(
@@ -76,7 +76,7 @@ class volume_between_two_RZsurfaces():
             raise ValueError("Inner surface is not SurfaceRZFourier object.")
         if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
             raise ValueError("Outer surface is not SurfaceRZFourier object.")
-        
+
         # check the inner and outer surface are same size
         # and defined at the same (theta, phi) coordinate locations
         if len(self.rz_inner_surface.quadpoints_theta) != len(self.rz_outer_surface.quadpoints_theta):
@@ -132,13 +132,13 @@ class volume_between_two_RZsurfaces():
         Nphi = 40
         print(Nr, Nphi, Nz)
         R = np.linspace(r_min, r_max, Nr)
-        Phi = self.rz_outer_surface.quadpoints_phi  #np.linspace(phi_min, phi_max, Nphi)
+        Phi = self.rz_outer_surface.quadpoints_phi  # np.linspace(phi_min, phi_max, Nphi)
         Z = np.linspace(z_min, z_max, Nz)
         R, Phi, Z = np.meshgrid(R, Phi, Z, indexing='ij')
         self.R = R
         self.Z = Z
         self.Phi = Phi
-        self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0]) #np.vstack((np.vstack((np.ravel(R), np.ravel(Phi))), np.ravel(Z)))
+        self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])  # np.vstack((np.vstack((np.ravel(R), np.ravel(Phi))), np.ravel(Z)))
         print(self.RPhiZ.shape, Phi.shape)
         # Have the uniform grid, now need to loop through and eliminate cells. 
         self.fixed_grid = self._check_points_between_surfaces()
@@ -158,7 +158,7 @@ class volume_between_two_RZsurfaces():
         theta = self.plasma_boundary.quadpoints_theta
         phi = self.plasma_boundary.quadpoints_phi
         npol = len(theta)
-        
+
         # make copy of plasma boundary
         mpol = self.plasma_boundary.mpol
         ntor = self.plasma_boundary.ntor
@@ -271,8 +271,8 @@ class volume_between_two_RZsurfaces():
         new_grids = []
         for i in range(len(phi_inner)):
             # Get (R, Z) locations of the points with respect to the magnetic axis
-            Rpoint = np.ravel(self.RPhiZ[:, i, :, 0]) # - self.rz_inner_surface.get_rc(0, 0))
-            Zpoint = np.ravel(self.RPhiZ[:, i, :, 2]) # - self.rz_inner_surface.get_zs(1, 0))
+            Rpoint = np.ravel(self.RPhiZ[:, i, :, 0])  # - self.rz_inner_surface.get_rc(0, 0))
+            Zpoint = np.ravel(self.RPhiZ[:, i, :, 2])  # - self.rz_inner_surface.get_zs(1, 0))
             # find nearest point on inner toroidal surface
             new_grids_i = []
             for j in range(len(Rpoint)):
@@ -303,7 +303,7 @@ class volume_between_two_RZsurfaces():
             #print(np.max(theta_point), np.max(theta_inner))
             #for j, theta in enumerate(theta_point):
             #    theta_ind = np.abs(theta_point[j] - theta_inner).argmin()
-                # print(theta_point[j], theta_inner[theta_ind])
+            # print(theta_point[j], theta_inner[theta_ind])
            #     dist_inner = np.sqrt(
            #         (r_inner[i, theta_ind] - Rpoint[j]) ** 2
            #         + (z_inner[i, theta_ind] - Zpoint[j]) ** 2
