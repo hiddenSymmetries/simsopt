@@ -77,7 +77,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
         self._make_mn()
-        self._make_quadpoints_rz()
         self.range = range
 
     def get_dofs(self):
@@ -132,37 +131,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             n = np.concatenate((n, n))
         self.m = m
         self.n = n
-
-    def _make_quadpoints_rz(self):
-        """
-        Make (r, z) quadrature points from the 
-        (phi, theta) quadrature points using the following Fourier series:
-        .. math::
-            r(\theta, \phi) = \sum_{m=0}^{m_{\text{pol}}}
-               \sum_{n=-n_{\text{tor}}}^{n_\text{tor}} [
-               r_{c,m,n} \cos(m \theta - n_{\text{fp}} n \phi)
-               + r_{s,m,n} \sin(m \theta - n_{\text{fp}} n \phi) ]
-        and similarly for z(theta, phi).
-        """
-        Ntheta = len(self.quadpoints_theta)
-        Nphi = len(self.quadpoints_phi)
-        self.quadpoints_r = np.zeros((Ntheta, Nphi))
-        self.quadpoints_z = np.zeros((Ntheta, Nphi))
-        quadpoints_grid_theta, quadpoints_grid_phi = np.meshgrid(
-            self.quadpoints_theta, self.quadpoints_phi
-        )
-        for m in range(self.mpol + 1):
-            for n in range(-self.ntor, self.ntor + 1):
-                self.quadpoints_r += self.rc[m, n + self.ntor] * np.cos(
-                    2 * np.pi * m * quadpoints_grid_theta - 2 * np.pi * self.nfp * n * quadpoints_grid_phi
-                ) + self.rs[m, n + self.ntor] * np.sin(
-                    2 * np.pi * m * quadpoints_grid_theta - 2 * np.pi * self.nfp * n * quadpoints_grid_phi
-                )
-                self.quadpoints_z += self.zc[m, n + self.ntor] * np.cos(
-                    2 * np.pi * m * quadpoints_grid_theta - 2 * np.pi * self.nfp * n * quadpoints_grid_phi
-                ) + self.zs[m, n + self.ntor] * np.sin(
-                    2 * np.pi * m * quadpoints_grid_theta - 2 * np.pi * self.nfp * n * quadpoints_grid_phi
-                )
 
     @classmethod
     def from_wout(cls,
@@ -421,7 +389,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
                     self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
         self._make_mn()
-        self._make_quadpoints_rz()
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
@@ -494,7 +461,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
-        self._make_quadpoints_rz()
 
     def set_rs(self, m, n, val):
         """
@@ -506,7 +472,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._validate_mn(m, n)
         self.rs[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
-        self._make_quadpoints_rz()
 
     def set_zc(self, m, n, val):
         """
@@ -518,7 +483,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._validate_mn(m, n)
         self.zc[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
-        self._make_quadpoints_rz()
 
     def set_zs(self, m, n, val):
         """
@@ -527,7 +491,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
-        self._make_quadpoints_rz()
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
