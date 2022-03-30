@@ -171,6 +171,11 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20)
         vc.plot(show=False)
+        # Now cover the case in which an axis is provided:
+        import matplotlib.pyplot as plt
+        fig, ax0 = plt.subplots()
+        ax1 = vc.plot(ax=ax0, show=False)
+        assert ax1 is ax0
 
     def test_resample(self):
         """
