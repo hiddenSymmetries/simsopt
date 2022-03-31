@@ -1,28 +1,34 @@
 import logging
 
 from matplotlib import pyplot as plt
-from copy import deepcopy
 import warnings
 import numpy as np
-import f90nml
 from .surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
 
-class volume_between_two_RZsurfaces():
+class PermanentMagnetOptimizer():
     r"""
-    ``volume_between_two_RZsurfaces`` is a volume (a grid) between two toroidal
-    surfaces that is represented in cylindrical coordinates.
+        ``PermanentMagnetOptimizer`` is a class for solving the permanent
+        magnet optimization problem for stellarators. The class
+        takes as input two toroidal surfaces specified as SurfaceRZFourier
+        objects, and initializes a set of points (in cylindrical coordinates)
+        between these surfaces. It finishes initialization by pre-computing
+        a number of quantities required for the optimization such as the
+        geometric factor in the dipole part of the magnetic field and the 
+        target Bfield that is a sum of the coil and plasma magnetic fields.
+        It then provides functions for solving several variations of the
+        optimization problem.
 
-    Args:
-        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
-        nr: Number of grid points :math:`r_j` in the radial coordinate :math:`r`.
-        nz: Number of grid points :math:`z_j` in the axial angle :math:`z`.
-        rz_inner_surface: SurfaceRZFourier object representing 
-                          the inner toroidal surface of the volume.
-        rz_outer_surface: SurfaceRZFourier object representing 
-                          the outer toroidal surface of the volume.
+        Args:
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+            nr: Number of grid points :math:`r_j` in the radial coordinate :math:`r`.
+            nz: Number of grid points :math:`z_j` in the axial angle :math:`z`.
+            rz_inner_surface: SurfaceRZFourier object representing 
+                              the inner toroidal surface of the volume.
+            rz_outer_surface: SurfaceRZFourier object representing 
+                              the outer toroidal surface of the volume.
     """
 
     def __init__(
@@ -100,20 +106,6 @@ class volume_between_two_RZsurfaces():
                 "same toroidal quadrature points."
             )
 
-        # Define the set of radial coordinates r_inner(theta, phi), r_outer(theta, phi)
-        # and similarly for the z-component. 
-        #self.quadpoints_r = np.hstack(
-        #        (self.rz_inner_surface.quadpoints_r, 
-        #         self.rz_outer_surface.quadpoints_r)
-        #    )
-        #self.quadpoints_z = np.hstack(
-        #        (self.rz_inner_surface.quadpoints_z, 
-        #         self.rz_outer_surface.quadpoints_z)
-        #    )
-
-        # Define (r, phi, z) mesh between the two surfaces by initializing
-        # cylindrical grid, looping through the cells, and eliminating
-        # any cells not between the two surfaces.
         xyz_outer = self.rz_outer_surface.gamma()
         r_outer = np.sqrt(xyz_outer[:, :, 0] ** 2 + xyz_outer[:, :, 1] ** 2)
         z_outer = xyz_outer[:, :, 2]
@@ -121,31 +113,37 @@ class volume_between_two_RZsurfaces():
         r_min = np.min(r_outer)
         z_max = np.max(z_outer)
         z_min = np.min(z_outer)
-        phi_max = np.max(self.rz_outer_surface.quadpoints_phi)
-        phi_min = np.min(self.rz_outer_surface.quadpoints_phi)
+
+        # Initialize uniform grid of curved, square bricks
         Delta_r = 0.02
         Nr = int((r_max - r_min) / Delta_r)
         self.Nr = Nr
         Delta_z = Delta_r
         Nz = int((z_max - z_min) / Delta_z)
         self.Nz = Nz
-        Nphi = 40
-        print(Nr, Nphi, Nz)
+        phi = self.rz_outer_surface.quadpoints_phi
+        Nphi = len(phi)
+        print('Largest dipole size is = {0:.2f}'.format(
+            (
+                r_max - self.plasma_boundary.get_rc(0, 0)
+            ) * (phi[1] - phi[0]) * 2 * np.pi
+        )
+        )
         R = np.linspace(r_min, r_max, Nr)
-        Phi = self.rz_outer_surface.quadpoints_phi  # np.linspace(phi_min, phi_max, Nphi)
+        Phi = self.rz_outer_surface.quadpoints_phi
         Z = np.linspace(z_min, z_max, Nz)
+
+        # Make 3D mesh
         R, Phi, Z = np.meshgrid(R, Phi, Z, indexing='ij')
-        self.R = R
-        self.Z = Z
-        self.Phi = Phi
-        self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])  # np.vstack((np.vstack((np.ravel(R), np.ravel(Phi))), np.ravel(Z)))
-        print(self.RPhiZ.shape, Phi.shape)
+        self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
+
         # Have the uniform grid, now need to loop through and eliminate cells. 
-        self.fixed_grid = self._check_points_between_surfaces()
-        #self.fixed_grid = np.reshape(self.RPhiZ, (32 * Nz * Nr, 3))
-        print(np.shape(self.fixed_grid[0]))
+        self.final_RZ_grid = self._make_final_surface()
+
+        # Compute the geometric factor for the A matrix in the optimization
+        self._compute_geometric_factor()
+
         # optionally plot the plasma boundary + inner/outer surfaces
-        # in a number of toroidal slices
         self._plot_surfaces()
 
     def _set_inner_rz_surface(self):
@@ -170,8 +168,8 @@ class volume_between_two_RZsurfaces():
         dtheta = theta[1] - theta[0]
         phi_min = np.min(phi)
         phi_max = np.max(phi)
-        quadpoints_theta = theta  # np.linspace(theta_min, theta_max + dtheta, npol * 2)
-        quadpoints_phi = phi  # np.linspace(phi_min, phi_max, len(phi) * 2)
+        quadpoints_theta = theta
+        quadpoints_phi = phi
         rz_inner_surface = SurfaceRZFourier(
             mpol=mpol, ntor=ntor, nfp=nfp,
             stellsym=stellsym, range=range_surf,
@@ -227,6 +225,10 @@ class volume_between_two_RZsurfaces():
         self.rz_outer_surface = rz_outer_surface
 
     def _plot_surfaces(self):
+        """
+            Simple plotting function for debugging the permanent
+            magnet gridding procedure.
+        """
         plt.figure()
         for i, ind in enumerate([0, 10, 30]):
             plt.subplot(1, 3, i + 1)
@@ -237,90 +239,131 @@ class volume_between_two_RZsurfaces():
             plt.scatter(np.sqrt(xyz_plasma[ind, :, 0] ** 2 + xyz_plasma[ind, :, 1] ** 2), xyz_plasma[ind, :, 2], label='Inner surface')
             xyz_plasma = self.rz_outer_surface.gamma()
             plt.scatter(np.sqrt(xyz_plasma[ind, :, 0] ** 2 + xyz_plasma[ind, :, 1] ** 2), xyz_plasma[ind, :, 2], label='Outer surface')
-            plt.scatter(np.array(self.fixed_grid[ind])[:, 0], np.array(self.fixed_grid[ind])[:, 1], label='Final grid')
+            plt.scatter(np.array(self.final_RZ_grid[ind])[:, 0], np.array(self.final_RZ_grid[ind])[:, 1], label='Final grid')
             plt.legend()
             plt.grid(True)
-            #plt.scatter(self.RPhiZ[:, ind, :, 0], self.RPhiZ[:, ind, :, 2])
-            #ntor = self.rz_inner_surface.ntor
-            #ntor_vals = np.arange(-ntor, ntor + 1)
-            #R_axis = 0
-            #Z_axis = 0
-            #for k in range(-ntor, ntor + 1):
-            #    R_axis += self.plasma_boundary.get_rc(0, k) * np.cos(k * self.plasma_boundary.quadpoints_phi[ind]) 
-            #    Z_axis += self.plasma_boundary.get_zs(0, k) * np.sin( - k * self.plasma_boundary.quadpoints_phi[ind]) 
-            #plt.scatter(R_axis, Z_axis, color='k')
         plt.show()
 
-    def _check_points_between_surfaces(self):
-        theta_inner = self.rz_inner_surface.quadpoints_theta
+    def _make_final_surface(self):
+        """
+            Takes the uniform RZ grid initialized earlier, and loops through
+            and creates a final set of points which lie between the
+            inner and outer toroidal surfaces corresponding to the permanent
+            magnet surface. 
+
+            For each toroidal cross-section:
+            For each dipole location:
+            1. Find nearest point from dipole to the inner surface
+            2. Get normal vector of this inner surface point
+            3. Draw ray from dipole location in the direction of this normal vector
+            4. If closest point between inner surface and the ray is the 
+               start of the ray, conclude point is outside the inner surface. 
+            5. If closest point between outer surface and the ray is the
+               start of the ray, conclude point is outside the outer surface. 
+            6. If Step 4 was True but Step 5 was False, add the point to the final grid.
+        """
         phi_inner = self.rz_inner_surface.quadpoints_phi
         xyz_inner = self.rz_inner_surface.gamma()
         r_inner = np.sqrt(xyz_inner[:, :, 0] ** 2 + xyz_inner[:, :, 1] ** 2)
         z_inner = xyz_inner[:, :, 2]
-        theta_outer = self.rz_outer_surface.quadpoints_theta
-        phi_outer = self.rz_outer_surface.quadpoints_phi
         xyz_outer = self.rz_outer_surface.gamma()
         r_outer = np.sqrt(xyz_outer[:, :, 0] ** 2 + xyz_outer[:, :, 1] ** 2)
         z_outer = xyz_outer[:, :, 2]
         normal_inner = self.rz_inner_surface.unitnormal()
-        print(np.shape(normal_inner))
         Nray = 2000
-        # For each toroidal cross-section, find theta of the location
-        # find nearest theta value on inner and outer surfaces, and compare distances
-        good_inds = np.zeros((len(phi_inner), self.Nr * self.Nz), dtype=bool)
+        total_points = 0
+
         new_grids = []
         for i in range(len(phi_inner)):
             # Get (R, Z) locations of the points with respect to the magnetic axis
-            Rpoint = np.ravel(self.RPhiZ[:, i, :, 0])  # - self.rz_inner_surface.get_rc(0, 0))
-            Zpoint = np.ravel(self.RPhiZ[:, i, :, 2])  # - self.rz_inner_surface.get_zs(1, 0))
+            Rpoint = np.ravel(self.RPhiZ[:, i, :, 0])
+            Zpoint = np.ravel(self.RPhiZ[:, i, :, 2])
+
             # find nearest point on inner toroidal surface
             new_grids_i = []
             for j in range(len(Rpoint)):
                 nearest_loc = ((r_inner[i, :] - Rpoint[j]) ** 2 + (z_inner[i, :] - Zpoint[j]) ** 2).argmin()
                 ray_direction = normal_inner[i, nearest_loc, :]
+
                 # rotate ray in (r, phi, z) coordinates and set phi component to zero
+                # so that we keep everything in the same phi = constant cross-section
                 rot_matrix = [[np.cos(phi_inner[i]), np.sin(phi_inner[i]), 0],
                               [-np.sin(phi_inner[i]), np.cos(phi_inner[i]), 0],
                               [0, 0, 1]]
                 ray_direction = rot_matrix @ ray_direction 
                 ray_direction = ray_direction[[0, 2]]
-                # should be dimension (2, 1000)
-                ray_equation = np.outer([Rpoint[j], Zpoint[j]], np.ones(Nray)) + np.outer(ray_direction, np.linspace(0, 3, Nray))
+
+                ray_equation = np.outer(
+                    [Rpoint[j], 
+                     Zpoint[j]], 
+                    np.ones(Nray)
+                ) + np.outer(ray_direction, np.linspace(0, 3, Nray))
                 nearest_loc_inner = ((r_inner[i, nearest_loc] - ray_equation[0, :]) ** 2 + (z_inner[i, nearest_loc] - ray_equation[1, :]) ** 2).argmin()
+
                 # nearest distance from the inner surface to the ray should be just the original point
                 if nearest_loc_inner != 0:
                     continue
                 nearest_loc_outer = ((r_outer[i, nearest_loc] - ray_equation[0, :]) ** 2 + (z_outer[i, nearest_loc] - ray_equation[1, :]) ** 2).argmin()
+
                 # nearest distance from the outer surface to the ray should be NOT be the original point
                 if nearest_loc_outer != 0:
+                    total_points += 1
                     new_grids_i.append(np.array([Rpoint[j], Zpoint[j]]))
             new_grids.append(new_grids_i)
-            #theta_point = np.arctan2(Zpoint, Rpoint - self.rz_inner_surface.get_rc(0, 0))
-            # Normalize thetas to [0, 1]
-            #print(np.max(theta_point), np.max(theta_inner))
-            #print(np.max(theta_point - np.min(theta_point)), np.max(theta_inner))
-            #theta_point = (theta_point - np.min(theta_point)) / (2 * np.pi)
-            #print(np.max(theta_point), np.max(theta_inner))
-            #for j, theta in enumerate(theta_point):
-            #    theta_ind = np.abs(theta_point[j] - theta_inner).argmin()
-            # print(theta_point[j], theta_inner[theta_ind])
-           #     dist_inner = np.sqrt(
-           #         (r_inner[i, theta_ind] - Rpoint[j]) ** 2
-           #         + (z_inner[i, theta_ind] - Zpoint[j]) ** 2
-           #     )
-           #     dist_outer = np.sqrt(
-           #         (r_outer[i, theta_ind] - Rpoint[j]) ** 2
-           #         + (z_outer[i, theta_ind] - Zpoint[j]) ** 2
-           #     )
-           #     dist_surfaces = np.sqrt(
-           ##         (r_inner[i, theta_ind] - r_outer[i, theta_ind]) ** 2
-           #         + (z_inner[i, theta_ind] - z_outer[i, theta_ind]) ** 2
-           #     )
-           #     if dist_inner <= dist_surfaces and dist_outer <= dist_surfaces:
-           #         print(i, j, dist_inner, dist_outer, dist_surfaces)
-           #         print(r_inner[i, theta_ind], r_outer[i, theta_ind], Rpoint[j])
-           #         good_inds[i, j] = True
-           # good_inds_i = np.reshape(good_inds[i, :], (self.Nr, self.Nz))
-           # new_grid_i = self.RPhiZ[:, i, :, :]
-           # new_grids.append(new_grid_i[good_inds_i, :])
+        self.ndipoles = total_points
         return new_grids
+
+    def _compute_geometric_factor(self):
+        """ 
+            Computes the geometric factor in the expression for the
+            total magnetic field as a sum over all the dipoles. Only
+            needs to computed once, before the optimization.
+            math::
+                g(\phi, \theta) = \mu_0(\frac{3r_i\cdot N}{|r_i|^5}r_i - \frac{N}{|r_i|^3}) / 4 * pi
+        """
+        normal_plasma_boundary = self.plasma_boundary.unitnormal()
+
+        phi = self.plasma_boundary.quadpoints_phi
+        nphi = len(phi)
+        ntheta = len(self.plasma_boundary.quadpoints_theta)
+        geo_factor = np.zeros((nphi, ntheta, self.ndipoles, 3))
+        xyz_plasma = self.plasma_boundary.gamma()
+
+        for i in range(nphi):
+            # rotate normal vector to (r, phi, z) coordinates
+            rot_matrix = [[np.cos(phi[i]), np.sin(phi[i]), 0],
+                          [-np.sin(phi[i]), np.cos(phi[i]), 0],
+                          [0, 0, 1]]
+            phi_plasma = phi[i] 
+            for j in range(ntheta):
+                normal_plasma = rot_matrix @ normal_plasma_boundary[i, j, :]
+                r_plasma = np.sqrt(xyz_plasma[i, j, 0] ** 2 + xyz_plasma[i, j, 1] ** 2)
+                z_plasma = xyz_plasma[i, j, 2]
+                R_plasma = np.array([r_plasma, phi_plasma, z_plasma])
+                for k in range(nphi):
+                    dipole_grid_r = np.ravel(np.array(self.final_RZ_grid[k])[:, 0])
+                    dipole_grid_z = np.ravel(np.array(self.final_RZ_grid[k])[:, 0])
+                    phi_dipole = phi[k] * np.ones(len(dipole_grid_r))
+                    R_dipole = np.array([dipole_grid_r, phi_dipole, dipole_grid_z]).T
+                    R_dist = self._cyl_dist(R_plasma, R_dipole) 
+                    R_diff = R_dipole - np.outer(np.ones(R_dipole.shape[0]), R_plasma)
+                    geo_factor[i, j, 
+                               k * len(dipole_grid_r): (k + 1) * len(dipole_grid_r), :
+                               ] = (3 * (np.array([R_diff @ normal_plasma,
+                                                   R_diff @ normal_plasma,
+                                                   R_diff @ normal_plasma
+                                                   ]).T * R_diff).T / R_dist ** 5 - np.outer(
+                                   normal_plasma, 1.0 / R_dist ** 3)
+                    ).T
+        self.geo_factor = geo_factor
+
+    def _cyl_dist(self, plasma_vec, dipole_vec):
+        """
+            Computes cylindrical distances between a single point on the
+            plasma boundary and a list of points corresponding to the dipoles
+            that are on the same phi = constant cross-section.
+        """
+        radial_term = plasma_vec[0] ** 2 + dipole_vec[:, 0] ** 2 
+        angular_term = - 2 * plasma_vec[0] * dipole_vec[:, 0] * np.cos(plasma_vec[1] - dipole_vec[:, 1])
+        axial_term = (plasma_vec[2] - dipole_vec[:, 2]) ** 2
+        return np.sqrt(radial_term + angular_term + axial_term)
