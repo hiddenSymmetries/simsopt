@@ -82,7 +82,7 @@ for i in range(ncoils):
     base_curves[i].fix_all()
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
-b_target_pm = -np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+# b_target_pm = -np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
