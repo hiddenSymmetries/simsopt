@@ -1,9 +1,8 @@
 import logging
 
 from matplotlib import pyplot as plt
-import warnings
 import numpy as np
-from .surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +28,16 @@ class PermanentMagnetOptimizer():
                               the inner toroidal surface of the volume.
             rz_outer_surface: SurfaceRZFourier object representing 
                               the outer toroidal surface of the volume.
+            plasma_offset: Offset to use for generating the inner toroidal surface.
+            coil_offset: Offset to use for generating the outer toroidal surface.
+            B_plasma_surface: Magnetic field (coils and plasma) at the plasma
+                              boundary. Must be specified to run the optimization.
     """
 
     def __init__(
         self, plasma_boundary, rz_inner_surface=None, 
-        rz_outer_surface=None, plasma_offset=None, coil_offset=None,
+        rz_outer_surface=None, plasma_offset=0.1, 
+        coil_offset=0.1, B_plasma_surface=None,
     ):
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
@@ -50,13 +54,10 @@ class PermanentMagnetOptimizer():
                 "Inner toroidal surface not specified, defaulting to "
                 "the plasma boundary shape."
             )
-            if plasma_offset is None:
-                print(
-                    "Volume initialized without a given offset to use "
-                    "for defining the inner surface. Defaulting to 10 cm."
-                )
-                self.plasma_offset = 0.1
-
+            print(
+                "Volume initialized without a given offset to use "
+                "for defining the inner surface. Defaulting to 10 cm."
+            )
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
@@ -69,12 +70,10 @@ class PermanentMagnetOptimizer():
                 "the inner surface in their respective poloidal plane "
                 "is equal to a given radial extent."
             )
-            if coil_offset is None:
-                print(
-                    "Volume initialized without a given offset to use "
-                    "for defining the outer surface. Defaulting to 10 cm."
-                )
-                self.coil_offset = 0.1
+            print(
+                "Volume initialized without a given offset to use "
+                "for defining the outer surface. Defaulting to 10 cm."
+            )
             self._set_outer_rz_surface()
         else:
             self.rz_outer_surface = rz_outer_surface
@@ -123,11 +122,28 @@ class PermanentMagnetOptimizer():
         self.Nz = Nz
         phi = self.rz_outer_surface.quadpoints_phi
         Nphi = len(phi)
-        print('Largest dipole size is = {0:.2f}'.format(
+        print('Largest possible dipole dimension is = {0:.2f}'.format(
             (
                 r_max - self.plasma_boundary.get_rc(0, 0)
             ) * (phi[1] - phi[0]) * 2 * np.pi
         )
+        )
+        print('dR = {0:.2f}'.format(Delta_r))
+        print('dZ = {0:.2f}'.format(Delta_z))
+        norm = self.plasma_boundary.unitnormal()
+        norms = []
+        for i in range(Nphi):
+            rot_matrix = [[np.cos(phi[i]), np.sin(phi[i]), 0],
+                          [-np.sin(phi[i]), np.cos(phi[i]), 0],
+                          [0, 0, 1]]
+
+            norms.append((rot_matrix @ norm[i, :, :].T).T)
+        norms = np.array(norms)
+        norm[:, :, 1] = 0
+        print(
+            'Approximate closest distance between plasma and inner surface = {0:.2f}'.format(
+                np.min(np.sqrt(norms[:, :, 0] ** 2 + norms[:, :, 2] ** 2) * self.plasma_offset)
+            )    
         )
         R = np.linspace(r_min, r_max, Nr)
         Phi = self.rz_outer_surface.quadpoints_phi
