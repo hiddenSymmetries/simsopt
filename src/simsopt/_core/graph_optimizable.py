@@ -1402,25 +1402,12 @@ class ScaledOptimizable(Optimizable):
         super().__init__(depends_on=[opt])
 
     def J(self):
-        return float(self.factor) * self.opt.J()
+        return self.factor * self.opt.J()
 
     @derivative_dec
     def dJ(self):
         # Next line uses __rmul__ function for the Derivative class
-        return float(self.factor) * self.opt.dJ(partials=True)
-
-
-class Weight(object):
-
-    def __init__(self, value):
-        self.value = value
-
-    def __float__(self):
-        return self.value
-
-    def __imul__(self, alpha):
-        self.value *= alpha
-        return self
+        return self.factor * self.opt.dJ(partials=True)
 
 
 class OptimizableSum(Optimizable):
