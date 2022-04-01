@@ -83,7 +83,7 @@ def trace_fieldlines(bfield, label):
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)
-# trace_fieldlines(bs, 'bs')
+trace_fieldlines(bs, 'bs')
 
 
 n = 16

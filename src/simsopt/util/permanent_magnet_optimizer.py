@@ -9,7 +9,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class PermanentMagnetOptimizer():
+class PermanentMagnetOptimizer:
     r"""
         ``PermanentMagnetOptimizer`` is a class for solving the permanent
         magnet optimization problem for stellarators. The class
@@ -23,17 +23,28 @@ class PermanentMagnetOptimizer():
         optimization problem.
 
         Args:
-            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
-            nr: Number of grid points :math:`r_j` in the radial coordinate :math:`r`.
-            nz: Number of grid points :math:`z_j` in the axial angle :math:`z`.
+            plasma_boundary:  SurfaceRZFourier object representing 
+                              the plasma boundary surface.  
             rz_inner_surface: SurfaceRZFourier object representing 
                               the inner toroidal surface of the volume.
+                              Defaults to the plasma boundary, extended
+                              by the boundary normal vector projected on
+                              to the (R, Z) plane to keep the phi = constant
+                              cross-section the same as the plasma surface. 
             rz_outer_surface: SurfaceRZFourier object representing 
                               the outer toroidal surface of the volume.
-            plasma_offset: Offset to use for generating the inner toroidal surface.
-            coil_offset: Offset to use for generating the outer toroidal surface.
+                              Defaults to the inner surface, extended
+                              by the boundary normal vector projected on
+                              to the (R, Z) plane to keep the phi = constant
+                              cross-section the same as the inner surface. 
+            plasma_offset:    Offset to use for generating the inner toroidal surface.
+            coil_offset:      Offset to use for generating the outer toroidal surface.
             B_plasma_surface: Magnetic field (coils and plasma) at the plasma
-                              boundary. Must be specified to run the optimization.
+                              boundary. Typically this will be the optimized plasma
+                              magnetic field from a stage-1 optimization, and the
+                              optimized coils from a basic stage-2 optimization. 
+                              This variable must be specified to run the permanent 
+                              magnet optimization.
     """
 
     def __init__(
@@ -59,11 +70,10 @@ class PermanentMagnetOptimizer():
         if rz_inner_surface is None:
             print(
                 "Inner toroidal surface not specified, defaulting to "
-                "the plasma boundary shape."
-            )
-            print(
-                "Volume initialized without a given offset to use "
-                "for defining the inner surface. Defaulting to 10 cm."
+                "extending the plasma boundary shape using the normal "
+                " vectors at the quadrature locations. The normal vectors "
+                " are projected onto the RZ plane so that the new surface "
+                " lies entirely on the original phi = constant cross-section. "
             )
             self._set_inner_rz_surface()
         else:
@@ -73,13 +83,10 @@ class PermanentMagnetOptimizer():
         if rz_outer_surface is None:
             print(
                 "Outer toroidal surface not specified, defaulting to "
-                "using the locus of points whose closest distance to "
-                "the inner surface in their respective poloidal plane "
-                "is equal to a given radial extent."
-            )
-            print(
-                "Volume initialized without a given offset to use "
-                "for defining the outer surface. Defaulting to 10 cm."
+                "extending the inner toroidal surface shape using the normal "
+                " vectors at the quadrature locations. The normal vectors "
+                " are projected onto the RZ plane so that the new surface "
+                " lies entirely on the original phi = constant cross-section. "
             )
             self._set_outer_rz_surface()
         else:
@@ -146,6 +153,7 @@ class PermanentMagnetOptimizer():
         print('dR = {0:.2f}'.format(Delta_r))
         print('dZ = {0:.2f}'.format(Delta_z))
         norm = self.plasma_boundary.unitnormal()
+        phi = self.plasma_boundary.quadpoints_phi
         norms = []
         for i in range(Nphi):
             rot_matrix = [[np.cos(phi[i]), np.sin(phi[i]), 0],
@@ -161,15 +169,30 @@ class PermanentMagnetOptimizer():
         )
         self.plasma_unitnormal_cylindrical = norms
         R = np.linspace(r_min, r_max, Nr)
-        Phi = self.rz_outer_surface.quadpoints_phi
         Z = np.linspace(z_min, z_max, Nz)
 
         # Make 3D mesh
-        R, Phi, Z = np.meshgrid(R, Phi, Z, indexing='ij')
+        R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
         self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
 
         # Have the uniform grid, now need to loop through and eliminate cells. 
         self.final_RZ_grid = self._make_final_surface()
+
+        # Compute the maximum allowable magnetic moment m_max
+        phi = self.rz_inner_surface.quadpoints_phi
+        B_max = 1.4
+        mu0 = 4 * np.pi * 1e-7
+        dipole_grid_r = np.zeros(self.ndipoles)
+        running_tally = 0
+        for i in range(self.nphi):
+            radii = np.ravel(np.array(self.final_RZ_grid[i])[:, 0])
+            len_radii = len(radii)
+            dipole_grid_r[running_tally:running_tally + len_radii] = radii
+            running_tally += len_radii
+        cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0]) * 2 * np.pi
+        # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
+        # should be m_max = B_r * cell_vol / mu0  (just from units)
+        self.m_maxima = B_max * cell_vol / mu0
 
         # Compute the geometric factor for the A matrix in the optimization
         self._compute_geometric_factor()
@@ -385,10 +408,15 @@ class PermanentMagnetOptimizer():
                     ).T
                     running_tally += len(dipole_grid_r)
         mu0 = 4 * np.pi * 1e-7
-        dphi = phi[1] - phi[0]
-        dtheta = self.theta[1] - self.theta[0]
+        dphi = (phi[1] - phi[0]) * 2 * np.pi
+        dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         geo_factor = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles * 3)) * mu0 / (4 * np.pi)
-        self.A_obj = geo_factor * np.sqrt(dphi * dtheta) 
+        self.A_obj = geo_factor * np.sqrt(dphi * dtheta)
+        # Make histogram of the element values in A_obj
+        A_hist = np.ravel(self.A_obj)
+        plt.figure()
+        plt.hist(A_hist, bins=100)
+        plt.show()
 
     def _cyl_dist(self, plasma_vec, dipole_vec):
         """
@@ -410,13 +438,13 @@ class PermanentMagnetOptimizer():
         axial_term = boundary_vec[:, :, 2] ** 2
         return np.sqrt(radial_term + axial_term)
 
-    def _prox_l0(self, x, threshold):
+    def _prox_l0(self, threshold):
         """Proximal operator for L0 regularization."""
-        return x * (np.abs(x) > threshold)
+        self.m_proxy = self.m * (np.abs(self.m) > threshold * self.nu)
 
-    def _prox_l1(self, x, threshold):
+    def _prox_l1(self, threshold):
         """Proximal operator for L1 regularization."""
-        return np.sign(x) * np.maximum(np.abs(x) - threshold, 0)
+        self.m_proxy = np.sign(self.m) * np.maximum(np.abs(self.m) - threshold * self.nu, 0)
 
     def _projection_L2_balls(self, x):
         """
@@ -426,7 +454,7 @@ class PermanentMagnetOptimizer():
         x_shaped = x.reshape(N, 3)
         denom = np.maximum(
             1,
-            np.sqrt(x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2)
+            np.sqrt(x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) / self.m_maxima
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
@@ -439,7 +467,7 @@ class PermanentMagnetOptimizer():
         x_shaped = x.reshape(N, 3)
         check_active = np.isclose(
             x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
-            1
+            self.m_maxima ** 2
         )
         # if triplet is in the active set (on the L2 unit ball)
         # then zero out those three indices
@@ -458,7 +486,7 @@ class PermanentMagnetOptimizer():
         x_shaped = x.reshape((N, 3))
         check_active = np.isclose(
             x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
-            1
+            self.m_maxima ** 2
         )
         # if triplet is NOT in the active set (on the L2 unit ball)
         # then zero out those three indices
@@ -518,7 +546,7 @@ class PermanentMagnetOptimizer():
         b = - 2 * (
             x_shaped[:, 0] * p_shaped[:, 0] + x_shaped[:, 1] * p_shaped[:, 1] + x_shaped[:, 2] * p_shaped[:, 2]
         )
-        c = (x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) - 1
+        c = (x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) - self.m_maxima ** 2
 
         # Need to think harder about the line below
         p_nonzero_inds = np.ravel(np.where(a > 0))
@@ -535,7 +563,8 @@ class PermanentMagnetOptimizer():
             alphaf_plus = 0.0
         return alphaf_plus
 
-    def _MwPGP(self, alpha=None, delta=0.5, epsilon=1e-4, max_iter=50000):
+    def _MwPGP(self, alpha=None, delta=0.5, epsilon=1e-4, 
+               relax_and_split=False, max_iter=500):
         """
         Run the MwPGP algorithm defined in: Bouchala, Jiří, et al.
         On the solution of convex QPQC problems with elliptic and
@@ -560,14 +589,19 @@ class PermanentMagnetOptimizer():
         # Need to put ATA everywhere since original MwPGP algorithm 
         # assumes that the problem looks like x^T A x
         ATA = A.T @ A
+        print('ATA avg = ', np.mean(ATA))
         ATb = A.T @ b
+        #if relax_and_split:
+        #    ATA += np.eye(ATA.shape[0]) / self.nu
+        #    ATb += 2.0 * self.m_proxy / self.nu
         alpha_max = 2.0 / np.linalg.norm(ATA, ord=2)
         if alpha is None:
-            alpha = alpha_max - epsilon
+            alpha = alpha_max  # - epsilon
         elif alpha > alpha_max or alpha < 0:
             print('Warning, invalid alpha value passed to MwPGP, '
                   'overwriting this value with the default.')
-            alpha = alpha_max - epsilon
+            alpha = alpha_max  # - epsilon
+        print('alpha_MwPGP = ', alpha)
         g = ATA @ x0 - ATb
         p = self._phi_MwPGP(x0, g)
         g_alpha_P = self._g_reduced_projected_gradient(x0, alpha, g)
@@ -578,38 +612,47 @@ class PermanentMagnetOptimizer():
         # objective_history = []
         start = time.time()
         while k < max_iter:
+            if k % max(int(max_iter / 100), 1) == 0:
+                cost = np.linalg.norm(A @ x_k - b, ord=2) ** 2
+                print(k, cost)
+
             if (delta_fac * norm_g_alpha_P <= np.linalg.norm(
                     self._phi_MwPGP(x_k, g))):
                 ATAp = ATA @ p
                 alpha_cg = g.T @ p / (p.T @ ATAp)
                 alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
                 if alpha_cg < alpha_f:
+                    # Take a conjugate gradient step
                     x_k1 = x_k - alpha_cg * p
                     g = g - alpha_cg * ATAp
                     gamma = self._phi_MwPGP(x_k1, g).T @ ATAp / (p.T @ ATAp)
                     p = self._phi_MwPGP(x_k1, g) - gamma * p
                 else:
+                    # Take a mixed projected gradient step
                     x_k1 = self._projection_L2_balls((x_k - alpha_f * p) - alpha * (g - alpha_f * ATAp))
                     g = ATA @ x_k1 - ATb
                     p = self._phi_MwPGP(x_k1, g)
             else:
+                # Take a projected gradient step
                 x_k1 = self._projection_L2_balls(x_k - alpha * g)
                 g = ATA @ x_k1 - ATb
                 p = self._phi_MwPGP(x_k1, g)
             k = k + 1
             if np.max(abs(x_k - x_k1)) < epsilon:
+                print('MwPGP finished early, at iteration ', k)
                 break
             # objective_history.append(cost)
             x_k = x_k1
         end = time.time()
-        x_final = x_k
-        cost = np.linalg.norm(A @ x_final - b, ord=2) ** 2  # / len(A) ** 2
+        cost = np.linalg.norm(A @ x_k - b, ord=2) ** 2  # / len(A) ** 2
         print('Error after MwPGP iterations = ', cost)
         print('Total time for MwPGP = ', end - start)
-        return x_final, cost, (end - start)
+        self.m = x_k 
 
-    def _optimize(self, m0=None, epsilon=1e-2, lambda_reg=None, regularizer=None, 
-                  max_iter_MwPGP=10000, max_iter_RS=10):
+    def _optimize(self, m0=None, epsilon=1e-4, lambda_reg=None, nu=1e20,
+                  regularizer=None, lambda_nonconvex=0,
+                  max_iter_MwPGP=50, max_iter_RS=4, 
+                  nonconvex_or_nonsmooth_terms=False):
         # Initialize initial guess for the dipole strengths
         if m0 is not None:
             if len(m0) == self.ndipoles * 3:
@@ -620,7 +663,7 @@ class PermanentMagnetOptimizer():
                     ' guess must be 1D with shape (ndipoles * 3).'
                 )
         else:
-            self.m = np.random.rand(self.ndipoles * 3)
+            self.m = np.random.rand(self.ndipoles * 3) * np.max(self.m_maxima)
 
         # Initialize 'b' vector in ||Am - b||^2 part of the optimization,
         # corresponding to the normal component of the target fields.
@@ -628,16 +671,42 @@ class PermanentMagnetOptimizer():
             raise ValueError('Magnetic field surface data is incorrect shape.')
         Bs = self.B_plasma_surface
         self.b_obj = np.sum(Bs * self.plasma_boundary.unitnormal(), axis=2).reshape(self.nphi * self.ntheta)
+        ave_Bn = np.mean(np.abs(self.b_obj))
+        Bmag = np.linalg.norm(Bs, axis=-1, ord=2).reshape(self.nphi * self.ntheta)
+        ave_BnB = np.mean(np.abs(self.b_obj) / Bmag)
+        total_Bn = np.sum(np.abs(self.b_obj) ** 2)
 
         # Print out the bulk optimization paramaters 
-        dipole_error = np.linalg.norm(self.A_obj @ self.m - self.b_obj, ord=2) ** 2
+        dipole_error = np.linalg.norm(self.A_obj @ self.m, ord=2) ** 2
+        total_error = np.linalg.norm(self.A_obj @ self.m - self.b_obj, ord=2) ** 2
         print('Number of phi quadrature points on plasma surface = ', self.nphi)
         print('Number of theta quadrature points on plasma surface = ', self.ntheta)
+        print('<B * n> without the permanent magnets = {0:.5f}'.format(ave_Bn)) 
+        print('<B * n / |B| > without the permanent magnets = {0:.5f}'.format(ave_BnB)) 
+        print(r'$|b|_2^2 = |B * n|_2^2$ without the permanent magnets = {0:.5f}'.format(total_Bn))
+        print(r'Initial $|Am_0|_2^2 = |B_M * n|_2^2$ without the coils/plasma = {0:.7f}'.format(dipole_error))
         print('Number of dipoles = ', self.ndipoles)
+        print('Inner toroidal surface offset from plasma surface = ', self.plasma_offset)
+        print('Outer toroidal surface offset from inner toroidal surface = ', self.coil_offset)
+        print('Maximum dipole moment = ', np.max(self.m_maxima))
         print('Shape of A matrix = ', self.A_obj.shape)
         print('Shape of b vector = ', self.b_obj.shape)
-        print('Initial error on plasma surface = ', dipole_error)
-
+        print('Initial error on plasma surface = {0:.5f}'.format(total_error))
         # Begin optimization
-        self._MwPGP(epsilon=epsilon, max_iter=max_iter_MwPGP)
+        if nonconvex_or_nonsmooth_terms:
+            # Relax-and-split algorithm
+            self.nu = nu
+            self.m_proxy = self.m
+            for i in range(max_iter_RS):
+                # update self.m
+                self._MwPGP(epsilon=epsilon, max_iter=max_iter_MwPGP, relax_and_split=True)
+                # update self.m_proxy
+                self._prox_l0(lambda_nonconvex)
+        else:
+            self._MwPGP(delta=1e100, epsilon=epsilon, max_iter=max_iter_MwPGP)
+        ave_Bn = np.mean(np.abs(self.A_obj @ self.m - self.b_obj))
+        ave_BnB = np.mean(np.abs((self.A_obj @ self.m - self.b_obj)) / Bmag)  # using original Bmag without PMs
+        print(self.m, self.m_maxima, np.max(self.m))
+        print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
+        print('<B * n / |B| > without the permanent magnets = {0:.5f}'.format(ave_BnB)) 
 
