@@ -29,11 +29,21 @@ from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
+from simsopt.field.tracing import SurfaceClassifier, \
+    compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
+import time
+
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+except ImportError:
+    comm = None
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -50,6 +60,10 @@ order = 5
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+nfieldlines = 3 if ci else 30
+tmax_fl = 10000 if ci else 40000
+degree = 2 if ci else 4
+
 MAXITER = 50 if ci else 400
 
 # File for the desired boundary magnetic surface:
@@ -79,8 +93,11 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # of the currents:
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_currents[0].fix_all()
-for i in range(ncoils):
-    base_curves[i].fix_all()
+
+# Uncomment if want to keep the coils circular
+#for i in range(ncoils):
+#    base_curves[i].fix_all()
+
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 # b_target_pm = -np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -137,20 +154,51 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# Plot the optimized results
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
-pm_opt = PermanentMagnetOptimizer(s, B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)))
-pm_opt._optimize()
+# pm_opt = PermanentMagnetOptimizer(s, coil_offset=0.1, B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)))
+# pm_opt._optimize()
+
+# Get full surface and get level sets for the Poincare plots below
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
+sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 
-# Initialize surface for permanent magnets
-#nphi = 32
-#ntheta = 32
-#s = SurfaceRZFourier(range="half period", nphi=nphi, ntheta=ntheta)
+def trace_fieldlines(bfield, label):
+    t1 = time.time()
+    R0 = np.linspace(0.8, 1.3, nfieldlines)
+    Z0 = np.zeros(nfieldlines)
+    # R0 = np.linspace(r_gamma, r_gamma + 0.14, nfieldlines)
+    # Z0 = [s.gamma()[0, 0, 2] for i in range(nfieldlines)]
+    phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
+    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+    t2 = time.time()
+    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+    #particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+    plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
+
+
+n = 16
+rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
+zs = s.gamma()[:, :, 2]
+rrange = (np.min(rs), np.max(rs), n)
+phirange = (0, 2 * np.pi / s.nfp, n * 2)
+zrange = (0, np.max(zs), n // 2)
+bsh = InterpolatedField(
+    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+)
+# print('Error in B', bsh.estimate_error_B(1000), flush=True)
+trace_fieldlines(bsh, 'bsh_pm')
+
+# trace_fieldlines(bs, 'bs')
 
 # Save initial permanent magnet surface
 # curves_to_vtk(curves, OUT_DIR + f"curves_pm")
