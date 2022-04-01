@@ -137,6 +137,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("fit_to_curve", &T::fit_to_curve, py::arg("curve"), py::arg("radius"), py::arg("flip_theta") = false)
      .def("scale", &T::scale)
      .def("extend_via_normal", &T::extend_via_normal)
+     .def("extend_via_projected_normal", &T::extend_via_projected_normal)
      .def("least_squares_fit", &T::least_squares_fit)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("set_dofs", &T::set_dofs)

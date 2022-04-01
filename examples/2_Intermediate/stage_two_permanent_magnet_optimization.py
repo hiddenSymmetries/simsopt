@@ -33,6 +33,7 @@ from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.geo.plot import plot
+from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -142,6 +143,9 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
+pm_opt = PermanentMagnetOptimizer(s, B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)))
+pm_opt._optimize()
+
 
 # Initialize surface for permanent magnets
 #nphi = 32
