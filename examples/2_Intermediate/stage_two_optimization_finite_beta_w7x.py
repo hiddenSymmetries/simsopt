@@ -30,30 +30,36 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, coils_via_symmetries, ScaledCurrent
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceMinimumDistance
 from simsopt.mhd.virtual_casing import VirtualCasing
 
+
+
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 6
+ncoils = 5
 
 # Major radius for the initial circular coils:
-R0 = 11.0
+R0 = 5.5
 
 # Minor radius for the initial circular coils:
-R1 = 7.5
+R1 = 1.25
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 6
 
 # Weight on the curve lengths in the objective function:
-LENGTH_WEIGHT = Weight(2e-2)
+
+LENGTH_WEIGHT = Weight(1e-1)
+
+LENGTH_PEN = 1e0
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-DISTANCE_THRESHOLD = 0.1
+DISTANCE_THRESHOLD = 0.3
 DISTANCE_WEIGHT = 10
 
 CS_DISTANCE_THRESHOLD = 0.2
@@ -69,14 +75,18 @@ MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 2000
+MAXITER = 50 if ci else 10000
 
 # File for the desired boundary magnetic surface:
-filename = 'wout_20220218-01-014-005_QA_nfp2_beta0p03_iotaTarget0p7.nc'
+filename = 'wout_w7x_d23p4_tm.nc'
 
 # Only the phi resolution needs to be specified. The theta resolution
 # is computed automatically to minimize anisotropy of the grid.
-vc = VirtualCasing.from_vmec(filename, nphi=200)
+# vc = VirtualCasing.from_vmec(filename, nphi=10*128)
+# vc.save("vcasing.nc")
+
+vc = VirtualCasing.load("vcasing.nc")
+# vc.plot()
 
 
 # Directory for output
@@ -88,8 +98,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 32
-ntheta = 32
+nphi = 64
+ntheta = 64
 
 
 s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -97,17 +107,43 @@ total_current = Vmec(filename).external_current() / (2 * s.nfp)
 
 vc = vc.resample(surf=s)
 Btarget = vc.B_external_normal
+Btotal = vc.B_total
 
 # Create the initial coils:
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
-
+base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
 # Since we know the total sum of currents, we only optimize for ncoils-1
 # currents, and then pick the last one so that they all add up to the correct
 # value.
-base_currents = [ScaledCurrent(Current(total_current/ncoils*1e-7), 1e7) for _ in range(ncoils-1)]
+base_currents = [ScaledCurrent(Current(total_current/ncoils*1e-5), 1e5) for _ in range(ncoils-1)]
 total_current = Current(total_current)
 total_current.fix_all()
 base_currents += [total_current - sum(base_currents)]
+for bc in base_currents:
+    bc.fix_all()
+    print(bc.get_value())
+
+
+
+import coilpy
+focuscoils = coilpy.coils.Coil().read_makegrid('coils.w7x_std_mc_zhu').data
+focuscoils = coilpy.coils.Coil().read_makegrid('coil.w7x_focus_mpadidar').data
+w7x_curves = []
+w7x_currents = []
+for i, c in enumerate(focuscoils[:5]):
+    xyz = np.vstack((c.x, c.y, c.z)).T[:-1,:]
+    n = xyz.shape[0]
+    newcurve = CurveXYZFourier(np.linspace(0, 1, n, endpoint=False), order)
+    newcurve.least_squares_fit(xyz)
+    w7x_curves.append(newcurve)
+    w7x_currents.append(Current(c.I))
+
+curves_to_vtk(w7x_curves, OUT_DIR + "curves_w7x")
+print(sum(CurveLength(c).J() for c in w7x_curves[:5]))
+
+
+base_curves = w7x_curves
+base_currents = w7x_currents
+
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
@@ -130,11 +166,14 @@ Jcsdist = CurveSurfaceMinimumDistance(curves, s, CS_DISTANCE_THRESHOLD)
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
-    + CURVATURE_WEIGHT * sum(Jcs) \
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
+    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], CurveLength(w7x_curves[i]).J()) for i in range(len(w7x_curves)))
+    # + LENGTH_PEN * QuadraticPenalty(sum(Jls), sum(CurveLength(c).J() for c in w7x_curves))
+    # + LENGTH_WEIGHT * sum(Jls) \
+    # + LENGTH_PEN * sum(0.5 * (J - 2*np.pi*R1)**2 for J in Jls)
     # + CS_DISTANCE_WEIGHT * Jcsdist \
     # + DISTANCE_WEIGHT * Jdist \
+    # + CURVATURE_WEIGHT * sum(Jcs) \
+    # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -147,16 +186,18 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     # print("Jcsdist", Jcsdist.shortest_distance())
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget))
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    BdotN = np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Btotal, axis=2)
+    BdotN_mean = np.mean(BdotN)
+    BdotN_max = np.max(BdotN)
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN_mean:.1e}, max(B·n)={BdotN_max:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"#, C-C-Sep={Jdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
-    print([b.get_value() for b in base_currents])
-    return 1e-2*J, 1e-2*grad
+    # print([b.get_value() for b in base_currents])
+    return 1e-4*J, 1e-4*grad
 
 
 print("""
@@ -175,15 +216,23 @@ for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J2, _ = f(dofs - eps*h)
     print("err", (J1-J2)/(2*eps) - dJh)
 
+import sys; sys.exit()
 print("""
 ################################################################################
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-for i in range(1):
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-    LENGTH_WEIGHT = 0.5
+for i in range(2):
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
+    print(res)
+    LENGTH_WEIGHT *= 0.5
     curves_to_vtk(curves, OUT_DIR + f"curves_opt_{i}")
-    pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    BdotN = np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Btotal, axis=2)
+    pointData = {"B_N": BdotN[:, :, None]}
     s.to_vtk(OUT_DIR + f"surf_opt_{i}", extra_data=pointData)
     dofs = res.x
+    print("""
+    ################################################################################
+    ### Update weights #############################################################
+    ################################################################################
+    """)
