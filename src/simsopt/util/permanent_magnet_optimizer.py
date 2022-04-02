@@ -183,12 +183,18 @@ class PermanentMagnetOptimizer:
         B_max = 1.4
         mu0 = 4 * np.pi * 1e-7
         dipole_grid_r = np.zeros(self.ndipoles)
+        dipole_grid_phi = np.zeros(self.ndipoles)
+        dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
         for i in range(self.nphi):
             radii = np.ravel(np.array(self.final_RZ_grid[i])[:, 0])
+            z_coords = np.ravel(np.array(self.final_RZ_grid[i])[:, 1])
             len_radii = len(radii)
             dipole_grid_r[running_tally:running_tally + len_radii] = radii
+            dipole_grid_phi[running_tally:running_tally + len_radii] = phi[i]
+            dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
+        self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z])
         cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0]) * 2 * np.pi
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
@@ -393,7 +399,7 @@ class PermanentMagnetOptimizer:
                 running_tally = 0
                 for k in range(self.nphi):
                     dipole_grid_r = np.ravel(np.array(self.final_RZ_grid[k])[:, 0])
-                    dipole_grid_z = np.ravel(np.array(self.final_RZ_grid[k])[:, 0])
+                    dipole_grid_z = np.ravel(np.array(self.final_RZ_grid[k])[:, 1])
                     phi_dipole = phi[k] * np.ones(len(dipole_grid_r))
                     R_dipole = np.array([dipole_grid_r, phi_dipole, dipole_grid_z]).T
                     R_dist = self._cyl_dist(R_plasma, R_dipole) 
@@ -596,11 +602,11 @@ class PermanentMagnetOptimizer:
         #    ATb += 2.0 * self.m_proxy / self.nu
         alpha_max = 2.0 / np.linalg.norm(ATA, ord=2)
         if alpha is None:
-            alpha = alpha_max  # - epsilon
+            alpha = alpha_max  #- epsilon
         elif alpha > alpha_max or alpha < 0:
             print('Warning, invalid alpha value passed to MwPGP, '
                   'overwriting this value with the default.')
-            alpha = alpha_max  # - epsilon
+            alpha = alpha_max  #- epsilon
         print('alpha_MwPGP = ', alpha)
         g = ATA @ x0 - ATb
         p = self._phi_MwPGP(x0, g)
@@ -709,4 +715,4 @@ class PermanentMagnetOptimizer:
         print(self.m, self.m_maxima, np.max(self.m))
         print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
         print('<B * n / |B| > without the permanent magnets = {0:.5f}'.format(ave_BnB)) 
-
+        
