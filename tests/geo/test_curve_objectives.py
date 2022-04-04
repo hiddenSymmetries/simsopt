@@ -8,6 +8,8 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, MinimumDistance, ArclengthVariation, MeanSquaredCurvature
+from simsopt.field.coil import coils_via_symmetries
+from simsopt.util.zoo import get_ncsx_data
 import simsoptpp as sopp
 
 parameters['jit'] = False
@@ -231,6 +233,7 @@ class Testing(unittest.TestCase):
                     self.subtest_curve_meansquaredcurvature_taylor_test(curve)
 
     def test_minimum_distance_candidates(self):
+        np.random.seed(0)
         n_clouds = 4
         pointClouds = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
         true_min_dists = {}
@@ -240,18 +243,33 @@ class Testing(unittest.TestCase):
             for j in range(i):
                 true_min_dists[(i, j)] = np.min(cdist(pointClouds[i], pointClouds[j]))
 
-        threshold = max(true_min_dists.values())
-        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=1)
+        threshold = max(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_close_candidates(pointClouds, threshold, n_clouds)
         assert len(candidates) == len(true_min_dists)
 
-        threshold = min(true_min_dists.values())
-        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=1)
-        assert len(candidates) >= 1
+        threshold = min(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_close_candidates(pointClouds, threshold, n_clouds)
+        assert len(candidates) == 1
 
-        threshold = min(true_min_dists.values())*0.8
-        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=10)
-        assert len(candidates) == 0
+    def test_minimum_distance_candidates_symmetry(self):
+        from scipy.spatial.distance import cdist
+        base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
+        curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
+        for t in np.linspace(0.05, 0.5, num=10):
+            Jnosym = MinimumDistance(curves, t)
+            Jsym = MinimumDistance(curves, t, num_basecurves=3)
+            assert abs(Jnosym.shortest_distance_among_candidates() - Jsym.shortest_distance_among_candidates()) < 1e-15
+            print(len(Jnosym.candidates), len(Jsym.candidates), Jnosym.shortest_distance_among_candidates())
+            distsnosym = [np.min(cdist(Jnosym.curves[i].gamma(), Jnosym.curves[j].gamma())) for i, j in Jnosym.candidates]
+            distssym = [np.min(cdist(Jsym.curves[i].gamma(), Jsym.curves[j].gamma())) for i, j in Jsym.candidates]
+            print("distsnosym", distsnosym)
+            print("distssym", distssym)
+            print((Jnosym.candidates), (Jsym.candidates))
 
+            assert np.allclose(
+                np.unique(np.round(distsnosym, 8)),
+                np.unique(np.round(distssym, 8))
+            )
 
 if __name__ == "__main__":
     unittest.main()
