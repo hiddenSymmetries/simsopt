@@ -167,6 +167,7 @@ PYBIND11_MODULE(simsoptpp, m) {
                 for (int ii = -mesh_factor; ii <= mesh_factor; ++ii) {
                     for (int jj = -mesh_factor; jj <= mesh_factor; ++jj) {
                         for (int kk = -mesh_factor; kk <= mesh_factor; ++kk) {
+                            // without this condition we're marking cells in a cube around the point and not a sphere
                             if(std::abs(kk) + std::abs(jj) + std::abs(kk) - 3 < std::sqrt(3)*mesh_factor)
                                 s_extended.insert({i + ii, j + jj, k + kk});
                         }
