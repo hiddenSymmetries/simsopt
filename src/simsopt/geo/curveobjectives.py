@@ -162,9 +162,13 @@ class MinimumDistance(Optimizable):
     :math:`d_\min` is a desired threshold minimum intercoil distance.  This penalty term is zero when the points on coil :math:`i` and 
     coil :math:`j` lie more than :math:`d_\min` away from one another, for :math:`i, j \in \{1, \cdots, \text{num_coils}\}`
 
+    If num_basecurves is passed, then the code only computes the distance to
+    the first `num_basecurves` many curves, which is useful when the coils
+    satisfy symmetries that can be exploited.
+
     """
 
-    def __init__(self, curves, minimum_distance):
+    def __init__(self, curves, minimum_distance, num_basecurves=None):
         self.curves = curves
         self.minimum_distance = minimum_distance
 
@@ -173,7 +177,8 @@ class MinimumDistance(Optimizable):
         self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
-        self.trees = None
+        self.candidates = None
+        self.num_basecurves = num_basecurves or len(curves)
         super().__init__(depends_on=curves)
 
     def recompute_bell(self, parent=None):
@@ -181,13 +186,18 @@ class MinimumDistance(Optimizable):
 
     def compute_candidates(self):
         if self.candidates is None:
-            self.candidates = sopp.get_close_candidates(
-                [c.gamma() for c in self.curves], self.minimum_distance)
+            candidates = sopp.get_close_candidates(
+                [c.gamma() for c in self.curves], self.minimum_distance, self.num_basecurves)
+            self.candidates = candidates
 
-    def shortest_distance(self):
+    def shortest_distance_among_candidates(self):
         self.compute_candidates()
         from scipy.spatial.distance import cdist
-        return min(np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i, j in self.candidates)
+        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i, j in self.candidates])
+
+    def shortest_distance(self):
+        from scipy.spatial.distance import cdist
+        return min([np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i in range(len(self.curves)) for j in range(i)])
 
     def J(self):
         """
