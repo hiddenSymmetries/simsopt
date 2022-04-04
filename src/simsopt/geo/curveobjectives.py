@@ -5,6 +5,7 @@ from .jit import jit
 
 from .._core.graph_optimizable import Optimizable
 from .._core.derivative import derivative_dec
+import simsoptpp as sopp
 
 
 @jit
@@ -176,51 +177,31 @@ class MinimumDistance(Optimizable):
         super().__init__(depends_on=curves)
 
     def recompute_bell(self, parent=None):
-        self.trees = None
+        self.candidates = None
 
-    def compute_trees(self):
-        if self.trees is None:
-            from scipy.spatial import KDTree
-            self.trees = []
-            for i in range(len(self.curves)):
-                self.trees.append(KDTree(self.curves[i].gamma()))
+    def compute_candidates(self):
+        if self.candidates is None:
+            self.candidates = sopp.get_close_candidates(
+                [c.gamma() for c in self.curves], self.minimum_distance)
 
     def shortest_distance(self):
-        self.compute_trees()
-        dist = 1e10
-        for i in range(len(self.curves)):
-            tree1 = self.trees[i]
-            for j in range(i):
-                tree2 = self.trees[j]
-                dists = tree1.sparse_distance_matrix(tree2, dist)
-                if len(dists) == 0:
-                    continue
-                gamma2 = self.curves[j].gamma()
-                dists, _ = tree1.query(gamma2, k=1)
-                dist = min(dist, np.min(dists))
-        return dist
+        self.compute_candidates()
+        from scipy.spatial.distance import cdist
+        return min(np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i, j in self.candidates)
 
     def J(self):
         """
         This returns the value of the quantity.
         """
-        self.compute_trees()
+        self.compute_candidates()
         res = 0
-        for i in range(len(self.curves)):
+        for i, j in self.candidates:
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
-            tree1 = self.trees[i]
-            for j in range(i):
-                tree2 = self.trees[j]
-                # check whether there are any points that are actually closer
-                # than minimum_distance
-                dists = tree1.sparse_distance_matrix(tree2, self.minimum_distance)
-                if len(dists) == 0:
-                    continue
+            gamma2 = self.curves[j].gamma()
+            l2 = self.curves[j].gammadash()
+            res += self.J_jax(gamma1, l1, gamma2, l2)
 
-                gamma2 = self.curves[j].gamma()
-                l2 = self.curves[j].gammadash()
-                res += self.J_jax(gamma1, l1, gamma2, l2)
         return res
 
     @derivative_dec
@@ -228,27 +209,19 @@ class MinimumDistance(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        self.compute_trees()
+        self.compute_candidates()
         dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
         dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
-        for i in range(len(self.curves)):
+
+        for i, j in self.candidates:
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
-            tree1 = self.trees[i]
-            for j in range(i):
-                tree2 = self.trees[j]
-                dists = tree1.sparse_distance_matrix(tree2, self.minimum_distance)
-                # check whether there are any points that are actually closer
-                # than minimum_distance
-                if len(dists) == 0:
-                    continue
-                gamma2 = self.curves[j].gamma()
-                l2 = self.curves[j].gammadash()
-
-                dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2)
-                dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2)
-                dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2)
-                dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
+            gamma2 = self.curves[j].gamma()
+            l2 = self.curves[j].gammadash()
+            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2)
+            dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2)
+            dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)

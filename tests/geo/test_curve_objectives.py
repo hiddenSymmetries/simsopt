@@ -8,6 +8,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, MinimumDistance, ArclengthVariation, MeanSquaredCurvature
+import simsoptpp as sopp
 
 parameters['jit'] = False
 
@@ -228,6 +229,28 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_meansquaredcurvature_taylor_test(curve)
+
+    def test_minimum_distance_candidates(self):
+        n_clouds = 4
+        pointClouds = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        true_min_dists = {}
+        from scipy.spatial.distance import cdist
+
+        for i in range(n_clouds):
+            for j in range(i):
+                true_min_dists[(i, j)] = np.min(cdist(pointClouds[i], pointClouds[j]))
+
+        threshold = max(true_min_dists.values())
+        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=1)
+        assert len(candidates) == len(true_min_dists)
+
+        threshold = min(true_min_dists.values())
+        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=1)
+        assert len(candidates) >= 1
+
+        threshold = min(true_min_dists.values())*0.8
+        candidates = sopp.get_close_candidates(pointClouds, threshold, mesh_factor=10)
+        assert len(candidates) == 0
 
 
 if __name__ == "__main__":
