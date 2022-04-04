@@ -51,9 +51,11 @@ class PermanentMagnetOptimizer:
         self, plasma_boundary, rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.1, B_plasma_surface=None,
+        geometric_threshold=1e-9,
     ):
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
+        self.geometric_threshold = geometric_threshold 
         self.B_plasma_surface = B_plasma_surface
         if not isinstance(plasma_boundary, SurfaceRZFourier):
             raise ValueError(
@@ -418,11 +420,21 @@ class PermanentMagnetOptimizer:
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         geo_factor = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles * 3)) * mu0 / (4 * np.pi)
         self.A_obj = geo_factor * np.sqrt(dphi * dtheta)
+        # Optionally threshold off values below some threshold
+        print('Threshold with value {0:.2e}'.format(self.geometric_threshold), 
+              ' applied to the matrix A appearing in the least-squares permanent '
+              ' magnet loss term. This value can be changed in the initialization.')
+        self.A_obj = csr_matrix((self.A_obj > self.geometric_threshold) * self.A_obj)
+        print('Total number of elements in A = ', len(np.ravel(self.A_obj)))
+        print('Number of nonzero elements in A = ', self.A_obj.count_nonzero())
+        print('Percent of elements in A that are nonzero = ', 
+              self.A_obj.count_nonzero() / len(np.ravel(self.A_obj))
+              )
         # Make histogram of the element values in A_obj
-        A_hist = np.ravel(self.A_obj)
+        A_hist = np.ravel(np.abs(self.A_obj))
         plt.figure()
-        plt.hist(A_hist, bins=100)
-        plt.show()
+        plt.hist(A_hist, bins=np.logspace(-10, -2, 100), log=True)
+        plt.xscale('log')
 
     def _cyl_dist(self, plasma_vec, dipole_vec):
         """
@@ -602,11 +614,11 @@ class PermanentMagnetOptimizer:
         #    ATb += 2.0 * self.m_proxy / self.nu
         alpha_max = 2.0 / np.linalg.norm(ATA, ord=2)
         if alpha is None:
-            alpha = alpha_max  #- epsilon
+            alpha = alpha_max  # - epsilon
         elif alpha > alpha_max or alpha < 0:
             print('Warning, invalid alpha value passed to MwPGP, '
                   'overwriting this value with the default.')
-            alpha = alpha_max  #- epsilon
+            alpha = alpha_max  # - epsilon
         print('alpha_MwPGP = ', alpha)
         g = ATA @ x0 - ATb
         p = self._phi_MwPGP(x0, g)
@@ -714,5 +726,5 @@ class PermanentMagnetOptimizer:
         ave_BnB = np.mean(np.abs((self.A_obj @ self.m - self.b_obj)) / Bmag)  # using original Bmag without PMs
         print(self.m, self.m_maxima, np.max(self.m))
         print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
-        print('<B * n / |B| > without the permanent magnets = {0:.5f}'.format(ave_BnB)) 
-        
+        print('<B * n / |B| > with the permanent magnets = {0:.5f}'.format(ave_BnB)) 
+
