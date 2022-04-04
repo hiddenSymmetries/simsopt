@@ -5,6 +5,9 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
+#include <math.h>
+#include <chrono>
+
 
 
 
@@ -24,6 +27,24 @@ void init_curves(py::module_ &);
 void init_magneticfields(py::module_ &);
 void init_boozermagneticfields(py::module_ &);
 void init_tracing(py::module_ &);
+
+template<class T>
+bool empty_intersection(const std::set<T>& x, const std::set<T>& y)
+{
+    auto i = x.begin();
+    auto j = y.begin();
+    while (i != x.end() && j != y.end())
+    {
+        if (*i == *j)
+            return false;
+        else if (*i < *j)
+            ++i;
+        else
+            ++j;
+    }
+    return true;
+}
+
 
 
 PYBIND11_MODULE(simsoptpp, m) {
@@ -112,6 +133,58 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
+
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::nanoseconds;
+    m.def("get_close_candidates", [](std::vector<PyArray> pointClouds, double threshold, int mesh_factor) {
+        /*
+        Returns all pairings of the given pointClouds that have two points that
+        are less than `threshold` away. The estimate is approximate (for
+        speed), so this function may return too many (but not too few!)
+        pairings.
+
+        The basic idea of this function is the following:
+        - Assume we want to compare pointcloud A and B.
+        - We create a uniform grid of size threshold/mesh_factor.
+        - Loop over points in cloud A, mark all cells that have a point in it (via the `set` variables below).
+        - Loop over points in cloud B, mark all cells that have a point in it and also all cells in a sphere around it.
+        - Check whether the intersection between the two sets is non-empty.
+        */
+        std::vector<std::set<std::tuple<int, int, int>>> sets;
+        std::vector<std::set<std::tuple<int, int, int>>> sets_extended;
+        std::vector<std::tuple<int, int>> candidates;
+        for (int p = 0; p < pointClouds.size(); ++p) {
+            std::set<std::tuple<int, int, int>> s;
+            std::set<std::tuple<int, int, int>> s_extended;
+            auto points = pointClouds[p];
+            for (int l = 0; l < points.shape(0); ++l) {
+                int i = std::floor(mesh_factor*points(l, 0)/threshold);
+                int j = std::floor(mesh_factor*points(l, 1)/threshold);
+                int k = std::floor(mesh_factor*points(l, 2)/threshold);
+                s.insert({i, j, k});
+                for (int ii = -mesh_factor; ii <= mesh_factor; ++ii) {
+                    for (int jj = -mesh_factor; jj <= mesh_factor; ++jj) {
+                        for (int kk = -mesh_factor; kk <= mesh_factor; ++kk) {
+                            if(std::abs(kk) + std::abs(jj) + std::abs(kk) - 3 < std::sqrt(3)*mesh_factor)
+                                s_extended.insert({i + ii, j + jj, k + kk});
+                        }
+                    }
+                }
+            }
+            sets.push_back(s);
+            sets_extended.push_back(s_extended);
+        }
+
+        for (int i = 0; i < pointClouds.size(); ++i) {
+            for (int j = 0; j < i; ++j) {
+                if(!empty_intersection(sets_extended[i], sets[j]))
+                    candidates.push_back({i, j});
+            }
+        }
+        return candidates;
+    }, "Get candidates for which point clouds are closer than threshold to each other.", py::arg("pointClouds"), py::arg("threshold"), py::arg("mesh_factor")=1);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
