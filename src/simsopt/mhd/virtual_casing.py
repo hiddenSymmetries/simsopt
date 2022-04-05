@@ -166,14 +166,14 @@ class VirtualCasing:
         # points in vmec.boundary, and the range may not be "full torus",
         # so generate a SurfaceRZFourier with the desired resolution:
         surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=vmec.wout.nfp,
-                                nphi=nphi, ntheta=ntheta, range="full torus")
+                                nphi=nphi, ntheta=ntheta, range="field period")
         for jmn in range(vmec.wout.mnmax):
             surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
             surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
 
         gamma = surf.gamma()
         unit_normal = surf.unitnormal()
-        Bxyz = B_cartesian(vmec, nphi=nphi, ntheta=ntheta, range="full torus")
+        Bxyz = B_cartesian(vmec, nphi=nphi, ntheta=ntheta, range="field period")
         logger.debug(f'gamma.shape: {gamma.shape}')
         logger.debug(f'unit_normal.shape: {unit_normal.shape}')
         logger.debug(f'Bxyz[0].shape: {Bxyz[0].shape}')
@@ -201,8 +201,9 @@ class VirtualCasing:
         """
 
         vcasing = vc_module.VirtualCasing()
-        vcasing.set_surface(nphi, ntheta, gamma1d)
-        vcasing.set_accuracy(digits)
+        src_nphi, src_ntheta = nphi, ntheta
+        trgt_nphi, trgt_ntheta = nphi, ntheta
+        vcasing.setup(digits, nfp, nphi, ntheta, gamma1d, src_nphi, src_ntheta, trgt_nphi, trgt_ntheta)
         # This next line launches the main computation:
         Bexternal1d = np.array(vcasing.compute_external_B(B1d))
 
