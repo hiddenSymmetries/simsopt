@@ -149,7 +149,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     using std::chrono::duration;
     using std::chrono::nanoseconds;
 
-    m.def("get_close_candidates", [](std::vector<PyArray> pointClouds, double threshold, int num_base_curves) {
+    m.def("get_close_candidates", [](std::vector<PyArray>& pointClouds, double threshold, int num_base_curves) {
         /*
         Returns all pairings of the given pointClouds that have two points that
         are less than `threshold` away. The estimate is approximate (for
@@ -163,42 +163,59 @@ PYBIND11_MODULE(simsoptpp, m) {
         - Loop over points in cloud B, mark all cells that have a point in it and also all cells in the 8 neighbouring cells around it.
         - Check whether the intersection between the two sets is non-empty.
         */
-        std::vector<std::set<std::tuple<int, int, int>>> sets;
-        std::vector<std::set<std::tuple<int, int, int>>> sets_extended;
-        std::vector<std::tuple<int, int>> candidates;
+        std::vector<std::set<std::tuple<int, int, int>>> sets(pointClouds.size());
+        std::vector<std::set<std::tuple<int, int, int>>> sets_extended(pointClouds.size());
+#pragma omp parallel for
         for (int p = 0; p < pointClouds.size(); ++p) {
             std::set<std::tuple<int, int, int>> s;
             std::set<std::tuple<int, int, int>> s_extended;
-            auto points = pointClouds[p];
+            PyArray& points = pointClouds[p];
             for (int l = 0; l < points.shape(0); ++l) {
                 int i = std::floor(points(l, 0)/threshold);
                 int j = std::floor(points(l, 1)/threshold);
                 int k = std::floor(points(l, 2)/threshold);
-                s.insert({i, j, k});
+                sets[p].insert({i, j, k});
                 for (int ii = -1; ii <= 1; ++ii) {
                     for (int jj = -1; jj <= 1; ++jj) {
                         for (int kk = -1; kk <= 1; ++kk) {
-                            s_extended.insert({i + ii, j + jj, k + kk});
+                            sets_extended[p].insert({i + ii, j + jj, k + kk});
                         }
                     }
                 }
             }
-            sets.push_back(s);
-            sets_extended.push_back(s_extended);
+        }
+
+
+        std::vector<std::tuple<int, int>> candidates_1;
+        for (int i = 0; i < pointClouds.size(); ++i) {
+            for (int j = 0; j < i; ++j) {
+                if(j < num_base_curves)
+                    candidates_1.push_back({i, j});
+            }
+        }
+        std::vector<std::tuple<int, int>> candidates_2;
+#pragma omp parallel for
+        for (int k = 0; k < candidates_1.size(); ++k) {
+            int i = std::get<0>(candidates_1[k]);
+            int j = std::get<1>(candidates_1[k]);
+            bool check = empty_intersection(sets_extended[i], sets[j]);
+#pragma omp critical
+            if(!check)
+                candidates_2.push_back({i, j});
         }
 
         double t2 = threshold*threshold;
-        for (int i = 0; i < pointClouds.size(); ++i) {
-            for (int j = 0; j < i; ++j) {
-                if(j >= num_base_curves)
-                    continue;
-                if(empty_intersection(sets_extended[i], sets[j]))
-                    continue;
-                if(two_points_too_close_exist(pointClouds[i], pointClouds[j], t2))
-                    candidates.push_back({i, j});
-            }
+        std::vector<std::tuple<int, int>> candidates_3;
+#pragma omp parallel for
+        for (int k = 0; k < candidates_2.size(); ++k) {
+            int i = std::get<0>(candidates_2[k]);
+            int j = std::get<1>(candidates_2[k]);
+            bool check = two_points_too_close_exist(pointClouds[i], pointClouds[j], t2);
+#pragma omp critical
+            if(check)
+                candidates_3.push_back({i, j});
         }
-        return candidates;
+        return candidates_3;
     }, "Get candidates for which point clouds are closer than threshold to each other.", py::arg("pointClouds"), py::arg("threshold"), py::arg("num_base_curves"));
 
 #ifdef VERSION_INFO
