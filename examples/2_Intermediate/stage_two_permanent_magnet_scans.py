@@ -21,7 +21,6 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
-from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
@@ -35,17 +34,9 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
-from simsopt.field.tracing import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
-
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -163,65 +154,18 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
+thresholds = np.logspace(-20, -9, 12)
+errors = []
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05,
+    s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-RS_history, err, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=500, 
-    max_iter_RS=10, reg_l2=1e-5, reg_l0=0,
-    geometric_threshold=1e-15
-)
-b_dipole = DipoleField(pm_opt, dipoles)
-b_dipole.set_points(s.gamma().reshape((-1, 3)))
-
-# Make plot of the relax-and-split convergence
-plt.figure()
-plt.semilogy(RS_history)
-plt.grid(True)
-plt.savefig('objective_history.png')
-
-# make histogram of the dipoles, normalized by their maximum values
-plt.figure()
-plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-plt.savefig('m_histogram.png')
-plt.show()
+for threshold in thresholds:
+    _, err, dipoles = pm_opt._optimize(max_iter_MwPGP=5000, reg_l2=1e-7, geometric_threshold=threshold)
+    errors.append(err)
 print('Done optimizing the permanent magnets')
-
-# Get full surface and get level sets for the Poincare plots below
-s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
-sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
-
-
-def trace_fieldlines(bfield, label): 
-    t1 = time.time()
-    R0 = np.linspace(0.8, 1.3, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
-    phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-    t2 = time.time()
-    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-    plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
-
-
-n = 16
-rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
-zs = s.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2 * np.pi / s.nfp, n * 2)
-zrange = (0, np.max(zs), n // 2)
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-)
-#trace_fieldlines(bsh, 'bsh_without_PMs')
-print('Done with Poincare plots without the permanent magnets')
-bsh = InterpolatedField(
-    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-)
-# trace_fieldlines(bsh, 'bsh_only_PMs')
-# print('Done with Poincare plots with the permanent magnets')
-
+plt.figure()
+plt.loglog(thresholds, errors)
+plt.grid(True)
+plt.savefig('threshold_scan.png')
+plt.show()
