@@ -19,12 +19,13 @@ class DipoleField(MagneticField):
 
     Args:
         pm_opt: A PermanentMagnetOptimizer object that has already been optimized.
+        m: Solution for the dipoles using the pm_opt object. 
     """
 
-    def __init__(self, pm_opt):
+    def __init__(self, pm_opt, m):
         MagneticField.__init__(self)
         self.ndipoles = pm_opt.ndipoles
-        self.m = pm_opt.m
+        self.m = m
         self.m_vec = self.m.reshape(self.ndipoles, 3)
         self.dipole_grid = pm_opt.dipole_grid.T
 
@@ -69,6 +70,9 @@ class DipoleField(MagneticField):
                 (3 * rdotm * r_vector_i / rmag[i, :] ** 5
                  ) - self.m_vec / rmag[i, :] ** 3, axis=0)
         self._B = B_field * mu0_fac 
+        return self
+
+    def dB_by_dX(self):
         return self
 
     def compute_A(self):
@@ -116,3 +120,12 @@ class DipoleField(MagneticField):
     def _B_impl(self, B):
         self.compute_B()
         B[:] = self._B
+
+    def _dB_by_dX_impl(self, dB_by_dX):
+        self.compute_dB_by_dX()
+        dB_by_dX[:] = self._dB
+
+    def _dA_by_dX_impl(self, dA_by_dX):
+        self.compute_A(compute_derivatives=1)
+        dA_by_dX[:] = self._dA
+
