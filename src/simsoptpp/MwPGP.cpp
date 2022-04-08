@@ -1,34 +1,34 @@
 #include "MwPGP.h"
 
-vector<double>& _phi_MwPGP(const vector<double>& x, const vector<double>& g, const vector<double>& m_maxima):
-        // phi(x_i, g_i) = g_i(x_i) is not on the L2 ball,
-        // otherwise set it to zero
-        // x and g should be in shape (N, 3)
-	double N = len(x) // 3
-        vector<double> check_active = np.isclose(
-            x[:, 0] ** 2 + x[:, 1] ** 2 + x[:, 2] ** 2,
-            m_maxima ** 2
-        )
-        // if triplet is in the active set (on the L2 unit ball)
-        // then zero out those three indices
-        if np.any(check_active):
-            g[check_active, :] = 0.0
-        return g  // will need to flatten after
-
-vector<double>& beta_tilde(const vector<double>& x, const vector<double> g, const double alpha, const vector<double>& m_maxima):
-    // beta_tilde(x_i, g_i, alpha) = 0_i if the ith triplet
-    // is not on the L2 ball, otherwise is equal to different
-    // values depending on the orientation of g.
-    double N = len(x) // 3;
-    check_active = np.isclose(
+Array& phi_MwPGP(const Array& x, const Array& g, const vector<double>& m_maxima):
+    // phi(x_i, g_i) = g_i(x_i) is not on the L2 ball,
+    // otherwise set it to zero
+    // x and g should be in shape (N, 3)
+    double N = len(x) // 3
+    vector<double> check_active = np.isclose(
         x[:, 0] ** 2 + x[:, 1] ** 2 + x[:, 2] ** 2,
         m_maxima ** 2
     )
+    // if triplet is in the active set (on the L2 unit ball)
+    // then zero out those three indices
+    if np.any(check_active):
+        g[check_active, :] = 0.0
+    return g  // will need to flatten after
+
+Array& beta_tilde(const Array& x, const Array& g, const double alpha, const vector<double>& m_maxima):
+    // beta_tilde(x_i, g_i, alpha) = 0_i if the ith triplet
+    // is not on the L2 ball, otherwise is equal to different
+    // values depending on the orientation of g.
+    double N = x.shape(0) // 3;
+    vector<double> check_active = xt::norm_l2(x, axis=1) - pow(m_maxima, 2) 
+ // x[:, 0] ** 2 + x[:, 1] ** 2 + x[:, 2] ** 2,
+ //       m_maxima ** 2
+ //   )
     // if triplet is NOT in the active set (on the L2 unit ball)
     // then zero out those three indices
     Array beta = xt::zeros<double>({N, 3});
     if np.any(~check_active):
-        gradient_sphere = 2 * x_shaped
+        gradient_sphere = 2 * x
         denom_n = np.linalg.norm(gradient_sphere, axis=1, ord=2)
         n = np.divide(
             gradient_sphere,
@@ -52,7 +52,7 @@ vector<double>& beta_tilde(const vector<double>& x, const vector<double> g, cons
         );
     return beta
 
-Array& g_reduced_gradient(Array& x, double alpha, Array& g, const vector<double> m_maxima) {
+Array& g_reduced_gradient(Array& x, Array& g, const double alpha, const vector<double> m_maxima) {
         // The reduced gradient of G is simply the
         // gradient step in the L2-projected direction.
         return (x - projection_L2_balls(x - alpha * g, m_maxima)) / alpha;
@@ -60,7 +60,7 @@ Array& g_reduced_gradient(Array& x, double alpha, Array& g, const vector<double>
 Array& g_reduced_projected_gradient(Array& x, double alpha, Array& g, const vector<double> m_maxima) {
     return phi_MwPGP(x, g, m_maxima) + beta_tilde(x, g, alpha, m_maxima);
 }
-double find_max_alphaf(Array& x, Array^ p) {
+double find_max_alphaf(const Array& x, const Array& p) {
     // Solve a quadratic equation to determine the largest
     // step size alphaf such that the entirety of x - alpha * p
     // lives in the convex space defined by the intersection

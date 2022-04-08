@@ -164,47 +164,53 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15,
+    s, coil_offset=0.1, dr=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
+max_iter_MwPGP = 5000
 print('Done initializing the permanent magnet object')
-MwPGP_history, RS_history, err, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=5000, 
+MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
+    max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, # reg_l2=1e-5, reg_l0=0,
     # geometric_threshold=1e-15
 )
 b_dipole = DipoleField(pm_opt, dipoles)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 
-# Make plot of <|B * n| / |B|> as function of iteration
-mean_Bn_over_B = []
-for i in range(len(MwPGP_history)):
-    abs_Bn = np.abs(MwPGP_history[i])
-    Bmag = np.linalg.norm(pm_opt.B_plasma_surface, axis=-1, ord=2).reshape(pm_opt.nphi * pm_opt.ntheta) + np.linalg.norm(b_dipole.B(), axis=-1, ord=2)
-    mean_Bn_over_B.append(np.mean(abs_Bn / Bmag))
-plt.figure()
-plt.plot(mean_Bn_over_B)
-plt.grid(True)
-plt.savefig('normalized_Bn_errors.png')
+if comm is None or comm.rank == 0:
+    # Make plot of <|B * n| / |B|> as function of iteration
+    mean_Bn_over_B = []
+    for i in range(len(MwPGP_history)):
+        abs_Bn = np.abs(MwPGP_history[i])
+        b_dipole = DipoleField(pm_opt, m_history[i])
+        b_dipole.set_points(s.gamma().reshape((-1, 3)))
+        Bmag = np.linalg.norm(pm_opt.B_plasma_surface.reshape(pm_opt.nphi * pm_opt.ntheta, 3) + b_dipole.B(), axis=-1, ord=2)
+        print(np.mean(abs_Bn), np.mean(Bmag))
+        mean_Bn_over_B.append(np.mean(abs_Bn / Bmag))
 
-# Make plot of ATA element values
-plt.figure()
-plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
-plt.grid(True)
-plt.savefig('histogram_ATA_values.png')
+    plt.figure()
+    plt.semilogy(np.linspace(1, max_iter_MwPGP, len(MwPGP_history)), mean_Bn_over_B)
+    plt.grid(True)
+    plt.savefig('normalized_Bn_errors.png')
 
-# Make plot of the relax-and-split convergence
-plt.figure()
-plt.semilogy(RS_history)
-plt.grid(True)
-plt.savefig('objective_history.png')
+    # Make plot of ATA element values
+    plt.figure()
+    plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
+    plt.grid(True)
+    plt.savefig('histogram_ATA_values.png')
 
-# make histogram of the dipoles, normalized by their maximum values
-plt.figure()
-plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-plt.savefig('m_histogram.png')
-plt.show()
-print('Done optimizing the permanent magnets')
+    # Make plot of the relax-and-split convergence
+    plt.figure()
+    plt.semilogy(RS_history)
+    plt.grid(True)
+    plt.savefig('objective_history.png')
+
+    # make histogram of the dipoles, normalized by their maximum values
+    plt.figure()
+    plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    plt.savefig('m_histogram.png')
+    plt.show()
+    print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below
 s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
