@@ -171,7 +171,7 @@ max_iter_MwPGP = 5000
 print('Done initializing the permanent magnet object')
 MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, # reg_l2=1e-5, reg_l0=0,
+    max_iter_RS=10,  # reg_l2=1e-5, reg_l0=0,
     # geometric_threshold=1e-15
 )
 b_dipole = DipoleField(pm_opt, dipoles)
