@@ -164,16 +164,34 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05,
+    s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-RS_history, err, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=500, 
-    max_iter_RS=10, reg_l2=1e-5, reg_l0=0,
-    geometric_threshold=1e-15
+print('Done initializing the permanent magnet object')
+MwPGP_history, RS_history, err, dipoles = pm_opt._optimize(
+    max_iter_MwPGP=5000, 
+    max_iter_RS=10, # reg_l2=1e-5, reg_l0=0,
+    # geometric_threshold=1e-15
 )
 b_dipole = DipoleField(pm_opt, dipoles)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
+
+# Make plot of <|B * n| / |B|> as function of iteration
+mean_Bn_over_B = []
+for i in range(len(MwPGP_history)):
+    abs_Bn = np.abs(MwPGP_history[i])
+    Bmag = np.linalg.norm(pm_opt.B_plasma_surface, axis=-1, ord=2).reshape(pm_opt.nphi * pm_opt.ntheta) + np.linalg.norm(b_dipole.B(), axis=-1, ord=2)
+    mean_Bn_over_B.append(np.mean(abs_Bn / Bmag))
+plt.figure()
+plt.plot(mean_Bn_over_B)
+plt.grid(True)
+plt.savefig('normalized_Bn_errors.png')
+
+# Make plot of ATA element values
+plt.figure()
+plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
+plt.grid(True)
+plt.savefig('histogram_ATA_values.png')
 
 # Make plot of the relax-and-split convergence
 plt.figure()
