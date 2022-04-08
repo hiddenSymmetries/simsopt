@@ -49,7 +49,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 2
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -164,14 +164,14 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.1,
+    s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 5000
+max_iter_MwPGP = 500
 print('Done initializing the permanent magnet object')
 MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10,  # reg_l2=1e-5, reg_l0=0,
+    max_iter_RS=10, reg_l2=0, reg_l0=0,
     # geometric_threshold=1e-15
 )
 b_dipole = DipoleField(pm_opt, dipoles)
@@ -241,11 +241,11 @@ zrange = (0, np.max(zs), n // 2)
 bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
-#trace_fieldlines(bsh, 'bsh_without_PMs')
+trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
 bsh = InterpolatedField(
     b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
-# trace_fieldlines(bsh, 'bsh_only_PMs')
+trace_fieldlines(bsh, 'bsh_only_PMs')
 # print('Done with Poincare plots with the permanent magnets')
 

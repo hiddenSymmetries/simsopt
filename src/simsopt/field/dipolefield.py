@@ -1,12 +1,13 @@
 import numpy as np
 
-import simsoptpp as sopp
+# import simsoptpp as sopp
 from ..geo.curve import Curve
 from .._core.derivative import Derivative
 from .magneticfield import MagneticField
 
 
-class DipoleField(sopp.DipoleField, MagneticField):
+#class DipoleField(sopp.DipoleField, MagneticField):
+class DipoleField(MagneticField):
     r"""
     Computes the MagneticField induced by N dipoles. This is very simple but needs to be
     a type MagneticField class for using the other simsopt functionality.
@@ -29,7 +30,7 @@ class DipoleField(sopp.DipoleField, MagneticField):
         self.m = m
         self.m_vec = self.m.reshape(self.ndipoles, 3)
         self.dipole_grid = pm_opt.dipole_grid.T
-        sopp.DipoleField.__init__(self)
+        # sopp.DipoleField.__init__(self)
 
     def compute_B(self):
         r"""
