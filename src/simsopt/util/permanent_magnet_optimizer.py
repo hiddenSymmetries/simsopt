@@ -630,6 +630,7 @@ class PermanentMagnetOptimizer:
         k = 0
         x_k = m0 
         start = time.time()
+        m_history = []
         objective_history = []
         while k < max_iter:
             if verbose and k % max(int(max_iter / 10), 1) == 0:
@@ -663,6 +664,7 @@ class PermanentMagnetOptimizer:
                     " {: .2e} ... {: .2e} ... {: .2e} ... {: .2e}".format(*row)
                 )
                 objective_history.append(2 * R2)
+                m_history.append(x_k)
 
             if (2 * delta * np.linalg.norm(
                     self._g_reduced_projected_gradient(x_k, alpha, g), 
@@ -705,7 +707,7 @@ class PermanentMagnetOptimizer:
             np.abs(x_k)) + reg_l0 * np.count_nonzero(x_k)
         print('Error after MwPGP iterations = ', cost)
         print('Total time for MwPGP = ', end - start)
-        return objective_history, cost, x_k 
+        return objective_history, m_history, cost, x_k 
 
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
@@ -837,7 +839,7 @@ class PermanentMagnetOptimizer:
             m = m0
             for i in range(max_iter_RS):
                 # update m
-                MwPGP_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
+                MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
                                      m_proxy=m_proxy,
                                      epsilon=epsilon, max_iter=max_iter_MwPGP, 
                                      verbose=verbose, nu=nu, relax_and_split=True,
@@ -852,7 +854,7 @@ class PermanentMagnetOptimizer:
             # Default here is to use the sparse version of m from relax-and-split
             m = m_proxy
         else:
-            MwPGP_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
+            MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
                                  m_proxy=m0,  # delta=1e100,
                                  epsilon=epsilon, max_iter=max_iter_MwPGP, 
                                  verbose=verbose,
@@ -869,4 +871,4 @@ class PermanentMagnetOptimizer:
         print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.5f}'.format(ave_Bn_proxy)) 
         print('<B * n / |B| > with the permanent magnets = {0:.5f}'.format(ave_BnB)) 
-        return MwPGP_hist, err_RS, err, m_proxy
+        return MwPGP_hist, m_hist, err_RS, err, m_proxy
