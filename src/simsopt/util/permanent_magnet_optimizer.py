@@ -629,8 +629,8 @@ class PermanentMagnetOptimizer:
             ) 
         k = 0
         x_k = m0 
-        delta_fac = np.sqrt(2 * delta)
         start = time.time()
+        objective_history = []
         while k < max_iter:
             if verbose and k % max(int(max_iter / 10), 1) == 0:
                 R2 = 0.5 * np.linalg.norm(
@@ -661,10 +661,13 @@ class PermanentMagnetOptimizer:
                 print(
                     "{: d} ... {: .2e} ... {: .2e} ... {: .2e} ... "
                     " {: .2e} ... {: .2e} ... {: .2e} ... {: .2e}".format(*row)
-                ) 
+                )
+                objective_history.append(2 * R2)
 
-            if (delta_fac * norm_g_alpha_P <= np.linalg.norm(
-                    self._phi_MwPGP(x_k, g))):
+            if (2 * delta * np.linalg.norm(
+                    self._g_reduced_projected_gradient(x_k, alpha, g), 
+                    ord=2
+                    ) ** 2 <= np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2):
                 ATAp = ATA.dot(p)
                 alpha_cg = g.T @ p / (p.T @ ATAp)
                 alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
@@ -702,7 +705,7 @@ class PermanentMagnetOptimizer:
             np.abs(x_k)) + reg_l0 * np.count_nonzero(x_k)
         print('Error after MwPGP iterations = ', cost)
         print('Total time for MwPGP = ', end - start)
-        return cost, x_k 
+        return objective_history, cost, x_k 
 
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
@@ -761,7 +764,10 @@ class PermanentMagnetOptimizer:
                     ' guess must be 1D with shape (ndipoles * 3).'
                 )
         else:
-            m0 = np.linalg.pinv(self.A_obj) @ self.b_obj 
+            m0 = self._projection_L2_balls(
+                np.linalg.pinv(self.A_obj) @ self.b_obj, 
+                self.m_maxima
+            )
 
         print('L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2))
         print('Shifted L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2_shifted))
@@ -783,8 +789,8 @@ class PermanentMagnetOptimizer:
         reg_l1 = reg_l1 * self.ATA_scale / nu
         nu = nu / self.ATA_scale
 
-        reg_l2 = reg_l2 * self.ATA_scale
-        reg_l2_shifted = reg_l2_shifted * self.ATA_scale
+        reg_l2 = reg_l2  # * self.ATA_scale
+        reg_l2_shifted = reg_l2_shifted  # * self.ATA_scale
         ATA = self.ATA + 2 * (reg_l2 + reg_l2_shifted) * np.eye(self.ATA.shape[0])
 
         if reg_l0 > 0.0 or reg_l1 > 0.0: 
@@ -799,12 +805,6 @@ class PermanentMagnetOptimizer:
         print('Percent of elements in ATA that are nonzero = ', 
               ATA.count_nonzero() / len(np.ravel(ATA.toarray()))
               )
-        ATA_hist = np.ravel(np.abs(ATA.toarray()))
-        plt.figure()
-        plt.hist(ATA_hist, bins=np.logspace(-20, -2, 100), log=True)
-        plt.xscale('log')
-        plt.savefig('histogram_ATA_values.png')
-
         # Print out initial errors and the bulk optimization paramaters 
         ave_Bn = np.mean(np.abs(self.b_obj))
         Bmag = np.linalg.norm(self.B_plasma_surface, axis=-1, ord=2).reshape(self.nphi * self.ntheta)
@@ -826,7 +826,7 @@ class PermanentMagnetOptimizer:
         print('Shape of b vector = ', self.b_obj.shape)
         print('Initial error on plasma surface = {0:.5f}'.format(total_error))
         # Begin optimization
-        m_proxy = m0 
+        m_proxy = m0
         err_RS = []
         if reg_l0 > 0.0 or reg_l1 > 0.0: 
             # Relax-and-split algorithm
@@ -837,10 +837,12 @@ class PermanentMagnetOptimizer:
             m = m0
             for i in range(max_iter_RS):
                 # update m
-                err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
+                MwPGP_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
                                      m_proxy=m_proxy,
                                      epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                     verbose=verbose, nu=nu, relax_and_split=True
+                                     verbose=verbose, nu=nu, relax_and_split=True,
+                                     reg_l0=reg_l0, reg_l1=reg_l1, 
+                                     reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
                                      )
                 err_RS.append(err)
                 # update m_proxy
@@ -850,10 +852,12 @@ class PermanentMagnetOptimizer:
             # Default here is to use the sparse version of m from relax-and-split
             m = m_proxy
         else:
-            err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
-                                 m_proxy=m0,
+            MwPGP_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
+                                 m_proxy=m0,  # delta=1e100,
                                  epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                 verbose=verbose
+                                 verbose=verbose,
+                                 reg_l0=reg_l0, reg_l1=reg_l1, 
+                                 reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
                                  )
             m_proxy = m
 
@@ -861,8 +865,8 @@ class PermanentMagnetOptimizer:
         ave_Bn_proxy = np.mean(np.abs(self.A_obj.dot(m_proxy) - self.b_obj))
         ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj))
         ave_BnB = np.mean(np.abs((self.A_obj.dot(m_proxy) - self.b_obj)) / Bmag)  # using original Bmag without PMs
-        print(m_proxy, np.max(self.m_maxima), np.max(m_proxy))
+        print(np.max(self.m_maxima), np.max(m_proxy))
         print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.5f}'.format(ave_Bn_proxy)) 
         print('<B * n / |B| > with the permanent magnets = {0:.5f}'.format(ave_BnB)) 
-        return err_RS, err, m_proxy
+        return MwPGP_hist, err_RS, err, m_proxy

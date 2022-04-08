@@ -22,6 +22,7 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 
 import os
 from pathlib import Path
+from matplotlib import pyplot as plt
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
@@ -154,18 +155,18 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
-thresholds = np.logspace(-20, -9, 12)
+l2_scan = np.logspace(-30, -15, 15)
 errors = []
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15,
+    s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-for threshold in thresholds:
-    _, err, dipoles = pm_opt._optimize(max_iter_MwPGP=5000, reg_l2=1e-7, geometric_threshold=threshold)
+for l2 in l2_scan:
+    _, err, dipoles = pm_opt._optimize(max_iter_MwPGP=5000, reg_l2=l2)
     errors.append(err)
 print('Done optimizing the permanent magnets')
 plt.figure()
-plt.loglog(thresholds, errors)
+plt.loglog(l2_scan, errors)
 plt.grid(True)
-plt.savefig('threshold_scan.png')
-plt.show()
+plt.savefig('l2_scan.png')
+# plt.show()
