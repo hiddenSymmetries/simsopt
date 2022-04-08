@@ -155,11 +155,11 @@ class VirtualCasing:
         nfp = vmec.wout.nfp
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
-        if nphi % (2 * nfp) != 0:
-            raise ValueError(f'nphi must be a multiple of 2 * nfp. nphi={nphi}, nfp={nfp}')
+        if nphi % (2) != 0:
+            raise ValueError(f'nphi must be a multiple of 2. nphi={nphi}')
 
         if ntheta is None:
-            ntheta = int(nphi / best_nphi_over_ntheta(vmec.boundary))
+            ntheta = int(nfp * nphi / best_nphi_over_ntheta(vmec.boundary))
             logger.debug(f'new ntheta: {ntheta}')
 
         # The requested nphi and ntheta may not match the quadrature
@@ -229,6 +229,7 @@ class VirtualCasing:
         vc.nphi = nphi
         vc.theta = surf.quadpoints_theta
         vc.phi = surf.quadpoints_phi
+        vc.nfp = nfp
         vc.B_total = B3d
         vc.gamma = gamma
         vc.unit_normal = unit_normal
@@ -265,6 +266,11 @@ class VirtualCasing:
             nphi = f.createVariable('nphi', 'i', tuple())
             nphi.assignValue(self.nphi)
             nphi.description = 'Number of grid points in the toroidal angle phi, covering the full torus'
+            nphi.units = 'Dimensionless'
+
+            nphi = f.createVariable('nfp', 'i', tuple())
+            nphi.assignValue(self.nfp)
+            nphi.description = 'Periodicity in toroidal direction'
             nphi.units = 'Dimensionless'
 
             theta = f.createVariable('theta', 'd', ('ntheta',))
@@ -343,7 +349,7 @@ class VirtualCasing:
         This routine can only be used for a ``VirtualCasing`` object in which
         the original grid points satisfy
         ``theta = np.linspace(0, 1, ntheta, endpoint=False)`` and
-        ``phi = np.linspace(0, 1, nphi, endpoint=False)``. If not,
+        ``phi = np.linspace(0, 1/nfp, nphi, endpoint=False)``. If not,
         ``RuntimeError`` will be raised.
 
         Args:
@@ -359,7 +365,7 @@ class VirtualCasing:
         """
         # The resample_2D only works if the original grid satisfies the following:
         np.testing.assert_allclose(self.theta, np.linspace(0, 1, self.ntheta, endpoint=False), rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(self.phi, np.linspace(0, 1, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(self.phi, np.linspace(0, 1/self.nfp, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
 
         if surf is not None:
             assert ntheta is None
@@ -383,20 +389,22 @@ class VirtualCasing:
 
         ntheta = len(theta)
         nphi = len(phi)
+        nfp = self.nfp
 
         newvc = VirtualCasing()
         newvc.ntheta = ntheta
         newvc.nphi = nphi
+        newvc.nfp = nfp
         newvc.theta = theta
         newvc.phi = phi
-        newvc.B_external_normal = resample_2D(self.B_external_normal, phi * 2 * np.pi, theta * 2 * np.pi)
+        newvc.B_external_normal = resample_2D(self.B_external_normal, nfp * phi * 2 * np.pi, theta * 2 * np.pi)
         # Vector fields on the surface:
         variables = ['gamma', 'unit_normal', 'B_total', 'B_external']
         for variable in variables:
             oldvar = eval('self.' + variable)
             newvar = np.zeros((nphi, ntheta, 3))
             for j in range(3):
-                newvar[:, :, j] = resample_2D(oldvar[:, :, j], phi * 2 * np.pi, theta * 2 * np.pi)
+                newvar[:, :, j] = resample_2D(oldvar[:, :, j], nfp * phi * 2 * np.pi, theta * 2 * np.pi)
             newvc.__setattr__(variable, newvar)
         return newvc
 

@@ -18,7 +18,6 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt._core.graph_optimizable import Weight
 from simsopt.mhd.vmec import Vmec
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
@@ -49,7 +48,7 @@ LENGTH_PEN = 1e0
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 1000
+MAXITER = 50 if ci else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -58,12 +57,12 @@ vmec_file = TEST_DIR / filename
 
 # Only the phi resolution needs to be specified. The theta resolution
 # is computed automatically to minimize anisotropy of the grid.
-# vc = VirtualCasing.from_vmec(vmec_file, nphi=10*128)
+
+# vc = VirtualCasing.from_vmec(vmec_file,stage_two_optimization_w7x.py nphi=128)
 # vc.save(TEST_DIR / ("vcasing_" + filename))
 
 vc = VirtualCasing.load(TEST_DIR / ("vcasing_" + filename))
 vc.plot()
-
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -155,6 +154,7 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
+print("res", res)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 BdotN = np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Btotal, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
