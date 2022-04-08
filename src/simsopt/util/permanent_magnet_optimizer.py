@@ -669,7 +669,7 @@ class PermanentMagnetOptimizer:
             if (2 * delta * np.linalg.norm(
                     self._g_reduced_projected_gradient(x_k, alpha, g), 
                     ord=2
-                    ) ** 2 <= np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2):
+            ) ** 2 <= np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2):
                 ATAp = ATA.dot(p)
                 alpha_cg = g.T @ p / (p.T @ ATAp)
                 alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
@@ -840,12 +840,12 @@ class PermanentMagnetOptimizer:
             for i in range(max_iter_RS):
                 # update m
                 MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
-                                     m_proxy=m_proxy,
-                                     epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                     verbose=verbose, nu=nu, relax_and_split=True,
-                                     reg_l0=reg_l0, reg_l1=reg_l1, 
-                                     reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                                     )
+                                                         m_proxy=m_proxy,
+                                                         epsilon=epsilon, max_iter=max_iter_MwPGP, 
+                                                         verbose=verbose, nu=nu, relax_and_split=True,
+                                                         reg_l0=reg_l0, reg_l1=reg_l1, 
+                                                         reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
+                                                         )
                 err_RS.append(err)
                 # update m_proxy
                 m_proxy = prox(m, reg_l0, nu)
@@ -855,12 +855,12 @@ class PermanentMagnetOptimizer:
             m = m_proxy
         else:
             MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
-                                 m_proxy=m0,  # delta=1e100,
-                                 epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                 verbose=verbose,
-                                 reg_l0=reg_l0, reg_l1=reg_l1, 
-                                 reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                                 )
+                                                     m_proxy=m0,  # delta=1e100,
+                                                     epsilon=epsilon, max_iter=max_iter_MwPGP, 
+                                                     verbose=verbose,
+                                                     reg_l0=reg_l0, reg_l1=reg_l1, 
+                                                     reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
+                                                     )
             m_proxy = m
 
         # Compute metrics with permanent magnet results
