@@ -937,7 +937,7 @@ class OptimizableTests(unittest.TestCase):
         function.
         """
         show = False
-        
+
         try:
             import matplotlib
         except ImportError:
@@ -950,11 +950,11 @@ class OptimizableTests(unittest.TestCase):
             import pygraphviz
         except ImportError:
             return
-        
+
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
         G1, pos1 = adder.plot_graph(show=show)
-        
+
         # optimizable with two parents
         opt1 = OptClassWithParentsReturnFns(10)
         G2, pos2 = opt1.plot_graph(show=show)

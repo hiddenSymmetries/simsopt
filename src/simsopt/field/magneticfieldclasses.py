@@ -438,7 +438,7 @@ class CircularCoil(MagneticField):
             ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
             np.array([-points[:, 1], points[:, 0], 0])).T)
 
-        
+
 class DipoleField(MagneticField):
     r"""
     Computes the MagneticField induced by N dipoles. This is very simple but needs to be
