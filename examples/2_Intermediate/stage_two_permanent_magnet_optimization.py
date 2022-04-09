@@ -30,8 +30,7 @@ from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.dipolefield import DipoleField
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, DipoleField
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
@@ -49,7 +48,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 4
+ncoils = 2
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -97,8 +96,8 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_currents[0].fix_all()
 
 # Uncomment if want to keep the coils circular
-for i in range(ncoils):
-    base_curves[i].fix_all()
+# for i in range(ncoils):
+#     base_curves[i].fix_all()
 
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -167,22 +166,23 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 500
+max_iter_MwPGP = 400
 print('Done initializing the permanent magnet object')
 MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=0, reg_l0=0,
     # geometric_threshold=1e-15
 )
-b_dipole = DipoleField(pm_opt, dipoles)
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
+print('Dipole field setup done')
 
 if comm is None or comm.rank == 0:
     # Make plot of <|B * n| / |B|> as function of iteration
     mean_Bn_over_B = []
     for i in range(len(MwPGP_history)):
         abs_Bn = np.abs(MwPGP_history[i])
-        b_dipole = DipoleField(pm_opt, m_history[i])
+        b_dipole = DipoleField(pm_opt.dipole_grid, m_history[i], pm_opt)
         b_dipole.set_points(s.gamma().reshape((-1, 3)))
         Bmag = np.linalg.norm(pm_opt.B_plasma_surface.reshape(pm_opt.nphi * pm_opt.ntheta, 3) + b_dipole.B(), axis=-1, ord=2)
         print(np.mean(abs_Bn), np.mean(Bmag))
@@ -209,7 +209,7 @@ if comm is None or comm.rank == 0:
     plt.figure()
     plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     plt.savefig('m_histogram.png')
-    plt.show()
+    # plt.show()
     print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below
@@ -238,14 +238,14 @@ zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2 * np.pi / s.nfp, n * 2)
 zrange = (0, np.max(zs), n // 2)
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-)
-trace_fieldlines(bsh, 'bsh_without_PMs')
-print('Done with Poincare plots without the permanent magnets')
+# bsh = InterpolatedField(
+#    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+# )
+# trace_fieldlines(bsh, 'bsh_without_PMs')
+# print('Done with Poincare plots without the permanent magnets')
 bsh = InterpolatedField(
     b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
 trace_fieldlines(bsh, 'bsh_only_PMs')
-# print('Done with Poincare plots with the permanent magnets')
+print('Done with Poincare plots with the permanent magnets')
 

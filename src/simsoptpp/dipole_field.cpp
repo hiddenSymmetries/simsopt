@@ -1,23 +1,68 @@
 #include "dipole_field.h"
-#pragma omp declare reduction (+: xt::xarray<double> : omp_out)
 
-// convert to low-level code with for loops and pyarrays
-Array dipole_field_B(Array& points, Array& m_points, xt::xarray<double>& m){
-    int num_points = points.size();
-    xt::xarray<double> B = xt::zeros<double>({points.shape(0), points.shape(1)});
-#pragma omp parallel for reduction(+: B)
+Array dipole_field_B(Array& points, Array& m_points, Array& m) {
+    int num_points = points.shape(0);
+    int num_dipoles = m_points.shape(0);
+    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm;
+#pragma omp parallel for
     for (int i = 0; i < num_points; ++i) {
-	auto row_points = xt::row(points, i);
-	auto r_dot_m = xt::linalg::tensordot(row_points, m, {1}, {1});
-	auto r_mag = xt::norm_l2(row_points - m_points, {1});
-	auto r_mag5 = r_dot_m / xt::pow(r_mag, 5);
-        auto ones = xt::ones<double>({r_mag.shape(0)});
-	auto r_mag3 = ones / xt::pow(r_mag, 3);
-	auto first_fac = 3.0 * xt::linalg::tensordot(r_mag5, points, {0}, {0});
-	auto second_fac = - xt::linalg::tensordot(r_mag3, m, {0}, {0});
-	xt::xarray<double> B_vec = first_fac + second_fac;
-	// xt::xarray<double> B_vec = 3.0 * xt::linalg::tensordot(xt::linalg::tensordot(xt::row(points, i), m, {1}, {1}) / xt::pow(xt::norm_l2(xt::row(points, i) - m_points, {1}), 5), points, {0}, {0}) - xt::linalg::tensordot(xt::linalg::tensordot(xt::row(points, i), m, {1}, {1}) / xt::pow(xt::norm_l2(xt::row(points, i) - m_points, {1}), 3), m, {0}, {0})
-	B(i, xt::all()) = B_vec(xt::all());
+        x = points(i, 0);
+        y = points(i, 1);
+        z = points(i, 2);
+	for (int j = 0; j < num_dipoles; ++j) {
+            mpx = m_points(j, 0);
+            mpy = m_points(j, 1);
+            mpz = m_points(j, 2);
+            mx = m(j, 0);
+            my = m(j, 1);
+            mz = m(j, 2);
+            rx = x - mpx;
+	    ry = y - mpy;
+	    rz = z - mpz;
+	    rmag = sqrt(rx * rx + ry * ry + rz * rz);
+            rdotm = rx * mx + ry * my + rz * mz;
+	    B(i, 0) += 3.0 * rdotm * rx / pow(rmag, 5) - mx / pow(rmag, 3);
+            B(i, 1) += 3.0 * rdotm * ry / pow(rmag, 5) - my / pow(rmag, 3);
+            B(i, 2) += 3.0 * rdotm * rz / pow(rmag, 5) - mz / pow(rmag, 3);
+	} 
     }
     return B * 1e-7;
+}
+
+Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
+    int num_points = points.shape(0);
+    int num_dipoles = m_points.shape(0);
+    Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
+    double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm, r5;
+#pragma omp parallel for
+    for (int i = 0; i < num_points; ++i) {
+        x = points(i, 0);
+        y = points(i, 1);
+        z = points(i, 2);
+	for (int j = 0; j < num_dipoles; ++j) {
+            mpx = m_points(j, 0);
+            mpy = m_points(j, 1);
+            mpz = m_points(j, 2);
+            mx = m(j, 0);
+            my = m(j, 1);
+            mz = m(j, 2);
+            rx = x - mpx;
+	    ry = y - mpy;
+	    rz = z - mpz;
+	    rmag = sqrt(rx * rx + ry * ry + rz * rz);
+            rdotm = rx * mx + ry * my + rz * mz;
+            r5 = 3.0 / pow(rmag, 5);
+	    dB(i, 0, 0) += r5 * ((2 * mx * rx + rdotm) - 5 * rdotm / pow(rmag, 2) * rx * rx); 
+	    dB(i, 0, 1) += r5 * ((mx * ry + my * rx) - 5 * rdotm / pow(rmag, 2) * rx * ry);
+	    dB(i, 0, 2) += r5 * ((mx * rz + mz * rx) - 5 * rdotm / pow(rmag, 2) * rx * rz);
+	    dB(i, 1, 1) += r5 * ((2 * my * ry + rdotm) - 5 * rdotm / pow(rmag, 2) * ry * ry); 
+	    dB(i, 1, 2) += r5 * ((my * rz + mz * ry) - 5 * rdotm / pow(rmag, 2) * ry * rz);
+	    dB(i, 2, 2) += r5 * ((2 * mz * rz + rdotm) - 5 * rdotm / pow(rmag, 2) * rz * rz); 
+	}
+        dB(i, 2, 1) = dB(i, 1, 2);
+        dB(i, 2, 0) = dB(i, 0, 2);
+        dB(i, 1, 0) = dB(i, 0, 1);
+    }
+    return dB * 1e-7;
 }

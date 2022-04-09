@@ -11,6 +11,7 @@ typedef xt::pyarray<double> PyArray;
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
+#include "dipole_field.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
 
@@ -40,6 +41,9 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+    
+    m.def("dipole_field_B" , &dipole_field_B);
+    m.def("dipole_field_dB", &dipole_field_dB);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
