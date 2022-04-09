@@ -9,12 +9,12 @@ This module contains small utility functions and classes.
 from typing import Union, Sequence
 from numbers import Integral, Real
 
-from nptyping import NDArray, Float, Int, Bool
+from nptyping import NDArray, Float, Int, Bool, Any
 
-Array = Union[Sequence, NDArray]
-RealArray = Union[Sequence[Real], NDArray[Float]]
-IntArray = Union[Sequence[Integral], NDArray[Int]]
-StrArray = Union[Sequence[str], NDArray[str]]
-BoolArray = Union[Sequence[bool], NDArray[Bool]]
+# Array = Union[Sequence, NDArray]
+RealArray = Union[Sequence[Real], NDArray[Any, Float]]
+IntArray = Union[Sequence[Integral], NDArray[Any, Int]]
+StrArray = Union[Sequence[str], NDArray[Any, str]]
+BoolArray = Union[Sequence[bool], NDArray[Any, Bool]]
 Key = Union[Integral, str]
 
