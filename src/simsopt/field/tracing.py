@@ -1,14 +1,18 @@
-from math import sqrt
-import numpy as np
-import simsoptpp as sopp
 import logging
-from simsopt._core.util import parallel_loop_bounds
-from simsopt.field.magneticfield import MagneticField
-from simsopt.field.boozermagneticfield import BoozerMagneticField
-from simsopt.field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
-from simsopt.geo.surface import SurfaceClassifier
-from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-from nptyping import NDArray, Float
+from math import sqrt
+
+import numpy as np
+from nptyping import NDArray, Float, Any
+
+import simsoptpp as sopp
+from .._core.util import parallel_loop_bounds
+from ..field.magneticfield import MagneticField
+from ..field.boozermagneticfield import BoozerMagneticField
+from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
+from ..geo.surface import SurfaceClassifier
+from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
+from ..util.types import RealArray
+
 
 
 logger = logging.getLogger(__name__)
@@ -58,8 +62,10 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
     return xyz_inits_full, v_inits, rgs
 
 
-def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
-                           parallel_speeds: NDArray[Float], tmax=1e-4,
+def trace_particles_boozer(field: BoozerMagneticField,
+                           stz_inits: RealArray, # NDArray[Float],
+                           parallel_speeds: RealArray, # NDArray[Float],
+                           tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                            tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
     r"""
@@ -183,8 +189,10 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     return res_tys, res_zeta_hits
 
 
-def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
-                    parallel_speeds: NDArray[Float], tmax=1e-4,
+def trace_particles(field: MagneticField,
+                    xyz_inits: RealArray, # NDArray[Float],
+                    parallel_speeds: RealArray, # NDArray[Float],
+                    tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                     phase_angle=0):
