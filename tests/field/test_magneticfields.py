@@ -1,6 +1,6 @@
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    Reiman, sympy_found, InterpolatedField, PoloidalField
+    DipoleField, Reiman, sympy_found, InterpolatedField, PoloidalField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -412,6 +412,35 @@ class Testing(unittest.TestCase):
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[-59.9602, 8.96793, -24.8844], [8.96793, 49.0327, -18.4131], [-24.8844, -18.4131, 10.9275]]))
+
+    def test_DipoleField_single_dipole(self):
+        m = np.array([0.5, 0.5, 0.5])
+        m_loc = np.array([0.1, -0.1, 1]).reshape(1, 3)
+        field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
+        Bfield = DipoleField(m_loc, m)
+        Bfield.set_points(field_loc)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        assert np.allclose(Bfield.B(), 1e-7 * np.array([[0.260891, -0.183328, -0.77562]]))
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
+
+    def test_DipoleField_multiple_dipole(self):
+        Ndipoles = 100
+        m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
+        m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
+        field_loc = np.outer(np.ones(Ndipoles), np.array([1, 0.2, 0.5]))
+        Bfield = DipoleField(m_loc, m)
+        Bfield.set_points(field_loc)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        assert np.allclose(Bfield.B(), Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562]]))
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
 
     def test_BifieldMultiply(self):
         scalar = 1.2345

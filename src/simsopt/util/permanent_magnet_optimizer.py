@@ -194,7 +194,7 @@ class PermanentMagnetOptimizer:
             dipole_grid_phi[running_tally:running_tally + len_radii] = phi[i]
             dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
-        self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z])
+        self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
         cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0]) * 2 * np.pi
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
@@ -816,17 +816,17 @@ class PermanentMagnetOptimizer:
         total_error = np.linalg.norm(self.A_obj.dot(m0) - self.b_obj, ord=2) ** 2
         print('Number of phi quadrature points on plasma surface = ', self.nphi)
         print('Number of theta quadrature points on plasma surface = ', self.ntheta)
-        print('<B * n> without the permanent magnets = {0:.5f}'.format(ave_Bn)) 
-        print('<B * n / |B| > without the permanent magnets = {0:.5f}'.format(ave_BnB)) 
-        print(r'$|b|_2^2 = |B * n|_2^2$ without the permanent magnets = {0:.5f}'.format(total_Bn))
-        print(r'Initial $|Am_0|_2^2 = |B_M * n|_2^2$ without the coils/plasma = {0:.7f}'.format(dipole_error))
+        print('<B * n> without the permanent magnets = {0:.4e}'.format(ave_Bn)) 
+        print('<B * n / |B| > without the permanent magnets = {0:.4e}'.format(ave_BnB)) 
+        print(r'$|b|_2^2 = |B * n|_2^2$ without the permanent magnets = {0:.4e}'.format(total_Bn))
+        print(r'Initial $|Am_0|_2^2 = |B_M * n|_2^2$ without the coils/plasma = {0:.4e}'.format(dipole_error))
         print('Number of dipoles = ', self.ndipoles)
         print('Inner toroidal surface offset from plasma surface = ', self.plasma_offset)
         print('Outer toroidal surface offset from inner toroidal surface = ', self.coil_offset)
         print('Maximum dipole moment = ', np.max(self.m_maxima))
         print('Shape of A matrix = ', self.A_obj.shape)
         print('Shape of b vector = ', self.b_obj.shape)
-        print('Initial error on plasma surface = {0:.5f}'.format(total_error))
+        print('Initial error on plasma surface = {0:.4e}'.format(total_error))
         # Begin optimization
         m_proxy = m0
         err_RS = []
@@ -868,7 +868,7 @@ class PermanentMagnetOptimizer:
         ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj))
         ave_BnB = np.mean(np.abs((self.A_obj.dot(m_proxy) - self.b_obj)) / Bmag)  # using original Bmag without PMs
         print(np.max(self.m_maxima), np.max(m_proxy))
-        print('<B * n> with the optimized permanent magnets = {0:.5f}'.format(ave_Bn)) 
-        print('<B * n> with the sparsified permanent magnets = {0:.5f}'.format(ave_Bn_proxy)) 
-        print('<B * n / |B| > with the permanent magnets = {0:.5f}'.format(ave_BnB)) 
+        print('<B * n> with the optimized permanent magnets = {0:.4e}'.format(ave_Bn)) 
+        print('<B * n> with the sparsified permanent magnets = {0:.4e}'.format(ave_Bn_proxy)) 
+        print('<B * n / |B| > with the permanent magnets = {0:.4e}'.format(ave_BnB)) 
         return MwPGP_hist, m_hist, err_RS, err, m_proxy
