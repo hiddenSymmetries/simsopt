@@ -257,8 +257,8 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
 
 
 def parameter_derivatives(surface: Surface,
-                          shape_gradient: NDArray[(Any, Any), Float]
-                          ) -> NDArray[(Any,), Float]:
+                          shape_gradient: NDArray[Any, Float]
+                          ) -> NDArray[Any, Float]:
     r"""
     Converts the shape gradient of a given figure of merit, :math:`f`,
     to derivatives with respect to parameters defining a surface.  For
