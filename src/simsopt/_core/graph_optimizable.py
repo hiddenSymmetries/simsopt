@@ -1214,7 +1214,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         ``DiGraph`` using the ``traversal`` function defined below.  Next, call ``graphviz_layout``
         which determines sensible positions for the nodes of the graph using the ``dot``
         program of ``graphviz``. Finally, ``networkx`` plots the graph using ``matplotlib``.
-        
+
         Note that the tool ``network2tikz`` at `https://github.com/hackl/network2tikz <https://github.com/hackl/network2tikz>`_
         can be used to convert the networkx ``DiGraph`` and positions to a 
         latex file for publication.
@@ -1238,7 +1238,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 traversal(p)
 
         traversal(self)
-       
+
         # this command generates sensible positions for nodes of the DAG
         # using the "dot" program
         pos = graphviz_layout(G, prog='dot')
@@ -1250,7 +1250,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
         if show:
             plt.show()
-        
+
         return G, pos
 
 
