@@ -14,7 +14,7 @@ from nptyping import NDArray, Float, Int, Bool
 # Array = Union[Sequence, NDArray]
 RealArray = Union[Sequence[Real], NDArray[Any, Float]]
 IntArray = Union[Sequence[Integral], NDArray[Any, Int]]
-StrArray = Union[Sequence[str], NDArray[Any, str]]
+StrArray = Sequence[str]
 BoolArray = Union[Sequence[bool], NDArray[Any, Bool]]
 Key = Union[Integral, str]
 
