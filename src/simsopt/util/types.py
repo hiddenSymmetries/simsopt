@@ -6,10 +6,10 @@
 This module contains small utility functions and classes.
 """
 
-from typing import Union, Sequence
+from typing import Union, Sequence, Any
 from numbers import Integral, Real
 
-from nptyping import NDArray, Float, Int, Bool, Any
+from nptyping import NDArray, Float, Int, Bool
 
 # Array = Union[Sequence, NDArray]
 RealArray = Union[Sequence[Real], NDArray[Any, Float]]
