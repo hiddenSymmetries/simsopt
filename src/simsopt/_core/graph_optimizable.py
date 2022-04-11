@@ -67,6 +67,7 @@ class DOFs:
     table as properties. Additional methods to update bounds, fix/unfix DOFs,
     etc. are also defined.
     """
+    __slots__ = ["_x", "_free", "_lb", "_ub", "_names"]
 
     def __init__(self,
                  x: RealArray = None,  # To enable empty DOFs object
