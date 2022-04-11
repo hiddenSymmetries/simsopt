@@ -7,7 +7,7 @@ from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
-    LpCurveTorsion, MinimumDistance, ArclengthVariation, MeanSquaredCurvature
+    LpCurveTorsion, CurveCurveDistance, ArclengthVariation, MeanSquaredCurvature
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.util.zoo import get_ncsx_data
 import simsoptpp as sopp
@@ -132,7 +132,7 @@ class Testing(unittest.TestCase):
         ncurves = 3
         curve_t = curve.curve.__class__.__name__ if isinstance(curve, RotatedCurve) else curve.__class__.__name__
         curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
-        J = MinimumDistance(curves, 0.2)
+        J = CurveCurveDistance(curves, 0.2)
         mindist = 1e10
         for i in range(len(curves)):
             for j in range(i):
@@ -256,8 +256,8 @@ class Testing(unittest.TestCase):
         base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         for t in np.linspace(0.05, 0.5, num=10):
-            Jnosym = MinimumDistance(curves, t)
-            Jsym = MinimumDistance(curves, t, num_basecurves=3)
+            Jnosym = CurveCurveDistance(curves, t)
+            Jsym = CurveCurveDistance(curves, t, num_basecurves=3)
             assert abs(Jnosym.shortest_distance_among_candidates() - Jsym.shortest_distance_among_candidates()) < 1e-15
             print(len(Jnosym.candidates), len(Jsym.candidates), Jnosym.shortest_distance_among_candidates())
             distsnosym = [np.min(cdist(Jnosym.curves[i].gamma(), Jnosym.curves[j].gamma())) for i, j in Jnosym.candidates]
