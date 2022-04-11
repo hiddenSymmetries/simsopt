@@ -283,8 +283,6 @@ class Testing(unittest.TestCase):
         surface.set(f'rc(0,{ntor})', 1.6)
         surface.set(f'rc(1,{ntor})', 0.2)
         surface.set(f'zs(1,{ntor})', 0.2)
-        surface.to_vtk("/tmp/tmp")
-        curves_to_vtk(curves, "/tmp/tmp")
 
         last_num_candidates = 0
         for t in np.linspace(0.01, 1.0, num=10):
