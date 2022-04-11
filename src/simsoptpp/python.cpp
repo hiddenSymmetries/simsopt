@@ -27,34 +27,8 @@ void init_curves(py::module_ &);
 void init_magneticfields(py::module_ &);
 void init_boozermagneticfields(py::module_ &);
 void init_tracing(py::module_ &);
+void init_distance(py::module_ &);
 
-template<class T>
-bool empty_intersection(const std::set<T>& x, const std::set<T>& y)
-{
-    auto i = x.begin();
-    auto j = y.begin();
-    while (i != x.end() && j != y.end())
-    {
-        if (*i == *j)
-            return false;
-        else if (*i < *j)
-            ++i;
-        else
-            ++j;
-    }
-    return true;
-}
-
-bool two_points_too_close_exist(PyArray& XA, PyArray& XB, double threshold_squared){
-    for (int k = 0; k < XA.shape(0); ++k) {
-        for (int l = 0; l < XB.shape(0); ++l) {
-            double dist = std::pow(XA(k, 0) - XB(l, 0), 2) + std::pow(XA(k, 1) - XB(l, 1), 2) + std::pow(XA(k, 2) - XB(l, 2), 2);
-            if(dist < threshold_squared)
-                return true;
-        }
-    }
-    return false;
-}
 
 
 PYBIND11_MODULE(simsoptpp, m) {
@@ -65,6 +39,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     init_magneticfields(m);
     init_boozermagneticfields(m);
     init_tracing(m);
+    init_distance(m);
 
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
@@ -143,80 +118,6 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
-
-    using std::chrono::high_resolution_clock;
-    using std::chrono::duration_cast;
-    using std::chrono::duration;
-    using std::chrono::nanoseconds;
-
-    m.def("get_close_candidates", [](std::vector<PyArray>& pointClouds, double threshold, int num_base_curves) {
-        /*
-        Returns all pairings of the given pointClouds that have two points that
-        are less than `threshold` away. The estimate is approximate (for
-        speed), so this function may return too many (but not too few!)
-        pairings.
-
-        The basic idea of this function is the following:
-        - Assume we want to compare pointcloud A and B.
-        - We create a uniform grid of cell size threshold.
-        - Loop over points in cloud A, mark all cells that have a point in it (via the `set` variables below).
-        - Loop over points in cloud B, mark all cells that have a point in it and also all cells in the 8 neighbouring cells around it.
-        - Check whether the intersection between the two sets is non-empty.
-        */
-        std::vector<std::set<std::tuple<int, int, int>>> sets(pointClouds.size());
-        std::vector<std::set<std::tuple<int, int, int>>> sets_extended(pointClouds.size());
-#pragma omp parallel for
-        for (int p = 0; p < pointClouds.size(); ++p) {
-            std::set<std::tuple<int, int, int>> s;
-            std::set<std::tuple<int, int, int>> s_extended;
-            PyArray& points = pointClouds[p];
-            for (int l = 0; l < points.shape(0); ++l) {
-                int i = std::floor(points(l, 0)/threshold);
-                int j = std::floor(points(l, 1)/threshold);
-                int k = std::floor(points(l, 2)/threshold);
-                sets[p].insert({i, j, k});
-                for (int ii = -1; ii <= 1; ++ii) {
-                    for (int jj = -1; jj <= 1; ++jj) {
-                        for (int kk = -1; kk <= 1; ++kk) {
-                            sets_extended[p].insert({i + ii, j + jj, k + kk});
-                        }
-                    }
-                }
-            }
-        }
-
-
-        std::vector<std::tuple<int, int>> candidates_1;
-        for (int i = 0; i < pointClouds.size(); ++i) {
-            for (int j = 0; j < i; ++j) {
-                if(j < num_base_curves)
-                    candidates_1.push_back({i, j});
-            }
-        }
-        std::vector<std::tuple<int, int>> candidates_2;
-#pragma omp parallel for
-        for (int k = 0; k < candidates_1.size(); ++k) {
-            int i = std::get<0>(candidates_1[k]);
-            int j = std::get<1>(candidates_1[k]);
-            bool check = empty_intersection(sets_extended[i], sets[j]);
-#pragma omp critical
-            if(!check)
-                candidates_2.push_back({i, j});
-        }
-
-        double t2 = threshold*threshold;
-        std::vector<std::tuple<int, int>> candidates_3;
-#pragma omp parallel for
-        for (int k = 0; k < candidates_2.size(); ++k) {
-            int i = std::get<0>(candidates_2[k]);
-            int j = std::get<1>(candidates_2[k]);
-            bool check = two_points_too_close_exist(pointClouds[i], pointClouds[j], t2);
-#pragma omp critical
-            if(check)
-                candidates_3.push_back({i, j});
-        }
-        return candidates_3;
-    }, "Get candidates for which point clouds are closer than threshold to each other.", py::arg("pointClouds"), py::arg("threshold"), py::arg("num_base_curves"));
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
