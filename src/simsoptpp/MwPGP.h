@@ -1,15 +1,14 @@
 #pragma once
 
-#include "xtensor/xarray.hpp"
-#include "xtensor/xmath.hpp"
+#include <cmath>
+#include <algorithm>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
-using std::vector;
-using std::string;
 
-Array& phi_MwPGP(const Array& x, const Array& g, const vector<double>& m_maxima);
-Array& beta_tilde(const Array& x, const Array& g, const double alpha, const vector<double>& m_maxima);
-Array& g_reduced_gradient(Array& x, Array& g, const double alpha, const vector<double> m_maxima);
-Array& g_reduced_projected_gradient(Array& x, Array& g, const double alpha, const vector<double> m_maxima);
-double find_max_alphaf(const Array& x, const Array& p);
-void MwPGP_algorithm(Array& ATA, vector<double>& ATb, vector<double>& m_proxy, vector<double> m0, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shifted, int max_iter, bool verbose);
+Array projection_L2_balls(double x1, double x2, double x3, double m_maxima);
+Array phi_MwPGP(double x1, double x2, double x3, double g1, double g2, double g3, double m_maxima);
+Array beta_tilde(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima);
+Array g_reduced_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima);
+Array g_reduced_projected_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima);
+double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, double p3, double m_maxima);
+Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu=1.0e100, double delta=0.5, double epsilon=1.0e-4, double reg_l0=0.0, double reg_l1=0.0, double reg_l2=0.0, double reg_l2_shifted=0.0, int max_iter=500);
