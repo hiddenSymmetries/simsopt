@@ -414,22 +414,31 @@ class PermanentMagnetOptimizer:
                     ).T
                     running_tally += len(dipole_grid_r)
         mu_fac = 1e-7
-        geo_factor = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles * 3)) * mu_fac
+        geo_factor_flat = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles * 3)) * mu_fac
+        geo_factor = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles, 3)) * mu_fac
         dphi = (self.phi[1] - self.phi[0]) * 2 * np.pi
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
-        self.A_obj = geo_factor * np.sqrt(dphi * dtheta)
+        self.A_obj = geo_factor_flat * np.sqrt(dphi * dtheta)
+        self.A_obj_expanded = geo_factor * np.sqrt(dphi * dtheta)
         # Initialize 'b' vector in 0.5 * ||Am - b||^2 part of the optimization,
         # corresponding to the normal component of the target fields. Note
         # the factor of two in the least-squares term: 0.5 * m.T @ (A.T @ A) @ m - b.T @ m
         if self.B_plasma_surface.shape != (self.nphi, self.ntheta, 3):
             raise ValueError('Magnetic field surface data is incorrect shape.')
         Bs = self.B_plasma_surface
-        self.b_obj = np.sum(
+        # minus sign below because ||Ax - b||^2 term but original
+        # term is integral(B_P + B_C + B_M)
+        self.b_obj = -np.sum(
             Bs * self.plasma_boundary.unitnormal(), axis=2
         ).reshape(self.nphi * self.ntheta) * np.sqrt(dphi * dtheta)
         self.ATb = (self.A_obj.transpose()).dot(self.b_obj)
         self.ATA = (self.A_obj).T @ self.A_obj 
         self.ATA_scale = np.linalg.norm(self.ATA, ord=2)
+        self.ATA_expanded = np.transpose(
+            np.tensordot(self.A_obj_expanded, self.A_obj_expanded, axes=([0], [0])), 
+            axes=([0, 2, 1, 3])
+        )
+        self.ATb_expanded = np.tensordot(self.A_obj_expanded, self.b_obj, axes=([0], [0])) 
 
     def _cyl_dist(self, plasma_vec, dipole_vec):
         """

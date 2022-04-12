@@ -35,7 +35,8 @@ from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.field.tracing import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
+    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+    IterationStoppingCriterion
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
@@ -61,8 +62,9 @@ order = 5
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-nfieldlines = 3 if ci else 30
-tmax_fl = 5000 if ci else 40000
+ci = True
+nfieldlines = 20 if ci else 30
+tmax_fl = 30000 if ci else 40000
 degree = 2 if ci else 4
 
 MAXITER = 50 if ci else 400
@@ -166,7 +168,7 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 400
+max_iter_MwPGP = 50000
 print('Done initializing the permanent magnet object')
 MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
@@ -177,7 +179,8 @@ b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 print('Dipole field setup done')
 
-if comm is None or comm.rank == 0:
+make_plots = False
+if make_plots and (comm is None or comm.rank == 0):
     # Make plot of <|B * n| / |B|> as function of iteration
     mean_Bn_over_B = []
     for i in range(len(MwPGP_history)):
@@ -213,6 +216,13 @@ if comm is None or comm.rank == 0:
     print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below
+#mpol = 5
+#ntor = 5
+#stellsym = True
+#nfp = s.nfp
+#phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
+#thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+#s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", quadpoints_phi=phis, quadpoints_theta=thetas)
 s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
@@ -224,11 +234,12 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-7, comm=comm,
+        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(50000)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+    # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
 
 
@@ -238,14 +249,17 @@ zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2 * np.pi / s.nfp, n * 2)
 zrange = (0, np.max(zs), n // 2)
-# bsh = InterpolatedField(
-#    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-# )
-# trace_fieldlines(bsh, 'bsh_without_PMs')
-# print('Done with Poincare plots without the permanent magnets')
+bsh = InterpolatedField(
+    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+)
+trace_fieldlines(bsh, 'bsh_without_PMs')
+print('Done with Poincare plots without the permanent magnets')
+t1 = time.time()
 bsh = InterpolatedField(
     b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
+t2 = time.time()
+print(f"Time for fieldline setup={t2-t1:.3f}s", flush=True)
 trace_fieldlines(bsh, 'bsh_only_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
