@@ -246,11 +246,11 @@ class Testing(unittest.TestCase):
                 true_min_dists[(i, j)] = np.min(cdist(pointClouds[i], pointClouds[j]))
 
         threshold = max(true_min_dists.values()) * 1.0001
-        candidates = sopp.get_close_candidates(pointClouds, threshold, n_clouds)
+        candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
         assert len(candidates) == len(true_min_dists)
 
         threshold = min(true_min_dists.values()) * 1.0001
-        candidates = sopp.get_close_candidates(pointClouds, threshold, n_clouds)
+        candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
         assert len(candidates) == 1
 
     def test_minimum_distance_candidates_symmetry(self):
