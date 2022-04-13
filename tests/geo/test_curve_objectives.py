@@ -234,7 +234,7 @@ class Testing(unittest.TestCase):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_meansquaredcurvature_taylor_test(curve)
 
-    def test_minimum_distance_candidates(self):
+    def test_minimum_distance_candidates_one_collection(self):
         np.random.seed(0)
         n_clouds = 4
         pointClouds = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
@@ -251,6 +251,26 @@ class Testing(unittest.TestCase):
 
         threshold = min(true_min_dists.values()) * 1.0001
         candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
+        assert len(candidates) == 1
+
+    def test_minimum_distance_candidates_two_collections(self):
+        np.random.seed(0)
+        n_clouds = 4
+        pointCloudsA = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        pointCloudsB = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        true_min_dists = {}
+        from scipy.spatial.distance import cdist
+
+        for i in range(n_clouds):
+            for j in range(n_clouds):
+                true_min_dists[(i, j)] = np.min(cdist(pointCloudsA[i], pointCloudsB[j]))
+
+        threshold = max(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
+        assert len(candidates) == len(true_min_dists)
+
+        threshold = min(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
         assert len(candidates) == 1
 
     def test_minimum_distance_candidates_symmetry(self):
