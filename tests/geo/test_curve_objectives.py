@@ -335,7 +335,7 @@ class Testing(unittest.TestCase):
             err_new = np.linalg.norm(deriv_est-deriv)
             print("err_new %s" % (err_new))
             print(err_new/err)
-            # assert err_new < 0.3 * err
+            assert err_new < 0.3 * err
             err = err_new
 
 
