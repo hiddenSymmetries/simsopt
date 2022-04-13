@@ -100,115 +100,75 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
     // Needs ATA in shape (N, N, 3, 3) and ATb in shape (N, 3)
     int N = ATb.shape(0);
     Array g = xt::zeros<double>({N, 3});
-    Array p = xt::zeros<double>({N, 3});
-    Array g_alpha_p = xt::zeros<double>({3});
-    Array phi_temp = xt::zeros<double>({3});
-    Array x_temp = xt::zeros<double>({3});
-    double norm_g_alpha_p, norm_phi_temp, x_temp1, x_temp2, x_temp3, gamma;
-    double alpha_f, alpha_cg;
-    int k = 0;
-    int print_iter = 0;
-    Array x_k = m0;
+    //Array p = xt::zeros<double>({N, 3});
+    //Array phi_temp = xt::zeros<double>({3});
+    Array x_temp;
+    //double norm_g_alpha_p, norm_phi_temp, x_temp1, x_temp2, x_temp3, gamma;
+    //Array x_k1 = m0;
     Array x_k1 = xt::zeros<double>({N, 3});
-    Array ATAp;
-    Array ATAx;
-    Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
-    // Add contribution from relax-and-split term
-    Array ATb_rs = ATb + m_proxy / nu;
+    //Array ATAx;
    
-#pragma omp parallel for
+#pragma omp parallel for //firstprivate(m0)
     for (int i = 0; i < N; ++i) {
-        for (int k = 0; k < 3; ++k) {
+        for (int ii = 0; ii < 3; ++ii) {
             for (int j = 0; j < N; ++j) {
                 for (int kk = 0; kk < 3; ++kk) {
-                    g(i, k) += ATA(i, j, k, kk) * m0(j, kk);
+                    g(i, ii) += ATA(i, ii, j, kk) * m0(j, kk);
 	        }
 	    }
-	    g(i, k) += - ATb(i, k);
+	    g(i, ii) += - ATb(i, ii);
 	}
     }
-    for (int i = 0; i < N; ++i) {
-	phi_temp = phi_MwPGP(m0(i, 0), m0(i, 1), m0(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
-	p(i, 0) = phi_temp(0);
-	p(i, 1) = phi_temp(1);
-	p(i, 2) = phi_temp(2);
-    }
- 
-    while (k < max_iter) {
-        ATAp = xt::zeros<double>({N, 3});
-        ATAx = xt::zeros<double>({N, 3});
-//#pragma omp parallel for
-        for (int i = 0; i < N; ++i) {     
-		    //if (print_iter) { 
-		    //    m_history(i, k) = x_k(i);
-		    // }
-		    //g_alpha_p = g_reduced_projected_gradient(x_k(i), x_k(i + 1), x_k(i + 2), g(i), g(i + 1), g(i + 2), alpha, m_maxima((int)(i / 3)));
-		    //norm_g_alpha_p = g_alpha_p(0) * g_alpha_p(0)  + g_alpha_p(1) * g_alpha_p(1) + g_alpha_p(2) * g_alpha_p(2);
-		    //phi_temp = phi_MwPGP(x_k(i), x_k(i + 1), x_k(i + 2), g(i), g(i + 1), g(i + 2), m_maxima((int)(i / 3)));
-		    //norm_phi_temp = phi_temp(0) * phi_temp(0) + phi_temp(1) * phi_temp(1) + phi_temp(2) * phi_temp(2);
-            
-		    //if (delta < 0) {  //(2 * delta * norm_g_alpha_p <= norm_phi_temp) {
-//			alpha_cg = g(i) * p(i) / (p(i) * ATAp(i));
-//			alpha_f = find_max_alphaf(x_k(i), x_k(i + 1), x_k(i + 2), p(i), p(i + 1), p(i + 2), m_maxima((int) (i / 3)));
-//			if (alpha_cg < alpha_f) {
-			    // Take a conjugate gradient step
-//			    x_k1(i) = x_k(i) - alpha_cg * p(i);
-//			    x_k1(i + 1) = x_k(i + 1) - alpha_cg * p(i + 1);
-//			    x_k1(i + 2) = x_k(i + 2) - alpha_cg * p(i + 2);
-//			    g(i) = g(i) - alpha_cg * ATAp(i);
-//			    g(i + 1) = g(i + 1) - alpha_cg * ATAp(i + 1);
-//			    g(i + 2) = g(i + 2) - alpha_cg * ATAp(i + 2);
-//			    phi_temp = phi_MwPGP(x_k1(i), x_k1(i + 1), x_k1(i + 2), g(i), g(i + 1), g(i + 2), m_maxima((int)(i / 3)));
-//			    gamma = (phi_temp(0) * ATAp(i) + phi_temp(1) * ATAp(i + 1) + phi_temp(2) * ATAp(i + 2)) / (p(i) * ATAp(i) + p(i + 1) * ATAp(i + 1) + p(i + 2) * ATAp(i + 2));
-//			    p(i) = phi_temp(0) - gamma * p(i);
-//			    p(i + 1) = phi_temp(1) - gamma * p(i + 1);
-//			    p(i + 2) = phi_temp(2) - gamma * p(i + 2);
-//			}
-//			else {
-//			    // Take a mixed projected gradient step
-//			    x_temp1 = (x_k(i) - alpha_f * p(i)) - alpha * (g(i) - alpha_f * ATAp(i));
-//			    x_temp2 = (x_k(i + 1) - alpha_f * p(i + 1)) - alpha * (g(i + 1) - alpha_f * ATAp(i + 1));
-//			    x_temp3 = (x_k(i + 2) - alpha_f * p(i + 2)) - alpha * (g(i + 2) - alpha_f * ATAp(i + 2));
-//			    x_temp = projection_L2_balls(x_temp1, x_temp2, x_temp3, m_maxima((int)(i / 3)));
-			    
-//			    x_k1(i) = x_temp(0);
-//			    x_k1(i + 1) = x_temp(1);
-//			    x_k1(i + 2) = x_temp(2);
-//			    g(i) = ATAx(i) - ATb(i);
-//			    g(i + 1) = ATAx(i + 1) - ATb(i + 1);
-//			    g(i + 2) = ATAx(i + 2) - ATb(i + 2);
-//			    phi_temp = phi_MwPGP(x_k1(i), x_k1(i + 1), x_k1(i + 2), g(i), g(i + 1), g(i + 2), m_maxima((int)(i / 3)));
-//			    p(i) = phi_temp(0);
-//			    p(i + 1) = phi_temp(1);
-//			    p(i + 2) = phi_temp(2);
-//			}
-//		    }
-		   // else {
-			// Take a projected gradient step
-	    x_temp = projection_L2_balls(x_k(i, 0) - alpha * g(i, 0), x_k(i, 1) - alpha * g(i, 1), x_k(i, 2) - alpha * g(i, 2), m_maxima(i));
+    //for (int i = 0; i < N; ++i) {
+//	phi_temp = phi_MwPGP(m0(i, 0), m0(i, 1), m0(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
+//	p(i, 0) = phi_temp(0);
+//	p(i, 1) = phi_temp(1);
+//	p(i, 2) = phi_temp(2);
+  //  }
+    for (int k = 0; k < max_iter; ++k) {
+        //ATAx = xt::zeros<double>({N, 3});
+        // x_temp = xt::zeros<double>({3});
+//#pragma omp parallel for firstprivate(x_temp)
+        printf("k = %d \n", k);
+        #pragma omp parallel for private(x_temp)
+        for (int i = 0; i < N; ++i) {
+	    printf("thread %d, k = %d, iteration %d: x_k1(0) = %f, x_k1(1) = %f, x_k1(2) = %f, g(0) = %e, g(1) = %e, g(2) = %e, alpha = %f, m_maxima = %f \n", omp_get_thread_num(), k, i, x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), alpha, m_maxima(i));
+	    x_temp = projection_L2_balls(x_k1(i, 0) - alpha * g(i, 0), x_k1(i, 1) - alpha * g(i, 1), x_k1(i, 2) - alpha * g(i, 2), m_maxima(i));
 	    x_k1(i, 0) = x_temp(0); 
 	    x_k1(i, 1) = x_temp(1); 
-	    x_k1(i, 2) = x_temp(2); 
-            for (int ii = 0; ii < 3; ++ii) {    
-		for (int j = 0; j < N; ++j) {
-	             for (int jj = 0; jj < 3; ++jj) {     
-			ATAx(i, ii) += ATA(i, j, ii, jj) * x_k1(j, jj);
-			// ATAp(i, ii) += ATA(i, j, ii, jj) * p(j, jj);
-		     }
-		}
-            }
-	    g(i, 0) = ATAx(i, 0) - ATb(i, 0);
-	    g(i, 1) = ATAx(i, 1) - ATb(i, 1);
-	    g(i, 2) = ATAx(i, 2) - ATb(i, 2);
-	    phi_temp = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
-	    p(i, 0) = phi_temp(0);
-	    p(i, 1) = phi_temp(1);
-	    p(i, 2) = phi_temp(2);
-		   // }
+	    x_k1(i, 2) = x_temp(2);
+	    //printf("thread %d, iteration %d: x_k1(0) = %f, x_k1(1) = %f, x_k1(2) = %f \n", omp_get_thread_num(), i, x_k1(i, 0), x_k1(i, 1), x_k1(i, 2));
+            //x_k1(i, xt::all()) = (projection_L2_balls(x_k1(i, 0) - alpha * g(i, 0), x_k1(i, 1) - alpha * g(i, 1), x_k1(i, 2) - alpha * g(i, 2), m_maxima(i)));
+            //for (int ii = 0; ii < 3; ++ii) {    
+	    //	for (int j = 0; j < N; ++j) {
+	      //       for (int jj = 0; jj < 3; ++jj) {     
+		//	ATAx(i, ii) += ATA(i, ii, j, jj) * x_k1(j, jj);
+		  //   }
 	//	}
-        }
-	k = k + 1;
-        x_k = x_k1;
+          //  }
+	    //g(i, 0) = ATAx(i, 0) - ATb(i, 0);
+	    //g(i, 1) = ATAx(i, 1) - ATb(i, 1);
+	    //g(i, 2) = ATAx(i, 2) - ATb(i, 2);
+	}
+//#pragma omp barrier
+///	g = xt::zeros<double>({N, 3});
+//#pragma omp parallel for firstprivate(x_k1)
+//	for (int i = 0; i < N; ++i) {     
+//            for (int jj = 0; jj < 3; ++jj) {
+//                for (int j = 0; j < N; ++j) {
+//                    for (int kk = 0; kk < 3; ++kk) {
+//                        g(i, jj) += ATA(i, jj, j, kk) * x_k1(j, kk);
+//	           }
+//	        }
+//	        g(i, jj) += - ATb(i, jj);
+//	    }
+
+	    // phi_temp = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
+	    // p(i, 0) = phi_temp(0);
+	    // p(i, 1) = phi_temp(1);
+	    // p(i, 2) = phi_temp(2);
+ //       }
+        //x_k = x_k1;
     }
-    return x_k;
+    return x_k1;
 }

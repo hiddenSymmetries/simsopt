@@ -434,10 +434,7 @@ class PermanentMagnetOptimizer:
         self.ATb = (self.A_obj.transpose()).dot(self.b_obj)
         self.ATA = (self.A_obj).T @ self.A_obj 
         self.ATA_scale = np.linalg.norm(self.ATA, ord=2)
-        self.ATA_expanded = np.transpose(
-            np.tensordot(self.A_obj_expanded, self.A_obj_expanded, axes=([0], [0])), 
-            axes=([0, 2, 1, 3])
-        )
+        self.ATA_expanded = np.tensordot(self.A_obj_expanded, self.A_obj_expanded, axes=([0], [0])) 
         self.ATb_expanded = np.tensordot(self.A_obj_expanded, self.b_obj, axes=([0], [0])) 
 
     def _cyl_dist(self, plasma_vec, dipole_vec):
@@ -864,7 +861,7 @@ class PermanentMagnetOptimizer:
             m = m_proxy
         else:
             MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
-                                                     m_proxy=m0,  # delta=1e100,
+                                                     m_proxy=m0, delta=1e100,
                                                      epsilon=epsilon, max_iter=max_iter_MwPGP, 
                                                      verbose=verbose,
                                                      reg_l0=reg_l0, reg_l1=reg_l1, 

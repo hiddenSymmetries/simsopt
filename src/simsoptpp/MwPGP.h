@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <omp.h>
 #include <algorithm>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
