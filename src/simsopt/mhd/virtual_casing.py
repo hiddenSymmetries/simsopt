@@ -363,9 +363,10 @@ class VirtualCasing:
         Returns:
             A new ``VirtualCasing`` object.
         """
+        nfp = self.nfp
         # The resample_2D only works if the original grid satisfies the following:
         np.testing.assert_allclose(self.theta, np.linspace(0, 1, self.ntheta, endpoint=False), rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(self.phi, np.linspace(0, 1/self.nfp, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(self.phi, np.linspace(0, 1/nfp, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
 
         if surf is not None:
             assert ntheta is None
@@ -385,11 +386,10 @@ class VirtualCasing:
             assert ntheta is not None
             assert nphi is not None
             theta = np.linspace(0, 1, ntheta, endpoint=False)
-            phi = np.linspace(0, 1, nphi, endpoint=False)
+            phi = np.linspace(0, 1/nfp, nphi, endpoint=False)
 
         ntheta = len(theta)
         nphi = len(phi)
-        nfp = self.nfp
 
         newvc = VirtualCasing()
         newvc.ntheta = ntheta
