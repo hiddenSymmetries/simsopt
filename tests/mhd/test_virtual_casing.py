@@ -49,18 +49,16 @@ class VirtualCasingTests(unittest.TestCase):
                 arr3 = resample_2D(arr1, phi1d, theta1d)
                 np.testing.assert_allclose(arr2, arr3, atol=1e-14, rtol=1e-14)
 
-    def test_nphi_multiple_of_2_nfp(self):
+    def test_nphi_multiple_of_2(self):
         """
-        nphi must be a multiple of 2 * nfp
+        nphi must be a multiple of 2
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
 
         with self.assertRaises(ValueError):
-            vc = VirtualCasing.from_vmec(vmec, nphi=151, ntheta=20)
-        with self.assertRaises(ValueError):
-            vc = VirtualCasing.from_vmec(vmec, nphi=150, ntheta=20)
-        vc = VirtualCasing.from_vmec(vmec, nphi=152, ntheta=20)
+            vc = VirtualCasing.from_vmec(vmec, nphi=61, ntheta=20)
+        vc = VirtualCasing.from_vmec(vmec, nphi=60, ntheta=20)
 
     def test_different_initializations(self):
         """
@@ -87,7 +85,7 @@ class VirtualCasingTests(unittest.TestCase):
 
         vmec = Vmec(filename)
         factor = 2
-        vc = VirtualCasing.from_vmec(vmec, nphi=factor * 152, ntheta=factor * 20)
+        vc = VirtualCasing.from_vmec(vmec, nphi=factor * 50, ntheta=factor * 25)
 
         nfp = vmec.wout.nfp
         theta, phi = np.meshgrid(2 * np.pi * vc.theta, 2 * np.pi * vc.phi)
@@ -120,7 +118,7 @@ class VirtualCasingTests(unittest.TestCase):
         logger.info(f'root mean squared of B_external_normal: {rms}')
         logger.info('Diff between BNORM and virtual_casing: '
                     f'abs={np.max(np.abs(difference))}, rel={np.max(np.abs(rel_difference))}')
-        np.testing.assert_allclose(B_external_normal_bnorm, vc.B_external_normal, atol=0.006)
+        np.testing.assert_allclose(B_external_normal_bnorm, vc.B_external_normal, atol=0.0061)
 
         if 0:
             import matplotlib.pyplot as plt
@@ -159,7 +157,7 @@ class VirtualCasingTests(unittest.TestCase):
         fields of the objects should all match.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc1 = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20, filename='vcasing.nc')
+        vc1 = VirtualCasing.from_vmec(filename, nphi=76, ntheta=20, filename='vcasing.nc')
         vc2 = VirtualCasing.load('vcasing.nc')
         for variable in variables:
             variable1 = eval('vc1.' + variable)
@@ -169,7 +167,7 @@ class VirtualCasingTests(unittest.TestCase):
 
     def test_plot(self):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, nphi=152, ntheta=20)
+        vc = VirtualCasing.from_vmec(filename, nphi=76, ntheta=20)
         vc.plot(show=False)
         # Now cover the case in which an axis is provided:
         import matplotlib.pyplot as plt
@@ -187,32 +185,33 @@ class VirtualCasingTests(unittest.TestCase):
         vmec = Vmec(filename)
 
         ntheta_low = 30
-        nphi_low = 232
+        nphi_low = 58
 
         ntheta_high = 40
-        nphi_high = 304
+        nphi_high = 76
 
         vc_low_res = VirtualCasing.from_vmec(vmec, nphi=nphi_low, ntheta=ntheta_low)
         vc_high_res = VirtualCasing.from_vmec(vmec, nphi=nphi_high, ntheta=ntheta_high)
 
-        def compare_objects(obj1, obj2, atol=1e-13, rtol=1e-13):
+        def compare_objects(obj1, obj2, atol=2e-13, rtol=2e-13):
             for variable in variables:
                 logger.debug(f'Comparing variables {variable}')
+                print(variable)
                 np.testing.assert_allclose(eval('obj1.' + variable), eval('obj2.' + variable), atol=atol, rtol=rtol)
 
         # Resampling without changing resolution should not change anything:
         compare_objects(vc_low_res, vc_low_res.resample(nphi=nphi_low, ntheta=ntheta_low))
         compare_objects(vc_high_res, vc_high_res.resample(nphi=nphi_high, ntheta=ntheta_high))
         # Try setting the new quadrature points from a surface:
-        surf = SurfaceRZFourier.from_wout(filename, nphi=nphi_low, ntheta=ntheta_low, range="full torus")
+        surf = SurfaceRZFourier.from_wout(filename, nphi=nphi_low, ntheta=ntheta_low, range="field period")
         compare_objects(vc_low_res, vc_low_res.resample(surf=surf))
         # Try setting the new resolution from arrays:
         compare_objects(vc_low_res, vc_low_res.resample(phi=surf.quadpoints_phi, theta=surf.quadpoints_theta))
 
         # Downsample the high res:
         vm_high_res_downsampled = vc_high_res.resample(nphi=nphi_low, ntheta=ntheta_low)
-        #vc_low_res.plot()
-        #vm_high_res_downsampled.plot()
+        # vc_low_res.plot()
+        # vm_high_res_downsampled.plot()
         compare_objects(vc_low_res, vm_high_res_downsampled, atol=0.1, rtol=0.1)
 
         # Upsample the low res:
@@ -225,20 +224,20 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
-        #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
-        vc = VirtualCasing.from_vmec(vmec, nphi=352, ntheta=45)
-        #vc = VirtualCasing.from_vmec(vmec, nphi=464, ntheta=60)
+        #vc = VirtualCasing.from_vmec(vmec, nphi=116, ntheta=30)
+        vc = VirtualCasing.from_vmec(vmec, nphi=176, ntheta=45)
+        #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=60)
         np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.04)
         np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.04)
 
-    def test_nfp(self):
+    def test_stellsym(self):
         """
-        B_external_normal should obey nfp symmetry and stellarator symmetry.
+        B_external_normal should obey stellarator symmetry.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
         nfp = vmec.wout.nfp
-        #vc = VirtualCasing.from_vmec(vmec, nphi=232, ntheta=30)
+        #vc = VirtualCasing.from_vmec(vmec, nphi=116, ntheta=30)
         vc = VirtualCasing.from_vmec(vmec, nphi=112, ntheta=15)
         Bn_flipped = -np.rot90(np.rot90(vc.B_external_normal))
         Bn_flipped = np.roll(np.roll(Bn_flipped, 1, axis=0), 1, axis=1)
@@ -251,9 +250,6 @@ class VirtualCasingTests(unittest.TestCase):
         plt.tight_layout()
         plt.show()
         """
-        for j in range(nfp):
-            np.testing.assert_allclose(vc.B_external_normal, np.roll(vc.B_external_normal, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
-            np.testing.assert_allclose(vc.B_external_normal, np.roll(Bn_flipped, j * int(vc.nphi / nfp), axis=0), atol=1e-12)
 
     def test_resample_onto_surface(self):
         """
