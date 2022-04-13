@@ -319,7 +319,5 @@ class Testing(unittest.TestCase):
             err = err_new
 
 
-
-
 if __name__ == "__main__":
     unittest.main()
