@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from scipy.sparse import csr_matrix, lil_matrix
+import simsoptpp as sopp
 import time
 
 logger = logging.getLogger(__name__)
@@ -638,8 +639,9 @@ class PermanentMagnetOptimizer:
         start = time.time()
         m_history = []
         objective_history = []
+        R2_history = []
         while k < max_iter:
-            if verbose and k % max(int(max_iter / 10), 1) == 0:
+            if (verbose and ((k % int(max_iter / 10) == 0) or k == 0 or k == max_iter - 1)):
                 R2 = 0.5 * np.linalg.norm(
                     self.A_obj.dot(x_k) - self.b_obj, ord=2
                 ) ** 2
@@ -669,7 +671,8 @@ class PermanentMagnetOptimizer:
                     "{: d} ... {: .2e} ... {: .2e} ... {: .2e} ... "
                     " {: .2e} ... {: .2e} ... {: .2e} ... {: .2e}".format(*row)
                 )
-                objective_history.append(2 * R2)
+                objective_history.append(cost)
+                R2_history.append(R2)
                 m_history.append(x_k)
 
             if (2 * delta * np.linalg.norm(
@@ -701,24 +704,14 @@ class PermanentMagnetOptimizer:
                 break
             x_k = x_k1
         end = time.time()
-        cost = 0.5 * np.linalg.norm(
-            self.A_obj.dot(x_k) - self.b_obj, ord=2
-        ) ** 2 + 0.5 * np.linalg.norm(
-            x_k - m_proxy, ord=2
-        ) ** 2 / nu + reg_l2 * np.linalg.norm(
-            x_k, ord=2
-        ) ** 2 + reg_l2_shifted * np.linalg.norm(
-            x_k - np.ravel(np.outer(self.m_maxima, np.ones(3))), ord=2
-        ) ** 2 + reg_l1 * np.sum(
-            np.abs(x_k)) + reg_l0 * np.count_nonzero(x_k)
-        print('Error after MwPGP iterations = ', cost)
+        print('Error after MwPGP iterations = ', objective_history[-1])
         print('Total time for MwPGP = ', end - start)
-        return objective_history, m_history, cost, x_k 
+        return objective_history, R2_history, m_history, x_k 
 
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
-                  geometric_threshold=1e-50,
+                  geometric_threshold=1e-50, py_flag=False,
                   ): 
         """ 
             Perform the permanent magnet optimization problem, 
@@ -801,17 +794,26 @@ class PermanentMagnetOptimizer:
         reg_l2_shifted = reg_l2_shifted  # * self.ATA_scale
         ATA = self.ATA + 2 * (reg_l2 + reg_l2_shifted) * np.eye(self.ATA.shape[0])
 
+        # if using relax and split, add that contribution to ATA
         if reg_l0 > 0.0 or reg_l1 > 0.0: 
             ATA += np.eye(ATA.shape[0]) / nu
 
+        # Add shifted L2 contribution to ATb
         ATb = self.ATb + reg_l2_shifted * np.ravel(np.outer(self.m_maxima, np.ones(3)))
+
+        # get optimal alpha value for the MwPGP algorithm
         alpha_max = 2.0 / np.linalg.norm(ATA, ord=2)
+
+        # Truncate all terms with magnitude < geometric_threshold
         ATA = (np.abs(ATA) > geometric_threshold) * ATA
-        ATA = csr_matrix(ATA)
-        print('Total number of elements in ATA = ', len(np.ravel(ATA.toarray())))
-        print('Number of nonzero elements in ATA = ', ATA.count_nonzero())
+
+        # Optionally make ATA a sparse matrix for memory savings
+        ATA_sparse = csr_matrix(ATA)
+
+        print('Total number of elements in ATA = ', len(np.ravel(ATA_sparse.toarray())))
+        print('Number of nonzero elements in ATA = ', ATA_sparse.count_nonzero())
         print('Percent of elements in ATA that are nonzero = ', 
-              ATA.count_nonzero() / len(np.ravel(ATA.toarray()))
+              ATA_sparse.count_nonzero() / len(np.ravel(ATA_sparse.toarray()))
               )
         # Print out initial errors and the bulk optimization paramaters 
         ave_Bn = np.mean(np.abs(self.b_obj))
@@ -845,14 +847,37 @@ class PermanentMagnetOptimizer:
             m = m0
             for i in range(max_iter_RS):
                 # update m
-                MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m, 
-                                                         m_proxy=m_proxy,
-                                                         epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                                         verbose=verbose, nu=nu, relax_and_split=True,
-                                                         reg_l0=reg_l0, reg_l1=reg_l1, 
-                                                         reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                                                         )
-                err_RS.append(err)
+                if py_flag:
+                    MwPGP_hist, _, m_hist, m = self._MwPGP(
+                        ATA=ATA_sparse, ATb=ATb, m0=m, 
+                        m_proxy=m_proxy,
+                        epsilon=epsilon, max_iter=max_iter_MwPGP, 
+                        verbose=verbose, nu=nu, relax_and_split=True,
+                        reg_l0=reg_l0, reg_l1=reg_l1, 
+                        reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
+                    )
+                else:
+                    MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+                        A_obj=self.A_obj_expanded,
+                        b_obj=self.b_obj,
+                        ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
+                        ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
+                        m_proxy=m_proxy.reshape(self.ndipoles, 3),
+                        m0=m.reshape(self.ndipoles, 3),
+                        m_maxima=self.m_maxima,
+                        alpha=alpha_max,
+                        nu=nu,
+                        epsilon=epsilon,
+                        max_iter=max_iter_MwPGP,
+                        verbose=True,
+                        reg_l0=reg_l0,
+                        reg_l1=reg_l1,
+                        reg_l2=reg_l2,
+                        reg_l2_shifted=reg_l2_shifted,
+                    )
+                    m = np.ravel(m)
+
+                err_RS.append(MwPGP_hist[-1])
                 # update m_proxy
                 m_proxy = prox(m, reg_l0, nu)
                 if np.linalg.norm(m - m_proxy) < epsilon:
@@ -860,13 +885,35 @@ class PermanentMagnetOptimizer:
             # Default here is to use the sparse version of m from relax-and-split
             m = m_proxy
         else:
-            MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
-                                                     m_proxy=m0, 
-                                                     epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                                                     verbose=verbose,
-                                                     reg_l0=reg_l0, reg_l1=reg_l1, 
-                                                     reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                                                     )
+            if py_flag:
+                MwPGP_hist, _, m_hist, m = self._MwPGP(
+                    ATA=ATA, ATb=ATb, m0=m0,
+                    m_proxy=m0, 
+                    epsilon=epsilon, max_iter=max_iter_MwPGP, 
+                    verbose=verbose,
+                    reg_l0=reg_l0, reg_l1=reg_l1, 
+                    reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
+                )
+            else:
+                MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+                    A_obj=self.A_obj_expanded,
+                    b_obj=self.b_obj,
+                    ATA=self.ATA_expanded, 
+                    ATb=self.ATb_expanded, 
+                    m_proxy=m0.reshape(self.ndipoles, 3),
+                    m0=m0.reshape(self.ndipoles, 3),
+                    m_maxima=self.m_maxima,
+                    alpha=alpha_max,
+                    nu=nu,
+                    epsilon=epsilon,
+                    max_iter=max_iter_MwPGP,
+                    verbose=True,
+                    reg_l0=reg_l0,
+                    reg_l1=reg_l1,
+                    reg_l2=reg_l2,
+                    reg_l2_shifted=reg_l2_shifted,
+                )    
+                m = np.ravel(m)
             m_proxy = m
 
         # Compute metrics with permanent magnet results
@@ -877,4 +924,4 @@ class PermanentMagnetOptimizer:
         print('<B * n> with the optimized permanent magnets = {0:.4e}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.4e}'.format(ave_Bn_proxy)) 
         print('<B * n / |B| > with the permanent magnets = {0:.4e}'.format(ave_BnB)) 
-        return MwPGP_hist, m_hist, err_RS, err, m_proxy
+        return MwPGP_hist, m_hist, err_RS, m_proxy
