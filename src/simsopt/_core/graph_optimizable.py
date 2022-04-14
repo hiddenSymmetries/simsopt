@@ -519,6 +519,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
                 objects are identified automatically. Doesn't work with
                 funcs_in with a property decorator
         """
+        self.hash = None
         self._dofs = DOFs(x0,
                           names,
                           np.logical_not(fixed) if fixed is not None else None,
@@ -582,8 +583,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return self.name
 
     def __hash__(self) -> int:
-        hash_str = hashlib.sha256(self.name.encode('utf-8')).hexdigest()
-        return int(hash_str, 16) % 10**32  # 32 digit int as hash
+        if self.hash is None:
+            hash_str = hashlib.sha256(self.name.encode('utf-8')).hexdigest()
+            self.hash = int(hash_str, 16) % 10**32  # 32 digit int as hash
+        return self.hash
 
     def __eq__(self, other: Optimizable) -> bool:
         """
