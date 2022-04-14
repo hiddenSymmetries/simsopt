@@ -36,7 +36,6 @@ from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
-import simsoptpp as sopp
 import time
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
@@ -161,34 +160,19 @@ pm_opt = PermanentMagnetOptimizer(
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
 max_iter_MwPGP = 1000
+reg_l0 = 0.1
 print('Done initializing the permanent magnet object')
+# Run code in python
 t1 = time.time()
-_, m_history, _, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP)
+_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, reg_l0=reg_l0, py_flag=True)
 t2 = time.time()
 print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('Python MwPGP took {0:.2e}'.format(t2 - t1), ' s')
-alpha = 2.0 / np.linalg.norm(pm_opt.ATA, ord=2)
-m0 = pm_opt._projection_L2_balls( 
-    np.linalg.pinv(pm_opt.A_obj) @ pm_opt.b_obj, 
-    pm_opt.m_maxima
-).reshape(pm_opt.ndipoles, 3)
-print(m0.shape, pm_opt.ATA_expanded.shape, pm_opt.ATb_expanded.shape, pm_opt.m_maxima.shape)
+# Run code in c++ with openmp
 t1 = time.time()
-obj_hist_sopp, m_hist_sopp, dipoles_sopp = sopp.MwPGP_algorithm(
-    A_obj=pm_opt.A_obj_expanded,
-    b_obj=pm_opt.b_obj,
-    ATA=pm_opt.ATA_expanded, 
-    ATb=pm_opt.ATb_expanded, 
-    m_proxy=m0,
-    m0=m0,
-    m_maxima=pm_opt.m_maxima,
-    alpha=alpha,
-    max_iter=max_iter_MwPGP,
-    verbose=True,
-)
-dipoles_sopp = np.ravel(dipoles_sopp)
+_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, reg_l0=reg_l0, py_flag=False)
 t2 = time.time()
-print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles_sopp - pm_opt.b_obj, ord=2) ** 2)
+print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
 #b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 #b_dipole.set_points(s.gamma().reshape((-1, 3)))

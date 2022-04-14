@@ -165,15 +165,14 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15,
+    s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 50000
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 MwPGP_history, m_history, RS_history, err, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=0, reg_l0=0,
-    # geometric_threshold=1e-15
 )
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
@@ -212,7 +211,7 @@ if make_plots and (comm is None or comm.rank == 0):
     plt.figure()
     plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     plt.savefig('m_histogram.png')
-    # plt.show()
+    plt.show()
     print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below

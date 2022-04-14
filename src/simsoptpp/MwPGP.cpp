@@ -1,6 +1,7 @@
 #include "MwPGP.h"
 
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
+    // project a 3-vector on the unit ball
     double dist = sqrt(x1 * x1 + x2 * x2 + x3 * x3) / m_maxima; 
     double denom = std::max(1.0, dist);
     return std::make_tuple(x1 / denom, x2 / denom, x3 / denom);
@@ -12,13 +13,13 @@ std::tuple<double, double, double> phi_MwPGP(double x1, double x2, double x3, do
     // otherwise set phi to zero
     double atol = 1.0e-8;  // default tolerances from numpy isclose
     double rtol = 1.0e-5;  // default tolerances from numpy isclose
-    double dist = x1 * x1 + x2 * x2 + x3 * x3;  // - m_maxima * m_maxima);
-    // if triplet is in the active set (on the L2 unit ball)
-    // then zero out those three indices
+    double dist = x1 * x1 + x2 * x2 + x3 * x3;
     if (abs(dist - m_maxima * m_maxima) > atol + rtol * m_maxima * m_maxima) {
 	return std::make_tuple(g1, g2, g3);
     }
     else {
+        // if triplet is in the active set (on the L2 unit ball)
+        // then zero out those three indices
         return std::make_tuple(0.0, 0.0, 0.0);
     }
 }
@@ -31,7 +32,7 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
     double ng, dist, denom, normal_vec1, normal_vec2, normal_vec3;
     double atol = 1.0e-8;  // default tolerances from numpy isclose
     double rtol = 1.0e-5;  // default tolerances from numpy isclose
-    dist = x1 * x1 + x2 * x2 + x3 * x3; // - m_maxima * m_maxima);
+    dist = x1 * x1 + x2 * x2 + x3 * x3;
     if (abs(dist - m_maxima * m_maxima) < (atol + rtol * m_maxima * m_maxima)) {
         denom = sqrt(dist);
         normal_vec1 = x1 / denom;
@@ -54,11 +55,11 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
 
 std::tuple<double, double, double> g_reduced_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima) 
 {
-        // The reduced gradient of G is simply the
-        // gradient step in the L2-projected direction.
-	double proj_L2x, proj_L2y, proj_L2z; 
-	std::tie(proj_L2x, proj_L2y, proj_L2z) = projection_L2_balls(x1 - alpha * g1, x2 - alpha * g2, x3 - alpha * g3, m_maxima);
-        return std::make_tuple((x1 - proj_L2x) / alpha, (x2 - proj_L2y) / alpha, (x3 - proj_L2z) / alpha);
+    // The reduced gradient of G is simply the
+    // gradient step in the L2-projected direction.
+    double proj_L2x, proj_L2y, proj_L2z; 
+    std::tie(proj_L2x, proj_L2y, proj_L2z) = projection_L2_balls(x1 - alpha * g1, x2 - alpha * g2, x3 - alpha * g3, m_maxima);
+    return std::make_tuple((x1 - proj_L2x) / alpha, (x2 - proj_L2y) / alpha, (x3 - proj_L2z) / alpha);
 }
 
 std::tuple<double, double, double> g_reduced_projected_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima) {
@@ -94,7 +95,7 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
     return alphaf_plus;
 }
 
-std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
     // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
     int Ngrid = A_obj.shape(0);
@@ -113,6 +114,7 @@ std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Arra
     Array x_k1 = m0;
     Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
     Array objective_history = xt::zeros<double>({(int)(max_iter / 10)});
+    Array R2_history = xt::zeros<double>({(int)(max_iter / 10)});
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;
   
@@ -137,7 +139,7 @@ std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Arra
     for (int k = 0; k < max_iter; ++k) {
 	// Long block here for printing the various 
 	// loss term values every max_iter / 10 iterations
-        if (verbose && (k % (int)(max_iter / 10) == 0)) {
+        if (verbose && ((k % (int)(max_iter / 10) == 0) || k == 0 || k == max_iter - 1)) {
 	    N2 = 0.0;
 	    L2 = 0.0;
 	    L2_shift = 0.0;
@@ -173,6 +175,7 @@ std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Arra
 	    L0 = reg_l0 * L0;
             cost = R2 + N2 + L2 + L2_shift + L1 + L0;
 	    objective_history(print_iter) = cost;
+	    R2_history(print_iter) = R2;
 	    printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
 	    print_iter += 1;
 	}
@@ -275,5 +278,5 @@ std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Arra
             }
         }
     }
-    return std::make_tuple(objective_history, m_history, x_k1);
+    return std::make_tuple(objective_history, R2_history, m_history, x_k1);
 }
