@@ -45,6 +45,7 @@ void biot_savart_kernel(vector_type& pointsx, vector_type& pointsy, vector_type&
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
+#pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dSimd();
@@ -191,6 +192,7 @@ void biot_savart_kernel_A(vector_type& pointsx, vector_type& pointsy, vector_typ
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
+#pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto A_i   = Vec3dSimd();
