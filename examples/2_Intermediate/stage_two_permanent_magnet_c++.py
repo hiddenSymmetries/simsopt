@@ -160,12 +160,12 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 10000
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 t1 = time.time()
 _, m_history, _, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP)
 t2 = time.time()
-print(np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
+print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('Python MwPGP took {0:.2e}'.format(t2 - t1), ' s')
 alpha = 2.0 / np.linalg.norm(pm_opt.ATA, ord=2)
 m0 = pm_opt._projection_L2_balls( 
@@ -174,20 +174,21 @@ m0 = pm_opt._projection_L2_balls(
 ).reshape(pm_opt.ndipoles, 3)
 print(m0.shape, pm_opt.ATA_expanded.shape, pm_opt.ATb_expanded.shape, pm_opt.m_maxima.shape)
 t1 = time.time()
-dipoles_sopp = np.ravel(
-    sopp.MwPGP_algorithm(
-        ATA=pm_opt.ATA_expanded, 
-        ATb=pm_opt.ATb_expanded, 
-        m_proxy=m0,
-        m0=m0,
-        m_maxima=pm_opt.m_maxima,
-        alpha=alpha,
-        max_iter=max_iter_MwPGP,
-        delta=1e-3,  # delta = 1e100 to do projected gradient only
-    )
+obj_hist_sopp, m_hist_sopp, dipoles_sopp = sopp.MwPGP_algorithm(
+    A_obj=pm_opt.A_obj_expanded,
+    b_obj=pm_opt.b_obj,
+    ATA=pm_opt.ATA_expanded, 
+    ATb=pm_opt.ATb_expanded, 
+    m_proxy=m0,
+    m0=m0,
+    m_maxima=pm_opt.m_maxima,
+    alpha=alpha,
+    max_iter=max_iter_MwPGP,
+    verbose=True,
 )
+dipoles_sopp = np.ravel(dipoles_sopp)
 t2 = time.time()
-print(np.linalg.norm(pm_opt.A_obj @ dipoles_sopp - pm_opt.b_obj, ord=2) ** 2)
+print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles_sopp - pm_opt.b_obj, ord=2) ** 2)
 print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
 #b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 #b_dipole.set_points(s.gamma().reshape((-1, 3)))
