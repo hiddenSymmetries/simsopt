@@ -5,6 +5,7 @@ from .jit import jit
 
 from .._core.graph_optimizable import Optimizable
 from .._core.derivative import derivative_dec
+from deprecated import deprecated
 import simsoptpp as sopp
 
 
@@ -461,3 +462,6 @@ class MeanSquaredCurvature(Optimizable):
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
 
+@deprecated("`MinimumDistance` has been deprecated and will be removed. Please use `CurveCurveDistance` instead.")
+class MinimumDistance(CurveCurveDistance):
+    pass
