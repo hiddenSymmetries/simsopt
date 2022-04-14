@@ -898,13 +898,12 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj_expanded,
                     b_obj=self.b_obj,
-                    ATA=self.ATA_expanded, 
-                    ATb=self.ATb_expanded, 
+                    ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
+                    ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
                     m_proxy=m0.reshape(self.ndipoles, 3),
                     m0=m0.reshape(self.ndipoles, 3),
                     m_maxima=self.m_maxima,
                     alpha=alpha_max,
-                    nu=nu,
                     epsilon=epsilon,
                     max_iter=max_iter_MwPGP,
                     verbose=True,
@@ -924,4 +923,4 @@ class PermanentMagnetOptimizer:
         print('<B * n> with the optimized permanent magnets = {0:.4e}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.4e}'.format(ave_Bn_proxy)) 
         print('<B * n / |B| > with the permanent magnets = {0:.4e}'.format(ave_BnB)) 
-        return MwPGP_hist, m_hist, err_RS, m_proxy
+        return MwPGP_hist, err_RS, m_hist, m_proxy

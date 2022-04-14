@@ -442,6 +442,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
 
+    # Todo: add test here with multiple points and multiple dipoles
+
     def test_BifieldMultiply(self):
         scalar = 1.2345
         pointVar = 1e-1
