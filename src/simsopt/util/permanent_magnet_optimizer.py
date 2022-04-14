@@ -671,6 +671,11 @@ class PermanentMagnetOptimizer:
                 )
                 objective_history.append(2 * R2)
                 m_history.append(x_k)
+            #print(delta,  np.linalg.norm(
+            #        self._g_reduced_projected_gradient(x_k, alpha, g), 
+            #        ord=2) ** 2, np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2) 
+            # move below lines to after the if statement
+            # print(alpha_cg, alpha_f)
 
             if (2 * delta * np.linalg.norm(
                     self._g_reduced_projected_gradient(x_k, alpha, g), 
@@ -679,11 +684,13 @@ class PermanentMagnetOptimizer:
                 ATAp = ATA.dot(p)
                 alpha_cg = g.T @ p / (p.T @ ATAp)
                 alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
+                #print(alpha_cg, alpha_f)
                 if alpha_cg < alpha_f:
                     # Take a conjugate gradient step
                     x_k1 = x_k - alpha_cg * p
                     g = g - alpha_cg * ATAp
                     gamma = self._phi_MwPGP(x_k1, g).T @ ATAp / (p.T @ ATAp)
+                    #print(gamma, p.T @ ATAp)
                     p = self._phi_MwPGP(x_k1, g) - gamma * p
                 else:
                     # Take a mixed projected gradient step
@@ -861,7 +868,7 @@ class PermanentMagnetOptimizer:
             m = m_proxy
         else:
             MwPGP_hist, m_hist, err, m = self._MwPGP(ATA=ATA, ATb=ATb, m0=m0,
-                                                     m_proxy=m0, delta=1e100,
+                                                     m_proxy=m0, delta=1e-3,
                                                      epsilon=epsilon, max_iter=max_iter_MwPGP, 
                                                      verbose=verbose,
                                                      reg_l0=reg_l0, reg_l1=reg_l1, 
