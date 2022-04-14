@@ -94,19 +94,27 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
     return alphaf_plus;
 }
 
-Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shifted, int max_iter)
+std::tuple<Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
     // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
+    int Ngrid = A_obj.shape(0);
     int N = ATb.shape(0);
+    int print_iter = 0;
     Array g = xt::zeros<double>({N, 3});
     Array p = xt::zeros<double>({N, 3});
     Array ATAp = xt::zeros<double>({N, 3});
     double norm_g_alpha_p, norm_phi_temp, gamma, gp, pATAp;
     double g_alpha_p1, g_alpha_p2, g_alpha_p3, phi_temp1, phi_temp2, phi_temp3;
-    double phig1, phig2, phig3, p_temp1, p_temp2, p_temp3; 
+    double phig1, phig2, phig3, p_temp1, p_temp2, p_temp3, R2_temp; 
     double alpha_cg, alpha_f;
+    double R2, N2, L2, L2_shift, L1, L0, cost;
+    double l0_tol = 1e-20;
     vector<double> alpha_fs(N);
     Array x_k1 = m0;
+    Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
+    Array objective_history = xt::zeros<double>({(int)(max_iter / 10)});
+    // Add contribution from relax-and-split term
+    Array ATb_rs = ATb + m_proxy / nu;
   
     // Set up initial g and p Arrays 
     #pragma omp parallel for
@@ -117,16 +125,57 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
                     g(i, ii) += ATA(i, ii, j, kk) * m0(j, kk);
 	        }
 	    }
-	    g(i, ii) += - ATb(i, ii);
+	    g(i, ii) += - ATb_rs(i, ii);
 	}
 	std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(m0(i, 0), m0(i, 1), m0(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
     }
 
     // Main loop over the optimization iterations
+    if (verbose) {
+        printf("Iteration ... |Am - b|^2 ... |m-w|^2/v ...   a|m|^2 ...  b|m-1|^2 ...   c|m|_1 ...   d|m|_0 ... Total Error:\n");
+    }
     for (int k = 0; k < max_iter; ++k) {
-        //if (print_iter) { 
-	//m_history(i, k) = x_k(i);
-	//}
+	// Long block here for printing the various 
+	// loss term values every max_iter / 10 iterations
+        if (verbose && (k % (int)(max_iter / 10) == 0)) {
+	    N2 = 0.0;
+	    L2 = 0.0;
+	    L2_shift = 0.0;
+	    L1 = 0.0;
+	    L0 = 0.0;
+            #pragma omp parallel for reduction(+: N2, L2, L2_shift, L1, L0)
+	    for(int i = 0; i < N; ++i) {
+	        for(int ii = 0; ii < 3; ++ii) {
+	            m_history(i, ii, print_iter) = x_k1(i, ii);
+                    N2 += (x_k1(i, ii) - m_proxy(i, ii)) * (x_k1(i, ii) - m_proxy(i, ii));
+		    L2 += x_k1(i, ii) * x_k1(i, ii);
+		    L2_shift += (x_k1(i, ii) - m_maxima(i)) * (x_k1(i, ii) - m_maxima(i));
+		    L1 += abs(x_k1(i, ii));
+		    L0 += ((abs(x_k1(i, ii)) < l0_tol) ? 1.0 : 0.0);
+	        }
+            }
+	    R2 = 0.0;
+            #pragma omp parallel for reduction(+: R2) private(R2_temp)
+	    for(int iii = 0; iii < Ngrid; ++iii) {
+	        R2_temp = 0.0;
+	        for(int i = 0; i < N; ++i) {
+	            for(int ii = 0; ii < 3; ++ii) {
+		        R2_temp += A_obj(iii, i, ii) * x_k1(i, ii);
+                    }
+	        }
+		R2 += (R2_temp - b_obj(iii)) * (R2_temp - b_obj(iii));
+            }
+	    R2 = 0.5 * R2;
+	    N2 = 0.5 * N2 / nu;
+	    L2 = reg_l2 * L2;
+	    L2_shift = reg_l2_shift * L2_shift;
+	    L1 = reg_l1 * L1;
+	    L0 = reg_l0 * L0;
+            cost = R2 + N2 + L2 + L2_shift + L1 + L0;
+	    objective_history(print_iter) = cost;
+	    printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
+	    print_iter += 1;
+	}
 	
 	// compute L2 norm of reduced g and L2 norm of phi(x, g)
 	// as well as some dot products needed for the algorithm
@@ -135,7 +184,6 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
 	gp = 0.0;
 	pATAp = 0.0;
 	ATAp = xt::zeros<double>({N, 3});
-        // std::fill(alpha_fs.begin(), alpha_fs.end(), 0.0);     
         #pragma omp parallel for reduction(+: norm_g_alpha_p, norm_phi_temp, gp, pATAp) private(phi_temp1, phi_temp2, phi_temp3, g_alpha_p1, g_alpha_p2, g_alpha_p3)
 	for(int i = 0; i < N; ++i) {
 	    std::tie(g_alpha_p1, g_alpha_p2, g_alpha_p3) = g_reduced_projected_gradient(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), alpha, m_maxima(i));
@@ -166,6 +214,7 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
 		    	g(i, ii) += - alpha_cg * ATAp(i, ii);
 		    }
 		}
+		// compute gamma step size
 		gamma = 0.0;
                 #pragma omp parallel for reduction(+: gamma) private(phig1, phig2, phig3)
 	        for (int i = 0; i < N; ++i) {     
@@ -173,6 +222,7 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
                     gamma += (phig1 * ATAp(i, 0) + phig2 * ATAp(i, 1) + phig3 * ATAp(i, 2)); 
 		}    
 		gamma = gamma / pATAp;
+	        // update p
                 #pragma omp parallel for private(p_temp1, p_temp2, p_temp3)
 	        for (int i = 0; i < N; ++i) {     
 		    std::tie(p_temp1, p_temp2, p_temp3) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
@@ -187,6 +237,7 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
 	        for (int i = 0; i < N; ++i) {     
                     std::tie(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2)) = projection_L2_balls((x_k1(i, 0) - alpha_f * p(i, 0)) - alpha * (g(i, 0) - alpha_f * ATAp(i, 0)), (x_k1(i, 1) - alpha_f * p(i, 1)) - alpha * (g(i, 1) - alpha_f * ATAp(i, 1)), (x_k1(i, 2) - alpha_f * p(i, 2)) - alpha * (g(i, 2) - alpha_f * ATAp(i, 2)), m_maxima(i));
 		}
+		// update g and p 
 		g = xt::zeros<double>({N, 3});
                 #pragma omp parallel for
 	        for (int i = 0; i < N; ++i) {     
@@ -196,7 +247,7 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
                                 g(i, jj) += ATA(i, jj, j, kk) * x_k1(j, kk);
 	                    }
 	                }
-	                g(i, jj) += - ATb(i, jj);
+	                g(i, jj) += - ATb_rs(i, jj);
 	            }
 	            std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
                 }
@@ -208,6 +259,7 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
             for (int i = 0; i < N; ++i) {
 	        std::tie(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2)) = projection_L2_balls(x_k1(i, 0) - alpha * g(i, 0), x_k1(i, 1) - alpha * g(i, 1), x_k1(i, 2) - alpha * g(i, 2), m_maxima(i));
 	    }
+	    // update g and p
 	    g = xt::zeros<double>({N, 3});
             #pragma omp parallel for
 	    for (int i = 0; i < N; ++i) {     
@@ -217,11 +269,11 @@ Array MwPGP_algorithm(Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& 
                             g(i, jj) += ATA(i, jj, j, kk) * x_k1(j, kk);
 	                }
 	            }
-	            g(i, jj) += - ATb(i, jj);
+	            g(i, jj) += - ATb_rs(i, jj);
 	        }
 	        std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
             }
         }
     }
-    return x_k1;
+    return std::make_tuple(objective_history, m_history, x_k1);
 }
