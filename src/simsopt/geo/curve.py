@@ -662,7 +662,8 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        if np.sum((quadpoints-self.curve.quadpoints)**2) < 1e-15:
+        if len(quadpoints) == len(self.curve.quadpoints) \
+                and np.sum((quadpoints-self.curve.quadpoints)**2) < 1e-15:
             gamma[:] = self.curve.gamma() @ self.rotmat
         else:
             self.curve.gamma_impl(gamma, quadpoints)
