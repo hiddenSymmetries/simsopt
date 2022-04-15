@@ -65,7 +65,7 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 ci = True
 nfieldlines = 30 if ci else 30
 tmax_fl = 30000 if ci else 40000
-degree = 2 if ci else 4
+degree = 3 if ci else 4
 
 MAXITER = 50 if ci else 400
 
@@ -168,7 +168,7 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 3000
+max_iter_MwPGP = 100
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
@@ -233,12 +233,13 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
-        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(80000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        # phis=phis, stopping_criteria=[IterationStoppingCriterion(60000)])
     t2 = time.time()
+    # print(fieldlines_phi_hits)
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+    particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
 
 
@@ -251,14 +252,12 @@ zrange = (0, np.max(zs), n // 2)
 bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
-print(bsh.B())
 trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
 t1 = time.time()
 bsh = InterpolatedField(
     b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
 )
-print(bsh.B())
 t2 = time.time()
 trace_fieldlines(bsh, 'bsh_only_PMs')
 print('Done with Poincare plots with the permanent magnets')
