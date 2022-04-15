@@ -284,6 +284,9 @@ class BoozerSurface(Optimizable):
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
         """
+        if not self.need_to_run_code:
+            return self.res
+ 
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -322,6 +325,12 @@ class BoozerSurface(Optimizable):
             res['G'] = G
         res['s'] = s
         res['iota'] = iota
+        res['constraint_weight']=constraint_weight
+        res['type']='ls'
+        
+        self.res = res
+        self.need_to_run_code = False
+        
         return res
 
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-10, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', hessian=False):
@@ -331,6 +340,9 @@ class BoozerSurface(Optimizable):
         are the same as for :mod:`scipy.optimize.least_squares`. If ``method='manual'``, then a 
         damped Gauss-Newton method is used.
         """
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -399,6 +411,7 @@ class BoozerSurface(Optimizable):
         resdict['constraint_weight']=constraint_weight
 
         self.res = resdict
+        self.need_to_run_code=False
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
