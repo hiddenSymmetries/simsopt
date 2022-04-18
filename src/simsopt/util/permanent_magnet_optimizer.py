@@ -143,7 +143,7 @@ class PermanentMagnetOptimizer:
         Delta_z = Delta_r
         Nz = int((z_max - z_min) / Delta_z)
         self.Nz = Nz
-        phi = 2 * np.pi * self.rz_outer_surface.quadpoints_phi
+        phi = 2 * np.pi * np.copy(self.rz_outer_surface.quadpoints_phi)
         Nphi = len(phi)
         print('Largest possible dipole dimension is = {0:.2f}'.format(
             (
@@ -154,7 +154,6 @@ class PermanentMagnetOptimizer:
         print('dR = {0:.2f}'.format(Delta_r))
         print('dZ = {0:.2f}'.format(Delta_z))
         norm = self.plasma_boundary.unitnormal()
-        phi = 2 * np.pi * self.plasma_boundary.quadpoints_phi
         norms = []
         for i in range(Nphi):
             rot_matrix = [[np.cos(phi[i]), np.sin(phi[i]), 0],
@@ -180,7 +179,6 @@ class PermanentMagnetOptimizer:
         self.final_RZ_grid = self._make_final_surface()
 
         # Compute the maximum allowable magnetic moment m_max
-        phi = 2 * np.pi * self.rz_inner_surface.quadpoints_phi
         B_max = 1.4
         mu0 = 4 * np.pi * 1e-7
         dipole_grid_r = np.zeros(self.ndipoles)
@@ -196,7 +194,7 @@ class PermanentMagnetOptimizer:
             dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
-        cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0]) * 2 * np.pi
+        cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
         self.m_maxima = B_max * cell_vol / mu0
@@ -244,9 +242,6 @@ class PermanentMagnetOptimizer:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value. 
         """
-        theta = self.rz_inner_surface.quadpoints_theta
-        phi = self.rz_inner_surface.quadpoints_phi
-
         # make copy of plasma boundary
         mpol = self.rz_inner_surface.mpol
         ntor = self.rz_inner_surface.ntor
@@ -313,7 +308,7 @@ class PermanentMagnetOptimizer:
                start of the ray, conclude point is outside the outer surface. 
             8. If Step 4 was True but Step 5 was False, add the point to the final grid.
         """
-        phi_inner = 2 * np.pi * self.rz_inner_surface.quadpoints_phi
+        phi_inner = 2 * np.pi * np.copy(self.rz_inner_surface.quadpoints_phi)
         normal_inner = self.rz_inner_surface.unitnormal()
         normal_outer = self.rz_outer_surface.unitnormal()
         Nray = 2000
@@ -389,7 +384,7 @@ class PermanentMagnetOptimizer:
             The end result is that the matrix A in the ||Am - b||^2 part
             of the optimization is computed here.
         """
-        phi = 2 * np.pi * self.phi
+        phi = 2 * np.pi * np.copy(self.phi)
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym 
         if stellsym:

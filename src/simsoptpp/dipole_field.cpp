@@ -35,7 +35,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     int num_dipoles = m_points.shape(0);
     Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm, r5;
-#pragma omp parallel for
+#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm, r5)
     for (int i = 0; i < num_points; ++i) {
         x = points(i, 0);
         y = points(i, 1);

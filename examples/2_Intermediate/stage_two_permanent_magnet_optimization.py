@@ -65,7 +65,7 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 ci = True
 nfieldlines = 30 if ci else 30
 tmax_fl = 30000 if ci else 40000
-degree = 3 if ci else 4
+degree = 2 if ci else 4
 
 MAXITER = 50 if ci else 400
 
@@ -74,7 +74,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'  # _lowres
 
 # Directory for output
-OUT_DIR = "./output/"
+OUT_DIR = "./output_pm/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -168,23 +168,24 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 100
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=0, reg_l0=0,
 )
+print(np.shape(m_history))
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 print('Dipole field setup done')
 
-make_plots = False
+make_plots = True 
 if make_plots and (comm is None or comm.rank == 0):
     # Make plot of <|B * n| / |B|> as function of iteration
     mean_Bn_over_B = []
     for i in range(len(MwPGP_history)):
         abs_Bn = np.abs(MwPGP_history[i])
-        b_dipole = DipoleField(pm_opt.dipole_grid, m_history[i], pm_opt)
+        b_dipole = DipoleField(pm_opt.dipole_grid, m_history[:, :, i], pm_opt)
         b_dipole.set_points(s.gamma().reshape((-1, 3)))
         Bmag = np.linalg.norm(pm_opt.B_plasma_surface.reshape(pm_opt.nphi * pm_opt.ntheta, 3) + b_dipole.B(), axis=-1, ord=2)
         print(np.mean(abs_Bn), np.mean(Bmag))
@@ -198,6 +199,7 @@ if make_plots and (comm is None or comm.rank == 0):
     # Make plot of ATA element values
     plt.figure()
     plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
+    plt.xscale('log')
     plt.grid(True)
     plt.savefig('histogram_ATA_values.png')
 
@@ -209,7 +211,7 @@ if make_plots and (comm is None or comm.rank == 0):
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    plt.hist(abs(np.ravel(m_history[:, :, 0])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     plt.savefig('m_histogram.png')
     plt.show()
     print('Done optimizing the permanent magnets')
@@ -233,11 +235,11 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        # phis=phis, stopping_criteria=[IterationStoppingCriterion(60000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-12, comm=comm,
+        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
     t2 = time.time()
-    # print(fieldlines_phi_hits)
+    # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
@@ -254,13 +256,13 @@ bsh = InterpolatedField(
 )
 trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
-t1 = time.time()
-bsh = InterpolatedField(
-    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-)
-t2 = time.time()
-trace_fieldlines(bsh, 'bsh_only_PMs')
-print('Done with Poincare plots with the permanent magnets')
+#t1 = time.time()
+#bsh = InterpolatedField(
+#    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+#)
+#t2 = time.time()
+#trace_fieldlines(bsh, 'bsh_only_PMs')
+#print('Done with Poincare plots with the permanent magnets')
 t1 = time.time()
 bsh = InterpolatedField(
     bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
