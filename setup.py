@@ -36,6 +36,8 @@ class CMakeBuild(build_ext):
             extdir += os.path.sep
 
         cfg = "Debug" if self.debug else "Release"
+        cfg = os.getenv("CMAKE_BUILD_TYPE", cfg)
+        print(f"Choose CMAKE_BUILD_TYPE={cfg}", flush=True)
 
         # CMake lets you override the generator - we need to check this.
         # Can be set with Conda-Build, for example.
