@@ -58,7 +58,7 @@ vmec_file = TEST_DIR / filename
 # Only the phi resolution needs to be specified. The theta resolution
 # is computed automatically to minimize anisotropy of the grid.
 
-# vc = VirtualCasing.from_vmec(vmec_file,stage_two_optimization_w7x.py nphi=128)
+# vc = VirtualCasing.from_vmec(vmec_file, nphi=128)
 # vc.save(TEST_DIR / ("vcasing_" + filename))
 
 vc = VirtualCasing.load(TEST_DIR / ("vcasing_" + filename))
