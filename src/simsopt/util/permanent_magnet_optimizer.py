@@ -1,11 +1,17 @@
 import logging
 
+try:
+    from pyevtk.hl import gridToVTK
+except ImportError:
+    gridToVTK = None
+
 from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from scipy.sparse import csr_matrix, lil_matrix
 import simsoptpp as sopp
 import time
+from .dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -388,9 +394,9 @@ class PermanentMagnetOptimizer:
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym 
         if stellsym:
-             geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp * 2))
+            geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp * 2))
         else:
-             geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp))
+            geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp))
         # Loops over all the field period contributions from every quad point
         for fp in range(nfp):
             for i in range(self.nphi):
@@ -433,17 +439,17 @@ class PermanentMagnetOptimizer:
                                            normal_plasma, 1.0 / R_dist ** 3)
                             ).T
                             geo_factor[i, j, 
-                                running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
-                                ] = -geo_factor[i, j, 
-                                running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
-                                ]
+                                       running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
+                                       ] = -geo_factor[i, j, 
+                                                       running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
+                                                       ]
                             geo_factor[i, j, 
-                                running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
-                                ] = -geo_factor[i, j, 
-                                running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
-                                ]
+                                       running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
+                                       ] = -geo_factor[i, j, 
+                                                       running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
+                                                       ]
                         running_tally += len(dipole_grid_r)
-    
+
         mu_fac = 1e-7
         # Sum over the matrix contributions from each part of the torus
         geo_factor = np.sum(geo_factor, axis=-1)
@@ -460,8 +466,8 @@ class PermanentMagnetOptimizer:
             raise ValueError('Magnetic field surface data is incorrect shape.')
         Bs = self.B_plasma_surface
         # minus sign below because ||Ax - b||^2 term but original
-        # term is integral(B_P + B_C + B_M)
-        self.b_obj = -np.sum(
+        # term is integral(B_P + B_C + B_M)?
+        self.b_obj = np.sum(
             Bs * self.plasma_boundary.unitnormal(), axis=2
         ).reshape(self.nphi * self.ntheta) * np.sqrt(dphi * dtheta)
         self.ATb = (self.A_obj.transpose()).dot(self.b_obj)
@@ -490,6 +496,19 @@ class PermanentMagnetOptimizer:
         axial_term = boundary_vec[:, :, 2] ** 2
         return np.sqrt(radial_term + axial_term)
 
+    @SimsoptRequires(gridToVTK is not None,
+                     "to_vtk method requires pyevtk module")
+    def to_vtk(self, filename):
+        print('dipole grid shape = ', self.dipole_grid.shape)
+        R, Phi, Z = (self.dipole_grid[:, 0],
+                     self.dipole_grid[:, 1],
+                     self.dipole_grid[:, 2],
+                     )
+        X = R * np.cos(Phi)
+        Y = R * np.sin(Phi)
+        Z = Z
+        gridToVTK(filename, X, Y, Z, fieldData={"dipole_moments": self.m})
+
     def _prox_l0(self, m, reg_l0, nu):
         """Proximal operator for L0 regularization."""
         return m * (np.abs(m) > np.sqrt(2 * reg_l0 * nu))
@@ -510,240 +529,10 @@ class PermanentMagnetOptimizer:
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
-    def _phi_MwPGP(self, x, g):
-        """
-        phi(x_i, g_i) = g_i(x_i) is not on the L2 ball,
-        otherwise set it to zero
-        """
-        N = len(x) // 3
-        x_shaped = x.reshape(N, 3)
-        check_active = np.isclose(
-            x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
-            self.m_maxima ** 2
-        )
-        # if triplet is in the active set (on the L2 unit ball)
-        # then zero out those three indices
-        g_shaped = np.copy(g).reshape((N, 3))
-        if np.any(check_active):
-            g_shaped[check_active, :] = 0.0
-        return g_shaped.reshape(3 * N)
-
-    def _beta_tilde(self, x, g, alpha):
-        """
-        beta_tilde(x_i, g_i, alpha) = 0_i if the ith triplet
-        is not on the L2 ball, otherwise is equal to different
-        values depending on the orientation of g.
-        """
-        N = len(x) // 3
-        x_shaped = x.reshape((N, 3))
-        check_active = np.isclose(
-            x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
-            self.m_maxima ** 2
-        )
-        # if triplet is NOT in the active set (on the L2 unit ball)
-        # then zero out those three indices
-        beta = np.zeros((N, 3))
-        if np.any(~check_active):
-            gradient_sphere = 2 * x_shaped
-            denom_n = np.linalg.norm(gradient_sphere, axis=1, ord=2)
-            n = np.divide(
-                gradient_sphere,
-                np.array([denom_n, denom_n, denom_n]).T
-            )
-            g_inds = np.ravel(np.where(~check_active))
-            g_shaped = np.copy(g).reshape(N, 3)
-            nTg = np.diag(n @ g_shaped.T)
-            check_nTg_positive = (nTg > 0)
-            beta_inds = np.logical_and(check_active, check_nTg_positive)
-            beta_not_inds = np.logical_and(check_active, ~check_nTg_positive)
-            N_not_inds = np.sum(np.array(beta_not_inds, dtype=int))
-            if np.any(beta_inds):
-                beta[beta_inds, :] = g_shaped[beta_inds, :]
-            if np.any(beta_not_inds):
-                beta[beta_not_inds, :] = self._g_reduced_gradient(
-                    x_shaped[beta_not_inds, :].reshape(3 * N_not_inds),
-                    alpha,
-                    g_shaped[beta_not_inds, :].reshape(3 * N_not_inds),
-                    self.m_maxima[beta_not_inds]
-                ).reshape(N_not_inds, 3)
-        return beta.reshape(3 * N)
-
-    def _g_reduced_gradient(self, x, alpha, g, m_maxima):
-        """
-        The reduced gradient of G is simply the
-        gradient step in the L2-projected direction.
-        """
-        return (x - self._projection_L2_balls(x - alpha * g, m_maxima)) / alpha
-
-    def _g_reduced_projected_gradient(self, x, alpha, g):
-        """
-        The reduced projected gradient of G is the
-        gradient step in the L2-projected direction,
-        subject to some modifications.
-    """
-        return self._phi_MwPGP(x, g) + self._beta_tilde(x, g, alpha)
-
-    def _find_max_alphaf(self, x, p):
-        """
-        Solve a quadratic equation to determine the largest
-        step size alphaf such that the entirety of x - alpha * p
-        lives in the convex space defined by the intersection
-        of the N L2 balls defined in R3, so that
-        (x[0] - alpha * p[0]) ** 2 + (x[1] - alpha * p[1]) ** 2
-        + (x[2] - alpha * p[2]) ** 2 <= 1.
-        """
-        N = len(x) // 3
-        x_shaped = x.reshape((N, 3))
-        p_shaped = p.reshape((N, 3))
-        a = p_shaped[:, 0] ** 2 + p_shaped[:, 1] ** 2 + p_shaped[:, 2] ** 2
-        b = - 2 * (
-            x_shaped[:, 0] * p_shaped[:, 0] + x_shaped[:, 1] * p_shaped[:, 1] + x_shaped[:, 2] * p_shaped[:, 2]
-        )
-        c = (x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) - self.m_maxima ** 2
-
-        # Need to think harder about the line below
-        p_nonzero_inds = np.ravel(np.where(a > 0))
-        if len(p_nonzero_inds) != 0:
-            a = a[p_nonzero_inds]
-            b = b[p_nonzero_inds]
-            c = c[p_nonzero_inds]
-            if np.all((b ** 2 - 4 * a * c) >= 0.0):
-                alphaf_plus = np.min((-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a))
-            else:
-                alphaf_plus = 1e100
-            # alphaf_minus = np.min((-b - np.sqrt(b ** 2 - 4 * a * c)) / (2 * a))
-        else:
-            alphaf_plus = 0.0
-        return alphaf_plus
-
-    def _MwPGP(self, ATA, ATb, m_proxy, m0, nu=1e100, 
-               delta=0.5, epsilon=1e-4,
-               reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0,
-               relax_and_split=False, max_iter=500,
-               verbose=True):
-        """
-        Run the MwPGP algorithm defined in: Bouchala, Jiří, et al.
-        On the solution of convex QPQC problems with elliptic and
-        other separable constraints with strong curvature.
-        Applied Mathematics and Computation 247 (2014): 848-864.
-
-        Here we solve the more specific optimization problem,
-        min_x ||Ax - b||^2 + R(x)
-        with a convex regularizer R(x) and subject
-        to many spherical constraints.
-
-        Note there is a typo in one of their definitions of
-        alpha_cg, it should be alpha_cg = (A.T @ b.T) @ p / (p.T @ (A.T @ A) @ p)
-        I think.
-        Also, everywhere we need to replace A -> A.T @ A because they solve
-        the optimization problem with x^T @ A @ x + ...
-        """
-        # Need to put ATA everywhere since original MwPGP algorithm 
-        # assumes that the problem looks like x^T A x
-        # ATb = A.T @ b
-        alpha = 2.0 / np.linalg.norm(ATA.toarray(), ord=2)
-        print('alpha_MwPGP = ', alpha)
-        g = ATA.dot(m0) - ATb
-        p = self._phi_MwPGP(m0, g)
-        g_alpha_P = self._g_reduced_projected_gradient(m0, alpha, g)
-        norm_g_alpha_P = np.linalg.norm(g_alpha_P, ord=2)
-        # Add contribution from relax-and-split term
-        ATb = ATb + m_proxy / nu
-
-        # Print initial values for each term in the optimization
-        if verbose:
-            row = [
-                "Iteration",
-                "|Am - b|^2",
-                "|m-w|^2/v",
-                "a|m|^2",
-                "b|m-1|^2",
-                "c|m|_1",
-                "d|m|_0",
-                "Total Error:",
-            ]
-            print(
-                "{: >8} ... {: >8} ... {: >8} ... {: >8} ... "
-                " {: >8} ... {: >8} ... {: >8} ... {: >8}".format(*row)
-            ) 
-        k = 0
-        x_k = m0 
-        start = time.time()
-        m_history = []
-        objective_history = []
-        R2_history = []
-        while k < max_iter:
-            if (verbose and ((k % int(max_iter / 10) == 0) or k == 0 or k == max_iter - 1)):
-                R2 = 0.5 * np.linalg.norm(
-                    self.A_obj.dot(x_k) - self.b_obj, ord=2
-                ) ** 2
-                N2 = 0.5 * np.linalg.norm(
-                    x_k - m_proxy, ord=2
-                ) ** 2 / nu
-                L2 = reg_l2 * np.linalg.norm(
-                    x_k, ord=2
-                ) ** 2
-                L2_shift = reg_l2_shifted * np.linalg.norm(
-                    x_k - np.ravel(np.outer(self.m_maxima, np.ones(3))), ord=2
-                ) ** 2
-                L1 = reg_l1 * np.sum(np.abs(x_k)) 
-                L0 = reg_l0 * np.count_nonzero(m_proxy)
-                cost = R2 + N2 + L2 + L2_shift + L1 + L0 
-                row = [
-                    k,
-                    R2,  
-                    N2,  
-                    L2,  
-                    L2_shift,
-                    L1, 
-                    L0, 
-                    cost 
-                ]
-                print(
-                    "{: d} ... {: .2e} ... {: .2e} ... {: .2e} ... "
-                    " {: .2e} ... {: .2e} ... {: .2e} ... {: .2e}".format(*row)
-                )
-                objective_history.append(cost)
-                R2_history.append(R2)
-                m_history.append(x_k)
-
-            if (2 * delta * np.linalg.norm(
-                    self._g_reduced_projected_gradient(x_k, alpha, g), 
-                    ord=2
-            ) ** 2 <= np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2):
-                ATAp = ATA.dot(p)
-                alpha_cg = g.T @ p / (p.T @ ATAp)
-                alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
-                if alpha_cg < alpha_f:
-                    # Take a conjugate gradient step
-                    x_k1 = x_k - alpha_cg * p
-                    g = g - alpha_cg * ATAp
-                    gamma = self._phi_MwPGP(x_k1, g).T @ ATAp / (p.T @ ATAp)
-                    p = self._phi_MwPGP(x_k1, g) - gamma * p
-                else:
-                    # Take a mixed projected gradient step
-                    x_k1 = self._projection_L2_balls((x_k - alpha_f * p) - alpha * (g - alpha_f * ATAp), self.m_maxima)
-                    g = ATA.dot(x_k1) - ATb
-                    p = self._phi_MwPGP(x_k1, g)
-            else:
-                # Take a projected gradient step
-                x_k1 = self._projection_L2_balls(x_k - alpha * g, self.m_maxima)
-                g = ATA.dot(x_k1) - ATb
-                p = self._phi_MwPGP(x_k1, g)
-            k = k + 1
-            if np.max(abs(x_k - x_k1)) < epsilon:
-                print('MwPGP finished early, at iteration ', k)
-                break
-            x_k = x_k1
-        end = time.time()
-        print('Error after MwPGP iterations = ', objective_history[-1])
-        print('Total time for MwPGP = ', end - start)
-        return objective_history, R2_history, m_history, x_k 
-
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
-                  geometric_threshold=1e-50, py_flag=False,
+                  geometric_threshold=1e-50, 
                   ): 
         """ 
             Perform the permanent magnet optimization problem, 
@@ -879,36 +668,25 @@ class PermanentMagnetOptimizer:
             m = m0
             for i in range(max_iter_RS):
                 # update m
-                if py_flag:
-                    MwPGP_hist, _, m_hist, m = self._MwPGP(
-                        ATA=ATA_sparse, ATb=ATb, m0=m, 
-                        m_proxy=m_proxy,
-                        epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                        verbose=verbose, nu=nu, relax_and_split=True,
-                        reg_l0=reg_l0, reg_l1=reg_l1, 
-                        reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                    )
-                else:
-                    MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
-                        A_obj=self.A_obj_expanded,
-                        b_obj=self.b_obj,
-                        ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
-                        ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
-                        m_proxy=m_proxy.reshape(self.ndipoles, 3),
-                        m0=m.reshape(self.ndipoles, 3),
-                        m_maxima=self.m_maxima,
-                        alpha=alpha_max,
-                        nu=nu,
-                        epsilon=epsilon,
-                        max_iter=max_iter_MwPGP,
-                        verbose=True,
-                        reg_l0=reg_l0,
-                        reg_l1=reg_l1,
-                        reg_l2=reg_l2,
-                        reg_l2_shifted=reg_l2_shifted,
-                    )
-                    m = np.ravel(m)
-
+                MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+                    A_obj=self.A_obj_expanded,
+                    b_obj=self.b_obj,
+                    ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
+                    ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
+                    m_proxy=m_proxy.reshape(self.ndipoles, 3),
+                    m0=m.reshape(self.ndipoles, 3),
+                    m_maxima=self.m_maxima,
+                    alpha=alpha_max,
+                    nu=nu,
+                    epsilon=epsilon,
+                    max_iter=max_iter_MwPGP,
+                    verbose=True,
+                    reg_l0=reg_l0,
+                    reg_l1=reg_l1,
+                    reg_l2=reg_l2,
+                    reg_l2_shifted=reg_l2_shifted,
+                )
+                m = np.ravel(m)
                 err_RS.append(MwPGP_hist[-1])
                 # update m_proxy
                 m_proxy = prox(m, reg_l0, nu)
@@ -917,34 +695,24 @@ class PermanentMagnetOptimizer:
             # Default here is to use the sparse version of m from relax-and-split
             m = m_proxy
         else:
-            if py_flag:
-                MwPGP_hist, _, m_hist, m = self._MwPGP(
-                    ATA=ATA, ATb=ATb, m0=m0,
-                    m_proxy=m0, 
-                    epsilon=epsilon, max_iter=max_iter_MwPGP, 
-                    verbose=verbose,
-                    reg_l0=reg_l0, reg_l1=reg_l1, 
-                    reg_l2=reg_l2, reg_l2_shifted=reg_l2_shifted
-                )
-            else:
-                MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
-                    A_obj=self.A_obj_expanded,
-                    b_obj=self.b_obj,
-                    ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
-                    ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
-                    m_proxy=m0.reshape(self.ndipoles, 3),
-                    m0=m0.reshape(self.ndipoles, 3),
-                    m_maxima=self.m_maxima,
-                    alpha=alpha_max,
-                    epsilon=epsilon,
-                    max_iter=max_iter_MwPGP,
-                    verbose=True,
-                    reg_l0=reg_l0,
-                    reg_l1=reg_l1,
-                    reg_l2=reg_l2,
-                    reg_l2_shifted=reg_l2_shifted,
-                )    
-                m = np.ravel(m)
+            MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+                A_obj=self.A_obj_expanded,
+                b_obj=self.b_obj,
+                ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
+                ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
+                m_proxy=m0.reshape(self.ndipoles, 3),
+                m0=m0.reshape(self.ndipoles, 3),
+                m_maxima=self.m_maxima,
+                alpha=alpha_max,
+                epsilon=epsilon,
+                max_iter=max_iter_MwPGP,
+                verbose=True,
+                reg_l0=reg_l0,
+                reg_l1=reg_l1,
+                reg_l2=reg_l2,
+                reg_l2_shifted=reg_l2_shifted,
+            )    
+            m = np.ravel(m)
             m_proxy = m
 
         # Compute metrics with permanent magnet results
@@ -955,4 +723,6 @@ class PermanentMagnetOptimizer:
         print('<B * n> with the optimized permanent magnets = {0:.4e}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.4e}'.format(ave_Bn_proxy)) 
         print('<B * n / |B| > with the permanent magnets = {0:.4e}'.format(ave_BnB)) 
+        self.m = m
+        self.m_proxy = m_proxy
         return MwPGP_hist, err_RS, m_hist, m_proxy

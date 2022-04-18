@@ -165,19 +165,37 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05,
+    s, coil_offset=0.1, dr=0.05, plasma_offset=0.2,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 1000
+max_iter_MwPGP = 10
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=0, reg_l0=0,
 )
+#pm_opt.to_vtk(OUT_DIR + "pm_opt")
+dipole_grid = pm_opt.dipole_grid
+plt.figure()
+ax = plt.axes(projection="3d")
+colors = []
+dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
+for i in range(pm_opt.ndipoles):
+    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
+sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
+plt.colorbar(sax)
+plt.axis('off')
+plt.grid(None)
+plt.savefig('PMs_optimized.png')
+plt.show()
+
+dipoles = np.ravel(dipoles)
 print(np.shape(m_history))
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 print('Dipole field setup done')
+print(m_history[:, :, 0])
+print(pm_opt.m_maxima)
 
 make_plots = True 
 if make_plots and (comm is None or comm.rank == 0):
