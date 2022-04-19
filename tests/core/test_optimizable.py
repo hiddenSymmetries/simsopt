@@ -1,10 +1,14 @@
 import unittest
 import re
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
+from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject2
+from simsopt.objectives.functions import Adder as FAdder
 
 
 class Adder(Optimizable):
@@ -23,6 +27,21 @@ class Adder(Optimizable):
 
     return_fn_map = {'sum': sum}
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["dof_names"] = d["names"]
+        d["dof_fixed"] = d["fixed"]
+        del d["names"]
+        del d["fixed"]
+        d["n"] = self.n
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["n"],
+                   d.get("x0", None),
+                   d.get("dof_names", None),
+                   d.get("dof_fixed", None))
 
 class OptClassWithParents(Optimizable):
     def __init__(self, val, depends_on=None):
@@ -35,6 +54,17 @@ class OptClassWithParents(Optimizable):
             / (10.0 + self.parents[1](child=self))
 
     return_fn_map = {'f': f}
+
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        del d["x0"]
+        del d["names"]
+        d['val'] = self.local_full_x[0]
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(d["val"], d["depends_on"])
 
 
 class N_No(Optimizable):
@@ -1068,6 +1098,30 @@ class TestMakeOptimizable(unittest.TestCase):
         self.assertEqual(len(x), 4)
         opt.x = x / 2.0
         self.assertAlmostEqual(opt.J(), 9.0)
+
+
+class TestOptimizableSerialize(unittest.TestCase):
+    """
+    Test the serialization of the Optimizable class based on as_dict and
+    from_dict methods using various sub-classes
+    """
+    def test_serialize(self):
+        adder = FAdder(n=3, x0=[1,2,3], names=["x", "y", "z"],
+                      fixed=[True, False, True])
+        s = json.dumps(adder, cls=MontyEncoder)
+        print(s)
+
+    def test_deserialize(self):
+        adder_orig = FAdder(n=3, x0=[1,2,3], names=["x", "y", "z"],
+                            fixed=[True, False, True])
+        s = json.dumps(adder_orig, cls=MontyEncoder)
+        adder = json.loads(s, cls=MontyDecoder)
+        print(adder.name)
+        print(adder.n)
+        print(adder.full_x)
+        print(adder.dofs_free_status)
+        print(adder.local_full_dof_names)
+
 
 
 if __name__ == "__main__":
