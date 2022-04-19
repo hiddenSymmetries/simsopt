@@ -72,6 +72,29 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
         return ScaledCurrent(self, -1.)
 
 
+def apply_symmetries_to_curves(base_curves, nfp, stellsym):
+    flip_list = [False, True] if stellsym else [False]
+    curves = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(base_curves)):
+                if k == 0 and not flip:
+                    curves.append(base_curves[i])
+                else:
+                    rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
+                    curves.append(rotcurve)
+    return curves
+
+def apply_symmetries_to_currents(base_currents, nfp, stellsym):
+    flip_list = [False, True] if stellsym else [False]
+    currents = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(base_currents)):
+                current = ScaledCurrent(base_currents[i], -1.) if flip else base_currents[i]
+                currents.append(current)
+    return currents
+
 def coils_via_symmetries(curves, currents, nfp, stellsym):
     """
     Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
@@ -80,15 +103,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     """
 
     assert len(curves) == len(currents)
-    flip_list = [False, True] if stellsym else [False]
-    coils = []
-    for k in range(0, nfp):
-        for flip in flip_list:
-            for i in range(len(curves)):
-                if k == 0 and not flip:
-                    coils.append(Coil(curves[i], currents[i]))
-                else:
-                    rotcurve = RotatedCurve(curves[i], 2*pi*k/nfp, flip)
-                    current = ScaledCurrent(currents[i], -1.) if flip else currents[i]
-                    coils.append(Coil(rotcurve, current))
+    curves = apply_symmetries_to_curves(curves, nfp, stellsym)
+    currents = apply_symmetries_to_currents(currents, nfp, stellsym)
+    coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
