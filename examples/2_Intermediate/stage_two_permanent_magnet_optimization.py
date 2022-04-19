@@ -49,7 +49,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 1
+ncoils = 2
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -165,10 +165,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15, plasma_offset=0.1,
+    s, coil_offset=0.1, dr=0.05, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 100
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 

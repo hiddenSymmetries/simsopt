@@ -74,7 +74,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 32
-ntheta = 32
+ntheta = 64
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 print(s.rc.shape, s.zs.shape, s.quadpoints_phi, s.quadpoints_theta)
 print(s.quadpoints_phi.shape, s.quadpoints_theta.shape)
@@ -159,7 +159,7 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 100
+max_iter_MwPGP = 10000
 reg_l0 = 0.0  # 0.1
 print('Done initializing the permanent magnet object')
 # Run code in c++ with openmp
@@ -168,6 +168,8 @@ _, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP)  # , 
 t2 = time.time()
 print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
+dipole_grid = pm_opt.dipole_grid
+
 #b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
 #b_dipole.set_points(s.gamma().reshape((-1, 3)))
 
@@ -196,4 +198,49 @@ sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colo
 plt.colorbar(sax)
 plt.axis('off')
 plt.grid(None)
+
+plt.figure(figsize=(14, 14))
+for i, ind in enumerate([0, 5, 20, 31]):
+    plt.subplot(2, 2, i + 1)
+    plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * pm_opt.phi[ind]))
+    r_plasma = np.vstack((pm_opt.r_plasma[ind, :], pm_opt.r_plasma[ind, 0]))
+    z_plasma = np.vstack((pm_opt.z_plasma[ind, :], pm_opt.z_plasma[ind, 0]))
+    r_inner = np.vstack((pm_opt.r_inner[ind, :], pm_opt.r_inner[ind, 0]))
+    z_inner = np.vstack((pm_opt.z_inner[ind, :], pm_opt.z_inner[ind, 0]))
+    r_outer = np.vstack((pm_opt.r_outer[ind, :], pm_opt.r_outer[ind, 0]))
+    z_outer = np.vstack((pm_opt.z_outer[ind, :], pm_opt.z_outer[ind, 0]))
+    
+    plt.plot(r_plasma[ind, :], z_plasma[ind, :], label='Plasma surface', linewidth=3)
+    plt.plot(r_inner[ind, :], z_inner[ind, :], label='Inner surface', linewidth=3)
+    plt.plot(r_outer[ind, :], z_outer[ind, :], label='Outer surface', linewidth=3)
+
+    running_tally = 0
+    for k in range(ind):
+        running_tally += len(np.array(pm_opt.final_RZ_grid[k])[:, 0])
+    colors = []
+    dipoles_i = dipoles[running_tally:running_tally + len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), :]
+    for j in range(len(dipoles_i)):
+        colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
+    
+    sax = plt.scatter(
+        np.array(pm_opt.final_RZ_grid[ind])[:, 0],
+        np.array(pm_opt.final_RZ_grid[ind])[:, 1],
+        c=colors,
+        label='PMs'
+    )
+    plt.colorbar(sax)
+    print(i, ind, len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), dipoles_i.shape)
+    plt.quiver(
+        np.array(pm_opt.final_RZ_grid[ind])[:, 0],
+        np.array(pm_opt.final_RZ_grid[ind])[:, 1],
+        dipoles_i[:, 0],
+        dipoles_i[:, 2],
+    )
+    #
+    plt.xlabel('R (m)')
+    plt.ylabel('Z (m)')
+    if i == 0:
+        plt.legend()
+    plt.grid(True)
+plt.savefig('grids_permanent_magnets.png')
 plt.show()
