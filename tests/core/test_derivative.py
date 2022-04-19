@@ -287,7 +287,6 @@ class DerivativeTests(unittest.TestCase):
         assert np.allclose(dj1(opt1), 2*dj1_(opt1))
         assert np.allclose(dj1(opt2), dj2_(opt2))
 
-
     def test_isub(self):
         opt1 = Opt(n=3)
         opt2 = Opt(n=2)
