@@ -57,6 +57,20 @@ class Identity(Optimizable):
 
     return_fn_map = {'f': f}
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        del d["x0"]
+        del d["names"]
+        del d["fixed"]
+        d["x"] = self.local_full_x[0]
+        d["dof_name"] = self.local_full_dof_names[0]
+        d["dof_fixed"] = np.logical_not(self.local_dofs_free_status)[0]
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["x"], d["dof_name"], d["dof_fixed"])
+
 
 class Adder(Optimizable):
     """
@@ -72,10 +86,9 @@ class Adder(Optimizable):
         dof_names: Identifiers for the DOFs
     """
 
-    def __init__(self, n=3, x0=None, dof_names=None):
+    def __init__(self, n=3, **kwargs):
         self.n = n
-        x = x0 if x0 is not None else np.zeros(n)
-        super().__init__(x, names=dof_names)
+        super().__init__(**kwargs)
 
     def sum(self):
         """
@@ -92,6 +105,17 @@ class Adder(Optimizable):
         Same as the function dJ(), but a property instead of a function.
         """
         return self.dJ()
+
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        print('dict is ', d)
+        d["n"] = self.n
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        n = d.pop("n")
+        return cls(n=n, **d)
 
     return_fn_map = {'sum': sum}
 
@@ -173,6 +197,18 @@ class Rosenbrock(Optimizable):
         """
         return np.array([[1.0, 0.0],
                          [2 * self.local_full_x['x'] / self._sqrtb, -1.0 / self._sqrtb]])
+    
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["b"] = self._sqrtb * self._sqrtb
+        d["x"] = self.get("x")
+        d["y"] = self.get("y")
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["b"], d["x"], d["y"])
 
 
 class TestObject1(Optimizable):
