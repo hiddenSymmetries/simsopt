@@ -10,7 +10,7 @@ class DOFsTests(unittest.TestCase):
 
     def setUp(self):
         self.identity_dofs = Identity(x=1, dof_name='x')._dofs
-        self.adder_dofs = Adder(3, x0=[2, 3, 4], dof_names=["x", "y", "z"])._dofs
+        self.adder_dofs = Adder(3, x0=[2, 3, 4], names=["x", "y", "z"])._dofs
         self.rosenbrock_dofs = Rosenbrock()._dofs
 
     def tearDown(self) -> None:
