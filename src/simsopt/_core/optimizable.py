@@ -19,8 +19,10 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
     MutableSequence as MutSeq, List
 from functools import lru_cache
 import logging
+import json
 
 import numpy as np
+from monty.json import MSONable, MontyEncoder, MontyDecoder
 
 from ..util.dev import SimsoptRequires
 from ..util.types import RealArray, StrArray, BoolArray, Key
@@ -109,8 +111,8 @@ class DOFs:
                == len(names))
         self._x = x
         self._free = free
-        self._lb = lower_bounds
-        self._ub = upper_bounds
+        self._lower_bounds = lower_bounds
+        self._upper_bounds = upper_bounds
         self._names = list(names)
 
     def __len__(self):
@@ -301,7 +303,11 @@ class DOFs:
         Returns:
             Lower bounds of the DOFs
         """
-        return self._lb[self._free]
+        return self._lower_bounds[self._free]
+
+    @property
+    def full_lower_bounds(self) -> RealArray:
+        return self._lower_bounds
 
     @lower_bounds.setter
     def lower_bounds(self, lower_bounds: RealArray) -> None:
@@ -314,7 +320,7 @@ class DOFs:
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(lower_bounds):
             raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
-        self._lb[self._free] = np.asarray(lower_bounds, dtype=np.double)
+        self._lower_bounds[self._free] = np.asarray(lower_bounds, dtype=np.double)
 
     @property
     def upper_bounds(self) -> RealArray:
@@ -323,7 +329,11 @@ class DOFs:
         Returns:
             Upper bounds of the DOFs
         """
-        return self._ub[self._free]
+        return self._upper_bounds[self._free]
+
+    @property
+    def full_upper_bounds(self) -> RealArray:
+        return self._upper_bounds
 
     @upper_bounds.setter
     def upper_bounds(self, upper_bounds: RealArray) -> None:
@@ -336,7 +346,7 @@ class DOFs:
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
             raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
-        self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
+        self._upper_bounds[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -346,6 +356,10 @@ class DOFs:
             (Lower bounds list, Upper bounds list)
         """
         return (self.lower_bounds, self.upper_bounds)
+
+    @property
+    def full_bounds(self) -> Tuple[RealArray, RealArray]:
+        return (self.full_lower_bounds, self.full_upper_bounds)
 
     def update_lower_bound(self, key: Key, val: Real) -> None:
         """
@@ -357,7 +371,7 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._lb[key] = val
+        self._lower_bounds[key] = val
 
     def update_upper_bound(self, key: Key, val: Real) -> None:
         """
@@ -369,7 +383,7 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._ub[key] = val
+        self._upper_bounds[key] = val
 
     def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
         """
@@ -381,8 +395,8 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._lb[key] = val[0]
-        self._ub[key] = val[1]
+        self._lower_bounds[key] = val[0]
+        self._upper_bounds[key] = val[1]
 
     @property
     def names(self):
@@ -405,7 +419,7 @@ class DOFs:
         return self._names
 
 
-class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
+class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
     """
     Experimental callable ABC that provides lego-like optimizable objects
     that can be used to partition the optimization problem into a graph.
@@ -1048,6 +1062,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return self._dofs.lower_bounds
 
     @property
+    def local_full_lower_bounds(self) -> RealArray:
+        return self._dofs.full_lower_bounds
+
+    @property
     def upper_bounds(self) -> RealArray:
         """
         Upper bounds of the free DOFs associated with the current
@@ -1063,6 +1081,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         object
         """
         return self._dofs.upper_bounds
+
+    @property
+    def local_full_upper_bounds(self) -> RealArray:
+        return self._dofs.full_upper_bounds
 
     @local_upper_bounds.setter
     def local_upper_bounds(self, lub: RealArray) -> None:
@@ -1228,6 +1250,33 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         nx.draw_networkx(G, pos=pos, arrows=True, **options)
         plt.show()
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        if len(self.local_full_x):
+            d["x0"] = list(self.local_full_x)
+            d["names"] = self.local_full_dof_names
+            d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
+            d["lower_bounds"] = list(self.local_full_lower_bounds)
+            d["upper_bounds"] = list(self.local_full_upper_bounds)
+        d["external_dof_setter"] = self.local_dof_setter
+        if self.parents:
+            d["depends_on"] = []
+            for parent in self.parents:
+                d["depends_on"].append(parent.as_dict())
+
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        parents_dict = d.pop("depends_on") if "depends_on" in d else None
+        if parents_dict:
+            parents = []
+            for pdict in parents_dict:
+                parents.append(json.load(pdict, cls=MontyDecoder))
+        return cls(depends_on=parents, **d)
+
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
@@ -1384,6 +1433,18 @@ class ScaledOptimizable(Optimizable):
         # Next line uses __rmul__ function for the Derivative class
         return self.factor * self.opt.dJ(partials=True)
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["factor"] = self.factor
+        d["opt"] = self.opt
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["factor"], d["opt"])
+
 
 class OptimizableSum(Optimizable):
     """
@@ -1409,3 +1470,15 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["opts"] = self.opts
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["opts"])
+
