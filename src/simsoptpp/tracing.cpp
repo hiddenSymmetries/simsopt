@@ -111,8 +111,6 @@ class GuidingCenterVacuumBoozerRHS {
             stz(0, 1) = ys[1];
             stz(0, 2) = ys[2];
 
-            assert(ys[0]>0);
-
             field->set_points(stz);
             auto psi0 = field->psi0;
             double modB = field->modB_ref()(0);
