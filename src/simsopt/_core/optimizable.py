@@ -20,6 +20,7 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
 from functools import lru_cache
 import logging
 import json
+from warnings import warn
 
 import numpy as np
 from monty.json import MSONable, MontyEncoder, MontyDecoder
@@ -1196,16 +1197,54 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         Set the 'fixed' attribute for all degrees of freedom associated with
         the current Optimizable object.
         """
+        warn("fix_all method is deprecated in favor of fix_local",
+             DeprecationWarning, stacklevel=2)
         self._dofs.fix_all()
         self._update_free_dof_size_indices()
+
+    def fix_local(self) -> None:
+        """
+        Set the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object.
+        """
+        self._dofs.fix_all()
+        self._update_free_dof_size_indices()
+
+    def fix_full(self) -> None:
+        """
+        Set the 'fixed' attribute for all degrees of freedom associated with
+        the current Optimizable object including those of the ancestors.
+        """
+        opts = self.ancestors + [self]
+        for opt in opts:
+            opts.fix_local()
 
     def unfix_all(self) -> None:
         """
         Unset the 'fixed' attribute for all degrees of freedom associated
         with the current Optimizable object.
         """
+        warn("unfix_all method is deprecated in favor of unfix_local",
+             DeprecationWarning, stacklevel=2)
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
+
+    def unfix_local(self) -> None:
+        """
+        Unset the 'fixed' attribute for all degrees of freedom associated
+        with the current Optimizable object.
+        """
+        self._dofs.unfix_all()
+        self._update_free_dof_size_indices()
+
+    def unfix_full(self):
+        """
+        Unset the 'fixed' attribute for all degrees of freedom associated
+        with the current Optimizable object including those of ancestors.
+        """
+        opts = self.ancestors + [self]
+        for opt in opts:
+            opts.unfix_local()
 
     def __add__(self, other):
         """ Add two Optimizable objects """
@@ -1463,12 +1502,13 @@ class ScaledOptimizable(Optimizable):
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
         d["factor"] = self.factor
-        d["opt"] = self.opt
+        d["opt"] = self.opt.as_dict()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["factor"], d["opt"])
+        opt = json.load(d["opt"], cls=MontyDecoder)
+        return cls(d["factor"], opt)
 
 
 class OptimizableSum(Optimizable):
@@ -1500,10 +1540,15 @@ class OptimizableSum(Optimizable):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        d["opts"] = self.opts
+        d["opts"] = []
+        for opt in self.opts:
+            d["opts"].append(opt.as_dict())
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["opts"])
+        opts = []
+        for odict in d["opts"]:
+            opts.append(json.load(odict, cls=MontyDecoder))
+        return cls(opts)
 
