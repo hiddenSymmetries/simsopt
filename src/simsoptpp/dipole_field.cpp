@@ -1,5 +1,6 @@
 #include "dipole_field.h"
 
+// Calculate the B field at a set of evaluation points from N dipoles
 Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
@@ -30,6 +31,7 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     return B * 1e-7;
 }
 
+// Calculate the gradient of the B field at a set of evaluation points from N dipoles
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);

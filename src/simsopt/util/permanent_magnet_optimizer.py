@@ -1,17 +1,9 @@
 import logging
-
-try:
-    from pyevtk.hl import gridToVTK
-except ImportError:
-    gridToVTK = None
-
 from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from scipy.sparse import csr_matrix, lil_matrix
+from scipy.sparse import csr_matrix
 import simsoptpp as sopp
-import time
-from .dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +42,9 @@ class PermanentMagnetOptimizer:
                               boundary. Typically this will be the optimized plasma
                               magnetic field from a stage-1 optimization, and the
                               optimized coils from a basic stage-2 optimization. 
-                              This variable must be specified to run the permanent 
+                              This variable must be specified to run the permanent
                               magnet optimization.
+            dr:               Radial and axial grid spacing in the permanent magnet manifold.
     """
 
     def __init__(
@@ -59,6 +52,9 @@ class PermanentMagnetOptimizer:
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.1, B_plasma_surface=None, dr=0.1,
     ):
+        if plasma_offset <= 0 or coil_offset <= 0:
+            raise ValueError('permanent magnets must be offset from the plasma')
+
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
         self.B_plasma_surface = B_plasma_surface
@@ -73,6 +69,10 @@ class PermanentMagnetOptimizer:
             self.theta = self.plasma_boundary.quadpoints_theta
             self.ntheta = len(self.theta)
 
+        # If dr <= 0 raise error
+        if dr <= 0:
+            raise ValueError('dr grid spacing must be > 0')
+
         # If the inner surface is not specified, make default surface.
         if rz_inner_surface is None:
             print(
@@ -85,6 +85,8 @@ class PermanentMagnetOptimizer:
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
+        if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
+            raise ValueError("Inner surface is not SurfaceRZFourier object.")
 
         # If the outer surface is not specified, make default surface. 
         if rz_outer_surface is None:
@@ -98,9 +100,7 @@ class PermanentMagnetOptimizer:
             self._set_outer_rz_surface()
         else:
             self.rz_outer_surface = rz_outer_surface
-        if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
-            raise ValueError("Inner surface is not SurfaceRZFourier object.")
-        if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
+        if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
             raise ValueError("Outer surface is not SurfaceRZFourier object.")
 
         # check the inner and outer surface are same size
@@ -176,9 +176,11 @@ class PermanentMagnetOptimizer:
         self.plasma_unitnormal_cylindrical = norms
         R = np.linspace(r_min, r_max, Nr)
         Z = np.linspace(z_min, z_max, Nz)
+        print(R, Z, Nr, Nz, Delta_r, Delta_z, phi[1] - phi[0])
 
         # Make 3D mesh
         R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
+        print(R[:, 0, 0], Phi[0, :, 0], Z[0, 0, :])
         self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
 
         # Have the uniform grid, now need to loop through and eliminate cells. 
@@ -201,6 +203,7 @@ class PermanentMagnetOptimizer:
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
         cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
+
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
         self.m_maxima = B_max * cell_vol / mu0
@@ -278,9 +281,9 @@ class PermanentMagnetOptimizer:
             Simple plotting function for debugging the permanent
             magnet gridding procedure.
         """
-        plt.figure()
-        for i, ind in enumerate([0, 1, 29, 30, 31]):
-            plt.subplot(1, 5, i + 1)
+        plt.figure(figsize=(14, 14))
+        for i, ind in enumerate([0, 5, 20, 31]):
+            plt.subplot(2, 2, i + 1)
             plt.title(r'$\phi = ${0:.2f}'.format(2 * np.pi * self.phi[ind]))
             plt.scatter(self.r_plasma[ind, :], self.z_plasma[ind, :], label='Plasma surface')
             plt.scatter(self.r_inner[ind, :], self.z_inner[ind, :], label='Inner surface')
@@ -290,9 +293,12 @@ class PermanentMagnetOptimizer:
                 np.array(self.final_RZ_grid[ind])[:, 1], 
                 label='Final grid'
             )
-            plt.legend()
+            # plt.scatter(np.ravel(self.RPhiZ[:, i, :, 0]), np.ravel(self.RPhiZ[:, i, :, 2]), c='k')
+            if i == 0:
+                plt.legend()
             plt.grid(True)
         plt.savefig('grids_permanent_magnets.png')
+        plt.show()
 
     def _make_final_surface(self):
         """
@@ -326,6 +332,22 @@ class PermanentMagnetOptimizer:
             Rpoint = np.ravel(self.RPhiZ[:, i, :, 0])
             Zpoint = np.ravel(self.RPhiZ[:, i, :, 2])
 
+            # rotate normal vectors in (r, phi, z) coordinates and set phi component to zero
+            # so that we keep everything in the same phi = constant cross-section
+            rot_matrix = [[np.cos(phi_inner[i]), np.sin(phi_inner[i]), 0],
+                          [-np.sin(phi_inner[i]), np.cos(phi_inner[i]), 0],
+                          [0, 0, 1]]
+            for j in range(normal_inner.shape[1]):
+                normal_inner[i, j, :] = rot_matrix @ normal_inner[i, j, :]
+                normal_outer[i, j, :] = rot_matrix @ normal_outer[i, j, :]
+            normal_inner[i, :, 1] = 0.0
+            normal_inner[i, :, 0] = normal_inner[i, :, 0] / np.sqrt(normal_inner[i, :, 0] ** 2 + normal_inner[i, :, 2] ** 2)
+            normal_inner[i, :, 2] = normal_inner[i, :, 2] / np.sqrt(normal_inner[i, :, 0] ** 2 + normal_inner[i, :, 2] ** 2)
+            normal_outer[i, :, 1] = 0.0
+            normal_outer[i, :, 0] = normal_outer[i, :, 0] / np.sqrt(normal_outer[i, :, 0] ** 2 + normal_outer[i, :, 2] ** 2)
+            normal_outer[i, :, 2] = normal_outer[i, :, 2] / np.sqrt(normal_outer[i, :, 0] ** 2 + normal_outer[i, :, 2] ** 2)
+
+            # Find nearest (R, Z) points on the surface
             new_grids_i = []
             for j in range(len(Rpoint)):
                 # find nearest point on inner/outer toroidal surface
@@ -340,19 +362,11 @@ class PermanentMagnetOptimizer:
                     nearest_loc = outer_loc
                     ray_direction = normal_outer[i, nearest_loc, :]
 
-                # rotate ray in (r, phi, z) coordinates and set phi component to zero
-                # so that we keep everything in the same phi = constant cross-section
-                rot_matrix = [[np.cos(phi_inner[i]), np.sin(phi_inner[i]), 0],
-                              [-np.sin(phi_inner[i]), np.cos(phi_inner[i]), 0],
-                              [0, 0, 1]]
-                ray_direction = rot_matrix @ ray_direction 
-                ray_direction = ray_direction[[0, 2]] / np.sqrt(ray_direction[0] ** 2 + ray_direction[2] ** 2)
-
                 ray_equation = np.outer(
                     [Rpoint[j], 
                      Zpoint[j]], 
                     np.ones(Nray)
-                ) + np.outer(ray_direction, np.linspace(0, 3, Nray))
+                ) + np.outer(ray_direction[[0, 2]], np.linspace(0, 2, Nray))
                 nearest_loc_inner = (
                     (self.r_inner[i, inner_loc] - ray_equation[0, :]
                      ) ** 2 + (
@@ -397,6 +411,7 @@ class PermanentMagnetOptimizer:
             geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp * 2))
         else:
             geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp))
+
         # Loops over all the field period contributions from every quad point
         for fp in range(nfp):
             for i in range(self.nphi):
@@ -450,8 +465,8 @@ class PermanentMagnetOptimizer:
                                                        ]
                         running_tally += len(dipole_grid_r)
 
-        mu_fac = 1e-7
         # Sum over the matrix contributions from each part of the torus
+        mu_fac = 1e-7
         geo_factor = np.sum(geo_factor, axis=-1)
         geo_factor_flat = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles * 3)) * mu_fac
         geo_factor = np.reshape(geo_factor, (self.nphi * self.ntheta, self.ndipoles, 3)) * mu_fac
@@ -459,12 +474,14 @@ class PermanentMagnetOptimizer:
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         self.A_obj = geo_factor_flat * np.sqrt(dphi * dtheta)
         self.A_obj_expanded = geo_factor * np.sqrt(dphi * dtheta)
+
         # Initialize 'b' vector in 0.5 * ||Am - b||^2 part of the optimization,
         # corresponding to the normal component of the target fields. Note
         # the factor of two in the least-squares term: 0.5 * m.T @ (A.T @ A) @ m - b.T @ m
         if self.B_plasma_surface.shape != (self.nphi, self.ntheta, 3):
             raise ValueError('Magnetic field surface data is incorrect shape.')
         Bs = self.B_plasma_surface
+
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)?
         self.b_obj = np.sum(
@@ -473,8 +490,6 @@ class PermanentMagnetOptimizer:
         self.ATb = (self.A_obj.transpose()).dot(self.b_obj)
         self.ATA = (self.A_obj).T @ self.A_obj 
         self.ATA_scale = np.linalg.norm(self.ATA, ord=2)
-        self.ATA_expanded = np.tensordot(self.A_obj_expanded, self.A_obj_expanded, axes=([0], [0])) 
-        self.ATb_expanded = np.tensordot(self.A_obj_expanded, self.b_obj, axes=([0], [0])) 
 
     def _cyl_dist(self, plasma_vec, dipole_vec):
         """
@@ -495,19 +510,6 @@ class PermanentMagnetOptimizer:
         radial_term = boundary_vec[:, :, 0] ** 2
         axial_term = boundary_vec[:, :, 2] ** 2
         return np.sqrt(radial_term + axial_term)
-
-    @SimsoptRequires(gridToVTK is not None,
-                     "to_vtk method requires pyevtk module")
-    def to_vtk(self, filename):
-        print('dipole grid shape = ', self.dipole_grid.shape)
-        R, Phi, Z = (self.dipole_grid[:, 0],
-                     self.dipole_grid[:, 1],
-                     self.dipole_grid[:, 2],
-                     )
-        X = R * np.cos(Phi)
-        Y = R * np.sin(Phi)
-        Z = Z
-        gridToVTK(filename, X, Y, Z, fieldData={"dipole_moments": self.m})
 
     def _prox_l0(self, m, reg_l0, nu):
         """Proximal operator for L0 regularization."""
@@ -656,6 +658,7 @@ class PermanentMagnetOptimizer:
         print('Shape of A matrix = ', self.A_obj.shape)
         print('Shape of b vector = ', self.b_obj.shape)
         print('Initial error on plasma surface = {0:.4e}'.format(total_error))
+
         # Begin optimization
         m_proxy = m0
         err_RS = []
@@ -671,8 +674,8 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj_expanded,
                     b_obj=self.b_obj,
-                    ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
-                    ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
+                    ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),
+                    ATb=np.reshape(ATb, (self.ndipoles, 3)),
                     m_proxy=m_proxy.reshape(self.ndipoles, 3),
                     m0=m.reshape(self.ndipoles, 3),
                     m_maxima=self.m_maxima,
@@ -688,6 +691,7 @@ class PermanentMagnetOptimizer:
                 )
                 m = np.ravel(m)
                 err_RS.append(MwPGP_hist[-1])
+
                 # update m_proxy
                 m_proxy = prox(m, reg_l0, nu)
                 if np.linalg.norm(m - m_proxy) < epsilon:
@@ -698,8 +702,8 @@ class PermanentMagnetOptimizer:
             MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                 A_obj=self.A_obj_expanded,
                 b_obj=self.b_obj,
-                ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),  # self.ATA_expanded, 
-                ATb=np.reshape(ATb, (self.ndipoles, 3)),  # self.ATb_expanded, 
+                ATA=np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)),
+                ATb=np.reshape(ATb, (self.ndipoles, 3)),
                 m_proxy=m0.reshape(self.ndipoles, 3),
                 m0=m0.reshape(self.ndipoles, 3),
                 m_maxima=self.m_maxima,

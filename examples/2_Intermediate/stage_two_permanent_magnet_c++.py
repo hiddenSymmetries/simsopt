@@ -156,21 +156,15 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15,
+    s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 1000
-reg_l0 = 0.1
+max_iter_MwPGP = 100
+reg_l0 = 0.0  # 0.1
 print('Done initializing the permanent magnet object')
-# Run code in python
-t1 = time.time()
-_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, reg_l0=reg_l0, py_flag=True)
-t2 = time.time()
-print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
-print('Python MwPGP took {0:.2e}'.format(t2 - t1), ' s')
 # Run code in c++ with openmp
 t1 = time.time()
-_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, reg_l0=reg_l0, py_flag=False)
+_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP)  # , reg_l0=reg_l0
 t2 = time.time()
 print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
@@ -191,3 +185,15 @@ if make_plots:
     plt.savefig('m_histogram.png')
     # plt.show()
     print('Done optimizing the permanent magnets')
+
+plt.figure()
+ax = plt.axes(projection="3d")
+colors = []
+dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
+for i in range(pm_opt.ndipoles):
+    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
+sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
+plt.colorbar(sax)
+plt.axis('off')
+plt.grid(None)
+plt.show()
