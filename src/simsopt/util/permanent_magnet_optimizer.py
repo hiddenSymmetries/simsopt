@@ -176,11 +176,9 @@ class PermanentMagnetOptimizer:
         self.plasma_unitnormal_cylindrical = norms
         R = np.linspace(r_min, r_max, Nr)
         Z = np.linspace(z_min, z_max, Nz)
-        print(R, Z, Nr, Nz, Delta_r, Delta_z, phi[1] - phi[0])
 
         # Make 3D mesh
         R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
-        print(R[:, 0, 0], Phi[0, :, 0], Z[0, 0, :])
         self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
 
         # Have the uniform grid, now need to loop through and eliminate cells. 
@@ -284,10 +282,21 @@ class PermanentMagnetOptimizer:
         plt.figure(figsize=(14, 14))
         for i, ind in enumerate([0, 5, 20, 31]):
             plt.subplot(2, 2, i + 1)
-            plt.title(r'$\phi = ${0:.2f}'.format(2 * np.pi * self.phi[ind]))
-            plt.scatter(self.r_plasma[ind, :], self.z_plasma[ind, :], label='Plasma surface')
-            plt.scatter(self.r_inner[ind, :], self.z_inner[ind, :], label='Inner surface')
-            plt.scatter(self.r_outer[ind, :], self.z_outer[ind, :], label='Outer surface')
+            plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
+            r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
+            z_plasma = np.hstack((self.z_plasma[ind, :], self.z_plasma[ind, 0]))
+            r_inner = np.hstack((self.r_inner[ind, :], self.r_inner[ind, 0]))
+            z_inner = np.hstack((self.z_inner[ind, :], self.z_inner[ind, 0]))
+            r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
+            z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
+            
+            plt.plot(r_plasma[ind, :], z_plasma[ind, :], label='Plasma surface', linewidth=3)
+            plt.plot(r_inner[ind, :], z_inner[ind, :], label='Inner surface', linewidth=3)
+            plt.plot(r_outer[ind, :], z_outer[ind, :], label='Outer surface', linewidth=3)
+         
+            #plt.plot(self.r_plasma[ind, :], self.z_plasma[ind, :], label='Plasma surface', linewidth=3)
+            #plt.plot(self.r_inner[ind, :], self.z_inner[ind, :], label='Inner surface', linewidth=3)
+            #plt.plot(self.r_outer[ind, :], self.z_outer[ind, :], label='Outer surface', linewidth=3)
             plt.scatter(
                 np.array(self.final_RZ_grid[ind])[:, 0], 
                 np.array(self.final_RZ_grid[ind])[:, 1], 
