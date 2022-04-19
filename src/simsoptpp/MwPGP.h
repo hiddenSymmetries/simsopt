@@ -1,9 +1,8 @@
 #pragma once
 
-#include <cmath>
-#include <omp.h>
-#include <tuple>
-#include <algorithm>
+#include <cmath>  // pow function
+#include <tuple>  // c++ tuples
+#include <algorithm>  // std::min_element function
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
 using std::vector;

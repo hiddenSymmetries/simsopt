@@ -49,7 +49,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 2
+ncoils = 1
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -165,10 +165,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05, plasma_offset=0.2,
+    s, coil_offset=0.1, dr=0.15, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 10
+max_iter_MwPGP = 100
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
@@ -187,7 +187,6 @@ plt.colorbar(sax)
 plt.axis('off')
 plt.grid(None)
 plt.savefig('PMs_optimized.png')
-plt.show()
 
 dipoles = np.ravel(dipoles)
 print(np.shape(m_history))
@@ -231,7 +230,6 @@ if make_plots and (comm is None or comm.rank == 0):
     plt.figure()
     plt.hist(abs(np.ravel(m_history[:, :, 0])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     plt.savefig('m_histogram.png')
-    plt.show()
     print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below
@@ -289,3 +287,4 @@ t2 = time.time()
 trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
+plt.show()

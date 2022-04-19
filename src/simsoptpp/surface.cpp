@@ -145,12 +145,14 @@ void Surface<Array>::extend_via_projected_normal(const vector<double> phi, doubl
     auto gamma = this->gamma();
     auto n = this->normal();
     const double pi = 3.141592653589793238463;
+    // Loop over toroidal angle, calculate rotation matrix
     for (int i = 0; i < numquadpoints_phi; ++i) {
 	double rotation[3][3] = {cos(2 * pi * phi[i]), sin(2 * pi * phi[i]), 0, -sin(2 * pi * phi[i]), cos(2 * pi * phi[i]), 0, 0, 0, 1};
 	double rotation_inv[3][3] = {cos(2 * pi * phi[i]), -sin(2 * pi * phi[i]), 0, sin(2 * pi * phi[i]), cos(2 * pi * phi[i]), 0, 0, 0, 1};
         for (int j = 0; j < numquadpoints_theta; ++j) {
 	    double nij[3] = {0.0, 0.0, 0.0};
 	    double gammaij[3] = {0.0, 0.0, 0.0};
+	    // convert nij and gammij from cartesian to cylindrical
             for (int k = 0; k < 3; ++k) {
                 for (int kk = 0; kk < 3; ++kk) {
                     nij[k] += rotation[k][kk] * n(i, j, kk);
@@ -158,8 +160,8 @@ void Surface<Array>::extend_via_projected_normal(const vector<double> phi, doubl
 		}
 	    }
             // keep toroidal direction constant
-	    nij[1] = 0;
-	    gammaij[1] = 0;
+	    nij[1] = 0.0;
+	    gammaij[1] = 0.0;
 	    auto nij_norm = sqrt(nij[0]*nij[0] + nij[1]*nij[1] + nij[2]*nij[2]);
             target_values(i, j, 0) = gammaij[0] + scale * nij[0] / nij_norm;
             target_values(i, j, 1) = gammaij[1] + scale * nij[1] / nij_norm;

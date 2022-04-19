@@ -462,7 +462,7 @@ class DipoleField(MagneticField):
         self.m_vec = m.reshape(self.ndipoles, 3)
         if pm_opt is not None:
             dipole_grid_z = dipole_grid[:, 2]
-            phi = pm_opt.plasma_boundary.quadpoints_phi
+            phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
             dipole_grid_x = np.zeros(len(dipole_grid_z))
             dipole_grid_y = np.zeros(len(dipole_grid_z))
             running_tally = 0

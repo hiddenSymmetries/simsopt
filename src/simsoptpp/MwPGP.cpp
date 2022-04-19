@@ -1,5 +1,6 @@
 #include "MwPGP.h"
 
+// Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
     // project a 3-vector on the unit ball
     double dist = sqrt(x1 * x1 + x2 * x2 + x3 * x3) / m_maxima; 
@@ -7,6 +8,7 @@ std::tuple<double, double, double> projection_L2_balls(double x1, double x2, dou
     return std::make_tuple(x1 / denom, x2 / denom, x3 / denom);
 }
 
+// Takes a vector and zeros if is very close to the L2 ball surface
 std::tuple<double, double, double> phi_MwPGP(double x1, double x2, double x3, double g1, double g2, double g3, double m_maxima)
 {
     // phi(x_i, g_i) = g_i(x_i) if x_i is not on the L2 ball,
@@ -24,6 +26,7 @@ std::tuple<double, double, double> phi_MwPGP(double x1, double x2, double x3, do
     }
 }
 
+// Takes a vector and zeros it if it is NOT on the L2 ball surface
 std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima)
 {
     // beta_tilde(x_i, g_i, alpha) = 0_i if the ith triplet
@@ -53,15 +56,16 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
     }
 }
 
+// The reduced gradient of G is simply the
+// gradient step in the L2-projected direction.
 std::tuple<double, double, double> g_reduced_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima) 
 {
-    // The reduced gradient of G is simply the
-    // gradient step in the L2-projected direction.
     double proj_L2x, proj_L2y, proj_L2z; 
     std::tie(proj_L2x, proj_L2y, proj_L2z) = projection_L2_balls(x1 - alpha * g1, x2 - alpha * g2, x3 - alpha * g3, m_maxima);
     return std::make_tuple((x1 - proj_L2x) / alpha, (x2 - proj_L2y) / alpha, (x3 - proj_L2z) / alpha);
 }
 
+// This function is just phi + beta_tilde 
 std::tuple<double, double, double> g_reduced_projected_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima) {
     double psum1, psum2, psum3, bsum1, bsum2, bsum3;
     std::tie(psum1, psum2, psum3) = phi_MwPGP(x1, x2, x3, g1, g2, g3, m_maxima);
@@ -69,13 +73,10 @@ std::tuple<double, double, double> g_reduced_projected_gradient(double x1, doubl
     return std::make_tuple(psum1 + bsum1, psum2 + bsum2, psum3 + bsum3);
 }
 
+// Solve a quadratic equation to determine the largest
+// step size alphaf such that the entirety of x - alpha * p
+// lives in the L2 ball with radius m_maxima 
 double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, double p3, double m_maxima) {
-    // Solve a quadratic equation to determine the largest
-    // step size alphaf such that the entirety of x - alpha * p
-    // lives in the convex space defined by the intersection
-    // of the N L2 balls defined in R3, so that
-    // (x[0] - alpha * p[0]) ** 2 + (x[1] - alpha * p[1]) ** 2
-    // + (x[2] - alpha * p[2]) ** 2 <= 1.
     double a, b, c, alphaf_plus;
     double tol = 1e-20;
     a = p1 * p1 + p2 * p2 + p3 * p3;
@@ -95,6 +96,9 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
     return alphaf_plus;
 }
 
+// Run the overall algorithm for solving the convex part of
+// the permanent magnet optimization problem. This algorithm has
+// many optional parameters for additional loss terms.
 std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
     // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
@@ -104,6 +108,8 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     Array g = xt::zeros<double>({N, 3});
     Array p = xt::zeros<double>({N, 3});
     Array ATAp = xt::zeros<double>({N, 3});
+    
+    // define bunch of doubles, mostly for setting the std::tuples correctly
     double norm_g_alpha_p, norm_phi_temp, gamma, gp, pATAp;
     double g_alpha_p1, g_alpha_p2, g_alpha_p3, phi_temp1, phi_temp2, phi_temp3;
     double phig1, phig2, phig3, p_temp1, p_temp2, p_temp3, R2_temp; 
@@ -112,9 +118,12 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     double l0_tol = 1e-20;
     vector<double> alpha_fs(N);
     Array x_k1 = m0;
+    
+    // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
     Array objective_history = xt::zeros<double>({(int)(max_iter / 10)});
     Array R2_history = xt::zeros<double>({(int)(max_iter / 10)});
+
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;
   
@@ -124,7 +133,8 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         for (int ii = 0; ii < 3; ++ii) {
             for (int j = 0; j < N; ++j) {
                 for (int kk = 0; kk < 3; ++kk) {
-                    g(i, ii) += ATA(i, ii, j, kk) * m0(j, kk);
+                    // potential race condition when threads read shared variable m0?
+                    g(i, ii) += ATA(i, ii, j, kk) * m0(j, kk); 
 	        }
 	    }
 	    g(i, ii) += - ATb_rs(i, ii);
@@ -132,10 +142,11 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 	std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(m0(i, 0), m0(i, 1), m0(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
     }
 
-    // Main loop over the optimization iterations
     if (verbose) {
         printf("Iteration ... |Am - b|^2 ... |m-w|^2/v ...   a|m|^2 ...  b|m-1|^2 ...   c|m|_1 ...   d|m|_0 ... Total Error:\n");
     }
+    
+    // Main loop over the optimization iterations
     for (int k = 0; k < max_iter; ++k) {
 	// Long block here for printing the various 
 	// loss term values every max_iter / 10 iterations
@@ -207,6 +218,8 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end()); 
 	alpha_f = *max_i;
         alpha_cg = gp / pATAp;
+
+	// based on these norms, decide what kind of a descent step to take
         if (2 * delta * norm_g_alpha_p <= norm_phi_temp) {
 	    if (alpha_cg < alpha_f) {
 	        // Take a conjugate gradient step
