@@ -17,7 +17,7 @@ print("========================================================================"
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry'))
 
 # Define parameter space:
-vmec.boundary.fix_all()
+vmec.boundary.fix_local()
 vmec.boundary.unfix("rc(0,1)")
 vmec.boundary.unfix("zs(0,1)")
 

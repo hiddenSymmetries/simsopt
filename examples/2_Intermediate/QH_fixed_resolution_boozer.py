@@ -23,7 +23,7 @@ vmec = Vmec(filename, mpi=mpi)
 
 # Define parameter space:
 surf = vmec.boundary
-surf.fix_all()
+surf.fix_local()
 max_mode = 2
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
