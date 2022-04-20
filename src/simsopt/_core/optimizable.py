@@ -20,6 +20,7 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
 from functools import lru_cache
 import logging
 import json
+import warnings
 
 import numpy as np
 from monty.json import MSONable, MontyEncoder, MontyDecoder
@@ -168,7 +169,8 @@ class DOFs:
 
     def get(self, key: Key) -> Real:
         """
-        Get the value of specified DOF. Even fixed DOFs can
+        Get the value of specifboundary                ci              COPYING         docs         MANIFEST.in.bak  requirements.txt  run_tests_mpi  src         tox.ini
+ied DOF. Even fixed DOFs can
         be obtained with this method
 
         Args:
@@ -1196,8 +1198,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         Set the 'fixed' attribute for all degrees of freedom associated with
         the current Optimizable object.
         """
-        warn("fix_all method is deprecated in favor of fix_local",
-             DeprecationWarning, stacklevel=2)
+        warnings.warn("fix_all method is deprecated in favor of fix_local",
+                      DeprecationWarning, stacklevel=2)
         self._dofs.fix_all()
         self._update_free_dof_size_indices()
 
@@ -1223,8 +1225,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         Unset the 'fixed' attribute for all degrees of freedom associated
         with the current Optimizable object.
         """
-        warn("unfix_all method is deprecated in favor of unfix_local",
-             DeprecationWarning, stacklevel=2)
+        warnings.warn("unfix_all method is deprecated in favor of unfix_local",
+                      DeprecationWarning, stacklevel=2)
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
 
