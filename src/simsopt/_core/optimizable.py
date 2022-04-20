@@ -23,7 +23,7 @@ import json
 import warnings
 
 import numpy as np
-from monty.json import MSONable, MontyEncoder, MontyDecoder
+from monty.json import MSONable, MontyDecoder
 
 from ..util.dev import SimsoptRequires
 from ..util.types import RealArray, StrArray, BoolArray, Key
@@ -592,7 +592,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         self._update_full_dof_size_indices()
         # Inform the object that it doesn't have valid cache
         self._set_new_x()
-        super().__init__(**kwargs)
+        log.debug(f"Unused arguments for {self.__class__} are {kwargs}")
+        super().__init__()
 
     def __str__(self):
         return self.name
@@ -1338,8 +1339,9 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         parents_dict = d.pop("depends_on") if "depends_on" in d else None
         if parents_dict:
             parents = []
+            decoder = MontyDecoder()
             for pdict in parents_dict:
-                parents.append(json.load(pdict, cls=MontyDecoder))
+                parents.append(decoder.process_decoded(pdict))
         return cls(depends_on=parents, **d)
 
 
@@ -1508,7 +1510,7 @@ class ScaledOptimizable(Optimizable):
 
     @classmethod
     def from_dict(cls, d):
-        opt = json.load(d["opt"], cls=MontyDecoder)
+        opt = MontyDecoder().process_decoded(d["opt"])
         return cls(d["factor"], opt)
 
 
@@ -1549,7 +1551,8 @@ class OptimizableSum(Optimizable):
     @classmethod
     def from_dict(cls, d):
         opts = []
+        decoder = MontyDecoder()
         for odict in d["opts"]:
-            opts.append(json.load(odict, cls=MontyDecoder))
+            opts.append(decoder.process_decoded(odict))
         return cls(opts)
 
