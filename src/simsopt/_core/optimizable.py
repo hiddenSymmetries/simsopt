@@ -169,8 +169,7 @@ class DOFs:
 
     def get(self, key: Key) -> Real:
         """
-        Get the value of specifboundary                ci              COPYING         docs         MANIFEST.in.bak  requirements.txt  run_tests_mpi  src         tox.ini
-ied DOF. Even fixed DOFs can
+        Get the value of specified DOF. Even fixed DOFs can
         be obtained with this method
 
         Args:
