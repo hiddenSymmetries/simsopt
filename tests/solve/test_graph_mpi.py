@@ -11,7 +11,7 @@ from simsopt._core.graph_optimizable import Optimizable
 from simsopt.objectives.graph_functions import Beale
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 if MPI is not None:
-    from simsopt.util.graph_mpi import MpiPartition
+    from simsopt.util.mpi import MpiPartition
     from simsopt.solve.graph_mpi import least_squares_mpi_solve
 
 #logging.basicConfig(level=logging.DEBUG)
