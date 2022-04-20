@@ -105,7 +105,7 @@ class IntegratedTests(unittest.TestCase):
             # optimized.  You can choose to exclude any subset of the variables
             # from the space of independent variables by setting their 'fixed'
             # property to True.
-            surf.fix_all()
+            surf.fix_local()
             surf.unfix('Delta(0,0)')  # Minor radius
             surf.unfix('Delta(2,0)')  # Elongation
 
