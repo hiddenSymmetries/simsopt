@@ -289,25 +289,25 @@ class PermanentMagnetOptimizer:
             z_inner = np.hstack((self.z_inner[ind, :], self.z_inner[ind, 0]))
             r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
             z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
-            
-            plt.plot(r_plasma[ind, :], z_plasma[ind, :], label='Plasma surface', linewidth=3)
-            plt.plot(r_inner[ind, :], z_inner[ind, :], label='Inner surface', linewidth=3)
-            plt.plot(r_outer[ind, :], z_outer[ind, :], label='Outer surface', linewidth=3)
-         
+
+            plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
+            plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
+            plt.plot(r_outer, z_outer, label='Outer surface', linewidth=2)
+
             #plt.plot(self.r_plasma[ind, :], self.z_plasma[ind, :], label='Plasma surface', linewidth=3)
             #plt.plot(self.r_inner[ind, :], self.z_inner[ind, :], label='Inner surface', linewidth=3)
             #plt.plot(self.r_outer[ind, :], self.z_outer[ind, :], label='Outer surface', linewidth=3)
             plt.scatter(
                 np.array(self.final_RZ_grid[ind])[:, 0], 
                 np.array(self.final_RZ_grid[ind])[:, 1], 
-                label='Final grid'
+                label='Final grid',
+                c='k'
             )
             # plt.scatter(np.ravel(self.RPhiZ[:, i, :, 0]), np.ravel(self.RPhiZ[:, i, :, 2]), c='k')
             if i == 0:
                 plt.legend()
             plt.grid(True)
         plt.savefig('grids_permanent_magnets.png')
-        plt.show()
 
     def _make_final_surface(self):
         """

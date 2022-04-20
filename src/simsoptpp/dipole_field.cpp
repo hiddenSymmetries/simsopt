@@ -11,6 +11,7 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
         x = points(i, 0);
         y = points(i, 1);
         z = points(i, 2);
+        // Need to rotate into cylindrical, apply symmetries, add up, rotate back
 	for (int j = 0; j < num_dipoles; ++j) {
             mpx = m_points(j, 0);
             mpy = m_points(j, 1);
