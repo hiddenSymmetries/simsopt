@@ -50,7 +50,7 @@ available to vary::
 Now we can pick out a few modes of the boundary shape to vary in the
 optimization::
 
-  s.boundary.fix_all()
+  s.boundary.fix_local()
   s.boundary.unfix('zs(6,1)')
   s.boundary.unfix('zs(6,2)')
 
