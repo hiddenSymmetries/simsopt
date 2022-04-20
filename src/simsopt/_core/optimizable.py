@@ -20,7 +20,6 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
 from functools import lru_cache
 import logging
 import json
-from warnings import warn
 
 import numpy as np
 from monty.json import MSONable, MontyEncoder, MontyDecoder
