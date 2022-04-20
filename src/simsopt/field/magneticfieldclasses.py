@@ -459,8 +459,8 @@ class DipoleField(MagneticField):
     def __init__(self, dipole_grid, m, pm_opt=None, stellsym=False, nfp=1):
         MagneticField.__init__(self)
         self.ndipoles = dipole_grid.shape[0] 
-        phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
         if pm_opt is not None:
+            phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
             if stellsym or nfp > 1:
                 self._dipole_fields_from_symmetries(m.reshape(self.ndipoles, 3), dipole_grid[:, 2], pm_opt.final_RZ_grid, phi, stellsym, nfp)
             else:
