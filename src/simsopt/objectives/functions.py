@@ -197,7 +197,7 @@ class Rosenbrock(Optimizable):
         """
         return np.array([[1.0, 0.0],
                          [2 * self.local_full_x['x'] / self._sqrtb, -1.0 / self._sqrtb]])
-    
+
     def as_dict(self) -> dict:
         d = {}
         d["@module"] = self.__class__.__module__

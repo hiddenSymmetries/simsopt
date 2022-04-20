@@ -43,6 +43,7 @@ class Adder(Optimizable):
                    d.get("dof_names", None),
                    d.get("dof_fixed", None))
 
+
 class OptClassWithParents(Optimizable):
     def __init__(self, val, depends_on=None):
         if depends_on is None:
@@ -1246,14 +1247,15 @@ class TestOptimizableSerialize(unittest.TestCase):
     Test the serialization of the Optimizable class based on as_dict and
     from_dict methods using various sub-classes
     """
+
     def test_serialize(self):
-        adder = FAdder(n=3, x0=[1,2,3], names=["x", "y", "z"],
-                      fixed=[True, False, True])
+        adder = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                       fixed=[True, False, True])
         s = json.dumps(adder, cls=MontyEncoder)
         print(s)
 
     def test_deserialize(self):
-        adder_orig = FAdder(n=3, x0=[1,2,3], names=["x", "y", "z"],
+        adder_orig = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
                             fixed=[True, False, True])
         s = json.dumps(adder_orig, cls=MontyEncoder)
         adder = json.loads(s, cls=MontyDecoder)
@@ -1262,7 +1264,6 @@ class TestOptimizableSerialize(unittest.TestCase):
         print(adder.full_x)
         print(adder.dofs_free_status)
         print(adder.local_full_dof_names)
-
 
 
 if __name__ == "__main__":
