@@ -7,7 +7,8 @@ from monty.json import MontyDecoder, MontyEncoder
 from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable
-from simsopt.objectives.functions import Identity, Rosenbrock, TestObject2
+from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
+    TestObject2
 from simsopt.objectives.functions import Adder as FAdder
 
 
@@ -1247,23 +1248,44 @@ class TestOptimizableSerialize(unittest.TestCase):
     Test the serialization of the Optimizable class based on as_dict and
     from_dict methods using various sub-classes
     """
-
-    def test_serialize(self):
-        adder = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
-                       fixed=[True, False, True])
-        s = json.dumps(adder, cls=MontyEncoder)
-        print(s)
-
-    def test_deserialize(self):
+    def test_adder_serialize(self):
         adder_orig = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
                             fixed=[True, False, True])
         s = json.dumps(adder_orig, cls=MontyEncoder)
         adder = json.loads(s, cls=MontyDecoder)
-        print(adder.name)
-        print(adder.n)
-        print(adder.full_x)
-        print(adder.dofs_free_status)
-        print(adder.local_full_dof_names)
+        self.assertEqual(adder.n, adder_orig.n)
+        self.assertTrue(np.allclose(adder.full_x, adder_orig.full_x))
+        self.assertTrue(np.array_equal(adder.dofs_free_status,
+                                        adder_orig.dofs_free_status))
+        self.assertEqual(adder.local_full_dof_names,
+                         adder_orig.local_full_dof_names)
+
+    def test_identity_serialize(self):
+        iden_orig = Identity(x=10.0, dof_name="x", dof_fixed=False)
+        s = json.dumps(iden_orig, cls=MontyEncoder)
+        iden = json.loads(s, cls=MontyDecoder)
+        self.assertAlmostEqual(iden.x[0], iden_orig.x[0])
+        self.assertEqual(iden.local_full_dof_names[0],
+                         iden_orig.local_full_dof_names[0])
+        self.assertEqual(iden.dofs_free_status[0],
+                         iden_orig.dofs_free_status[0])
+
+    def test_rosenbrock_serialize(self):
+        r_orig = Rosenbrock(b=100.0, x=10.0, y=20.0)
+        s = json.dumps(r_orig, cls=MontyEncoder)
+        r = json.loads(s, cls=MontyDecoder)
+        self.assertAlmostEqual(r.term1, r_orig.term1)
+        self.assertAlmostEqual(r.term2, r_orig.term2)
+
+    def test_twolevel_serialize(self):
+        adder1 = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                        fixed=[True, False, True])
+        adder2 = FAdder(n=2, x0=[10, 11], names=["a", "b"], fixed=[True, False])
+        test_opt_orig = TestObject1(100.0, depends_on=[adder1, adder2])
+        s = json.dumps(test_opt_orig, cls=MontyEncoder)
+        test_opt = json.loads(s, cls=MontyDecoder)
+        self.assertAlmostEqual(test_opt.f(), test_opt_orig.f())
+
 
 
 if __name__ == "__main__":
