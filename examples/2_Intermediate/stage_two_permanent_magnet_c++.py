@@ -159,7 +159,7 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 10000
+max_iter_MwPGP = 100
 reg_l0 = 0.0  # 0.1
 print('Done initializing the permanent magnet object')
 # Run code in c++ with openmp
@@ -203,16 +203,16 @@ plt.figure(figsize=(14, 14))
 for i, ind in enumerate([0, 5, 20, 31]):
     plt.subplot(2, 2, i + 1)
     plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * pm_opt.phi[ind]))
-    r_plasma = np.vstack((pm_opt.r_plasma[ind, :], pm_opt.r_plasma[ind, 0]))
-    z_plasma = np.vstack((pm_opt.z_plasma[ind, :], pm_opt.z_plasma[ind, 0]))
-    r_inner = np.vstack((pm_opt.r_inner[ind, :], pm_opt.r_inner[ind, 0]))
-    z_inner = np.vstack((pm_opt.z_inner[ind, :], pm_opt.z_inner[ind, 0]))
-    r_outer = np.vstack((pm_opt.r_outer[ind, :], pm_opt.r_outer[ind, 0]))
-    z_outer = np.vstack((pm_opt.z_outer[ind, :], pm_opt.z_outer[ind, 0]))
-    
-    plt.plot(r_plasma[ind, :], z_plasma[ind, :], label='Plasma surface', linewidth=3)
-    plt.plot(r_inner[ind, :], z_inner[ind, :], label='Inner surface', linewidth=3)
-    plt.plot(r_outer[ind, :], z_outer[ind, :], label='Outer surface', linewidth=3)
+    r_plasma = np.hstack((pm_opt.r_plasma[ind, :], pm_opt.r_plasma[ind, 0]))
+    z_plasma = np.hstack((pm_opt.z_plasma[ind, :], pm_opt.z_plasma[ind, 0]))
+    r_inner = np.hstack((pm_opt.r_inner[ind, :], pm_opt.r_inner[ind, 0]))
+    z_inner = np.hstack((pm_opt.z_inner[ind, :], pm_opt.z_inner[ind, 0]))
+    r_outer = np.hstack((pm_opt.r_outer[ind, :], pm_opt.r_outer[ind, 0]))
+    z_outer = np.hstack((pm_opt.z_outer[ind, :], pm_opt.z_outer[ind, 0]))
+
+    plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
+    plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
+    plt.plot(r_outer, z_outer, label='Outer surface', linewidth=2)
 
     running_tally = 0
     for k in range(ind):
@@ -221,7 +221,7 @@ for i, ind in enumerate([0, 5, 20, 31]):
     dipoles_i = dipoles[running_tally:running_tally + len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), :]
     for j in range(len(dipoles_i)):
         colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
-    
+
     sax = plt.scatter(
         np.array(pm_opt.final_RZ_grid[ind])[:, 0],
         np.array(pm_opt.final_RZ_grid[ind])[:, 1],
