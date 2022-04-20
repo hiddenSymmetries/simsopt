@@ -108,7 +108,6 @@ class Adder(Optimizable):
 
     def as_dict(self) -> dict:
         d = super().as_dict()
-        print('dict is ', d)
         d["n"] = self.n
         return d
 
@@ -205,6 +204,7 @@ class Rosenbrock(Optimizable):
         d["b"] = self._sqrtb * self._sqrtb
         d["x"] = self.get("x")
         d["y"] = self.get("y")
+        return d
 
     @classmethod
     def from_dict(cls, d):
@@ -224,16 +224,18 @@ class TestObject1(Optimizable):
               added as parents
     """
 
-    def __init__(self, val: Real, opts: Sequence[Optimizable] = None):
-        if opts is None:
-            opts = [Adder(3), Adder(2)]
-        super().__init__(x0=[val], names=['val'], funcs_in=opts)
+    def __init__(self, val: Real, depends_on: Sequence[Optimizable] = None,
+                 **kwargs):
+        if depends_on is None:
+            depends_on = [Adder(3), Adder(2)]
+        super().__init__(x0=[val], names=['val'], depends_on=depends_on,
+                         **kwargs)
 
     def f(self):
         """
         Implements an objective function
         """
-        return (self._dofs.full_x[0] + 2 * self.parents[0]()) / \
+        return (self.local_full_x[0] + 2 * self.parents[0]()) / \
                (10.0 + self.parents[1]())
 
     return_fn_map = {'f': f}
@@ -249,6 +251,16 @@ class TestObject1(Optimizable):
             (np.array([1.0 / (10.0 + a2)]),
              np.full(self.parents[0].n, 2.0 / (10.0 + a2)),
              np.full(self.parents[1].n, -(v + 2 * a1) / ((10.0 + a2) ** 2))))
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["val"] = self.local_full_x[0]
+        d["depends_on"] = []
+        for opt in self.parents:
+            d["depends_on"].append(opt.as_dict())
+        return d
 
 
 class TestObject2(Optimizable):
