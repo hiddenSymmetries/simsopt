@@ -702,10 +702,10 @@ class OptimizableTests(unittest.TestCase):
         # Set dofs and call
         adder.x = [6]
         self.assertAlmostEqual(adder(), 9.0)
-        adder.unfix_all()
+        adder.unfix_local()
         adder.x = [4, 5, 6]
         self.assertAlmostEqual(adder(), 15.0)
-        iden.unfix_all()
+        iden.unfix_local()
         iden.x = [20]
         self.assertAlmostEqual(iden(), 20.0)
 
@@ -720,9 +720,9 @@ class OptimizableTests(unittest.TestCase):
         # Fix dofs and now call
         adder.fix('x')
         self.assertAlmostEqual(adder([1, 2]), 13)
-        adder.fix_all()
+        adder.fix_local()
         self.assertAlmostEqual(adder(), 13)
-        iden.fix_all()
+        iden.fix_local()
         self.assertAlmostEqual(iden(), 20)
 
         # Check with Optimizable objects containing parents

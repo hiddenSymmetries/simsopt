@@ -45,7 +45,7 @@ class FluxObjectiveTests(unittest.TestCase):
         for i in range(ncoils):
             curr = Current(1e5)
             if i == 0:
-                curr.fix_all()
+                curr.fix_local()
             base_currents.append(curr)
 
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym)
