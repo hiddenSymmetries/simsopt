@@ -1217,7 +1217,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         """
         opts = self.ancestors + [self]
         for opt in opts:
-            opts.fix_local()
+            opt.fix_local()
 
     def unfix_all(self) -> None:
         """
@@ -1244,7 +1244,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         """
         opts = self.ancestors + [self]
         for opt in opts:
-            opts.unfix_local()
+            opt.unfix_local()
 
     def __add__(self, other):
         """ Add two Optimizable objects """
