@@ -1475,7 +1475,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
 
 class ScaledOptimizable(Optimizable):
     """
-    Represents an :obj:`~simsopt._core.graph_optimizable.Optimizable`
+    Represents an :obj:`~simsopt._core.optimizable.Optimizable`
     object scaled by a constant factor. This class is useful for
     including a weight in front of terms in an objective function. For
     now, this feature works on classes for which ``.J()`` returns an
@@ -1484,7 +1484,7 @@ class ScaledOptimizable(Optimizable):
 
     Args:
         factor: (float) The constant scale factor.
-        opt: An :obj:`~simsopt._core.graph_optimizable.Optimizable` object to scale.
+        opt: An :obj:`~simsopt._core.optimizable.Optimizable` object to scale.
     """
 
     def __init__(self, factor, opt):
@@ -1517,14 +1517,14 @@ class ScaledOptimizable(Optimizable):
 class OptimizableSum(Optimizable):
     """
     Represents a sum of
-    :obj:`~simsopt._core.graph_optimizable.Optimizable` objects. This
+    :obj:`~simsopt._core.optimizable.Optimizable` objects. This
     class is useful for combining terms in an objective function. For
     now, this feature works on classes for which ``.J()`` returns an
     objective value and ``.dJ()`` returns the gradient, e.g. coil
     optimization.
 
     Args:
-        opts: A python list of :obj:`~simsopt._core.graph_optimizable.Optimizable` object to sum.
+        opts: A python list of :obj:`~simsopt._core.optimizable.Optimizable` object to sum.
     """
 
     def __init__(self, opts):
