@@ -1248,6 +1248,7 @@ class TestOptimizableSerialize(unittest.TestCase):
     Test the serialization of the Optimizable class based on as_dict and
     from_dict methods using various sub-classes
     """
+
     def test_adder_serialize(self):
         adder_orig = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
                             fixed=[True, False, True])
@@ -1256,7 +1257,7 @@ class TestOptimizableSerialize(unittest.TestCase):
         self.assertEqual(adder.n, adder_orig.n)
         self.assertTrue(np.allclose(adder.full_x, adder_orig.full_x))
         self.assertTrue(np.array_equal(adder.dofs_free_status,
-                                        adder_orig.dofs_free_status))
+                                       adder_orig.dofs_free_status))
         self.assertEqual(adder.local_full_dof_names,
                          adder_orig.local_full_dof_names)
 
@@ -1285,7 +1286,6 @@ class TestOptimizableSerialize(unittest.TestCase):
         s = json.dumps(test_opt_orig, cls=MontyEncoder)
         test_opt = json.loads(s, cls=MontyDecoder)
         self.assertAlmostEqual(test_opt.f(), test_opt_orig.f())
-
 
 
 if __name__ == "__main__":
