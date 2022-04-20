@@ -61,7 +61,7 @@ for step in range(3):
               ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
-    surf.fix_all()
+    surf.fix_local()
     surf.fixed_range(mmin=0, mmax=max_mode, 
                      nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")  # Major radius

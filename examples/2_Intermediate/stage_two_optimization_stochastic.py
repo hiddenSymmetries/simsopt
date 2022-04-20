@@ -119,7 +119,7 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
 # of the currents:
-base_currents[0].fix_all()
+base_currents[0].fix_local()
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
