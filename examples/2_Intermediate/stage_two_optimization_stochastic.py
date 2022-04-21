@@ -32,7 +32,7 @@ from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, Coil, coils_via_symmetries
-from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
+from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, ArclengthVariation
 from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
 from simsopt.objectives.utilities import QuadraticPenalty, MPIObjective
@@ -133,7 +133,7 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
-Jdist = MinimumDistance(curves, DISTANCE_THRESHOLD)
+Jdist = CurveCurveDistance(curves, DISTANCE_THRESHOLD, num_basecurves=ncoils)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jals = [ArclengthVariation(c) for c in base_curves]
