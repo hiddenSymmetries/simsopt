@@ -1,9 +1,9 @@
 import unittest
 import logging
 import numpy as np
-from simsopt.objectives.graph_functions import Identity, Rosenbrock
+from simsopt.objectives.functions import Identity, Rosenbrock
 #from simsopt.core.optimizable import Target
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 
 #logging.basicConfig(level=logging.DEBUG)
 
