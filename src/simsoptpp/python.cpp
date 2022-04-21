@@ -5,6 +5,9 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
+#include <math.h>
+#include <chrono>
+
 
 
 
@@ -24,6 +27,8 @@ void init_curves(py::module_ &);
 void init_magneticfields(py::module_ &);
 void init_boozermagneticfields(py::module_ &);
 void init_tracing(py::module_ &);
+void init_distance(py::module_ &);
+
 
 
 PYBIND11_MODULE(simsoptpp, m) {
@@ -34,6 +39,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     init_magneticfields(m);
     init_boozermagneticfields(m);
     init_tracing(m);
+    init_distance(m);
 
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
