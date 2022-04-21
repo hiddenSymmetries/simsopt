@@ -6,8 +6,8 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters
 from simsopt.geo.curveobjectives import CurveLength
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 
 parameters['jit'] = False
 
