@@ -1,6 +1,7 @@
 from simsopt._core.graph_optimizable import Optimizable
 from .._core.derivative import derivative_dec
 import numpy as np
+import simsoptpp as sopp
 
 
 class SquaredFlux(Optimizable):
@@ -32,17 +33,10 @@ class SquaredFlux(Optimizable):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
-        xyz = self.surface.gamma()
         n = self.surface.normal()
-        absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:, :, None]
-        Bcoil = self.field.B().reshape(xyz.shape)
-        Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.target is not None:
-            B_n = (Bcoil_n - self.target)
-        else:
-            B_n = Bcoil_n
-        return 0.5 * np.mean(B_n**2 * absn)
+        Bcoil = self.field.B().reshape(n.shape)
+        Btarget = self.target if self.target is not None else []
+        return sopp.integral_BdotN(Bcoil, Btarget, n)
 
     @derivative_dec
     def dJ(self):
