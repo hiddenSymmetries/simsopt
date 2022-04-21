@@ -1171,21 +1171,39 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._dofs.unfix(key)
         self._update_free_dof_size_indices()
 
-    def fix_all(self) -> None:
+    def local_fix_all(self) -> None:
         """
-        Set the 'fixed' attribute for all degrees of freedom associated with
-        the current Optimizable object.
+        Set the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object.
         """
         self._dofs.fix_all()
         self._update_free_dof_size_indices()
 
-    def unfix_all(self) -> None:
+    def fix_all(self) -> None:
         """
-        Unset the 'fixed' attribute for all degrees of freedom associated
+        Set the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object including those of ancestors.
+        """
+        opts = self.ancestors + [self]
+        for opt in opts:
+            opt.local_fix_all()
+
+    def local_unfix_all(self) -> None:
+        """
+        Unset the 'fixed' attribute for all local degrees of freedom associated
         with the current Optimizable object.
         """
         self._dofs.unfix_all()
         self._update_free_dof_size_indices()
+
+    def unfix_all(self) -> None:
+        """
+        Unset the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object including those of the ancestors.
+        """
+        opts = self.ancestors + [self]
+        for opt in opts:
+            opt.local_unfix_all()
 
     def __add__(self, other):
         """ Add two Optimizable objects """
