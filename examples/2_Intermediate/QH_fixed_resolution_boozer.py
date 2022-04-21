@@ -3,8 +3,8 @@
 import os
 from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 """
 Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
