@@ -17,7 +17,7 @@ from numbers import Real
 
 import numpy as np
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..util.types import RealArray, IntArray, BoolArray
 

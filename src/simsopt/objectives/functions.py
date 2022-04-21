@@ -13,7 +13,7 @@ from typing import Sequence
 
 import numpy as np
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.types import RealArray
 
 

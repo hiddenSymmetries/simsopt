@@ -11,7 +11,7 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize, Bounds
 from scipy.integrate import quad
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import Struct
 from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
