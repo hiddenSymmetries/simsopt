@@ -424,7 +424,6 @@ class PermanentMagnetOptimizer:
 
         # Loops over all the field period contributions from every quad point
         for i in range(self.nphi):
-            # phi_plasma = phi[i] 
             for j in range(self.ntheta):
                 normal_plasma_xyz = self.plasma_boundary.unitnormal()[i, j, :]
                 R_plasma_xyz = self.plasma_boundary.gamma()[i, j, :]
