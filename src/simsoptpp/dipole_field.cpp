@@ -6,12 +6,11 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     int num_dipoles = m_points.shape(0);
     Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
     double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm;
-#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm)
+//#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm)
     for (int i = 0; i < num_points; ++i) {
         x = points(i, 0);
         y = points(i, 1);
         z = points(i, 2);
-        // Need to rotate into cylindrical, apply symmetries, add up, rotate back
 	for (int j = 0; j < num_dipoles; ++j) {
             mpx = m_points(j, 0);
             mpy = m_points(j, 1);

@@ -88,7 +88,7 @@ s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, n
 print(s.rc.shape, s.zs.shape, s.quadpoints_phi, s.quadpoints_theta)
 print(s.quadpoints_phi.shape, s.quadpoints_theta.shape)
 
-stellsym = False
+stellsym = True
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=stellsym, R0=R0, R1=R1, order=order)
 base_currents = [Current(1e5) for i in range(ncoils)]
@@ -175,14 +175,30 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=0, reg_l0=0,
 )
-#pm_opt.to_vtk(OUT_DIR + "pm_opt")
+
+# recompute normal error using the dipole field and bs field
+# to check nothing got mistranslated
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)  #, stellsym=stellsym)  #, nfp=s.nfp)
+b_dipole.set_points(s.gamma().reshape((-1, 3)))
+dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
+dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
+print("Average Bn without the PMs = ", 
+      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+print("Average Bn with the PMs = ", 
+      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+print("Average Bn with the PMs = ", 
+      np.mean(np.abs(np.sum((bs.B() - b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+#print("dipole Bn ~ A * m: ", b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta))
+exit()
+
+### Note below need to convert dipoles and dipole grid to cartesian for proper plotting
 dipole_grid = pm_opt.dipole_grid
 plt.figure()
 ax = plt.axes(projection="3d")
 colors = []
 dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
 for i in range(pm_opt.ndipoles):
-    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
+    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 2] ** 2))  # fix for cartesian
 sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
 plt.colorbar(sax)
 plt.axis('off')
@@ -191,18 +207,6 @@ plt.savefig('PMs_optimized.png')
 
 dipoles = np.ravel(dipoles)
 
-# recompute normal error using the dipole field and bs field
-# to check nothing got mistranslated
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=stellsym, nfp=s.nfp)
-b_dipole.set_points(s.gamma().reshape((-1, 3)))
-dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
-dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
-print("Average Bn without the PMs = ", 
-      np.mean(abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)[:, :, None])))
-print("Average Bn with the PMs = ", 
-      np.mean(abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)[:, :, None])))
-print("Average Bn with the PMs = ", 
-      np.mean(abs(np.sum((bs.B() - b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)[:, :, None])))
 
 # Create full torus QA surface, plot Bn on that surface, 
 
