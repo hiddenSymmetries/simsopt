@@ -1,5 +1,6 @@
 import numpy as np
-import netCDF4 as nc
+#import netCDF4 as nc
+from scipy.io import netcdf as nc
 import sys
 
 ### File I/O ###
@@ -36,14 +37,13 @@ class MGRID():
 
         print('Initialized mgrid file: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(nr, nphi, nz, nfp))
 
+    def add_field_cylindrical(self, br, bp, bz, name='default'):
 
-    def add_field_cylindrical(self,br,bp,bz,name='default'):
-        
         # structure Bfield data into arrays (phi,z,r) arrays
 
-        self.br_arr.append( br )
-        self.bz_arr.append( bz )
-        self.bp_arr.append( bp )
+        self.br_arr.append(br)
+        self.bz_arr.append(bz)
+        self.bp_arr.append(bp)
 
         # add coil label
         if (name == 'default'):
@@ -53,12 +53,12 @@ class MGRID():
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
-
     def write(self, fout):
 
         ### Write
         print('Writing mgrid file')
-        ds = nc.Dataset(fout, 'w', format='NETCDF4')
+        #ds = nc.Dataset(fout, 'w', format='NETCDF4')
+        ds = nc.netcdf_file(fout, 'w')
 
         # set dimensions
         ds.createDimension('stringsize', 30)
@@ -70,16 +70,16 @@ class MGRID():
         ds.createDimension('phi', self.nphi)
 
         # declare variables
-        var_ir = ds.createVariable('ir', 'i4')
-        var_jz = ds.createVariable('jz', 'i4')
-        var_kp = ds.createVariable('kp', 'i4')
-        var_nfp = ds.createVariable('nfp', 'i4')
-        var_nextcur = ds.createVariable('nextcur', 'i4')
+        var_ir = ds.createVariable('ir', 'i4', ('dim_00001',))
+        var_jz = ds.createVariable('jz', 'i4', ('dim_00001',))
+        var_kp = ds.createVariable('kp', 'i4', ('dim_00001',))
+        var_nfp = ds.createVariable('nfp', 'i4', ('dim_00001',))
+        var_nextcur = ds.createVariable('nextcur', 'i4', ('dim_00001',))
 
-        var_rmin = ds.createVariable('rmin', 'f8')
-        var_zmin = ds.createVariable('zmin', 'f8')
-        var_rmax = ds.createVariable('rmax', 'f8')
-        var_zmax = ds.createVariable('zmax', 'f8')
+        var_rmin = ds.createVariable('rmin', 'f8', ('dim_00001',))
+        var_zmin = ds.createVariable('zmin', 'f8', ('dim_00001',))
+        var_rmax = ds.createVariable('rmax', 'f8', ('dim_00001',))
+        var_zmax = ds.createVariable('zmax', 'f8', ('dim_00001',))
 
         var_coil_group = ds.createVariable('coil_group', 'c', ('external_coil_groups', 'stringsize',))
         var_mgrid_mode = ds.createVariable('mgrid_mode', 'c', ('dim_00001',))

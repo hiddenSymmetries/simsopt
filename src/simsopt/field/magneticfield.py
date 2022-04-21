@@ -102,7 +102,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         X = R * np.cos(Phi)
         Y = R * np.sin(Phi)
         Z = Z
-        print(np.shape(R))
+        #print(np.shape(R))
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()
@@ -110,21 +110,21 @@ class MagneticField(sopp.MagneticField, Optimizable):
         RPhiZ[:, 2] = Z.flatten()
 
         # get field from simsopt
-        self.set_points_cyl(RPhiZ)  ### set_points_cyl() requires RPhiZ
+        self.set_points_cyl(RPhiZ)  # set_points_cyl() requires RPhiZ
         B = self.B_cyl()
-        
+
         # shape the components
         br, bp, bz = B.T
-        br_3 = br.reshape( (nphi,nz,nr) )
-        bp_3 = bp.reshape( (nphi,nz,nr) )
-        bz_3 = bz.reshape( (nphi,nz,nr) )
+        br_3 = br.reshape((nphi, nz, nr))
+        bp_3 = bp.reshape((nphi, nz, nr))
+        bz_3 = bz.reshape((nphi, nz, nr))
 
         ## should implement multiple coil groups
 
         mgrid = mg.MGRID(fname=filename, nfp=nfp, \
                          nr=nr, nz=nz, nphi=nphi, \
                          rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
-        mgrid.add_field_cylindrical(br_3,bp_3,bz_3, name='simsopt_coils')  
+        mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
 
         mgrid.write(filename)  # perhaps mgrid.filename.nc
 
