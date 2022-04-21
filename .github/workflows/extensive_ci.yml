@@ -199,12 +199,16 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       run: pip install coverage 
 
-    - name: Run tests on 1 MPI process using coverage
+    - name: Run expensive tests on 1 MPI process using coverage
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
+      run: |
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
+
+    - name: Run remaining tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/solve
