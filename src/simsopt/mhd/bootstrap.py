@@ -677,7 +677,7 @@ class VmecRedlBootstrapMismatch(Optimizable):
         representing the objective function as a nonlinear
         least-squares problem.  This is the function handle to use
         with a
-        :obj:`~simsopt.objectives.graph_least_squares.LeastSquaresProblem`.
+        :obj:`~simsopt.objectives.least_squares.LeastSquaresProblem`.
 
         Specifically, this function returns
 
