@@ -85,7 +85,7 @@ property of the boundary's Fourier modes as follows::
 
   # Define parameter space:
   surf = vmec.boundary
-  surf.fix_all()
+  surf.local_fix_all()
   max_mode = 2
   surf.fixed_range(mmin=0, mmax=max_mode,
                    nmin=-max_mode, nmax=max_mode, fixed=False)
@@ -296,7 +296,7 @@ and toroidal mode numbers are set to be varied in the optimization::
                 ". Previous vmec iteration = ", vmec.iter)
 
       # Define parameter space:
-      surf.fix_all()
+      surf.local_fix_all()
       surf.fixed_range(mmin=0, mmax=max_mode, 
                        nmin=-max_mode, nmax=max_mode, fixed=False)
       surf.fix("rc(0,0)") # Major radius
@@ -419,7 +419,7 @@ toroidal mode numbers are set to be varied in the optimization::
                 ". Previous vmec iteration = ", vmec.iter)
 
       # Define parameter space:
-      surf.fix_all()
+      surf.local_fix_all()
       surf.fixed_range(mmin=0, mmax=max_mode, 
                        nmin=-max_mode, nmax=max_mode, fixed=False)
       surf.fix("rc(0,0)") # Major radius
