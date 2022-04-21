@@ -167,10 +167,10 @@ In addition to
 :obj:`~simsopt._core.optimizable.Optimizable.fix()`, you can
 also manipulate the fixed/free status of dofs using the functions
 :obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
-:obj:`~simsopt._core.optimizable.Optimizable.fix_all()`, and
-:obj:`~simsopt._core.optimizable.Optimizable.unfix_all()`::
+:obj:`~simsopt._core.optimizable.Optimizable.local_fix_all()`, and
+:obj:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`::
 
-  >>> c.fix_all()
+  >>> c.local_fix_all()
   >>> c.x
 
   array([], dtype=float64)
@@ -180,7 +180,7 @@ also manipulate the fixed/free status of dofs using the functions
 
   array([-2.])
 
-  >>> c.unfix_all()
+  >>> c.local_unfix_all()
   >>> c.x
 
   array([ 1. ,  0.1,  0. , -2. ,  0. ,  0.3,  3. , -0.5,  0.4])
@@ -359,7 +359,7 @@ automatically removed from the global state vector
 :obj:`~simsopt._core.optimizable.Optimizable.x` of a child
 object::
 
-  >>> curve.fix_all()
+  >>> curve.local_fix_all()
   >>> curve.unfix('zc(0)')
   >>> coil.x
 

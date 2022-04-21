@@ -110,7 +110,7 @@ optimizer can "cheat" by making all the currents go to zero, which
 makes the quadratic flux vanish. To close this loophole, we can fix
 the current of the first base coil::
 
-  base_currents[0].fix_all()
+  base_currents[0].local_fix_all()
 
 (A ``Current`` object only has one degree of freedom, hence we can use
 ``fix_all()``.)  If you wish, you can fix the currents in all the
