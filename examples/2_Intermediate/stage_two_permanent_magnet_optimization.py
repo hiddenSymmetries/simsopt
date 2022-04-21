@@ -178,7 +178,7 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
 
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)  #, stellsym=stellsym)  #, nfp=s.nfp)
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=stellsym, nfp=s.nfp)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
@@ -186,10 +186,6 @@ print("Average Bn without the PMs = ",
       np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
 print("Average Bn with the PMs = ", 
       np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
-print("Average Bn with the PMs = ", 
-      np.mean(np.abs(np.sum((bs.B() - b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
-#print("dipole Bn ~ A * m: ", b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta))
-exit()
 
 ### Note below need to convert dipoles and dipole grid to cartesian for proper plotting
 dipole_grid = pm_opt.dipole_grid

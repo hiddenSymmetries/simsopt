@@ -414,13 +414,12 @@ class PermanentMagnetOptimizer:
         """
         phi = 2 * np.pi * self.plasma_boundary.quadpoints_phi
         nfp = self.plasma_boundary.nfp
-        # nfp = self.plasma_boundary.nfp
-        nfp = 1
         stellsym = self.plasma_boundary.stellsym 
-        #if stellsym:
-        #    geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp * 2))
-        #else:
-        geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nfp))
+        if stellsym:
+            nsym = nfp * 2
+        else:
+            nsym = nfp
+        geo_factor = np.zeros((self.nphi, self.ntheta, self.ndipoles, 3, nsym))
 
         # Loops over all the field period contributions from every quad point
         for i in range(self.nphi):
@@ -444,33 +443,24 @@ class PermanentMagnetOptimizer:
                         for kk in range(3):
                             geo_factor[i, j, 
                                        running_tally:running_tally + len(dipole_grid_r), kk, fp
-                                        ] = 3.0 * RdotN_xyz / R_dist_xyz ** 5 * R_diff_xyz[:, kk] - normal_plasma_xyz[kk] / R_dist_xyz ** 3
-                    if False:  # stellsym:
-                        # Need to put magnets at (R, -phi, -Z) and then multiple geo_factor
-                        # so that (mr, mphi, mz) -> (mr, -mpi, -mz)
-                        R_dipole = np.array([dipole_grid_r, -phi_dipole, -dipole_grid_z]).T
-                        R_dist = self._cyl_dist(R_plasma, R_dipole) 
-                        # Suspect minus sign below... but think this should be 
-                        # evaluation point - source point no?
-                        R_diff = -(R_dipole - np.outer(np.ones(R_dipole.shape[0]), R_plasma))
-                        geo_factor[i, j, 
-                                   running_tally: running_tally + len(dipole_grid_r), :, fp + nfp
-                                   ] = (3 * (np.array([R_diff @ normal_plasma,
-                                                       R_diff @ normal_plasma,
-                                                       R_diff @ normal_plasma
-                                                       ]).T * R_diff).T / R_dist ** 5 - np.outer(
-                                       normal_plasma, 1.0 / R_dist ** 3)
-                        ).T
-                        geo_factor[i, j, 
-                                   running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
-                                   ] = -geo_factor[i, j, 
-                                                   running_tally: running_tally + len(dipole_grid_r), 1, fp + nfp
-                                                   ]
-                        geo_factor[i, j, 
-                                   running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
-                                   ] = -geo_factor[i, j, 
-                                                   running_tally: running_tally + len(dipole_grid_r), 2, fp + nfp
-                                                   ]
+                                       ] = 3.0 * RdotN_xyz / R_dist_xyz ** 5 * R_diff_xyz[:, kk] - normal_plasma_xyz[kk] / R_dist_xyz ** 3
+                        if stellsym:
+                            # Need to put magnets at (R, -phi, -Z), equivalently (X, -Y, -Z) 
+                            # and then multiple geo_factor
+                            # so that (mx, my, mz) -> (mx, -my, -mz)
+                            R_dipole_stellsym = np.copy(R_dipole_xyz)
+                            R_dipole_stellsym[:, 1] = - R_dipole_xyz[:, 1]
+                            R_dipole_stellsym[:, 2] = - R_dipole_xyz[:, 2]
+                            R_dist_stellsym = np.sqrt((R_plasma_xyz[0] - R_dipole_stellsym[:, 0]) ** 2 + (R_plasma_xyz[1] - R_dipole_stellsym[:, 1]) ** 2 + (R_plasma_xyz[2] - R_dipole_stellsym[:, 2]) ** 2)
+                            R_diff_stellsym = np.zeros((len(dipole_grid_r), 3))
+                            for jj in range(len(dipole_grid_r)):
+                                R_diff_stellsym[jj, :] = R_plasma_xyz - R_dipole_stellsym[jj, :]
+                            RdotN_stellsym = R_diff_stellsym @ normal_plasma_xyz
+                            facs = [1.0, -1.0, -1.0]
+                            for kk in range(3):
+                                geo_factor[i, j, 
+                                           running_tally:running_tally + len(dipole_grid_r), kk, fp + nfp
+                                           ] = facs[kk] * (3.0 * RdotN_stellsym / R_dist_stellsym ** 5 * R_diff_stellsym[:, kk] - normal_plasma_xyz[kk] / R_dist_stellsym ** 3)
                     running_tally += len(dipole_grid_r)
 
         # Sum over the matrix contributions from each part of the torus
@@ -492,7 +482,7 @@ class PermanentMagnetOptimizer:
 
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)?
-        self.b_obj = np.sum(
+        self.b_obj = - np.sum(
             Bs * self.plasma_boundary.unitnormal(), axis=2
         ).reshape(self.nphi * self.ntheta) * np.sqrt(dphi * dtheta)
         self.ATb = (self.A_obj.transpose()).dot(self.b_obj)
