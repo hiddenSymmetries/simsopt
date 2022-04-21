@@ -166,25 +166,25 @@ jobs:
       run: pip install -v .[MPI]
 
     - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
+      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
       run: |
         cd examples
         ./run_serial_examples
 
     - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
       run: |
         cd examples
         ./run_parallel_examples
 
     - name: Run spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'spec') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'spec')
       run: |
         cd examples
         ./run_spec_examples
 
     - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'vmec')
       run: |
         cd examples
         ./run_vmec_examples
