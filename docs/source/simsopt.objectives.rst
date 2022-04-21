@@ -15,7 +15,7 @@ simsopt.objectives.fluxobjective module
 simsopt.objectives.graph\_functions module
 ------------------------------------------
 
-.. automodule:: simsopt.objectives.graph_functions
+.. automodule:: simsopt.objectives.functions
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ simsopt.objectives.graph\_functions module
 simsopt.objectives.graph\_least\_squares module
 -----------------------------------------------
 
-.. automodule:: simsopt.objectives.graph_least_squares
+.. automodule:: simsopt.objectives.least_squares
    :members:
    :undoc-members:
    :show-inheritance:

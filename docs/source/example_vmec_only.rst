@@ -60,8 +60,8 @@ For simplicity, MPI parallelization will not be used for now.
 To start, we must import several classes::
 
   from simsopt.mhd import Spec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_serial import least_squares_serial_solve
+  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.solve.serial import least_squares_serial_solve
 
 Then we create the equilibrium object, starting from an input file::
 
@@ -148,8 +148,8 @@ The complete example is then as follows::
 
   from simsopt.util.mpi import MpiPartition
   from simsopt.mhd import Vmec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.solve.mpi import least_squares_mpi_solve
 
   # In the next line, we can adjust how many groups the pool of MPI
   # processes is split into.
