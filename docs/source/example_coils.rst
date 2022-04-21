@@ -27,7 +27,7 @@ the target field; small values of :math:`\alpha` will give a more
 accurate match to the target field at the cost of complicated coils.
 Finally, :math:`J_{dist}` is a penalty that prevents coils from
 becoming too close.  For its precise definition, see
-:obj:`simsopt.geo.curveobjectives.MinimumDistance`.  The constant
+:obj:`simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
 :math:`\beta` is selected to balance this minimum distance penalty
 against the other objectives.  Analytic derivatives are used for the
 optimization.
@@ -53,7 +53,7 @@ some classes that will be used::
   from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
   from simsopt.field.biotsavart import BiotSavart
   from simsopt.field.coil import Current, coils_via_symmetries
-  from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
+  from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
   from simsopt.geo.plot import plot
 
 The target plasma surface is given in the VMEC input file ``tests/test_files/input.LandremanPaul2021_QA``.
@@ -188,7 +188,7 @@ The result is 0.19 Tesla. We now define the objective function::
   
   Jf = SquaredFlux(s, bs)
   Jls = [CurveLength(c) for c in base_curves]
-  Jdist = MinimumDistance(curves, MIN_DIST)
+  Jdist = CurveCurveDistance(curves, MIN_DIST)
   # Scale and add terms to form the total objective function:
   objective = Jf + ALPHA * sum(Jls) + BETA * Jdist
 
