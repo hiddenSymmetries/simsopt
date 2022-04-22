@@ -7,7 +7,7 @@ try:
 except:
     MPI = None
 
-from simsopt._core.graph_optimizable import Optimizable, make_optimizable
+from simsopt._core.optimizable import Optimizable, make_optimizable
 from simsopt._core.finite_difference import FiniteDifference
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
