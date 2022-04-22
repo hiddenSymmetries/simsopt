@@ -9,7 +9,22 @@ from jax import vjp, jvp
 
 
 
-def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None):
+def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None, rotation_scaling=None):
+    """
+    Create a regular grid of `numfilaments_n * numfilaments_b` many filaments to approximate a finite-build coil.
+    Args:
+        curve: the underlying curve.
+        numfilaments_n: number of filaments in normal direction.
+        numfilaments_b: number of filaments in bi-normal direction.
+        gapsize_n: gap between filaments in normal direction.
+        gapsize_b: gap between filaments in bi-normal direction.
+        rotation_order: Fourier order to use in the expression for the rotation
+                        of the filament pack. `None` means that the rotation is not optimized.
+        rotation_scaling: scaling for the rotation degrees of freedom. good
+                           scaling improves the convergence of first order optimization
+                           algorithms. If None, then the default of `1/max(gapsize_n, gapsize_b)`
+                           is used.
+    """
     if numfilaments_n % 2 == 1:
         shifts_n = np.arange(numfilaments_n) - numfilaments_n//2
     else:
@@ -21,20 +36,18 @@ def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, 
         shifts_b = np.arange(numfilaments_b) - numfilaments_b/2 + 0.5
     shifts_b = shifts_b * gapsize_b
 
+    if rotation_scaling is None:
+        rotation_scaling = 1/max(gapsize_n, gapsize_b)
     if rotation_order is None:
         rotation = ZeroRotation(curve.quadpoints)
     else:
-        rotation = FilamentRotation(curve.quadpoints, rotation_order)
+        rotation = FilamentRotation(curve.quadpoints, rotation_order, scale=rotation_scaling)
     filaments = []
     for i in range(numfilaments_n):
         for j in range(numfilaments_b):
             filaments.append(CurveFilament(curve, shifts_n[i], shifts_b[j], rotation))
     return filaments
 
-
-
-
-        
 
 class CurveFilament(sopp.Curve, Curve):
 
@@ -119,7 +132,7 @@ class CurveFilament(sopp.Curve, Curve):
 
 class FilamentRotation(Optimizable):
 
-    def __init__(self, quadpoints, order):
+    def __init__(self, quadpoints, order, scale=1.):
         """
         The rotation of the multifilament pack; alpha in Figure 1 of
         doi:10.1017/S0022377820000756
@@ -127,27 +140,29 @@ class FilamentRotation(Optimizable):
         self.order = order
         Optimizable.__init__(self, x0=np.zeros((2*order+1, )))
         self.quadpoints = quadpoints
+        self.scale = scale
         self.jac = rotation_dcoeff(quadpoints, order)
         self.jacdash = rotationdash_dcoeff(quadpoints, order)
         self.jax_alpha = jit(lambda dofs, points: jaxrotation_pure(dofs, points, self.order))
         self.jax_alphadash = jit(lambda dofs, points: jaxrotationdash_pure(dofs, points, self.order))
 
     def alpha(self, quadpoints):
-        return self.jax_alpha(self._dofs.full_x, quadpoints)
+        return self.scale * self.jax_alpha(self._dofs.full_x, quadpoints)
 
     def alphadash(self, quadpoints):
-        return self.jax_alphadash(self._dofs.full_x, quadpoints)
+        return self.scale * self.jax_alphadash(self._dofs.full_x, quadpoints)
 
     def dalpha_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: sopp.vjp(v, self.jac)})
+        return Derivative({self: self.scale * sopp.vjp(v, self.jac)})
 
     def dalphadash_by_dcoeff_vjp(self, quadpoints, v):
-        return Derivative({self: sopp.vjp(v, self.jacdash)})
+        return Derivative({self: self.scale * sopp.vjp(v, self.jacdash)})
 
 
-class ZeroRotation():
+class ZeroRotation(Optimizable):
 
     def __init__(self, quadpoints):
+        Optimizable.__init__(self, x0=[])
         self.zero = np.zeros((quadpoints.size, ))
 
     def alpha(self, quadpoints):
