@@ -39,13 +39,6 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
 }
 
 Array dipole_field_B_SIMD(Array& points, Array& m_points, Array& m) {
-    if(points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("points needs to be in row-major storage order");
-    if(m_points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("m_points needs to be in row-major storage order");
-    if(m.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("m needs to be in row-major storage order");
-
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;

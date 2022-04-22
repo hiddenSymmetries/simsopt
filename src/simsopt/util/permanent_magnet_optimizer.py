@@ -616,7 +616,8 @@ class PermanentMagnetOptimizer:
                     dipole_grid_r = np.ravel(np.array(self.final_RZ_grid[k])[:, 0])
                     dipole_grid_z = np.ravel(np.array(self.final_RZ_grid[k])[:, 1])
                     for fp in range(nfp):
-                        phi_sym = phi[k] + (2 * np.pi / nfp) * fp
+                        phi0 = (2 * np.pi / nfp) * fp
+                        phi_sym = phi[k] + phi0 
                         dipole_grid_x = dipole_grid_r * np.cos(phi_sym)
                         dipole_grid_y = dipole_grid_r * np.sin(phi_sym)
                         R_dipole_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
@@ -629,15 +630,24 @@ class PermanentMagnetOptimizer:
                             geo_factor[i, j, 
                                        running_tally:running_tally + len(dipole_grid_r), kk, fp
                                        ] = 3.0 * RdotN_xyz / R_dist_xyz ** 5 * R_diff_xyz[:, kk] - normal_plasma_xyz[kk] / R_dist_xyz ** 3
+                        # rotate the x and y component
+                        geo_factor_x = geo_factor[i, j, 
+                                                  running_tally:running_tally + len(dipole_grid_r), 0, fp
+                                                  ] * np.cos(phi0) - geo_factor[i, j, 
+                                                                                running_tally:running_tally + len(dipole_grid_r), 1, fp
+                                                                                ] * np.sin(phi0)
+                        geo_factor_y = geo_factor[i, j, 
+                                                  running_tally:running_tally + len(dipole_grid_r), 0, fp
+                                                  ] * np.sin(phi0) + geo_factor[i, j, 
+                                                                                running_tally:running_tally + len(dipole_grid_r), 1, fp
+                                                                                ] * np.cos(phi0)
+                        geo_factor[i, j, 
+                                   running_tally:running_tally + len(dipole_grid_r), 0, fp
+                                   ] = geo_factor_x
+                        geo_factor[i, j, 
+                                   running_tally:running_tally + len(dipole_grid_r), 1, fp
+                                   ] = geo_factor_y
                         if stellsym:
-                            # Need to put magnets at (R, -phi, -Z), equivalently (X, -Y, -Z) 
-                            # and then multiple geo_factor
-                            # because stellarator symmetric field
-                            # transforms like (mr, mphi, mz) -> (-mr, mphi, mz)
-                            # mx = mr cos(phi) - mphi sin(phi)
-                            # my = mphi cos(phi) + mr sin(phi)
-                            # so geo factor must be transformed into cylindrical, altered
-                            # and then transformed back
                             R_dipole_stellsym = np.copy(R_dipole_xyz)
                             R_dipole_stellsym[:, 1] = - R_dipole_xyz[:, 1]
                             R_dipole_stellsym[:, 2] = - R_dipole_xyz[:, 2]
@@ -651,27 +661,28 @@ class PermanentMagnetOptimizer:
                                 geo_factor[i, j, 
                                            running_tally:running_tally + len(dipole_grid_r), kk, fp + nfp
                                            ] = (3.0 * RdotN_stellsym / R_dist_stellsym ** 5 * R_diff_stellsym[:, kk] - normal_plasma_xyz[kk] / R_dist_stellsym ** 3)
-                            # rotate into cylindrical
-                            geo_factor_r = geo_factor[i, j, 
+                            # rotate the x and y component
+                            geo_factor_x = geo_factor[i, j, 
                                                       running_tally:running_tally + len(dipole_grid_r), 0, fp + nfp
-                                                      ] * np.cos(phi_sym) + geo_factor[i, j, 
-                                                                                       running_tally:running_tally + len(dipole_grid_r), 1, fp + nfp
-                                                                                       ] * np.sin(phi_sym)
-                            geo_factor_phi = -geo_factor[i, j, 
-                                                         running_tally:running_tally + len(dipole_grid_r), 0, fp + nfp
-                                                         ] * np.sin(phi_sym) + geo_factor[i, j, 
-                                                                                          running_tally:running_tally + len(dipole_grid_r), 1, fp + nfp
-                                                                                          ] * np.cos(phi_sym)
-                            # get back into cartesian, but with sign of geo_factor_r flipped
-                            geo_factor_x = -geo_factor_r * np.cos(phi_sym) - geo_factor_phi * np.sin(phi_sym)
-                            geo_factor_y = -geo_factor_r * np.sin(phi_sym) + geo_factor_phi * np.cos(phi_sym)
-                            # set final matrix
+                                                      ] * np.cos(phi0) - geo_factor[i, j, 
+                                                                                    running_tally:running_tally + len(dipole_grid_r), 1, fp + nfp
+                                                                                    ] * np.sin(phi0)
+                            geo_factor_y = geo_factor[i, j, 
+                                                      running_tally:running_tally + len(dipole_grid_r), 0, fp + nfp
+                                                      ] * np.sin(phi0) + geo_factor[i, j, 
+                                                                                    running_tally:running_tally + len(dipole_grid_r), 1, fp + nfp
+                                                                                    ] * np.cos(phi0)
                             geo_factor[i, j, 
                                        running_tally:running_tally + len(dipole_grid_r), 0, fp + nfp
                                        ] = geo_factor_x
                             geo_factor[i, j, 
                                        running_tally:running_tally + len(dipole_grid_r), 1, fp + nfp
                                        ] = geo_factor_y
+
+                            # set final matrix
+                            geo_factor[i, j, 
+                                       running_tally:running_tally + len(dipole_grid_r), 0, fp + nfp
+                                       ] *= -1.0
                     running_tally += len(dipole_grid_r)
 
         # Sum over the matrix contributions from each part of the torus

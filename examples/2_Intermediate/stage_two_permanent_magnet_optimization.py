@@ -49,7 +49,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 4
+ncoils = 2
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -85,8 +85,6 @@ os.makedirs(OUT_DIR, exist_ok=True)
 nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-print(s.rc.shape, s.zs.shape, s.quadpoints_phi, s.quadpoints_theta)
-print(s.quadpoints_phi.shape, s.quadpoints_theta.shape)
 
 stellsym = True
 # Create the initial coils:
@@ -181,7 +179,6 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=stellsym, nfp=s.nfp)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 #b_dipole._toVTK("Dipole_Fields")
-print(b_dipole.B())
 
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
@@ -244,7 +241,7 @@ if make_plots and (comm is None or comm.rank == 0):
 #thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 #s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", quadpoints_phi=phis, quadpoints_theta=thetas)
 
-s = SurfaceRZFourier.from_vmec_input(filename, range="field period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 #sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 #sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
@@ -265,7 +262,6 @@ def trace_fieldlines(bfield, label):
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
 
 
-print(s.nfp, stellsym)
 n = 16
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
@@ -276,35 +272,34 @@ bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
 )
 bsh.to_vtk('biot_savart_fields')
-#trace_fieldlines(bsh, 'bsh_without_PMs')
+trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
-t1 = time.time()
-bsh = InterpolatedField(
-    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-)
-bsh.to_vtk('only_dipole_fields')
-t2 = time.time()
+#t1 = time.time()
+#bsh = InterpolatedField(
+#    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+#)
+#bsh.to_vtk('only_dipole_fields')
+#t2 = time.time()
 #trace_fieldlines(bsh, 'bsh_only_PMs')
-print('Done with Poincare plots with the permanent magnets')
+#print('Done with Poincare plots with the permanent magnets')
 t1 = time.time()
 bsh = InterpolatedField(
     bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
 )
 bsh.to_vtk('dipole_fields')
 t2 = time.time()
-#trace_fieldlines(bsh, 'bsh_PMs')
+trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
-# For plotting Bn on the full torus surface at the end with just the dipole fields
 bs.set_points(s.gamma().reshape((-1, 3)))
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
+# For plotting Bn on the full torus surface at the end with just the dipole fields
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
 pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
-print(pm_opt.m, pm_opt.m_maxima)
 plt.show()
 
 # Send message to Zhu about using paraview or whatever 3D thing they are using (coilPy) 
