@@ -6,7 +6,7 @@ import numpy as np
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
     vmec_fieldlines
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
     import vmec

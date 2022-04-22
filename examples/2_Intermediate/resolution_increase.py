@@ -5,8 +5,8 @@ import numpy as np
 from simsopt.util.mpi import MpiPartition, log
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
 
 """
 This example shows how scripting can be used to increase the size

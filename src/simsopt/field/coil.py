@@ -1,4 +1,4 @@
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
