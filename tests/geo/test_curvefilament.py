@@ -1,6 +1,6 @@
 import unittest
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.geo.curvefilament import CurveFilament, FilamentRotation
+from simsopt.geo.curvefilament import CurveFilament, FilamentRotation, create_multifilament_grid
 import numpy as np
 
 
@@ -74,3 +74,43 @@ class MultifilamentTesting(unittest.TestCase):
             print(errg)
             assert errg < 0.3 * errg_old
             errg_old = errg
+
+    def test_filamentpack(self):
+        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=80)
+        c = curves[0]
+
+        numfilaments_n = 2
+        numfilaments_b = 3
+        gapsize_n = 0.01
+        gapsize_b = 0.02
+        fils = create_multifilament_grid(
+            c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
+            rotation_order=None, rotation_scaling=None)
+
+        def check(fils, c):
+            assert len(fils) == numfilaments_n * numfilaments_b
+            dists = np.linalg.norm(fils[0].gamma()-fils[-1].gamma(), axis=1)
+            # check that filaments are equidistant everywhere
+            assert np.var(dists) < 1e-16
+            # check that first and last filament are on opossing corners of filament pack and have correct distance
+            assert abs(dists[0] - (((numfilaments_n-1)*gapsize_n)**2+((numfilaments_b-1)*gapsize_b)**2)**0.5) < 1e-13
+            # check that the coil pack is centered around the underlying curve
+            assert np.linalg.norm(np.mean([f.gamma() for f in fils], axis=0)-c.gamma()) < 1e-13
+
+        check(fils, c)
+
+        fils = create_multifilament_grid(
+            c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
+            rotation_order=3, rotation_scaling=None)
+
+        xr = fils[0].rotation.x
+        fils[0].rotation.x = xr + 1e-2*np.random.standard_normal(size=xr.shape)
+
+        check(fils, c)
+
+        fils = create_multifilament_grid(
+            c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
+            rotation_order=3, rotation_scaling=None)
+
+        xr = fils[0].rotation.x
+        fils[0].rotation.x = xr + 1e-2*np.random.standard_normal(size=xr.shape)
