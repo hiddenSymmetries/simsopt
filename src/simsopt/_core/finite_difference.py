@@ -27,7 +27,7 @@ except ImportError:
 
 from ..util.types import RealArray
 from ..util.dev import SimsoptRequires
-from .graph_optimizable import Optimizable
+from .optimizable import Optimizable
 from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)

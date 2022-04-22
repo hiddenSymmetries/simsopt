@@ -25,7 +25,7 @@ simsopt.\_core.finite_difference module
 simsopt.\_core.graph\_optimizable module
 ----------------------------------------
 
-.. automodule:: simsopt._core.graph_optimizable
+.. automodule:: simsopt._core.optimizable
    :members:
    :undoc-members:
    :show-inheritance:
