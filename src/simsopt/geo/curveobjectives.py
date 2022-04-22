@@ -3,7 +3,7 @@ from jax import grad
 import jax.numpy as jnp
 from .jit import jit
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 from deprecated import deprecated
 import simsoptpp as sopp

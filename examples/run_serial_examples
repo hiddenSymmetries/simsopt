@@ -5,7 +5,7 @@
 set -ex
 
 ./1_Simple/just_a_quadratic.py
-./1_Simple/graph_surf_vol_area.py
+./1_Simple/surf_vol_area.py
 ./1_Simple/minimize_curve_length.py
 ./1_Simple/tracing_fieldline.py
 ./1_Simple/tracing_particle.py

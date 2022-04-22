@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt._core.graph_optimizable import Optimizable, ScaledOptimizable, OptimizableSum
+from simsopt._core.optimizable import Optimizable, ScaledOptimizable, OptimizableSum
 from simsopt._core.derivative import Derivative, derivative_dec
 
 

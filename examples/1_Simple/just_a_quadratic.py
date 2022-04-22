@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
-from simsopt.objectives.graph_functions import Identity
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.objectives.functions import Identity
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 
 """                                                                           
 Minimize f(x,y,z) = ((x-1)/1)^2 + ((y-2)/2)^2 + ((z-3)/3)^2.                  

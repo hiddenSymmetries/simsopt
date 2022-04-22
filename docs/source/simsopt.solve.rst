@@ -7,7 +7,7 @@ Submodules
 simsopt.solve.graph\_mpi module
 -------------------------------
 
-.. automodule:: simsopt.solve.graph_mpi
+.. automodule:: simsopt.solve.mpi
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ simsopt.solve.graph\_mpi module
 simsopt.solve.graph\_serial module
 ----------------------------------
 
-.. automodule:: simsopt.solve.graph_serial
+.. automodule:: simsopt.solve.serial
    :members:
    :undoc-members:
    :show-inheritance:

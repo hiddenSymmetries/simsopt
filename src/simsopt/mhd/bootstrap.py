@@ -11,7 +11,7 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize, Bounds
 from scipy.integrate import quad
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import Struct
 from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
@@ -677,7 +677,7 @@ class VmecRedlBootstrapMismatch(Optimizable):
         representing the objective function as a nonlinear
         least-squares problem.  This is the function handle to use
         with a
-        :obj:`~simsopt.objectives.graph_least_squares.LeastSquaresProblem`.
+        :obj:`~simsopt.objectives.least_squares.LeastSquaresProblem`.
 
         Specifically, this function returns
 

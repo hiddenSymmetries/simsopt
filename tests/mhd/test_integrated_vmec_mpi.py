@@ -11,11 +11,11 @@ try:
 except ImportError:
     vmec = None
 
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 
 if MPI is not None:
     from simsopt.mhd.vmec import Vmec
-    from simsopt.solve.graph_mpi import least_squares_mpi_solve
+    from simsopt.solve.mpi import least_squares_mpi_solve
     from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
