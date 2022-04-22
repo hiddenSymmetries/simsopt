@@ -11,6 +11,7 @@ from simsopt.util.zoo import get_ncsx_data
 
 import numpy as np
 import unittest
+import time
 
 try:
     import pyevtk
@@ -427,22 +428,51 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
 
-    def test_DipoleField_multiple_dipole(self):
-        Ndipoles = 100
+    def test_DipoleField_multiple_dipoles(self):
+        Ndipoles = 100 
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
-        field_loc = np.outer(np.ones(Ndipoles), np.array([1, 0.2, 0.5]))
+        field_loc = np.outer(np.ones(1000001), np.array([1, 0.2, 0.5]))
         Bfield = DipoleField(m_loc, m)
         Bfield.set_points(field_loc)
-        gradB = np.array(Bfield.dB_by_dX())
-        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        B_simsopt = Bfield.B()
+        B_correct = Ndipoles * 1e-7 * np.array([0.260891, -0.183328, -0.77562])
         # Verify B
-        assert np.allclose(Bfield.B(), Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562]]))
+        assert np.allclose(B_simsopt, B_correct)
+
+        gradB_simsopt = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+
+        t1 = time.time()
+        gradB = np.array(Bfield.dB_by_dX())
+        t2 = time.time()
+        print('Time for gradB calc = ', t2 - t1)
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
-    # Todo: add test here with multiple points and multiple dipoles
+    def test_DipoleField_multiple_points_multiple_dipoles(self):
+        Ndipoles = 101
+        m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
+        m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
+        field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
+        Bfield = DipoleField(m_loc, m)
+        Bfield.set_points(field_loc)
+        B_simsopt = Bfield.B()
+        B_correct = Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562], [0.11238748, -0.248857, 0.0911378], [0.0, -0.73980, -1.307552]])
+        # Verify B
+        assert np.allclose(B_simsopt, B_correct, atol=1e-4)
+
+        field_loc = np.array([[1, 0.2, 0.5], [1, 0.2, 0.5], [1, 0.2, 0.5]])
+        gradB = np.array(Bfield.dB_by_dX())
+        gradB_simsopt = np.zeros((3, 3, 3))
+        gradB_simsopt[0, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[1, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[2, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
     def test_BifieldMultiply(self):
         scalar = 1.2345
@@ -660,7 +690,6 @@ class Testing(unittest.TestCase):
             bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
-            print(err_1, err_2)
             assert err_1 < 0.6**3 * old_err_1
             assert err_2 < 0.6**3 * old_err_2
             old_err_1 = err_1
@@ -720,7 +749,6 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         B1 = Bfield.B()
         dB1 = Bfield.dB_by_dX()
-        print(dB1)
         B1_analytical = [
             [-3.48663e-7, 0.000221744, -0.211538],
             [-0.0000841262, -0.00164856, 0.85704]

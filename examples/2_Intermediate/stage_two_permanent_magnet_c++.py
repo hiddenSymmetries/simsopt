@@ -156,7 +156,7 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05,
+    s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
 max_iter_MwPGP = 100
@@ -170,8 +170,9 @@ print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
 print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
 dipole_grid = pm_opt.dipole_grid
 
-#b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
-#b_dipole.set_points(s.gamma().reshape((-1, 3)))
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
+b_dipole.set_points(s.gamma().reshape((-1, 3)))
+print(b_dipole.B())
 
 make_plots = False
 if make_plots:
