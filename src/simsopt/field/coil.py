@@ -85,6 +85,7 @@ def apply_symmetries_to_curves(base_curves, nfp, stellsym):
                     curves.append(rotcurve)
     return curves
 
+
 def apply_symmetries_to_currents(base_currents, nfp, stellsym):
     flip_list = [False, True] if stellsym else [False]
     currents = []
@@ -94,6 +95,7 @@ def apply_symmetries_to_currents(base_currents, nfp, stellsym):
                 current = ScaledCurrent(base_currents[i], -1.) if flip else base_currents[i]
                 currents.append(current)
     return currents
+
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
     """
