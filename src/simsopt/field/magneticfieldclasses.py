@@ -478,7 +478,7 @@ class DipoleField(MagneticField):
                 self.m_vec = m
         else:
             # assuming the user defined the coordinates in (X, Y, Z)
-            # while the PM class has it in (R, Phi, Z) so we have to rotate it
+            # while the PM class may have it in (R, Phi, Z)
             self.m_vec = m.reshape(self.ndipoles, 3)
             self.dipole_grid = dipole_grid
 
@@ -505,6 +505,7 @@ class DipoleField(MagneticField):
         m_vec = np.zeros((self.ndipoles * nsym, 3))
         running_tally = 0
         running_tally_m = 0
+        offsetm = self.ndipoles * nfp
         for i in range(len(phi)):
             radii = np.ravel(np.array(RZ_grid[i])[:, 0])
             nr = len(radii)
@@ -517,22 +518,67 @@ class DipoleField(MagneticField):
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0]
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 1]
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
+                if stellsym:
+                    mx = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] 
+                    my = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] 
+                    # rotate into cylindrical
+                    mr = mx * np.cos(phi_sym) + my * np.sin(phi_sym)
+                    mphi = -mx * np.sin(phi_sym) + my * np.cos(phi_sym)
+                    # rotate back into cartesian but with mr sign flipped
+                    m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 0] = -mr * np.cos(phi_sym) - mphi * np.sin(phi_sym) 
+                    m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 1] = -mr * np.sin(phi_sym) + mphi * np.cos(phi_sym) 
+                    m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 1] = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] 
 
             running_tally += nr * nfp
             running_tally_m += nr 
 
         if stellsym:
-            # Y and Z coordinates flip under stellarator symmetry
+            # Y and Z coordinates OF THE GRID flip under stellarator symmetry
+            # but R component of the m vector flips under this change
             offset = len(dipole_grid_Z) * nfp
             dipole_grid_x[offset:] = dipole_grid_x[:offset]
             dipole_grid_y[offset:] = - dipole_grid_y[:offset]
             dipole_grid_z[offset:] = - dipole_grid_z[:offset]
-            m_vec[self.ndipoles * nfp:, 0] = m_vec[:self.ndipoles * nfp, 0]
-            m_vec[self.ndipoles * nfp:, 1] = - m_vec[:self.ndipoles * nfp, 1]
-            m_vec[self.ndipoles * nfp:, 2] = - m_vec[:self.ndipoles * nfp, 2]
+            #m_vec[self.ndipoles * nfp:, 0] = m_vec[:self.ndipoles * nfp, 0]
+            #m_vec[self.ndipoles * nfp:, 1] = - m_vec[:self.ndipoles * nfp, 1]
+            #m_vec[self.ndipoles * nfp:, 2] = - m_vec[:self.ndipoles * nfp, 2]
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec
+
+    def _toVTK(self, vtkname, dim=(1)):
+        """write dipole data into a VTK file
+
+        Args:
+            vtkname (str): VTK filename, will be appended with .vts or .vtu.
+            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        """
+        from pyevtk.hl import gridToVTK, pointsToVTK
+
+        dim = np.atleast_1d(dim)
+        mx = self.m_vec[:, 0]
+        my = self.m_vec[:, 1]
+        mz = self.m_vec[:, 2]
+        ox = self.dipole_grid[:, 0]
+        oy = self.dipole_grid[:, 1]
+        oz = self.dipole_grid[:, 2]
+        if len(dim) == 1:  # save as points
+            print("write VTK as points")
+            data = {"m": (mx, my, mz)}
+            pointsToVTK(
+                vtkname, ox, oy, oz, data=data
+            )
+        else:  # save as surfaces
+            assert len(dim) == 3
+            print("write VTK as closed surface")
+            ox = np.reshape(ox, dim)
+            oy = np.reshape(oy, dim)
+            oz = np.reshape(oz, dim)
+            mx = np.reshape(mx, dim)
+            my = np.reshape(my, dim)
+            mz = np.reshape(mz, dim)
+            data = {"m": (mx, my, mz)}
+            gridToVTK(vtkname, ox, oy, oz, pointData=data)
 
 
 class Dommaschk(MagneticField):

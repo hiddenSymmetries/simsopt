@@ -49,7 +49,7 @@ except ImportError:
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 2
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -166,10 +166,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15, plasma_offset=0.1,
+    s, coil_offset=0.1, dr=0.1, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 100
+max_iter_MwPGP = 10000
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
@@ -180,6 +180,9 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
 # to check nothing got mistranslated
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=stellsym, nfp=s.nfp)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
+#b_dipole._toVTK("Dipole_Fields")
+print(b_dipole.B())
+
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
@@ -187,14 +190,13 @@ print("Average Bn without the PMs = ",
 print("Average Bn with the PMs = ", 
       np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
 
-### Note below need to convert dipoles and dipole grid to cartesian for proper plotting
 dipole_grid = pm_opt.dipole_grid
 plt.figure()
 ax = plt.axes(projection="3d")
 colors = []
 dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
 for i in range(pm_opt.ndipoles):
-    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 2] ** 2))  # fix for cartesian
+    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
 sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
 plt.colorbar(sax)
 plt.axis('off')
@@ -214,21 +216,6 @@ print('Dipole field setup done')
 
 make_plots = True 
 if make_plots and (comm is None or comm.rank == 0):
-    # Make plot of <|B * n| / |B|> as function of iteration
-    mean_Bn_over_B = []
-    for i in range(len(MwPGP_history)):
-        abs_Bn = np.abs(MwPGP_history[i])
-        b_dipole = DipoleField(pm_opt.dipole_grid, m_history[:, :, i], pm_opt, stellsym, nfp=s.nfp)
-        b_dipole.set_points(s.gamma().reshape((-1, 3)))
-        Bmag = np.linalg.norm(pm_opt.B_plasma_surface.reshape(pm_opt.nphi * pm_opt.ntheta, 3) + b_dipole.B(), axis=-1, ord=2)
-        print(np.mean(abs_Bn), np.mean(Bmag))
-        mean_Bn_over_B.append(np.mean(abs_Bn / Bmag))
-
-    plt.figure()
-    plt.semilogy(np.linspace(1, max_iter_MwPGP, len(MwPGP_history)), mean_Bn_over_B)
-    plt.grid(True)
-    plt.savefig('normalized_Bn_errors.png')
-
     # Make plot of ATA element values
     plt.figure()
     plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
@@ -256,9 +243,10 @@ if make_plots and (comm is None or comm.rank == 0):
 #phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
 #thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 #s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", quadpoints_phi=phis, quadpoints_theta=thetas)
-s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
-sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+
+s = SurfaceRZFourier.from_vmec_input(filename, range="field period", nphi=nphi, ntheta=ntheta)
+#sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
+#sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 
 def trace_fieldlines(bfield, label): 
@@ -277,6 +265,7 @@ def trace_fieldlines(bfield, label):
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
 
 
+print(s.nfp, stellsym)
 n = 16
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
@@ -286,21 +275,24 @@ zrange = (0, np.max(zs), n // 2)
 bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
 )
-trace_fieldlines(bsh, 'bsh_without_PMs')
+bsh.to_vtk('biot_savart_fields')
+#trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
-#t1 = time.time()
-#bsh = InterpolatedField(
-#    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-#)
-#t2 = time.time()
+t1 = time.time()
+bsh = InterpolatedField(
+    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
+)
+bsh.to_vtk('only_dipole_fields')
+t2 = time.time()
 #trace_fieldlines(bsh, 'bsh_only_PMs')
-#print('Done with Poincare plots with the permanent magnets')
+print('Done with Poincare plots with the permanent magnets')
 t1 = time.time()
 bsh = InterpolatedField(
     bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
 )
+bsh.to_vtk('dipole_fields')
 t2 = time.time()
-trace_fieldlines(bsh, 'bsh_PMs')
+#trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
 # For plotting Bn on the full torus surface at the end with just the dipole fields
@@ -312,6 +304,7 @@ pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnorma
 s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
+print(pm_opt.m, pm_opt.m_maxima)
 plt.show()
 
 # Send message to Zhu about using paraview or whatever 3D thing they are using (coilPy) 

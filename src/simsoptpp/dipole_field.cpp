@@ -8,6 +8,37 @@
 // m: dipole moments ('orientation')
 // everything in xyz coordinates
 Array dipole_field_B(Array& points, Array& m_points, Array& m) {
+    int num_points = points.shape(0);
+    int num_dipoles = m_points.shape(0);
+    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm;
+#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm)
+    for (int i = 0; i < num_points; ++i) {
+        x = points(i, 0);
+        y = points(i, 1);
+        z = points(i, 2);
+        // Need to rotate into cylindrical, apply symmetries, add up, rotate back
+	for (int j = 0; j < num_dipoles; ++j) {
+            mpx = m_points(j, 0);
+            mpy = m_points(j, 1);
+            mpz = m_points(j, 2);
+            mx = m(j, 0);
+            my = m(j, 1);
+            mz = m(j, 2);
+            rx = x - mpx;
+	    ry = y - mpy;
+	    rz = z - mpz;
+	    rmag = sqrt(rx * rx + ry * ry + rz * rz);
+            rdotm = rx * mx + ry * my + rz * mz;
+	    B(i, 0) += 3.0 * rdotm * rx / pow(rmag, 5) - mx / pow(rmag, 3);
+            B(i, 1) += 3.0 * rdotm * ry / pow(rmag, 5) - my / pow(rmag, 3);
+            B(i, 2) += 3.0 * rdotm * rz / pow(rmag, 5) - mz / pow(rmag, 3);
+	} 
+    }
+    return B * 1e-7;
+}
+
+Array dipole_field_B_SIMD(Array& points, Array& m_points, Array& m) {
     if(points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("points needs to be in row-major storage order");
     if(m_points.layout() != xt::layout_type::row_major)
@@ -19,76 +50,100 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+   
+    // initialize pointers to the beginning of m and the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;
-#pragma omp parallel for schedule(static)
+    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+
+    // Loop through the evaluation points by chunks of simd_size
+    #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
-        auto B_i   = Vec3dSimd();
-        // check that i+k isn't bigger than num_points
-        int klimit = std::min(simd_size, num_points-i);
-        for(int k=0; k<klimit; k++){
+        auto B_i = Vec3dSimd();
+        // check that i + k isn't bigger than num_points
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
             for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i+k, d);
+                point_i[d][k] = points(i + k, d);
             }
         }
         for (int j = 0; j < num_dipoles; ++j) {
-            Vec3dSimd m_j = Vec3dSimd(m_ptr[3*j+0], m_ptr[3*j+1], m_ptr[3*j+2]);
-            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3*j+0], m_points_ptr[3*j+1], m_points_ptr[3*j+2]);
+            Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
+            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
             Vec3dSimd r = point_i - mp_j;
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
-            simd_t rmag_inv_3 = rmag_inv*(rmag_inv*rmag_inv);
-            simd_t rmag_inv_5 = rmag_inv_3*(rmag_inv*rmag_inv);
+            simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+            simd_t rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
             simd_t rdotm = inner(r, m_j);
             B_i.x += 3.0 * rdotm * r.x * rmag_inv_5 - m_j.x * rmag_inv_3;
             B_i.y += 3.0 * rdotm * r.y * rmag_inv_5 - m_j.y * rmag_inv_3;
             B_i.z += 3.0 * rdotm * r.z * rmag_inv_5 - m_j.z * rmag_inv_3;
         } 
-        for(int k=0; k<klimit; k++){
-            B(i+k, 0) = fak * B_i.x[k];
-            B(i+k, 1) = fak * B_i.y[k];
-            B(i+k, 2) = fak * B_i.z[k];
+        for(int k = 0; k < klimit; k++){
+            B(i + k, 0) = fak * B_i.x[k];
+            B(i + k, 1) = fak * B_i.y[k];
+            B(i + k, 2) = fak * B_i.z[k];
         }
     }
     return B;
 }
 
-// Calculate the gradient of the B field at a set of evaluation points from N dipoles
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(m_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m_points needs to be in row-major storage order");
+    if(m.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m needs to be in row-major storage order");
+
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
+    constexpr int simd_size = xsimd::simd_type<double>::size;
     Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
-    double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm, r5;
-    //#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm, r5)
-    for (int i = 0; i < num_points; ++i) {
-        x = points(i, 0);
-        y = points(i, 1);
-        z = points(i, 2);
-        for (int j = 0; j < num_dipoles; ++j) {
-            mpx = m_points(j, 0);
-            mpy = m_points(j, 1);
-            mpz = m_points(j, 2);
-            mx = m(j, 0);
-            my = m(j, 1);
-            mz = m(j, 2);
-            rx = x - mpx;
-            ry = y - mpy;
-            rz = z - mpz;
-            rmag = sqrt(rx * rx + ry * ry + rz * rz);
-            rdotm = rx * mx + ry * my + rz * mz;
-            r5 = 3.0 / pow(rmag, 5);
-            dB(i, 0, 0) += r5 * ((2 * mx * rx + rdotm) - 5 * rdotm / pow(rmag, 2) * rx * rx); 
-            dB(i, 0, 1) += r5 * ((mx * ry + my * rx) - 5 * rdotm / pow(rmag, 2) * rx * ry);
-            dB(i, 0, 2) += r5 * ((mx * rz + mz * rx) - 5 * rdotm / pow(rmag, 2) * rx * rz);
-            dB(i, 1, 1) += r5 * ((2 * my * ry + rdotm) - 5 * rdotm / pow(rmag, 2) * ry * ry); 
-            dB(i, 1, 2) += r5 * ((my * rz + mz * ry) - 5 * rdotm / pow(rmag, 2) * ry * rz);
-            dB(i, 2, 2) += r5 * ((2 * mz * rz + rdotm) - 5 * rdotm / pow(rmag, 2) * rz * rz); 
+    double* m_points_ptr = &(m_points(0, 0));
+    double* m_ptr = &(m(0, 0));
+    double fak = 1e-7;
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i += simd_size) {
+        auto point_i = Vec3dSimd();
+        auto dB_i1   = Vec3dSimd();
+        auto dB_i2   = Vec3dSimd();
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points(i + k, d);
+            }
         }
-        dB(i, 2, 1) = dB(i, 1, 2);
-        dB(i, 2, 0) = dB(i, 0, 2);
-        dB(i, 1, 0) = dB(i, 0, 1);
+        for (int j = 0; j < num_dipoles; ++j) {
+            Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
+            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+            Vec3dSimd r = point_i - mp_j;
+            simd_t rmag_2     = normsq(r);
+            simd_t rmag_inv   = rsqrt(rmag_2);
+	    simd_t rmag_inv_2 = rmag_inv * rmag_inv;
+            simd_t rmag_inv_3 = rmag_inv * rmag_inv_2;
+            simd_t rmag_inv_5 = rmag_inv_3 * rmag_inv_2; 
+            simd_t rdotm = inner(r, m_j);
+            dB_i1.x += 3.0 * rmag_inv_5 * ((2.0 * m_j.x * r.x + rdotm) - 5.0 * rdotm * r.x * r.x * rmag_inv_2);
+            dB_i1.y += 3.0 * rmag_inv_5 * ((m_j.x * r.y + m_j.y * r.x) - 5.0 * rdotm * r.x * r.y * rmag_inv_2);
+            dB_i1.z += 3.0 * rmag_inv_5 * ((m_j.x * r.z + m_j.z * r.x) - 5.0 * rdotm * r.x * r.z * rmag_inv_2);
+            dB_i2.x += 3.0 * rmag_inv_5 * ((2.0 * m_j.y * r.y + rdotm) - 5.0 * rdotm * r.y * r.y * rmag_inv_2);
+            dB_i2.y += 3.0 * rmag_inv_5 * ((m_j.y * r.z + m_j.z * r.y) - 5.0 * rdotm * r.y * r.z * rmag_inv_2);
+            dB_i2.z += 3.0 * rmag_inv_5 * ((2.0 * m_j.z * r.z + rdotm) - 5.0 * rdotm * r.z * r.z * rmag_inv_2);
+        } 
+        for(int k = 0; k < klimit; k++){
+            dB(i + k, 0, 0) = fak * dB_i1.x[k];
+            dB(i + k, 0, 1) = fak * dB_i1.y[k];
+            dB(i + k, 0, 2) = fak * dB_i1.z[k];
+            dB(i + k, 1, 1) = fak * dB_i2.x[k];
+            dB(i + k, 1, 2) = fak * dB_i2.y[k];
+            dB(i + k, 2, 2) = fak * dB_i2.z[k];
+	    dB(i + k, 1, 0) = dB(i + k, 0, 1);
+	    dB(i + k, 2, 0) = dB(i + k, 0, 2);
+	    dB(i + k, 2, 1) = dB(i + k, 1, 2);
+	}
     }
-    return dB * 1e-7;
+    return dB;
 }
