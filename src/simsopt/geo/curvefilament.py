@@ -8,7 +8,6 @@ import jax.numpy as jnp
 from jax import vjp, jvp
 
 
-
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None, rotation_scaling=None):
     """
     Create a regular grid of `numfilaments_n * numfilaments_b` many filaments to approximate a finite-build coil.
