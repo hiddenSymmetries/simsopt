@@ -2,6 +2,6 @@ from .serial import *
 
 import warnings
 
-warnings.warn("Import of graph_serial module deprecated."
-              " Instead use serial module",
+warnings.warn("Importing of simsopt.solve.graph_serial is deprecated. "
+              "Instead import simsopt.solve.serial module.", 
               DeprecationWarning, stacklevel=2)
