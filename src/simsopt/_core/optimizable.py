@@ -70,6 +70,7 @@ class DOFs:
     table as properties. Additional methods to update bounds, fix/unfix DOFs,
     etc. are also defined.
     """
+    __slots__ = ["_x", "_free", "_lb", "_ub", "_names"]
 
     def __init__(self,
                  x: RealArray = None,  # To enable empty DOFs object
@@ -116,8 +117,8 @@ class DOFs:
                == len(names))
         self._x = x
         self._free = free
-        self._lower_bounds = lower_bounds
-        self._upper_bounds = upper_bounds
+        self._lb = lower_bounds
+        self._ub = upper_bounds
         self._names = list(names)
 
     def __len__(self):
@@ -308,11 +309,11 @@ class DOFs:
         Returns:
             Lower bounds of the DOFs
         """
-        return self._lower_bounds[self._free]
+        return self._lb[self._free]
 
     @property
     def full_lower_bounds(self) -> RealArray:
-        return self._lower_bounds
+        return self._lb
 
     @lower_bounds.setter
     def lower_bounds(self, lower_bounds: RealArray) -> None:
@@ -325,7 +326,7 @@ class DOFs:
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(lower_bounds):
             raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
-        self._lower_bounds[self._free] = np.asarray(lower_bounds, dtype=np.double)
+        self._lb[self._free] = np.asarray(lower_bounds, dtype=np.double)
 
     @property
     def upper_bounds(self) -> RealArray:
@@ -334,7 +335,7 @@ class DOFs:
         Returns:
             Upper bounds of the DOFs
         """
-        return self._upper_bounds[self._free]
+        return self._ub[self._free]
 
     @property
     def full_upper_bounds(self) -> RealArray:
@@ -351,7 +352,7 @@ class DOFs:
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
             raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
-        self._upper_bounds[self._free] = np.asarray(upper_bounds, dtype=np.double)
+        self._ub[self._free] = np.asarray(upper_bounds, dtype=np.double)
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -376,7 +377,7 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._lower_bounds[key] = val
+        self._lb[key] = val
 
     def update_upper_bound(self, key: Key, val: Real) -> None:
         """
@@ -388,7 +389,7 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._upper_bounds[key] = val
+        self._ub[key] = val
 
     def update_bounds(self, key: Key, val: Tuple[Real, Real]) -> None:
         """
@@ -400,8 +401,8 @@ class DOFs:
         """
         if isinstance(key, str):
             key = self._names.index(key)
-        self._lower_bounds[key] = val[0]
-        self._upper_bounds[key] = val[1]
+        self._lb[key] = val[0]
+        self._ub[key] = val[1]
 
     @property
     def names(self):
@@ -545,6 +546,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         # instances of same class
         self._id = ImmutableId(next(self.__class__._ids))
         self.name = self.__class__.__name__ + str(self._id.id)
+        hash_str = hashlib.sha256(self.name.encode('utf-8')).hexdigest()
+        self._hash = int(hash_str, 16) % 10**32  # 32 digit int as hash
         self._children = set()  # This gets populated when the object is passed
         # as argument to another Optimizable object
         self.return_fns = WeakKeyDefaultDict(list)  # Store return fn's required by each child
@@ -598,8 +601,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         return self.name
 
     def __hash__(self) -> int:
-        hash_str = hashlib.sha256(self.name.encode('utf-8')).hexdigest()
-        return int(hash_str, 16) % 10**32  # 32 digit int as hash
+        return self._hash
 
     def __eq__(self, other: Optimizable) -> bool:
         """
