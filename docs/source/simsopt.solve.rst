@@ -4,16 +4,16 @@ simsopt.solve package
 Submodules
 ----------
 
-simsopt.solve.graph\_mpi module
--------------------------------
+simsopt.solve.mpi module
+------------------------
 
 .. automodule:: simsopt.solve.mpi
    :members:
    :undoc-members:
    :show-inheritance:
 
-simsopt.solve.graph\_serial module
-----------------------------------
+simsopt.solve.serial module
+---------------------------
 
 .. automodule:: simsopt.solve.serial
    :members:

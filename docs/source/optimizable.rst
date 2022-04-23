@@ -167,10 +167,10 @@ In addition to
 :obj:`~simsopt._core.optimizable.Optimizable.fix()`, you can
 also manipulate the fixed/free status of dofs using the functions
 :obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
-:obj:`~simsopt._core.optimizable.Optimizable.local_fix_all()`, and
-:obj:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`::
+:obj:`~simsopt._core.optimizable.Optimizable.fix_all()`, and
+:obj:`~simsopt._core.optimizable.Optimizable.unfix_all()`::
 
-  >>> c.local_fix_all()
+  >>> c.fix_all()
   >>> c.x
 
   array([], dtype=float64)
@@ -180,7 +180,7 @@ also manipulate the fixed/free status of dofs using the functions
 
   array([-2.])
 
-  >>> c.local_unfix_all()
+  >>> c.unfix_all()
   >>> c.x
 
   array([ 1. ,  0.1,  0. , -2. ,  0. ,  0.3,  3. , -0.5,  0.4])
@@ -339,27 +339,32 @@ own any dofs itself, while
 :obj:`~simsopt._core.optimizable.Optimizable.x`
 is a concatenation of the dofs of its ancestors.
 
-The functions
-:obj:`~simsopt._core.optimizable.Optimizable.get()`,
+The functions :obj:`~simsopt._core.optimizable.Optimizable.get()`,
 :obj:`~simsopt._core.optimizable.Optimizable.set()`,
 :obj:`~simsopt._core.optimizable.Optimizable.fix()`,
 :obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
 :obj:`~simsopt._core.optimizable.Optimizable.is_fixed()`, and
-:obj:`~simsopt._core.optimizable.Optimizable.is_free()` refer
-only to dofs directly owned by an object. If an integer index is
-supplied to these functions it must be the local index, and if a
-string name is supplied to these functions, it does not have the
-object name and colon prepended. So for instance,
-``curve.fix('yc(0)')`` works, but
+:obj:`~simsopt._core.optimizable.Optimizable.is_free()` refer only to
+dofs directly owned by an object. If an integer index is supplied to
+these functions it must be the local index, and if a string name is
+supplied to these functions, it does not have the object name and
+colon prepended. So for instance, ``curve.fix('yc(0)')`` works, but
 ``curve.fix('CurveXYZFourier3:yc(0)')``, ``coil.fix('yc(0)')``, and
-``coil.fix('CurveXYZFourier3:yc(0)')`` do not.
+``coil.fix('CurveXYZFourier3:yc(0)')`` do not.  The functions
+:func:`~simsopt._core.optimizable.Optimizable.fix_all()` and
+:func:`~simsopt._core.optimizable.Optimizable.unfix_all()` fix or
+unfix all the dofs owned by an object as well as the dofs of all its
+ancestors.  To fix or unfix all the dofs owned by an object without
+affecting its ancestors, use
+:func:`~simsopt._core.optimizable.Optimizable.local_fix_all()` or
+:func:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`.
 
 When some dofs are fixed in parent objects, these dofs are
 automatically removed from the global state vector
 :obj:`~simsopt._core.optimizable.Optimizable.x` of a child
 object::
 
-  >>> curve.local_fix_all()
+  >>> curve.fix_all()
   >>> curve.unfix('zc(0)')
   >>> coil.x
 
@@ -468,6 +473,23 @@ objects. Many come in a set of 2x2 variants:
    * - Both fixed and free
      - :obj:`~simsopt._core.optimizable.Optimizable.local_dofs_free_status`
      - :obj:`~simsopt._core.optimizable.Optimizable.dofs_free_status`
+   * - Free only
+     - N/A
+     - N/A
+
+.. list-table:: Making all dofs fixed or free
+   :widths: 20 20 20
+   :header-rows: 1
+   :stub-columns: 1
+
+   * -
+     - Excluding ancestors
+     - Including ancestors
+   * - Both fixed and free
+     - :func:`~simsopt._core.optimizable.Optimizable.local_fix_all()`,
+       :func:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`
+     - :func:`~simsopt._core.optimizable.Optimizable.fix_all()`,
+       :func:`~simsopt._core.optimizable.Optimizable.unfix_all()`
    * - Free only
      - N/A
      - N/A
