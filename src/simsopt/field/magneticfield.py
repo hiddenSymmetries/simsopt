@@ -95,7 +95,8 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         # make grid (this part is copied with VTK, could be exported to a common function)
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
-        phis = np.linspace(0, 2*np.pi, nphi, endpoint=True)
+        phis = np.linspace(0, 2*np.pi/nfp, nphi, endpoint=False)
+        #phis = np.linspace(0, 2*np.pi, nphi, endpoint=True) # the MGRID ignores the last toroidal phi
         zs = np.linspace(zmin, zmax, nz, endpoint=True)
 
         Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')  # check the order here (!)
