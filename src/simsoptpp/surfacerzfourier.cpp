@@ -690,6 +690,9 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
             }
         }
     }
+}
+
+template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     constexpr int simd_size = xsimd::simd_type<double>::size;
