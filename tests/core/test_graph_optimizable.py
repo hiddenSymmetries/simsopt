@@ -927,6 +927,42 @@ class OptimizableTests(unittest.TestCase):
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
 
+    def test_plot(self):
+        """
+        Verify that a DAG can be plotted.
+        The ``show`` argument is set to ``False`` so the
+        tests do not require human intervention to close plot windows.
+        However, if you do want to actually display the figure, you
+        can change ``show`` to ``True`` in the first line of this
+        function.
+        """
+        show = False
+
+        try:
+            import matplotlib
+        except ImportError:
+            return
+        try:
+            import networkx
+        except ImportError:
+            return
+        try:
+            import pygraphviz
+        except ImportError:
+            return
+
+        # optimizable with no parents
+        adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
+        G1, pos1 = adder.plot_graph(show=show)
+
+        # optimizable with two parents
+        opt1 = OptClassWithParentsReturnFns(10)
+        G2, pos2 = opt1.plot_graph(show=show)
+
+        # optimizable with many parents
+        opt2 = OptClassWith2LevelParents(10, 20)
+        G3, pos3 = opt2.plot_graph(show=show)
+
 
 class OptClassExternalDofs(Optimizable):
     def __init__(self):
