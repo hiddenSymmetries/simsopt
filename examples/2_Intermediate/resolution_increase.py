@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import os
+import numpy as np
 from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd import Vmec, Boozer, Quasisymmetry
+from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.solve.graph_mpi import least_squares_mpi_solve
-import os
 
 """
 This example shows how scripting can be used to increase the size
@@ -28,22 +30,20 @@ print("=============================================")
 mpi = MpiPartition()
 mpi.write()
 
-vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA'), mpi=mpi)
+filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA')
+vmec = Vmec(filename, mpi=mpi)
 vmec.verbose = mpi.proc0_world
 surf = vmec.boundary
 
 # Configure quasisymmetry objective:
-boozer = Boozer(vmec)
-boozer.bx.verbose = mpi.proc0_world
-qs = Quasisymmetry(boozer,
-                   0.5,  # Radius to target
-                   1, 0)  # (M, N) you want in |B|
+qs = QuasisymmetryRatioResidual(vmec,
+                                np.arange(0, 1.01, 0.1),  # Radii to target
+                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
 # Define objective function
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
-                                        (vmec.iota_axis, 0.465, 1),
-                                        (vmec.iota_edge, 0.495, 1),
-                                        (qs.J, 0, 1)])
+                                        (vmec.mean_iota, 0.42, 1),
+                                        (qs.residuals, 0, 1)])
 
 # Fourier modes of the boundary with m <= max_mode and |n| <= max_mode
 # will be varied in the optimization. A larger range of modes are
@@ -55,14 +55,9 @@ for step in range(3):
     vmec.indata.mpol = 3 + step
     vmec.indata.ntor = vmec.indata.mpol
 
-    # booz_xform's mpol & ntor will be 16, 24, 32:
-    boozer.mpol = 16 + step * 8
-    boozer.ntor = boozer.mpol
-
     if mpi.proc0_world:
         print("Beginning optimization with max_mode =", max_mode, \
               ", vmec mpol=ntor=", vmec.indata.mpol, \
-              ", boozer mpol=ntor=", boozer.mpol, \
               ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:

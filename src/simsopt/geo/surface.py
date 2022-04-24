@@ -56,7 +56,8 @@ class Surface(Optimizable):
               Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
               to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
               Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
-              to generate points up to :math:`1/(2 n_{fp})` (with no point at :math:`1/(2 n_{fp})`).
+              to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
+              of the grid spacing in order to provide spectral convergence of integrals.
               If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
             quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
@@ -83,6 +84,9 @@ class Surface(Optimizable):
                 quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
             elif range == Surface.RANGE_HALF_PERIOD:
                 quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
+                # Shift by half of the grid spacing:
+                dphi = quadpoints_phi[1] - quadpoints_phi[0]
+                quadpoints_phi += 0.5 * dphi
             else:
                 raise ValueError("Invalid setting for range")
 
@@ -137,17 +141,19 @@ class Surface(Optimizable):
             normal = np.array([[[1.0]]])
 
         if close:
-            gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
+            # Always close in theta:
             gamma = np.concatenate((gamma, gamma[:, :1, :]), axis=1)
-
-            dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
             dg1 = np.concatenate((dg1, dg1[:, :1, :]), axis=1)
-
-            dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
             dg2 = np.concatenate((dg2, dg2[:, :1, :]), axis=1)
-
-            normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
             normal = np.concatenate((normal, normal[:, :1, :]), axis=1)
+
+            # Only close in phi if range == 'full torus':
+            dphi = self.quadpoints_phi[1] - self.quadpoints_phi[0]
+            if 1 - self.quadpoints_phi[-1] < 1.1 * dphi:
+                gamma = np.concatenate((gamma, gamma[:1, :, :]), axis=0)
+                dg1 = np.concatenate((dg1, dg1[:1, :, :]), axis=0)
+                dg2 = np.concatenate((dg2, dg2[:1, :, :]), axis=0)
+                normal = np.concatenate((normal, normal[:1, :, :]), axis=0)
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
@@ -199,6 +205,15 @@ class Surface(Optimizable):
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, extra_data=None):
+        """
+        Export the surface to a VTK format file, which can be read with
+        Paraview. This function requires the ``pyevtk`` python
+        package, which can be installed using ``pip install pyevtk``.
+
+        Args:
+            filename: Name of the file to write
+            extra_data: An optional data field on the surface, which can be associated with a colormap in Paraview.
+        """
         g = self.gamma()
         ntor = g.shape[0]
         npol = g.shape[1]

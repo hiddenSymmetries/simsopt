@@ -60,10 +60,14 @@ optimization.  Others include `STELLOPT
    :maxdepth: 2
    :caption: Contents
 
-   getting_started
-   docker
-   concepts
-   problems
+   overview
+   installation
+   containers
+   optimizable
+   geo
+   fields
+   tracing
+   mpi
    testing
    source
    publications
@@ -71,11 +75,12 @@ optimization.  Others include `STELLOPT
 
 .. toctree::
    :maxdepth: 3
-   :caption: Examples
+   :caption: Tutorials
 
    example_vmec_only
    example_quasisymmetry
    example_islands
+   example_coils
 
 .. toctree::
    :maxdepth: 3

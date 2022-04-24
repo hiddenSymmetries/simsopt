@@ -114,6 +114,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
         err_old = err
     print("###################################################################")
 
+
 class SurfaceTaylorTests(unittest.TestCase):
     surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
                     "SurfaceXYZTensorFourier"]
@@ -178,7 +179,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_surface_coefficient_derivative(self):
         for surfacetype in self.surfacetypes:
-            for stellsym in [True,False]:
+            for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_coefficient_derivative(s)
@@ -438,7 +439,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         Taylor test to verify that the surface tangent in the theta direction
         """
         for surfacetype in self.surfacetypes:
-            for stellsym in [True,False]:
+            for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_theta2_derivative(surfacetype, stellsym)
 
@@ -461,7 +462,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         Taylor test to verify that the surface tangent in the theta direction
         """
         for surfacetype in self.surfacetypes:
-            for stellsym in [True,False]:
+            for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_phi2_derivative(surfacetype, stellsym)
 
@@ -485,7 +486,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         Taylor test to verify that the surface tangent in the theta direction
         """
         for surfacetype in self.surfacetypes:
-            for stellsym in [True,False]:
+            for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_thetaphi_derivative(surfacetype, stellsym)
 

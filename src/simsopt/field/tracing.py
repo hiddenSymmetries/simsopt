@@ -2,6 +2,7 @@ from math import sqrt
 import numpy as np
 import simsoptpp as sopp
 import logging
+from simsopt._core.util import parallel_loop_bounds
 from simsopt.field.magneticfield import MagneticField
 from simsopt.field.boozermagneticfield import BoozerMagneticField
 from simsopt.field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
@@ -57,23 +58,6 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
     return xyz_inits_full, v_inits, rgs
 
 
-def parallel_loop_bounds(comm, n):
-    """
-    Split up an array [0, 1, ..., n-1] across an mpi communicator.  Example: n
-    = 8, comm with size=2 will return (0, 4) on core 0, (4, 8) on core 1,
-    meaning that the array is split up as [0, 1, 2, 3] + [4, 5, 6, 7].
-    """
-
-    if comm is None:
-        return 0, n
-    else:
-        size = comm.size
-        idxs = [i*n//size for i in range(size+1)]
-        assert idxs[0] == 0
-        assert idxs[-1] == n
-        return idxs[comm.rank], idxs[comm.rank+1]
-
-
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
                            parallel_speeds: NDArray[Float], tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
@@ -125,7 +109,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         stz_inits: A ``(nparticles, 3)`` array with the initial positions of
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
-                         direction of the B field for each particle.
+            direction of the B field for each particle.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -133,18 +117,18 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that zeta should be computed
+            corresponding to that zeta should be computed
         stopping_criteria: list of stopping criteria, mostly used in
-                           combination with the ``LevelsetStoppingCriterion``
-                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        mode: how to trace the particles. options are
-            `gc`: general guiding center equations,
+            combination with the ``LevelsetStoppingCriterion``
+            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. Options are
+            `gc`: general guiding center equations.
             `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
-                           :math:`I = 0`, and :math:`K = 0`.
+            :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
-                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
-                           interest or one wants to reduce memory usage.
+            particle for the ``res_tys``. To be used when only res_zeta_hits is of
+            interest or one wants to reduce memory usage.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -665,7 +649,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         field: the magnetic field :math:`B`
         R0: list of radial components of initial points
         Z0: list of vertical components of initial points
-        tmax: for how long to trace. will do roughly |B|*tmax/(2*pi*r0) revolutions of the device
+        tmax: for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
         tol: tolerance for the adaptive ode solver
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed

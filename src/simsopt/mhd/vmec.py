@@ -9,6 +9,7 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 from typing import Union
+from datetime import datetime
 
 import numpy as np
 from scipy.io import netcdf
@@ -43,6 +44,29 @@ timestep_flag = 4
 output_flag = 8
 cleanup_flag = 16
 reset_jacdt_flag = 32
+
+
+def to_namelist_bool(bool_in):
+    """ Convert a boolean to a format suitable for fortran namelist input """
+    return "T" if bool_in else "F"
+
+
+def array_to_namelist(arr, aux_s=False):
+    if aux_s:
+        if np.all(arr < 0):
+            index = 0
+        else:
+            index = np.max(np.where(arr >= 0))
+    else:
+        if np.all(arr == 0):
+            index = 0
+        else:
+            index = np.max(np.nonzero(arr))
+    nml = ''
+    for j in range(index + 1):
+        nml += f'{arr[j]} '
+    nml += '\n'
+    return nml
 
 # Documentation of flags for runvmec() from the VMEC source code:
 #
@@ -158,6 +182,7 @@ class Vmec(Optimizable):
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
+        verbose: Whether to print to stdout when running vmec.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -175,6 +200,7 @@ class Vmec(Optimizable):
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  keep_all_files: bool = False,
+                 verbose: bool = True,
                  ntheta=50,
                  nphi=50):
 
@@ -196,6 +222,7 @@ class Vmec(Optimizable):
             raise ValueError('Invalid filename')
 
         self.wout = Struct()
+        self.verbose = verbose
 
         # Get MPI communicator:
         if (mpi is None and MPI is not None):
@@ -228,10 +255,9 @@ class Vmec(Optimizable):
             self.ictrl[2] = 0  # numsteps
             self.ictrl[3] = 0  # ns_index
             self.ictrl[4] = 0  # iseq
-            verbose = True
             reset_file = ''
             logger.info('About to call runvmec to readin')
-            vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
+            vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
             ierr = self.ictrl[1]
             logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
             # Deallocate arrays allocated by VMEC's fixaray():
@@ -322,19 +348,17 @@ class Vmec(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def run(self):
+    def set_indata(self):
         """
-        Run VMEC, if ``need_to_run_code`` is ``True``.
+        Transfer data from simsopt objects to Vmec's fortran module data.
+        Presently, this function sets the boundary shape and magnetic
+        axis shape.  In the future, the input profiles will be set
+        here as well. This data transfer is performed before writing a
+        Vmec input file or running Vmec. The boundary surface object
+        converted to ``SurfaceRZFourier`` is returned.
         """
-        if not self.need_to_run_code:
-            logger.info("run() called but no need to re-run VMEC.")
-            return
-
         if not self.runnable:
-            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
-
-        logger.info("Preparing to run VMEC.")
-        # Transfer values from Parameters to VMEC's fortran modules:
+            raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
@@ -364,20 +388,132 @@ class Vmec(Optimizable):
         vi.zaxis_cc[:] = 0
         vi.zaxis_cs[:] = 0
 
+        return boundary_RZFourier
+
+    def get_input(self):
+        """
+        Generate a VMEC input file. The result will be returned as a
+        string. To save a file, see the ``write_input()`` function.
+        """
+        boundary_RZFourier = self.set_indata()  # Transfer the boundary from simsopt to fortran.
+        vi = vmec.vmec_input  # Shorthand
+        nml = '&INDATA\n'
+        nml += '! This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S") + '\n\n'
+        nml += '! ---- Geometric parameters ----\n'
+        nml += f'NFP = {vi.nfp}\n'
+        nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
+
+        nml += '\n! ---- Resolution parameters ----\n'
+        nml += f'MPOL = {vi.mpol}\n'
+        nml += f'NTOR = {vi.ntor}\n'
+        index = np.max(np.nonzero(vi.ns_array))
+        nml += f'NS_ARRAY    ='
+        for j in range(index + 1):
+            nml += f'{vi.ns_array[j]:7}'
+        nml += '\n'
+        index = np.max(np.where(vi.niter_array > 0))
+        nml += f'NITER_ARRAY ='
+        for j in range(index + 1):
+            nml += f'{vi.niter_array[j]:7}'
+        nml += '\n'
+        index = np.max(np.nonzero(vi.ftol_array))
+        nml += f'FTOL_ARRAY  ='
+        for j in range(index + 1):
+            nml += f'{vi.ftol_array[j]:7}'
+        nml += '\n'
+
+        nml += '\n! ---- Boundary toroidal flux ----\n'
+        nml += f'PHIEDGE = {vi.phiedge}\n'
+
+        nml += '\n! ---- Pressure profile specification ----\n'
+        profile_type = vi.pmass_type.decode().strip()
+        nml += f'PMASS_TYPE = "{profile_type}"\n'
+        nml += 'AM = ' + array_to_namelist(vi.am)
+        if np.any(vi.am_aux_s >= 0):
+            nml += 'AM_AUX_S = ' + array_to_namelist(vi.am_aux_s, True)
+            nml += 'AM_AUX_F = ' + array_to_namelist(vi.am_aux_f)
+        nml += f'PRES_SCALE = {vi.pres_scale}\n'
+
+        nml += '\n! ---- Profile specification of iota or current ----\n'
+        nml += f'NCURR = {vi.ncurr}\n'
+        if vi.ncurr == 0:
+            # Iota profile specified
+            profile_type = vi.piota_type.decode().strip()
+            nml += f'PIOTA_TYPE = "{profile_type}"\n'
+            nml += 'AI = ' + array_to_namelist(vi.ai)
+            if np.any(vi.ai_aux_s >= 0):
+                nml += 'AI_AUX_S = ' + array_to_namelist(vi.ai_aux_s, True)
+                nml += 'AI_AUX_F = ' + array_to_namelist(vi.ai_aux_f)
+        else:
+            # Current profile specified
+            nml += f'CURTOR = {vi.curtor}\n'
+            profile_type = vi.pcurr_type.decode().strip()
+            nml += f'PCURR_TYPE = "{profile_type}"\n'
+            nml += 'AC = ' + array_to_namelist(vi.ac)
+            if np.any(vi.ac_aux_s >= 0):
+                nml += 'AC_AUX_S = ' + array_to_namelist(vi.ac_aux_s, True)
+                nml += 'AC_AUX_F = ' + array_to_namelist(vi.ac_aux_f)
+
+        nml += '\n! ---- Other numerical parameters ----\n'
+        nml += f'DELT = {vi.delt}\n'
+        nml += f'NSTEP = {vi.nstep}\n'
+
+        nml += '\n! ---- Boundary shape. Array index order is (n, m) ----\n'
+        surf_str = boundary_RZFourier.get_nml().split('\n')
+        for j in range(3, len(surf_str)):
+            nml += surf_str[j] + '\n'
+
+        return nml
+
+    def write_input(self, filename):
+        """
+        Write a VMEC input file. To just get the result as a string
+        without saving a file, see the ``get_input()`` function.
+
+        Args:
+            filename: Name of the file to write. Selected MPI processes can pass
+              ``None`` if you wish for these processes to not write a file.
+        """
+        # All procs should call self.get_input() so set_indata() gets
+        # called, even procs that do not directly write the file:
+        input_namelist = self.get_input()
+        if self.mpi.proc0_groups and (filename is not None):
+            with open(filename, 'w') as f:
+                f.write(input_namelist)
+
+    def run(self):
+        """
+        Run VMEC, if ``need_to_run_code`` is ``True``.
+        """
+        if not self.need_to_run_code:
+            logger.info("run() called but no need to re-run VMEC.")
+            return
+
+        if not self.runnable:
+            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+
+        logger.info("Preparing to run VMEC.")
+
         self.iter += 1
-        input_file = self.input_file + '_{:03d}_{:06d}'.format(
+        base_filename = self.input_file + '_{:03d}_{:06d}'.format(
             self.mpi.group, self.iter)
+        input_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(base_filename))
         self.output_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'wout_') + '.nc')
+            os.path.basename(base_filename).replace('input.', 'wout_') + '.nc')
         mercier_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'mercier.'))
+            os.path.basename(base_filename).replace('input.', 'mercier.'))
         jxbout_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'jxbout_') + '.nc')
+            os.path.basename(base_filename).replace('input.', 'jxbout_') + '.nc')
 
-        # I should write an input file here.
+        file_to_write = input_file if self.mpi.proc0_world else None
+        # This next line also calls set_indata():
+        self.write_input(file_to_write)
+
         logger.info("Calling VMEC reinit().")
         vmec.reinit()
 
@@ -388,9 +524,8 @@ class Vmec(Optimizable):
         self.ictrl[2] = 0  # numsteps
         self.ictrl[3] = 0  # ns_index
         self.ictrl[4] = 0  # iseq
-        verbose = True
         reset_file = ''
-        vmec.runvmec(self.ictrl, input_file, verbose, self.fcomm, reset_file)
+        vmec.runvmec(self.ictrl, input_file, self.verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
 
         # Deallocate arrays, even if vmec did not converge:
@@ -449,7 +584,7 @@ class Vmec(Optimizable):
 
             # Record the latest output file to delete if we run again:
             if (self.mpi.group == 0) and (self.iter > 0) and (not self.keep_all_files):
-                self.files_to_delete.append(self.output_file)
+                self.files_to_delete += [input_file, self.output_file]
 
         self.need_to_run_code = False
 

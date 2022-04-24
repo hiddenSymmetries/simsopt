@@ -321,11 +321,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         rescale: If True, use the interpolation method in the DELTA5D code. Here, a few
             of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``)
             are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
-                bmnc(s)/s^(1/2) for m = 1
 
-                bmnc(s)/s for m even and >= 2
+            bmnc(s)/s^(1/2) for m = 1
 
-                bmnc(s)/s^(3/2) for m odd and >=3
+            bmnc(s)/s for m even and >= 2
+
+            bmnc(s)/s^(3/2) for m odd and >=3
 
             before performing interpolation and spline differentiation to
             obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier
