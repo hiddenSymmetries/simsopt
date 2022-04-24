@@ -1,4 +1,3 @@
-from jax.ops import index, index_add
 import jax.numpy as jnp
 from math import pi
 import numpy as np
@@ -14,9 +13,9 @@ def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     BsinArray = jnp.sum(B*jnp.sin(m*phiV*n0/l0), axis=1)
     eta = n0*phi/l0+AcosArray+BsinArray
     gamma = jnp.zeros((len(quadpoints), 3))
-    gamma = index_add(gamma, index[:, 0], (R0+r0*jnp.cos(eta))*jnp.cos(phi))
-    gamma = index_add(gamma, index[:, 1], (R0+r0*jnp.cos(eta))*jnp.sin(phi))
-    gamma = index_add(gamma, index[:, 2], -r0*jnp.sin(eta))
+    gamma = gamma.at[:, 0].add((R0 + r0 * jnp.cos(eta)) * jnp.cos(phi))
+    gamma = gamma.at[:, 1].add((R0 + r0 * jnp.cos(eta)) * jnp.sin(phi))
+    gamma = gamma.at[:, 2].add(-r0 * jnp.sin(eta))
     return gamma
 
 

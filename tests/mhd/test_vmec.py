@@ -14,11 +14,11 @@ try:
 except ImportError:
     vmec_found = False
 
-from simsopt._core.graph_optimizable import make_optimizable
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt._core.optimizable import make_optimizable
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec

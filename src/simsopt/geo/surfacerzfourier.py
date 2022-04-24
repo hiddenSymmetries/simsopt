@@ -7,7 +7,7 @@ import f90nml
 
 import simsoptpp as sopp
 from .surface import Surface
-from .._core.graph_optimizable import DOFs, Optimizable
+from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
 
 logger = logging.getLogger(__name__)
@@ -201,6 +201,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 surf.rs[m, n + ntor] = rbs[j]
                 surf.zc[m, n + ntor] = zbc[j]
 
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     @classmethod
@@ -356,6 +357,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 surf.rs[m[j], n[j] + ntor] = rs[j]
                 surf.zc[m[j], n[j] + ntor] = zc[j]
 
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     def change_resolution(self, mpol, ntor):

@@ -11,7 +11,7 @@ import logging
 import numpy as np
 import numpy.polynomial.polynomial as poly
 from scipy.interpolate import InterpolatedUnivariateSpline
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 
 logger = logging.getLogger(__name__)
 

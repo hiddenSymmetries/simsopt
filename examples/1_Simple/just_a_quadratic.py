@@ -33,12 +33,12 @@ iden3 = Identity()
 
 # Each Target is then equipped with a shift and weight, to become a
 # term in a least-squares objective function
-term1 = (iden1, 1, 1)
-term2 = (iden2, 2, 2)
-term3 = (iden3, 3, 3)
+term1 = (iden1.f, 1, 1)
+term2 = (iden2.f, 2, 2)
+term3 = (iden3.f, 3, 3)
 
 # A list of terms are combined to form a nonlinear-least-squares problem.
-prob = LeastSquaresProblem([term1, term2, term3])
+prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
 
 # Solve the minimization problem:
 least_squares_serial_solve(prob)
