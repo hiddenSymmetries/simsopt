@@ -44,6 +44,14 @@ simsopt.objectives.least\_squares module
    :undoc-members:
    :show-inheritance:
 
+simsopt.objectives.utilities
+----------------------------
+
+.. automodule:: simsopt.objectives.utilities
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

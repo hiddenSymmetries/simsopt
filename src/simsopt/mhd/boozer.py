@@ -11,7 +11,6 @@ import logging
 from typing import Union, Iterable
 
 import numpy as np
-from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -19,25 +18,17 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
 try:
     import booz_xform
 except ImportError as e:
     booz_xform = None
-    logger.warning(str(e))
+    logger.debug(str(e))
 
-if MPI is not None:
-    try:
-        from .vmec import Vmec
-    except ImportError as e:
-        Vmec = None
-        logger.warning(str(e))
+from .vmec import Vmec
 
 from .._core.graph_optimizable import Optimizable
-
-# Temporarily commenting out the decorator till __instancecheck__ method is made working
-# @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform"
 
 
 class Boozer(Optimizable):

@@ -23,6 +23,10 @@ class SimsoptRequires(requires):
 
         return decorated
 
+    @property
+    def __class(self):
+        return self._callable
+
     def __instancecheck__(self, other):
         return isinstance(other, self._callable)
 

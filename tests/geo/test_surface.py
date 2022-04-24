@@ -1,7 +1,8 @@
 import unittest
 from pathlib import Path
-import numpy as np
 import os
+import logging
+import numpy as np
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -24,6 +25,9 @@ except ImportError:
 
 surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
                  "SurfaceHenneberg", "SurfaceGarabedian"]
+
+logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 class QuadpointsTests(unittest.TestCase):
@@ -80,8 +84,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
             s = eval(surface_type + "(nphi=17, range='half period')")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a string, with nfp:
             s = eval(surface_type + "(nphi=17, range='full torus', nfp=3)")
@@ -91,8 +96,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 3.0, 17, endpoint=False))
             s = eval(surface_type + "(nphi=17, range='half period', nfp=3)")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a constant, with nfp:
             s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FULL_TORUS)")
@@ -102,8 +108,9 @@ class QuadpointsTests(unittest.TestCase):
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 4.0, 17, endpoint=False))
             s = eval(surface_type + "(nfp=4, nphi=17, range=" + surface_type + ".RANGE_HALF_PERIOD)")
-            np.testing.assert_allclose(s.quadpoints_phi,
-                                       np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False))
+            grid = np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False)
+            grid += 0.5 * (grid[1] - grid[0])
+            np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying quadpoints_phi as a numpy array:
             s = eval(surface_type + "(quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
@@ -117,6 +124,31 @@ class QuadpointsTests(unittest.TestCase):
             # Specifying both nphi and quadpoints_phi should cause an error:
             with self.assertRaises(ValueError):
                 s = eval(surface_type + "(nphi=5, quadpoints_phi=np.linspace(0.0, 1.0, 5, endpoint=False))")
+
+    def test_spectral(self):
+        """
+        Verify integration is accurate to around machine precision for the
+        predefined phi grid ranges.
+        """
+        ntheta = 64
+        nfp = 4
+        area_ref = 74.492696353899
+        volume_ref = 11.8435252813064
+        for range_str, nphi_fac in [("full torus", 1), ("field period", 1.0 / nfp), ("half period", 0.5 / nfp)]:
+            for nphi_base in [200, 400, 800]:
+                nphi = int(nphi_fac * nphi_base)
+                s = SurfaceRZFourier(range=range_str, nfp=nfp,
+                                     mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
+                s.set_rc(0, 0, 2.5)
+                s.set_rc(1, 0, 0.4)
+                s.set_zs(1, 0, 0.6)
+                s.set_rc(0, 1, 1.1)
+                s.set_zs(0, 1, 0.8)
+                logger.debug(f'range={range_str:13} n={nphi:5} ' \
+                             f'area={s.area():22.14} diff={area_ref - s.area():22.14} ' \
+                             f'volume={s.volume():22.15} diff={volume_ref - s.volume():22.15}')
+                np.testing.assert_allclose(s.area(), area_ref, atol=0, rtol=1e-13)
+                np.testing.assert_allclose(s.volume(), volume_ref, atol=0, rtol=1e-13)
 
 
 class ArclengthTests(unittest.TestCase):

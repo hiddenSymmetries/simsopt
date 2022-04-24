@@ -14,6 +14,7 @@ Subpackages
    simsopt.objectives
    simsopt.solve
    simsopt.util
+   simsoptpp
 
 Module contents
 ---------------

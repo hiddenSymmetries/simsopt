@@ -3,6 +3,7 @@
 #include "pybind11/functional.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
 
 
@@ -83,6 +84,33 @@ PYBIND11_MODULE(simsoptpp, m) {
             }
             delete[] B_dB_dc;
             return res;
+        });
+
+    m.def("matmult", [](PyArray& A, PyArray&B) {
+            // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
+            int l = A.shape(0);
+            int m = A.shape(1);
+            int n = B.shape(1);
+            PyArray C = xt::zeros<double>({l, n});
+
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigA(const_cast<double*>(A.data()), l, m);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
+            eigC = eigA*eigB;
+            return C;
+        });
+
+    m.def("vjp", [](PyArray& v, PyArray&B) {
+            // Product of v.T @ B
+            int m = B.shape(0);
+            int n = B.shape(1);
+            PyArray C = xt::zeros<double>({n});
+
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigv(const_cast<double*>(v.data()), m, 1);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), 1, n);
+            eigC = eigv.transpose()*eigB;
+            return C;
         });
 
 #ifdef VERSION_INFO

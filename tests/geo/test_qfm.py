@@ -221,7 +221,7 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -328,7 +328,7 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
 
         bs = BiotSavart(coils)
