@@ -82,8 +82,8 @@ More details about setting degrees of freedom and defining
 objective functions can be found on the :doc:`optimizable` page.
 
 For the solution step, two functions are provided presently,
-:meth:`simsopt.solve.graph_serial.least_squares_serial_solve` and
-:meth:`simsopt.solve.graph_mpi.least_squares_mpi_solve`.  The first
+:meth:`simsopt.solve.serial.least_squares_serial_solve` and
+:meth:`simsopt.solve.mpi.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
 

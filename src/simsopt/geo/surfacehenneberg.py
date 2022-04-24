@@ -584,6 +584,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         #print('rho_alt:   ', rho_alt)
         print('Diff in rho:', np.max(np.abs(rho_realsp - rho_alt)))
 
+        surf_H.local_full_x = surf_H.get_dofs()
         return surf_H
 
     def gamma_lin(self, data, quadpoints_phi, quadpoints_theta):

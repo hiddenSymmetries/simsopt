@@ -60,7 +60,8 @@ A number of quantities are implemented in
 - ``CurveLength``: computes the length of the ``Curve``.
 - ``LpCurveCurvature``: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
 - ``LpCurveTorsion``: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
-- ``MinimumDistance``: computes a penalty term on the minimum distance between a set of curves.
+- ``CurveCurveDistance``: computes a penalty term on the minimum distance between a set of curves.
+- ``CurveSurfaceDistance``: computes a penalty term on the minimum distance between a set of curves and a surface.
 
 The value of the quantity and its derivative with respect to the curve
 dofs can be obtained by calling e.g., ``CurveLength.J()`` and

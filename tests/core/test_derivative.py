@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt._core.graph_optimizable import Optimizable, ScaledOptimizable, OptimizableSum
+from simsopt._core.optimizable import Optimizable, ScaledOptimizable, OptimizableSum
 from simsopt._core.derivative import Derivative, derivative_dec
 
 
@@ -273,23 +273,49 @@ class DerivativeTests(unittest.TestCase):
         assert np.allclose(dj1m2(opt1), -1*dj1(opt1))
         assert np.allclose(dj1m2(opt2), -dj2(opt2))
 
-    def test_iadd_isub_imul(self):
+    def test_iadd(self):
         opt1 = Opt(n=3)
         opt2 = Opt(n=2)
 
         dj1 = opt1.dfoo_vjp(np.ones(3))
         dj1_ = opt1.dfoo_vjp(np.ones(3))
         dj2 = opt2.dfoo_vjp(np.ones(2))
+        dj2_ = opt2.dfoo_vjp(np.ones(2))
 
+        dj1 += dj1_
         dj1 += dj2
-        assert np.allclose(dj1(opt2), dj2(opt2))
-        dj1 += dj1
         assert np.allclose(dj1(opt1), 2*dj1_(opt1))
-        dj1 -= 3*dj2
-        assert np.allclose(dj1(opt2), -1*dj2(opt2))
-        dj1 *= 1.5
-        assert np.allclose(dj1(opt2), -1.5*dj2(opt2))
-        assert np.allclose(dj1(opt1), 3*dj1_(opt1))
+        assert np.allclose(dj1(opt2), dj2_(opt2))
+
+    def test_isub(self):
+        opt1 = Opt(n=3)
+        opt2 = Opt(n=2)
+
+        dj1 = opt1.dfoo_vjp(np.ones(3))
+        dj1_ = opt1.dfoo_vjp(np.ones(3))
+        dj2 = opt2.dfoo_vjp(np.ones(2))
+        dj2_ = opt2.dfoo_vjp(np.ones(2))
+
+        dj1 -= 2*dj1_
+        dj1 -= dj2
+        assert np.allclose(dj1(opt1), (-1)*dj1_(opt1))
+        assert np.allclose(dj1(opt2), -dj2_(opt2))
+
+    def test_imul(self):
+        opt1 = Opt(n=3)
+        opt2 = Opt(n=2)
+
+        dj1 = opt1.dfoo_vjp(np.ones(3))
+        dj2 = opt2.dfoo_vjp(np.ones(2))
+
+        dj1_ = opt1.dfoo_vjp(np.ones(3))
+        dj2_ = opt2.dfoo_vjp(np.ones(2))
+
+        dj1 *= 2.
+        assert np.allclose(dj1(opt1), 2*dj1_(opt1))
+        dj = dj1 + 4*dj2
+        assert np.allclose(dj(opt1), 2*dj1_(opt1))
+        assert np.allclose(dj(opt2), 4*dj2_(opt2))
 
     def test_zero_when_not_found(self):
         opt1 = Opt(n=3)
