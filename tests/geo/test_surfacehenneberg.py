@@ -212,8 +212,14 @@ class SurfaceHennebergTests(unittest.TestCase):
             vmec = Vmec(os.path.join(TEST_DIR, test_file))
             surf1 = vmec.boundary
             surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
+            # Make sure that the graph framework dofs are sync-ed with
+            # the rc/zs arrays:
+            np.testing.assert_allclose(surf2.x, surf2.get_dofs())
             self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
             surf3 = surf2.to_RZFourier()
+            # Make sure that the graph framework dofs are sync-ed with
+            # the rc/zs arrays:
+            np.testing.assert_allclose(surf3.x, surf3.get_dofs())
 
             # Test gamma_lin:
             gamma2 = np.zeros((nlist, 3))

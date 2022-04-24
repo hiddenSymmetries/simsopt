@@ -1,4 +1,3 @@
-recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
 recursive-exclude .git
 recursive-exclude .github * .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
 recursive-exclude docs *
@@ -7,5 +6,7 @@ recursive-exclude ci *
 recursive-exclude conda.recipe *
 recursive-exclude examples wout*.nc mercier* jxbout* spec*.sp spec*.sp.* .gitignore
 recursive-exclude tests .gitignore
+recursive-include thirdparty *
+recursive-exclude thirdparty .git .gitignore .github/* .appveyor.yml *readthedocs.yml .travis.yml azure-pipelines.yml
 
 exclude .gitignore *readthedocs.yaml MANIFEST* run_autopep .gitmodules 
