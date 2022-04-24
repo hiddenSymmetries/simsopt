@@ -4,7 +4,7 @@
 // Optimization notes:
 // We use two "tricks" in this part of the code to speed up some of the functions.
 // 1) We use SIMD instructions to parallelise across the angle theta.
-// 2) This parametrization requires the evaluation of 
+// 2) This parametrization requires the evaluation of
 //          sin(m*theta-n*nfp*phi) and cos(m*theta-n*nfp*phi)
 //    for many values of n and m. Since trigonometric functions are expensive,
 //    we want to avoid lots of calls to sin and cos. Instead, we use the rules
@@ -107,30 +107,6 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
-<<<<<<< HEAD
-        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
-            double r = 0;
-            double rd = 0;
-            double zd = 0;
-            double rdd = 0;
-            double zdd = 0;
-            for (int i = 0; i < 2*ntor+1; ++i) {
-                int n  = i - ntor;
-                for (int m = 0; m <= mpol; ++m) {
-                    r  +=  rc(m, i) * cos(m*theta-n*nfp*phi);
-                    rd +=  -rc(m, i) * (-n*nfp) * sin(m*theta-n*nfp*phi);
-                    rdd +=  rc(m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi);
-                    if(!stellsym) {
-                        r  += rs(m, i) * sin(m*theta-n*nfp*phi);
-                        rd += rs(m, i) * (-n*nfp) * cos(m*theta-n*nfp*phi);
-                        rdd += - rs(m, i) * (-n*nfp) * (-n*nfp) * sin(m*theta-n*nfp*phi);
-                        zd  += -zc(m, i) * (-n*nfp) * sin(m*theta-n*nfp*phi);
-                        zdd +=  zc(m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi);
-                    }
-                    zd += zs(m, i) * (-n*nfp) * cos(m*theta-n*nfp*phi);
-                    zdd += -zs(m, i) * (-n*nfp) * (-n*nfp) * sin(m*theta-n*nfp*phi);
-=======
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
             simd_t theta;
             for (int l = 0; l < simd_size; ++l) {
@@ -165,7 +141,6 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
                         sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
                         costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
                     }
->>>>>>> master
                 }
             }
             auto xd = 2*M_PI*(rd * cos(phi) - r * sin(phi));
@@ -596,7 +571,6 @@ void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
 }
 
 template<class Array>
-<<<<<<< HEAD
 void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -716,7 +690,6 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
             }
         }
     }
-=======
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -796,7 +769,6 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     }
     res *= 2*M_PI;
     return res;
->>>>>>> master
 }
 
 template<class Array>
