@@ -76,7 +76,7 @@ case, the independent variables are two of the Fourier amplitudes
 defining the boundary. We choose the independent variables as follows::
 
   surf = equil.boundary
-  surf.local_fix_all()
+  surf.fix_all()
   surf.unfix('rc(1,1)')
   surf.unfix('zs(1,1)')
 
@@ -160,7 +160,7 @@ The complete example is then as follows::
   surf = equil.boundary
 
   # You can choose which parameters are optimized by setting their 'fixed' attributes.
-  surf.local_fix_all()
+  surf.fix_all()
   surf.unfix('rc(1,1)')
   surf.unfix('zs(1,1)')
 
