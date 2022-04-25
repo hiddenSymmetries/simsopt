@@ -28,6 +28,8 @@ from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
+from simsopt.geo.qfmsurface import QfmSurface
+from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, DipoleField
@@ -46,6 +48,74 @@ try:
     comm = MPI.COMM_WORLD
 except ImportError:
     comm = None
+
+
+def make_qfm(s, bs):
+    #mpol = 5
+    #ntor = 5
+    #stellsym = True
+    #nfp = 2 
+    constraint_weight = 1e0
+
+    #phis = np.linspace(0, 1 / nfp, 25, endpoint=False)
+    #thetas = np.linspace(0, 1, 25, endpoint=False)
+    #s = SurfaceRZFourier(
+    #    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
+    #    quadpoints_theta=thetas)
+    # s.fit_to_curve(ma, 0.2, flip_theta=True)
+
+    # First optimize at fixed volume
+
+    qfm = QfmResidual(s, bs)
+    qfm.J()
+
+    vol = Volume(s)
+    vol_target = vol.J()
+
+    qfm_surface = QfmSurface(bs, s, vol, vol_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Now optimize at fixed toroidal flux
+
+    tf = ToroidalFlux(s, bs)
+    tf_target = tf.J()
+
+    qfm_surface = QfmSurface(bs, s, tf, tf_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+
+    # Now optimize at fixed area
+
+    ar = Area(s)
+    ar_target = ar.J()
+
+    qfm_surface = QfmSurface(bs, s, ar, ar_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    s.plot()
+
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -82,14 +152,14 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 32
-ntheta = 32
+nphi = 16
+ntheta = 16
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 stellsym = True
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=stellsym, R0=R0, R1=R1, order=order)
-base_currents = [Current(1e5) for i in range(ncoils)]
+base_currents = [Current(6.5e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
 # of the currents:
@@ -97,10 +167,17 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_currents[0].fix_all()
 
 # Uncomment if want to keep the coils circular
-# for i in range(ncoils):
-#     base_curves[i].fix_all()
+for i in range(ncoils):
+    base_curves[i].fix_all()
 
 bs = BiotSavart(coils)
+bspoints = np.zeros((nphi, 3))
+for i in range(nphi):
+    # R = 1.0, Z = 0.0 
+    bspoints[i] = np.array([1.0 * np.cos(s.quadpoints_phi[i]), 1.0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
+bs.set_points(bspoints)
+print("Bmag at R = 1, Z = 0: ", np.linalg.norm(bs.B(), axis=-1))
+print("toroidally averaged Bmag at R = 1, Z = 0: ", np.mean(np.linalg.norm(bs.B(), axis=-1)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 # b_target_pm = -np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -164,10 +241,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.1, plasma_offset=0.1,
+    s, coil_offset=0.1, dr=0.05, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 10000
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
@@ -178,7 +255,10 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
 # to check nothing got mistranslated
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=stellsym, nfp=s.nfp)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
-#b_dipole._toVTK("Dipole_Fields")
+b_dipole._toVTK("Dipole_Fields")
+pm_opt._plot_final_dipoles()
+
+# b_dipole._toVTK("Dipole_Fields_surf", dim=())
 
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
@@ -201,7 +281,7 @@ plt.grid(None)
 plt.savefig('PMs_optimized.png')
 
 dipoles = np.ravel(dipoles)
-
+print(dipoles, pm_opt.m_maxima)
 
 # Create full torus QA surface, plot Bn on that surface, 
 
@@ -222,13 +302,13 @@ if make_plots and (comm is None or comm.rank == 0):
 
     # Make plot of the relax-and-split convergence
     plt.figure()
-    plt.semilogy(RS_history)
+    plt.semilogy(MwPGP_history)
     plt.grid(True)
     plt.savefig('objective_history.png')
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    plt.hist(abs(np.ravel(m_history[:, :, 0])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    plt.hist(abs(np.ravel(m_history[:, :, -1])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     plt.savefig('m_histogram.png')
     print('Done optimizing the permanent magnets')
 
@@ -272,7 +352,7 @@ bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
 )
 bsh.to_vtk('biot_savart_fields')
-trace_fieldlines(bsh, 'bsh_without_PMs')
+#trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
 #t1 = time.time()
 #bsh = InterpolatedField(
@@ -288,7 +368,7 @@ bsh = InterpolatedField(
 )
 bsh.to_vtk('dipole_fields')
 t2 = time.time()
-trace_fieldlines(bsh, 'bsh_PMs')
+#trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -302,4 +382,7 @@ pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * 
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
 plt.show()
 
+# Make QFMs
+make_qfm(s, bs)
+make_qfm(s, bs + b_dipole)
 # Send message to Zhu about using paraview or whatever 3D thing they are using (coilPy) 

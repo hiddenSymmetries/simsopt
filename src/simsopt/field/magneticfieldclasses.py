@@ -465,6 +465,7 @@ class DipoleField(MagneticField):
         MagneticField.__init__(self)
         self.ndipoles = dipole_grid.shape[0] 
         if pm_opt is not None:
+            self.m_maxima = pm_opt.m_maxima
             phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
             if stellsym or nfp > 1:
                 self._dipole_fields_from_symmetries(m.reshape(self.ndipoles, 3), dipole_grid[:, 2], pm_opt.final_RZ_grid, phi, stellsym, nfp)
@@ -553,12 +554,18 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
+        # Duplicate m_maxima 4 times for full torus
+        m_maxima = np.hstack((self.m_maxima, self.m_maxima))
+        m_maxima = np.hstack((m_maxima, m_maxima))
+        mx_normalized = mx / m_maxima
+        my_normalized = my / m_maxima
+        mz_normalized = mz / m_maxima
         ox = self.dipole_grid[:, 0]
         oy = self.dipole_grid[:, 1]
         oz = self.dipole_grid[:, 2]
         if len(dim) == 1:  # save as points
             print("write VTK as points")
-            data = {"m": (mx, my, mz)}
+            data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized)}
             pointsToVTK(
                 vtkname, ox, oy, oz, data=data
             )

@@ -203,7 +203,8 @@ class PermanentMagnetOptimizer:
 
         # Act as if the dipoles are 2 cm x 2 cm bricks or smaller
         # cell_vol = dipole_grid_r * min(0.02, Delta_r) ** 2 * (phi[1] - phi[0])
-        cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
+        # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
+        cell_vol = np.ones(len(dipole_grid_r)) * dipole_grid_r[0] * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
@@ -216,11 +217,13 @@ class PermanentMagnetOptimizer:
         self._plot_surfaces()
 
     def _plot_final_dipoles(self):
+        dipoles = self.m
+        dipole_grid = self.dipole_grid
         plt.figure()
         ax = plt.axes(projection="3d")
         colors = []
-        dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
-        for i in range(pm_opt.ndipoles):
+        dipoles = dipoles.reshape(self.ndipoles, 3)
+        for i in range(self.ndipoles):
             colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
         sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
         plt.colorbar(sax)
@@ -228,15 +231,15 @@ class PermanentMagnetOptimizer:
         plt.grid(None)
 
         plt.figure(figsize=(14, 14))
-        for i, ind in enumerate([0, 5, 20, 31]):
+        for i, ind in enumerate([0, 5, 12, 15]):
             plt.subplot(2, 2, i + 1)
-            plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * pm_opt.phi[ind]))
-            r_plasma = np.hstack((pm_opt.r_plasma[ind, :], pm_opt.r_plasma[ind, 0]))
-            z_plasma = np.hstack((pm_opt.z_plasma[ind, :], pm_opt.z_plasma[ind, 0]))
-            r_inner = np.hstack((pm_opt.r_inner[ind, :], pm_opt.r_inner[ind, 0]))
-            z_inner = np.hstack((pm_opt.z_inner[ind, :], pm_opt.z_inner[ind, 0]))
-            r_outer = np.hstack((pm_opt.r_outer[ind, :], pm_opt.r_outer[ind, 0]))
-            z_outer = np.hstack((pm_opt.z_outer[ind, :], pm_opt.z_outer[ind, 0]))
+            plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
+            r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
+            z_plasma = np.hstack((self.z_plasma[ind, :], self.z_plasma[ind, 0]))
+            r_inner = np.hstack((self.r_inner[ind, :], self.r_inner[ind, 0]))
+            z_inner = np.hstack((self.z_inner[ind, :], self.z_inner[ind, 0]))
+            r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
+            z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
 
             plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
             plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
@@ -244,23 +247,23 @@ class PermanentMagnetOptimizer:
 
             running_tally = 0
             for k in range(ind):
-                running_tally += len(np.array(pm_opt.final_RZ_grid[k])[:, 0])
+                running_tally += len(np.array(self.final_RZ_grid[k])[:, 0])
             colors = []
-            dipoles_i = dipoles[running_tally:running_tally + len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), :]
+            dipoles_i = dipoles[running_tally:running_tally + len(np.array(self.final_RZ_grid[ind])[:, 0]), :]
             for j in range(len(dipoles_i)):
                 colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
 
             sax = plt.scatter(
-                np.array(pm_opt.final_RZ_grid[ind])[:, 0],
-                np.array(pm_opt.final_RZ_grid[ind])[:, 1],
+                np.array(self.final_RZ_grid[ind])[:, 0],
+                np.array(self.final_RZ_grid[ind])[:, 1],
                 c=colors,
                 label='PMs'
             )
             plt.colorbar(sax)
-            print(i, ind, len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), dipoles_i.shape)
+            print(i, ind, len(np.array(self.final_RZ_grid[ind])[:, 0]), dipoles_i.shape)
             plt.quiver(
-                np.array(pm_opt.final_RZ_grid[ind])[:, 0],
-                np.array(pm_opt.final_RZ_grid[ind])[:, 1],
+                np.array(self.final_RZ_grid[ind])[:, 0],
+                np.array(self.final_RZ_grid[ind])[:, 1],
                 dipoles_i[:, 0],
                 dipoles_i[:, 2],
             )
@@ -270,135 +273,6 @@ class PermanentMagnetOptimizer:
                 plt.legend()
             plt.grid(True)
         plt.savefig('grids_permanent_magnets.png')
-
-    def _toVTK(
-        self, vtkname, dim=(1) 
-    ):
-        """write dipole data into a VTK file. Function taken and editted from 
-           ciaoxiang's CoilPy library. 
-        Args:
-            vtkname (str): VTK filename, will be appended with .vts or .vtu.
-            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
-        """
-        from pyevtk.hl import gridToVTK, pointsToVTK
-
-        dim = np.atleast_1d(dim)
-        if len(dim) == 1:  # save as points
-            print("write VTK as points")
-            data = {"m": (self.mx, self.my, self.mz)}
-            if not self.old:
-                data.update({"rho": self.pho ** self.momentq})
-            data.update(kwargs)
-            pointsToVTK(
-                vtkname, self.ox, self.oy, self.oz, data=data
-            )  # .update(kwargs))
-        else:  # save as surfaces
-            assert len(dim) == 3
-            print("write VTK as closed surface")
-            if close:
-                # manually close the gap
-                phi = 2 * np.pi / self.nfp
-
-                def map_toroidal(vec):
-                    rotate = np.array(
-                        [
-                            [np.cos(phi), np.sin(phi), 0],
-                            [-np.sin(phi), np.cos(phi), 0],
-                            [0, 0, 1],
-                        ]
-                    )
-                    return np.matmul(vec, rotate)
-
-                data_array = {
-                    "ox": self.ox,
-                    "oy": self.oy,
-                    "oz": self.oz,
-                    "mx": self.mx,
-                    "my": self.my,
-                    "mz": self.mz,
-                    "Ic": self.Ic,
-                    "rho": self.pho ** self.momentq,
-                }
-                data_array.update(kwargs)
-                nr, nz, nt = dim
-                for key in list(data_array.keys()):
-                    new_vec = np.zeros((nr, nz + 1, nt + 1))
-                    for ir in range(nr):
-                        new_vec[ir, :, :] = map_matrix(
-                            np.reshape(data_array[key], dim)[ir, :, :]
-                        )
-                    if toroidal:
-                        data_array[key] = new_vec
-                    else:
-                        if ntnz:
-                            data_array[key] = np.ascontiguousarray(new_vec[:, :, :-1])
-                        else:
-                            data_array[key] = np.ascontiguousarray(new_vec[:, :-1, :])
-                ox = np.copy(data_array["ox"])
-                oy = np.copy(data_array["oy"])
-                oz = np.copy(data_array["oz"])
-                del data_array["ox"]
-                del data_array["oy"]
-                del data_array["oz"]
-                data_array["m"] = (data_array["mx"], data_array["my"], data_array["mz"])
-                if toroidal and self.nfp >= 1:  # not quite sure if should include nfp=1
-                    for ir in range(nr):
-                        if ntnz:
-                            xyz = map_toroidal(
-                                np.transpose([ox[ir, :, 0], oy[ir, :, 0], oz[ir, :, 0]])
-                            )
-                            ox[ir, :, nz] = xyz[:, 0]
-                            oy[ir, :, nz] = xyz[:, 1]
-                            oz[ir, :, nz] = xyz[:, 2]
-                            moment = map_toroidal(
-                                np.transpose(
-                                    [
-                                        data_array["mx"][ir, :, 0],
-                                        data_array["my"][ir, :, 0],
-                                        data_array["mz"][ir, :, 0],
-                                    ]
-                                )
-                            )
-                            data_array["m"][0][ir, :, nz] = moment[:, 0]
-                            data_array["m"][1][ir, :, nz] = moment[:, 1]
-                            data_array["m"][2][ir, :, nz] = moment[:, 2]
-                        else:
-                            xyz = map_toroidal(
-                                np.transpose([ox[ir, 0, :], oy[ir, 0, :], oz[ir, 0, :]])
-                            )
-                            ox[ir, nz, :] = xyz[:, 0]
-                            oy[ir, nz, :] = xyz[:, 1]
-                            oz[ir, nz, :] = xyz[:, 2]
-                            moment = map_toroidal(
-                                np.transpose(
-                                    [
-                                        data_array["mx"][ir, 0, :],
-                                        data_array["my"][ir, 0, :],
-                                        data_array["mz"][ir, 0, :],
-                                    ]
-                                )
-                            )
-                            data_array["m"][0][ir, nz, :] = moment[:, 0]
-                            data_array["m"][1][ir, nz, :] = moment[:, 1]
-                            data_array["m"][2][ir, nz, :] = moment[:, 2]
-                del data_array["mx"]
-                del data_array["my"]
-                del data_array["mz"]
-                gridToVTK(vtkname, ox, oy, oz, pointData=data_array)
-                return
-            else:
-                ox = np.reshape(self.ox[: self.num], dim)
-                oy = np.reshape(self.oy[: self.num], dim)
-                oz = np.reshape(self.oz[: self.num], dim)
-                mx = np.reshape(self.mx[: self.num], dim)
-                my = np.reshape(self.my[: self.num], dim)
-                mz = np.reshape(self.mz[: self.num], dim)
-                rho = np.reshape(self.pho[: self.num] ** self.momentq, dim)
-                Ic = np.reshape(self.Ic[: self.num], dim)
-            data = {"m": (mx, my, mz), "rho": rho, "Ic": Ic}
-            data.update(kwargs)
-            gridToVTK(vtkname, ox, oy, oz, pointData=data)
-        return 
 
     def _set_inner_rz_surface(self):
         """
