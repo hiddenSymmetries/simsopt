@@ -59,3 +59,20 @@ class CurveHelical(JaxCurve):
         order = int(len(dofs)/2)
         for i in range(2):
             self.coefficients[i] = dofs[i*order:(i+1)*order]
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = self.quadpoints
+        d["order"] = self.order
+        d["n0"] = self.n0
+        d["l0"] = self.l0
+        d["R0"] = self.R0
+        d["r0"] = self.r0
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["quadpoints, "], d["order"], d["n0"],
+                   d["l0"], d["R0"], d["r0"])
