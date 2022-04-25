@@ -96,6 +96,18 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coils[ic].local_x = np.concatenate(dofs)
         return coils
 
+    def as_method(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = self.quadpoints
+        d["order"] = self.order
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["quadpoints", d["order"]])
+
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
@@ -153,3 +165,15 @@ class JaxCurveXYZFourier(JaxCurve):
                 counter += 1
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
+
+    def as_method(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = self.quadpoints
+        d["order"] = self.order
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["quadpoints"], d["order"])

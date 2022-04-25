@@ -34,7 +34,7 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
-    
+
     def as_dict(self) -> dict:
         d = {}
         d["@module"] = self.__class__.__module__
@@ -84,7 +84,6 @@ class Current(sopp.Current, Optimizable):
     def from_dict(cls, d):
         current = d["current"]
         return Current(current)
-
 
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):

@@ -376,8 +376,8 @@ class Beale(Optimizable):
     https://en.wikipedia.org/wiki/Test_functions_for_optimization
     """
 
-    def __init__(self):
-        x = np.zeros(2)
+    def __init__(self, x0=None):
+        x = np.zeros(2) if not x0 else x0
         super().__init__(x0=x)
 
     def J(self):
@@ -386,3 +386,4 @@ class Beale(Optimizable):
         return np.array([1.5 - x + x * y,
                          2.25 - x + x * y * y,
                          2.625 - x + x * y * y * y])
+
