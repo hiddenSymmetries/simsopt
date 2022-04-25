@@ -73,6 +73,12 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
+    """
+    Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
+    (1+int(stellsym))`` :mod:`simsopt.geo.curve.Curve` objects obtained by
+    applying rotations and flipping corresponding to ``nfp`` fold rotational
+    symmetry and optionally stellarator symmetry.
+    """
     flip_list = [False, True] if stellsym else [False]
     curves = []
     for k in range(0, nfp):
@@ -87,6 +93,11 @@ def apply_symmetries_to_curves(base_curves, nfp, stellsym):
 
 
 def apply_symmetries_to_currents(base_currents, nfp, stellsym):
+    """
+    Take a list of ``n`` :mod:`Current`s and return ``n * nfp * (1+int(stellsym))``
+    :mod:`Current` objects obtained by copying (for ``nfp`` rotations) and
+    sign-flipping (optionally for stellarator symmetry).
+    """
     flip_list = [False, True] if stellsym else [False]
     currents = []
     for k in range(0, nfp):
