@@ -73,8 +73,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 32
-ntheta = 64
+nphi = 16
+ntheta = 16
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 print(s.rc.shape, s.zs.shape, s.quadpoints_phi, s.quadpoints_theta)
 print(s.quadpoints_phi.shape, s.quadpoints_theta.shape)
@@ -89,8 +89,8 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_currents[0].fix_all()
 
 # Uncomment if want to keep the coils circular
-for i in range(ncoils):
-    base_curves[i].fix_all()
+#for i in range(ncoils):
+#    base_curves[i].fix_all()
 
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -159,89 +159,26 @@ pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.1, dr=0.15,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 100
+max_iter_MwPGP = 1000
 reg_l0 = 0.0  # 0.1
-print('Done initializing the permanent magnet object')
-# Run code in c++ with openmp
-t1 = time.time()
-_, m_history, _, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP)  # , reg_l0=reg_l0
-t2 = time.time()
-print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
-print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
-dipole_grid = pm_opt.dipole_grid
-
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt)
-b_dipole.set_points(s.gamma().reshape((-1, 3)))
-print(b_dipole.B())
-
-make_plots = False
-if make_plots:
-    # Make plot of ATA element values
-    plt.figure()
-    plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
-    plt.grid(True)
-    plt.savefig('histogram_ATA_values.png')
-
-    # make histogram of the dipoles, normalized by their maximum values
-    plt.figure()
-    plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-    plt.savefig('m_histogram.png')
-    # plt.show()
-    print('Done optimizing the permanent magnets')
-
+convex_hists = []
 plt.figure()
-ax = plt.axes(projection="3d")
-colors = []
-dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
-for i in range(pm_opt.ndipoles):
-    colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
-sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
-plt.colorbar(sax)
-plt.axis('off')
-plt.grid(None)
-
-plt.figure(figsize=(14, 14))
-for i, ind in enumerate([0, 5, 20, 31]):
-    plt.subplot(2, 2, i + 1)
-    plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * pm_opt.phi[ind]))
-    r_plasma = np.hstack((pm_opt.r_plasma[ind, :], pm_opt.r_plasma[ind, 0]))
-    z_plasma = np.hstack((pm_opt.z_plasma[ind, :], pm_opt.z_plasma[ind, 0]))
-    r_inner = np.hstack((pm_opt.r_inner[ind, :], pm_opt.r_inner[ind, 0]))
-    z_inner = np.hstack((pm_opt.z_inner[ind, :], pm_opt.z_inner[ind, 0]))
-    r_outer = np.hstack((pm_opt.r_outer[ind, :], pm_opt.r_outer[ind, 0]))
-    z_outer = np.hstack((pm_opt.z_outer[ind, :], pm_opt.z_outer[ind, 0]))
-
-    plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
-    plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
-    plt.plot(r_outer, z_outer, label='Outer surface', linewidth=2)
-
-    running_tally = 0
-    for k in range(ind):
-        running_tally += len(np.array(pm_opt.final_RZ_grid[k])[:, 0])
-    colors = []
-    dipoles_i = dipoles[running_tally:running_tally + len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), :]
-    for j in range(len(dipoles_i)):
-        colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
-
-    sax = plt.scatter(
-        np.array(pm_opt.final_RZ_grid[ind])[:, 0],
-        np.array(pm_opt.final_RZ_grid[ind])[:, 1],
-        c=colors,
-        label='PMs'
-    )
-    plt.colorbar(sax)
-    print(i, ind, len(np.array(pm_opt.final_RZ_grid[ind])[:, 0]), dipoles_i.shape)
-    plt.quiver(
-        np.array(pm_opt.final_RZ_grid[ind])[:, 0],
-        np.array(pm_opt.final_RZ_grid[ind])[:, 1],
-        dipoles_i[:, 0],
-        dipoles_i[:, 2],
-    )
-    #
-    plt.xlabel('R (m)')
-    plt.ylabel('Z (m)')
-    if i == 0:
-        plt.legend()
-    plt.grid(True)
-plt.savefig('grids_permanent_magnets.png')
+print('Done initializing the permanent magnet object')
+for i in range(50):
+    # Run code in c++ with openmp
+    t1 = time.time()
+    m0 = (np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 
+    for j in range(3):
+        m0[:, j] = m0[:, j] * pm_opt.m_maxima[j] / 10.0  # / np.linalg.norm(m0, axis=-1)
+    m0 = np.ravel(m0)
+    MwPGP_history, _, m_history, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, m0=m0)  # , reg_l0=reg_l0
+    t2 = time.time()
+    print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
+    print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
+    # Make plot of the convex convergenced 
+    convex_hists.append(MwPGP_history)
+    plt.semilogy(MwPGP_history)  # , label=str(i))
+plt.grid(True)
+plt.legend()
+plt.savefig('MwPGP_objective_history.png')
 plt.show()

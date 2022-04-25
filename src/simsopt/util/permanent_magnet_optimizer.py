@@ -4,6 +4,7 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from scipy.sparse import csr_matrix
 import simsoptpp as sopp
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,9 @@ class PermanentMagnetOptimizer:
             dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
+
+        # Act as if the dipoles are 2 cm x 2 cm bricks or smaller
+        # cell_vol = dipole_grid_r * min(0.02, Delta_r) ** 2 * (phi[1] - phi[0])
         cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
@@ -464,7 +468,7 @@ class PermanentMagnetOptimizer:
             magnet gridding procedure.
         """
         plt.figure(figsize=(14, 14))
-        for i, ind in enumerate([0, 5, 20, 31]):
+        for i, ind in enumerate([0, 5, 12, 15]):
             plt.subplot(2, 2, i + 1)
             plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
             r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -742,6 +746,238 @@ class PermanentMagnetOptimizer:
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
+    def _phi_MwPGP(self, x, g):
+        """
+        phi(x_i, g_i) = g_i(x_i) is not on the L2 ball,
+        otherwise set it to zero
+        """
+        N = len(x) // 3
+        x_shaped = x.reshape(N, 3)
+        check_active = np.isclose(
+            x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
+            self.m_maxima ** 2, rtol=1e-5
+        )
+        # if triplet is in the active set (on the L2 unit ball)
+        # then zero out those three indices
+        g_shaped = np.copy(g).reshape((N, 3))
+        if np.any(check_active):
+            g_shaped[check_active, :] = 0.0
+        return g_shaped.reshape(3 * N)
+
+    def _beta_tilde(self, x, g, alpha):
+        """
+        beta_tilde(x_i, g_i, alpha) = 0_i if the ith triplet
+        is not on the L2 ball, otherwise is equal to different
+        values depending on the orientation of g.
+        """
+        N = len(x) // 3
+        x_shaped = x.reshape((N, 3))
+        check_active = np.isclose(
+            x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2,
+            self.m_maxima ** 2
+        )
+        # if triplet is NOT in the active set (on the L2 unit ball)
+        # then zero out those three indices
+        beta = np.zeros((N, 3))
+        if np.any(~check_active):
+            gradient_sphere = 2 * x_shaped
+            denom_n = np.linalg.norm(gradient_sphere, axis=1, ord=2)
+            n = np.divide(
+                gradient_sphere,
+                np.array([denom_n, denom_n, denom_n]).T
+            )
+            g_inds = np.ravel(np.where(~check_active))
+            g_shaped = np.copy(g).reshape(N, 3)
+            nTg = np.diag(n @ g_shaped.T)
+            check_nTg_positive = (nTg > 0)
+            beta_inds = np.logical_and(check_active, check_nTg_positive)
+            beta_not_inds = np.logical_and(check_active, ~check_nTg_positive)
+            N_not_inds = np.sum(np.array(beta_not_inds, dtype=int))
+            if np.any(beta_inds):
+                beta[beta_inds, :] = g_shaped[beta_inds, :]
+            if np.any(beta_not_inds):
+                beta[beta_not_inds, :] = self._g_reduced_gradient(
+                    x_shaped[beta_not_inds, :].reshape(3 * N_not_inds),
+                    alpha,
+                    g_shaped[beta_not_inds, :].reshape(3 * N_not_inds),
+                    self.m_maxima[beta_not_inds]
+                ).reshape(N_not_inds, 3)
+        return beta.reshape(3 * N)
+
+    def _g_reduced_gradient(self, x, alpha, g, m_maxima):
+        """
+        The reduced gradient of G is simply the
+        gradient step in the L2-projected direction.
+        """
+        return (x - self._projection_L2_balls(x - alpha * g, m_maxima)) / alpha
+
+    def _g_reduced_projected_gradient(self, x, alpha, g):
+        """
+        The reduced projected gradient of G is the
+        gradient step in the L2-projected direction,
+        subject to some modifications.
+    """
+        return self._phi_MwPGP(x, g) + self._beta_tilde(x, g, alpha)
+
+    def _find_max_alphaf(self, x, p):
+        """
+        Solve a quadratic equation to determine the largest
+        step size alphaf such that the entirety of x - alpha * p
+        lives in the convex space defined by the intersection
+        of the N L2 balls defined in R3, so that
+        (x[0] - alpha * p[0]) ** 2 + (x[1] - alpha * p[1]) ** 2
+        + (x[2] - alpha * p[2]) ** 2 <= 1.
+        """
+        N = len(x) // 3
+        x_shaped = x.reshape((N, 3))
+        p_shaped = p.reshape((N, 3))
+        a = p_shaped[:, 0] ** 2 + p_shaped[:, 1] ** 2 + p_shaped[:, 2] ** 2
+        b = - 2 * (
+            x_shaped[:, 0] * p_shaped[:, 0] + x_shaped[:, 1] * p_shaped[:, 1] + x_shaped[:, 2] * p_shaped[:, 2]
+        )
+        # c should always be negative value
+        c = (x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) - self.m_maxima ** 2
+
+        # Need to think harder about the line below
+        p_nonzero_inds = np.ravel(np.where(a > 0))
+        if len(p_nonzero_inds) != 0:
+            a = a[p_nonzero_inds]
+            b = b[p_nonzero_inds]
+            c = c[p_nonzero_inds]
+            # c always negative and a always positive, so no issue with the square root
+            # and alphaf_plus guaranteed to be >= 0. 
+            alphaf_plus = np.min((-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a))
+        else:
+            alphaf_plus = 0.0
+        return alphaf_plus
+
+    def _MwPGP(self, ATA, ATb, m_proxy, m0, nu=1e100, 
+               delta=0.5, epsilon=1e-4,
+               reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0,
+               relax_and_split=False, max_iter=500,
+               verbose=True):
+        """
+        Run the MwPGP algorithm defined in: Bouchala, Jiří, et al.
+        On the solution of convex QPQC problems with elliptic and
+        other separable constraints with strong curvature.
+        Applied Mathematics and Computation 247 (2014): 848-864.
+        Here we solve the more specific optimization problem,
+        min_x ||Ax - b||^2 + R(x)
+        with a convex regularizer R(x) and subject
+        to many spherical constraints.
+        Note there is a typo in one of their definitions of
+        alpha_cg, it should be alpha_cg = (A.T @ b.T) @ p / (p.T @ (A.T @ A) @ p)
+        I think.
+        Also, everywhere we need to replace A -> A.T @ A because they solve
+        the optimization problem with x^T @ A @ x + ...
+        """
+        # Need to put ATA everywhere since original MwPGP algorithm 
+        # assumes that the problem looks like x^T A x
+        # ATb = A.T @ b
+        alpha = 2.0 / np.linalg.norm(ATA.toarray(), ord=2)
+        alpha = alpha - alpha / 1e5
+        print('alpha_MwPGP = ', alpha)
+        g = ATA.dot(m0) - ATb
+        p = self._phi_MwPGP(m0, g)
+        g_alpha_P = self._g_reduced_projected_gradient(m0, alpha, g)
+        norm_g_alpha_P = np.linalg.norm(g_alpha_P, ord=2)
+        # Add contribution from relax-and-split term
+        ATb = ATb + m_proxy / nu
+
+        # Print initial values for each term in the optimization
+        if verbose:
+            row = [
+                "Iteration",
+                "|Am - b|^2",
+                "|m-w|^2/v",
+                "a|m|^2",
+                "b|m-1|^2",
+                "c|m|_1",
+                "d|m|_0",
+                "Total Error:",
+            ]
+            print(
+                "{: >8} ... {: >8} ... {: >8} ... {: >8} ... "
+                " {: >8} ... {: >8} ... {: >8} ... {: >8}".format(*row)
+            ) 
+        k = 0
+        x_k = m0 
+        start = time.time()
+        m_history = []
+        objective_history = []
+        R2_history = []
+        while k < max_iter:
+            if (verbose and ((k % int(max_iter / 10) == 0) or k == 0 or k == max_iter - 1)):
+                R2 = 0.5 * np.linalg.norm(
+                    self.A_obj.dot(x_k) - self.b_obj, ord=2
+                ) ** 2
+                N2 = 0.5 * np.linalg.norm(
+                    x_k - m_proxy, ord=2
+                ) ** 2 / nu
+                L2 = reg_l2 * np.linalg.norm(
+                    x_k, ord=2
+                ) ** 2
+                L2_shift = reg_l2_shifted * np.linalg.norm(
+                    x_k - np.ravel(np.outer(self.m_maxima, np.ones(3))), ord=2
+                ) ** 2
+                L1 = reg_l1 * np.sum(np.abs(x_k)) 
+                L0 = reg_l0 * np.count_nonzero(m_proxy)
+                cost = R2 + N2 + L2 + L2_shift + L1 + L0 
+                row = [
+                    k,
+                    R2,  
+                    N2,  
+                    L2,  
+                    L2_shift,
+                    L1, 
+                    L0, 
+                    cost 
+                ]
+                print(
+                    "{: d} ... {: .2e} ... {: .2e} ... {: .2e} ... "
+                    " {: .2e} ... {: .2e} ... {: .2e} ... {: .2e}".format(*row)
+                )
+                objective_history.append(cost)
+                R2_history.append(R2)
+                m_history.append(x_k)
+            # x_k should always be in the allowed region of L2 balls
+            if not np.allclose(x_k, self._projection_L2_balls(x_k, self.m_maxima)):
+                inds = (x_k != self._projection_L2_balls(x_k, self.m_maxima))
+            if (2 * delta * np.linalg.norm(
+                    self._g_reduced_projected_gradient(x_k, alpha, g), 
+                    ord=2
+            ) ** 2 <= np.linalg.norm(self._phi_MwPGP(x_k, g)) ** 2):
+                ATAp = ATA.dot(p)
+                # alpha_cg = ATb.T @ p / (p.T @ ATAp)
+                alpha_cg = g.T @ p / (p.T @ ATAp)
+                #alpha_f = 1e100
+                alpha_f = self._find_max_alphaf(x_k, p)  # not quite working yet?
+                if alpha_cg < alpha_f:
+                    # Take a conjugate gradient step
+                    x_k1 = x_k - alpha_cg * p
+                    g = g - alpha_cg * ATAp
+                    gamma = self._phi_MwPGP(x_k1, g).T @ ATAp / (p.T @ ATAp)
+                    p = self._phi_MwPGP(x_k1, g) - gamma * p
+                else:
+                    # Take a mixed projected gradient step
+                    x_k1 = self._projection_L2_balls((x_k - alpha_f * p) - alpha * (g - alpha_f * ATAp), self.m_maxima)
+                    g = ATA.dot(x_k1) - ATb
+                    p = self._phi_MwPGP(x_k1, g)
+            else:
+                # Take a projected gradient step
+                x_k1 = self._projection_L2_balls(x_k - alpha * g, self.m_maxima)
+                g = ATA.dot(x_k1) - ATb
+                p = self._phi_MwPGP(x_k1, g)
+            k = k + 1
+            if np.max(abs(x_k - x_k1)) < epsilon:
+                print('MwPGP finished early, at iteration ', k)
+                break
+            x_k = x_k1
+        end = time.time()
+        print('Error after MwPGP iterations = ', objective_history[-1])
+        print('Total time for MwPGP = ', end - start)
+        return objective_history, R2_history, m_history, x_k 
+
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
@@ -798,13 +1034,22 @@ class PermanentMagnetOptimizer:
                     'Initial dipole guess is incorrect shape --'
                     ' guess must be 1D with shape (ndipoles * 3).'
                 )
+            m0_temp = self._projection_L2_balls(
+                m0, 
+                self.m_maxima
+            )
+            if not np.allclose(m0, m0_temp):
+                raise ValueError(
+                    'Initial dipole guess must contain values '
+                    'that are satisfy the maximum bound constraints.'
+                )
         else:
             m0 = self._projection_L2_balls(
                 np.linalg.pinv(self.A_obj) @ self.b_obj, 
                 self.m_maxima
             )
             # temporary check
-            m0 = np.zeros(m0.shape)
+            # m0 = np.zeros(m0.shape)
 
         print('L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2))
         print('Shifted L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2_shifted))
@@ -839,6 +1084,7 @@ class PermanentMagnetOptimizer:
 
         # get optimal alpha value for the MwPGP algorithm
         alpha_max = 2.0 / np.linalg.norm(ATA, ord=2)
+        alpha_max = alpha_max * (1 - 1e-5)
 
         # Truncate all terms with magnitude < geometric_threshold
         ATA = (np.abs(ATA) > geometric_threshold) * ATA
@@ -928,7 +1174,14 @@ class PermanentMagnetOptimizer:
                 reg_l1=reg_l1,
                 reg_l2=reg_l2,
                 reg_l2_shifted=reg_l2_shifted,
+                # delta=1e-100,
             )    
+            #MwPGP_hist, _, m_hist, m = self._MwPGP(
+            #    ATA_sparse, ATb, m_proxy, m0,
+            #    epsilon=epsilon,
+            #    relax_and_split=False, max_iter=max_iter_MwPGP,
+            #    verbose=True,
+            #)
             m = np.ravel(m)
             m_proxy = m
 
