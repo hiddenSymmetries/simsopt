@@ -47,3 +47,20 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
+
+    def as_method(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = self.quadpoints
+        d["order"] = self.order
+        d["nfp"] = self.nfp
+        d["stellsym"] = self.stellsym
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["quadpoints"],
+                   d["order"],
+                   d["nfp"],
+                   d["stellsym"])
