@@ -1,10 +1,11 @@
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from math import pi
 import numpy as np
+from monty.json import MontyDecoder
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -33,6 +34,22 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
+    
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["curve"] = self.curve.as_dict()
+        d["current"] = self.current.as_dict()
+        del d["current"]["@module"]
+        del d["current"]["@class"]
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        current = Current.from_dict(d["current"])
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve, current)
 
 
 class Current(sopp.Current, Optimizable):
@@ -52,6 +69,22 @@ class Current(sopp.Current, Optimizable):
 
     def __neg__(self):
         return ScaledCurrent(self, -1.)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        current = self.get_value()
+        if hasattr(self, 'scale'):
+            current *= self.scale
+        d["current"] = current
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        current = d["current"]
+        return Current(current)
+
 
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
