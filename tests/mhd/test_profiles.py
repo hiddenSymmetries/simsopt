@@ -35,7 +35,7 @@ class ProfilesTests(unittest.TestCase):
         prof1 = ProfilePolynomial([3, 0, 0, -3])
         scalefac = 0.6
         prof2 = ProfileScaled(prof1, scalefac)
-        prof2.unfix_all()
+        prof2.local_unfix_all()
         s = np.linspace(0, 1, 10)
         np.testing.assert_allclose(prof2(s), scalefac * prof1(s))
         np.testing.assert_allclose(prof2.dfds(s), scalefac * prof1.dfds(s))
@@ -62,7 +62,7 @@ class ProfilesTests(unittest.TestCase):
         # Try changing the dofs
         f2 = -2.1 - 0.4 * s + 0.7 * s * s
         f2_fine = -2.1 - 0.4 * s_fine + 0.7 * s_fine * s_fine
-        profile.unfix_all()
+        profile.local_unfix_all()
         profile.x = f2
         np.testing.assert_allclose(profile(s), f2)
         np.testing.assert_allclose(profile.dfds(s), -0.4 + 2 * 0.7 * s)
@@ -122,12 +122,12 @@ class ProfilesTests(unittest.TestCase):
         TD = ProfilePolynomial(12.0e3 * np.array([1.0, -1.0]))
         TT = TD
         pressure = ProfilePressure(ne, Te, nD, TD, nT, TT)
-        ne.unfix_all()
-        nD.unfix_all()
-        nT.unfix_all()
-        Te.unfix_all()
-        TD.unfix_all()
-        TT.unfix_all()
+        ne.local_unfix_all()
+        nD.local_unfix_all()
+        nT.local_unfix_all()
+        Te.local_unfix_all()
+        TD.local_unfix_all()
+        TT.local_unfix_all()
         for j in range(2):
             np.testing.assert_allclose(pressure(s), ne(s) * Te(s) + nD(s) * TD(s) + nT(s) * TT(s),
                                        atol=atol)
