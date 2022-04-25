@@ -156,28 +156,29 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.15,
+    s, coil_offset=0.1, dr=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
 max_iter_MwPGP = 1000
 reg_l0 = 0.0  # 0.1
-convex_hists = []
 plt.figure()
 print('Done initializing the permanent magnet object')
-for i in range(50):
+t1_overall = time.time()
+for i in range(20):
     # Run code in c++ with openmp
     t1 = time.time()
     m0 = (np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 
     for j in range(3):
-        m0[:, j] = m0[:, j] * pm_opt.m_maxima[j] / 10.0  # / np.linalg.norm(m0, axis=-1)
+        m0[:, j] = m0[:, j] * pm_opt.m_maxima[j] / 10.0
     m0 = np.ravel(m0)
     MwPGP_history, _, m_history, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, m0=m0)  # , reg_l0=reg_l0
     t2 = time.time()
     print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
     print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
     # Make plot of the convex convergenced 
-    convex_hists.append(MwPGP_history)
     plt.semilogy(MwPGP_history)  # , label=str(i))
+t2_overall = time.time()
+print(t2_overall - t1_overall)
 plt.grid(True)
 plt.legend()
 plt.savefig('MwPGP_objective_history.png')
