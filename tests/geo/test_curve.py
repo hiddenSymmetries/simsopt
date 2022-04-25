@@ -442,6 +442,15 @@ class Testing(unittest.TestCase):
         rc.gamma_impl(tmp, quadpoints[:10])
         assert np.allclose(cg[:10, :]@mat, tmp)
 
+    def subtest_serialization(self, curvetype, rotated):
+        raise NotImplementedError
+
+    def test_serialization(self):
+        for curvetype in self.curvetypes:
+            for rotated in [True, False]:
+                with self.subTest(curvetype=curvetype, rotated=rotated):
+                    self.subtest_serialization(curvetype, rotated)
+
 
 if __name__ == "__main__":
     unittest.main()

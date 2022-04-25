@@ -133,3 +133,6 @@ class CurvePerturbationTesting(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
+
+    def test_serialization(self):
+        raise NotImplementedError
