@@ -30,7 +30,7 @@ from scipy.optimize import minimize
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, ScaledCurrent, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-from simsopt.geo.curvefilament import create_multifilament_grid
+from simsopt.geo.finitebuild import create_multifilament_grid
 from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, LpCurveCurvature
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux

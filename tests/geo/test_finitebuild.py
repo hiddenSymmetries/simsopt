@@ -1,6 +1,6 @@
 import unittest
 from simsopt.util.zoo import get_ncsx_data
-from simsopt.geo.curvefilament import CurveFilament, FilamentRotation, \
+from simsopt.geo.finitebuild import CurveFilament, FilamentRotation, \
     create_multifilament_grid, ZeroRotation
 import numpy as np
 
