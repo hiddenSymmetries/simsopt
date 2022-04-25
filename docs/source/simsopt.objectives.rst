@@ -12,16 +12,16 @@ simsopt.objectives.fluxobjective module
    :undoc-members:
    :show-inheritance:
 
-simsopt.objectives.graph\_functions module
-------------------------------------------
+simsopt.objectives.functions module
+-----------------------------------
 
 .. automodule:: simsopt.objectives.functions
    :members:
    :undoc-members:
    :show-inheritance:
 
-simsopt.objectives.graph\_least\_squares module
------------------------------------------------
+simsopt.objectives.least\_squares module
+----------------------------------------
 
 .. automodule:: simsopt.objectives.least_squares
    :members:
