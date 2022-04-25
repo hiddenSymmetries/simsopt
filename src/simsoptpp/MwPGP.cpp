@@ -83,12 +83,9 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
     b = - 2 * (x1 * p1 + x2 * p2 + x3 * p3);
     c = x1 * x1 + x2 * x2 + x3 * x3 - m_maxima * m_maxima;
     if (a > tol) { 
-        if ((b * b - 4 * a * c) >= 0.0) {
-            alphaf_plus = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
-        }
-	else {
-            alphaf_plus = 1e100;
-	}
+        // c is always negative and a is always positive
+	// so alphaf_plus >= 0 always
+        alphaf_plus = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
     }
     else {
         alphaf_plus = 1e100; // ignore the value
@@ -120,9 +117,12 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     Array x_k1 = m0;
     
     // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
-    Array objective_history = xt::zeros<double>({(int)(max_iter / 10)});
-    Array R2_history = xt::zeros<double>({(int)(max_iter / 10)});
+    Array m_history = xt::zeros<double>({N, 3, 11});
+    // Array m_history = xt::zeros<double>({N, 3, (int)(max_iter / 10)});
+    Array objective_history = xt::zeros<double>({11});
+    // Array objective_history = xt::zeros<double>({(int)(max_iter / 10)});
+    Array R2_history = xt::zeros<double>({11});
+    // Array R2_history = xt::zeros<double>({(int)(max_iter / 10)});
 
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;

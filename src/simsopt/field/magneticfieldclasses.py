@@ -9,6 +9,11 @@ try:
     sympy_found = True
 except ImportError:
     sympy_found = False
+try:
+    from pyevtk.hl import gridToVTK, pointsToVTK
+except ImportError:
+    gridToVTK = None
+from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -516,23 +521,10 @@ class DipoleField(MagneticField):
                 dipole_grid_x[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.cos(phi_sym)
                 dipole_grid_y[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.sin(phi_sym)
                 dipole_grid_z[running_tally + nr * fp:running_tally + nr * (fp + 1)] = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
-                # set mx, my, mz and rotate by phi0
-                #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym)
+                # For fp symmetry, set mx, my, mz and rotate by phi0
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
-                #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
-                #if stellsym:
-                #    mx = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] 
-                #    my = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] 
-                # rotate into cylindrical
-                #mr = mx * np.cos(phi_sym) + my * np.sin(phi_sym)
-                #mphi = -mx * np.sin(phi_sym) + my * np.cos(phi_sym)
-                # rotate back into cartesian but with mr sign flipped
-                #m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 0] = -mr * np.cos(phi_sym) - mphi * np.sin(phi_sym) 
-                #m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 1] = -mr * np.sin(phi_sym) + mphi * np.cos(phi_sym) 
-                #m_vec[offsetm + running_tally + nr * fp:offsetm + running_tally + nr * (fp + 1), 2] = m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] 
-
             running_tally += nr * nfp
             running_tally_m += nr 
 
@@ -549,6 +541,7 @@ class DipoleField(MagneticField):
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec
 
+    @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def _toVTK(self, vtkname, dim=(1)):
         """write dipole data into a VTK file
 
@@ -556,12 +549,10 @@ class DipoleField(MagneticField):
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
             dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
-        from pyevtk.hl import gridToVTK, pointsToVTK
-
         dim = np.atleast_1d(dim)
-        mx = self.m_vec[:, 0]
-        my = self.m_vec[:, 1]
-        mz = self.m_vec[:, 2]
+        mx = np.ascontiguousarray(self.m_vec[:, 0])
+        my = np.ascontiguousarray(self.m_vec[:, 1])
+        mz = np.ascontiguousarray(self.m_vec[:, 2])
         ox = self.dipole_grid[:, 0]
         oy = self.dipole_grid[:, 1]
         oz = self.dipole_grid[:, 2]
