@@ -65,7 +65,7 @@ class PlotTests(unittest.TestCase):
 
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
         base_currents = [Current(1e5) for i in range(ncoils)]
-        base_currents[0].fix_local()
+        base_currents[0].local_fix_all()
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         items_to_plot = coils + [s]  # Coils and surface together
         items_to_plot2 = [c.curve for c in coils] + [s]  # Curves and surface together

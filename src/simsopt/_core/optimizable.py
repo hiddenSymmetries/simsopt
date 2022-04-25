@@ -20,7 +20,6 @@ from typing import Union, Tuple, Dict, Callable, Sequence, \
 from functools import lru_cache
 import logging
 import json
-import warnings
 
 import numpy as np
 from monty.json import MSONable, MontyDecoder
@@ -339,7 +338,7 @@ class DOFs:
 
     @property
     def full_upper_bounds(self) -> RealArray:
-        return self._upper_bounds
+        return self._ub
 
     @upper_bounds.setter
     def upper_bounds(self, upper_bounds: RealArray) -> None:
@@ -1195,17 +1194,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         self._dofs.unfix(key)
         self._update_free_dof_size_indices()
 
-    def fix_all(self) -> None:
-        """
-        Set the 'fixed' attribute for all degrees of freedom associated with
-        the current Optimizable object.
-        """
-        warnings.warn("fix_all method is deprecated in favor of fix_local",
-                      DeprecationWarning, stacklevel=2)
-        self._dofs.fix_all()
-        self._update_free_dof_size_indices()
-
-    def fix_local(self) -> None:
+    def local_fix_all(self) -> None:
         """
         Set the 'fixed' attribute for all local degrees of freedom associated
         with the current Optimizable object.
@@ -1213,41 +1202,31 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         self._dofs.fix_all()
         self._update_free_dof_size_indices()
 
-    def fix_full(self) -> None:
+    def fix_all(self) -> None:
         """
-        Set the 'fixed' attribute for all degrees of freedom associated with
-        the current Optimizable object including those of the ancestors.
-        """
-        opts = self.ancestors + [self]
-        for opt in opts:
-            opt.fix_local()
-
-    def unfix_all(self) -> None:
-        """
-        Unset the 'fixed' attribute for all degrees of freedom associated
-        with the current Optimizable object.
-        """
-        warnings.warn("unfix_all method is deprecated in favor of unfix_local",
-                      DeprecationWarning, stacklevel=2)
-        self._dofs.unfix_all()
-        self._update_free_dof_size_indices()
-
-    def unfix_local(self) -> None:
-        """
-        Unset the 'fixed' attribute for all degrees of freedom associated
-        with the current Optimizable object.
-        """
-        self._dofs.unfix_all()
-        self._update_free_dof_size_indices()
-
-    def unfix_full(self):
-        """
-        Unset the 'fixed' attribute for all degrees of freedom associated
+        Set the 'fixed' attribute for all local degrees of freedom associated
         with the current Optimizable object including those of ancestors.
         """
         opts = self.ancestors + [self]
         for opt in opts:
-            opt.unfix_local()
+            opt.local_fix_all()
+
+    def local_unfix_all(self) -> None:
+        """
+        Unset the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object.
+        """
+        self._dofs.unfix_all()
+        self._update_free_dof_size_indices()
+
+    def unfix_all(self) -> None:
+        """
+        Unset the 'fixed' attribute for all local degrees of freedom associated
+        with the current Optimizable object including those of the ancestors.
+        """
+        opts = self.ancestors + [self]
+        for opt in opts:
+            opt.local_unfix_all()
 
     def __add__(self, other):
         """ Add two Optimizable objects """

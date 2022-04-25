@@ -88,7 +88,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
         Test the fix_range() function for SurfaceGarabedian.
         """
         s = SurfaceGarabedian(mmin=-3, mmax=2, nmin=-4, nmax=3)
-        s.fix_local()
+        s.local_fix_all()
         s.fix_range(0, 1, -2, 3, False)
         for m in range(-3, 3):
             for n in range(-4, 4):
@@ -100,7 +100,7 @@ class SurfaceGarabedianTests(unittest.TestCase):
                     self.assertTrue(s.is_fixed(f'Delta({m},{n})'))
 
         s = SurfaceGarabedian(mmin=0, mmax=3, nmin=-4, nmax=4)
-        s.unfix_local()
+        s.local_unfix_all()
         s.fix_range(1, 2, -3, 2)
         for m in range(0, 4):
             for n in range(-4, 5):
