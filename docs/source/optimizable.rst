@@ -366,7 +366,7 @@ automatically removed from the global state vector
 :obj:`~simsopt._core.optimizable.Optimizable.x` of a child
 object::
 
-  >>> curve.fix_local()
+  >>> curve.local_fix_all()
   >>> curve.unfix('zc(0)')
   >>> coil.x
 

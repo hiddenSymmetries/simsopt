@@ -52,7 +52,7 @@ surf.set_zs(1, 0, 0.1)
 # VMEC parameters are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
-surf.fix_local()
+surf.local_fix_all()
 surf.unfix('rc(0,0)')
 
 # Each Target is then equipped with a shift and weight, to become a
