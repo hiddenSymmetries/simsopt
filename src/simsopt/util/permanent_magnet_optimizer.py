@@ -203,8 +203,8 @@ class PermanentMagnetOptimizer:
 
         # Act as if the dipoles are 2 cm x 2 cm bricks or smaller
         # cell_vol = dipole_grid_r * min(0.02, Delta_r) ** 2 * (phi[1] - phi[0])
-        # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
-        cell_vol = np.ones(len(dipole_grid_r)) * dipole_grid_r[0] * Delta_r * Delta_z * (phi[1] - phi[0])
+        cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
+        # cell_vol = np.ones(len(dipole_grid_r)) * dipole_grid_r[0] * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper says m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
