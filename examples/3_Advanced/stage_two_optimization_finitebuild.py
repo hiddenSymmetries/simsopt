@@ -100,8 +100,8 @@ for i in range(ncoils):
 
 # use sum here to concatenate lists
 base_curves_finite_build = sum([
-    create_multifilament_grid(c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=rot_order) for c in base_curves], start=[])
-base_currents_finite_build = sum([[c]*nfil for c in base_currents], start=[])
+    create_multifilament_grid(c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=rot_order) for c in base_curves], [])
+base_currents_finite_build = sum([[c]*nfil for c in base_currents], [])
 
 # apply stellarator and rotation symmetries
 curves_fb = apply_symmetries_to_curves(base_curves_finite_build, s.nfp, True)
