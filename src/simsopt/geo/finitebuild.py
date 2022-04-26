@@ -165,6 +165,14 @@ class FilamentRotation(Optimizable):
 class ZeroRotation(Optimizable):
 
     def __init__(self, quadpoints):
+        """
+        Dummy class that just returns zero for the rotation angle. Equivalent to using 
+        .. code-block:: python
+
+            rot = FilamentRotation(...)
+            rot.fix_all()
+
+        """
         Optimizable.__init__(self, x0=[])
         self.zero = np.zeros((quadpoints.size, ))
 
