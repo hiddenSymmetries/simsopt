@@ -16,13 +16,16 @@ from collections.abc import Callable as ABC_Callable, Hashable
 from collections import defaultdict
 from numbers import Real, Integral
 from typing import Union, Tuple, Dict, Callable, Sequence, \
-    MutableSequence as MutSeq, List
+    MutableSequence as MutSeq, List, Literal
 from functools import lru_cache
 import logging
 import json
+from pathlib import Path
+from fnmatch import fnmatch
 
 import numpy as np
 from monty.json import MSONable, MontyDecoder
+from monty.io import zopen
 
 from ..util.dev import SimsoptRequires
 from ..util.types import RealArray, StrArray, BoolArray, Key
@@ -1323,6 +1326,56 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             for pdict in parents_dict:
                 parents.append(decoder.process_decoded(pdict))
         return cls(depends_on=parents, **d)
+
+    def save(self, filename=None, fmt=None, **kwargs):
+        filename = filename or ""
+        fmt = "" if fmt is None else fmt.lower()
+        fname = Path(filename).name
+
+        if fmt == "json" or fnmatch(fname.lower(), "*.json"):
+            s = json.dumps(self.as_dict(), **kwargs)
+            if filename:
+                with zopen(filename, "wt") as f:
+                    f.write(s)
+            return s
+        else:
+            raise ValueError(f"Invalid format: `{str(fmt)}`")
+
+    @classmethod
+    def from_str(cls, input_str: str, fmt=Literal["json"]):
+        fmt_low = fmt.lower()
+        if fmt_low == "json":
+            d = json.loads(input_str, cls=MontyDecoder)
+        else:
+            raise ValueError(f"Invalid format: `{str(fmt)}`")
+
+    @classmethod
+    def from_file(cls, filename: str):
+        fname = Path(filename).name
+        if fnmatch(filename, "*.json*") or fnmatch(fname, "*.bson*"):
+            with zopen(filename, "rt") as f:
+                contents = f.read()
+            return cls.from_str(contents, fmt="json")
+
+def loadfn(filename, *args, **kwargs):
+    """
+    Function to load simsopt object from a file.
+    Only JSON format is supported at this time. Support for additional
+    formats will be added in future
+    Args:
+        filename:
+            Name of file from which simsopt object has to be initialized
+    Returns:
+        Simsopt object
+    """
+    fname = Path(filename).suffix.lower()
+    if (not fname == '.json'):
+        raise ValueError(f"Invalid format: `{str(fname[1:])}`")
+
+    with zopen(filename, "rt") as fp:
+        if "cls" not in kwargs:
+            kwargs["cls"] = MontyDecoder
+        return json.load(fp, *args, **kwargs)
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
