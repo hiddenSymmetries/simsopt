@@ -487,12 +487,13 @@ class DipoleField(MagneticField):
             # while the PM class may have it in (R, Phi, Z)
             self.m_vec = m.reshape(self.ndipoles, 3)
             self.dipole_grid = dipole_grid
+        # reformat memory for c++ routines
+        self.dipole_grid = np.ascontiguousarray(self.dipole_grid) 
+        self.m_vec = np.ascontiguousarray(self.m_vec)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec)
-        #B[:] = 0.0
-        #B[:] = sopp.dipole_field_B_SIMD(points, self.dipole_grid, self.m_vec)
+        B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec) 
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
@@ -510,6 +511,7 @@ class DipoleField(MagneticField):
         dipole_grid_z = np.zeros(len(dipole_grid_Z) * nsym)
 
         m_vec = np.zeros((self.ndipoles * nsym, 3))
+        m_maxima = np.zeros((self.ndipoles * nsym))
         running_tally = 0
         running_tally_m = 0
         offsetm = self.ndipoles * nfp
@@ -526,6 +528,7 @@ class DipoleField(MagneticField):
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
+                m_maxima[running_tally + nr * fp:running_tally + nr * (fp + 1)] = np.sqrt(m[running_tally_m:running_tally_m + nr, 0] ** 2 + m[running_tally_m:running_tally_m + nr, 1] ** 2 + m[running_tally_m:running_tally_m + nr, 2] ** 2) 
             running_tally += nr * nfp
             running_tally_m += nr 
 
@@ -538,9 +541,11 @@ class DipoleField(MagneticField):
             m_vec[offsetm:, 0] = - m_vec[:offsetm, 0]
             m_vec[offsetm:, 1] = m_vec[:offsetm, 1]
             m_vec[offsetm:, 2] = m_vec[:offsetm, 2]
+            m_maxima[offsetm:] = m_maxima[:offsetm]
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec
+        self.m_maxima = m_maxima
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def _toVTK(self, vtkname, dim=(1)):
@@ -554,15 +559,12 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
-        # Duplicate m_maxima 4 times for full torus
-        m_maxima = np.hstack((self.m_maxima, self.m_maxima))
-        m_maxima = np.hstack((m_maxima, m_maxima))
-        mx_normalized = mx / m_maxima
-        my_normalized = my / m_maxima
-        mz_normalized = mz / m_maxima
-        ox = self.dipole_grid[:, 0]
-        oy = self.dipole_grid[:, 1]
-        oz = self.dipole_grid[:, 2]
+        mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
+        my_normalized = np.ascontiguousarray(my / self.m_maxima)
+        mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
+        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
+        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
+        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
         if len(dim) == 1:  # save as points
             print("write VTK as points")
             data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized)}

@@ -4,6 +4,7 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
+import simsoptpp as sopp
 import numpy as np
 import unittest
 # File for the desired boundary magnetic surface:

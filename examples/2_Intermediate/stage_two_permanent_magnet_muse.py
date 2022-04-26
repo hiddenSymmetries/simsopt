@@ -5,18 +5,6 @@ goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
 just zero.
 
-The objective is given by
-
-    J = (1/2) \int |B dot n|^2 ds
-        + LENGTH_WEIGHT * (sum CurveLength)
-        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
-        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
-        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
-
-if any of the weights are increased, or the thresholds are tightened, the coils
-are more regular and better separated, but the target normal field may not be
-achieved as well.
-
 The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
@@ -28,6 +16,7 @@ from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
+from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
@@ -35,18 +24,48 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
-from simsopt.field.tracing import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-    IterationStoppingCriterion
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
+
+def read_focus_coils(filename):
+    ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
+    nquad = len(np.loadtxt(filename, skiprows=9, max_rows=1))
+    print(ncoils, nquad)
+    coilcurrents = np.zeros(ncoils)
+    xc = np.zeros((ncoils, nquad))
+    xs = np.zeros((ncoils, nquad))
+    yc = np.zeros((ncoils, nquad))
+    ys = np.zeros((ncoils, nquad))
+    zc = np.zeros((ncoils, nquad))
+    zs = np.zeros((ncoils, nquad))
+    for i in range(ncoils):
+        coilcurrents[i] = np.loadtxt(filename, skiprows=6 + 14 * i, max_rows=1, usecols=1)
+        xc[i, :] = np.loadtxt(filename, skiprows=9 + 14 * i, max_rows=1)
+        xs[i, :] = np.loadtxt(filename, skiprows=10 + 14 * i, max_rows=1)
+        yc[i, :] = np.loadtxt(filename, skiprows=11 + 14 * i, max_rows=1)
+        ys[i, :] = np.loadtxt(filename, skiprows=12 + 14 * i, max_rows=1)
+        zc[i, :] = np.loadtxt(filename, skiprows=13 + 14 * i, max_rows=1)
+        zs[i, :] = np.loadtxt(filename, skiprows=14 + 14 * i, max_rows=1)
+    coilcurrents = coilcurrents * 1e3  # rescale from kA to A
+    print(coilcurrents)
+    coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
+       for ic in range(num_coils):
+            dofs = coils[ic].dofs
+            dofs[0][0] = coil_data[0, 6*ic + 1]
+            dofs[1][0] = coil_data[0, 6*ic + 3]
+            dofs[2][0] = coil_data[0, 6*ic + 5]
+            for io in range(0, min(order, coil_data.shape[0]-1)):
+                dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
+                dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
+                dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
+                dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
+                dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
+                dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
+            coils[ic].local_x = np.concatenate(dofs)
+        return coils
+
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -70,9 +89,14 @@ degree = 2 if ci else 4
 
 MAXITER = 50 if ci else 400
 
+# File for the desired TF coils 
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+filename = TEST_DIR / 'muse_tf_coils.focus'
+read_focus_coils(filename)
+
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'input.LandremanPaul2021_QA'  # _lowres
+filename = TEST_DIR / 'input.MUSE'
 
 # Directory for output
 OUT_DIR = "./output_pm/"
@@ -85,7 +109,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 16
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_focus(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 stellsym = True
 # Create the initial coils:
@@ -223,7 +247,7 @@ print(dipoles, pm_opt.m_maxima)
 print('Dipole field setup done')
 
 make_plots = True 
-if make_plots and (comm is None or comm.rank == 0):
+if make_plots:
     # Make plot of ATA element values
     plt.figure()
     plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
@@ -243,65 +267,7 @@ if make_plots and (comm is None or comm.rank == 0):
     plt.savefig('m_histogram.png')
     print('Done optimizing the permanent magnets')
 
-# Get full surface and get level sets for the Poincare plots below
-#mpol = 5
-#ntor = 5
-#stellsym = True
-#nfp = s.nfp
-#phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
-#thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-#s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", quadpoints_phi=phis, quadpoints_theta=thetas)
-
 s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-#sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
-#sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
-
-
-def trace_fieldlines(bfield, label): 
-    t1 = time.time()
-    R0 = np.linspace(0.8, 1.3, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
-    phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-12, comm=comm,
-        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
-    t2 = time.time()
-    # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
-    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-    plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
-
-
-n = 16
-rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
-zs = s.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2 * np.pi / s.nfp, n * 2)
-zrange = (0, np.max(zs), n // 2)
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
-)
-bsh.to_vtk('biot_savart_fields')
-#trace_fieldlines(bsh, 'bsh_without_PMs')
-print('Done with Poincare plots without the permanent magnets')
-#t1 = time.time()
-#bsh = InterpolatedField(
-#    b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True
-#)
-#bsh.to_vtk('only_dipole_fields')
-#t2 = time.time()
-#trace_fieldlines(bsh, 'bsh_only_PMs')
-#print('Done with Poincare plots with the permanent magnets')
-t1 = time.time()
-bsh = InterpolatedField(
-    bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=stellsym
-)
-bsh.to_vtk('dipole_fields')
-t2 = time.time()
-#trace_fieldlines(bsh, 'bsh_PMs')
-print('Done with Poincare plots with the permanent magnets')
-
 bs.set_points(s.gamma().reshape((-1, 3)))
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 # For plotting Bn on the full torus surface at the end with just the dipole fields
@@ -312,8 +278,3 @@ s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
 plt.show()
-
-# Make QFMs
-# make_qfm(s, bs)
-# make_qfm(s, bs + b_dipole)
-# Send message to Zhu about using paraview or whatever 3D thing they are using (coilPy) 

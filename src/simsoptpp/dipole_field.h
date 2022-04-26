@@ -5,5 +5,4 @@
 typedef xt::pyarray<double> Array;
 
 Array dipole_field_B(Array& points, Array& m_points, Array& m);
-Array dipole_field_B_SIMD(Array& points, Array& m_points, Array& m);
 Array dipole_field_dB(Array& points, Array& m_points, Array& m);

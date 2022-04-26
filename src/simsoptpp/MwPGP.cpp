@@ -29,16 +29,10 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
     // is not on the L2 ball, otherwise is equal to different
     // values depending on the orientation of g.
     double ng, mmax2, dist;
-    //double ng, dist, denom, normal_vec1, normal_vec2, normal_vec3;
     dist = x1 * x1 + x2 * x2 + x3 * x3;
     mmax2 = m_maxima * m_maxima;
     if (abs(dist - mmax2) < (1.0e-8 + 1.0e-5 * mmax2)) {
-        //denom = sqrt(dist);
-        //normal_vec1 = x1 / denom;
-        //normal_vec2 = x2 / denom;
-        //normal_vec3 = x3 / denom;
 	ng = (x1 * g1 + x2 * g2 + x3 * g3) / sqrt(dist);
-	// ng = normal_vec1 * g1 + normal_vec2 * g2 + normal_vec3 * g3;
         if (ng > 0) { 
 	    return std::make_tuple(g1, g2, g3);
 	}
@@ -54,7 +48,7 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
 }
 
 // The reduced gradient of G is simply the
-// gradient step in the L2-projected direction.
+// gradient step in the L2-ball-projected direction.
 std::tuple<double, double, double> g_reduced_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima) 
 {
     double proj_L2x, proj_L2y, proj_L2z; 

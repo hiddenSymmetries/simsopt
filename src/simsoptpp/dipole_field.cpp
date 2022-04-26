@@ -8,37 +8,14 @@
 // m: dipole moments ('orientation')
 // everything in xyz coordinates
 Array dipole_field_B(Array& points, Array& m_points, Array& m) {
-    int num_points = points.shape(0);
-    int num_dipoles = m_points.shape(0);
-    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
-    double x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm;
-#pragma omp parallel for private(x, y, z, mx, my, mz, mpx, mpy, mpz, rx, ry, rz, rmag, rdotm)
-    for (int i = 0; i < num_points; ++i) {
-        x = points(i, 0);
-        y = points(i, 1);
-        z = points(i, 2);
-        // Need to rotate into cylindrical, apply symmetries, add up, rotate back
-	for (int j = 0; j < num_dipoles; ++j) {
-            mpx = m_points(j, 0);
-            mpy = m_points(j, 1);
-            mpz = m_points(j, 2);
-            mx = m(j, 0);
-            my = m(j, 1);
-            mz = m(j, 2);
-            rx = x - mpx;
-	    ry = y - mpy;
-	    rz = z - mpz;
-	    rmag = sqrt(rx * rx + ry * ry + rz * rz);
-            rdotm = rx * mx + ry * my + rz * mz;
-	    B(i, 0) += 3.0 * rdotm * rx / pow(rmag, 5) - mx / pow(rmag, 3);
-            B(i, 1) += 3.0 * rdotm * ry / pow(rmag, 5) - my / pow(rmag, 3);
-            B(i, 2) += 3.0 * rdotm * rz / pow(rmag, 5) - mz / pow(rmag, 3);
-	} 
-    }
-    return B * 1e-7;
-}
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(m_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m_points needs to be in row-major storage order");
+    if(m.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m needs to be in row-major storage order");
 
-Array dipole_field_B_SIMD(Array& points, Array& m_points, Array& m) {
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -84,6 +61,7 @@ Array dipole_field_B_SIMD(Array& points, Array& m_points, Array& m) {
 }
 
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("points needs to be in row-major storage order");
     if(m_points.layout() != xt::layout_type::row_major)

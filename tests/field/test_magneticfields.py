@@ -1,6 +1,8 @@
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
     DipoleField, Reiman, sympy_found, InterpolatedField, PoloidalField
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -8,6 +10,7 @@ from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.util.zoo import get_ncsx_data
+from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 
 import numpy as np
 import unittest
@@ -473,6 +476,31 @@ class Testing(unittest.TestCase):
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+
+    def test_pmopt_dipoles(self):
+        nphi = 16
+        ntheta = 8
+        s = SurfaceRZFourier.from_vmec_input("../test_files/input.LandremanPaul2021_QA", range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
+        base_currents = [Current(1e5) for i in range(2)]
+        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+        bs = BiotSavart(coils)
+        bs.set_points(s.gamma().reshape((-1, 3)))
+        pm_opt = PermanentMagnetOptimizer(
+            s, dr=0.15,
+            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
+        )
+        MwPGP_history, _, m_history, dipoles = pm_opt._optimize(m0=np.zeros(pm_opt.ndipoles * 3))
+        b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=True, nfp=s.nfp)
+        b_dipole.set_points(s.gamma().reshape((-1, 3)))
+        dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
+        dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
+        B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj)) 
+        B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)))
+        # check Bn 
+        assert np.allclose((pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj).reshape((nphi, ntheta)), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))
+        # check <Bn>
+        assert np.isclose(B_opt, B_dipole_field)
 
     def test_BifieldMultiply(self):
         scalar = 1.2345
