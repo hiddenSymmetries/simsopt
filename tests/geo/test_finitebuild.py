@@ -1,7 +1,16 @@
 import unittest
-from simsopt.util.zoo import get_ncsx_data
+from .surface_test_helpers import get_surface, get_exact_surface
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.coil import Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
+from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
 from simsopt.geo.finitebuild import CurveFilament, FilamentRotation, \
     create_multifilament_grid, ZeroRotation
+from simsopt.geo.qfmsurface import QfmSurface
+from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.objectives.utilities import QuadraticPenalty
+from simsopt.util.zoo import get_ncsx_data
+from simsopt.util.zoo import get_ncsx_data
+
 import numpy as np
 
 
@@ -134,15 +143,11 @@ class MultifilamentTesting(unittest.TestCase):
         check(fils, c, numfilaments_n, numfilaments_b)
 
     def test_biotsavart_with_symmetries(self):
-        from .surface_test_helpers import get_surface, get_exact_surface
-        from simsopt.field.biotsavart import BiotSavart
-        from simsopt.field.coil import Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
-        from simsopt.geo.qfmsurface import QfmSurface
-        from simsopt.util.zoo import get_ncsx_data
-        from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
-        from simsopt.objectives.fluxobjective import SquaredFlux
-        from simsopt.objectives.utilities import QuadraticPenalty
-
+        """
+        More involved test that checks whether the multifilament code interacts
+        properly with symmetries, biot savart, and objectives that only depend
+        on the underlying curve (not the finite build filaments)
+        """
         np.random.seed(1)
         base_curves, base_currents, ma = get_ncsx_data(Nt_coils=5)
         base_curves_finite_build = sum(
