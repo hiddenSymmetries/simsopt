@@ -1357,6 +1357,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
                 contents = f.read()
             return cls.from_str(contents, fmt="json")
 
+
 def loadfn(filename, *args, **kwargs):
     """
     Function to load simsopt object from a file.

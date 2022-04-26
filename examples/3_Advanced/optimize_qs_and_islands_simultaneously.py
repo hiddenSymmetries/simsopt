@@ -36,7 +36,7 @@ spec = Spec(spec_filename, mpi=mpi)
 spec.boundary = surf
 
 # Define parameter space:
-surf.fix_local()
+surf.local_fix_all()
 surf.fixed_range(mmin=0, mmax=3,
                  nmin=-3, nmax=3, fixed=False)
 surf.fix("rc(0,0)")  # Major radius

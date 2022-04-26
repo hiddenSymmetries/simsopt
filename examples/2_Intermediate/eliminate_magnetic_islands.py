@@ -34,7 +34,7 @@ s.boundary.change_resolution(6, s.boundary.ntor)
 # To make this example run relatively quickly, we will optimize in a
 # small parameter space. Here we pick out just 2 Fourier modes to vary
 # in the optimization:
-s.boundary.fix_local()
+s.boundary.local_fix_all()
 s.boundary.unfix('zs(6,1)')
 s.boundary.unfix('zs(6,2)')
 

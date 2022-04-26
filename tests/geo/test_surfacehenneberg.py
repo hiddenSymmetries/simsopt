@@ -112,7 +112,7 @@ class SurfaceHennebergTests(unittest.TestCase):
         np.testing.assert_equal(surf.local_dofs_free_status,
                                 [False, True, True, False, True, True,
                                  True, False, True, True, False, True])
-        surf.fix_local()
+        surf.local_fix_all()
         surf.fixed_range(0, 1, False)
         np.testing.assert_equal(surf.local_dofs_free_status,
                                 [True, True, True, False, False, True,
