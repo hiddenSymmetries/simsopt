@@ -64,15 +64,18 @@ class CurveHelical(JaxCurve):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        d["quadpoints"] = self.quadpoints
+        d["quadpoints"] = list(self.quadpoints)
         d["order"] = self.order
         d["n0"] = self.n0
         d["l0"] = self.l0
         d["R0"] = self.R0
         d["r0"] = self.r0
+        d["x0"] = list(self.local_full_x)
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["quadpoints, "], d["order"], d["n0"],
-                   d["l0"], d["R0"], d["r0"])
+        curve = cls(d["quadpoints"], d["order"], d["n0"], d["l0"], d["R0"],
+                    d["r0"])
+        curve.local_full_x = d["x0"]
+        return curve

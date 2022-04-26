@@ -1,6 +1,9 @@
 import logging
 import unittest
+import json
+
 import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -443,7 +446,13 @@ class Testing(unittest.TestCase):
         assert np.allclose(cg[:10, :]@mat, tmp)
 
     def subtest_serialization(self, curvetype, rotated):
-        raise NotImplementedError
+        epss = [0.5**i for i in range(10, 15)]
+        x = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        curve = get_curve(curvetype, rotated, x)
+
+        curve_json_str = json.dumps(curve, cls=MontyEncoder)
+        curve_regen = json.loads(curve_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(curve.gamma(), curve_regen.gamma()))
 
     def test_serialization(self):
         for curvetype in self.curvetypes:
