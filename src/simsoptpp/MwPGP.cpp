@@ -1,4 +1,5 @@
 #include "MwPGP.h"
+#include <Eigen/Dense>
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -197,13 +198,25 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
             norm_phi_temp += phi_temp1 * phi_temp1 + phi_temp2 * phi_temp2 + phi_temp3 * phi_temp3;
             gp += g(i, 0) * p(i, 0) + g(i, 1) * p(i, 1) + g(i, 2) * p(i, 2);
             alpha_fs[i] = find_max_alphaf(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), p(i, 0), p(i, 1), p(i, 2), m_maxima(i));
-            for (int ii = 0; ii < 3; ++ii) {
-                for (int j = 0; j < N; ++j) {
-                    for (int kk = 0; kk < 3; ++kk) {
-                        ATAp(i, ii) += ATA(i, ii, j, kk) * p(j, kk);
-                    }
-                }
-            }
+        }
+
+
+        //// we should be computing this reduction, but we're doing it via a call to eigen
+        //for(int i = 0; i < N; ++i) {
+        //    for (int ii = 0; ii < 3; ++ii) {
+        //        for (int j = 0; j < N; ++j) {
+        //            for (int kk = 0; kk < 3; ++kk) {
+        //                ATAp(i, ii) += ATA(i, ii, j, kk) * p(j, kk);
+        //            }
+        //        }
+        //    }
+        //}
+        Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(ATA.data()), 3*N, 3*N);
+        Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(p.data()), 1, 3*N);
+        Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATAp.data()), 1, 3*N);
+        eigen_res = eigen_v*eigen_mat;
+
+        for(int i = 0; i < N; ++i) {
             pATAp += p(i, 0) * ATAp(i, 0) + p(i, 1) * ATAp(i, 1) + p(i, 2) * ATAp(i, 2);
         }
         auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end()); 
