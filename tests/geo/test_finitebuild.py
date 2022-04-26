@@ -132,3 +132,59 @@ class MultifilamentTesting(unittest.TestCase):
         xr = fils[0].rotation.x
         fils[0].rotation.x = xr + 1e-2*np.random.standard_normal(size=xr.shape)
         check(fils, c, numfilaments_n, numfilaments_b)
+
+    def test_biotsavart_with_symmetries(self):
+        from .surface_test_helpers import get_surface, get_exact_surface
+        from simsopt.field.biotsavart import BiotSavart
+        from simsopt.field.coil import Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
+        from simsopt.geo.qfmsurface import QfmSurface
+        from simsopt.util.zoo import get_ncsx_data
+        from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
+        from simsopt.objectives.fluxobjective import SquaredFlux
+        from simsopt.objectives.utilities import QuadraticPenalty
+
+        np.random.seed(1)
+        base_curves, base_currents, ma = get_ncsx_data(Nt_coils=5)
+        base_curves_finite_build = sum(
+            [create_multifilament_grid(c, 2, 2, 0.01, 0.01, rotation_order=1) for c in base_curves], [])
+        base_currents_finite_build = sum([[c]*4 for c in base_currents], [])
+
+        nfp = 3
+
+        curves = apply_symmetries_to_curves(base_curves, nfp, True)
+        curves_fb = apply_symmetries_to_curves(base_curves_finite_build, nfp, True)
+        currents_fb = apply_symmetries_to_currents(base_currents_finite_build, nfp, True)
+
+        coils_fb = [Coil(c, curr) for (c, curr) in zip(curves_fb, currents_fb)]
+
+        bs = BiotSavart(coils_fb)
+        s = get_surface("SurfaceXYZFourier", True)
+        s.fit_to_curve(ma, 0.1)
+        Jf = SquaredFlux(s, bs)
+        Jls = [CurveLength(c) for c in base_curves]
+        Jdist = CurveCurveDistance(curves, 0.5)
+        LENGTH_PEN = 1e-2
+        DIST_PEN = 1e-2
+        JF = Jf \
+            + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves))) \
+            + DIST_PEN * Jdist
+
+        def fun(dofs, grad=True):
+            JF.x = dofs
+            return (JF.J(), JF.dJ()) if grad else JF.J()
+
+        dofs = JF.x
+        dofs += 1e-2 * np.random.standard_normal(size=dofs.shape)
+        np.random.seed(1)
+        h = np.random.uniform(size=dofs.shape)
+        J0, dJ0 = fun(dofs)
+        dJh = sum(dJ0 * h)
+        err = 1e6
+        for i in range(10, 15):
+            eps = 0.5**i
+            J1 = fun(dofs + eps*h, grad=False)
+            J2 = fun(dofs - eps*h, grad=False)
+            err_new = abs((J1-J2)/(2*eps) - dJh)
+            assert err_new < 0.55**2 * err
+            err = err_new
+            print("err", err)
