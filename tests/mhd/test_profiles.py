@@ -6,6 +6,11 @@ from simsopt.mhd.profiles import ProfilePolynomial, ProfileScaled, ProfileSpline
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
+try:
+    import matplotlib
+    matplotlib_found = True
+except:
+    matplotlib_found = False
 
 
 class ProfilesTests(unittest.TestCase):
@@ -20,6 +25,7 @@ class ProfilesTests(unittest.TestCase):
         np.testing.assert_allclose(prof(s), 3 * (1 - s ** 3))
         np.testing.assert_allclose(prof.dfds(s), 3 * (- 3 * s ** 2))
 
+    @unittest.skipIf(not matplotlib_found, "Matplotlib python module not found")
     def test_plot(self):
         """
         Test the plotting function.
