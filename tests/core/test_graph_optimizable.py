@@ -670,10 +670,10 @@ class OptimizableTests(unittest.TestCase):
         # Set dofs and call
         adder.x = [6]
         self.assertAlmostEqual(adder(), 9.0)
-        adder.unfix_all()
+        adder.local_unfix_all()
         adder.x = [4, 5, 6]
         self.assertAlmostEqual(adder(), 15.0)
-        iden.unfix_all()
+        iden.local_unfix_all()
         iden.x = [20]
         self.assertAlmostEqual(iden(), 20.0)
 
@@ -688,9 +688,9 @@ class OptimizableTests(unittest.TestCase):
         # Fix dofs and now call
         adder.fix('x')
         self.assertAlmostEqual(adder([1, 2]), 13)
-        adder.fix_all()
+        adder.local_fix_all()
         self.assertAlmostEqual(adder(), 13)
-        iden.fix_all()
+        iden.local_fix_all()
         self.assertAlmostEqual(iden(), 20)
 
         # Check with Optimizable objects containing parents
@@ -849,10 +849,10 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(self.adder.dof_size, 2)
         self.assertEqual(self.rosen.dof_size, 1)
 
-    def test_fix_all(self):
-        self.iden.fix_all()
-        self.adder.fix_all()
-        self.rosen.fix_all()
+    def test_local_fix_all(self):
+        self.iden.local_fix_all()
+        self.adder.local_fix_all()
+        self.rosen.local_fix_all()
 
         self.assertEqual(self.iden.dof_size, 0)
         self.assertEqual(self.adder.dof_size, 0)
@@ -861,7 +861,7 @@ class OptimizableTests(unittest.TestCase):
     def test_unfix(self):
         pass
 
-    def test_unfix_all(self):
+    def test_local_unfix_all(self):
         # Test with leaf nodes
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
@@ -879,8 +879,8 @@ class OptimizableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adder.x = [4, 5, 6]
 
-        iden.unfix_all()
-        adder.unfix_all()
+        iden.local_unfix_all()
+        adder.local_unfix_all()
         iden.x = [10]
         adder.x = [4, 5, 6]
         self.assertEqual(iden.dof_size, 1)
@@ -895,14 +895,14 @@ class OptimizableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             test_obj.x = np.array([20, 4, 5, 6, 25])
 
-        adder.unfix_all()
+        adder.local_unfix_all()
         test_obj.x = np.array([4, 5, 6, 25])
         self.assertAlmostEqual(adder.local_full_x[0], 4)
         self.assertAlmostEqual(adder.local_full_x[1], 5)
         self.assertAlmostEqual(adder.local_full_x[2], 6)
         self.assertAlmostEqual(test_obj.local_full_x[0], 25)
 
-        iden.unfix_all()
+        iden.local_unfix_all()
         test_obj.x = np.array([1, 2, 3, 1, 10])
 
         self.assertAlmostEqual(adder.local_full_x[0], 1)
@@ -926,6 +926,42 @@ class OptimizableTests(unittest.TestCase):
         test_obj2 = OptClassWith2LevelParents(10, 20)
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
+
+    def test_plot(self):
+        """
+        Verify that a DAG can be plotted.
+        The ``show`` argument is set to ``False`` so the
+        tests do not require human intervention to close plot windows.
+        However, if you do want to actually display the figure, you
+        can change ``show`` to ``True`` in the first line of this
+        function.
+        """
+        show = False
+
+        try:
+            import matplotlib
+        except ImportError:
+            return
+        try:
+            import networkx
+        except ImportError:
+            return
+        try:
+            import pygraphviz
+        except ImportError:
+            return
+
+        # optimizable with no parents
+        adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
+        G1, pos1 = adder.plot_graph(show=show)
+
+        # optimizable with two parents
+        opt1 = OptClassWithParentsReturnFns(10)
+        G2, pos2 = opt1.plot_graph(show=show)
+
+        # optimizable with many parents
+        opt2 = OptClassWith2LevelParents(10, 20)
+        G3, pos3 = opt2.plot_graph(show=show)
 
 
 class OptClassExternalDofs(Optimizable):

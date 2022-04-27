@@ -39,7 +39,7 @@ except ImportError as e:
     pyoculus = None
     logger.debug(str(e))
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 if MPI is not None:

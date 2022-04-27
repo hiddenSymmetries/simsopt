@@ -14,10 +14,8 @@ Minimize f(x,y,z) = ((x-1)/1)^2 + ((y-2)/2)^2 + ((z-3)/3)^2.
 Example file for transparently logging both MPI and serial jobs
 ### minimize_curve_length
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed resulting in a circle.
-### surface_volume_and_area
+### surf_vol_area
 Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area.
-### graph_surf_vol_area
-Optimize the minor radius and elongation of an axisymmetric torus to obtain a desired volume and area using the graph optimizable objects.
 
 ## 2_Intermediate
 
