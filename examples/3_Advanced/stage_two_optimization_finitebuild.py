@@ -56,12 +56,15 @@ LENGTH_PEN = 1e-2
 DIST_MIN = 0.1
 DIST_PEN = 10
 
-# Settings for multifilament approximation
+# Settings for multifilament approximation.  In the following
+# parameters, note that "normal" and "binormal" refer not to the
+# Frenet frame but rather to the "coil centroid frame" defined by
+# Singh et al., before rotation.
 numfilaments_n = 2  # number of filaments in normal direction
 numfilaments_b = 3  # number of filaments in bi-normal direction
 gapsize_n = 0.02  # gap between filaments in normal direction
 gapsize_b = 0.04  # gap between filaments in bi-normal direction
-rot_order = 1  # order of the Fourier expression for the rotation of the filament pack
+rot_order = 1  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']

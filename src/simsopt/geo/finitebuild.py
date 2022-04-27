@@ -6,6 +6,7 @@ from .jit import jit
 import numpy as np
 import jax.numpy as jnp
 from jax import vjp, jvp
+
 """
 The functions and classes in this model are used to deal with multifilament
 approximation of finite build coils.
@@ -14,18 +15,24 @@ approximation of finite build coils.
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None, rotation_scaling=None):
     """
-    Create a regular grid of `numfilaments_n * numfilaments_b` many filaments to approximate a finite-build coil.
+    Create a regular grid of ``numfilaments_n * numfilaments_b`` many
+    filaments to approximate a finite-build coil.
+
+    Note that "normal" and "binormal" in the function arguments here
+    refer not to the Frenet frame but rather to the "coil centroid
+    frame" defined by Singh et al., before rotation.
+
     Args:
-        curve: the underlying curve.
+        curve: The underlying curve.
         numfilaments_n: number of filaments in normal direction.
         numfilaments_b: number of filaments in bi-normal direction.
         gapsize_n: gap between filaments in normal direction.
         gapsize_b: gap between filaments in bi-normal direction.
-        rotation_order: Fourier order to use in the expression for the rotation
-                        of the filament pack. `None` means that the rotation is not optimized.
+        rotation_order: Fourier order (maximum mode number) to use in the expression for the rotation
+                        of the filament pack. ``None`` means that the rotation is not optimized.
         rotation_scaling: scaling for the rotation degrees of freedom. good
                            scaling improves the convergence of first order optimization
-                           algorithms. If None, then the default of `1/max(gapsize_n, gapsize_b)`
+                           algorithms. If ``None``, then the default of ``1 / max(gapsize_n, gapsize_b)``
                            is used.
     """
     if numfilaments_n % 2 == 1:
@@ -57,12 +64,18 @@ class CurveFilament(sopp.Curve, Curve):
     def __init__(self, curve, dn, db, rotation=None):
         """
         Implementation of the centroid frame introduced in
+        Singh et al, "Optimization of finite-build stellarator coils",
+        Journal of Plasma Physics 86 (2020),
         doi:10.1017/S0022377820000756. Given a curve, one defines a normal and
         binormal vector and then creates a grid of curves by shifting along the
         normal and binormal vector. In addition, we specify an angle along the
         curve that allows us to optimise for the rotation of the winding pack.
 
         The idea is explained well in Figure 1 in the reference above.
+
+        Note that "normal" and "binormal" in the function arguments here
+        refer not to the Frenet frame but rather to the "coil centroid
+        frame" defined by Singh et al., before rotation.
 
         Args:
             curve: the underlying curve
@@ -138,6 +151,8 @@ class FilamentRotation(Optimizable):
     def __init__(self, quadpoints, order, scale=1.):
         """
         The rotation of the multifilament pack; alpha in Figure 1 of
+        Singh et al, "Optimization of finite-build stellarator coils",
+        Journal of Plasma Physics 86 (2020),
         doi:10.1017/S0022377820000756
         """
         self.order = order
@@ -166,7 +181,8 @@ class ZeroRotation(Optimizable):
 
     def __init__(self, quadpoints):
         """
-        Dummy class that just returns zero for the rotation angle. Equivalent to using 
+        Dummy class that just returns zero for the rotation angle. Equivalent to using
+
         .. code-block:: python
 
             rot = FilamentRotation(...)
