@@ -281,7 +281,7 @@ class SurfaceScaledTests(unittest.TestCase):
         surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
         scale_factors = np.random.rand(len(surf1.x))
         surf_scaled = SurfaceScaled(surf1, scale_factors)
-        surf1.fix_all()
+        surf1.local_fix_all()
         surf1.fixed_range(mmin=0, mmax=1,
                           nmin=-2, nmax=3, fixed=False)
         surf1.fix("rc(0,0)")  # Major radius
