@@ -1,7 +1,7 @@
 import numpy as np
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
 
 

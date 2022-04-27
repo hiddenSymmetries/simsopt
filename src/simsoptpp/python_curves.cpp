@@ -106,6 +106,8 @@ void init_curves(py::module_ &m) {
         .def_readwrite("rs", &PyCurveRZFourier::rs)
         .def_readwrite("zc", &PyCurveRZFourier::zc)
         .def_readwrite("zs", &PyCurveRZFourier::zs)
-        .def_property_readonly("nfp", &PyCurveRZFourier::get_nfp);
+        .def_readonly("order", &PyCurveRZFourier::order)
+        .def_readonly("stellsym", &PyCurveRZFourier::stellsym)
+        .def_readonly("nfp", &PyCurveRZFourier::nfp);
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 }

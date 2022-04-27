@@ -3,7 +3,7 @@ from simsopt.geo.curveperturbed import GaussianSampler, PerturbationSample, Curv
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from randomgen import PCG64
 import numpy as np
-from simsopt.geo.curveobjectives import LpCurveTorsion, MinimumDistance
+from simsopt.geo.curveobjectives import LpCurveTorsion, CurveCurveDistance
 
 
 class CurvePerturbationTesting(unittest.TestCase):
@@ -113,7 +113,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         curve1 = CurvePerturbed(curve1, sample1)
         curve2 = CurvePerturbed(curve2, sample2)
 
-        J = MinimumDistance([curve1, curve2], 2.0)
+        J = CurveCurveDistance([curve1, curve2], 2.0)
         J0 = J.J()
         curve1.resample()
         assert J0 != J.J()
