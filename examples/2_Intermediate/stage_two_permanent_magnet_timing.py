@@ -161,26 +161,26 @@ pm_opt = PermanentMagnetOptimizer(
 )
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
-max_iter_MwPGP = 1000
+max_iter_MwPGP = 10000
 reg_l0 = 0.0  # 0.1
 plt.figure()
 print('Done initializing the permanent magnet object')
 t1_overall = time.time()
-for i in range(20):
+for i in range(1):
     # Run code in c++ with openmp
-    t1 = time.time()
     m0 = (np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 
     for j in range(3):
-        m0[:, j] = m0[:, j] * pm_opt.m_maxima[j] / 10.0
+        m0[:, j] = m0[:, j] * pm_opt.m_maxima[j] / 3.0
     m0 = np.ravel(m0)
+    t1 = time.time()
     MwPGP_history, _, m_history, dipoles = pm_opt._optimize(max_iter_MwPGP=max_iter_MwPGP, m0=m0)  # , reg_l0=reg_l0
+    t2 = time.time()
     b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=True, nfp=s.nfp)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
     print("Average Bn without the PMs = ",
           np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
     print("Average Bn with the PMs = ",
           np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
-    t2 = time.time()
     print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
     print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
     # Make plot of the convex convergenced 
@@ -190,4 +190,3 @@ print(t2_overall - t1_overall)
 plt.grid(True)
 plt.legend()
 plt.savefig('MwPGP_objective_history.png')
-plt.show()
