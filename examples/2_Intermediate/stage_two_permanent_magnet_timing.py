@@ -177,9 +177,9 @@ for i in range(20):
     b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=True, nfp=s.nfp)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
     print("Average Bn without the PMs = ",
-        np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+          np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
     print("Average Bn with the PMs = ",
-        np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+          np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
     t2 = time.time()
     print(0.5 * np.linalg.norm(pm_opt.A_obj @ dipoles - pm_opt.b_obj, ord=2) ** 2)
     print('C++ MwPGP took {0:.2e}'.format(t2 - t1), ' s')
