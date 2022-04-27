@@ -93,25 +93,28 @@ class PerturbationSample(MSONable):
         gd = sample[1] # get the first derivative of the perturbation
     """
 
-    def __init__(self, sampler, randomgen=None):
+    def __init__(self, sampler, randomgen=None, sample=None):
         self.sampler = sampler
         self.randomgen = randomgen   # If not None, most likely fail with serialization
-        self.resample()
+        if sample:
+            self._sample = sample
+        else:
+            self.resample()
 
     def resample(self):
-        self.__sample = self.sampler.draw_sample(self.randomgen)
+        self._sample = self.sampler.draw_sample(self.randomgen)
 
     def __getitem__(self, deriv):
         """
         Get the perturbation (if ``deriv=0``) or its ``deriv``-th derivative.
         """
         assert isinstance(deriv, int)
-        if deriv >= len(self.__sample):
+        if deriv >= len(self._sample):
             raise ValueError("""
-The sample on has {len(self.__sample)-1} derivatives.
+The sample on has {len(self._sample)-1} derivatives.
 Adjust the `n_derivs` parameter of the sampler to access higher derivatives.
 """)
-        return self.__sample[deriv]
+        return self._sample[deriv]
 
 
 class CurvePerturbed(sopp.Curve, Curve):

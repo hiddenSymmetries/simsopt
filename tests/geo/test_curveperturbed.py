@@ -1,8 +1,12 @@
 import unittest
+from randomgen import PCG64
+import json
+
+import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
+
 from simsopt.geo.curveperturbed import GaussianSampler, PerturbationSample, CurvePerturbed
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from randomgen import PCG64
-import numpy as np
 from simsopt.geo.curveobjectives import LpCurveTorsion, CurveCurveDistance
 
 
@@ -135,4 +139,22 @@ class CurvePerturbationTesting(unittest.TestCase):
             err = err_new
 
     def test_serialization(self):
-        raise NotImplementedError
+        sigma = 1
+        length_scale = 0.5
+        points = np.linspace(0, 1, 200, endpoint=False)
+        sampler = GaussianSampler(points, sigma, length_scale, n_derivs=2)
+        sample = PerturbationSample(sampler)
+
+        order = 4
+        nquadpoints = 200
+        curve = CurveXYZFourier(nquadpoints, order)
+        dofs = np.zeros((curve.dof_size,))
+        dofs[1] = 1.
+        dofs[2 * order + 3] = 1.
+        dofs[4 * order + 3] = 1.
+        curve.x = dofs
+        curve_per = CurvePerturbed(curve, sample)
+
+        curve_str = json.dumps(curve_per, cls=MontyEncoder)
+        curve_per_regen = json.loads(curve_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(curve_per.gamma(), curve_per_regen.gamma()))
