@@ -3,6 +3,7 @@ import unittest
 import simsoptpp as sopp
 from numpy.testing import assert_raises
 
+
 def get_random_polynomial(dim, degree):
     coeffsx = np.random.standard_normal(size=(degree+1, dim))
     coeffsy = np.random.standard_normal(size=(degree+1, dim))
@@ -37,7 +38,7 @@ class Testing(unittest.TestCase):
         fun = get_random_polynomial(dim, degree)
 
         rule = sopp.UniformInterpolationRule(degree)
-        
+
         interpolant = sopp.RegularGridInterpolant3D(rule, xran, yran, zran, dim, True)
         interpolant.interpolate_batch(fun)
 
@@ -76,7 +77,6 @@ class Testing(unittest.TestCase):
         fun = get_random_polynomial(dim, degree)
 
         rule = sopp.UniformInterpolationRule(degree)
-        
 
         nsamples = 100
         xpoints = np.random.uniform(low=xran[1]+0.1, high=xran[1]+0.3, size=(nsamples, ))
