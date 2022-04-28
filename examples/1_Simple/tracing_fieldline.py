@@ -56,14 +56,14 @@ mpol = 5
 ntor = 5
 stellsym = True
 nfp = 3
-phis = np.linspace(0, 1, nfp*2*ntor+1, endpoint=False)
-thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+phis = np.linspace(0, 1, 64, endpoint=True)
+thetas = np.linspace(0, 1, 24, endpoint=True)
 s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
 s.fit_to_curve(ma, 0.70, flip_theta=False)
 
 s.to_vtk(OUT_DIR + 'surface')
-sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
+sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 
@@ -86,16 +86,45 @@ def trace_fieldlines(bfield, label):
 # trace_fieldlines(bs, 'bs')
 
 
-n = 16
+# Bounds for the interpolated magnetic field chosen so that the surface is
+# entirely contained in it
+n = 20
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2*np.pi/3, n*2)
 zrange = (0, np.max(zs), n//2)
+
+
+def skip(rs, phis, zs):
+    # The RegularGrindInterpolant3D class allows us to specify a function that
+    # is used in order to figure out which cells to be skipped.  Internally,
+    # the class will evaluate this function on the nodes of the regular mesh,
+    # and if *all* of the eight corners are outside the domain, then the cell
+    # is skipped.  Since the surface may be curved in a way that for some
+    # cells, all mesh nodes are outside the surface, but the surface still
+    # intersects with a cell, we need to have a bit of buffer in the signed
+    # distance (essentially blowing up the surface a bit), to avoid ignoring
+    # cells that shouldn't be ignored
+    rphiz = np.asarray([rs, phis, zs]).T.copy()
+    dists = sc_fieldline.evaluate_rphiz(rphiz)
+    skip = list((dists < -0.05).flatten())
+    print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+    return skip
+
+
 bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True
+    bs, degree, rrange, phirange, zrange, True, nfp=3, stellsym=True, skip=skip
 )
-# print('Error in B', bsh.estimate_error_B(1000), flush=True)
+
+bsh.set_points(s.gamma().reshape((-1, 3)))
+bs.set_points(s.gamma().reshape((-1, 3)))
+bsh.set_points(ma.gamma().reshape((-1, 3)))
+bs.set_points(ma.gamma().reshape((-1, 3)))
+
+Bh = bsh.B()
+B = bs.B()
+print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 trace_fieldlines(bsh, 'bsh')
 print("End of 1_Simple/tracing_fieldline.py")
 print("=====================================")
