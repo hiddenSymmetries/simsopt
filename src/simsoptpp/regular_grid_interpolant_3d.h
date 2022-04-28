@@ -1,33 +1,28 @@
 #pragma once
-
-#include <iostream>
-#include <vector>
-#include <functional>
-
-#include  <unordered_map>
-#include <tuple>
-#include <random>
-#include <stdexcept>
+#include "simdhelpers.h"
+#include <unordered_map>
 #include <algorithm>
 #include <fmt/core.h>
+#include <fmt/ranges.h>
+#include <functional>
+#include <iostream>
+#include <random>
+#include <stdexcept>
 #include <stdint.h>
-#include "simdhelpers.h"
+#include <tuple>
+#include <vector>
 
-using simd_t = xs::simd_type<double>;
-using AlignedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using Vec = std::vector<double>;
 using RangeTriplet = std::tuple<double, double, int>;
 
 Vec linspace(double min, double max, int n, bool endpoint);
-
 
 class InterpolationRule {
     public:
         const int degree;
         Vec nodes;
         Vec scalings;
-        InterpolationRule(int degree) : degree(degree), nodes(degree+1, 0.), scalings(degree+1, 1.0) {
-        }
+        InterpolationRule(int degree) : degree(degree), nodes(degree+1, 0.), scalings(degree+1, 1.0) { }
         double basis_fun(int idx, double x) const {
             double res = scalings[idx];
             for(int i = 0; i < degree+1; ++i) {
@@ -47,72 +42,31 @@ class InterpolationRule {
         }
 };
 
-class UniformInterpolationRule : public InterpolationRule {
-    public:
-        using InterpolationRule::nodes;
-        using InterpolationRule::degree;
-        using InterpolationRule::scalings;
-        UniformInterpolationRule(int degree) : InterpolationRule(degree) {
-            double degreeinv = double(1.)/degree;
-            for (int i = 0; i < degree+1; ++i) {
-                nodes[i] = i*degreeinv;
-            }
-            for(int idx = 0; idx < degree+1; ++idx) {
-                for(int i = 0; i < degree+1; ++i) {
-                    if(i == idx) continue;
-                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
-                }
-            }
-        }
-};
-
-#include <fmt/ranges.h>
-
-class ChebyshevInterpolationRule : public InterpolationRule {
-    public:
-        using InterpolationRule::nodes;
-        using InterpolationRule::degree;
-        using InterpolationRule::scalings;
-        ChebyshevInterpolationRule(int degree) : InterpolationRule(degree) {
-            double degreeinv = double(1.)/degree;
-            for (int i = 0; i < degree+1; ++i) {
-                nodes[i] = (-0.5)*std::cos(i*M_PI*degreeinv) + 0.5;
-            }
-            //fmt::print("Chebyshev nodes = {}\n", fmt::join(nodes, ", "));
-            for(int idx = 0; idx < degree+1; ++idx) {
-                for(int i = 0; i < degree+1; ++i) {
-                    if(i == idx) continue;
-                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
-                }
-            }
-        }
-};
-
 template<class Array>
 class RegularGridInterpolant3D {
     private:
         const int nx, ny, nz;
         const double xmin, ymin, zmin;
         const double xmax, ymax, zmax;
-        double hx, hy, hz;
         const int value_size;
+        static const int simdcount = xsimd::simd_type<double>::size;
+        const InterpolationRule rule;
+        const bool out_of_bounds_ok;
+        double hx, hy, hz;
         int padded_value_size;
         Vec vals;
         Vec xdof, ydof, zdof;
         Vec xmesh, ymesh, zmesh;
         Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
-        std::unordered_map<int, AlignedVec> all_local_vals_map;
+        std::unordered_map<int, AlignedPaddedVec> all_local_vals_map;
         std::vector<bool> skip_cell;
         std::vector<uint32_t> reduced_to_full_map, full_to_reduced_map;
 
         uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep;
         int local_vals_size;
-        static const int simdcount = xsimd::simd_type<double>::size;
-        const InterpolationRule rule;
         Vec pkxs, pkys, pkzs;
 
     public:
-        bool out_of_bounds_ok;
 
         RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool out_of_bounds_ok, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
             rule(rule), 
@@ -209,9 +163,9 @@ class RegularGridInterpolant3D {
                     }
                 }
             }
-            // now we need to figure out which of these dofs we keep, and which
-            // to discard.  to do this, we loop over the cells, and mark all
-            // dofs in cells that should not be skipped.
+            // Now we need to figure out which of these dofs we keep, and which
+            // to discard.  To do this, we loop over the cells, and for each
+            // cell that shouldn't be skipped, we mark all dofs in that cell.
 
             std::vector<bool> skip_dof(n, true);
             for (int i = 0; i < nx; ++i) {
@@ -260,6 +214,7 @@ class RegularGridInterpolant3D {
             }
             vals = Vec(dofs_to_keep * value_size, 0.);
 
+            // round up value_size to nearest multiple of simdcount
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
@@ -270,7 +225,6 @@ class RegularGridInterpolant3D {
 
         void interpolate(std::function<Vec(double, double, double)> &f);
         void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f);
-        void build_local_vals();
 
         inline int idx_dof(int i, int j, int k){
             int degree = rule.degree;
@@ -298,3 +252,44 @@ class RegularGridInterpolant3D {
         void evaluate_local(double x, double y, double z, int cell_idx, double* res);
         std::pair<double, double> estimate_error(std::function<Vec(Vec, Vec, Vec)> &f, int samples);
 };
+
+
+class UniformInterpolationRule : public InterpolationRule {
+    public:
+        using InterpolationRule::nodes;
+        using InterpolationRule::degree;
+        using InterpolationRule::scalings;
+        UniformInterpolationRule(int degree) : InterpolationRule(degree) {
+            double degreeinv = double(1.)/degree;
+            for (int i = 0; i < degree+1; ++i) {
+                nodes[i] = i*degreeinv;
+            }
+            for(int idx = 0; idx < degree+1; ++idx) {
+                for(int i = 0; i < degree+1; ++i) {
+                    if(i == idx) continue;
+                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
+                }
+            }
+        }
+};
+
+class ChebyshevInterpolationRule : public InterpolationRule {
+    public:
+        using InterpolationRule::nodes;
+        using InterpolationRule::degree;
+        using InterpolationRule::scalings;
+        ChebyshevInterpolationRule(int degree) : InterpolationRule(degree) {
+            double degreeinv = double(1.)/degree;
+            for (int i = 0; i < degree+1; ++i) {
+                nodes[i] = (-0.5)*std::cos(i*M_PI*degreeinv) + 0.5;
+            }
+            //fmt::print("Chebyshev nodes = {}\n", fmt::join(nodes, ", "));
+            for(int idx = 0; idx < degree+1; ++idx) {
+                for(int i = 0; i < degree+1; ++i) {
+                    if(i == idx) continue;
+                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
+                }
+            }
+        }
+};
+
