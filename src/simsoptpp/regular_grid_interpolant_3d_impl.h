@@ -90,12 +90,12 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
 
     // to avoid funny business when the data is just a tiny bit out of bounds
     // due to machine precision, we perform this check and shift
-    if(x > xmax) x -= _EPS_;
-    else if (x < xmin) x += _EPS_;
-    if(y > ymax) y -= _EPS_;
-    else if (y < ymin) y += _EPS_;
-    if(z > zmax) z -= _EPS_;
-    else if (z < zmin) z += _EPS_;
+    if(x >= xmax) x -= _EPS_;
+    else if (x <= xmin) x += _EPS_;
+    if(y >= ymax) y -= _EPS_;
+    else if (y <= ymin) y += _EPS_;
+    if(z >= zmax) z -= _EPS_;
+    else if (z <= zmin) z += _EPS_;
 
     int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));

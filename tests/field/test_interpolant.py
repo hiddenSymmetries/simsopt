@@ -65,9 +65,10 @@ class Testing(unittest.TestCase):
 
     def test_out_of_bounds(self):
         """
-        Check that the interpolant behaves correctly when evaluated outside of the defined domain.
-        If created with out_of_bounds_ok=True, then nothing should happen, but if out_of_bounds_ok=False,
-        then a runtime error should be raised.
+        Check that the interpolant behaves correctly when evaluated outside of
+        the defined domain.  If created with out_of_bounds_ok=True, then
+        nothing should happen, but if out_of_bounds_ok=False, then a runtime
+        error should be raised.
         """
         np.random.seed(0)
         xran = (1.0, 4.0, 20)
