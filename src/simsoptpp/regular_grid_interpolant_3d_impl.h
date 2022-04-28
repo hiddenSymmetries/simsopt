@@ -87,39 +87,30 @@ int RegularGridInterpolant3D<Array>::locate_unsafe(double x, double y, double z)
 
 template<class Array>
 void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, double z, double* res){
-    if(this->extrapolate){
-        x = std::max(std::min(x, xmax-_EPS_), xmin+_EPS_);
-        y = std::max(std::min(y, ymax-_EPS_), ymin+_EPS_);
-        z = std::max(std::min(z, zmax-_EPS_), zmin+_EPS_);
-    } else {
-        if(x < xmin || x >= xmax)
-            throw std::runtime_error(fmt::format("x={} not within [{}, {}]", x, xmin, xmax));
-        if(y < ymin || y >= ymax)
-            throw std::runtime_error(fmt::format("y={} not within [{}, {}]", y, ymin, ymax));
-        if(z < zmin || z >= zmax)
-            throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
-    }
+
+    // to avoid funny business when the data is just a tiny bit out of bounds
+    // due to machine precision, we perform this check and shift
+    if(x > xmax) x -= _EPS_;
+    else if (x < xmin) x += _EPS_;
+    if(y > ymax) y -= _EPS_;
+    else if (y < ymin) y += _EPS_;
+    if(z > zmax) z -= _EPS_;
+    else if (z < zmin) z += _EPS_;
+
     int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
-    if(xidx < 0 || xidx >= nx)
-        throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
-    if(yidx < 0 || yidx >= ny)
-        throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
-    if(zidx < 0 || zidx >= nz)
-        throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
-
-
+    if(!out_of_bounds_ok){
+        if(xidx < 0 || xidx >= nx)
+            throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
+        if(yidx < 0 || yidx >= ny)
+            throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
+        if(zidx < 0 || zidx >= nz)
+            throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
+    }
     double xlocal = (x-xmesh[xidx])/hx;
     double ylocal = (y-ymesh[yidx])/hy;
     double zlocal = (z-zmesh[zidx])/hz;
-    if(xlocal < 0.-_EPS_ || xlocal > 1.+_EPS_)
-        throw std::runtime_error(fmt::format("xlocal={} not within [0, 1]", xlocal));
-    if(ylocal < 0.-_EPS_ || ylocal > 1.+_EPS_)
-        throw std::runtime_error(fmt::format("ylocal={} not within [0, 1]", ylocal));
-    if(zlocal < 0.-_EPS_ || zlocal > 1.+_EPS_)
-        throw std::runtime_error(fmt::format("zlocal={} not within [0, 1]", zlocal));
-    //std::cout << "local coordinates=(" << xlocal << ", " << ylocal << ", " << zlocal << ")" << std::endl;
     return evaluate_local(xlocal, ylocal, zlocal, idx_cell(xidx, yidx, zidx), res);
 }
 
@@ -128,8 +119,13 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
 {
     int degree = rule.degree;
     auto got = all_local_vals_map.find(cell_idx);
-    if (got == all_local_vals_map.end())
-        return;
+    if (got == all_local_vals_map.end()) {
+        if(out_of_bounds_ok)
+            return;
+        else
+            throw std::runtime_error(fmt::format("cell_idx={} not in all_local_vals_map", cell_idx));
+    }
+
     double* vals_local = got->second.data();
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;

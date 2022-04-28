@@ -108,21 +108,19 @@ class RegularGridInterpolant3D {
         uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep;
         int local_vals_size;
         static const int simdcount = xsimd::simd_type<double>::size;
-        //static const std::function<std::vector<bool>(Vec, Vec, Vec)> skipnothing = ;
         const InterpolationRule rule;
         Vec pkxs, pkys, pkzs;
 
     public:
-        bool extrapolate;
+        bool out_of_bounds_ok;
 
-        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool out_of_bounds_ok, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
             rule(rule), 
             xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)),
             ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)),
             zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)),
-            value_size(value_size), extrapolate(extrapolate)
+            value_size(value_size), out_of_bounds_ok(out_of_bounds_ok)
         {
-    //std::function<std::vector<bool>(Vec, Vec, Vec)> skip = ;
             int degree = rule.degree;
             pkxs = Vec(degree+1, 0.);
             pkys = Vec(degree+1, 0.);
@@ -263,18 +261,12 @@ class RegularGridInterpolant3D {
             vals = Vec(dofs_to_keep * value_size, 0.);
 
             padded_value_size = (value_size + simdcount) - (value_size % simdcount);
-            //int nsimdblocks = padded_value_size/simdcount;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
-            //vals = AlignedVec(nnodes*padded_value_size, 0.);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
         }
-        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool extrapolate) :
-            RegularGridInterpolant3D(rule, xrange, yrange, zrange, value_size, extrapolate, [](Vec x, Vec y, Vec z){ return std::vector<bool>(x.size(), false); })
+        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool out_of_bounds_ok) :
+            RegularGridInterpolant3D(rule, xrange, yrange, zrange, value_size, out_of_bounds_ok, [](Vec x, Vec y, Vec z){ return std::vector<bool>(x.size(), false); })
             {}
-        //RegularGridInterpolant3D(InterpolationRule rule, int nx, int ny, int nz, int value_size) : 
-        //    RegularGridInterpolant3D(rule, {0., 1., nx}, {0., 1., ny}, {0., 1., nz}, value_size, true) {
-
-        //}
 
         void interpolate(std::function<Vec(double, double, double)> &f);
         void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f);
