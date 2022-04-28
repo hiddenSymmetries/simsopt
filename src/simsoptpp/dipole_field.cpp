@@ -1,6 +1,7 @@
 #include "dipole_field.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
+#include <Eigen/Dense>
 
 // Calculate the B field at a set of evaluation points from N dipoles
 // points: where to evaluate the field
@@ -119,7 +120,10 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     return dB;
 }
 
-Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym) {
+
+// Calculate the geometric factor needed for the permanent magnet optimization
+std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b) 
+{
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("points needs to be in row-major storage order");
@@ -127,16 +131,21 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
           throw std::runtime_error("m_points needs to be in row-major storage order");
     if(unitnormal.layout() != xt::layout_type::row_major)
           throw std::runtime_error("unit normal needs to be in row-major storage order");
+    if(phi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("phi needs to be in row-major storage order");
+    if(b.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("b needs to be in row-major storage order");
     
     int nsym = nfp * (stellsym + 1);
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
-    Array geo_factor = xt::zeros<double>({num_points, num_dipoles, 3, nsym});
+    Array A = xt::zeros<double>({num_points, num_dipoles, 3});
+    Array ATb = xt::zeros<double>({num_dipoles, 3});
+    Array ATA = xt::zeros<double>({num_dipoles * 3, num_dipoles * 3});
    
-    // initialize pointers to the beginning of m and the dipole grid
+    // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
-    // double* n_ptr = &(unitnormal(0, 0));
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
@@ -152,20 +161,18 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
                 n_i[d][k] = unitnormal(i + k, d);
             }
         }
-	simd_t phi = atan2(point_i.y, point_i.x);
-	//Vec3dSimd n_i = Vec3dSimd(n_ptr[3 * i + 0], n_ptr[3 * i + 1], n_ptr[3 * i + 2]);
 	for(int fp = 0; fp < nfp; fp++) {
 	    simd_t phi0 = (2 * M_PI / ((simd_t) nfp)) * fp;
-	    simd_t phi_sym = phi + phi0;
-	    simd_t sphi = sin(phi_sym); 
-	    simd_t sphi0 = sin(phi0);
-	    simd_t cphi = cos(phi_sym); 
-	    simd_t cphi0 = cos(phi0);
+	    simd_t sphi0 = xsimd::sin(phi0);
+	    simd_t cphi0 = xsimd::cos(phi0);
             for (int j = 0; j < num_dipoles; ++j) {
                 auto G_i = Vec3dSimd();
                 auto H_i = Vec3dSimd();
+	        simd_t phi_sym = phi[j] + phi0;
+	        simd_t sphi = xsimd::sin(phi_sym); 
+	        simd_t cphi = xsimd::cos(phi_sym); 
                 Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
-                simd_t mmag = sqrt(xsimd::fma(mp_j.x, mp_j.x, mp_j.y * mp_j.y));
+                simd_t mmag = xsimd::sqrt(xsimd::fma(mp_j.x, mp_j.x, mp_j.y * mp_j.y));
 		simd_t mp_x_new = mmag * cphi;
 		simd_t mp_y_new = mmag * sphi;
 		Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z);
@@ -178,29 +185,42 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
                 G_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
                 G_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
                 G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
-	        // stellarator symmetry means dipole grid -> (x, -y, -z)
-		// and geo_factor_x gets a minus sign
-		Vec3dSimd mp_j_stell = Vec3dSimd(mp_x_new, -mp_y_new, -mp_j.z);
-		r = point_i - mp_j_stell;
-                rmag_2 = normsq(r);
-                rmag_inv   = rsqrt(rmag_2);
-                rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-                rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
-                rdotn = inner(r, n_i);
-		H_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
-                H_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
-                H_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
+	        
+		// stellarator symmetry means dipole grid -> (x, -y, -z)
+		if (stellsym > 0) {
+		    Vec3dSimd mp_j_stell = Vec3dSimd(mp_x_new, -mp_y_new, -mp_j.z);
+		    r = point_i - mp_j_stell;
+                    rmag_2 = normsq(r);
+                    rmag_inv   = rsqrt(rmag_2);
+                    rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+                    rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
+                    rdotn = inner(r, n_i);
+		    H_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
+                    H_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
+                    H_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
+		}
 		for(int k = 0; k < klimit; k++){
-		    geo_factor(i + k, j, 0, fp) = fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]);
-		    geo_factor(i + k, j, 1, fp) = fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-		    geo_factor(i + k, j, 2, fp) = fak * G_i.z[k];
-		    geo_factor(i + k, j, 0, nfp + fp) = - fak * (H_i.x[k] * cphi0[k] - H_i.y[k] * sphi0[k]);
-		    geo_factor(i + k, j, 1, nfp + fp) = fak * (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
-		    geo_factor(i + k, j, 2, nfp + fp) = fak * H_i.z[k];
+		    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]);
+		    A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		    A(i + k, j, 2) += fak * G_i.z[k];
+		    // if stellsym, flip sign of x component here
+		    if (stellsym > 0) {
+		        A(i + k, j, 0) += - fak * (H_i.x[k] * cphi0[k] - H_i.y[k] * sphi0[k]);
+		        A(i + k, j, 1) += fak * (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
+		        A(i + k, j, 2) += fak * H_i.z[k];
+		    }
 		}
 	    }
 	}
     }
-    return geo_factor;
+    // compute ATb
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A.data()), num_points, 3 * num_dipoles);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(b.data()), 1, num_points);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATb.data()), 1, 3 * num_dipoles);
+    eigen_res = eigen_v*eigen_mat;
+    // compute ATA
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
+    eigen_res2 = eigen_mat.transpose()*eigen_mat;
+    return std::make_tuple(A, ATb, ATA);
 }
 
