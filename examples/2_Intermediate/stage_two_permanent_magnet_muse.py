@@ -127,7 +127,7 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.05, dr=0.01, plasma_offset=0.05,
+    s, coil_offset=0.075, dr=0.05, plasma_offset=0.025,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename
 )
@@ -138,7 +138,7 @@ print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=0, reg_l0=0,
+    max_iter_RS=10, reg_l2=1, reg_l0=0,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
