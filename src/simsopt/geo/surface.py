@@ -576,12 +576,16 @@ class SurfaceClassifier():
         rphiz[:, 0] = np.linalg.norm(xyz[:, :2], axis=1)
         rphiz[:, 1] = np.mod(np.arctan2(xyz[:, 1], xyz[:, 0]), 2*np.pi)
         rphiz[:, 2] = xyz[:, 2]
-        d = np.zeros((xyz.shape[0], 1))
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((xyz.shape[0], 1))
         self.dist.evaluate_batch(rphiz, d)
         return d
 
     def evaluate_rphiz(self, rphiz):
-        d = np.zeros((rphiz.shape[0], 1))
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((rphiz.shape[0], 1))
         self.dist.evaluate_batch(rphiz, d)
         return d
 
