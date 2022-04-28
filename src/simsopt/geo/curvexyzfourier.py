@@ -27,7 +27,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
     """
 
     def __init__(self, quadpoints, order):
-        if isinstance(quadpoints, int):
+        if isinstance(quadpoints, int) or isinstance(quadpoints, np.int64):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
