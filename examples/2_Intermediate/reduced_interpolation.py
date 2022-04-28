@@ -61,6 +61,7 @@ s.fit_to_curve(ma, 0.05, flip_theta=False)
 
 sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 
+
 def skip(rs, phis, zs):
     rphiz = np.asarray([rs, phis, zs]).T.copy()
     dists = sc_fieldline.evaluate_rphiz(rphiz)
@@ -68,6 +69,7 @@ def skip(rs, phis, zs):
     print("sum(skip) =", sum(skip), "out of ", len(skip), flush=True)
     # skip = [p < 0.5 for p in phis]
     return skip
+
 
 n = 50
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
@@ -88,6 +90,7 @@ import time
 t1 = time.time()
 # bsh.estimate_error_B(100)
 
+
 def compute_error_on_surface(s):
     bsh.set_points(s.gamma().reshape((-1, 3)))
     dBh = bsh.GradAbsB()
@@ -98,6 +101,7 @@ def compute_error_on_surface(s):
     logger.info("Mean(|B|) on surface   %s" % np.mean(bs.AbsB()))
     logger.info("B    errors on surface %s" % np.sort(np.abs(B-Bh).flatten()))
     logger.info("∇|B| errors on surface %s" % np.sort(np.abs(dB-dBh).flatten()))
+
 
 compute_error_on_surface(s)
 t2 = time.time()
