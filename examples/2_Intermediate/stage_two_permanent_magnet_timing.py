@@ -74,7 +74,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 16
-ntheta = 16
+ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 print(s.rc.shape, s.zs.shape, s.quadpoints_phi, s.quadpoints_theta)
 print(s.quadpoints_phi.shape, s.quadpoints_theta.shape)
