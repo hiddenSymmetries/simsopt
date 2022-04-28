@@ -28,7 +28,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
         }
     }
     int degree = rule.degree;
-    all_local_vals_map = std::unordered_map<int, AlignedVec>();
+    all_local_vals_map = std::unordered_map<int, AlignedPaddedVec>();
     all_local_vals_map.reserve(dofs_to_keep);
 
     for (int xidx = 0; xidx < nx; ++xidx) {
@@ -37,7 +37,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
                 int meshidx = idx_cell(xidx, yidx, zidx);
                 if(skip_cell[meshidx])
                     continue;
-                AlignedVec local_vals(local_vals_size, 0.);
+                AlignedPaddedVec local_vals(local_vals_size, 0.);
                 for (int i = 0; i < degree+1; ++i) {
                     for (int j = 0; j < degree+1; ++j) {
                         for (int k = 0; k < degree+1; ++k) {
@@ -53,10 +53,6 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
             }
         }
     }
-}
-
-template<class Array>
-void RegularGridInterpolant3D<Array>::build_local_vals(){
 }
 
 template<class Array>
