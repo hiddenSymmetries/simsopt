@@ -1317,14 +1317,19 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         return d
 
-    @classmethod
-    def from_dict(cls, d):
+    @staticmethod
+    def _decode(d):
         parents_dict = d.pop("depends_on") if "depends_on" in d else None
         if parents_dict:
             parents = []
             decoder = MontyDecoder()
             for pdict in parents_dict:
                 parents.append(decoder.process_decoded(pdict))
+            return parents
+
+    @classmethod
+    def from_dict(cls, d):
+        parents = Optimizable._decode(d)
         return cls(depends_on=parents, **d)
 
     def save(self, filename=None, fmt=None, **kwargs):
@@ -1358,7 +1363,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             return cls.from_str(contents, fmt="json")
 
 
-def loadfn(filename, *args, **kwargs):
+def load_simsopt(filename, *args, **kwargs):
     """
     Function to load simsopt object from a file.
     Only JSON format is supported at this time. Support for additional

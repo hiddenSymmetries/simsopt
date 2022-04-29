@@ -5,7 +5,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from math import pi
 import numpy as np
-from monty.json import MontyDecoder
+from monty.json import MontyDecoder, MSONable
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -16,8 +16,8 @@ class Coil(sopp.Coil, Optimizable):
     """
 
     def __init__(self, curve, current):
-        self.__curve = curve
-        self.__current = current
+        self._curve = curve
+        self._current = current
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
 
@@ -36,19 +36,13 @@ class Coil(sopp.Coil, Optimizable):
         return self.curve.plot(**kwargs)
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["curve"] = self.curve.as_dict()
-        d["current"] = self.current.as_dict()
-        del d["current"]["@module"]
-        del d["current"]["@class"]
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
-        current = Current.from_dict(d["current"])
-        curve = MontyDecoder().process_decoded(d["curve"])
+        decoder = MontyDecoder()
+        current = decoder.process_decoded(d["current"])
+        curve = decoder.process_decoded(d["curve"])
         return cls(curve, current)
 
 
@@ -74,16 +68,12 @@ class Current(sopp.Current, Optimizable):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        current = self.get_value()
-        if hasattr(self, 'scale'):
-            current *= self.scale
-        d["current"] = current
+        d["current"] = self.get_value()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        current = d["current"]
-        return Current(current)
+        return cls(d["current"])
 
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
@@ -93,15 +83,26 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
     """
 
     def __init__(self, basecurrent, scale):
-        self.__basecurrent = basecurrent
+        self._basecurrent = basecurrent
         sopp.ScaledCurrent.__init__(self, basecurrent, scale)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[basecurrent])
 
     def vjp(self, v_current):
-        return self.__basecurrent.vjp(self.scale * v_current)
+        return self._basecurrent.vjp(self.scale * v_current)
 
     def __neg__(self):
         return ScaledCurrent(self, -1.)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["current"] = self.get_value()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(Current(d["current"]), 1.0)
 
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
