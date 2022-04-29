@@ -410,6 +410,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.dzmncds_splines = None
                 self.bmns_splines = None
                 self.dbmnsds_splines = None
+                self.kmns_splines = None
+                self.kmnc_splines = None
                 self.asym = None
             self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
             self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
@@ -431,6 +433,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
             self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
             self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
+            self.kmns_splines = self.mpi.comm_world.bcast(self.kmns_splines, root=0)
             if self.asym:
                 self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
                 self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
@@ -440,6 +443,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
                 self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
                 self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
+                self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
         else:
             self.init_splines()
             if (not self.no_K):
