@@ -542,4 +542,4 @@ class BoozerSurface(MSONable):
         decoder = MontyDecoder()
         bs = decoder.process_decoded(d["biotsavart"])
         surf = deocder.process_decoded(d["surface"])
-        return cls(bs, surf, d["label"], d["targetlabel"]
+        return cls(bs, surf, d["label"], d["targetlabel"])
