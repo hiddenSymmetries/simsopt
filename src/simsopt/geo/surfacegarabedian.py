@@ -255,7 +255,7 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         return cls(nfp=d["nfp"], mmax=d["mmax"], mmin=d["mmin"],
                    nmax=d["nmax"], nmin=d["nmin"],
                    quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta = d["quadpoints_theta"])
+                   quadpoints_theta=d["quadpoints_theta"])
 
     return_fn_map = {'area': area,
                      'volume': volume,
