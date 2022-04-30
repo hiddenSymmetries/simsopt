@@ -579,6 +579,20 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
+    def as_dict(self) -> dict:
+        d = Surface.as_dict(self)
+        d["stellsym"] = self.stellsym
+        d["mpol"] = self.mpol
+        d["ntor"] = self.ntor
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(nfp=d["nfp"], stellsym=d["stellsym"],
+                   mpol=d["mpol"], ntor=d["ntor"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
@@ -826,3 +840,10 @@ class SurfaceRZPseudospectral(Optimizable):
                                                        r_shift=self.r_shift,
                                                        a_scale=self.a_scale)
         return surf3
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])

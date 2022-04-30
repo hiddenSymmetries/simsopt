@@ -740,4 +740,17 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         data[:, :, 1] = (2 * np.pi * d_R_d_theta * np.sin(phi)).T
         data[:, :, 2] = 2 * np.pi * d_Z_d_theta.T
 
+    def as_dict(self) -> dict:
+        d = Surface.as_dict(self)
+        d["alpha_fac"] = self.alpha_fac
+        d["mmax"] = self.mmax
+        d["nmax"] = self.nmax
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(nfp=d["nfp"], alpha_fac=d["alpha_fac"],
+                   mmax=d["mmax"], nmax=d["nmax"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
 
