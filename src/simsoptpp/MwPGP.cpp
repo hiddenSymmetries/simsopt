@@ -140,6 +140,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
     int N = ATb.shape(0);
     int print_iter = 0;
+    double x_sum;
     Array g = xt::zeros<double>({N, 3});
     Array p = xt::zeros<double>({N, 3});
     Array ATAp = xt::zeros<double>({N, 3});
@@ -151,11 +152,12 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     double alpha_cg, alpha_f;
     vector<double> alpha_fs(N);
     Array x_k1 = m0;
+    Array x_k_prev;
 
     // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 11});
-    Array objective_history = xt::zeros<double>({11});
-    Array R2_history = xt::zeros<double>({11});
+    Array m_history = xt::zeros<double>({N, 3, 101});
+    Array objective_history = xt::zeros<double>({101});
+    Array R2_history = xt::zeros<double>({101});
 
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;
@@ -176,9 +178,11 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 
     // Main loop over the optimization iterations
     for (int k = 0; k < max_iter; ++k) {
+	
+	x_k_prev = x_k1;
        
 	// fairly convoluted way to print every ~ max_iter / 10 iterations 
-        if (verbose && ((k % (int)(max_iter / 10) == 0) || k == 0 || k == max_iter - 1)) {
+        if (verbose && ((k % (int)(max_iter / 100) == 0) || k == 0 || k == max_iter - 1)) {
 	    print_verbose(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
             print_iter += 1;
 	}    
@@ -278,6 +282,18 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
                 std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
             }
         }
+	// check if converged
+	x_sum = 0; 
+#pragma omp parallel for
+        for (int i = 0; i < N; ++i) {     
+            for (int ii = 0; ii < 3; ++ii) {
+                x_sum += abs(x_k1(i, ii) - x_k_prev(i, ii));
+	    }
+	}
+	if (x_sum < epsilon) {
+            printf("MwPGP algorithm ended early, at iteration %d\n", k);
+	    break;
+	}
     }
     return std::make_tuple(objective_history, R2_history, m_history, x_k1);
 }
