@@ -46,6 +46,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = RotatedCurve(curve, 0.5, flip=False)
     return curve
 
+
 class TestCoil(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
@@ -70,6 +71,7 @@ class TestCoil(unittest.TestCase):
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_serialization(curvetype, rotated)
+
 
 class TestCurrent(unittest.TestCase):
     def test_current_serialization(self):

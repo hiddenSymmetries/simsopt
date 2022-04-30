@@ -534,7 +534,7 @@ class BoozerSurface(MSONable):
             r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
         res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
-            "G": G, "s": s, "iota": iota}
+               "G": G, "s": s, "iota": iota}
         return res
 
     @classmethod
