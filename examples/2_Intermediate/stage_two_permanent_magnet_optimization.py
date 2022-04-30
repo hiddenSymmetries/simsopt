@@ -84,7 +84,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 16
-ntheta = 8
+ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 stellsym = True
@@ -172,9 +172,27 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.025, dr=0.02, plasma_offset=0.025,
-    B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
+    s, coil_offset=0.05, dr=0.02, plasma_offset=0.025,
+    B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
+    filename=filename,
 )
+U, S, V = np.linalg.svd(pm_opt.ATA, full_matrices=True)
+trunc = 1000
+m0 = np.random.rand(pm_opt.ndipoles * 3)
+print(S.shape, U.shape, V.shape)
+t1 = time.time()
+print(pm_opt.ATA @ m0)
+t2 = time.time()
+print(t2 - t1)
+t1 = time.time()
+print(U[:, :trunc] @ ((S[:trunc] * V[:trunc, :]) @ m0))
+t2 = time.time()
+print(t2 - t1)
+#
+#print((u[:, :1000] * s[:1000]) @ v[:1000, :] - pm_opt.ATA)
+plt.figure()
+plt.semilogy(S)
+plt.show()
 max_iter_MwPGP = 500
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(

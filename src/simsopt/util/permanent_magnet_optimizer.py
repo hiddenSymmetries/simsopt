@@ -52,12 +52,13 @@ class PermanentMagnetOptimizer:
         self, plasma_boundary, rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.1, B_plasma_surface=None, dr=0.1,
-        filename=None
+        filename=None, FOCUS=False,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
         self.filename = filename
+        self.FOCUS = FOCUS
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
         self.B_plasma_surface = B_plasma_surface
@@ -76,6 +77,7 @@ class PermanentMagnetOptimizer:
         if dr <= 0:
             raise ValueError('dr grid spacing must be > 0')
 
+        t1 = time.time()
         # If the inner surface is not specified, make default surface.
         if rz_inner_surface is None:
             print(
@@ -85,6 +87,10 @@ class PermanentMagnetOptimizer:
                 " are projected onto the RZ plane so that the new surface "
                 " lies entirely on the original phi = constant cross-section. "
             )
+            if self.filename is None:
+                raise ValueError(
+                    "Must specify a filename for loading in a toroidal surface"
+                )
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
@@ -100,11 +106,17 @@ class PermanentMagnetOptimizer:
                 " are projected onto the RZ plane so that the new surface "
                 " lies entirely on the original phi = constant cross-section. "
             )
+            if self.filename is None:
+                raise ValueError(
+                    "Must specify a filename for loading in a toroidal surface"
+                )
             self._set_outer_rz_surface()
         else:
             self.rz_outer_surface = rz_outer_surface
         if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
             raise ValueError("Outer surface is not SurfaceRZFourier object.")
+        t2 = time.time()
+        print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done") 
 
         # check the inner and outer surface are same size
         # and defined at the same (theta, phi) coordinate locations
@@ -183,33 +195,22 @@ class PermanentMagnetOptimizer:
         # Make 3D mesh
         R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
         self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
-        print(self.RPhiZ.shape)
-        # R = np.linspace(r_min, r_max, Nr)
-        # Z = np.linspace(z_min, z_max, Nz)
-        # R, Z = np.meshgrid(R, Z, indexing='ij')
-        RZ = np.hstack((np.ravel(self.RPhiZ[:, :, :, 0]).reshape(-1, 1), np.ravel(self.RPhiZ[:, :, :, 2]).reshape(-1, 1)))
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to get the uniform grid set up.") 
 
-        t1 = time.time()
-        # Have the uniform grid, now need to loop through and eliminate cells. 
-        self.final_RZ_grid, phi_divisions = self._make_final_surface()
-        t2 = time.time()
-        print(phi_divisions)
-        print(self.r_inner.shape)
-        print("Took t = ", t2 - t1, " s to perform the grid cell eliminations.")
-        print(self.final_RZ_grid.shape)
-
+        RPhiZ_grid = np.transpose(self.RPhiZ, [0, 2, 1, 3])
+        RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1], RPhiZ_grid.shape[2], 3)
         t1 = time.time()
         # Have the uniform grid, now need to loop through and eliminate cells.
-        normal_inner = self.rz_inner_surface.unitnormal()
-        normal_outer = self.rz_outer_surface.unitnormal()
-        print(RZ.shape)
-        self.final_RZ_grid, self.inds = sopp.make_final_surface(phi, normal_inner, normal_outer, RZ, self.r_inner, self.r_outer, self.z_inner, self.z_outer)
+        normal_inner = np.copy(self.rz_inner_surface.unitnormal())
+        normal_outer = np.copy(self.rz_outer_surface.unitnormal())
+        self.final_RZ_grid, self.inds = sopp.make_final_surface(phi, normal_inner, normal_outer, RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer)
+        self.inds = np.array(self.inds, dtype=int)
+        print(self.final_RZ_grid.shape, self.inds)
+        self.ndipoles = self.inds[-1]
+        self.final_RZ_grid = self.final_RZ_grid[:self.ndipoles, :, :]
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
-        print(self.final_RZ_grid.shape)
-        print(self.inds)
 
         t1 = time.time()
         # Compute the maximum allowable magnetic moment m_max
@@ -222,8 +223,12 @@ class PermanentMagnetOptimizer:
         dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
         for i in range(self.nphi):
-            radii = self.final_RZ_grid[i, :, 0]
-            z_coords = self.final_RZ_grid[i, :, 2]
+            if i > 0:
+                radii = self.final_RZ_grid[self.inds[i-1]:self.inds[i], i, 0]
+                z_coords = self.final_RZ_grid[self.inds[i-1]:self.inds[i], i, 2]
+            else:
+                radii = self.final_RZ_grid[:self.inds[i], i, 0]
+                z_coords = self.final_RZ_grid[:self.inds[i], i, 2]
             len_radii = len(radii)
             dipole_grid_r[running_tally:running_tally + len_radii] = radii
             dipole_grid_phi[running_tally:running_tally + len_radii] = phi[i]
@@ -301,7 +306,7 @@ class PermanentMagnetOptimizer:
         plt.grid(None)
 
         plt.figure(figsize=(14, 14))
-        for i, ind in enumerate([0, 5, 12, 15]):
+        for i, ind in enumerate([1, 5, 12, 15]):
             plt.subplot(2, 2, i + 1)
             plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
             r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -317,22 +322,25 @@ class PermanentMagnetOptimizer:
 
             running_tally = 0
             for k in range(ind):
-                running_tally += len(self.final_RZ_grid[k, :, 0])
+                if k > 0:
+                    running_tally += len(self.final_RZ_grid[self.inds[k-1]:self.inds[k], k, 0])
+                else:
+                    running_tally += len(self.final_RZ_grid[:self.inds[k], k, 0])
             colors = []
-            dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[ind, :, 0]), :]
+            dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0]), :]
             for j in range(len(dipoles_i)):
                 colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
 
             sax = plt.scatter(
-                self.final_RZ_grid[ind, :, 0],
-                self.final_RZ_grid[ind, :, 2],
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
                 c=colors,
                 label='PMs'
             )
             plt.colorbar(sax)
             plt.quiver(
-                self.final_RZ_grid[ind, :, 0],
-                self.final_RZ_grid[ind, :, 2],
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
                 dipoles_i[:, 0],
                 dipoles_i[:, 2],
             )
@@ -350,27 +358,10 @@ class PermanentMagnetOptimizer:
             plasma boundary and shifts it by self.plasma_offset at constant
             theta value. 
         """
-        if self.filename is not None:
-            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+        if self.FOCUS:
+            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            # make copy of plasma boundary
-            mpol = self.plasma_boundary.mpol
-            ntor = self.plasma_boundary.ntor
-            nfp = self.plasma_boundary.nfp
-            stellsym = self.plasma_boundary.stellsym
-            range_surf = self.plasma_boundary.range 
-            rz_inner_surface = SurfaceRZFourier(
-                mpol=mpol, ntor=ntor, nfp=nfp,
-                stellsym=stellsym, range=range_surf,
-                quadpoints_theta=self.theta, 
-                quadpoints_phi=self.phi
-            )
-            for i in range(mpol + 1):
-                for j in range(-ntor, ntor + 1):
-                    rz_inner_surface.set_rc(i, j, self.plasma_boundary.get_rc(i, j))
-                    rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
-                    rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
-                    rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
+            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
         rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
@@ -383,32 +374,16 @@ class PermanentMagnetOptimizer:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value. 
         """
-        if self.filename is not None:
-            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+        if self.FOCUS:
+            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            # make copy of plasma boundary
-            mpol = self.rz_inner_surface.mpol
-            ntor = self.rz_inner_surface.ntor
-            nfp = self.rz_inner_surface.nfp
-            stellsym = self.rz_inner_surface.stellsym
-            range_surf = self.rz_inner_surface.range 
-            quadpoints_theta = self.rz_inner_surface.quadpoints_theta 
-            quadpoints_phi = self.rz_inner_surface.quadpoints_phi 
-            rz_outer_surface = SurfaceRZFourier(
-                mpol=mpol, ntor=ntor, nfp=nfp,
-                stellsym=stellsym, range=range_surf,
-                quadpoints_theta=quadpoints_theta, 
-                quadpoints_phi=quadpoints_phi
-            ) 
-            for i in range(mpol + 1):
-                for j in range(-ntor, ntor + 1):
-                    rz_outer_surface.set_rc(i, j, self.rz_inner_surface.get_rc(i, j))
-                    rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
-                    rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
-                    rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
+            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
+        t1 = time.time()
         rz_outer_surface.extend_via_projected_normal(self.phi, self.coil_offset)
+        t2 = time.time()
+        print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
 
     def _plot_surfaces(self):
@@ -435,8 +410,8 @@ class PermanentMagnetOptimizer:
             #plt.plot(self.r_inner[ind, :], self.z_inner[ind, :], label='Inner surface', linewidth=3)
             #plt.plot(self.r_outer[ind, :], self.z_outer[ind, :], label='Outer surface', linewidth=3)
             plt.scatter(
-                self.final_RZ_grid[ind, :, 0], 
-                self.final_RZ_grid[ind, :, 2], 
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0], 
+                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2], 
                 label='Final grid',
                 c='k'
             )
@@ -467,8 +442,8 @@ class PermanentMagnetOptimizer:
             8. If Step 4 was True but Step 5 was False, add the point to the final grid.
         """
         phi_inner = 2 * np.pi * np.copy(self.rz_inner_surface.quadpoints_phi)
-        normal_inner = self.rz_inner_surface.unitnormal()
-        normal_outer = self.rz_outer_surface.unitnormal()
+        normal_inner = np.copy(self.rz_inner_surface.unitnormal())
+        normal_outer = np.copy(self.rz_outer_surface.unitnormal())
         Nray = 2000
         total_points = 0
 
@@ -488,11 +463,13 @@ class PermanentMagnetOptimizer:
                 normal_inner[i, j, :] = rot_matrix @ normal_inner[i, j, :]
                 normal_outer[i, j, :] = rot_matrix @ normal_outer[i, j, :]
             normal_inner[i, :, 1] = 0.0
-            normal_inner[i, :, 0] = normal_inner[i, :, 0] / np.sqrt(normal_inner[i, :, 0] ** 2 + normal_inner[i, :, 2] ** 2)
-            normal_inner[i, :, 2] = normal_inner[i, :, 2] / np.sqrt(normal_inner[i, :, 0] ** 2 + normal_inner[i, :, 2] ** 2)
+            norm_inner = np.sqrt(normal_inner[i, :, 0] ** 2 + normal_inner[i, :, 2] ** 2)
+            norm_outer = np.sqrt(normal_outer[i, :, 0] ** 2 + normal_outer[i, :, 2] ** 2)
+            normal_inner[i, :, 0] = normal_inner[i, :, 0] / norm_inner
+            normal_inner[i, :, 2] = normal_inner[i, :, 2] / norm_inner 
             normal_outer[i, :, 1] = 0.0
-            normal_outer[i, :, 0] = normal_outer[i, :, 0] / np.sqrt(normal_outer[i, :, 0] ** 2 + normal_outer[i, :, 2] ** 2)
-            normal_outer[i, :, 2] = normal_outer[i, :, 2] / np.sqrt(normal_outer[i, :, 0] ** 2 + normal_outer[i, :, 2] ** 2)
+            normal_outer[i, :, 0] = normal_outer[i, :, 0] / norm_outer 
+            normal_outer[i, :, 2] = normal_outer[i, :, 2] / norm_outer
 
             # Find nearest (R, Z) points on the surface
             for j in range(len(Rpoint)):
@@ -536,7 +513,6 @@ class PermanentMagnetOptimizer:
         self.ndipoles = total_points
         print('There are ', self.ndipoles, ' dipoles')
         new_grids = np.array(new_grids)
-        print(np.shape(new_grids))
         return new_grids, grid_size_i
 
     def _prox_l0(self, m, reg_l0, nu):
