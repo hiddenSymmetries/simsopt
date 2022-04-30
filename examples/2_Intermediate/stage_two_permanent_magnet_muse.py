@@ -27,13 +27,15 @@ from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
+#from simsopt.field.tracing import SurfaceClassifier, \
+#    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+#    IterationStoppingCriterion
 import time
 
 
 def read_focus_coils(filename):
     ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
-    #order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
-    order = 200  # np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
+    order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
     coilcurrents = np.zeros(ncoils)
     xc = np.zeros((ncoils, order + 1))
     xs = np.zeros((ncoils, order + 1))
@@ -79,6 +81,19 @@ def read_focus_coils(filename):
     return coils, base_currents, ncoils
 
 
+#try:
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#except ImportError:
+#    comm = None
+
+# Number of iterations to perform:
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+ci = False
+nfieldlines = 40 if ci else 40
+tmax_fl = 30000 if ci else 50000
+degree = 2 if ci else 4
+
 # File for the desired TF coils 
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'muse_tf_coils.focus'
@@ -94,7 +109,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 filename = TEST_DIR / 'input.MUSE'
 
 # Directory for output
-OUT_DIR = "./output_pm/"
+OUT_DIR = "./output_muse/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -102,7 +117,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 16
+nphi = 32
 ntheta = 64
 s = SurfaceRZFourier.from_focus(filename, range="half period", nphi=nphi, ntheta=ntheta)
 print("Done loading in MUSE plasma boundary surface")
@@ -113,8 +128,12 @@ R0 = s.get_rc(0, 0)
 for i in range(nphi):
     bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), R0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
 bs.set_points(bspoints)
-print("Bmag at R = ", R0, ", Z = 0: ", np.linalg.norm(bs.B(), axis=-1))
-print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", np.mean(np.linalg.norm(bs.B(), axis=-1)))
+B0 = np.linalg.norm(bs.B(), axis=-1)
+B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
+surface_area = s.area()
+bnormalization = B0avg * surface_area
+print("Bmag at R = ", R0, ", Z = 0: ", B0) 
+print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
 bs.set_points(s.gamma().reshape((-1, 3)))
 print("Done setting up biot savart")
 
@@ -127,22 +146,24 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.075, dr=0.05, plasma_offset=0.025,
+    s, coil_offset=0.055, dr=0.01, plasma_offset=0.035,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename
 )
 t2 = time.time()
-max_iter_MwPGP = 1000
+max_iter_MwPGP = 10000
 print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=1, reg_l0=0,
+    max_iter_RS=10, reg_l2=1e-5,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
+M_max = 1.4 / (4 * np.pi * 1e-7)
+print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) / M_max)
 
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
@@ -160,9 +181,13 @@ print('Process took t = ', t2 - t1, ' s')
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
-      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
 print("Average Bn with the PMs = ", 
-      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
+print("Average Bn (normalized) without the PMs = ", 
+      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))) / bnormalization)
+print("Average Bn (normalized) with the PMs = ", 
+      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))) / bnormalization)
 
 dipole_grid = pm_opt.dipole_grid
 plt.figure()
@@ -202,6 +227,41 @@ if make_plots:
     print('Done optimizing the permanent magnets')
 
 s = SurfaceRZFourier.from_focus(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+#sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
+#sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+
+
+def trace_fieldlines(bfield, label): 
+    t1 = time.time()
+    R0 = np.linspace(0.2, 0.4, nfieldlines)
+    Z0 = np.zeros(nfieldlines)
+    phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
+    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=None,  # comm = comm
+        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
+    t2 = time.time()
+    # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
+    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+    particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}_muse')
+    plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}_muse.png', dpi=300)
+
+
+n = 16
+rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
+zs = s.gamma()[:, :, 2]
+rrange = (np.min(rs), np.max(rs), n)
+phirange = (0, 2 * np.pi / s.nfp, n * 2)
+zrange = (0, np.max(zs), n // 2)
+t1 = time.time()
+bsh = InterpolatedField(
+    bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+)
+bsh.to_vtk('dipole_fields')
+t2 = time.time()
+#trace_fieldlines(bsh, 'bsh_PMs')
+print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+
 bs.set_points(s.gamma().reshape((-1, 3)))
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 # For plotting Bn on the full torus surface at the end with just the dipole fields
@@ -211,4 +271,4 @@ pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnorma
 s.to_vtk(OUT_DIR + "only_pms_opt_muse", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt_muse", extra_data=pointData)
-plt.show()
+# plt.show()

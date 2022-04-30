@@ -224,3 +224,169 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
     return std::make_tuple(A, ATb, ATA);
 }
 
+// Takes a uniform grid of dipoles, and loops through
+// and creates a final set of points which lie between the
+// inner and outer toroidal surfaces corresponding to the permanent
+// magnet surface. 
+std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Array& normal_outer, Array& dipole_grid_rz, Array& r_inner, Array& r_outer, Array& z_inner, Array& z_outer)
+{
+    // For each toroidal cross-section:
+    // For each dipole location:
+    //     1. Find nearest point from dipole to the inner surface
+    //     2. Find nearest point from dipole to the outer surface
+    //     3. Select nearest point that is closest to the dipole
+    //     4. Get normal vector of this inner/outer surface point
+    //     5. Draw ray from dipole location in the direction of this normal vector
+    //     6. If closest point between inner surface and the ray is the 
+    //           start of the ray, conclude point is outside the inner surface. 
+    //     7. If closest point between outer surface and the ray is the
+    //           start of the ray, conclude point is outside the outer surface. 
+    //     8. If Step 4 was True but Step 5 was False, add the point to the final grid.
+   	
+    int ntheta = normal_inner.shape(1);
+    int num_inner = r_inner.shape(1);
+    int num_outer = r_outer.shape(1);
+    int rz_max = dipole_grid_rz.shape(0);
+    int nphi = phi.shape(0);
+    int num_ray = 1000;
+    int inner_loc = 0;
+    int outer_loc = 0;
+    int ind_count = 0;
+    int nearest_loc = 0;
+    int nearest_loc_inner = 0;
+    int nearest_loc_outer = 0;
+    double min_dist_inner = 0.0;
+    double min_dist_outer = 0.0;
+    double min_dist_inner_ray = 0.0;
+    double min_dist_outer_ray = 0.0;
+    //Array dist_inner = xt::zeros<double>({num_inner});
+    //Array dist_outer = xt::zeros<double>({num_inner});
+    double dist_inner_ray = 0.0;
+    double dist_outer_ray = 0.0;
+    Array inds = xt::zeros<int>({nphi});
+
+    // initialize gigantic new_grids and chop it later 
+    // in the python code
+    Array new_grids = xt::zeros<double>({rz_max, 3});
+    Array normal_inner_i = xt::zeros<double>({ntheta, 3});
+    Array normal_outer_i = xt::zeros<double>({ntheta, 3});
+    double ray_equation_r = 0.0;
+    double ray_equation_z = 0.0; 
+    double ray_dir_r = 0.0;
+    double ray_dir_z = 0.0;
+    double Rpoint, Zpoint;
+
+    printf("%d %d %d %d %d\n", nphi, ntheta, num_inner, num_outer, rz_max);  
+
+    // #pragma omp parallel for schedule(static)
+    for (int i = 0; i < nphi; i++) {
+        // ind_count = 0;
+	// rotate normal vectors in (r, phi, z) coordinates and set phi component to zero
+        // so that we keep everything in the same phi = constant cross-section
+        double rot_matrix[3][3] = {{cos(phi(i)), sin(phi(i)), 0}, {-sin(phi(i)), cos(phi(i)), 0}, {0, 0, 1}};
+	for (int j = 0; j < ntheta; j++) {
+	    printf("%d %d\n", i, j);
+            // rotate the normal vectors and ignore the phi component
+	    double normal_inner_r = rot_matrix[0][0] * normal_inner(i, j, 0) + rot_matrix[0][1] * normal_inner(i, j, 1) + rot_matrix[0][2] * normal_inner(i, j, 2);
+	    double normal_inner_z = normal_inner(i, j, 2);
+	    double normal_outer_r = rot_matrix[0][0] * normal_outer(i, j, 0) + rot_matrix[0][1] * normal_outer(i, j, 1) + rot_matrix[0][2] * normal_outer(i, j, 2);
+	    double normal_outer_z = normal_outer(i, j, 2);
+	    
+	    // normalize the rotated unit vectors
+            normal_inner_r = normal_inner_r / sqrt(normal_inner_r * normal_inner_r + normal_inner_z * normal_inner_z);
+            normal_inner_z = normal_inner_z / sqrt(normal_inner_r * normal_inner_r + normal_inner_z * normal_inner_z);
+            normal_outer_r = normal_outer_r / sqrt(normal_outer_r * normal_outer_r + normal_outer_z * normal_outer_z);
+            normal_outer_z = normal_outer_z / sqrt(normal_outer_r * normal_outer_r + normal_outer_z * normal_outer_z);
+	    printf("%d %d %f %f %f \n", i, j, normal_inner_r, normal_inner_i(j, 1), normal_outer_z);
+	    printf("%d %d %f %f %f \n", i, j, normal_outer_r, normal_outer_i(j, 1), normal_outer_z);
+        }
+	for (int j = 0; j < rz_max; j++) {
+	    // Get (R, Z) locations of the points with respect to the magnetic axis
+	    Rpoint = dipole_grid_rz(j, 0);
+            Zpoint = dipole_grid_rz(j, 1);
+           
+	    // find nearest point on inner/outer toroidal surface
+	    min_dist_inner = 1e5;
+	    min_dist_outer = 1e5;
+            for (int k = 0; k < num_inner; k++) {
+	        double dist_inner = (r_inner(i, k) - Rpoint) * (r_inner(i, k) - Rpoint) + (z_inner(i, k) - Zpoint) * (z_inner(i, k) - Zpoint);
+	        double dist_outer = (r_outer(i, k) - Rpoint) * (r_outer(i, k) - Rpoint) + (z_outer(i, k) - Zpoint) * (z_outer(i, k) - Zpoint);
+                if (dist_inner < min_dist_inner) {
+		    min_dist_inner = dist_inner;
+	            inner_loc = k;
+		}
+                if (dist_outer < min_dist_outer) {
+		    min_dist_outer = dist_outer;
+	            outer_loc = k;
+		}
+	    }
+
+	    double dist_inner = (r_inner(i, inner_loc) - Rpoint) * (r_inner(i, inner_loc) - Rpoint) + (z_inner(i, inner_loc) - Zpoint) * (z_inner(i, inner_loc) - Zpoint);
+	    double dist_outer = (r_outer(i, outer_loc) - Rpoint) * (r_outer(i, outer_loc) - Rpoint) + (z_outer(i, outer_loc) - Zpoint) * (z_outer(i, outer_loc) - Zpoint);
+	    double normal_inner_r = rot_matrix[0][0] * normal_inner(i, nearest_loc, 0) + rot_matrix[0][1] * normal_inner(i, nearest_loc, 1) + rot_matrix[0][2] * normal_inner(i, nearest_loc, 2);
+	    double normal_inner_z = normal_inner(i, nearest_loc, 2);
+	    double normal_outer_r = rot_matrix[0][0] * normal_outer(i, nearest_loc, 0) + rot_matrix[0][1] * normal_outer(i, nearest_loc, 1) + rot_matrix[0][2] * normal_outer(i, nearest_loc, 2);
+	    double normal_outer_z = normal_outer(i, nearest_loc, 2);
+	    // normalize the rotated unit vectors
+            normal_inner_r = normal_inner_r / sqrt(normal_inner_r * normal_inner_r + normal_inner_z * normal_inner_z);
+            normal_inner_z = normal_inner_z / sqrt(normal_inner_r * normal_inner_r + normal_inner_z * normal_inner_z);
+            normal_outer_r = normal_outer_r / sqrt(normal_outer_r * normal_outer_r + normal_outer_z * normal_outer_z);
+            normal_outer_z = normal_outer_z / sqrt(normal_outer_r * normal_outer_r + normal_outer_z * normal_outer_z);
+	    
+	    if (dist_inner < dist_outer) {
+		nearest_loc = inner_loc;
+                ray_dir_r = normal_inner_r;
+                // ray_dir(1) = normal_inner(i, nearest_loc, 1)
+                ray_dir_z = normal_inner_z;
+	    }
+	    else {
+                nearest_loc = outer_loc;
+                ray_dir_r = normal_outer_r;
+                // ray_dir(1) = normal_outer(i, nearest_loc, 1)
+                ray_dir_z = normal_outer_z;
+	    }
+            // printf("%d, %f, %f\n", nearest_loc, ray_dir_r, ray_dir_z);
+	    min_dist_inner_ray = 1e5;
+	    min_dist_outer_ray = 1e5;
+            nearest_loc_inner = 0;
+            nearest_loc_outer = 0;
+            for (int k = 0; k < num_ray; k++) {
+	        ray_equation_r = Rpoint + ray_dir_r * (2.0 / ((double) num_ray)) * k;
+	        ray_equation_z = Zpoint + ray_dir_z * (2.0 / ((double) num_ray)) * k;
+	        dist_inner_ray = (r_inner(i, inner_loc) - ray_equation_r) * (r_inner(i, inner_loc) - ray_equation_r) + (z_inner(i, inner_loc) - ray_equation_z) * (z_inner(i, inner_loc) - ray_equation_z);
+	        dist_outer_ray = (r_outer(i, outer_loc) - ray_equation_r) * (r_outer(i, outer_loc) - ray_equation_r) + (z_outer(i, outer_loc) - ray_equation_z) * (z_outer(i, outer_loc) - ray_equation_z);
+                if (dist_inner_ray < min_dist_inner_ray) {
+		    min_dist_inner_ray = dist_inner_ray;
+		    nearest_loc_inner = k;
+		}
+                if (dist_outer_ray < min_dist_outer_ray) {
+		    min_dist_outer_ray = dist_outer_ray;
+		    nearest_loc_outer = k;
+		}
+	    }
+	    // printf("%d %d %d %d\n", i, j, nearest_loc_inner, nearest_loc_outer);
+            // nearest distance from the inner surface to the ray should be just the original point
+	    if (nearest_loc_inner > 0)
+                continue;
+            // nearest distance from the outer surface to the ray should be NOT be the original point
+            if (nearest_loc_outer > 0) {
+                new_grids(ind_count, 0) = Rpoint;
+                new_grids(ind_count, 1) = phi(i); 
+                new_grids(ind_count, 2) = Zpoint;
+		ind_count += 1;
+	    }
+	}
+	// count number of elements that were set during ith iteration
+	printf("%d\n", ind_count);
+	inds(i) = ind_count;
+	printf("%d %d\n", i, inds(i));
+    }
+    // combine inds
+    //for (int i = 1; i < nphi; i++) {
+//	for (int j = i; j > 0; j = j - 1) {
+//	    // printf("%d %d %d\n", i, j, inds(i));
+//	    inds(i) += inds(j - 1);
+  //      }
+    //}
+    return std::make_tuple(new_grids, inds);
+}

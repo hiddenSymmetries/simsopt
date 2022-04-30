@@ -528,7 +528,7 @@ class DipoleField(MagneticField):
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
-                m_maxima[running_tally + nr * fp:running_tally + nr * (fp + 1)] = np.sqrt(m[running_tally_m:running_tally_m + nr, 0] ** 2 + m[running_tally_m:running_tally_m + nr, 1] ** 2 + m[running_tally_m:running_tally_m + nr, 2] ** 2) 
+                m_maxima[running_tally + nr * fp:running_tally + nr * (fp + 1)] = self.m_maxima[running_tally_m:running_tally_m + nr]
             running_tally += nr * nfp
             running_tally_m += nr 
 
@@ -559,6 +559,7 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
+        mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)

@@ -35,18 +35,18 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
-from simsopt.field.tracing import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-    IterationStoppingCriterion
+#from simsopt.field.tracing import SurfaceClassifier, \
+#   particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+#    IterationStoppingCriterion
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
+#try:
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#except ImportError:
+#    comm = None
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -84,7 +84,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 16
-ntheta = 32
+ntheta = 8
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 stellsym = True
@@ -172,14 +172,14 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.04, plasma_offset=0.1,
+    s, coil_offset=0.025, dr=0.02, plasma_offset=0.025,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
 )
-max_iter_MwPGP = 1000
+max_iter_MwPGP = 500
 print('Done initializing the permanent magnet object')
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=0, reg_l0=0,
+    max_iter_RS=10, reg_l2=1e-10, reg_l0=0,
 )
 
 # recompute normal error using the dipole field and bs field
@@ -223,7 +223,7 @@ print(dipoles, pm_opt.m_maxima)
 print('Dipole field setup done')
 
 make_plots = True 
-if make_plots and (comm is None or comm.rank == 0):
+if make_plots:  # and (comm is None or comm.rank == 0):
     # Make plot of ATA element values
     plt.figure()
     plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
