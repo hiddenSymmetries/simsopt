@@ -466,6 +466,7 @@ class DipoleField(MagneticField):
         self.ndipoles = dipole_grid.shape[0] 
         if pm_opt is not None:
             self.m_maxima = pm_opt.m_maxima
+            self.inds = pm_opt.inds
             phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
             if stellsym or nfp > 1:
                 self._dipole_fields_from_symmetries(m.reshape(self.ndipoles, 3), dipole_grid[:, 2], pm_opt.final_RZ_grid, phi, stellsym, nfp)
@@ -476,7 +477,10 @@ class DipoleField(MagneticField):
                 dipole_grid_y = np.zeros(len(dipole_grid_z))
                 running_tally = 0
                 for i in range(pm_opt.nphi):
-                    radii = np.ravel(np.array(pm_opt.final_RZ_grid[i])[:, 0])
+                    if i > 0:
+                        radii = pm_opt.final_RZ_grid[self.inds[i-1]:self.inds[i], i, 0]
+                    else:
+                        radii = pm_opt.final_RZ_grid[:self.inds[i], i, 0]
                     dipole_grid_x[running_tally:running_tally + len(radii)] = radii * np.cos(phi[i])
                     dipole_grid_y[running_tally:running_tally + len(radii)] = radii * np.sin(phi[i])
                     running_tally += len(radii)
@@ -516,7 +520,10 @@ class DipoleField(MagneticField):
         running_tally_m = 0
         offsetm = self.ndipoles * nfp
         for i in range(len(phi)):
-            radii = np.ravel(np.array(RZ_grid[i])[:, 0])
+            if i > 0:
+                radii = RZ_grid[self.inds[i-1]:self.inds[i], i, 0]
+            else:
+                radii = RZ_grid[:self.inds[i], i, 0]
             nr = len(radii)
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp

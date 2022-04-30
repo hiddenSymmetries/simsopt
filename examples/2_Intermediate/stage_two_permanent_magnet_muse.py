@@ -117,10 +117,12 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
+t1 = time.time()
 nphi = 32
 ntheta = 64
 s = SurfaceRZFourier.from_focus(filename, range="half period", nphi=nphi, ntheta=ntheta)
-print("Done loading in MUSE plasma boundary surface")
+t2 = time.time()
+print("Done loading in MUSE plasma boundary surface, t = ", t2 - t1)
 
 bs = BiotSavart(coils)
 bspoints = np.zeros((nphi, 3))
@@ -148,7 +150,7 @@ t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.055, dr=0.01, plasma_offset=0.035,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
-    filename=filename
+    filename=filename, FOCUS=True
 )
 t2 = time.time()
 max_iter_MwPGP = 10000
@@ -157,7 +159,7 @@ print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=1e-5,
+    max_iter_RS=10, reg_l0=1e-5,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
