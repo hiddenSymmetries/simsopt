@@ -29,7 +29,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
     }
     int degree = rule.degree;
     all_local_vals_map = std::unordered_map<int, AlignedPaddedVec>();
-    all_local_vals_map.reserve(dofs_to_keep);
+    all_local_vals_map.reserve(cells_to_keep);
 
     for (int xidx = 0; xidx < nx; ++xidx) {
         for (int yidx = 0; yidx < ny; ++yidx) {

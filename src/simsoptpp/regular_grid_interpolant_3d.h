@@ -44,27 +44,74 @@ class InterpolationRule {
 
 template<class Array>
 class RegularGridInterpolant3D {
+    /* This class implements a vector-valued piecewise polynomial interpolant
+     * on a regular grid in three dimensions.  There are many ways to
+     * implemented interpolants, the implementation here is done to favour
+     * speed over memory efficiency, and is designed for vector valued
+     * functions for which SIMD vectorization pays off.
+     *
+     * The interpolant assumes a regular mesh on a rectangular cuboid. In order
+     * to work on other geometries with reasonable efficiency, parts of the
+     * mesh can be "skipped". This is done as follows: if a function is meant
+     * to be interpolated on some irregular domain Ω, one first picks a
+     * rectangular domain D so that Ω⊂D, and then defines a function `skip`
+     * that returns true outside of Ω and false inside of Ω. Internally, we
+     * then skip all cells for which the function returns true on all eight
+     * corners.
+     */
     private:
-        const int nx, ny, nz;
-        const double xmin, ymin, zmin;
-        const double xmax, ymax, zmax;
-        const int value_size;
-        static const int simdcount = xsimd::simd_type<double>::size;
-        const InterpolationRule rule;
-        const bool out_of_bounds_ok;
-        double hx, hy, hz;
-        int padded_value_size;
-        Vec vals;
-        Vec xdof, ydof, zdof;
+        const int nx, ny, nz;  // number of cells in x, y, and z direction
+        double hx, hy, hz; // gridsize in x, y, and z direction
+        const double xmin, ymin, zmin; // lower bounds of the x, y, and z coordinates
+        const double xmax, ymax, zmax; // lower bounds of the x, y, and z coordinates
+        const int value_size; // number of output dimensions of the interpolant, i.e. space that is mapped into
+        const InterpolationRule rule; // the interpolation rule to use on each cell in the grid
+        const bool out_of_bounds_ok; // whether to do nothing or throw an error when the interpolant is queried at an out-of-bounds point
+
+        // location of the mesh nodes in [xmin, xmax], [ymin, ymax], and [zmin, zmax]
+        // has size nx+1, ny+1, nz+1 respectively
         Vec xmesh, ymesh, zmesh;
+
+        // location of the mesh nodes in [xmin, xmax], [ymin, ymax], and [zmin, zmax]. superset of xmesh, ymesh, zmesh
+        // has size nx*degree + 1, ny*degree + 1, and nz*degree + 1 respectively
+        Vec xdof, ydof, zdof;
+        // subset of the tensor product of the dof locations. if none of the dofs are skipped, these all have size
+        // (nx*degree + 1) * (ny*degree + 1) * (nz*degree + 1), but now they have size dofs_to_keep
         Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
-        std::unordered_map<int, AlignedPaddedVec> all_local_vals_map;
-        std::vector<bool> skip_cell;
+
+        Vec vals; // contains the values of the function to be interpolated at the dofs, of size dofs_to_keep * value_size
+        std::unordered_map<int, AlignedPaddedVec> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
+        std::vector<bool> skip_cell; // whether to skip each cell or not
         std::vector<uint32_t> reduced_to_full_map, full_to_reduced_map;
 
         uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep;
         int local_vals_size;
         Vec pkxs, pkys, pkzs;
+
+        static const int simdcount = xsimd::simd_type<double>::size; // vector width for simd instructions
+        int padded_value_size; // smallest multiple of simdcount that is larger than value_size
+
+        inline int idx_dof(int i, int j, int k){
+            int degree = rule.degree;
+            return i*(ny*degree+1)*(nz*degree+1) + j*(nz*degree+1) + k;
+        }
+
+        inline int idx_cell(int i, int j, int k){
+            return i*ny*nz + j*nz + k;
+        }
+
+        inline int idx_mesh(int i, int j, int k){
+            return i*(ny+1)*(nz+1) + j*(nz+1) + k;
+        }
+
+        inline int idx_dof_local(int i, int j, int k){
+            int degree = rule.degree;
+            return i*(degree+1)*(degree+1) + j*(degree+1) + k;
+        }
+
+        int locate_unsafe(double x, double y, double z);
+        void evaluate_inplace(double x, double y, double z, double* res);
+        void evaluate_local(double x, double y, double z, int cell_idx, double* res);
 
     public:
 
@@ -223,33 +270,11 @@ class RegularGridInterpolant3D {
             RegularGridInterpolant3D(rule, xrange, yrange, zrange, value_size, out_of_bounds_ok, [](Vec x, Vec y, Vec z){ return std::vector<bool>(x.size(), false); })
             {}
 
-        void interpolate(std::function<Vec(double, double, double)> &f);
-        void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f);
+        void interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f); // build the interpolant
 
-        inline int idx_dof(int i, int j, int k){
-            int degree = rule.degree;
-            return i*(ny*degree+1)*(nz*degree+1) + j*(nz*degree+1) + k;
-        }
+        Vec evaluate(double x, double y, double z); // evaluate the interpolant at one location
+        void evaluate_batch(Array& xyz, Array& fxyz); // evluate the interpolant at multiple locations
 
-        inline int idx_cell(int i, int j, int k){
-            return i*ny*nz + j*nz + k;
-        }
-
-        inline int idx_mesh(int i, int j, int k){
-            return i*(ny+1)*(nz+1) + j*(nz+1) + k;
-        }
-
-        inline int idx_dof_local(int i, int j, int k){
-            int degree = rule.degree;
-            return i*(degree+1)*(degree+1) + j*(degree+1) + k;
-        }
-
-        int locate_unsafe(double x, double y, double z);
-        void evaluate_batch_with_transform(Array& xyz, Array& fxyz);
-        void evaluate_batch(Array& xyz, Array& fxyz);
-        Vec evaluate(double x, double y, double z);
-        void evaluate_inplace(double x, double y, double z, double* res);
-        void evaluate_local(double x, double y, double z, int cell_idx, double* res);
         std::pair<double, double> estimate_error(std::function<Vec(Vec, Vec, Vec)> &f, int samples);
 };
 
