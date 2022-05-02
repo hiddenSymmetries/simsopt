@@ -5,7 +5,7 @@
 set -ex
 
 ./1_Simple/just_a_quadratic.py
-./1_Simple/graph_surf_vol_area.py
+./1_Simple/surf_vol_area.py
 ./1_Simple/minimize_curve_length.py
 ./1_Simple/tracing_fieldline.py
 ./1_Simple/tracing_particle.py
@@ -15,3 +15,4 @@ set -ex
 ./2_Intermediate/stage_two_optimization.py
 ./2_Intermediate/stage_two_optimization_stochastic.py
 ./2_Intermediate/stage_two_optimization_w7x.py
+./3_Advanced/stage_two_optimization_finitebuild.py

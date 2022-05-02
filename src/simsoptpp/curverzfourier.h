@@ -21,11 +21,10 @@ class CurveRZFourier : public Curve<Array> {
 
            [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
        */
-    private:
-        int order;
-        int nfp;
-        bool stellsym;
     public:
+        const int order;
+        const int nfp;
+        const bool stellsym;
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
         using Curve<Array>::check_the_persistent_cache;
@@ -54,10 +53,6 @@ class CurveRZFourier : public Curve<Array> {
             rs = xt::zeros<double>({order});
             zc = xt::zeros<double>({order + 1});
             zs = xt::zeros<double>({order});
-        }
-
-        inline int get_nfp() {
-            return nfp;
         }
 
         inline int num_dofs() override {
