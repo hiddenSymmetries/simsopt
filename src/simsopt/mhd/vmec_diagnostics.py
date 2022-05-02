@@ -15,7 +15,7 @@ from scipy.optimize import root_scalar
 
 from .vmec import Vmec
 from .._core.util import Struct
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.types import RealArray
 from ..geo.surfaceobjectives import parameter_derivatives
 from ..geo.surface import Surface

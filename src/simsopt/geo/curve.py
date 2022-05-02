@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from monty.dev import requires
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from .plot import fix_matplotlib_3d
 
@@ -662,8 +662,12 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        self.curve.gamma_impl(gamma, quadpoints)
-        gamma[:] = gamma @ self.rotmat
+        if len(quadpoints) == len(self.curve.quadpoints) \
+                and np.sum((quadpoints-self.curve.quadpoints)**2) < 1e-15:
+            gamma[:] = self.curve.gamma() @ self.rotmat
+        else:
+            self.curve.gamma_impl(gamma, quadpoints)
+            gamma[:] = gamma @ self.rotmat
 
     def gammadash_impl(self, gammadash):
         r"""

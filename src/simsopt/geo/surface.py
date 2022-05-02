@@ -9,7 +9,7 @@ except ImportError:
     gridToVTK = None
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.dev import SimsoptRequires
 from .plot import fix_matplotlib_3d
 

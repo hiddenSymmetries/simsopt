@@ -14,11 +14,11 @@ try:
 except ImportError:
     vmec_found = False
 
-from simsopt._core.graph_optimizable import make_optimizable
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt._core.optimizable import make_optimizable
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec
@@ -378,7 +378,7 @@ class VmecTests(unittest.TestCase):
         s = vmec.s_half_grid
         np.testing.assert_allclose(vmec.wout.pres[1:], pressure(s))
         # Change the Profile dofs, and confirm that the output pressure from VMEC is updated:
-        pressure.unfix_all()
+        pressure.local_unfix_all()
         pressure.x = 1.0e4 * np.array([1, 2, -3.0])
         vmec.run()
         self.assertAlmostEqual(vmec.indata.pres_scale, 1.0)
@@ -454,7 +454,7 @@ class VmecTests(unittest.TestCase):
                                    factor * (1 + s_test - 1.5 * s_test ** 2), rtol=1e-3)
 
         # Change the Profile dofs, and confirm that the output current from VMEC is updated:
-        current.unfix_all()
+        current.local_unfix_all()
         current.x = factor * np.array([1, 2, -2.2])
         # Now the total (s-integrated) current is factor * 1.2666666666
         vmec.run()
@@ -479,7 +479,7 @@ class VmecTests(unittest.TestCase):
         # "cubic_spline" option in VMEC is replaced by
         # "cubic_spline_ip" or "cubic_spline_i"
         vmec.indata.pcurr_type = 'cubic_spline_ip'
-        current2.unfix_all()
+        current2.local_unfix_all()
         current2.x = factor * (1.0 + 1.0 * s_spline - 1.5 * s_spline ** 2)
         vmec.run()
         np.testing.assert_allclose(vmec.wout.ctor, factor * 1.0, rtol=1e-2)
@@ -512,7 +512,7 @@ class VmecTests(unittest.TestCase):
         s = vmec.s_half_grid
         np.testing.assert_allclose(vmec.wout.iotas[1:], iota(s))
         # Change the Profile dofs, and confirm that the output iota from VMEC is updated:
-        iota.unfix_all()
+        iota.local_unfix_all()
         iota.x = np.array([1, 2, -3.0])
         vmec.run()
         np.testing.assert_allclose(vmec.wout.iotas[1:], (1 + 2 * s - 3 * s * s))
@@ -528,7 +528,7 @@ class VmecTests(unittest.TestCase):
 
         # Now try a spline Profile with vmec using splines:
         vmec.indata.piota_type = 'cubic_spline'
-        iota2.unfix_all()
+        iota2.local_unfix_all()
         newx = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
         iota2.x = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
         vmec.run()
@@ -583,10 +583,10 @@ class VmecTests(unittest.TestCase):
         # Initial pressure profile is p(s) = (1.0e4) * (1 - s)
         base_pressure = ProfilePolynomial([1, -1])
         pressure = ProfileScaled(base_pressure, 1.0e4)
-        pressure.unfix_all()
+        pressure.local_unfix_all()
         filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
         vmec = Vmec(filename)
-        vmec.boundary.fix_all()
+        vmec.boundary.local_fix_all()
         vmec.pressure_profile = pressure
 
         def beta_func(vmec):

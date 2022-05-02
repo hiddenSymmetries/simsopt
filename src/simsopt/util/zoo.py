@@ -42,4 +42,5 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[0:(Nt_ma+1)]
     ma.zs[:] = sZ[0:Nt_ma]
+    ma.x = ma.get_dofs()
     return (curves, currents, ma)
