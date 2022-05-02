@@ -397,7 +397,25 @@ class PermanentMagnetOptimizer:
         if self.FOCUS:
             rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            #rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            # make copy of plasma boundary
+            mpol = self.plasma_boundary.mpol
+            ntor = self.plasma_boundary.ntor
+            nfp = self.plasma_boundary.nfp
+            stellsym = self.plasma_boundary.stellsym
+            range_surf = self.plasma_boundary.range 
+            rz_inner_surface = SurfaceRZFourier(
+                mpol=mpol, ntor=ntor, nfp=nfp,
+                stellsym=stellsym, range=range_surf,
+                quadpoints_theta=self.theta, 
+                quadpoints_phi=self.phi
+            )
+            for i in range(mpol + 1):
+                for j in range(-ntor, ntor + 1):
+                    rz_inner_surface.set_rc(i, j, self.plasma_boundary.get_rc(i, j))
+                    rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
+                    rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
+                    rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
 
         # extend via the normal vector
         rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
@@ -413,7 +431,27 @@ class PermanentMagnetOptimizer:
         if self.FOCUS:
             rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            #rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            # make copy of inner boundary
+            mpol = self.rz_inner_surface.mpol
+            ntor = self.rz_inner_surface.ntor
+            nfp = self.rz_inner_surface.nfp
+            stellsym = self.rz_inner_surface.stellsym
+            range_surf = self.rz_inner_surface.range 
+            quadpoints_theta = self.rz_inner_surface.quadpoints_theta 
+            quadpoints_phi = self.rz_inner_surface.quadpoints_phi 
+            rz_outer_surface = SurfaceRZFourier(
+                mpol=mpol, ntor=ntor, nfp=nfp,
+                stellsym=stellsym, range=range_surf,
+                quadpoints_theta=quadpoints_theta, 
+                quadpoints_phi=quadpoints_phi
+            ) 
+            for i in range(mpol + 1):
+                for j in range(-ntor, ntor + 1):
+                    rz_outer_surface.set_rc(i, j, self.rz_inner_surface.get_rc(i, j))
+                    rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
+                    rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
+                    rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
 
         # extend via the normal vector
         t1 = time.time()
@@ -509,7 +547,7 @@ class PermanentMagnetOptimizer:
                 self.m_maxima
             )
             #m0 = np.zeros(m0.shape)
-        
+
         self.m0 = m0
 
     def _print_initial_opt(self):
@@ -576,7 +614,7 @@ class PermanentMagnetOptimizer:
 
         return ATA, ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
 
-    def _optimize(self, m0=None, epsilon=1e-4, nu=1e3,
+    def _optimize(self, m0=None, epsilon=1e-4, nu=1e100,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
                   geometric_threshold=1e-50, 

@@ -27,9 +27,9 @@ from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
-#from simsopt.field.tracing import SurfaceClassifier, \
-#    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-#    IterationStoppingCriterion
+from simsopt.field.tracing import SurfaceClassifier, \
+    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+    IterationStoppingCriterion
 import time
 
 
@@ -81,11 +81,11 @@ def read_focus_coils(filename):
     return coils, base_currents, ncoils
 
 
-#try:
-#    from mpi4py import MPI
-#    comm = MPI.COMM_WORLD
-#except ImportError:
-#    comm = None
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+except ImportError:
+    comm = None
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -148,7 +148,7 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.065, dr=0.01, plasma_offset=0.035,
+    s, coil_offset=0.075, dr=0.01, plasma_offset=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename, FOCUS=True
 )
@@ -158,8 +158,8 @@ print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=max_iter_MwPGP, epsilon=1e-5, 
-    max_iter_RS=10, reg_l2=1e-6, reg_l0=4e-2, nu=1,
+    max_iter_MwPGP=max_iter_MwPGP, epsilon=1e-4, 
+    reg_l2=1e-6,  # reg_l0=4e-2, nu=1,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
@@ -229,7 +229,10 @@ if make_plots:
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    plt.hist(abs(np.ravel(m_history[:, :, -1])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    plt.grid(True)
+    plt.xlabel('Normalized magnitudes')
+    plt.ylabel('Number of dipoles')
     plt.savefig('m_histogram_muse.png')
     print('Done optimizing the permanent magnets')
 
@@ -245,7 +248,7 @@ def trace_fieldlines(bfield, label):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
     t2 = time.time()
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
@@ -265,7 +268,7 @@ bsh = InterpolatedField(
 )
 bsh.to_vtk('dipole_fields')
 t2 = time.time()
-#trace_fieldlines(bsh, 'bsh_PMs')
+trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
 
 bs.set_points(s.gamma().reshape((-1, 3)))
