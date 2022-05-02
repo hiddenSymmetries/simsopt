@@ -21,22 +21,22 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
-from simsopt.field.tracing import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-    IterationStoppingCriterion
+#from simsopt.field.tracing import SurfaceClassifier, \
+#    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+#    IterationStoppingCriterion
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
 # import MPI if want to make Poincare plots
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
+#try:
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#except ImportError:
+#    comm = None
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 2
+ncoils = 1
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -79,8 +79,9 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_currents[0].fix_all()
 
 # Default here is to fix all the coil shapes so only the currents are optimized 
-for i in range(ncoils):
-    base_curves[i].fix_all()
+
+#for i in range(ncoils):
+#    base_curves[i].fix_all()
 
 # Initialize Biot Savart fields and print the average on-axis B-field
 bs = BiotSavart(coils)
@@ -137,17 +138,17 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.08, dr=0.01, plasma_offset=0.04,
+    s, coil_offset=0.2, dr=0.1, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename,
 )
 print('Done initializing the permanent magnet object')
 
 # optimize the permanent magnets
-max_iter_MwPGP = 500
+max_iter_MwPGP = 1000
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=1e-10, reg_l0=1e-6,
+    max_iter_RS=10, reg_l2=1e-12,  # reg_l0=1e-6,
 )
 
 # Initialize permanent magnet DipoleField class (equivalent to BiotSavart for the coils) 
@@ -231,7 +232,7 @@ bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
 )
 bsh.to_vtk('biot_savart_fields')
-trace_fieldlines(bsh, 'bsh_without_PMs')
+#trace_fieldlines(bsh, 'bsh_without_PMs')
 print('Done with Poincare plots without the permanent magnets')
 t1 = time.time()
 bsh = InterpolatedField(
@@ -239,7 +240,7 @@ bsh = InterpolatedField(
 )
 bsh.to_vtk('dipole_fields')
 t2 = time.time()
-trace_fieldlines(bsh, 'bsh_PMs')
+#trace_fieldlines(bsh, 'bsh_PMs')
 print('Done with Poincare plots with the permanent magnets')
 
 bs.set_points(s.gamma().reshape((-1, 3)))

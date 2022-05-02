@@ -135,7 +135,7 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
 // Run the overall algorithm for solving the convex part of
 // the permanent magnet optimization problem. This algorithm has
 // many optional parameters for additional loss terms.
-std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose, int ATA_flag)
 {
     // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
     int N = ATb.shape(0);
