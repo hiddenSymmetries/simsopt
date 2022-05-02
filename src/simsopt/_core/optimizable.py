@@ -1309,7 +1309,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
             d["lower_bounds"] = list(self.local_full_lower_bounds)
             d["upper_bounds"] = list(self.local_full_upper_bounds)
-        d["external_dof_setter"] = self.local_dof_setter
+        # d["external_dof_setter"] = self.local_dof_setter
         if self.parents:
             d["depends_on"] = []
             for parent in self.parents:

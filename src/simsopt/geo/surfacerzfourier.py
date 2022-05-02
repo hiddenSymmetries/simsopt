@@ -580,7 +580,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             f.write(self.get_nml())
 
     def as_dict(self) -> dict:
-        d = Surface.as_dict(self)
+        d = super().as_dict()
         d["stellsym"] = self.stellsym
         d["mpol"] = self.mpol
         d["ntor"] = self.ntor
@@ -588,10 +588,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     @classmethod
     def from_dict(cls, d):
-        return cls(nfp=d["nfp"], stellsym=d["stellsym"],
+        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
                    quadpoints_phi=d["quadpoints_phi"],
                    quadpoints_theta=d["quadpoints_theta"])
+        surf.set_dofs(d["x0"])
+        return surf
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
