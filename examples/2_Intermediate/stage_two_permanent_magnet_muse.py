@@ -89,7 +89,7 @@ def read_focus_coils(filename):
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-ci = False
+ci = True
 nfieldlines = 40 if ci else 40
 tmax_fl = 30000 if ci else 50000
 degree = 2 if ci else 4
@@ -148,18 +148,18 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.055, dr=0.01, plasma_offset=0.035,
+    s, coil_offset=0.065, dr=0.01, plasma_offset=0.035,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename, FOCUS=True
 )
 t2 = time.time()
-max_iter_MwPGP = 10000
+max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l0=1e-5,
+    max_iter_MwPGP=max_iter_MwPGP, epsilon=1e-5, 
+    max_iter_RS=10, reg_l2=1e-6, reg_l0=4e-2, nu=1,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
@@ -170,6 +170,9 @@ print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles.reshape
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
 t1 = time.time()
+b_dipole_initial = DipoleField(pm_opt.dipole_grid, np.ravel(pm_opt.m0), pm_opt, nfp=s.nfp, stellsym=s.stellsym)
+b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
+b_dipole_initial._toVTK("Dipole_Fields_muse_initial")
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, nfp=s.nfp, stellsym=s.stellsym)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK("Dipole_Fields_muse")
@@ -204,6 +207,8 @@ plt.axis('off')
 plt.grid(None)
 plt.savefig('PMs_optimized_muse.png')
 
+print("Number of possible dipoles = ", pm_opt.ndipoles)
+print("% of dipoles that are nonzero = ", np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles)
 dipoles = np.ravel(dipoles)
 print('Dipole field setup done')
 
@@ -239,9 +244,8 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=None,  # comm = comm
-        #phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
     t2 = time.time()
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
@@ -273,4 +277,4 @@ pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnorma
 s.to_vtk(OUT_DIR + "only_pms_opt_muse", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt_muse", extra_data=pointData)
-# plt.show()
+plt.show()
