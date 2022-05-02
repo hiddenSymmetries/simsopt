@@ -503,9 +503,10 @@ class Surface(Optimizable):
         return function_interpolated
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
+        d = super().as_dict()
+        # d = {}
+        # d["@module"] = self.__class__.__module__
+        # d["@class"] = self.__class__.__name__
         d["nfp"] = self.nfp
         d["quadpoints_phi"] = list(self.quadpoints_phi)
         d["quadpoints_theta"] = list(self.quadpoints_theta)
