@@ -142,6 +142,10 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
         }
     }
 
+    // Potential optimization: use barycentric interpolation here right now the
+    // implementation in O(degree^3) in memory and O(degree^4) in computation,
+    // using Barycentric interpolation this could be reduced to O(degree^3) in
+    // memory and O(degree^3) in computation.
     for(int l=0; l<padded_value_size; l += simdcount) {
         simd_t sumi(0.);
         int offset_local = l;

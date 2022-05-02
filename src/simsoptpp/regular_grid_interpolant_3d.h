@@ -18,12 +18,31 @@ using RangeTriplet = std::tuple<double, double, int>;
 Vec linspace(double min, double max, int n, bool endpoint);
 
 class InterpolationRule {
+    /* An InterpolationRule consists of a list of interpolation nodes and then
+     * uses standard Lagrange interpolation, that is for each node x_i we get a
+     * basis function p_i that satisfies p_i(x_i) = 1 and p_i(x_j)=0. This
+     * function is given by p_i(x) = [Π_{i≠j} (x-x_i)/(x_j-x_i)]. To compute
+     * this efficiently, we store the denominator in `scalings`, i.e.
+     * scalings[j] = [Π_{i≠j} 1/(x_j-x_i)].
+    */
+
+    protected:
+        void build_scalings(){
+            for(int idx = 0; idx < degree+1; ++idx) {
+                for(int i = 0; i < degree+1; ++i) {
+                    if(i == idx) continue;
+                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
+                }
+            }
+        }
     public:
-        const int degree;
         Vec nodes;
         Vec scalings;
+        const int degree;
         InterpolationRule(int degree) : degree(degree), nodes(degree+1, 0.), scalings(degree+1, 1.0) { }
+
         double basis_fun(int idx, double x) const {
+            // evaluate the basisfunction p_idx at location x
             double res = scalings[idx];
             for(int i = 0; i < degree+1; ++i) {
                 if(i == idx) continue;
@@ -33,6 +52,7 @@ class InterpolationRule {
         }
 
         simd_t basis_fun(int idx, simd_t x) const {
+            // evaluate the basisfunction p_idx at multiple locations stored in x
             simd_t res(scalings[idx]);
             for(int i = 0; i < degree+1; ++i) {
                 if(i == idx) continue;
@@ -82,9 +102,12 @@ class RegularGridInterpolant3D {
         Vec vals; // contains the values of the function to be interpolated at the dofs, of size dofs_to_keep * value_size
         std::unordered_map<int, AlignedPaddedVec> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
         std::vector<bool> skip_cell; // whether to skip each cell or not
+        // since we are skipping some dofs, we need mappings into the list of
+        // reduced dofs, e.g. if we skip dofs 3, then reduced to full would
+        // look like [0, 1, 2, 4, 5, ...]
         std::vector<uint32_t> reduced_to_full_map, full_to_reduced_map;
 
-        uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep;
+        uint32_t cells_to_skip, cells_to_keep, dofs_to_skip, dofs_to_keep; // which cells and dofs we skip and keep
         int local_vals_size;
         Vec pkxs, pkys, pkzs;
 
@@ -280,41 +303,35 @@ class RegularGridInterpolant3D {
 
 
 class UniformInterpolationRule : public InterpolationRule {
+    protected:
+        using InterpolationRule::build_scalings;
     public:
         using InterpolationRule::nodes;
-        using InterpolationRule::degree;
         using InterpolationRule::scalings;
+        using InterpolationRule::degree;
         UniformInterpolationRule(int degree) : InterpolationRule(degree) {
             double degreeinv = double(1.)/degree;
             for (int i = 0; i < degree+1; ++i) {
                 nodes[i] = i*degreeinv;
             }
-            for(int idx = 0; idx < degree+1; ++idx) {
-                for(int i = 0; i < degree+1; ++i) {
-                    if(i == idx) continue;
-                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
-                }
-            }
+            build_scalings();
         }
 };
 
+
 class ChebyshevInterpolationRule : public InterpolationRule {
+    protected:
+        using InterpolationRule::build_scalings;
     public:
         using InterpolationRule::nodes;
-        using InterpolationRule::degree;
         using InterpolationRule::scalings;
+        using InterpolationRule::degree;
         ChebyshevInterpolationRule(int degree) : InterpolationRule(degree) {
             double degreeinv = double(1.)/degree;
             for (int i = 0; i < degree+1; ++i) {
                 nodes[i] = (-0.5)*std::cos(i*M_PI*degreeinv) + 0.5;
             }
-            //fmt::print("Chebyshev nodes = {}\n", fmt::join(nodes, ", "));
-            for(int idx = 0; idx < degree+1; ++idx) {
-                for(int i = 0; i < degree+1; ++i) {
-                    if(i == idx) continue;
-                    scalings[idx] *= 1./(nodes[idx]-nodes[i]);
-                }
-            }
+            build_scalings();
         }
 };
 
