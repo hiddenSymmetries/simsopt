@@ -108,7 +108,7 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
 	    L2 += x_k1(i, ii) * x_k1(i, ii);
 	    L2_shift += (x_k1(i, ii) - m_maxima(i)) * (x_k1(i, ii) - m_maxima(i));
 	    L1 += abs(x_k1(i, ii));
-	    L0 += ((abs(x_k1(i, ii)) < l0_tol) ? 1.0 : 0.0);
+	    L0 += ((abs(m_proxy(i, ii)) < l0_tol) ? 1.0 : 0.0);
 	}
     }
 
