@@ -77,7 +77,9 @@ class RegularGridInterpolant3D {
      * rectangular domain D so that Ω⊂D, and then defines a function `skip`
      * that returns true outside of Ω and false inside of Ω. Internally, we
      * then skip all cells for which the function returns true on all eight
-     * corners.
+     * corners. For some pictures that explain the idea behind the skip
+     * function and its caveats, please check the discussion under
+     * https://github.com/hiddenSymmetries/simsopt/pull/227
      */
     private:
         const int nx, ny, nz;  // number of cells in x, y, and z direction
