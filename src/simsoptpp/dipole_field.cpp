@@ -62,6 +62,58 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     return B;
 }
 
+Array dipole_field_A(Array& points, Array& m_points, Array& m) {
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(m_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m_points needs to be in row-major storage order");
+    if(m.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_dipoles = m_points.shape(0);
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array A = xt::zeros<double>({points.shape(0), points.shape(1)});
+   
+    // initialize pointers to the beginning of m and the dipole grid
+    double* m_points_ptr = &(m_points(0, 0));
+    double* m_ptr = &(m(0, 0));
+    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+
+    // Loop through the evaluation points by chunks of simd_size
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i += simd_size) {
+        auto point_i = Vec3dSimd();
+        auto A_i = Vec3dSimd();
+        // check that i + k isn't bigger than num_points
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points(i + k, d);
+            }
+        }
+        for (int j = 0; j < num_dipoles; ++j) {
+            Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
+            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+            Vec3dSimd r = point_i - mp_j;
+            simd_t rmag_2     = normsq(r);
+            simd_t rmag_inv   = rsqrt(rmag_2);
+            simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+            Vec3dSimd mcrossr = cross(m_j, r);
+            A_i.x += mcrossr.x * rmag_inv_3;
+            A_i.y += mcrossr.y * rmag_inv_3;
+            A_i.z += mcrossr.z * rmag_inv_3;
+        } 
+        for(int k = 0; k < klimit; k++){
+            A(i + k, 0) = fak * A_i.x[k];
+            A(i + k, 1) = fak * A_i.y[k];
+            A(i + k, 2) = fak * A_i.z[k];
+        }
+    }
+    return A;
+}
+
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -121,6 +173,67 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     return dB;
 }
 
+Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(m_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m_points needs to be in row-major storage order");
+    if(m.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("m needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_dipoles = m_points.shape(0);
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array dA = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
+    double* m_points_ptr = &(m_points(0, 0));
+    double* m_ptr = &(m(0, 0));
+    double fak = 1e-7;
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i += simd_size) {
+        auto point_i = Vec3dSimd();
+        auto dA_i1   = Vec3dSimd();
+        auto dA_i2   = Vec3dSimd();
+        auto dA_i3   = Vec3dSimd();
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points(i + k, d);
+            }
+        }
+        for (int j = 0; j < num_dipoles; ++j) {
+            Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
+            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+            Vec3dSimd r = point_i - mp_j;
+            simd_t rmag_2     = normsq(r);
+            simd_t rmag_inv   = rsqrt(rmag_2);
+	    simd_t rmag_inv_2 = rmag_inv * rmag_inv;
+            simd_t rmag_inv_3 = rmag_inv * rmag_inv_2;
+            Vec3dSimd mcrossr = cross(m_j, r);
+            dA_i1.x += rmag_inv_3 * (- 3.0 * mcrossr.x * r.x * rmag_inv_2);
+            dA_i1.y += rmag_inv_3 * (- m_j.z - 3.0 * mcrossr.x * r.y * rmag_inv_2);
+            dA_i1.z += rmag_inv_3 * (m_j.y - 3.0 * mcrossr.x * r.z * rmag_inv_2);
+            dA_i2.x += rmag_inv_3 * (m_j.z - 3.0 * mcrossr.y * r.x * rmag_inv_2);
+            dA_i2.y += rmag_inv_3 * (- 3.0 * mcrossr.y * r.y * rmag_inv_2);
+            dA_i2.z += rmag_inv_3 * (- m_j.x - 3.0 * mcrossr.y * r.z * rmag_inv_2);
+            dA_i3.x += rmag_inv_3 * (- m_j.y - 3.0 * mcrossr.z * r.x * rmag_inv_2);
+            dA_i3.y += rmag_inv_3 * (m_j.x - 3.0 * mcrossr.z * r.y * rmag_inv_2);
+            dA_i3.z += rmag_inv_3 * (- 3.0 * mcrossr.z * r.z * rmag_inv_2);
+	} 
+        for(int k = 0; k < klimit; k++){
+            dA(i + k, 0, 0) = fak * dA_i1.x[k];
+            dA(i + k, 0, 1) = fak * dA_i1.y[k];
+            dA(i + k, 0, 2) = fak * dA_i1.z[k];
+            dA(i + k, 1, 0) = fak * dA_i2.x[k];
+            dA(i + k, 1, 1) = fak * dA_i2.y[k];
+            dA(i + k, 1, 2) = fak * dA_i2.z[k];
+	    dA(i + k, 2, 0) = fak * dA_i3.x[k];
+	    dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
+            dA(i + k, 2, 2) = fak * dA_i3.z[k];
+	}
+    }
+    return dA;
+}
 
 // Calculate the geometric factor needed for the permanent magnet optimization
 std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b) 
@@ -221,15 +334,8 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
     eigen_res = eigen_v*eigen_mat;
     
     // compute ATA
-    //Eigen::HouseholderQR<Eigen::MatrixXd> qr_A(eigen_mat);	
-    //Eigen::MatrixXd QR = qr_A.matrixQR();
-    //Eigen::MatrixXd R = qr_A.matrixQR().template triangularView<Eigen::Upper>();
-    //Eigen::MatrixXd RT = (R.transpose()).template triangularView<Eigen::Lower>();
-    //Eigen::Map<Eigen::Matrix<double,Eigen::Lower,Eigen::Upper,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
     eigen_res2 = eigen_mat.transpose()*eigen_mat;
-    //eigen_res2 = RT * R; 
-    //eigen_res2 = (QR.transpose().triangularView<Eigen::Lower>())*(QR.triangularView<Eigen::Upper>());
     return std::make_tuple(A, ATb, ATA);
 }
 

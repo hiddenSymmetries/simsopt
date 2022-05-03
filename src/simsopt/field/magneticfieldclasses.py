@@ -503,6 +503,14 @@ class DipoleField(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = sopp.dipole_field_dB(points, self.dipole_grid, self.m_vec)
 
+    def _A_impl(self, A):
+        points = self.get_points_cart_ref()
+        A[:] = sopp.dipole_field_A(points, self.dipole_grid, self.m_vec) 
+
+    def _dA_by_dX_impl(self, dA):
+        points = self.get_points_cart_ref()
+        dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec) 
+
     def _dipole_fields_from_symmetries(self, m, dipole_grid_Z, RZ_grid, phi, stellsym, nfp):
         if stellsym:
             nsym = nfp * 2

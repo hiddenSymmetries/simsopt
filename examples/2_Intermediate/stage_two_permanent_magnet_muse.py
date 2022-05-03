@@ -148,7 +148,7 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.075, dr=0.01, plasma_offset=0.05,
+    s, coil_offset=0.025, dr=0.01, plasma_offset=0.04,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename, FOCUS=True
 )

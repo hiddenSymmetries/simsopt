@@ -44,7 +44,9 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
     
     m.def("dipole_field_B" , &dipole_field_B);
+    m.def("dipole_field_A" , &dipole_field_A);
     m.def("dipole_field_dB", &dipole_field_dB);
+    m.def("dipole_field_dA" , &dipole_field_dA);
     m.def("dipole_field_Bn" , &dipole_field_Bn);
     m.def("make_final_surface" , &make_final_surface);
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("U"), py::arg("SV"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("delta") = 0.5, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);

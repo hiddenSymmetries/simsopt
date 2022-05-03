@@ -66,7 +66,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 16
-ntheta = 16
+ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
@@ -258,30 +258,21 @@ s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
 
+# plt.show()
 
-def make_qfm(s, bs):
-    #mpol = 5
-    #ntor = 5
-    #stellsym = True
-    #nfp = 2 
+
+def make_qfm(s, Bfield, Bfield_tf):
     constraint_weight = 1e0
-
-    #phis = np.linspace(0, 1 / nfp, 25, endpoint=False)
-    #thetas = np.linspace(0, 1, 25, endpoint=False)
-    #s = SurfaceRZFourier(
-    #    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
-    #    quadpoints_theta=thetas)
-    # s.fit_to_curve(ma, 0.2, flip_theta=True)
 
     # First optimize at fixed volume
 
-    qfm = QfmResidual(s, bs)
+    qfm = QfmResidual(s, Bfield)
     qfm.J()
 
     vol = Volume(s)
     vol_target = vol.J()
 
-    qfm_surface = QfmSurface(bs, s, vol, vol_target)
+    qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
     res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
                                                              constraint_weight=constraint_weight)
@@ -291,11 +282,10 @@ def make_qfm(s, bs):
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Now optimize at fixed toroidal flux
-
-    tf = ToroidalFlux(s, bs)
+    tf = ToroidalFlux(s, Bfield_tf)
     tf_target = tf.J()
 
-    qfm_surface = QfmSurface(bs, s, tf, tf_target)
+    qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
 
     res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
                                                              constraint_weight=constraint_weight)
@@ -312,7 +302,7 @@ def make_qfm(s, bs):
     ar = Area(s)
     ar_target = ar.J()
 
-    qfm_surface = QfmSurface(bs, s, ar, ar_target)
+    qfm_surface = QfmSurface(Bfield, s, ar, ar_target)
 
     res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
                                                              constraint_weight=constraint_weight)
@@ -326,6 +316,8 @@ def make_qfm(s, bs):
     s.plot()
 
 
-# make_qfm(s, bs)
-make_qfm(s, bs + b_dipole)
-# plt.show()
+# need to call set_points again here for the combined field
+Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+Bfield.set_points(s.gamma().reshape((-1, 3)))
+make_qfm(s, Bfield, Bfield_tf)

@@ -14,7 +14,6 @@ from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 
 import numpy as np
 import unittest
-import time
 
 try:
     import pyevtk
@@ -430,12 +429,17 @@ class Testing(unittest.TestCase):
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]]))
+        # Verify A
+        assert np.allclose(Bfield.A(), 1e-7 * np.array([[-0.324349, 0.567611, -0.243262]]))
+        # Verify gradA
+        gradA = np.array(Bfield.dA_by_dX())
+        assert np.allclose(gradA, 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]))
 
     def test_DipoleField_multiple_dipoles(self):
         Ndipoles = 100 
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
-        field_loc = np.outer(np.ones(1000001), np.array([1, 0.2, 0.5]))
+        field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
         Bfield = DipoleField(m_loc, m)
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
@@ -445,14 +449,16 @@ class Testing(unittest.TestCase):
 
         gradB_simsopt = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
 
-        t1 = time.time()
         gradB = np.array(Bfield.dB_by_dX())
-        t2 = time.time()
-        print('Time for gradB calc = ', t2 - t1)
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+        # Verify A
+        assert np.allclose(Bfield.A(), Ndipoles * 1e-7 * np.array([[-0.324349, 0.567611, -0.243262]]), atol=1e-4)
+        # Verify gradA
+        gradA = np.array(Bfield.dA_by_dX())
+        assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101
@@ -462,9 +468,13 @@ class Testing(unittest.TestCase):
         Bfield = DipoleField(m_loc, m)
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
+        A_simsopt = Bfield.A()
         B_correct = Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562], [0.11238748, -0.248857, 0.0911378], [0.0, -0.73980, -1.307552]])
+        A_correct = Ndipoles * 1e-7 * np.array([[-0.324349, 0.567611, -0.243262], [-0.194174, -0.0121359, 0.20631], [-1.15443, 0.524742, 0.62969]])
         # Verify B
         assert np.allclose(B_simsopt, B_correct, atol=1e-4)
+        # Verify B
+        assert np.allclose(A_simsopt, A_correct, atol=1e-4)
 
         field_loc = np.array([[1, 0.2, 0.5], [1, 0.2, 0.5], [1, 0.2, 0.5]])
         gradB = np.array(Bfield.dB_by_dX())
@@ -479,26 +489,29 @@ class Testing(unittest.TestCase):
 
     def test_pmopt_dipoles(self):
         nphi = 16
-        ntheta = 8
-        s = SurfaceRZFourier.from_vmec_input("../test_files/input.LandremanPaul2021_QA", range="half period", nphi=nphi, ntheta=ntheta)
+        ntheta = 16
+        filename = "../test_files/input.LandremanPaul2021_QA"
+        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
         pm_opt = PermanentMagnetOptimizer(
-            s, dr=0.15,
-            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3))
+            s, dr=0.2, 
+            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
+            filename=filename
         )
-        MwPGP_history, _, m_history, dipoles = pm_opt._optimize(m0=np.zeros(pm_opt.ndipoles * 3))
+        #MwPGP_history, _, m_history, dipoles = pm_opt._optimize()
+        dipoles = np.random.rand(pm_opt.ndipoles * 3)
         b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=True, nfp=s.nfp)
         b_dipole.set_points(s.gamma().reshape((-1, 3)))
         dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
         dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
-        B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj)) 
+        B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj)) 
         B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)))
         # check Bn 
-        assert np.allclose((pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj).reshape((nphi, ntheta)), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))
+        assert np.allclose((pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj).reshape((nphi, ntheta)), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))
         # check <Bn>
         assert np.isclose(B_opt, B_dipole_field)
 
