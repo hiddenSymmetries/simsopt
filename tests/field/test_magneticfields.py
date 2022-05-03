@@ -598,6 +598,7 @@ class Testing(unittest.TestCase):
         dBh = bsh.GradAbsB()
         Bhc = bsh.B_cyl()
         dBhc = bsh.GradAbsB_cyl()
+        print(dBc, dBhc)
         assert np.allclose(B, Bh, rtol=1e-2)
         assert np.allclose(dB, dBh, rtol=1e-2)
         assert np.allclose(Bc, Bhc, rtol=1e-2)
