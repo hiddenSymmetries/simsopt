@@ -14,6 +14,7 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
@@ -65,7 +66,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 nphi = 16
-ntheta = 32
+ntheta = 16
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
@@ -138,7 +139,7 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.2, dr=0.1, plasma_offset=0.1,
+    s, coil_offset=0.1, dr=0.1, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename,
 )
@@ -146,10 +147,13 @@ print('Done initializing the permanent magnet object')
 
 # optimize the permanent magnets
 max_iter_MwPGP = 1000
+t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
     max_iter_RS=10, reg_l2=1e-12,  # reg_l0=1e-6,
 )
+t2 = time.time()
+print("optimization took t = ", t2 - t1, " s")
 
 # Initialize permanent magnet DipoleField class (equivalent to BiotSavart for the coils) 
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
@@ -253,4 +257,75 @@ pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnorma
 s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
-plt.show()
+
+
+def make_qfm(s, bs):
+    #mpol = 5
+    #ntor = 5
+    #stellsym = True
+    #nfp = 2 
+    constraint_weight = 1e0
+
+    #phis = np.linspace(0, 1 / nfp, 25, endpoint=False)
+    #thetas = np.linspace(0, 1, 25, endpoint=False)
+    #s = SurfaceRZFourier(
+    #    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
+    #    quadpoints_theta=thetas)
+    # s.fit_to_curve(ma, 0.2, flip_theta=True)
+
+    # First optimize at fixed volume
+
+    qfm = QfmResidual(s, bs)
+    qfm.J()
+
+    vol = Volume(s)
+    vol_target = vol.J()
+
+    qfm_surface = QfmSurface(bs, s, vol, vol_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Now optimize at fixed toroidal flux
+
+    tf = ToroidalFlux(s, bs)
+    tf_target = tf.J()
+
+    qfm_surface = QfmSurface(bs, s, tf, tf_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+
+    # Now optimize at fixed area
+
+    ar = Area(s)
+    ar_target = ar.J()
+
+    qfm_surface = QfmSurface(bs, s, ar, ar_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    s.plot()
+
+
+# make_qfm(s, bs)
+make_qfm(s, bs + b_dipole)
+# plt.show()

@@ -153,13 +153,13 @@ pm_opt = PermanentMagnetOptimizer(
     filename=filename, FOCUS=True
 )
 t2 = time.time()
-max_iter_MwPGP = 1000
+max_iter_MwPGP = 10000
 print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=1e-4, 
-    reg_l2=1e-6,  # reg_l0=4e-2, nu=1,
+    reg_l2=1e-8,  # reg_l0=4e-2, nu=1,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
@@ -247,8 +247,8 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
     t2 = time.time()
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)

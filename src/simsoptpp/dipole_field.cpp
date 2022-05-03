@@ -2,6 +2,7 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 // Calculate the B field at a set of evaluation points from N dipoles
 // points: where to evaluate the field
@@ -218,9 +219,17 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(b.data()), 1, num_points);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATb.data()), 1, 3 * num_dipoles);
     eigen_res = eigen_v*eigen_mat;
+    
     // compute ATA
+    //Eigen::HouseholderQR<Eigen::MatrixXd> qr_A(eigen_mat);	
+    //Eigen::MatrixXd QR = qr_A.matrixQR();
+    //Eigen::MatrixXd R = qr_A.matrixQR().template triangularView<Eigen::Upper>();
+    //Eigen::MatrixXd RT = (R.transpose()).template triangularView<Eigen::Lower>();
+    //Eigen::Map<Eigen::Matrix<double,Eigen::Lower,Eigen::Upper,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
     eigen_res2 = eigen_mat.transpose()*eigen_mat;
+    //eigen_res2 = RT * R; 
+    //eigen_res2 = (QR.transpose().triangularView<Eigen::Lower>())*(QR.triangularView<Eigen::Upper>());
     return std::make_tuple(A, ATb, ATA);
 }
 
