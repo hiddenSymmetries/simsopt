@@ -847,6 +847,7 @@ class SurfaceRZPseudospectral(Optimizable):
     def as_dict(self) -> dict:
         d = MSONable.as_dict(self)
         d["x0"] = list(self.local_full_x)
+
     @classmethod
     def from_dict(cls, d):
         surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
