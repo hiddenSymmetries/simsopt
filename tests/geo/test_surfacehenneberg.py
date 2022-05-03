@@ -1,8 +1,11 @@
 import unittest
 import os
 import logging
+import json
 from pathlib import Path
+
 import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
 
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 
@@ -267,6 +270,25 @@ class SurfaceHennebergTests(unittest.TestCase):
         # not have actually used the converted boundary.
         self.assertTrue(np.max(np.abs(iota1 - iota2)) > 1e-12)
 
+    def test_serialization(self):
+        R0 = 1.5
+        a = 0.3
+        for nfp in range(1, 3):
+            for alpha_fac in [-1, 0, 1]:
+                for mmax in range(1, 3):
+                    for nmax in range(3):
+                        surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac,
+                                                 mmax=mmax, nmax=nmax)
+                        surfH.R0nH[0] = R0
+                        surfH.bn[0] = a
+                        surfH.set_rhomn(1, 0, a)
+                        surfH.local_full_x = surfH.get_dofs()
+                        surf_str = json.dumps(surfH, cls=MontyEncoder)
+                        surfH_regen = json.loads(surf_str, cls=MontyDecoder)
+                        self.assertAlmostEqual(surfH.area(), surfH_regen.area(),
+                                               places=4)
+                        self.assertAlmostEqual(surfH.volume(), surfH_regen.volume(),
+                                               places=3)
 
 if __name__ == "__main__":
     unittest.main()
