@@ -162,7 +162,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         return mask
 
     def as_dict(self) -> dict:
-        d = Surface.as_dict(self)
+        d = super().as_dict()
         d["stellsym"] = self.stellsym
         d["mpol"] = self.mpol
         d["ntor"] = self.ntor
@@ -171,9 +171,11 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     @classmethod
     def from_dict(cls, d):
-        return cls(nfp=d["nfp"], stellsym=d["stellsym"],
+        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
                    clamped_dims=d["clamped_dims"],
                    quadpoints_phi=d["quadpoints_phi"],
                    quadpoints_theta=d["quadpoints_theta"])
+        surf.set_dofs(d["x0"])
+        return surf
 

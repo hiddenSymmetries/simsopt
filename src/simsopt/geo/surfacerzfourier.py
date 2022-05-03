@@ -4,6 +4,7 @@ import numpy as np
 from scipy.io import netcdf
 from scipy.interpolate import interp1d
 import f90nml
+from monty.json import MSONable
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -487,7 +488,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def set_zs(self, m, n, val):
         """
-        Set a particular `zs` Parameter.
+        Set a particular `zs` Parametfollow uper.
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
@@ -592,7 +593,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                    mpol=d["mpol"], ntor=d["ntor"],
                    quadpoints_phi=d["quadpoints_phi"],
                    quadpoints_theta=d["quadpoints_theta"])
-        surf.set_dofs(d["x0"])
+        surf.local_full_x = d["x0"]
         return surf
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
@@ -844,8 +845,10 @@ class SurfaceRZPseudospectral(Optimizable):
         return surf3
 
     def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
+        d = MSONable.as_dict(self)
+        d["x0"] = list(self.local_full_x)
     @classmethod
     def from_dict(cls, d):
-        return cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
+        surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
+        surf.local_full_x = d["x0"]
+        return surf
