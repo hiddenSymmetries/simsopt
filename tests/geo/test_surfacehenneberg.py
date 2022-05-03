@@ -290,5 +290,6 @@ class SurfaceHennebergTests(unittest.TestCase):
                         self.assertAlmostEqual(surfH.volume(), surfH_regen.volume(),
                                                places=3)
 
+
 if __name__ == "__main__":
     unittest.main()
