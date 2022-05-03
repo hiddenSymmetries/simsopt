@@ -55,7 +55,7 @@ class PermanentMagnetOptimizer:
     def __init__(
         self, plasma_boundary, rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
-        coil_offset=0.1, B_plasma_surface=None, dr=0.1,
+        coil_offset=0.2, B_plasma_surface=None, dr=0.1,
         filename=None, FOCUS=False,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -397,25 +397,7 @@ class PermanentMagnetOptimizer:
         if self.FOCUS:
             rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            #rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
-            # make copy of plasma boundary
-            mpol = self.plasma_boundary.mpol
-            ntor = self.plasma_boundary.ntor
-            nfp = self.plasma_boundary.nfp
-            stellsym = self.plasma_boundary.stellsym
-            range_surf = self.plasma_boundary.range 
-            rz_inner_surface = SurfaceRZFourier(
-                mpol=mpol, ntor=ntor, nfp=nfp,
-                stellsym=stellsym, range=range_surf,
-                quadpoints_theta=self.theta, 
-                quadpoints_phi=self.phi
-            )
-            for i in range(mpol + 1):
-                for j in range(-ntor, ntor + 1):
-                    rz_inner_surface.set_rc(i, j, self.plasma_boundary.get_rc(i, j))
-                    rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
-                    rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
-                    rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
+            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
         rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
@@ -431,31 +413,11 @@ class PermanentMagnetOptimizer:
         if self.FOCUS:
             rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
-            #rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
-            # make copy of inner boundary
-            mpol = self.rz_inner_surface.mpol
-            ntor = self.rz_inner_surface.ntor
-            nfp = self.rz_inner_surface.nfp
-            stellsym = self.rz_inner_surface.stellsym
-            range_surf = self.rz_inner_surface.range 
-            quadpoints_theta = self.rz_inner_surface.quadpoints_theta 
-            quadpoints_phi = self.rz_inner_surface.quadpoints_phi 
-            rz_outer_surface = SurfaceRZFourier(
-                mpol=mpol, ntor=ntor, nfp=nfp,
-                stellsym=stellsym, range=range_surf,
-                quadpoints_theta=quadpoints_theta, 
-                quadpoints_phi=quadpoints_phi
-            ) 
-            for i in range(mpol + 1):
-                for j in range(-ntor, ntor + 1):
-                    rz_outer_surface.set_rc(i, j, self.rz_inner_surface.get_rc(i, j))
-                    rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
-                    rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
-                    rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
+            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
         t1 = time.time()
-        rz_outer_surface.extend_via_projected_normal(self.phi, self.coil_offset)
+        rz_outer_surface.extend_via_projected_normal(self.phi, self.plasma_offset + self.coil_offset)
         t2 = time.time()
         print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
@@ -617,7 +579,6 @@ class PermanentMagnetOptimizer:
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e100,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
-                  geometric_threshold=1e-50, 
                   ): 
         """ 
             Perform the permanent magnet optimization problem, 
@@ -664,9 +625,6 @@ class PermanentMagnetOptimizer:
                     also the number of times that MwPGP is called,
                     and the number of times a prox is computed.
                 verbose: Prints out all the loss term errors separately.
-                geometric_threshold: Threshold value for A.T * A matrix
-                    appearing in the optimization. Any elements in |A.T * A|
-                    below this value are truncated off. 
         """
 
         # Check initial condition is valid
@@ -696,10 +654,10 @@ class PermanentMagnetOptimizer:
 
         # WARNING: scipy is overwriting ATA for speed here!!
         #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
-        plt.figure()
-        plt.semilogy(S)
-        plt.show()
-        trunc = np.where(S < S[-100] * 2)[0][0]
+        #plt.figure()
+        #plt.semilogy(S)
+        #plt.savefig('S.png')
+        trunc = np.where(S < S[-100] * 1.2)[0][0]
         print("Truncation index = ", trunc)
 
         # convert to contiguous arrays for c++ code to work right
