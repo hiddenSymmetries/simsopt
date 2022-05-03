@@ -48,7 +48,7 @@ LENGTH_PEN = 1e0
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if ci else 500
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -58,11 +58,13 @@ vmec_file = TEST_DIR / filename
 # Only the phi resolution needs to be specified. The theta resolution
 # is computed automatically to minimize anisotropy of the grid.
 
-# vc = VirtualCasing.from_vmec(vmec_file, nphi=128)
-# vc.save(TEST_DIR / ("vcasing_" + filename))
+nphi = 32
+ntheta = 32
 
-vc = VirtualCasing.load(TEST_DIR / ("vcasing_" + filename))
-vc.plot()
+vc = VirtualCasing.from_vmec(vmec_file, src_nphi=128, trgt_nphi=nphi, trgt_ntheta=ntheta)
+# vc.save(TEST_DIR / ("vcasing_" + filename))
+# vc = VirtualCasing.load(TEST_DIR / ("vcasing_" + filename))
+# vc.plot()
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -73,15 +75,12 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 64
-ntheta = 64
 
 s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
 total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
 
-vc = vc.resample(surf=s)
+# vc = vc.resample(surf=s)
 Btarget = vc.B_external_normal
-Btotal = vc.B_total
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
@@ -121,7 +120,8 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
-    BdotN = np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Btotal, axis=2)
+    Bbs = bs.B().reshape((nphi, ntheta, 3))
+    BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
     BdotN_mean = np.mean(BdotN)
     BdotN_max = np.max(BdotN)
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨|B·n|⟩={BdotN_mean:.1e}, max(|B·n|)={BdotN_max:.1e}"
@@ -153,9 +153,11 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
-print("res", res)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt")
-BdotN = np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Btotal, axis=2)
-pointData = {"B_N": BdotN[:, :, None]}
-s.to_vtk(OUT_DIR + f"surf_opt", extra_data=pointData)
+for i in range(10):
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
+    dofs = res.x
+    curves_to_vtk(curves, OUT_DIR + f"curves_opt_{i}")
+    Bbs = bs.B().reshape((nphi, ntheta, 3))
+    BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
+    pointData = {"B_N": BdotN[:, :, None]}
+    s.to_vtk(OUT_DIR + f"surf_opt_{i}", extra_data=pointData)

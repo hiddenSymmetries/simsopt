@@ -29,36 +29,6 @@ from ..util.fourier_interpolation import fourier_interpolation
 logger = logging.getLogger(__name__)
 
 
-def resample_2D(arr, x0, x1):
-    """
-    Given a 2D array, use Fourier interpolation to resample the data
-    in both dimensions.
-
-    It is assumed that each dimension of ``arr`` refers to uniform
-    grid points ``np.linspace(0, 2 * np.pi, N, endpoint=False)`` for a
-    number of grid points ``N``. The new grid points ``x0`` and ``x1``
-    should refer to period :math:`2\pi`, not period 1.
-
-    Args:
-        arr: An input 2D array.
-        x0: The desired points along axis 0 of the returned array.
-        x1: The desired points along axis 1 of the returned array.
-
-    Returns:
-        A 2D array of size ``(len(x0), len(x1))`` with the resampled data.
-    """
-    n = arr.shape[0]
-    n0 = len(x0)
-    n1 = len(x1)
-    intermed = np.zeros((n, n1))
-    for j in range(n):
-        intermed[j, :] = fourier_interpolation(arr[j, :], x1)
-    result = np.zeros((n0, n1))
-    for j in range(n1):
-        result[:, j] = fourier_interpolation(intermed[:, j], x0)
-    return result
-
-
 class VirtualCasing:
     r"""
     Use the virtual casing principle to compute the contribution to
@@ -111,7 +81,7 @@ class VirtualCasing:
     """
 
     @classmethod
-    def from_vmec(cls, vmec, nphi, ntheta=None, digits=6, filename="auto"):
+    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, digits=6, filename="auto", trgt_nphi=None, trgt_ntheta=None):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the
         contribution to the total magnetic field due to currents outside
@@ -153,71 +123,86 @@ class VirtualCasing:
 
         vmec.run()
         nfp = vmec.wout.nfp
+        stellsym = not bool(vmec.wout.lasym)
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
-        if nphi % (2) != 0:
+        if src_nphi % (2) != 0:
             raise ValueError(f'nphi must be a multiple of 2. nphi={nphi}')
 
-        if ntheta is None:
-            ntheta = int(nfp * nphi / best_nphi_over_ntheta(vmec.boundary))
-            logger.debug(f'new ntheta: {ntheta}')
+        if src_ntheta is None:
+            src_ntheta = int(nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
+            logger.debug(f'new src_ntheta: {src_ntheta}')
 
         # The requested nphi and ntheta may not match the quadrature
         # points in vmec.boundary, and the range may not be "full torus",
         # so generate a SurfaceRZFourier with the desired resolution:
-        surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=vmec.wout.nfp,
-                                nphi=nphi, ntheta=ntheta, range="field period")
+        if stellsym:
+            ran = "half period"
+        else:
+            ran = "field period"
+        surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                nphi=src_nphi, ntheta=src_ntheta, range=ran)
         for jmn in range(vmec.wout.mnmax):
             surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
             surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
-
+        Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
         gamma = surf.gamma()
-        unit_normal = surf.unitnormal()
-        Bxyz = B_cartesian(vmec, nphi=nphi, ntheta=ntheta, range="field period")
         logger.debug(f'gamma.shape: {gamma.shape}')
-        logger.debug(f'unit_normal.shape: {unit_normal.shape}')
         logger.debug(f'Bxyz[0].shape: {Bxyz[0].shape}')
+
+        if trgt_nphi is None:
+            trgt_nphi = src_nphi
+        if trgt_ntheta is None:
+            trgt_ntheta = src_ntheta
+        trgt_surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                       nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
+        trgt_surf.x = surf.x
+
+        unit_normal = trgt_surf.unitnormal()
+        logger.debug(f'unit_normal.shape: {unit_normal.shape}')
 
         # virtual_casing wants all input arrays to be 1D. The order is
         # {x11, x12, ..., x1Np, x21, x22, ... , xNtNp, y11, ... , z11, ...}
         # where Nt is toroidal (not theta!) and Np is poloidal (not phi!)
-        gamma1d = np.zeros(nphi * ntheta * 3)
-        B1d = np.zeros(nphi * ntheta * 3)
-        B3d = np.zeros((nphi, ntheta, 3))
+        gamma1d = np.zeros(src_nphi * src_ntheta * 3)
+        B1d = np.zeros(src_nphi * src_ntheta * 3)
+        B3d = np.zeros((src_nphi, src_ntheta, 3))
         for jxyz in range(3):
-            gamma1d[jxyz * nphi * ntheta: (jxyz + 1) * nphi * ntheta] = gamma[:, :, jxyz].flatten(order='C')
-            B1d[jxyz * nphi * ntheta: (jxyz + 1) * nphi * ntheta] = Bxyz[jxyz].flatten(order='C')
+            gamma1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = gamma[:, :, jxyz].flatten(order='C')
+            B1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = Bxyz[jxyz].flatten(order='C')
             B3d[:, :, jxyz] = Bxyz[jxyz]
 
         """
         # Check order:
         index = 0
         for jxyz in range(3):
-            for jphi in range(nphi):
-                for jtheta in range(ntheta):
+            for jphi in range(src_nphi):
+                for jtheta in range(src_ntheta):
                     np.testing.assert_allclose(gamma1d[index], gamma[jphi, jtheta, jxyz])
                     np.testing.assert_allclose(B1d[index], Bxyz[jxyz][jphi, jtheta])
                     index += 1
         """
 
         vcasing = vc_module.VirtualCasing()
-        src_nphi, src_ntheta = nphi, ntheta
-        trgt_nphi, trgt_ntheta = nphi, ntheta
-        vcasing.setup(digits, nfp, nphi, ntheta, gamma1d, src_nphi, src_ntheta, trgt_nphi, trgt_ntheta)
+        vcasing.setup(
+            digits, nfp, stellsym,
+            src_nphi, src_ntheta, gamma1d,
+            src_nphi, src_ntheta,
+            trgt_nphi, trgt_ntheta)
         # This next line launches the main computation:
         Bexternal1d = np.array(vcasing.compute_external_B(B1d))
 
         # Unpack 1D array results:
-        Bexternal3d = np.zeros((nphi, ntheta, 3))
+        Bexternal3d = np.zeros((trgt_nphi, trgt_ntheta, 3))
         for jxyz in range(3):
-            Bexternal3d[:, :, jxyz] = Bexternal1d[jxyz * nphi * ntheta: (jxyz + 1) * nphi * ntheta].reshape((nphi, ntheta), order='C')
+            Bexternal3d[:, :, jxyz] = Bexternal1d[jxyz * trgt_nphi * trgt_ntheta: (jxyz + 1) * trgt_nphi * trgt_ntheta].reshape((trgt_nphi, trgt_ntheta), order='C')
 
         """
         # Check order:
         index = 0
         for jxyz in range(3):
-            for jphi in range(nphi):
-                for jtheta in range(ntheta):
+            for jphi in range(trgt_nphi):
+                for jtheta in range(trgt_ntheta):
                     np.testing.assert_allclose(Bexternal1d[index], Bexternal3d[jphi, jtheta, jxyz])
                     index += 1
         """
@@ -225,10 +210,16 @@ class VirtualCasing:
         Bexternal_normal = np.sum(Bexternal3d * unit_normal, axis=2)
 
         vc = cls()
-        vc.ntheta = ntheta
-        vc.nphi = nphi
-        vc.theta = surf.quadpoints_theta
-        vc.phi = surf.quadpoints_phi
+        vc.src_ntheta = src_ntheta
+        vc.src_nphi = src_nphi
+        vc.src_theta = surf.quadpoints_theta
+        vc.src_phi = surf.quadpoints_phi
+
+        vc.trgt_ntheta = trgt_ntheta
+        vc.trgt_nphi = trgt_nphi
+        vc.trgt_theta = trgt_surf.quadpoints_theta
+        vc.trgt_phi = trgt_surf.quadpoints_phi
+
         vc.nfp = nfp
         vc.B_total = B3d
         vc.gamma = gamma
@@ -236,12 +227,12 @@ class VirtualCasing:
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
 
-        if filename is not None:
-            if filename == 'auto':
-                directory, basefile = os.path.split(vmec.output_file)
-                filename = os.path.join(directory, 'vcasing' + basefile[4:])
-                logger.debug(f'New filename: {filename}')
-            vc.save(filename)
+        # if filename is not None:
+        #     if filename == 'auto':
+        #         directory, basefile = os.path.split(vmec.output_file)
+        #         filename = os.path.join(directory, 'vcasing' + basefile[4:])
+        #         logger.debug(f'New filename: {filename}')
+        #     vc.save(filename)
 
         return vc
 
@@ -324,90 +315,6 @@ class VirtualCasing:
                 vc.__setattr__(key, val2)
         return vc
 
-    def resample(self, nphi=None, ntheta=None, phi=None, theta=None, surf=None):
-        """
-        Return a new ``VirtualCasing`` object in which all of the data
-        have been resampled in the poloidal and toroidal angles.
-        This is useful if you wish to use a different surface resolution
-        for the stage-2 coil optimization compared to the resolution
-        used for the virtual casing calculation.
-
-        There are three methods of specifying the new resolution:
-
-        1. You can specify ``surf`` to be a Surface object, in which case
-        the quadrature points of this Surface will be used.
-
-        2. You can specify ``ntheta`` and ``nphi``, in which case the points
-        ``theta = np.linspace(0, 1, ntheta, endpoint=False)`` and
-        ``phi = np.linspace(0, 1, nphi, endpoint=False)`` will be used.
-
-        3. You can specify ``theta`` and ``phi`` arrays directly.
-
-        An error will be raised if you attempt to use more than one of
-        these methods at the same time.
-
-        This routine can only be used for a ``VirtualCasing`` object in which
-        the original grid points satisfy
-        ``theta = np.linspace(0, 1, ntheta, endpoint=False)`` and
-        ``phi = np.linspace(0, 1/nfp, nphi, endpoint=False)``. If not,
-        ``RuntimeError`` will be raised.
-
-        Args:
-            phi: Array of new grid points in the toroidal angle (periodic with period 1, not 2pi).
-            theta: Array of new grid points in the poloidal angle (periodic with period 1, not 2pi).
-            nphi: New number of grid points in the toroidal angle (including all field periods).
-            ntheta: New number of grid points in the poloidal angle.
-            surf: A Surface object. If specified, the virtual casing results will be resampled onto the
-              quadrature points of this Surface.
-
-        Returns:
-            A new ``VirtualCasing`` object.
-        """
-        nfp = self.nfp
-        # The resample_2D only works if the original grid satisfies the following:
-        np.testing.assert_allclose(self.theta, np.linspace(0, 1, self.ntheta, endpoint=False), rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(self.phi, np.linspace(0, 1/nfp, self.nphi, endpoint=False), rtol=1e-14, atol=1e-14)
-
-        if surf is not None:
-            assert ntheta is None
-            assert nphi is None
-            assert theta is None
-            assert phi is None
-            theta = surf.quadpoints_theta
-            phi = surf.quadpoints_phi
-        elif theta is not None:
-            assert surf is None
-            assert ntheta is None
-            assert nphi is None
-            assert phi is not None
-        else:
-            assert surf is None
-            assert phi is None
-            assert ntheta is not None
-            assert nphi is not None
-            theta = np.linspace(0, 1, ntheta, endpoint=False)
-            phi = np.linspace(0, 1/nfp, nphi, endpoint=False)
-
-        ntheta = len(theta)
-        nphi = len(phi)
-
-        newvc = VirtualCasing()
-        newvc.ntheta = ntheta
-        newvc.nphi = nphi
-        newvc.nfp = nfp
-        newvc.theta = theta
-        newvc.phi = phi
-        newvc.B_external_normal = resample_2D(self.B_external_normal, nfp * phi * 2 * np.pi, theta * 2 * np.pi)
-        # Vector fields on the surface:
-        variables = ['gamma', 'unit_normal', 'B_total', 'B_external']
-        for variable in variables:
-            oldvar = eval('self.' + variable)
-            newvar = np.zeros((nphi, ntheta, 3))
-            for j in range(3):
-                newvar[:, :, j] = resample_2D(oldvar[:, :, j], nfp * phi * 2 * np.pi, theta * 2 * np.pi)
-            newvc.__setattr__(variable, newvar)
-        return newvc
-
     def plot(self, ax=None, show=True):
         """
         Plot ``B_external_normal``, the component normal to the surface of
@@ -427,7 +334,7 @@ class VirtualCasing:
             fig, ax = plt.subplots()
         else:
             fig = plt.gcf()
-        contours = ax.contourf(self.phi, self.theta, self.B_external_normal.T, 25)
+        contours = ax.contourf(self.trgt_phi, self.trgt_theta, self.B_external_normal.T, 25)
         ax.set_xlabel(r'$\phi$')
         ax.set_ylabel(r'$\theta$')
         ax.set_title('B_external_normal [Tesla]')
