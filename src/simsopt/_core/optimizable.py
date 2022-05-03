@@ -24,7 +24,7 @@ from pathlib import Path
 from fnmatch import fnmatch
 
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+from monty.json import MSONable, MontyDecoder, MontyEncoder
 from monty.io import zopen
 
 from ..util.dev import SimsoptRequires
@@ -1382,6 +1382,17 @@ def load_simsopt(filename, *args, **kwargs):
         if "cls" not in kwargs:
             kwargs["cls"] = MontyDecoder
         return json.load(fp, *args, **kwargs)
+
+
+def save_simsopt(simsopt_objects, filename, *args, **kwargs):
+    fname = Path(filename).suffix.lower()
+    if (not fname == '.json'):
+        raise ValueError(f"Invalid format: `{str(fname[1:])}`")
+
+    with zopen(filename, "wt") as fp:
+        if "cls" not in kwargs:
+            kwargs["cls"] = MontyEncoder
+        return json.dump(simsopt_objects, fp, *args, **kwargs)
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
