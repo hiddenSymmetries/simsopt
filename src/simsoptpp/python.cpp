@@ -122,11 +122,11 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n) {
         int nphi = Bcoil.shape(0);
         int ntheta = Bcoil.shape(1);
-        double *Bcoil_ptr = &(Bcoil(0, 0, 0));
+        double *Bcoil_ptr = Bcoil.data();
         double *Btarget_ptr = NULL;
-        if(Btarget.size() == Bcoil.size())
-             Btarget_ptr = &(Btarget(0, 0, 0));
-        double *n_ptr = &(n(0, 0, 0));
+        if(Btarget.size() == Bcoil.size()/3)
+             Btarget_ptr = Btarget.data();
+        double *n_ptr = n.data();
         double res = 0;
 #pragma omp parallel for reduction(+:res)
         for(int i=0; i<nphi*ntheta; i++){
@@ -136,7 +136,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             double Nz = n_ptr[3*i+2]/normN;
             double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
             if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[3*i];
+                BcoildotN -= Btarget_ptr[i];
             res += (BcoildotN * BcoildotN) * normN;
         }
         return 0.5 * res / (nphi*ntheta);
