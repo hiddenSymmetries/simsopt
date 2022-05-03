@@ -2,7 +2,7 @@ import logging
 from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from scipy.sparse import csr_matrix
+#from scipy.linalg import svd as SVD
 import simsoptpp as sopp
 import time
 
@@ -691,8 +691,22 @@ class PermanentMagnetOptimizer:
             self.m_maxima
         )
 
+        t1 = time.time()
+        U, S, Vh = np.linalg.svd(ATA, full_matrices=False, hermitian=True)
+
+        # WARNING: scipy is overwriting ATA for speed here!!
+        #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
+        plt.figure()
+        plt.semilogy(S)
+        plt.show()
+        trunc = np.where(S < S[-100] * 2)[0][0]
+        print("Truncation index = ", trunc)
+
         # convert to contiguous arrays for c++ code to work right
-        ATA = np.ascontiguousarray(np.reshape(ATA, (self.ndipoles, 3, self.ndipoles, 3)))
+        U = np.ascontiguousarray(U[:, :trunc])
+        SV = np.ascontiguousarray(np.diag(S[:trunc]) @ Vh[:trunc, :])
+        t2 = time.time()
+        print("SVD took ", t2 - t1, " s")
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
 
         # Begin optimization
@@ -709,8 +723,9 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj_expanded,
                     b_obj=self.b_obj,
-                    ATA=ATA,
                     ATb=ATb,
+                    U=U,
+                    SV=SV,
                     m_proxy=np.ascontiguousarray(m_proxy.reshape(self.ndipoles, 3)),
                     m0=np.ascontiguousarray(m.reshape(self.ndipoles, 3)),
                     m_maxima=self.m_maxima,
@@ -736,11 +751,12 @@ class PermanentMagnetOptimizer:
             MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                 A_obj=self.A_obj_expanded,
                 b_obj=self.b_obj,
-                ATA=ATA,
                 ATb=ATb,
                 m_proxy=m0,
                 m0=m0,
                 m_maxima=self.m_maxima,
+                U=U,
+                SV=SV,
                 alpha=alpha_max,
                 epsilon=epsilon,
                 max_iter=max_iter_MwPGP,

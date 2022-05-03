@@ -132,12 +132,15 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
     printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
 }
 
+
 // Run the overall algorithm for solving the convex part of
 // the permanent magnet optimization problem. This algorithm has
 // many optional parameters for additional loss terms.
-std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATA, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose, int ATA_flag)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, Array& U, Array& SV, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
-    // Needs ATA in shape (N, 3, N, 3) and ATb in shape (N, 3)
+    // Needs ATb in shape (N, 3)
+    int rank = U.shape(1);
+    int npoints = A_obj.shape(0);
     int N = ATb.shape(0);
     int print_iter = 0;
     double x_sum;
@@ -161,12 +164,15 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;
-    
+
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_u(const_cast<double*>(U.data()), 3*N, rank);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_sv(const_cast<double*>(SV.data()), rank, 3*N);
+
     // Set up initial g and p Arrays 
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(ATA.data()), 3*N, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(m0.data()), 1, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
-    eigen_res = eigen_v*eigen_mat;
+    eigen_res = eigen_v*eigen_u*eigen_sv;
+    
     g -= ATb_rs;  // subtract off relax-and-split contribution
 #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
@@ -196,7 +202,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         ATAp = xt::zeros<double>({N, 3});
         Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(p.data()), 1, 3*N);
         Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATAp.data()), 1, 3*N);
-        eigen_res = eigen_v*eigen_mat;
+        eigen_res = eigen_v*eigen_u*eigen_sv;
 
 #pragma omp parallel for reduction(+: norm_g_alpha_p, norm_phi_temp, gp, pATAp) private(phi_temp1, phi_temp2, phi_temp3, g_alpha_p1, g_alpha_p2, g_alpha_p3)
         for(int i = 0; i < N; ++i) {
@@ -251,7 +257,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
                 // g = xt::zeros<double>({N, 3});
                 Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(x_k1.data()), 1, 3*N);
                 Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
-                eigen_res = eigen_v*eigen_mat;
+                eigen_res = eigen_v*eigen_u*eigen_sv;
 
 #pragma omp parallel for
                 for (int i = 0; i < N; ++i) {     
@@ -272,7 +278,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
             // g = xt::zeros<double>({N, 3});
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(x_k1.data()), 1, 3*N);
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
-            eigen_res = eigen_v*eigen_mat;
+            eigen_res = eigen_v*eigen_u*eigen_sv;
 
 #pragma omp parallel for
             for (int i = 0; i < N; ++i) {     
