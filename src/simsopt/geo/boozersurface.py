@@ -1,9 +1,11 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
+from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from simsopt._core.graph_optimizable import Optimizable
 
 
-class BoozerSurface():
+class BoozerSurface(Optimizable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -36,10 +38,15 @@ class BoozerSurface():
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
+        Optimizable.__init__(self, depends_on=[biotsavart])
         self.bs = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
+        self.need_to_run_code = True
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         r"""
@@ -477,6 +484,8 @@ class BoozerSurface():
         which is the same as the number of surface dofs + 2 extra unknowns
         given by iota and G.
         """
+        if not self.need_to_run_code:
+            return self.res
 
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
         s = self.surface
@@ -531,7 +540,23 @@ class BoozerSurface():
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
 
+        if s.stellsym:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+            ))
+        else:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
+            ))
+
+        P, L, U = lu(J)
         res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "PLU": (P, L, U),
+            "mask": mask, 'type': 'exact'
         }
+        self.res = res
+        self.need_to_run_code = False
         return res
