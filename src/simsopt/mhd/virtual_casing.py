@@ -127,7 +127,7 @@ class VirtualCasing:
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
         if src_nphi % (2) != 0:
-            raise ValueError(f'nphi must be a multiple of 2. nphi={nphi}')
+            raise ValueError(f'src_nphi must be a multiple of 2. src_nphi={src_nphi}')
 
         if src_ntheta is None:
             src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
