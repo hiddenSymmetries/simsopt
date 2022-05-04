@@ -81,7 +81,7 @@ class VirtualCasing:
     """
 
     @classmethod
-    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, digits=6, filename="auto", trgt_nphi=None, trgt_ntheta=None):
+    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, digits=6, filename="auto", trgt_nphi=None, trgt_ntheta=None, use_stellsym=True):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the
         contribution to the total magnetic field due to currents outside
@@ -123,14 +123,14 @@ class VirtualCasing:
 
         vmec.run()
         nfp = vmec.wout.nfp
-        stellsym = not bool(vmec.wout.lasym)
+        stellsym = (not bool(vmec.wout.lasym)) and use_stellsym
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
         if src_nphi % (2) != 0:
             raise ValueError(f'nphi must be a multiple of 2. nphi={nphi}')
 
         if src_ntheta is None:
-            src_ntheta = int(nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
+            src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
             logger.debug(f'new src_ntheta: {src_ntheta}')
 
         # The requested nphi and ntheta may not match the quadrature
@@ -155,7 +155,7 @@ class VirtualCasing:
         if trgt_ntheta is None:
             trgt_ntheta = src_ntheta
         trgt_surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                       nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
+                                     nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
         trgt_surf.x = surf.x
 
         unit_normal = trgt_surf.unitnormal()

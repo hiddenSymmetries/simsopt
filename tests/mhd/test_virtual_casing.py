@@ -3,7 +3,7 @@ import logging
 import os
 import numpy as np
 from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.virtual_casing import VirtualCasing, resample_2D
+from simsopt.mhd.virtual_casing import VirtualCasing
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from . import TEST_DIR
 try:
@@ -75,21 +75,27 @@ class VirtualCasingTests(unittest.TestCase):
         vc = VirtualCasing.from_vmec(vmec, nphi=80)
 
     def test_bnorm_benchmark(self):
+        for use_stellsym in [True, False]:
+                with self.subTest(use_stellsym=use_stellsym):
+                    self.subtest_bnorm_benchmark(use_stellsym)
+
+    def subtest_bnorm_benchmark(self, use_stellsym):
         """
         Verify that the virtual_casing module by Malhotra et al gives
         results that match a reference calculation by the old fortran
         BNORM code.
         """
+
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         bnorm_filename = os.path.join(TEST_DIR, 'bnorm.20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs')
 
         vmec = Vmec(filename)
         factor = 2
-        vc = VirtualCasing.from_vmec(vmec, nphi=factor * 50, ntheta=factor * 25)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=factor * 50, use_stellsym=use_stellsym)
 
         nfp = vmec.wout.nfp
-        theta, phi = np.meshgrid(2 * np.pi * vc.theta, 2 * np.pi * vc.phi)
-        B_external_normal_bnorm = np.zeros((vc.nphi, vc.ntheta))
+        theta, phi = np.meshgrid(2 * np.pi * vc.trgt_theta, 2 * np.pi * vc.trgt_phi)
+        B_external_normal_bnorm = np.zeros((vc.trgt_nphi, vc.trgt_ntheta))
 
         # Read BNORM output file:
         with open(bnorm_filename, 'r') as f:
