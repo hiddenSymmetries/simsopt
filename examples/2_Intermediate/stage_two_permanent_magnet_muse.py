@@ -9,6 +9,7 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
+from mpi4py import MPI
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
@@ -82,7 +83,9 @@ def read_focus_coils(filename):
 
 
 try:
-    from mpi4py import MPI
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.mhd.vmec import Vmec
+    mpi = MpiPartition(ngroups=3)
     comm = MPI.COMM_WORLD
 except ImportError:
     comm = None
@@ -148,24 +151,25 @@ print("Done writing coils and initial surface to vtk")
 # permanent magnet optimization now. 
 t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.025, dr=0.01, plasma_offset=0.04,
+    s, coil_offset=0.02, dr=0.01, plasma_offset=0.05,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename, FOCUS=True
 )
 t2 = time.time()
-max_iter_MwPGP = 10000
+max_iter_MwPGP = 2000
 print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=1e-4, 
-    reg_l2=1e-8,  # reg_l0=4e-2, nu=1,
+    reg_l2=1e-6,  # reg_l0=4e-2, nu=1,
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 M_max = 1.4 / (4 * np.pi * 1e-7)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) / M_max)
+print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))))
 
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
@@ -236,9 +240,19 @@ if make_plots:
     plt.savefig('m_histogram_muse.png')
     print('Done optimizing the permanent magnets')
 
-s = SurfaceRZFourier.from_focus(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+nphi = 2 * nphi
+ntheta = ntheta
+quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+s = SurfaceRZFourier.from_focus(filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 #sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 #sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+
+# Makes a Vmec file for the MUSE boundary -- only needed to do it once
+#filename = '../../tests/test_files/input.LandremanPaul2021_QA'  # _lowres
+#equil = Vmec(filename, mpi)
+#equil.boundary = s 
+#equil.run()
 
 
 def trace_fieldlines(bfield, label): 
@@ -248,7 +262,7 @@ def trace_fieldlines(bfield, label):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
     t2 = time.time()
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
@@ -281,3 +295,72 @@ s.to_vtk(OUT_DIR + "only_pms_opt_muse", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt_muse", extra_data=pointData)
 plt.show()
+
+
+def make_qfm(s, Bfield, Bfield_tf):
+    constraint_weight = 1e0
+
+    # First optimize at fixed volume
+
+    qfm = QfmResidual(s, Bfield)
+    qfm.J()
+
+    vol = Volume(s)
+    vol_target = vol.J()
+
+    qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Now optimize at fixed toroidal flux
+    tf = ToroidalFlux(s, Bfield_tf)
+    tf_target = tf.J()
+
+    qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+
+    # Now optimize at fixed area
+
+    ar = Area(s)
+    ar_target = ar.J()
+
+    qfm_surface = QfmSurface(Bfield, s, ar, ar_target)
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                             constraint_weight=constraint_weight)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+
+    # Check that volume is not changed
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    # s.plot()
+    return qfm_surface.surface 
+
+
+# need to call set_points again here for the combined field
+Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+Bfield.set_points(s.gamma().reshape((-1, 3)))
+qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+
+# Run VMEC with new QFM surface
+filename = '../../tests/test_files/input.LandremanPaul2021_QA'
+equil = Vmec(filename, mpi)
+equil.boundary = qfm_surf
+equil.run()

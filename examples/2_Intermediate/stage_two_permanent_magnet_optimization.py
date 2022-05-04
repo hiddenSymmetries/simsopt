@@ -8,6 +8,7 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
+from mpi4py import MPI
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
@@ -29,11 +30,15 @@ from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
 # import MPI if want to make Poincare plots
-#try:
-#    from mpi4py import MPI
-#    comm = MPI.COMM_WORLD
-#except ImportError:
-#    comm = None
+try:
+    #print('Success')
+    from simsopt.util.mpi import MpiPartition
+    #print(comm.size)
+    from simsopt.mhd.vmec import Vmec
+    mpi = MpiPartition(ngroups=3)
+    comm = MPI.COMM_WORLD
+except ImportError:
+    comm = None
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -65,7 +70,7 @@ OUT_DIR = "./output_QA/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
-nphi = 16
+nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
@@ -139,7 +144,7 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.1, plasma_offset=0.1,
+    s, coil_offset=0.1, dr=0.05, plasma_offset=0.1,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
     filename=filename,
 )
@@ -160,7 +165,7 @@ b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=s.stellsym,
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK("Dipole_Fields")
 pm_opt._plot_final_dipoles()
-
+exit()
 # print some error metrics
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
@@ -313,11 +318,18 @@ def make_qfm(s, Bfield, Bfield_tf):
 
     # Check that volume is not changed
     print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
-    s.plot()
+    # s.plot()
+    return qfm_surface.surface 
 
 
 # need to call set_points again here for the combined field
 Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
 Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
 Bfield.set_points(s.gamma().reshape((-1, 3)))
-make_qfm(s, Bfield, Bfield_tf)
+qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+
+filename = '../../tests/test_files/input.LandremanPaul2021_QA'  # _lowres
+equil = Vmec(filename, mpi)
+equil.boundary = qfm_surf
+equil.run()
+print(equil)

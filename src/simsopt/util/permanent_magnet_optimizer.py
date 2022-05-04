@@ -1,5 +1,6 @@
 import logging
 from matplotlib import pyplot as plt
+from matplotlib.pyplot import cm
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 #from scipy.linalg import svd as SVD
@@ -326,7 +327,7 @@ class PermanentMagnetOptimizer:
             dipole vectors after optimization.
         """
         for kk, dipoles in enumerate([self.m, self.m_proxy]):
-            dipole_grid = self.dipole_grid
+            dipole_grid = self.dipole_grid_xyz
             plt.figure()
             ax = plt.axes(projection="3d")
             colors = []
@@ -338,8 +339,8 @@ class PermanentMagnetOptimizer:
             plt.axis('off')
             plt.grid(None)
 
-            plt.figure(figsize=(14, 14))
-            for i, ind in enumerate([1, 5, 12, 15]):
+            fig = plt.figure(figsize=(8, 8))
+            for i, ind in enumerate([0, 8, 16, 31]):
                 plt.subplot(2, 2, i + 1)
                 plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
                 r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -349,9 +350,9 @@ class PermanentMagnetOptimizer:
                 r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
                 z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
 
-                plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
-                plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
-                plt.plot(r_outer, z_outer, label='Outer surface', linewidth=2)
+                plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
+                plt.plot(r_inner, z_inner, 'k', linewidth=2)
+                plt.plot(r_outer, z_outer, 'k', linewidth=2)
 
                 running_tally = 0
                 for k in range(ind):
@@ -360,28 +361,54 @@ class PermanentMagnetOptimizer:
                     else:
                         running_tally += len(self.final_RZ_grid[:self.inds[k], k, 0])
                 colors = []
-                dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0]), :]
+                if ind > 0:
+                    dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0]), :]
+                    maxima_i = self.m_maxima[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0])]
+                else: 
+                    dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[:self.inds[ind], ind, 0]), :]
+                    maxima_i = self.m_maxima[running_tally:running_tally + len(self.final_RZ_grid[:self.inds[ind], ind, 0])]
                 for j in range(len(dipoles_i)):
-                    colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2))
+                    colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2) / maxima_i[j])
 
-                sax = plt.scatter(
-                    self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
-                    self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
-                    c=colors,
-                    label='PMs'
-                )
-                plt.colorbar(sax)
-                plt.quiver(
-                    self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
-                    self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
-                    dipoles_i[:, 0],
-                    dipoles_i[:, 2],
-                )
-                plt.xlabel('R (m)')
-                plt.ylabel('Z (m)')
-                if i == 0:
-                    plt.legend()
+                if ind > 0:
+                    sax = plt.scatter(
+                        self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
+                        self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
+                        c=cm.bwr(colors),  # cm.rainbow(colors),
+                        label='PMs'
+                    )
+                    plt.quiver(
+                        self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
+                        self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
+                        dipoles_i[:, 0] * np.cos(2 * np.pi * self.phi[ind]) + dipoles_i[:, 1] * np.sin(2 * np.pi * self.phi[ind]),
+                        dipoles_i[:, 2],
+                    )
+                else:
+                    sax = plt.scatter(
+                        self.final_RZ_grid[:self.inds[ind], ind, 0],
+                        self.final_RZ_grid[:self.inds[ind], ind, 2],
+                        c=cm.bwr(colors),
+                        label='PMs'
+                    )
+                    plt.quiver(
+                        self.final_RZ_grid[:self.inds[ind], ind, 0],
+                        self.final_RZ_grid[:self.inds[ind], ind, 2],
+                        #dipoles_i[:, 0],
+                        dipoles_i[:, 0] * np.cos(2 * np.pi * self.phi[ind]) + dipoles_i[:, 1] * np.sin(2 * np.pi * self.phi[ind]),
+                        dipoles_i[:, 2],
+                    )
+                if i == 2 or i == 3:
+                    plt.xlabel('R (m)', fontsize=16)
+                if i == 0 or i == 2:
+                    plt.ylabel('Z (m)', fontsize=16)
+                if i == 1:
+                    plt.legend(framealpha=1.0, fontsize=12, loc='lower left')
                 plt.grid(True)
+            fig.subplots_adjust(right=0.85)
+            cbar_ax = fig.add_axes([0.9, 0.25, 0.025, 0.5])
+            cb = fig.colorbar(cax=cbar_ax, mappable=cm.ScalarMappable(norm=None, cmap=cm.bwr))
+            cb.ax.tick_params(labelsize=12)
+            plt.clim(vmin=0, vmax=1)
             if kk == 0:
                 plt.savefig('grids_permanent_magnets.png')
             else:
@@ -438,9 +465,9 @@ class PermanentMagnetOptimizer:
             r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
             z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
 
-            plt.plot(r_plasma, z_plasma, label='Plasma surface', linewidth=2)
-            plt.plot(r_inner, z_inner, label='Inner surface', linewidth=2)
-            plt.plot(r_outer, z_outer, label='Outer surface', linewidth=2)
+            plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
+            plt.plot(r_inner, z_inner, 'k', linewidth=2)
+            plt.plot(r_outer, z_outer, 'k', label='PM surface', linewidth=2)
 
             plt.scatter(
                 self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0], 
@@ -657,7 +684,7 @@ class PermanentMagnetOptimizer:
         #plt.figure()
         #plt.semilogy(S)
         #plt.savefig('S.png')
-        trunc = np.where(S < S[-100] * 1.2)[0][0]
+        trunc = np.where(S < S[-100] * 1.1)[0][0]
         print("Truncation index = ", trunc)
 
         # convert to contiguous arrays for c++ code to work right
