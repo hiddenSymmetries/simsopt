@@ -274,12 +274,12 @@ class VirtualCasing:
             nfp.description = 'Periodicity in toroidal direction'
             nfp.units = 'Dimensionless'
 
-            src_theta = f.createVariable('src_theta', 'd', ('ntheta',))
+            src_theta = f.createVariable('src_theta', 'd', ('src_ntheta',))
             src_theta[:] = self.src_theta
             src_theta.description = 'Grid points in the poloidal angle theta for source B field and surface shape. Note that theta extends over [0, 1) not [0, 2pi).'
             src_theta.units = 'Dimensionless'
 
-            trgt_theta = f.createVariable('trgt_theta', 'd', ('ntheta',))
+            trgt_theta = f.createVariable('trgt_theta', 'd', ('src_ntheta',))
             trgt_theta[:] = self.trgt_theta
             trgt_theta.description = 'Grid points in the poloidal angle theta for resulting B_external. Note that theta extends over [0, 1) not [0, 2pi).'
             trgt_theta.units = 'Dimensionless'

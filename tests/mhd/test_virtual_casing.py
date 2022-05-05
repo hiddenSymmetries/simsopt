@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
 
-variables = ['nphi', 'ntheta', 'phi', 'theta', 'gamma', 'unit_normal', 'B_total', 'B_external', 'B_external_normal']
+variables = ['src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi', 'trgt_ntheta', 'trgt_phi', 'trgt_theta', 'gamma', 'unit_normal', 'B_total', 'B_external', 'B_external_normal']
 
 
 @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
