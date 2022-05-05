@@ -605,7 +605,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(B, Bh, rtol=1e-2)
         assert np.allclose(dB, dBh, rtol=1e-2)
         assert np.allclose(Bc, Bhc, rtol=1e-2)
-        assert np.allclose(dBc, dBhc, rtol=1e-2)
+        assert np.allclose(dBc, dBhc, rtol=1e-2, atol=1e-5)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5
