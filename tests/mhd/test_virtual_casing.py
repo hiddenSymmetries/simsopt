@@ -12,23 +12,17 @@ except ImportError:
     virtual_casing = None
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
-
-variables = ['src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi', 'trgt_ntheta', 'trgt_phi', 'trgt_theta', 'gamma', 'unit_normal', 'B_total', 'B_external', 'B_external_normal']
+variables = [
+    'src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi',
+    'trgt_ntheta', 'trgt_phi', 'trgt_theta', 'gamma', 'unit_normal',
+    'B_total', 'B_external', 'B_external_normal'
+]
 
 
 @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
 class VirtualCasingTests(unittest.TestCase):
-
-    def test_nphi_multiple_of_2(self):
-        """
-        nphi must be a multiple of 2
-        """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=60, src_ntheta=20)
 
     def test_different_initializations(self):
         """
@@ -36,13 +30,13 @@ class VirtualCasingTests(unittest.TestCase):
         object, from a Vmec input file, or from a Vmec wout file.
         """
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=72)
+        vc = VirtualCasing.from_vmec(filename, src_nphi=32)
 
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=80, src_ntheta=10)
+        vc = VirtualCasing.from_vmec(filename, src_nphi=32, src_ntheta=10)
 
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=80)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
 
     def test_bnorm_benchmark(self):
         for use_stellsym in [True, False]:
@@ -60,8 +54,7 @@ class VirtualCasingTests(unittest.TestCase):
         bnorm_filename = os.path.join(TEST_DIR, 'bnorm.20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs')
 
         vmec = Vmec(filename)
-        factor = 2
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=factor * 50, use_stellsym=use_stellsym)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=128, trgt_nphi=32, trgt_ntheta=32, use_stellsym=use_stellsym)
 
         nfp = vmec.wout.nfp
         theta, phi = np.meshgrid(2 * np.pi * vc.trgt_theta, 2 * np.pi * vc.trgt_phi)
@@ -157,9 +150,7 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
-        #vc = VirtualCasing.from_vmec(vmec, src_nphi=116, src_ntheta=30)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=176, src_ntheta=45)
-        #vc = VirtualCasing.from_vmec(vmec, src_nphi=232, src_ntheta=60)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=64)
         np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.04)
         np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.04)
 
