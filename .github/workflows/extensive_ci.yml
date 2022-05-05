@@ -105,7 +105,6 @@ jobs:
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # Checking out SPEC is a tricky because it is a private repository.
