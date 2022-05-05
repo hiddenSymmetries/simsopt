@@ -11,6 +11,17 @@ try:
 except ImportError:
     virtual_casing = None
 
+try:
+    from mpi4py import MPI
+except:
+    MPI = None
+
+try:
+    import vmec
+    vmec_found = True
+except ImportError:
+    vmec_found = False
+
 logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
 
@@ -24,6 +35,7 @@ variables = [
 @unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
 class VirtualCasingTests(unittest.TestCase):
 
+    @unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
     def test_different_initializations(self):
         """
         Verify the virtual casing object can be initialized from a Vmec
