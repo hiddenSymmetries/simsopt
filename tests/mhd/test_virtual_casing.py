@@ -48,8 +48,8 @@ class VirtualCasingTests(unittest.TestCase):
 
     def test_bnorm_benchmark(self):
         for use_stellsym in [True, False]:
-                with self.subTest(use_stellsym=use_stellsym):
-                    self.subtest_bnorm_benchmark(use_stellsym)
+            with self.subTest(use_stellsym=use_stellsym):
+                self.subtest_bnorm_benchmark(use_stellsym)
 
     def subtest_bnorm_benchmark(self, use_stellsym):
         """
