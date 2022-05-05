@@ -126,8 +126,6 @@ class VirtualCasing:
         stellsym = (not bool(vmec.wout.lasym)) and use_stellsym
         if vmec.wout.lasym:
             raise RuntimeError('virtual casing presently only works for stellarator symmetry')
-        if src_nphi % (2) != 0:
-            raise ValueError(f'src_nphi must be a multiple of 2. src_nphi={src_nphi}')
 
         if src_ntheta is None:
             src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
@@ -227,12 +225,12 @@ class VirtualCasing:
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
 
-        # if filename is not None:
-        #     if filename == 'auto':
-        #         directory, basefile = os.path.split(vmec.output_file)
-        #         filename = os.path.join(directory, 'vcasing' + basefile[4:])
-        #         logger.debug(f'New filename: {filename}')
-        #     vc.save(filename)
+        if filename is not None:
+            if filename == 'auto':
+                directory, basefile = os.path.split(vmec.output_file)
+                filename = os.path.join(directory, 'vcasing' + basefile[4:])
+                logger.debug(f'New filename: {filename}')
+            vc.save(filename)
 
         return vc
 
@@ -245,56 +243,78 @@ class VirtualCasing:
         """
         with netcdf_file(filename, 'w') as f:
             f.history = 'This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S")
-            f.createDimension('ntheta', self.ntheta)
-            f.createDimension('nphi', self.nphi)
+            f.createDimension('src_ntheta', self.src_ntheta)
+            f.createDimension('src_nphi', self.src_nphi)
+            f.createDimension('trgt_ntheta', self.trgt_ntheta)
+            f.createDimension('trgt_nphi', self.trgt_nphi)
             f.createDimension('xyz', 3)
 
-            ntheta = f.createVariable('ntheta', 'i', tuple())
-            ntheta.assignValue(self.ntheta)
-            ntheta.description = 'Number of grid points in the poloidal angle theta'
-            ntheta.units = 'Dimensionless'
+            src_ntheta = f.createVariable('src_ntheta', 'i', tuple())
+            src_ntheta.assignValue(self.src_ntheta)
+            src_ntheta.description = 'Number of grid points in the poloidal angle theta for source B field and surface shape'
+            src_ntheta.units = 'Dimensionless'
 
-            nphi = f.createVariable('nphi', 'i', tuple())
-            nphi.assignValue(self.nphi)
-            nphi.description = 'Number of grid points in the toroidal angle phi, covering the full torus'
-            nphi.units = 'Dimensionless'
+            trgt_ntheta = f.createVariable('trgt_ntheta', 'i', tuple())
+            trgt_ntheta.assignValue(self.trgt_ntheta)
+            trgt_ntheta.description = 'Number of grid points in the poloidal angle theta for resulting B_external'
+            trgt_ntheta.units = 'Dimensionless'
 
-            nphi = f.createVariable('nfp', 'i', tuple())
-            nphi.assignValue(self.nfp)
-            nphi.description = 'Periodicity in toroidal direction'
-            nphi.units = 'Dimensionless'
+            src_nphi = f.createVariable('src_nphi', 'i', tuple())
+            src_nphi.assignValue(self.src_nphi)
+            src_nphi.description = 'Number of grid points in the toroidal angle phi for source B field and surface shape'
+            src_nphi.units = 'Dimensionless'
 
-            theta = f.createVariable('theta', 'd', ('ntheta',))
-            theta[:] = self.theta
-            theta.description = 'Grid points in the poloidal angle theta. Note that theta extends over [0, 1) not [0, 2pi).'
-            theta.units = 'Dimensionless'
+            trgt_nphi = f.createVariable('trgt_nphi', 'i', tuple())
+            trgt_nphi.assignValue(self.trgt_nphi)
+            trgt_nphi.description = 'Number of grid points in the toroidal angle phi for resulting B_external'
+            trgt_nphi.units = 'Dimensionless'
 
-            phi = f.createVariable('phi', 'd', ('nphi',))
-            phi[:] = self.phi
-            phi.description = 'Grid points in the toroidal angle phi. Note that phi extends over [0, 1) not [0, 2pi).'
-            phi.units = 'Dimensionless'
+            nfp = f.createVariable('nfp', 'i', tuple())
+            nfp.assignValue(self.nfp)
+            nfp.description = 'Periodicity in toroidal direction'
+            nfp.units = 'Dimensionless'
 
-            gamma = f.createVariable('gamma', 'd', ('nphi', 'ntheta', 'xyz'))
+            src_theta = f.createVariable('src_theta', 'd', ('ntheta',))
+            src_theta[:] = self.src_theta
+            src_theta.description = 'Grid points in the poloidal angle theta for source B field and surface shape. Note that theta extends over [0, 1) not [0, 2pi).'
+            src_theta.units = 'Dimensionless'
+
+            trgt_theta = f.createVariable('trgt_theta', 'd', ('ntheta',))
+            trgt_theta[:] = self.trgt_theta
+            trgt_theta.description = 'Grid points in the poloidal angle theta for resulting B_external. Note that theta extends over [0, 1) not [0, 2pi).'
+            trgt_theta.units = 'Dimensionless'
+
+            src_phi = f.createVariable('src_phi', 'd', ('src_nphi',))
+            src_phi[:] = self.src_phi
+            src_phi.description = 'Grid points in the toroidal angle phi for source B field and surface shape. Note that phi extends over [0, 1) not [0, 2pi).'
+            src_phi.units = 'Dimensionless'
+
+            trgt_phi = f.createVariable('trgt_phi', 'd', ('trgt_nphi',))
+            trgt_phi[:] = self.trgt_phi
+            trgt_phi.description = 'Grid points in the toroidal angle phi for resulting B_external. Note that phi extends over [0, 1) not [0, 2pi).'
+            trgt_phi.units = 'Dimensionless'
+
+            gamma = f.createVariable('gamma', 'd', ('src_nphi', 'src_ntheta', 'xyz'))
             gamma[:, :, :] = self.gamma
             gamma.description = 'Position vector on the boundary surface'
             gamma.units = 'meter'
 
-            unit_normal = f.createVariable('unit_normal', 'd', ('nphi', 'ntheta', 'xyz'))
+            unit_normal = f.createVariable('unit_normal', 'd', ('trgt_nphi', 'trgt_ntheta', 'xyz'))
             unit_normal[:, :, :] = self.unit_normal
             unit_normal.description = 'Unit-length normal vector on the boundary surface'
             unit_normal.units = 'Dimensionless'
 
-            B_total = f.createVariable('B_total', 'd', ('nphi', 'ntheta', 'xyz'))
+            B_total = f.createVariable('B_total', 'd', ('src_nphi', 'src_ntheta', 'xyz'))
             B_total[:, :, :] = self.B_total
             B_total.description = 'Total magnetic field vector on the surface, including currents both inside and outside of the surface'
             B_total.units = 'Tesla'
 
-            B_external = f.createVariable('B_external', 'd', ('nphi', 'ntheta', 'xyz'))
+            B_external = f.createVariable('B_external', 'd', ('trgt_nphi', 'trgt_ntheta', 'xyz'))
             B_external[:, :, :] = self.B_external
             B_external.description = 'Contribution to the magnetic field vector on the surface due only to currents outside the surface'
             B_external.units = 'Tesla'
 
-            B_external_normal = f.createVariable('B_external_normal', 'd', ('nphi', 'ntheta'))
+            B_external_normal = f.createVariable('B_external_normal', 'd', ('trgt_nphi', 'trgt_ntheta'))
             B_external_normal[:, :] = self.B_external_normal
             B_external_normal.description = 'Component of B_external normal to the surface'
             B_external_normal.units = 'Tesla'

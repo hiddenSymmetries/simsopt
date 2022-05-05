@@ -28,8 +28,6 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
 
-        with self.assertRaises(ValueError):
-            vc = VirtualCasing.from_vmec(vmec, src_nphi=61, src_ntheta=20)
         vc = VirtualCasing.from_vmec(vmec, src_nphi=60, src_ntheta=20)
 
     def test_different_initializations(self):
