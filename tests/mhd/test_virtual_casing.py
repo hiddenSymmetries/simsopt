@@ -133,7 +133,7 @@ class VirtualCasingTests(unittest.TestCase):
         fields of the objects should all match.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc1 = VirtualCasing.from_vmec(filename, src_nphi=76, src_ntheta=20, filename='vcasing.nc')
+        vc1 = VirtualCasing.from_vmec(filename, src_nphi=76, src_ntheta=20, trgt_nphi=23, trgt_ntheta=11, filename='vcasing.nc')
         vc2 = VirtualCasing.load('vcasing.nc')
         for variable in variables:
             variable1 = eval('vc1.' + variable)
