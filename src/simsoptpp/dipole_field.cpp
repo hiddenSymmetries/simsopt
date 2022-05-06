@@ -236,7 +236,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 }
 
 // Calculate the geometric factor needed for the permanent magnet optimization
-std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b) 
+std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -323,6 +323,12 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
 		        A(i + k, j, 1) += fak * (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
 		        A(i + k, j, 2) += fak * H_i.z[k];
 		    }
+		    if (cylindrical) {
+			double Ar_temp = A(i + k, j, 0) * cphi[k] + A(i + k, j, 1) * sphi[k];
+			double Aphi_temp = - A(i + k, j, 0) * sphi[k] + A(i + k, j, 1) * cphi[k];
+			A(i + k, j, 0) = Ar_temp;
+			A(i + k, j, 1) = Aphi_temp;
+		    }
 		}
 	    }
 	}
@@ -391,7 +397,7 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
     // #pragma omp parallel for schedule(static)
     for (int i = 0; i < nphi; i++) {
 	double phi_i = phi(i);
-        double rot_matrix[3][3] = {{cos(phi_i), sin(phi_i), 0}, {-sin(phi_i), cos(phi_i), 0}, {0, 0, 1}};
+        double rot_matrix[3] = {cos(phi_i), sin(phi_i), 0};
 	for (int j = 0; j < rz_max; j++) {
 	    // Get (R, Z) locations of the points with respect to the magnetic axis
 	    Rpoint = dipole_grid_rz(j, i, 0);
@@ -419,18 +425,18 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	    // rotate normal vectors in (r, phi, z) coordinates and set phi component to zero
             // so that we keep everything in the same phi = constant cross-section
 	    if (min_dist_inner < min_dist_outer) {
-                normal_vec_r = rot_matrix[0][0] * normal_inner(i, inner_loc, 0) + rot_matrix[0][1] * normal_inner(i, inner_loc, 1) + rot_matrix[0][2] * normal_inner(i, inner_loc, 2);
+                normal_vec_r = rot_matrix[0] * normal_inner(i, inner_loc, 0) + rot_matrix[1] * normal_inner(i, inner_loc, 1);
 	        normal_vec_z = normal_inner(i, inner_loc, 2);
 	    }
 	    else {
-	        normal_vec_r = rot_matrix[0][0] * normal_outer(i, outer_loc, 0) + rot_matrix[0][1] * normal_outer(i, outer_loc, 1) + rot_matrix[0][2] * normal_outer(i, outer_loc, 2);
+	        normal_vec_r = rot_matrix[0] * normal_outer(i, outer_loc, 0) + rot_matrix[1] * normal_outer(i, outer_loc, 1);
 	        normal_vec_z = normal_outer(i, outer_loc, 2);
 	    }
 	    // normalize the rotated unit vectors
 	    double norm_vec = sqrt(normal_vec_r * normal_vec_r + normal_vec_z * normal_vec_z);
             ray_dir_r = normal_vec_r / norm_vec;
             ray_dir_z = normal_vec_z / norm_vec;
-
+            
 	    min_dist_inner_ray = 1e5;
 	    min_dist_outer_ray = 1e5;
             nearest_loc_inner = 0;

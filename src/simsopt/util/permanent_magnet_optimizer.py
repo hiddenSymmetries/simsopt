@@ -57,13 +57,14 @@ class PermanentMagnetOptimizer:
         self, plasma_boundary, rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, B_plasma_surface=None, dr=0.1,
-        filename=None, FOCUS=False,
+        filename=None, FOCUS=False, out_dir=''
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
         self.filename = filename
         self.FOCUS = FOCUS
+        self.out_dir = out_dir
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
         self.B_plasma_surface = B_plasma_surface
@@ -151,11 +152,19 @@ class PermanentMagnetOptimizer:
 
         # Have the uniform grid, now need to loop through and eliminate cells.
         t1 = time.time()
+
+        # Issues with the MUSE configuration when using self.normal_inner and outer. 
+        # The issue is that the normal vectors on the inner and outer toroidal surfaces
+        # look very different on MUSE than on the original plasma surface. To avoid this issue,
+        # just use the nice plasma boundary normal vectors for the ray-tracing. This generates
+        # small errors when resolution is low but works well when nphi, ntheta >~ 16 or so. 
         self.final_RZ_grid, self.inds = sopp.make_final_surface(
-            2 * np.pi * self.phi, self.normal_inner, self.normal_outer, 
+            2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
+            # self.normal_inner, self.normal_outer, 
             RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
         )
         self.inds = np.array(self.inds, dtype=int)
+        print(self.inds)
         self.ndipoles = self.inds[-1]
         self.final_RZ_grid = self.final_RZ_grid[:self.ndipoles, :, :]
         t2 = time.time()
@@ -195,6 +204,28 @@ class PermanentMagnetOptimizer:
 
         self.normal_inner = np.copy(self.rz_inner_surface.unitnormal())
         self.normal_outer = np.copy(self.rz_outer_surface.unitnormal())
+
+        # optional code below to debug if the normal vectors are behaving
+        # which seems to be an issue with the MUSE inner/outer PM surfaces
+        if False:
+            ax = plt.figure().add_subplot(projection='3d')
+            #u = np.ravel(self.normal_inner[:, :, 0])
+            u = np.ravel(self.plasma_boundary.unitnormal()[:, :, 0]) 
+            #v = np.ravel(self.normal_inner[:, :, 1])
+            v = np.ravel(self.plasma_boundary.unitnormal()[:, :, 1])
+            #w = np.ravel(self.normal_inner[:, :, 2])
+            w = np.ravel(self.plasma_boundary.unitnormal()[:, :, 2])
+            #x = np.ravel(xyz_inner[:, :, 0]) 
+            #y = np.ravel(xyz_inner[:, :, 1]) 
+            #z = np.ravel(xyz_inner[:, :, 2]) 
+            #ax.scatter(x, y, z, color='k')
+            #ax.quiver(x, y, z, u, v, w, length=0.1, normalize=True)
+            x = np.ravel(xyz_plasma[:, :, 0]) 
+            y = np.ravel(xyz_plasma[:, :, 1]) 
+            z = np.ravel(xyz_plasma[:, :, 2]) 
+            ax.scatter(x, y, z, color='k')
+            ax.quiver(x, y, z, u, v, w, length=0.025, normalize=True)
+
         r_max = np.max(self.r_outer)
         r_min = np.min(self.r_outer)
         z_max = np.max(self.z_outer)
@@ -229,7 +260,6 @@ class PermanentMagnetOptimizer:
                 np.min(np.sqrt(norms[:, :, 0] ** 2 + norms[:, :, 2] ** 2) * self.plasma_offset)
             )    
         )
-        self.plasma_unitnormal_cylindrical = norms
         R = np.linspace(r_min, r_max, Nr)
         Z = np.linspace(z_min, z_max, Nz)
 
@@ -274,6 +304,7 @@ class PermanentMagnetOptimizer:
         self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
 
         cell_vol = abs(dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) * self.Delta_r * self.Delta_z * (phi[1] - phi[0])
+        print('Total initial volume for magnet placement = ', np.sum(cell_vol) * 4, ' m^3')
         # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper as typo that m_max = B_r / (mu0 * cell_vol) but it 
@@ -311,7 +342,8 @@ class PermanentMagnetOptimizer:
             np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(self.nphi * self.ntheta, 3)), 
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym), 
             np.ascontiguousarray(self.dipole_grid[:, 1]), 
-            np.ascontiguousarray(self.b_obj)
+            np.ascontiguousarray(self.b_obj),
+            False  # If False use Cartesian coords. If True, cylindrical coords
         )
         # Rescale
         self.A_obj_expanded = self.A_obj * grid_fac
@@ -339,8 +371,8 @@ class PermanentMagnetOptimizer:
             plt.axis('off')
             plt.grid(None)
 
-            fig = plt.figure(figsize=(8, 8))
-            for i, ind in enumerate([0, 8, 16, 31]):
+            fig = plt.figure(figsize=(10, 10))
+            for i, ind in enumerate(np.arange(0, len(self.phi) - 1, len(self.phi) // 3)):
                 plt.subplot(2, 2, i + 1)
                 plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
                 r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -374,7 +406,7 @@ class PermanentMagnetOptimizer:
                     sax = plt.scatter(
                         self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 0],
                         self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], ind, 2],
-                        c=cm.bwr(colors),  # cm.rainbow(colors),
+                        c=cm.cool(colors),  # cm.rainbow(colors),
                         label='PMs'
                     )
                     plt.quiver(
@@ -387,7 +419,7 @@ class PermanentMagnetOptimizer:
                     sax = plt.scatter(
                         self.final_RZ_grid[:self.inds[ind], ind, 0],
                         self.final_RZ_grid[:self.inds[ind], ind, 2],
-                        c=cm.bwr(colors),
+                        c=cm.cool(colors),
                         label='PMs'
                     )
                     plt.quiver(
@@ -406,13 +438,13 @@ class PermanentMagnetOptimizer:
                 plt.grid(True)
             fig.subplots_adjust(right=0.85)
             cbar_ax = fig.add_axes([0.9, 0.25, 0.025, 0.5])
-            cb = fig.colorbar(cax=cbar_ax, mappable=cm.ScalarMappable(norm=None, cmap=cm.bwr))
+            cb = fig.colorbar(cax=cbar_ax, mappable=cm.ScalarMappable(norm=None, cmap=cm.cool))
             cb.ax.tick_params(labelsize=12)
             plt.clim(vmin=0, vmax=1)
             if kk == 0:
-                plt.savefig('grids_permanent_magnets.png')
+                plt.savefig(self.out_dir + 'grids_permanent_magnets.png')
             else:
-                plt.savefig('grids_permanent_magnets_sparse.png')
+                plt.savefig(self.out_dir + 'grids_permanent_magnets_sparse.png')
 
     def _set_inner_rz_surface(self):
         """
@@ -421,6 +453,23 @@ class PermanentMagnetOptimizer:
             plasma boundary and shifts it by self.plasma_offset at constant
             theta value. 
         """
+        #mpol = self.plasma_boundary.mpol
+        #ntor = self.plasma_boundary.ntor
+        #nfp = self.plasma_boundary.nfp
+        #stellsym = self.plasma_boundary.stellsym
+        #range_surf = self.plasma_boundary.range 
+        #rz_inner_surface = SurfaceRZFourier(
+        #    mpol=mpol, ntor=ntor, nfp=nfp,
+        #    stellsym=stellsym, range=range_surf,
+        #    quadpoints_theta=self.theta, 
+        #    quadpoints_phi=self.phi
+        #)
+        #for i in range(mpol + 1):
+        #    for j in range(-ntor, ntor + 1):
+        #        rz_inner_surface.set_rc(i, j, self.plasma_boundary.get_rc(i, j))
+        #        rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
+        #        rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
+        #        rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
         if self.FOCUS:
             rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
@@ -437,6 +486,25 @@ class PermanentMagnetOptimizer:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value. 
         """
+        #mpol = self.rz_inner_surface.mpol
+        #ntor = self.rz_inner_surface.ntor
+        #nfp = self.rz_inner_surface.nfp
+        #stellsym = self.rz_inner_surface.stellsym
+        #range_surf = self.rz_inner_surface.range 
+        #quadpoints_theta = self.rz_inner_surface.quadpoints_theta 
+        #quadpoints_phi = self.rz_inner_surface.quadpoints_phi 
+        #rz_outer_surface = SurfaceRZFourier(
+        #    mpol=mpol, ntor=ntor, nfp=nfp,
+        #    stellsym=stellsym, range=range_surf,
+        #    quadpoints_theta=quadpoints_theta, 
+        #    quadpoints_phi=quadpoints_phi
+        #) 
+        #for i in range(mpol + 1):
+        #    for j in range(-ntor, ntor + 1):
+        #        rz_outer_surface.set_rc(i, j, self.rz_inner_surface.get_rc(i, j))
+        #        rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
+        #        rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
+        #        rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
         if self.FOCUS:
             rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
@@ -479,7 +547,7 @@ class PermanentMagnetOptimizer:
             if i == 0:
                 plt.legend()
             plt.grid(True)
-        plt.savefig('grids_permanent_magnets.png')
+        plt.savefig(self.out_dir + 'grids_permanent_magnets.png')
 
     def _prox_l0(self, m, reg_l0, nu):
         """Proximal operator for L0 regularization."""
@@ -535,7 +603,7 @@ class PermanentMagnetOptimizer:
                 np.linalg.pinv(self.A_obj) @ self.b_obj, 
                 self.m_maxima
             )
-            #m0 = np.zeros(m0.shape)
+            m0 = np.zeros(m0.shape)
 
         self.m0 = m0
 
@@ -681,10 +749,10 @@ class PermanentMagnetOptimizer:
 
         # WARNING: scipy is overwriting ATA for speed here!!
         #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
-        #plt.figure()
-        #plt.semilogy(S)
-        #plt.savefig('S.png')
-        trunc = np.where(S < S[-100] * 1.1)[0][0]
+        plt.figure()
+        plt.semilogy(S)
+        plt.savefig(self.out_dir + 'S.png')
+        trunc = U.shape[1]  # np.where(S < S[-10] * 1.2)[0][0] * 2
         print("Truncation index = ", trunc)
 
         # convert to contiguous arrays for c++ code to work right
