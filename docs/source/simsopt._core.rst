@@ -23,7 +23,7 @@ simsopt.\_core.finite_difference module
    :private-members:
 
 simsopt.\_core.optimizable module
-----------------------------------------
+---------------------------------
 
 .. automodule:: simsopt._core.optimizable
    :members:

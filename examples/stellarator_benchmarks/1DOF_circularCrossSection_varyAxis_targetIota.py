@@ -50,7 +50,7 @@ equil.boundary = surf
 # VMEC parameters are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
-surf.local_fix_all()
+surf.fix_all()
 surf.unfix('Delta(1,-1)')
 
 # Each function we want in the objective function is then equipped
