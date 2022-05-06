@@ -8,7 +8,6 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
-from mpi4py import MPI
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
@@ -23,26 +22,30 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
-#from simsopt.field.tracing import SurfaceClassifier, \
-#    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-#    IterationStoppingCriterion
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
-# import MPI if want to make Poincare plots
-try:
-    #print('Success')
+final_run = False
+if final_run:
+    # import MPI if want to make Poincare plots
+    from mpi4py import MPI
+    from simsopt.field.tracing import SurfaceClassifier, \
+        particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
+        IterationStoppingCriterion
     from simsopt.util.mpi import MpiPartition
-    #print(comm.size)
     from simsopt.mhd.vmec import Vmec
     mpi = MpiPartition(ngroups=3)
     comm = MPI.COMM_WORLD
-except ImportError:
-    comm = None
+    # Number of iterations to perform:
+    ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+    ci = True
+    nfieldlines = 30 if ci else 30
+    tmax_fl = 30000 if ci else 40000
+    degree = 2 if ci else 4
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 1
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -53,13 +56,7 @@ R1 = 0.5
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 5
 
-# Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-ci = True
-nfieldlines = 30 if ci else 30
-tmax_fl = 30000 if ci else 40000
-degree = 2 if ci else 4
-MAXITER = 50 if ci else 400
+MAXITER = 50
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -70,13 +67,13 @@ OUT_DIR = "./output_QA/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
-nphi = 32
+nphi = 4
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-base_currents = [Current(6.5e5) for i in range(ncoils)]
+base_currents = [Current(1e5) for i in range(ncoils)]
 
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -86,8 +83,8 @@ base_currents[0].fix_all()
 
 # Default here is to fix all the coil shapes so only the currents are optimized 
 
-#for i in range(ncoils):
-#    base_curves[i].fix_all()
+for i in range(ncoils):
+    base_curves[i].fix_all()
 
 # Initialize Biot Savart fields and print the average on-axis B-field
 bs = BiotSavart(coils)
@@ -136,6 +133,7 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J2, _ = f(dofs - eps*h)
     print("err", (J1-J2)/(2*eps) - dJh)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 
 # Plot the optimized results
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -144,9 +142,9 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 # Basic TF coil currents now optimized, turning to 
 # permanent magnet optimization now. 
 pm_opt = PermanentMagnetOptimizer(
-    s, coil_offset=0.1, dr=0.05, plasma_offset=0.1,
+    s, coil_offset=0.02, dr=0.02, plasma_offset=0.08,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
-    filename=filename,
+    filename=filename, out_dir=OUT_DIR
 )
 print('Done initializing the permanent magnet object')
 
@@ -155,7 +153,7 @@ max_iter_MwPGP = 1000
 t1 = time.time()
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, 
-    max_iter_RS=10, reg_l2=1e-12,  # reg_l0=1e-6,
+    max_iter_RS=10, reg_l2=1e-10,  # reg_l0=1e-6,
 )
 t2 = time.time()
 print("optimization took t = ", t2 - t1, " s")
@@ -163,9 +161,11 @@ print("optimization took t = ", t2 - t1, " s")
 # Initialize permanent magnet DipoleField class (equivalent to BiotSavart for the coils) 
 b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
-b_dipole._toVTK("Dipole_Fields")
+b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 pm_opt._plot_final_dipoles()
+plt.show()
 exit()
+
 # print some error metrics
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
@@ -188,7 +188,7 @@ if make_plots:
     plt.colorbar(sax)
     plt.axis('off')
     plt.grid(None)
-    plt.savefig('PMs_optimized.png')
+    plt.savefig(OUT_DIR + 'PMs_optimized.png')
     dipoles = np.ravel(dipoles)
 
     # Make plot of ATA element values
@@ -196,24 +196,29 @@ if make_plots:
     plt.hist(np.ravel(np.abs(pm_opt.ATA)), bins=np.logspace(-20, -2, 100), log=True)
     plt.xscale('log')
     plt.grid(True)
-    plt.savefig('histogram_ATA_values.png')
+    plt.savefig(OUT_DIR + 'histogram_ATA_values.png')
 
     # Make plot of the relax-and-split convergence
     plt.figure()
     plt.semilogy(MwPGP_history)
     plt.grid(True)
-    plt.savefig('objective_history.png')
+    plt.savefig(OUT_DIR + 'objective_history.png')
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
     plt.hist(abs(np.ravel(m_history[:, :, -1])) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-    plt.savefig('m_histogram.png')
+    plt.grid(True)
+    plt.savefig(OUT_DIR + 'm_histogram.png')
     print('Done optimizing the permanent magnets')
 
 # Get full surface and get level sets for the Poincare plots below
-s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 #sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 #sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+nphi = 2 * nphi
+ntheta = 2 * ntheta
+quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
 
 def trace_fieldlines(bfield, label): 
@@ -222,35 +227,36 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-12, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
     plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=300)
 
 
-# Make the Poincare plots with and without the permanent magnets
-n = 16
-rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
-zs = s.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2 * np.pi / s.nfp, n * 2)
-zrange = (0, np.max(zs), n // 2)
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
-)
-bsh.to_vtk('biot_savart_fields')
-#trace_fieldlines(bsh, 'bsh_without_PMs')
-print('Done with Poincare plots without the permanent magnets')
-t1 = time.time()
-bsh = InterpolatedField(
-    bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
-)
-bsh.to_vtk('dipole_fields')
-t2 = time.time()
-#trace_fieldlines(bsh, 'bsh_PMs')
-print('Done with Poincare plots with the permanent magnets')
+if final_run:
+    # Make the Poincare plots with and without the permanent magnets
+    n = 16
+    rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
+    zs = s.gamma()[:, :, 2]
+    rrange = (np.min(rs), np.max(rs), n)
+    phirange = (0, 2 * np.pi / s.nfp, n * 2)
+    zrange = (0, np.max(zs), n // 2)
+    bsh = InterpolatedField(
+        bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+    )
+    bsh.to_vtk('biot_savart_fields')
+    trace_fieldlines(bsh, 'bsh_without_PMs')
+    print('Done with Poincare plots without the permanent magnets')
+    t1 = time.time()
+    bsh = InterpolatedField(
+        bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+    )
+    bsh.to_vtk('dipole_fields')
+    t2 = time.time()
+    trace_fieldlines(bsh, 'bsh_PMs')
+    print('Done with Poincare plots with the permanent magnets')
 
 bs.set_points(s.gamma().reshape((-1, 3)))
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
@@ -322,14 +328,15 @@ def make_qfm(s, Bfield, Bfield_tf):
     return qfm_surface.surface 
 
 
-# need to call set_points again here for the combined field
-Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
-Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
-Bfield.set_points(s.gamma().reshape((-1, 3)))
-qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+if final_run:
+    # need to call set_points again here for the combined field
+    Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+    Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+    Bfield.set_points(s.gamma().reshape((-1, 3)))
+    qfm_surf = make_qfm(s, Bfield, Bfield_tf)
 
-filename = '../../tests/test_files/input.LandremanPaul2021_QA'  # _lowres
-equil = Vmec(filename, mpi)
-equil.boundary = qfm_surf
-equil.run()
-print(equil)
+    # Run VMEC on the QFM surface
+    filename = '../../tests/test_files/input.LandremanPaul2021_QA' 
+    equil = Vmec(filename, mpi)
+    equil.boundary = qfm_surf
+    equil.run()

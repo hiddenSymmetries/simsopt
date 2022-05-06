@@ -5,7 +5,7 @@ goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
 just zero.
 
-The target equilibrium is the QA configuration of arXiv:2108.03711.
+The target equilibrium is the C09R00 configuration of NCSX. 
 """
 
 import os
@@ -47,78 +47,30 @@ if final_run:
     degree = 2 if ci else 4
 
 
-def read_focus_coils(filename):
-    ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
-    order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
-    coilcurrents = np.zeros(ncoils)
-    xc = np.zeros((ncoils, order + 1))
-    xs = np.zeros((ncoils, order + 1))
-    yc = np.zeros((ncoils, order + 1))
-    ys = np.zeros((ncoils, order + 1))
-    zc = np.zeros((ncoils, order + 1))
-    zs = np.zeros((ncoils, order + 1))
-    for i in range(ncoils):
-        coilcurrents[i] = np.loadtxt(filename, skiprows=6 + 14 * i, max_rows=1, usecols=1)
-        xc[i, :] = np.loadtxt(filename, skiprows=10 + 14 * i, max_rows=1, usecols=range(order + 1))
-        xs[i, :] = np.loadtxt(filename, skiprows=11 + 14 * i, max_rows=1, usecols=range(order + 1))
-        yc[i, :] = np.loadtxt(filename, skiprows=12 + 14 * i, max_rows=1, usecols=range(order + 1))
-        ys[i, :] = np.loadtxt(filename, skiprows=13 + 14 * i, max_rows=1, usecols=range(order + 1))
-        zc[i, :] = np.loadtxt(filename, skiprows=14 + 14 * i, max_rows=1, usecols=range(order + 1))
-        zs[i, :] = np.loadtxt(filename, skiprows=15 + 14 * i, max_rows=1, usecols=range(order + 1))
-
-    # CurveXYZFourier wants data in order sin_x, cos_x, sin_y, cos_y, ...
-    coil_data = np.zeros((order + 1, ncoils * 6))
-    for i in range(ncoils):
-        coil_data[:, i * 6 + 0] = xs[i, :]
-        coil_data[:, i * 6 + 1] = xc[i, :]
-        coil_data[:, i * 6 + 2] = ys[i, :]
-        coil_data[:, i * 6 + 3] = yc[i, :]
-        coil_data[:, i * 6 + 4] = zs[i, :]
-        coil_data[:, i * 6 + 5] = zc[i, :]
-    # coilcurrents = coilcurrents * 1e3  # rescale from kA to A
-    base_currents = [Current(coilcurrents[i]) for i in range(ncoils)]
-    ppp = 20
-    coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
-    for ic in range(ncoils):
-        dofs = coils[ic].dofs
-        dofs[0][0] = coil_data[0, 6*ic + 1]
-        dofs[1][0] = coil_data[0, 6*ic + 3]
-        dofs[2][0] = coil_data[0, 6*ic + 5]
-        for io in range(0, min(order, coil_data.shape[0]-1)):
-            dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
-            dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
-            dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
-            dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
-            dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
-            dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
-        coils[ic].local_x = np.concatenate(dofs)
-    return coils, base_currents, ncoils
-
-
 # File for the desired TF coils 
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'muse_tf_coils.focus'
-base_curves, base_currents, ncoils = read_focus_coils(filename)
-print("Done loading in MUSE coils")
-coils = []
-for i in range(ncoils):
-    coils.append(Coil(base_curves[i], base_currents[i]))
-print("Done loading initializing coils in SIMSOPT")
+#TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+#filename = TEST_DIR / 'muse_tf_coils.focus'
+#base_curves, base_currents, ncoils = read_focus_coils(filename)
+#print("Done loading in NCSX coils")
+#coils = []
+#for i in range(ncoils):
+#    coils.append(Coil(base_curves[i], base_currents[i]))
+#print("Done loading initializing coils in SIMSOPT")
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = TEST_DIR / 'input.MUSE'
+filename = TEST_DIR / 'input.NCSX_c09r00_noBnormal_halfTeslaTF'
 
 # Directory for output
-reg_l2 = 1e-6  # 1e-7
+reg_l2 = 0  # 1e-6  #1e-7
 reg_l0 = 0  # 2e-2  # 0
-nphi = 32
-ntheta = 64
-dr = 0.01
-coff = 0.035
-poff = 0.05:
+nphi = 16
+ntheta = 16
+dr = 0.1
+coff = 0.35
+poff = 0.5:
 nu = 1e100  # 1
-OUT_DIR = "./output_muse_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}_ic1/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
+OUT_DIR = "./output_NCSX_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -129,27 +81,10 @@ os.makedirs(OUT_DIR, exist_ok=True)
 t1 = time.time()
 s = SurfaceRZFourier.from_focus(filename, range="half period", nphi=nphi, ntheta=ntheta)
 t2 = time.time()
-print("Done loading in MUSE plasma boundary surface, t = ", t2 - t1)
+print("Done loading in NCSX plasma boundary surface, t = ", t2 - t1)
 
-bs = BiotSavart(coils)
-bspoints = np.zeros((nphi, 3))
-R0 = s.get_rc(0, 0)
-for i in range(nphi):
-    bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), R0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
-bs.set_points(bspoints)
-B0 = np.linalg.norm(bs.B(), axis=-1)
-B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-surface_area = s.area()
-bnormalization = B0avg * surface_area
-print("Bmag at R = ", R0, ", Z = 0: ", B0) 
-print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
-bs.set_points(s.gamma().reshape((-1, 3)))
-print("Done setting up biot savart")
-
-curves = [c.curve for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init_muse")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init_muse", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_init_NCSX", extra_data=pointData)
 print("Done writing coils and initial surface to vtk")
 
 # permanent magnet optimization now. 
@@ -253,7 +188,7 @@ s = SurfaceRZFourier.from_focus(filename, range="full torus", quadpoints_phi=qua
 #sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 #sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
-# Makes a Vmec file for the MUSE boundary -- only needed to do it once
+# Makes a Vmec file for the NCSX boundary -- only needed to do it once
 #filename = '../../tests/test_files/input.LandremanPaul2021_QA'  # _lowres
 #equil = Vmec(filename, mpi)
 #equil.boundary = s 
