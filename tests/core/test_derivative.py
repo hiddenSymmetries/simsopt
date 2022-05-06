@@ -177,10 +177,15 @@ class DerivativeTests(unittest.TestCase):
         np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
 
         factor = -10
-        obj3 = Weight(factor) * obj1
+        w = Weight(factor)
+        obj3 = w * obj1
         taylor_test(obj3)
         np.testing.assert_allclose(obj3.J(), factor * obj1.J())
         np.testing.assert_allclose(obj3.dJ(), factor * obj1.dJ())
+        w *= 3
+        taylor_test(obj3)
+        np.testing.assert_allclose(obj3.J(), 3*factor * obj1.J())
+        np.testing.assert_allclose(obj3.dJ(), 3*factor * obj1.dJ())
 
     def test_optimizable_sum(self):
         """
