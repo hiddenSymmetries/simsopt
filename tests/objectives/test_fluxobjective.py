@@ -20,15 +20,15 @@ def check_taylor_test(J):
     J0, dJ0 = J.J(), J.dJ()
     dJh = sum(dJ0 * h)
     err_old = 1e10
-    for i in range(12, 18):
+    for i in range(11, 17):
         eps = 0.5**i
         J.x = dofs + eps*h
         J1 = J.J()
         J.x = dofs - eps*h
         J2 = J.J()
         err = np.abs((J1-J2)/(2*eps) - dJh)
-        print(i, "err", err)
-        print(i, "err/err_old", err/err_old)
+        # print(i, "err", err)
+        # print(i, "err/err_old", err/err_old)
         assert err < 0.6**2 * err_old
         err_old = err
 
