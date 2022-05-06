@@ -1276,7 +1276,5 @@ class TestOptimizableSerialize(unittest.TestCase):
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
 
-
-
 if __name__ == "__main__":
     unittest.main()
