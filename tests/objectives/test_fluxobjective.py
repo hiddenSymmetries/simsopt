@@ -27,8 +27,8 @@ def check_taylor_test(J):
         J.x = dofs - eps*h
         J2 = J.J()
         err = np.abs((J1-J2)/(2*eps) - dJh)
-        # print("err", err)
-        # print("err/err_old", err/err_old)
+        print(i, "err", err)
+        print(i, "err/err_old", err/err_old)
         assert err < 0.6**2 * err_old
         err_old = err
 
