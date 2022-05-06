@@ -47,7 +47,7 @@ iotas_init = vmec.wout.iotas
 obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
 surf = vmec.boundary
-surf.local_fix_all()
+surf.fix_all()
 # Slowly increase range of modes in optimization space
 for max_mode in range(3, maxres):
     surf.fixed_range(mmin=0, mmax=max_mode,

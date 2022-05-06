@@ -26,7 +26,7 @@ surf = SurfaceGarabedian.from_RZFourier(vmec.boundary)
 vmec.boundary = surf
 
 # Define parameter space:
-surf.local_fix_all()
+surf.fix_all()
 surf.fix_range(mmin=0, mmax=2, nmin=-1, nmax=1, fixed=False)
 surf.fix("Delta(1,0)")  # toroidally-averaged major radius
 surf.fix("Delta(0,0)")  # toroidally-averaged minor radius

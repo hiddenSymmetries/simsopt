@@ -13,7 +13,7 @@ simsopt.objectives.fluxobjective module
    :show-inheritance:
 
 simsopt.objectives.functions module
-------------------------------------------
+-----------------------------------
 
 .. automodule:: simsopt.objectives.functions
    :members:
@@ -21,7 +21,7 @@ simsopt.objectives.functions module
    :show-inheritance:
 
 simsopt.objectives.least\_squares module
------------------------------------------------
+----------------------------------------
 
 .. automodule:: simsopt.objectives.least_squares
    :members:

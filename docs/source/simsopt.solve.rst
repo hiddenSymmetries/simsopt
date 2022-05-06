@@ -5,7 +5,7 @@ Submodules
 ----------
 
 simsopt.solve.mpi module
--------------------------------
+------------------------
 
 .. automodule:: simsopt.solve.mpi
    :members:
@@ -13,7 +13,7 @@ simsopt.solve.mpi module
    :show-inheritance:
 
 simsopt.solve.serial module
-----------------------------------
+---------------------------
 
 .. automodule:: simsopt.solve.serial
    :members:
