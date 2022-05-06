@@ -39,7 +39,7 @@ print('Initial dofs: ', stel.get_dofs())
 print('Names of the dofs: ', stel.names)
 
 # Decide which degrees of freedom to optimize
-stel.local_fix_all()
+stel.fix_all()
 stel.unfix('rc(1)')
 stel.unfix('zs(1)')
 stel.unfix('etabar')
