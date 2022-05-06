@@ -9,14 +9,11 @@ build an optimization problem in a graph like manner.
 
 from __future__ import annotations
 
-import types
 import weakref
 import hashlib
 from collections.abc import Callable as ABC_Callable, Hashable
-from collections import defaultdict
 from numbers import Real, Integral
-from typing import Union, Tuple, Dict, Callable, Sequence, \
-    MutableSequence as MutSeq, List, Literal
+from typing import Union, Tuple, Dict, Callable, Sequence, List
 from functools import lru_cache
 import logging
 import json
