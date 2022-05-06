@@ -6,9 +6,10 @@ import numpy as np
 from monty.json import MontyDecoder, MontyEncoder
 from monty.serialization import loadfn, dumpfn
 
-from simsopt._core.optimizable import Optimizable, make_optimizable
+from simsopt._core.optimizable import Optimizable, make_optimizable, \
+    ScaledOptimizable, OptimizableSum
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
-    TestObject2
+    TestObject2, Beale
 from simsopt.objectives.functions import Adder as FAdder
 
 
@@ -1227,6 +1228,22 @@ class TestOptimizableSerialize(unittest.TestCase):
         s = json.dumps(test_opt_orig, cls=MontyEncoder)
         test_opt = json.loads(s, cls=MontyDecoder)
         self.assertAlmostEqual(test_opt.f(), test_opt_orig.f())
+
+    def test_scaled_optimizer_serialize(self):
+        beale = Beale(x0=[2.2, 3.3])
+        scaled_beale = ScaledOptimizable(2.0, beale)
+        s = json.dumps(scaled_beale, cls=MontyEncoder)
+        scaled_beale_regen = json.loads(s, cls=MontyDecoder)
+        self.assertTrue(np.allclose(scaled_beale_regen.J(), 2*beale.J()))
+
+    def test_optimizable_sum_serializer(self):
+        adder1 = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                        fixed=[True, False, True])
+        adder2 = FAdder(n=2, x0=[10, 11], names=["a", "b"], fixed=[True, False])
+        opt_sum = OptimizableSum(opts=[adder1, adder2])
+        s = json.dumps(opt_sum, cls=MontyEncoder)
+        opt_sum_regen = json.loads(s, cls=MontyDecoder)
+        self.assertAlmostEqual(opt_sum_regen.J(), adder1.J() + adder2.J())
 
 
 if __name__ == "__main__":

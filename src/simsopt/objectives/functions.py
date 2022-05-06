@@ -96,6 +96,9 @@ class Adder(Optimizable):
         """
         return np.sum(self._dofs.full_x)
 
+    def J(self):
+        return self.sum()
+
     def dJ(self):
         return np.ones(self.n)
 
@@ -376,9 +379,9 @@ class Beale(Optimizable):
     https://en.wikipedia.org/wiki/Test_functions_for_optimization
     """
 
-    def __init__(self, x0=None):
+    def __init__(self, x0=None, **kwargs):
         x = np.zeros(2) if not x0 else x0
-        super().__init__(x0=x)
+        super().__init__(x0=x, **kwargs)
 
     def J(self):
         x = self.local_full_x[0]
