@@ -32,10 +32,11 @@ variables = [
 ]
 
 
-@unittest.skipIf(virtual_casing is None, "virtual_casing python package not installed")
-class VirtualCasingTests(unittest.TestCase):
+@unittest.skipIf(
+    (virtual_casing is None) and
+    (MPI is not None) and vmec_found, "Need virtual_casing, mpi4py, and vmec python packages")
+class VirtualCasingVmecTests(unittest.TestCase):
 
-    @unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
     def test_different_initializations(self):
         """
         Verify the virtual casing object can be initialized from a Vmec
@@ -49,6 +50,8 @@ class VirtualCasingTests(unittest.TestCase):
 
         vmec = Vmec(filename)
         vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
+
+class VirtualCasingTests(unittest.TestCase):
 
     def test_bnorm_benchmark(self):
         for use_stellsym in [True, False]:
