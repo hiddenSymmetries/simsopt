@@ -40,6 +40,14 @@ class CurrentBase(Optimizable):
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
 
+    def __mul__(self, other):
+        assert isinstance(other, float) or isinstance(other, int)
+        return ScaledCurrent(self, other)
+
+    def __rmul__(self, other):
+        assert isinstance(other, float) or isinstance(other, int)
+        return ScaledCurrent(self, other)
+
     def __neg__(self):
         return ScaledCurrent(self, -1.)
 
@@ -86,7 +94,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_to_scale])
 
     def vjp(self, v_current):
-        return self.current_to_scale.vjp(self.scale * v_current)
+        return self.scale * self.current_to_scale.vjp(v_current)
 
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
