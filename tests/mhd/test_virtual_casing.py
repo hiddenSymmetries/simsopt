@@ -33,8 +33,9 @@ variables = [
 
 
 @unittest.skipIf(
-    (virtual_casing is None) and
-    (MPI is not None) and vmec_found, "Need virtual_casing, mpi4py, and vmec python packages")
+    (virtual_casing is None) or
+    (MPI is None) or (not vmec_found),
+    "Need virtual_casing, mpi4py, and vmec python packages")
 class VirtualCasingVmecTests(unittest.TestCase):
 
     def test_different_initializations(self):
@@ -50,6 +51,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
 
         vmec = Vmec(filename)
         vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
+
 
 class VirtualCasingTests(unittest.TestCase):
 
