@@ -1272,7 +1272,7 @@ class TestOptimizableSerialize(unittest.TestCase):
             self.assertAlmostEqual(adder1.J(), adder1_file_regen.J())
 
         adder_str1 = adder1.save(fmt='json', indent=2)
-        adder1_str_regen1 = FAdder.from_str(adder_str1)
+        adder1_str_regen1 = Optimizable.from_str(adder_str1)
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
 
