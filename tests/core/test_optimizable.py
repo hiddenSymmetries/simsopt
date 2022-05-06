@@ -7,7 +7,7 @@ from monty.json import MontyDecoder, MontyEncoder
 from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable, \
-    ScaledOptimizable, OptimizableSum
+    ScaledOptimizable, OptimizableSum, load_simsopt, save_simsopt
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
     TestObject2, Beale
 from simsopt.objectives.functions import Adder as FAdder
@@ -1244,6 +1244,38 @@ class TestOptimizableSerialize(unittest.TestCase):
         s = json.dumps(opt_sum, cls=MontyEncoder)
         opt_sum_regen = json.loads(s, cls=MontyDecoder)
         self.assertAlmostEqual(opt_sum_regen.J(), adder1.J() + adder2.J())
+
+    def test_load_save_simsopt(self):
+        import tempfile
+        from pathlib import Path
+
+        adder1 = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                        fixed=[True, False, True])
+        adder2 = FAdder(n=2, x0=[10, 11], names=["a", "b"], fixed=[True, False])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adders.json"
+            save_simsopt([adder1, adder2], fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+
+            adders = load_simsopt(fpath)
+            self.assertAlmostEqual(adder1.J(), adders[0].J())
+            self.assertAlmostEqual(adder2.J(), adders[1].J())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adder.json"
+            adder_str = adder1.save(fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+
+            adder1_str_regen = FAdder.from_str(adder_str)
+            self.assertAlmostEqual(adder1.J(), adder1_str_regen.J())
+            adder1_file_regen = FAdder.from_file(fpath)
+            self.assertAlmostEqual(adder1.J(), adder1_file_regen.J())
+
+        adder_str1 = adder1.save(fmt='json', indent=2)
+        adder1_str_regen1 = FAdder.from_str(adder_str1)
+        self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
+
+
 
 
 if __name__ == "__main__":

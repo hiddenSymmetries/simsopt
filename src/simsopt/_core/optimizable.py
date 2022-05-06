@@ -1338,6 +1338,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         fname = Path(filename).name
 
         if fmt == "json" or fnmatch(fname.lower(), "*.json"):
+            if "cls" not in kwargs:
+                kwargs["cls"] = MontyEncoder
             s = json.dumps(self.as_dict(), **kwargs)
             if filename:
                 with zopen(filename, "wt") as f:
@@ -1347,10 +1349,10 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             raise ValueError(f"Invalid format: `{str(fmt)}`")
 
     @classmethod
-    def from_str(cls, input_str: str, fmt=Literal["json"]):
+    def from_str(cls, input_str: str, fmt="json"):
         fmt_low = fmt.lower()
         if fmt_low == "json":
-            d = json.loads(input_str, cls=MontyDecoder)
+            return json.loads(input_str, cls=MontyDecoder)
         else:
             raise ValueError(f"Invalid format: `{str(fmt)}`")
 
