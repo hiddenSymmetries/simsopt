@@ -22,7 +22,6 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, coils_via_symmetries, ScaledCurrent
 from simsopt.geo.curveobjectives import CurveLength
