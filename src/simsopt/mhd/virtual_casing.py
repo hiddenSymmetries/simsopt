@@ -50,15 +50,16 @@ class VirtualCasing:
     using the :func:`load()` class method, when needed for solving the
     stage-2 problem.
 
-    A common situation is that you may wish to use a different number
-    of grid points in :math:`\theta` and :math:`\phi` on the surface
-    for the stage-2 optimization compared to the number of grid points
-    used for the virtual casing calculation. In this situation, the
-    :func:`resample()` function is provided to interpolate the virtual
-    casing results onto whatever grid you wish to use for the stage-2
-    problem.
+    In order to compute the external field accurately, one requires fairly high
+    grid resolution. For the stage-2 problem however, a lower resolution is
+    often sufficient. To deal with this, we consider to grids, one denoted by
+    the prefix ``src_`` and the other one denoted by ``trgt_``. ``src_nphi`` and
+    ``src_ntheta`` refer to the resolution of the grid where the VMEC solution
+    (i.e. the total magnetic field) is evaluated. ``trgt_nphi`` and ``trgt_ntheta``
+    refer to the resolution of the grid where the external field is computed
+    (the input to the stage 2 problem).
 
-    To set the grid resolutions ``nphi`` and ``ntheta``, it can be
+    To set the grid resolutions ``src_nphi`` and ``src_ntheta``, it can be
     convenient to use the function
     :func:`simsopt.geo.surface.best_nphi_over_ntheta`.
 
@@ -66,49 +67,56 @@ class VirtualCasing:
     vector quantites, Cartesian coordinates are used, corresponding to
     array dimensions of size 3:
 
-    - ``nphi``: The number of grid points in the toroidal angle :math:`\phi`, for the full torus.
-    - ``ntheta``: The number of grid points in the poloidal angle :math:`\theta`.
-    - ``phi``: An array of size ``(nphi,)`` with the grid points of :math:`\phi`.
-    - ``theta``: An array of size ``(ntheta,)`` with the grid points of :math:`\theta`.
-    - ``gamma``: An array of size ``(nphi, ntheta, 3)`` with the position vector on the surface.
-    - ``unit_normal``: An array of size ``(nphi, ntheta, 3)`` with the unit normal vector on the surface.
-    - ``B_total``: An array of size ``(nphi, ntheta, 3)`` with the total magnetic field vector on the surface.
-    - ``B_external``: An array of size ``(nphi, ntheta, 3)`` with the contribution
+    - ``src_nphi``: The number of grid points in the toroidal angle :math:`\phi`, for a half field period (or a full field period if use_stellsym=False)
+    - ``src_ntheta``: The number of grid points in the poloidal angle :math:`\theta`.
+    - ``src_phi``: An array of size ``(src_nphi,)`` with the grid points of :math:`\phi`.
+    - ``src_theta``: An array of size ``(src_ntheta,)`` with the grid points of :math:`\theta`.
+    - ``trgt_nphi``: The number of grid points in the toroidal angle :math:`\phi`, for a half field period (or a full field period if use_stellsym=False)
+    - ``trgt_ntheta``: The number of grid points in the poloidal angle :math:`\theta`.
+    - ``trgt_phi``: An array of size ``(trgt_nphi,)`` with the grid points of :math:`\phi`.
+    - ``trgt_theta``: An array of size ``(trgt_ntheta,)`` with the grid points of :math:`\theta`.
+
+    - ``gamma``: An array of size ``(src_nphi, src_ntheta, 3)`` with the position vector on the surface.
+    - ``B_total``: An array of size ``(src_nphi, src_ntheta, 3)`` with the total magnetic field vector on the surface.
+    - ``unit_normal``: An array of size ``(trgt_nphi, trgt_ntheta, 3)`` with the unit normal vector on the surface.
+    - ``B_external``: An array of size ``(trgt_nphi, trgt_ntheta, 3)`` with the contribution
       to the magnetic field due to current outside the surface.
-    - ``B_external_normal``: An array of size ``(nphi, ntheta)`` with the contribution
+    - ``B_external_normal``: An array of size ``(trgt_nphi, trgt_ntheta)`` with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
     """
 
     @classmethod
-    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, digits=6, filename="auto", trgt_nphi=None, trgt_ntheta=None, use_stellsym=True):
+    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
         """
-        Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the
-        contribution to the total magnetic field due to currents outside
-        the plasma.
+        Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the contribution
+        to the total magnetic field due to currents outside the plasma.
 
         This function requires the python ``virtual_casing`` package to be
         installed.
 
-        The argument ``nphi`` refers to the number of points around the
-        full torus. It must be a multiple of ``2 * nfp``, so there is an
-        integer number of points per half field period.
+        The argument ``src_nphi`` refers to the number of points around a half
+        field period if stellarator symmetry is exploited, or a full field
+        period if not.
 
-        To set the grid resolutions ``nphi`` and ``ntheta``, it can be
+        To set the grid resolutions ``src_nphi`` and ``src_ntheta``, it can be
         convenient to use the function
         :func:`simsopt.geo.surface.best_nphi_over_ntheta`. This is
-        done automatically if you omit the ``ntheta`` argument.
+        done automatically if you omit the ``src_ntheta`` argument.
 
         For now, this routine only works for stellarator symmetry.
 
         Args:
             vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
               Vmec ``input.*`` or ``wout*`` file.
-            nphi: Number of grid points toroidally for the calculation.
-            ntheta: Number of grid points poloidally for the calculation. If ``None``,
+            src_nphi: Number of grid points toroidally for the input of the calculation.
+            src_ntheta: Number of grid points poloidally for the input of the calculation. If ``None``,
               the number of grid points will be calculated automatically using
               :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
               the grid anisotropy, given the specified ``nphi``.
+            trgt_nphi: Number of grid points toroidally for the output of the calculation.
+            trgt_ntheta: Number of grid points poloidally for the output of the calculation.
+            use_stellsym: whether to exploit stellarator symmetry in the calculation.
             digits: Approximate number of digits of precision for the calculation.
             filename: If not ``None``, the results of the virtual casing calculation
               will be saved in this file. For the default value of ``"auto"``, the

@@ -10,8 +10,7 @@ The objective is given by
     J = (1/2) ∫ |B_{BiotSavart}·n - B_{External}·n|^2 ds
         + LENGTH_PENALTY * Σ ½(CurveLength - L0)^2
 
-
-The target equilibrium is the QA configuration of arXiv:2108.03711.
+The target equilibrium is a W7X equilibrium.
 """
 
 import os
@@ -153,11 +152,10 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-for i in range(10):
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
-    dofs = res.x
-    curves_to_vtk(curves, OUT_DIR + f"curves_opt_{i}")
-    Bbs = bs.B().reshape((nphi, ntheta, 3))
-    BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
-    pointData = {"B_N": BdotN[:, :, None]}
-    s.to_vtk(OUT_DIR + f"surf_opt_{i}", extra_data=pointData)
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
+dofs = res.x
+curves_to_vtk(curves, OUT_DIR + "curves_opt")
+Bbs = bs.B().reshape((nphi, ntheta, 3))
+BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
+pointData = {"B_N": BdotN[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
