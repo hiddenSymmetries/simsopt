@@ -20,7 +20,8 @@ filename = os.path.join(os.path.dirname(__file__), '..', '..',
 
 # Only the phi resolution needs to be specified. The theta resolution
 # is computed automatically to minimize anisotropy of the grid.
-vc = VirtualCasing.from_vmec(filename, src_nphi=180)
+vc = VirtualCasing.from_vmec(filename, src_nphi=30)
+print('automatically determined src_ntheta:', vc.src_ntheta)
 
 # The above command writes a file
 # simsopt/tests/test_files/vcasing_li383_low_res_reference.nc

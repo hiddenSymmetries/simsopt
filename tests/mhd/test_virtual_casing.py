@@ -23,7 +23,7 @@ except ImportError:
     vmec_found = False
 
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.INFO)
 
 variables = [
     'src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi',
@@ -44,13 +44,13 @@ class VirtualCasingVmecTests(unittest.TestCase):
         object, from a Vmec input file, or from a Vmec wout file.
         """
         filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=32)
+        vc = VirtualCasing.from_vmec(filename, src_nphi=8)
 
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=32, src_ntheta=10)
+        vc = VirtualCasing.from_vmec(filename, src_nphi=9, src_ntheta=10)
 
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=10)
 
 
 class VirtualCasingTests(unittest.TestCase):
@@ -71,7 +71,9 @@ class VirtualCasingTests(unittest.TestCase):
         bnorm_filename = os.path.join(TEST_DIR, 'bnorm.20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs')
 
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=128, trgt_nphi=32, trgt_ntheta=32, use_stellsym=use_stellsym)
+        nphi_fac = 1 if use_stellsym else 2
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=25 * nphi_fac,
+                                     trgt_nphi=32, trgt_ntheta=32, use_stellsym=use_stellsym)
 
         nfp = vmec.wout.nfp
         theta, phi = np.meshgrid(2 * np.pi * vc.trgt_theta, 2 * np.pi * vc.trgt_phi)
@@ -143,7 +145,7 @@ class VirtualCasingTests(unittest.TestCase):
         fields of the objects should all match.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc1 = VirtualCasing.from_vmec(filename, src_nphi=76, src_ntheta=20, trgt_nphi=23, trgt_ntheta=11, filename='vcasing.nc')
+        vc1 = VirtualCasing.from_vmec(filename, src_nphi=11, src_ntheta=12, trgt_nphi=13, trgt_ntheta=11, filename='vcasing.nc')
         vc2 = VirtualCasing.load('vcasing.nc')
         for variable in variables:
             variable1 = eval('vc1.' + variable)
@@ -153,7 +155,7 @@ class VirtualCasingTests(unittest.TestCase):
 
     def test_plot(self):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=76, src_ntheta=20)
+        vc = VirtualCasing.from_vmec(filename, src_nphi=8, src_ntheta=9)
         vc.plot(show=False)
         # Now cover the case in which an axis is provided:
         import matplotlib.pyplot as plt
@@ -167,9 +169,12 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=64)
-        np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.04)
-        np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.04)
+        vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
+        logger.info(f'ntheta: {vc.src_ntheta}  B_external.shape: {vc.B_external.shape}')
+        logger.info(f'max(|B_external - B_total|): {np.max(np.abs(vc.B_external - vc.B_total))}')
+        logger.info(f'max(|B_external_normal|): {np.max(np.abs(vc.B_external_normal))}')
+        np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.02)
+        np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.001)
 
     def test_stellsym(self):
         """
@@ -178,17 +183,20 @@ class VirtualCasingTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
         nfp = vmec.wout.nfp
-        src_nphi = 160
-        src_ntheta = 20
+        src_nphi = 48
+        src_ntheta = 12
         vc = VirtualCasing.from_vmec(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta, use_stellsym=False)
         Bn_flipped = -np.rot90(np.rot90(vc.B_external_normal))
         Bn_flipped = np.roll(np.roll(Bn_flipped, 1, axis=0), 1, axis=1)
+        logger.info(f'max diff in B_external_normal: {np.max(np.abs(vc.B_external_normal - Bn_flipped))}')
+        np.testing.assert_allclose(vc.B_external_normal, Bn_flipped, atol=1e-10)
         vc_ss = VirtualCasing.from_vmec(vmec, src_nphi=src_nphi//4, src_ntheta=src_ntheta, use_stellsym=True)
         # pick indices so that the quadrature point of `field period` grid
         # match those on the `half period` grid and then compare bfield values there
         idxs = list(range(1, vc.trgt_nphi//2, 2))
-        assert np.allclose(vc.trgt_phi[idxs], vc_ss.trgt_phi)
-        assert np.allclose(vc.B_external_normal[idxs, :], vc_ss.B_external_normal)
+        np.testing.assert_allclose(vc.trgt_phi[idxs], vc_ss.trgt_phi)
+        logger.info(f'max diff in B_external_normal: {np.max(np.abs(vc.B_external_normal[idxs, :] - vc_ss.B_external_normal))}')
+        np.testing.assert_allclose(vc.B_external_normal[idxs, :], vc_ss.B_external_normal, atol=1e-5)
         """
         import matplotlib.pyplot as plt
         plt.subplot(1, 2, 1)
