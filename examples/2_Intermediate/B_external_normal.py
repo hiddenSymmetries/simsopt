@@ -23,11 +23,17 @@ filename = os.path.join(os.path.dirname(__file__), '..', '..',
 vc = VirtualCasing.from_vmec(filename, src_nphi=30)
 print('automatically determined src_ntheta:', vc.src_ntheta)
 
-# The above command writes a file
+# The VirtualCasing.from_vmec command writes a file
 # simsopt/tests/test_files/vcasing_li383_low_res_reference.nc
 # containing the results of the virtual casing calculation.
 
-# You can generate a matplotlib plot of B_internal_normal on the
+# You can generate a matplotlib plot of B_external_normal on the
 # boundary surface by uncommenting the following line:
 
 # vc.plot()
+
+# B_external_normal is now available as an attribute:
+print('B_external_normal:')
+print(vc.B_external_normal)
+
+

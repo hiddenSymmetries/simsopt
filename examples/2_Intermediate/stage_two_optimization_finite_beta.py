@@ -87,7 +87,6 @@ else:
     # Virtual casing must not have been run yet.
     print('Running the virtual casing calculation')
     vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
-exit(0)
 
 # Initialize the boundary magnetic surface:
 s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
