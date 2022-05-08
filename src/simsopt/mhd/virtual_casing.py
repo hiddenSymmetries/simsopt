@@ -50,14 +50,16 @@ class VirtualCasing:
     using the :func:`load()` class method, when needed for solving the
     stage-2 problem.
 
-    In order to compute the external field accurately, one requires fairly high
-    grid resolution. For the stage-2 problem however, a lower resolution is
-    often sufficient. To deal with this, we consider to grids, one denoted by
-    the prefix ``src_`` and the other one denoted by ``trgt_``. ``src_nphi`` and
-    ``src_ntheta`` refer to the resolution of the grid where the VMEC solution
-    (i.e. the total magnetic field) is evaluated. ``trgt_nphi`` and ``trgt_ntheta``
-    refer to the resolution of the grid where the external field is computed
-    (the input to the stage 2 problem).
+    In order to compute the external field accurately, one requires
+    fairly high grid resolution. For the stage-2 problem however, a
+    lower resolution is often sufficient. To deal with this, we
+    consider two grids, one denoted by the prefix ``src_`` and the
+    other one denoted by ``trgt_``. ``src_nphi`` and ``src_ntheta``
+    refer to the resolution of the grid for the input data, i.e. the
+    total magnetic field and shape of the surface. ``trgt_nphi`` and
+    ``trgt_ntheta`` refer to the resolution of the grid where the
+    external field is computed, i.e. the output of the virtual casing
+    calculation that is provided as input to the stage 2 problem).
 
     To set the grid resolutions ``src_nphi`` and ``src_ntheta``, it can be
     convenient to use the function
