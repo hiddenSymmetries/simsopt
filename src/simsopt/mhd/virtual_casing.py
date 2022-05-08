@@ -117,7 +117,9 @@ class VirtualCasing:
               :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
               the grid anisotropy, given the specified ``nphi``.
             trgt_nphi: Number of grid points toroidally for the output of the calculation.
+              If unspecified, ``src_nphi`` will be used.
             trgt_ntheta: Number of grid points poloidally for the output of the calculation.
+              If unspecified, ``src_ntheta`` will be used.
             use_stellsym: whether to exploit stellarator symmetry in the calculation.
             digits: Approximate number of digits of precision for the calculation.
             filename: If not ``None``, the results of the virtual casing calculation
@@ -139,7 +141,7 @@ class VirtualCasing:
 
         if src_ntheta is None:
             src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
-            logger.debug(f'new src_ntheta: {src_ntheta}')
+            logger.info(f'new src_ntheta: {src_ntheta}')
 
         # The requested nphi and ntheta may not match the quadrature
         # points in vmec.boundary, and the range may not be "full torus",

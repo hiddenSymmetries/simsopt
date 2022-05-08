@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 r"""
-In this example we solve a FOCUS like Stage II coil optimisation problem: the
-goal is to find coils that generate a specific target normal field on a given
-surface.  In this particular case we consider a vacuum field, so the target is
-just zero.
+In this example we solve a stage-II coil optimisation problem: the
+goal is to find coils that generate a specific target normal field on
+a given surface.  The target equilibrium is a W7X configuration with
+average beta of 4%. Since it is not a vacuum field, the target
+B_{External}·n is nonzero. A virtual casing calculation is used to
+compute this target B_{External}·n.
 
 The objective is given by
 
     J = (1/2) ∫ |B_{BiotSavart}·n - B_{External}·n|^2 ds
         + LENGTH_PENALTY * Σ ½(CurveLength - L0)^2
-
-The target equilibrium is a W7X equilibrium.
 """
 
 import os
@@ -29,7 +29,7 @@ from simsopt.mhd.virtual_casing import VirtualCasing
 
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
-# (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
+# (Since the configuration has nfp = 5 and stellarator symmetry, multiply ncoils by 5 * 2 to get the total number of coils.)
 ncoils = 5
 
 # Major radius for the initial circular coils:
@@ -42,7 +42,7 @@ R1 = 1.25
 order = 6
 
 # Weight on the curve length penalties in the objective function:
-LENGTH_PEN = 1e0
+LENGTH_PENALTY = 1e0
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -53,39 +53,55 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 filename = 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'
 vmec_file = TEST_DIR / filename
 
-# Only the phi resolution needs to be specified. The theta resolution
-# is computed automatically to minimize anisotropy of the grid.
-
+# Resolution on the plasma boundary surface:
+# nphi is the number of grid points in 1/2 a field period.
 nphi = 32
 ntheta = 32
 
-vc = VirtualCasing.from_vmec(vmec_file, src_nphi=128, trgt_nphi=nphi, trgt_ntheta=ntheta)
-# vc.save(TEST_DIR / ("vcasing_" + filename))
-# vc = VirtualCasing.load(TEST_DIR / ("vcasing_" + filename))
-# vc.plot()
-
-# Directory for output
-OUT_DIR = "./output/"
-os.makedirs(OUT_DIR, exist_ok=True)
+# Resolution for the virtual casing calculation:
+vc_src_nphi = 80
+# (For the virtual casing src_ resolution, only nphi needs to be
+# specified; the theta resolution is computed automatically to
+# minimize anisotropy of the grid.)
 
 #######################################################
 # End of input parameters.
 #######################################################
 
-# Initialize the boundary magnetic surface:
+# Directory for output
+OUT_DIR = "./output/"
+os.makedirs(OUT_DIR, exist_ok=True)
 
+# Once the virtual casing calculation has been run once, the results
+# can be used for many coil optimizations. Therefore here we check to
+# see if the virtual casing output file alreadys exists. If so, load
+# the results, otherwise run the virtual casing calculation and save
+# the results.
+head, tail = os.path.split(vmec_file)
+vc_filename = os.path.join(head, tail.replace('wout', 'vcasing'))
+print('virtual casing data file:', vc_filename)
+if os.path.isfile(vc_filename):
+    print('Loading saved virtual casing result')
+    vc = VirtualCasing.load(vc_filename)
+else:
+    # Virtual casing must not have been run yet.
+    print('Running the virtual casing calculation')
+    vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
+exit(0)
+
+# Initialize the boundary magnetic surface:
 s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
 total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
-
-# vc = vc.resample(surf=s)
-Btarget = vc.B_external_normal
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
 # Since we know the total sum of currents, we only optimize for ncoils-1
 # currents, and then pick the last one so that they all add up to the correct
 # value.
-base_currents = [ScaledCurrent(Current(total_current/ncoils*1e-5), 1e5) for _ in range(ncoils-1)]
+base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+# Above, the factors of 1e-5 and 1e5 are included so the current
+# degrees of freedom are O(1) rather than ~ MA.  The optimization
+# algorithm may not perform well if the dofs are scaled badly.
 total_current = Current(total_current)
 total_current.fix_all()
 base_currents += [total_current - sum(base_currents)]
@@ -99,14 +115,14 @@ pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), a
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the objective function:
-Jf = SquaredFlux(s, bs, target=Btarget)
+Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
 Jls = [CurveLength(c) for c in base_curves]
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -119,7 +135,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     Bbs = bs.B().reshape((nphi, ntheta, 3))
-    BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
+    BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
     BdotN_mean = np.mean(BdotN)
     BdotN_max = np.max(BdotN)
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨|B·n|⟩={BdotN_mean:.1e}, max(|B·n|)={BdotN_max:.1e}"
@@ -155,6 +171,6 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXIT
 dofs = res.x
 curves_to_vtk(curves, OUT_DIR + "curves_opt")
 Bbs = bs.B().reshape((nphi, ntheta, 3))
-BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2)-Btarget)/np.linalg.norm(Bbs, axis=2)
+BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
