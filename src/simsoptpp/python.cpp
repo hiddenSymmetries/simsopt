@@ -54,32 +54,19 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("compute_kmns",&compute_kmns);
 
-    m.def("vprime", &vprime<xt::pytensor>,
-        py::arg("field"),
-        py::arg("s"),
-        py::arg("theta0"),
-        py::arg("nzeta"),
-        py::arg("nfp"),
-        py::arg("nmax"),
-        py::arg("step_size"),
-        py::arg("int digits")
-        );
-
-
     m.def("find_bounce_points", &find_bounce_points<xt::pytensor>,
         py::arg("field"),
         py::arg("s"),
         py::arg("theta0"),
-        py::arg("zeta0"),
-        py::arg("nzeta"),
         py::arg("lam"),
         py::arg("nfp"),
-        py::arg("nmax"),
-        py::arg("digits"),
         py::arg("option"),
-        py::arg("derivative_tol"),
-        py::arg("argmin_tol"),
-        py::arg("root_tol")
+        py::arg("nmax"),
+        py::arg("nzeta")=1000,
+        py::arg("digits")=16,
+        py::arg("derivative_tol")=1e-3,
+        py::arg("argmin_tol")=1e-3,
+        py::arg("root_tol")=1e-8
     );
 
     m.def("bounce_integral", &bounce_integral<xt::pytensor>,
@@ -90,7 +77,6 @@ PYBIND11_MODULE(simsoptpp, m) {
         py::arg("theta0"),
         py::arg("lam"),
         py::arg("nfp"),
-        py::arg("ntransitmax"),
         py::arg("jpar"),
         py::arg("psidot"),
         py::arg("alphadot"),
@@ -98,10 +84,9 @@ PYBIND11_MODULE(simsoptpp, m) {
         py::arg("khat"),
         py::arg("dkhatdalpha"),
         py::arg("tau"),
-        py::arg("step_size"),
-        py::arg("tol"),
-        py::arg("dt_max"),
-        py::arg("adjust")
+        py::arg("step_size")=1e-3,
+        py::arg("tol")=1e-8,
+        py::arg("adjust")=false
         );
 
     // the computation below is used in boozer_surface_residual.
