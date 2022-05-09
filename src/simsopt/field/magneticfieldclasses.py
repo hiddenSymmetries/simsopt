@@ -461,29 +461,34 @@ class DipoleField(MagneticField):
         m: Solution for the dipoles using the pm_opt object. 
     """
 
-    def __init__(self, dipole_grid, m, pm_opt=None, stellsym=False, nfp=1):
+    def __init__(self, dipole_grid, m, pm_opt=None, stellsym=False, nfp=1, cylindrical_flag=True):
         MagneticField.__init__(self)
-        self.ndipoles = dipole_grid.shape[0] 
+        self.ndipoles = dipole_grid.shape[0]
+        self.cylindrical_flag = cylindrical_flag
         if pm_opt is not None:
             self.m_maxima = pm_opt.m_maxima
             self.inds = pm_opt.inds
             phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
             if stellsym or nfp > 1:
-                self._dipole_fields_from_symmetries(m.reshape(self.ndipoles, 3), dipole_grid[:, 2], pm_opt.final_RZ_grid, phi, stellsym, nfp)
+                self._dipole_fields_from_symmetries(m.reshape(self.ndipoles, 3), dipole_grid, pm_opt.final_RZ_grid, phi, stellsym, nfp)
             else:
                 m = m.reshape(self.ndipoles, 3)
                 dipole_grid_z = dipole_grid[:, 2]
-                dipole_grid_x = np.zeros(len(dipole_grid_z))
-                dipole_grid_y = np.zeros(len(dipole_grid_z))
-                running_tally = 0
-                for i in range(pm_opt.nphi):
-                    if i > 0:
-                        radii = pm_opt.final_RZ_grid[self.inds[i-1]:self.inds[i], i, 0]
-                    else:
-                        radii = pm_opt.final_RZ_grid[:self.inds[i], i, 0]
-                    dipole_grid_x[running_tally:running_tally + len(radii)] = radii * np.cos(phi[i])
-                    dipole_grid_y[running_tally:running_tally + len(radii)] = radii * np.sin(phi[i])
-                    running_tally += len(radii)
+                if self.cylindrical_flag:
+                    dipole_grid_x = dipole_grid[:, 0]
+                    dipole_grid_y = dipole_grid[:, 1]
+                else:
+                    dipole_grid_x = np.zeros(len(dipole_grid_z))
+                    dipole_grid_y = np.zeros(len(dipole_grid_z))
+                    running_tally = 0
+                    for i in range(pm_opt.nphi):
+                        if i > 0:
+                            radii = pm_opt.final_RZ_grid[self.inds[i-1]:self.inds[i], i, 0]
+                        else:
+                            radii = pm_opt.final_RZ_grid[:self.inds[i], i, 0]
+                        dipole_grid_x[running_tally:running_tally + len(radii)] = radii * np.cos(phi[i])
+                        dipole_grid_y[running_tally:running_tally + len(radii)] = radii * np.sin(phi[i])
+                        running_tally += len(radii)
                 self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
                 self.m_vec = m
         else:
@@ -511,7 +516,9 @@ class DipoleField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec) 
 
-    def _dipole_fields_from_symmetries(self, m, dipole_grid_Z, RZ_grid, phi, stellsym, nfp):
+    def _dipole_fields_from_symmetries(self, m, dipole_grid, RZ_grid, phi, stellsym, nfp):
+
+        dipole_grid_Z = dipole_grid[:, 2]
         if stellsym:
             nsym = nfp * 2
         else:
@@ -539,7 +546,11 @@ class DipoleField(MagneticField):
                 dipole_grid_x[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.cos(phi_sym)
                 dipole_grid_y[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.sin(phi_sym)
                 dipole_grid_z[running_tally + nr * fp:running_tally + nr * (fp + 1)] = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
-                # For fp symmetry, set mx, my, mz and rotate by phi0
+                # Need to change m to be in cartesian for the call to _B_impl()
+                if self.cylindrical_flag:
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi_sym) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi_sym)
+                # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
@@ -548,8 +559,8 @@ class DipoleField(MagneticField):
             running_tally_m += nr 
 
         if stellsym:
-            # Y and Z coordinates OF THE GRID flip under stellarator symmetry
-            # but X component of the m vector flips under this change
+            # Phi (or Y) and Z coordinates OF THE GRID flip under stellarator symmetry
+            # but R (or X) component of the m vector flips under this change
             dipole_grid_x[offsetm:] = dipole_grid_x[:offsetm]
             dipole_grid_y[offsetm:] = - dipole_grid_y[:offsetm]
             dipole_grid_z[offsetm:] = - dipole_grid_z[:offsetm]

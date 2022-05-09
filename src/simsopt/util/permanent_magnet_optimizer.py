@@ -57,7 +57,8 @@ class PermanentMagnetOptimizer:
         self, plasma_boundary, rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, B_plasma_surface=None, dr=0.1,
-        filename=None, FOCUS=False, out_dir=''
+        filename=None, FOCUS=False, out_dir='',
+        cylindrical_flag=True,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -69,6 +70,7 @@ class PermanentMagnetOptimizer:
         self.coil_offset = coil_offset
         self.B_plasma_surface = B_plasma_surface
         self.dr = dr
+        self.cylindrical_flag = cylindrical_flag
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
             raise ValueError(
@@ -164,9 +166,18 @@ class PermanentMagnetOptimizer:
             RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
         )
         self.inds = np.array(self.inds, dtype=int)
+        for i in reversed(range(1, len(self.inds))):
+            for j in range(0, i):
+                self.inds[i] += self.inds[j]
         print(self.inds)
         self.ndipoles = self.inds[-1]
-        self.final_RZ_grid = self.final_RZ_grid[:self.ndipoles, :, :]
+        final_grid = []
+        for i in range(self.final_RZ_grid.shape[0]):
+            if not np.allclose(self.final_RZ_grid[i, :, :], 0.0):
+                final_grid.append(self.final_RZ_grid[i, :, :])
+        self.final_RZ_grid = np.array(final_grid)
+        print(self.final_RZ_grid.shape)
+        #self.final_RZ_grid = self.final_RZ_grid[:self.ndipoles, :, :]
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
 
@@ -343,7 +354,7 @@ class PermanentMagnetOptimizer:
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym), 
             np.ascontiguousarray(self.dipole_grid[:, 1]), 
             np.ascontiguousarray(self.b_obj),
-            False  # If False use Cartesian coords. If True, cylindrical coords
+            self.cylindrical_flag  # If False use Cartesian coords. If True, cylindrical coords
         )
         # Rescale
         self.A_obj_expanded = self.A_obj * grid_fac
@@ -604,6 +615,7 @@ class PermanentMagnetOptimizer:
                 self.m_maxima
             )
             m0 = np.zeros(m0.shape)
+            # m0 = np.random.rand(m0.shape)
 
         self.m0 = m0
 
@@ -746,14 +758,21 @@ class PermanentMagnetOptimizer:
 
         t1 = time.time()
         U, S, Vh = np.linalg.svd(ATA, full_matrices=False, hermitian=True)
+        UA, SA, VhA = np.linalg.svd(self.A_obj, full_matrices=False)
 
         # WARNING: scipy is overwriting ATA for speed here!!
         #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
         plt.figure()
         plt.semilogy(S)
         plt.savefig(self.out_dir + 'S.png')
-        trunc = U.shape[1]  # np.where(S < S[-10] * 1.2)[0][0] * 2
+        plt.figure()
+        plt.semilogy(SA)
+        plt.savefig(self.out_dir + 'SA.png')
+        trunc = U.shape[1] // 10  # np.where(S < S[-10] * 1.2)[0][0] * 2
         print("Truncation index = ", trunc)
+
+        ATA_svd = VhA.T @ np.diag(SA ** 2) @ VhA
+        print(ATA - ATA_svd, np.allclose(ATA, ATA_svd))
 
         # convert to contiguous arrays for c++ code to work right
         U = np.ascontiguousarray(U[:, :trunc])

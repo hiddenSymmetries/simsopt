@@ -113,12 +113,12 @@ filename = TEST_DIR / 'input.MUSE'
 reg_l2 = 1e-6  # 1e-7
 reg_l0 = 0  # 2e-2  # 0
 nphi = 32
-ntheta = 64
+ntheta = 32
 dr = 0.01
 coff = 0.035
-poff = 0.05:
+poff = 0.05
 nu = 1e100  # 1
-OUT_DIR = "./output_muse_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}_ic1/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
+OUT_DIR = "./output_muse_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -185,6 +185,7 @@ b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, nfp=s.nfp, stellsym=
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields_muse")
 pm_opt._plot_final_dipoles()
+plt.show()
 
 t2 = time.time()
 print('Done setting up the Dipole Field class')
