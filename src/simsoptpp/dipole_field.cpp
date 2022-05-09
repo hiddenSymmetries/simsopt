@@ -326,8 +326,8 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
 		    if (cylindrical) {
 			double Ar_temp = A(i + k, j, 0) * cphi[k] + A(i + k, j, 1) * sphi[k];
 			double Aphi_temp = - A(i + k, j, 0) * sphi[k] + A(i + k, j, 1) * cphi[k];
-			A(i + k, j, 0) = Ar_temp;
-			A(i + k, j, 1) = Aphi_temp;
+			A(i + k, j, 0) += Ar_temp;
+			A(i + k, j, 1) += Aphi_temp;
 		    }
 		}
 	    }
@@ -370,42 +370,27 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
     int rz_max = dipole_grid_rz.shape(0);
     int nphi = phi.shape(0);
     int num_ray = 2000;
-    int inner_loc = 0;
-    int outer_loc = 0;
-    int ind_count = 0;
-    int nearest_loc_inner = 0;
-    int nearest_loc_outer = 0;
-    double normal_vec_r = 0.0;
-    double normal_vec_z = 0.0;
-    double min_dist_inner = 0.0;
-    double min_dist_outer = 0.0;
-    double min_dist_inner_ray = 0.0;
-    double min_dist_outer_ray = 0.0;
-    double dist_inner_ray = 0.0;
-    double dist_outer_ray = 0.0;
     Array inds = xt::zeros<int>({nphi});
 
     // initialize new_grids with size of the full uniform grid,
     // and then chop later in the python part of the code
     Array new_grids = xt::zeros<double>({rz_max * nphi, nphi, 3});
-    double ray_equation_r = 0.0;
-    double ray_equation_z = 0.0; 
-    double ray_dir_r = 0.0;
-    double ray_dir_z = 0.0;
-    double Rpoint, Zpoint;
 
-    // #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < nphi; i++) {
+        int ind_count = 0;
 	double phi_i = phi(i);
         double rot_matrix[3] = {cos(phi_i), sin(phi_i), 0};
 	for (int j = 0; j < rz_max; j++) {
 	    // Get (R, Z) locations of the points with respect to the magnetic axis
-	    Rpoint = dipole_grid_rz(j, i, 0);
-            Zpoint = dipole_grid_rz(j, i, 2);
+	    double Rpoint = dipole_grid_rz(j, i, 0);
+            double Zpoint = dipole_grid_rz(j, i, 2);
            
 	    // find nearest point on inner/outer toroidal surface
-	    min_dist_inner = 1e5;
-	    min_dist_outer = 1e5;
+	    double min_dist_inner = 1e5;
+	    double min_dist_outer = 1e5;
+	    int inner_loc = 0;
+	    int outer_loc = 0;
             for (int k = 0; k < num_inner; k++) {
 	        double dist_inner = (r_inner(i, k) - Rpoint) * (r_inner(i, k) - Rpoint) + (z_inner(i, k) - Zpoint) * (z_inner(i, k) - Zpoint);
 	        double dist_outer = (r_outer(i, k) - Rpoint) * (r_outer(i, k) - Rpoint) + (z_outer(i, k) - Zpoint) * (z_outer(i, k) - Zpoint);
@@ -424,6 +409,8 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	    
 	    // rotate normal vectors in (r, phi, z) coordinates and set phi component to zero
             // so that we keep everything in the same phi = constant cross-section
+	    double normal_vec_r = 0.0;
+	    double normal_vec_z = 0.0;
 	    if (min_dist_inner < min_dist_outer) {
                 normal_vec_r = rot_matrix[0] * normal_inner(i, inner_loc, 0) + rot_matrix[1] * normal_inner(i, inner_loc, 1);
 	        normal_vec_z = normal_inner(i, inner_loc, 2);
@@ -434,13 +421,17 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	    }
 	    // normalize the rotated unit vectors
 	    double norm_vec = sqrt(normal_vec_r * normal_vec_r + normal_vec_z * normal_vec_z);
-            ray_dir_r = normal_vec_r / norm_vec;
-            ray_dir_z = normal_vec_z / norm_vec;
+            double ray_dir_r = normal_vec_r / norm_vec;
+            double ray_dir_z = normal_vec_z / norm_vec;
             
-	    min_dist_inner_ray = 1e5;
-	    min_dist_outer_ray = 1e5;
-            nearest_loc_inner = 0;
-            nearest_loc_outer = 0;
+	    double dist_inner_ray = 0.0;
+	    double dist_outer_ray = 0.0;
+	    double min_dist_inner_ray = 1e5;
+	    double min_dist_outer_ray = 1e5;
+            int nearest_loc_inner = 0;
+            int nearest_loc_outer = 0;
+	    double ray_equation_r = 0.0;
+	    double ray_equation_z = 0.0;
             for (int k = 0; k < num_ray; k++) {
 	        ray_equation_r = Rpoint + ray_dir_r * (4.0 / ((double) num_ray)) * k;
 	        ray_equation_z = Zpoint + ray_dir_z * (4.0 / ((double) num_ray)) * k;
@@ -461,9 +452,9 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
                 continue;
             // nearest distance from the outer surface to the ray should be NOT be the original point
             if (nearest_loc_outer > 0) {
-                new_grids(ind_count, i, 0) = Rpoint;
-                new_grids(ind_count, i, 1) = phi_i; 
-                new_grids(ind_count, i, 2) = Zpoint;
+                new_grids(ind_count + i * rz_max, i, 0) = Rpoint;
+                new_grids(ind_count + i * rz_max, i, 1) = phi_i; 
+                new_grids(ind_count + i * rz_max, i, 2) = Zpoint;
 		ind_count += 1;
 	    }
 	}
