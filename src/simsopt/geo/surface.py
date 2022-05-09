@@ -61,6 +61,12 @@ class Surface(Optimizable):
               If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
             quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
+
+        Returns:
+            Tuple containing
+
+            - **quadpoints_phi**: List of grid points :math:`\phi_j`.
+            - **quadpoints_theta**: List of grid points :math:`\theta_j`.
         """
         # Handle theta:
         if (quadpoints_theta is not None) and (ntheta is not None):
@@ -455,8 +461,8 @@ class Surface(Optimizable):
         for evaluating the adjoint shape gradient for free-boundary calculations.
 
         Returns:
-            theta_arclength: 2d array (numquadpoints_phi,numquadpoints_theta)
-                of arclength poloidal angle
+            2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
+            containing the arclength poloidal angle
         """
         gamma = self.gamma()
         X = gamma[:, :, 0]
@@ -632,3 +638,29 @@ class SurfaceScaled(Optimizable):
                 self.unfix(j)
             else:
                 self.fix(j)
+
+
+def best_nphi_over_ntheta(surf):
+    """
+    Given a surface, estimate the ratio of ``nphi / ntheta`` that
+    minimizes the mesh anisotropy. This is useful for improving speed
+    and accuracy of the virtual casing calculation. The result refers
+    to the number of grid points in ``phi`` covering the full torus,
+    not just one field period or half a field period. The input
+    surface need not have ``range=="full torus"`` however; any
+    ``range`` will work.
+
+    The result of this function will depend somewhat on the quadrature
+    points of the input surface, but the dependence should be weak.
+
+    Args:
+        surf: A surface object.
+
+    Returns:
+        float with the best ratio ``nphi / ntheta``.
+    """
+    gammadash1 = np.linalg.norm(surf.gammadash1(), axis=2)
+    gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
+    ratio = gammadash1 / gammadash2
+    return np.sqrt(np.max(ratio) / np.max(1 / ratio))
+
