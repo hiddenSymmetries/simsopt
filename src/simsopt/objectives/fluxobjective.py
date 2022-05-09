@@ -63,4 +63,4 @@ class SquaredFlux(Optimizable):
         decoder = MontyDecoder()
         surface = decoder.process_decoded(d["surface"])
         field = decoder.process_decoded(d["field"])
-        return cls(surface, d["target"], field)
+        return cls(surface, field, d["target"])
