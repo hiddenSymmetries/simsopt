@@ -24,7 +24,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
      "Single-stage gradient-based stellarator coil design: stochastic optimization",
-     *Submitted*, (2021).
+     *Nuclear Fusion* **62**, 076034 (2022).
+     `[journal version] <https://doi.org/10.1088/1741-4326/ac45f3>`__
      `[arXiv version] <https://arxiv.org/pdf/2106.12137>`__
    |
    
@@ -64,12 +65,18 @@ Here is a list of publications in which simsopt results appear:
 
 #. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
      "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
-     *Submitted*, (2021).
+     *Submitted*, (2022).
      `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
    |
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
      "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
-     *Submitted*, (2021).
+     *Submitted*, (2022).
      `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
+   |
+
+#. | M Landreman, S Buller, and M Drevlak,
+     "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |
