@@ -18,9 +18,14 @@ This example requires that the python virtual_casing module is installed.
 filename = os.path.join(os.path.dirname(__file__), '..', '..',
                         'tests', 'test_files', 'wout_li383_low_res_reference.nc')
 
-# Only the phi resolution needs to be specified. The theta resolution
-# is computed automatically to minimize anisotropy of the grid.
-vc = VirtualCasing.from_vmec(filename, src_nphi=30)
+# The "trgt_" resolution is the resolution on which results are
+# computed, which you will then use for the stage-2 coil
+# optimization. The "src_" resolution is used internally for the
+# virtual casing calculation, and is often higher than the "trgt_"
+# resolution for better accuracy.  Typically "src_ntheta" is not
+# specified; in this case it is computed automatically from "src_nphi"
+# to minimize anisotropy of the grid.
+vc = VirtualCasing.from_vmec(filename, src_nphi=48, trgt_ntheta=32, trgt_nphi=32)
 print('automatically determined src_ntheta:', vc.src_ntheta)
 
 # The VirtualCasing.from_vmec command writes a file
@@ -34,6 +39,14 @@ print('automatically determined src_ntheta:', vc.src_ntheta)
 
 # B_external_normal is now available as an attribute:
 print('B_external_normal:')
-print(vc.B_external_normal)
+print(vc.B_external_normal[:4, :4])  # Just print the first few elements
 
+# The saved virtual casing results can be loaded in later for stage-2
+# coil optimization, as follows:
+directory, wout_file = os.path.split(filename)
+vcasing_file = os.path.join(directory, wout_file.replace('wout', 'vcasing'))
+vc2 = VirtualCasing.load(vcasing_file)
+
+print('B_external_normal, loaded from file:')
+print(vc2.B_external_normal[:4, :4])
 
