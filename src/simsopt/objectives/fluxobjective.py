@@ -58,6 +58,7 @@ class SquaredFlux(Optimizable):
     def as_dict(self) -> dict:
         return MSONable.as_dict(self)
 
+    @classmethod
     def from_dict(cls, d):
         decoder = MontyDecoder()
         surface = decoder.process_decoded(d["surface"])
