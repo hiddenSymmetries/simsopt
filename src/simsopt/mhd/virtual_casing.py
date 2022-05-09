@@ -86,6 +86,34 @@ class VirtualCasing:
     - ``B_external_normal``: An array of size ``(trgt_nphi, trgt_ntheta)`` with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
+
+    The :math:`\phi` and :math:`\theta` grids for these data are both
+    uniformly spaced, and are the same as for
+    :obj:`~simsopt.geo.surface.Surface` classes with ``range="half
+    period"`` or ``range="full period"``, for the case of
+    stellarator-symmetry or non-stellarator-symmetry respectively.
+    (See the description of the ``range`` parameter in the
+    documentation on :ref:`surfaces`.)  For the usual case of
+    stellarator symmetry, all the virtual casing data are given on
+    half a field period. There is no grid point at :math:`\phi=0`,
+    rather the grid is shifted in :math:`\phi` by half the grid
+    spacing. Thus, the ``src_phi`` grid is ``np.linspace(1 / (2 * nfp
+    * src_nphi), (src_nphi - 0.5) / (src_nphi * nfp), src_nphi)``
+    (recalling the simsopt convention that :math:`\phi` and :math:`\theta` have period 1,
+    not :math:`2\pi`). For a non-stellarator-symmetric calculation,
+    the ``src_phi`` grid is ``np.linspace(0, 1 / nfp, src_nphi,
+    endpoint=False)``.  The ``trgt_phi`` grid follows the same logic as
+    the ``src_phi`` grid.  Note that for stellarator symmetry, if
+    ``src_nphi != trgt_nphi``, then the shift (i.e. first grid point)
+    in ``src_phi`` and ``trgt_phi`` will be different. For both
+    stellarator symmetry and non-stellarator-symmetry, the
+    ``src_theta`` grid is ``np.linspace(0, 1, src_ntheta,
+    endpoint=False)``, and the ``trgt_theta`` grid is the same but with
+    ``trgt_ntheta``.
+
+    In particular, ``B_external_normal`` is given on the grid that
+    would be naturally used for stage-2 coil optimization, so no
+    resampling is required.
     """
 
     @classmethod
