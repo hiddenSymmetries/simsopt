@@ -7,10 +7,15 @@ just zero.
 
 The objective is given by
 
-    J = (1/2) \int |B dot n|^2 ds + alpha * (sum CurveLength) + beta * MininumDistancePenalty
+    J = (1/2) \int |B dot n|^2 ds
+        + LENGTH_WEIGHT * (sum CurveLength)
+        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
+        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
+        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
 
-if alpha or beta are increased, the coils are more regular and better
-separated, but the target normal field may not be achieved as well.
+if any of the weights are increased, or the thresholds are tightened, the coils
+are more regular and better separated, but the target normal field may not be
+achieved as well.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
@@ -20,11 +25,13 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Current, coils_via_symmetries
-from simsopt.geo.curveobjectives import CurveLength, MinimumDistance
+from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
+    MeanSquaredCurvature, LpCurveCurvature
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -40,13 +47,19 @@ R1 = 0.5
 order = 5
 
 # Weight on the curve lengths in the objective function:
-ALPHA = 1e-6
+LENGTH_WEIGHT = 1e-6
 
-# Threshhold for the coil-to-coil distance penalty in the objective function:
-MIN_DIST = 0.1
+# Threshold and weight for the coil-to-coil distance penalty in the objective function:
+DISTANCE_THRESHOLD = 0.1
+DISTANCE_WEIGHT = 10
 
-# Weight on the coil-to-coil distance penalty term in the objective function:
-BETA = 10
+# Threshold and weight for the curvature penalty in the objective function:
+CURVATURE_THRESHOLD = 5.
+CURVATURE_WEIGHT = 1e-6
+
+# Threshold and weight for the mean squared curvature penalty in the objective function:
+MSC_THRESHOLD = 5
+MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -89,22 +102,38 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
-Jdist = MinimumDistance(curves, MIN_DIST)
+Jdist = MinimumDistance(curves, DISTANCE_THRESHOLD)
+Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
-JF = CoilOptObjective(Jf, Jls, ALPHA, Jdist, BETA)
 
+# Form the total objective function. To do this, we can exploit the
+# fact that Optimizable objects with J() and dJ() functions can be
+# multiplied by scalars and added:
+JF = Jf \
+    + LENGTH_WEIGHT * sum(Jls) \
+    + DISTANCE_WEIGHT * Jdist \
+    + CURVATURE_WEIGHT * sum(Jcs) \
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
-    mean_AbsB = np.mean(bs.AbsB())
     jf = Jf.J()
-    print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], ||∇J||={np.linalg.norm(grad):.3e}")
+    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], C-C-Sep={Jdist.shortest_distance():.2f}"
+    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    print(outstr)
     return J, grad
 
 
@@ -129,7 +158,7 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)

@@ -17,13 +17,85 @@ except ImportError:
 from simsopt.objectives.graph_least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
-if (MPI is not None) and vmec_found:
-    from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.vmec import Vmec
 
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
+
+
+class InitializedFromWout(unittest.TestCase):
+    def test_vacuum_well(self):
+        """
+        Test the calculation of magnetic well. This is done by comparison
+        to a high-aspect-ratio configuration, in which case the
+        magnetic well can be computed analytically by the method in
+        Landreman & Jorge, J Plasma Phys 86, 905860510 (2020). The
+        specific configuration considered is the one of section 5.4 in
+        Landreman & Sengupta, J Plasma Phys 85, 815850601 (2019), also
+        considered in the 2020 paper. We increase the mean field B0 to
+        2T in that configuration to make sure all the factors of B0
+        are correct.
+
+        """
+        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
+        vmec = Vmec(filename)
+
+        well_vmec = vmec.vacuum_well()
+        # Let psi be the toroidal flux divided by (2 pi)
+        abs_psi_a = np.abs(vmec.wout.phi[-1]) / (2 * np.pi)
+
+        # Data for this configuration from the near-axis construction code qsc:
+        # https://github.com/landreman/pyQSC
+        # or
+        # https://github.com/landreman/qsc
+        B0 = 2.0
+        G0 = 2.401752071286676
+        d2_volume_d_psi2 = 25.3041656424299
+
+        # See also "20210504-01 Computing magnetic well from VMEC.docx" by MJL
+        well_analytic = -abs_psi_a * B0 * B0 * d2_volume_d_psi2 / (4 * np.pi * np.pi * np.abs(G0))
+
+        logger.info(f'well_vmec: {well_vmec}  well_analytic: {well_analytic}')
+        np.testing.assert_allclose(well_vmec, well_analytic, rtol=2e-2, atol=0)
+
+    def test_iota(self):
+        """
+        Test the functions related to iota.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
+        vmec = Vmec(filename)
+
+        iota_axis = vmec.iota_axis()
+        iota_edge = vmec.iota_edge()
+        mean_iota = vmec.mean_iota()
+        mean_shear = vmec.mean_shear()
+        # These next 2 lines are different ways the mean iota and
+        # shear could be defined. They are not mathematically
+        # identical to mean_iota() and mean_shear(), but they should
+        # be close.
+        mean_iota_alt = (iota_axis + iota_edge) * 0.5
+        mean_shear_alt = iota_edge - iota_axis
+        logger.info(f"iota_axis: {iota_axis}, iota_edge: {iota_edge}")
+        logger.info(f"    mean_iota: {mean_iota},     mean_shear: {mean_shear}")
+        logger.info(f"mean_iota_alt: {mean_iota_alt}, mean_shear_alt: {mean_shear_alt}")
+
+        self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
+        self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
+
+    def test_error_on_rerun(self):
+        """
+        If a vmec object is initialized from a wout file, and if the dofs
+        are then changed, vmec output functions should raise an
+        exception.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
+        vmec = Vmec(filename)
+        iota = vmec.mean_iota()
+        vmec.boundary.set_rc(1, 0, 2.0)
+        with self.assertRaises(RuntimeError):
+            iota2 = vmec.mean_iota()
 
 
 @unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
@@ -191,18 +263,16 @@ class VmecTests(unittest.TestCase):
             np.testing.assert_allclose(iota1, iota2, atol=1e-10)
             np.testing.assert_allclose(bmnc1, bmnc2, atol=1e-10)
 
-    def test_error_on_rerun(self):
+    def test_verbose(self):
         """
-        If a vmec object is initialized from a wout file, and if the dofs
-        are then changed, vmec output functions should raise an
-        exception.
+        I'm not sure how to confirm that nothing is printed if ``verbose``
+        is set to ``False``, but we can at least make sure the code
+        doesn't crash in this case.
         """
-        filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
-        vmec = Vmec(filename)
-        iota = vmec.mean_iota()
-        vmec.boundary.set_rc(1, 0, 2.0)
-        with self.assertRaises(RuntimeError):
-            iota2 = vmec.mean_iota()
+        for verbose in [True, False]:
+            filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+            vmec = Vmec(filename, verbose=verbose)
+            vmec.run()
 
     def test_vmec_failure(self):
         """
@@ -269,63 +339,27 @@ class VmecTests(unittest.TestCase):
             print(f)
             np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
-    def test_vacuum_well(self):
+    def test_write_input(self):
         """
-        Test the calculation of magnetic well. This is done by comparison
-        to a high-aspect-ratio configuration, in which case the
-        magnetic well can be computed analytically by the method in
-        Landreman & Jorge, J Plasma Phys 86, 905860510 (2020). The
-        specific configuration considered is the one of section 5.4 in
-        Landreman & Sengupta, J Plasma Phys 85, 815850601 (2019), also
-        considered in the 2020 paper. We increase the mean field B0 to
-        2T in that configuration to make sure all the factors of B0
-        are correct.
-
+        Check that working input files can be written
         """
-        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
-        vmec = Vmec(filename)
-
-        well_vmec = vmec.vacuum_well()
-        # Let psi be the toroidal flux divided by (2 pi)
-        abs_psi_a = np.abs(vmec.wout.phi[-1]) / (2 * np.pi)
-
-        # Data for this configuration from the near-axis construction code qsc:
-        # https://github.com/landreman/pyQSC
-        # or
-        # https://github.com/landreman/qsc
-        B0 = 2.0
-        G0 = 2.401752071286676
-        d2_volume_d_psi2 = 25.3041656424299
-
-        # See also "20210504-01 Computing magnetic well from VMEC.docx" by MJL
-        well_analytic = -abs_psi_a * B0 * B0 * d2_volume_d_psi2 / (4 * np.pi * np.pi * np.abs(G0))
-
-        logger.info(f'well_vmec: {well_vmec}  well_analytic: {well_analytic}')
-        np.testing.assert_allclose(well_vmec, well_analytic, rtol=2e-2, atol=0)
-
-    def test_iota(self):
-        """
-        Test the functions related to iota.
-        """
-        filename = os.path.join(TEST_DIR, 'wout_LandremanSengupta2019_section5.4_B2_A80_reference.nc')
-        vmec = Vmec(filename)
-
-        iota_axis = vmec.iota_axis()
-        iota_edge = vmec.iota_edge()
-        mean_iota = vmec.mean_iota()
-        mean_shear = vmec.mean_shear()
-        # These next 2 lines are different ways the mean iota and
-        # shear could be defined. They are not mathematically
-        # identical to mean_iota() and mean_shear(), but they should
-        # be close.
-        mean_iota_alt = (iota_axis + iota_edge) * 0.5
-        mean_shear_alt = iota_edge - iota_axis
-        logger.info(f"iota_axis: {iota_axis}, iota_edge: {iota_edge}")
-        logger.info(f"    mean_iota: {mean_iota},     mean_shear: {mean_shear}")
-        logger.info(f"mean_iota_alt: {mean_iota_alt}, mean_shear_alt: {mean_shear_alt}")
-
-        self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
-        self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
+        configs = ['li383_low_res', 'LandremanSenguptaPlunk_section5p3', 'circular_tokamak']
+        for config in configs:
+            infilename = os.path.join(TEST_DIR, 'input.' + config)
+            outfilename = os.path.join(TEST_DIR, 'wout_' + config + '_reference.nc')
+            vmec1 = Vmec(infilename)
+            newfile = 'input.test'
+            vmec1.write_input(newfile)
+            # Now read in the newly created input file and run:
+            vmec2 = Vmec(newfile)
+            vmec2.run()
+            # Make a copy of the output, just in case we later change
+            # the implementation so vmec.wout points to the Fortran
+            # module directly, where vmec3 would overwrite it
+            rmnc = np.copy(vmec2.wout.rmnc)
+            # Read in reference values and compare:
+            vmec3 = Vmec(outfilename)
+            np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
