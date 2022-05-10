@@ -506,40 +506,295 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         return self.dvolume_by_dcoeff()
 
-    def write_nml(self, filename: str = 'boundary'):
+    def get_nml(self):
         """
-        Writes a fortran namelist file containing the RBC/RBS/ZBS/ZBS
-        coefficients, in the form used in VMEC and SPEC input files.
+        Generates a fortran namelist file containing the RBC/RBS/ZBC/ZBS
+        coefficients, in the form used in VMEC and SPEC input
+        files. The result will be returned as a string. For saving a
+        file, see the ``write_nml()`` function.
+        """
+        nml = ''
+        nml += '&INDATA\n'
+        if self.stellsym:
+            nml += 'LASYM = .FALSE.\n'
+        else:
+            nml += 'LASYM = .TRUE.\n'
+        nml += f'NFP = {self.nfp}\n'
+
+        for m in range(self.mpol + 1):
+            nmin = -self.ntor
+            if m == 0:
+                nmin = 0
+            for n in range(nmin, self.ntor + 1):
+                rc = self.get_rc(m, n)
+                zs = self.get_zs(m, n)
+                if np.abs(rc) > 0 or np.abs(zs) > 0:
+                    nml += f"RBC({n:4d},{m:4d}) ={rc:23.15e},    ZBS({n:4d},{m:4d}) ={zs:23.15e}\n"
+                if (not self.stellsym):
+                    rs = self.get_rs(m, n)
+                    zc = self.get_zc(m, n)
+                    if np.abs(rs) > 0 or np.abs(zc) > 0:
+                        nml += f"RBS({n:4d},{m:4d}) ={rs:23.15e},    ZBC({n:4d},{m:4d}) ={zc:23.15e}\n"
+        nml += '/\n'
+        return nml
+
+    def write_nml(self, filename: str):
+        """
+        Writes a fortran namelist file containing the RBC/RBS/ZBC/ZBS
+        coefficients, in the form used in VMEC and SPEC input
+        files. To just generate the namelist as a string without
+        saving a file, see the ``get_nml()`` function.
 
         Args:
             filename: Name of the file to write.
         """
         with open(filename, 'w') as f:
-            f.write('&INDATA\n')
-            if self.stellsym:
-                f.write('LASYM = .FALSE.\n')
-            else:
-                f.write('LASYM = .TRUE.\n')
-            f.write('NFP = ' + str(self.nfp) + '\n')
-
-            for m in range(self.mpol + 1):
-                nmin = -self.ntor
-                if m == 0:
-                    nmin = 0
-                for n in range(nmin, self.ntor + 1):
-                    rc = self.get_rc(m, n)
-                    zs = self.get_zs(m, n)
-                    if np.abs(rc) > 0 or np.abs(zs) > 0:
-                        f.write("RBC({:4d},{:4d}) ={:23.15e},    ZBS({:4d},{:4d}) ={:23.15e}\n" \
-                                .format(n, m, rc, n, m, zs))
-                    if (not self.stellsym):
-                        rs = self.get_rs(m, n)
-                        zc = self.get_zc(m, n)
-                        if np.abs(rs) > 0 or np.abs(zc) > 0:
-                            f.write("RBS({:4d},{:4d}) ={:23.15e},    ZBC({:4d},{:4d}) ={:23.15e}\n" \
-                                    .format(n, m, rs, n, m, zc))
-            f.write('/\n')
+            f.write(self.get_nml())
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
+
+
+class SurfaceRZPseudospectral(Optimizable):
+    """
+    This class is used to replace the Fourier-space dofs of
+    :obj:`SurfaceRZFourier` with real-space dofs, corresponding to the
+    position of the surface on grid points.  The advantage of having
+    the dofs in real-space is that they are all of the same magnitude,
+    so it is easier to know what reasonable box constraints are. This
+    class may therefore be useful for stage-1 optimization using
+    algorithms that require box constraints.
+
+    Presently, ``SurfaceRZPseudospectral`` assumes stellarator
+    symmetry.
+
+    In this class, the position vector on the surface is specified on
+    a tensor product grid of ``ntheta * nphi`` points per half period,
+    where ``ntheta`` and ``nphi`` are both odd, ``phi`` is the
+    standard toroidal angle, and ``theta`` is any poloidal angle. The
+    maximum Fourier mode numbers that can be represented by this grid
+    are ``mpol`` in the poloidal angle and ``ntor * nfp`` in the
+    toroidal angle, where ``ntheta = 1 + 2 * mpol`` and ``nphi = 1 + 2
+    * ntor``. However, due to stellarator symmetry, roughly half of
+    the grid points are redundant. Therefore the dofs only correspond
+    to the non-redundant points, and the remaining points are computed
+    from the dofs using symmetry.
+
+    A ``SurfaceRZPseudospectral`` object with resolution parameters
+    ``mpol`` and ``ntor`` has exactly the same number of dofs as a
+    :obj:`SurfaceRZFourier` object with the same ``mpol`` and
+    ``ntor``.  Specifically,
+
+    .. code-block::
+
+        ndofs = 1 + 2 * (mpol + ntor + 2 * mpol * ntor)
+
+    This class also allows the coordinates ``r`` and ``z`` to be
+    shifted and scaled, which may help to keep the dofs all of order
+    1. Letting ``r_dofs`` and ``z_dofs`` denote the dofs in this
+    class, the actual ``r`` and ``z`` coordinates are determined via
+
+    .. code-block::
+
+        r = r_dofs * a_scale + r_shift
+        z = z_dofs * a_scale
+
+    where ``r_shift`` and ``a_scale`` are optional arguments to the
+    constructor, which would be set to roughly the major and minor
+    radius.
+
+    Typical usage::
+
+        vmec = Vmec("input.your_filename_here")
+        vmec.boundary = SurfaceRZPseudospectral.from_RZFourier(vmec.boundary)
+
+    The dofs in this class are named ``r(jphi,jtheta)`` and
+    ``z(jphi,jtheta)``, where ``jphi`` and ``jtheta`` are integer
+    indices into the ``phi`` and ``theta`` grids.
+
+    This class does not presently implement the
+    :obj:`simsopt.geo.surface.Surface` interface, e.g. there is not a
+    ``gamma()`` function.
+
+    Args:
+        mpol: Maximum poloidal Fourier mode number represented.
+        ntor: The maximum toroidal Fourier mode number represented, divided by ``nfp``.
+        nfp: Number of field periods.
+        r_shift: Constant added to the ``r(jphi,jtheta)`` dofs to get the actual major radius.
+        a_scale: Dofs are multiplied by this factor to get the actual cylindrical coordinates.
+    """
+
+    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0):
+        self.mpol = mpol
+        self.ntor = ntor
+        self.nfp = nfp
+        self.r_shift = r_shift
+        self.a_scale = a_scale
+        ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
+        super().__init__(x0=np.zeros(ndofs), names=self._make_names())
+
+    def _make_names(self):
+        """
+        Create the list of names for the dofs.
+        """
+        names = ['r(0,0)']
+        for dimension in ['r', 'z']:
+            for jtheta in range(1, self.mpol + 1):
+                names.append(dimension + f'(0,{jtheta})')
+            for jphi in range(1, self.ntor + 1):
+                for jtheta in range(2 * self.mpol + 1):
+                    names.append(dimension + f'({jphi},{jtheta})')
+        return names
+
+    @classmethod
+    def from_RZFourier(cls, surff, **kwargs):
+        """
+        Convert a :obj:`SurfaceRZFourier` object to a
+        ``SurfaceRZPseudospectral`` object.
+
+        Args:
+            surff: The :obj:`SurfaceRZFourier` object to convert.
+            kwargs: You can optionally provide the ``r_shift`` or ``a_scale`` arguments
+              to the ``SurfaceRZPseudospectral`` constructor here.
+        """
+        if not surff.stellsym:
+            raise RuntimeError('SurfaceRZPseudospectral presently only '
+                               'supports stellarator-symmetric surfaces')
+
+        # shorthand:
+        mpol = surff.mpol
+        ntor = surff.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        # Make a copy of surff with the desired theta and phi points.
+        surf_copy = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=surff.nfp,
+                                     range='field period',
+                                     ntheta=ntheta, nphi=nphi)
+        surf_copy.x = surff.local_full_x
+
+        surf_new = cls(mpol=mpol, ntor=ntor, nfp=surff.nfp, **kwargs)
+        gamma = surf_copy.gamma()
+        r0 = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2)
+        r = (r0 - surf_new.r_shift) / surf_new.a_scale
+        z = gamma[:, :, 2] / surf_new.a_scale
+
+        dofs = np.zeros_like(surf_new.full_x)
+        ndofs = len(dofs)
+        index = 0
+        for jtheta in range(mpol + 1):
+            dofs[index] = r[0, jtheta]
+            index += 1
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                dofs[index] = r[jphi, jtheta]
+                index += 1
+        for jtheta in range(1, mpol + 1):
+            dofs[index] = z[0, jtheta]
+            index += 1
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                dofs[index] = z[jphi, jtheta]
+                index += 1
+        assert index == ndofs
+        surf_new.x = dofs
+        return surf_new
+
+    def _complete_grid(self):
+        """
+        Using stellarator symmetry, copy the real-space dofs to cover a
+        full 2d ``(theta, phi)`` grid.
+        """
+
+        # shorthand:
+        mpol = self.mpol
+        ntor = self.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        r = np.zeros((ntheta, nphi))
+        z = np.zeros((ntheta, nphi))
+        r[0, 0] = self.x[0]
+        shift = mpol + ntor * (2 * mpol + 1)  # = mpol + ntor + 2 * mpol * ntor
+        assert 2 * shift + 1 == len(self.x)
+        for jtheta in range(1, mpol + 1):
+            r[jtheta, 0] = self.x[jtheta]
+            r[ntheta - jtheta, 0] = self.x[jtheta]
+            assert self.local_dof_names[jtheta + shift] == f'z(0,{jtheta})'
+            z[jtheta, 0] = self.x[jtheta + shift]
+            z[ntheta - jtheta, 0] = -self.x[jtheta + shift]
+        for jphi in range(1, ntor + 1):
+            for jtheta in range(ntheta):
+                index = (jphi - 1) * ntheta + jtheta + mpol + 1
+                assert self.local_dof_names[index] == f'r({jphi},{jtheta})'
+                assert self.local_dof_names[index + shift] == f'z({jphi},{jtheta})'
+                r[jtheta, jphi] = self.x[index]
+                z[jtheta, jphi] = self.x[index + shift]
+                if jtheta == 0:
+                    r[0, nphi - jphi] = self.x[index]
+                    z[0, nphi - jphi] = -self.x[index + shift]
+                else:
+                    r[ntheta - jtheta, nphi - jphi] = self.x[index]
+                    z[ntheta - jtheta, nphi - jphi] = -self.x[index + shift]
+
+        r2 = self.r_shift + self.a_scale * r
+        z2 = self.a_scale * z
+        return r2, z2
+
+    def to_RZFourier(self, **kwargs):
+        """
+        Convert to a :obj:`SurfaceRZFourier` describing the same shape.
+
+        Args:
+            kwargs: You can optionally provide the ``range``, ``nphi``,
+              and/or ``ntheta`` arguments to the :obj:`SurfaceRZFourier` constructor here.
+        """
+        # shorthand:
+        mpol = self.mpol
+        ntor = self.ntor
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
+
+        r, z = self._complete_grid()
+        # What follows is a Fourier transform. We could use an FFT,
+        # but since speed is not a concern here for now, the Fourier
+        # transform is just done "by hand" so there is no uncertainty
+        # about normalizations etc.
+        surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=self.nfp, **kwargs)
+        surf.set_rc(0, 0, np.mean(r))
+        theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi1d = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+        phi, theta = np.meshgrid(phi1d, theta1d)
+        for n in range(1, ntor + 1):
+            surf.set_rc(0, n, 2 * np.mean(r * np.cos(-n * phi)))
+            surf.set_zs(0, n, 2 * np.mean(z * np.sin(-n * phi)))
+        for m in range(1, mpol + 1):
+            for n in range(-ntor, ntor + 1):
+                surf.set_rc(m, n, 2 * np.mean(r * np.cos(m * theta - n * phi)))
+                surf.set_zs(m, n, 2 * np.mean(z * np.sin(m * theta - n * phi)))
+
+        return surf
+
+    def change_resolution(self, mpol, ntor):
+        """
+        Increase or decrease the number of degrees of freedom.  The new
+        real-space dofs are obtained using Fourier interpolation. This
+        function is useful for increasing the size of the parameter
+        space during stage-1 optimization. If ``mpol`` and ``ntor``
+        are increased or unchanged, there is no loss of information.
+        If ``mpol`` or ``ntor`` are decreased, information is lost.
+
+        Args:
+            mpol: The new maximum poloidal mode number.
+            ntor: The new maximum toroidal mode number, divided by ``nfp``.
+        """
+        # Map to Fourier space:
+        surf2 = self.to_RZFourier()
+        # Change the resolution in Fourier space, by truncating the modes or padding 0s:
+        surf2.change_resolution(mpol=mpol, ntor=ntor)
+        # Map from Fourier space back to real space:
+        surf3 = SurfaceRZPseudospectral.from_RZFourier(surf2,
+                                                       r_shift=self.r_shift,
+                                                       a_scale=self.a_scale)
+        return surf3

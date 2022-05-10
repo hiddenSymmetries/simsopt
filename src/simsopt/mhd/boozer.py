@@ -11,7 +11,6 @@ import logging
 from typing import Union, Iterable
 
 import numpy as np
-from ..util.dev import SimsoptRequires
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +26,9 @@ except ImportError as e:
     booz_xform = None
     logger.debug(str(e))
 
-if MPI is not None:
-    try:
-        from .vmec import Vmec
-    except ImportError as e:
-        Vmec = None
-        logger.debug(str(e))
+from .vmec import Vmec
 
 from .._core.graph_optimizable import Optimizable
-
-# Temporarily commenting out the decorator till __instancecheck__ method is made working
-# @SimsoptRequires(MPI is not None, "mpi4py needs to be installed for running booz-xform"
 
 
 class Boozer(Optimizable):
@@ -127,8 +118,7 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
-            if self.equil.runnable:
-                self.equil.run()
+            self.equil.run()
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values

@@ -17,13 +17,12 @@ class CurveXYZFourier : public Curve<Array> {
            [x_{c,0},x_{s,1},x_{c,1},...,x_{s,order},x_{c,order},y_{c,0},y_{s,1},y_{c,1},...]
 
        */
-    private:
-        int order;
     public:
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
         using Curve<Array>::check_the_persistent_cache;
         vector<vector<double>> dofs;
+        const int order;
 
         CurveXYZFourier(int _numquadpoints, int _order) : Curve<Array>(_numquadpoints), order(_order) {
             dofs = vector<vector<double>> {

@@ -49,7 +49,7 @@ some classes that will be used::
   import numpy as np
   from scipy.optimize import minimize
   from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-  from simsopt.objectives.fluxobjective import SquaredFlux, CoilOptObjective
+  from simsopt.objectives.fluxobjective import SquaredFlux
   from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
   from simsopt.field.biotsavart import BiotSavart
   from simsopt.field.coil import Current, coils_via_symmetries
@@ -189,7 +189,14 @@ The result is 0.19 Tesla. We now define the objective function::
   Jf = SquaredFlux(s, bs)
   Jls = [CurveLength(c) for c in base_curves]
   Jdist = MinimumDistance(curves, MIN_DIST)
-  objective = CoilOptObjective(Jf, Jls, ALPHA, Jdist, BETA)
+  # Scale and add terms to form the total objective function:
+  objective = Jf + ALPHA * sum(Jls) + BETA * Jdist
+
+In the last line, we have used the fact that the Optimizable objects
+representing the individual terms in the objective can be scaled by a
+constant and added.  (This feature applies to Optimizable objects that
+have a function ``J()`` returning the objective and, if gradients are
+used, a function ``dJ()`` returning the gradient.)
 
 You can check the degrees of freedom that will be varied in the
 optimization by printing the ``dof_names`` property of the objective::

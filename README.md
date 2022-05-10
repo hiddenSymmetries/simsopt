@@ -57,7 +57,7 @@ can be started using
 More [installation
 options](https://simsopt.readthedocs.io/en/latest/getting_started.html#),
 [instructions for the Docker
-container](https://simsopt.readthedocs.io/en/latest/docker.html), and
+container](https://simsopt.readthedocs.io/en/latest/containers.html), and
 other information can be found in the [main simsopt documentation
 here.](https://simsopt.readthedocs.io)
 
