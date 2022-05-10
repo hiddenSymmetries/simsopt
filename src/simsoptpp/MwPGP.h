@@ -16,6 +16,7 @@ std::tuple<double, double, double> beta_tilde(double x1, double x2, double x3, d
 std::tuple<double, double, double> g_reduced_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima); 
 
 std::tuple<double, double, double> g_reduced_projected_gradient(double x1, double x2, double x3, double g1, double g2, double g3, double alpha, double m_maxima);
+
 double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, double p3, double m_maxima);
 
 void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array& m_maxima, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double nu, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift);

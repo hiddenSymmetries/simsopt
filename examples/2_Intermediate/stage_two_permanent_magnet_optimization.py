@@ -67,9 +67,10 @@ OUT_DIR = "./output_QA/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
-nphi = 4
+nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+#s.nfp=1  # only for debugging!!!!
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
@@ -144,7 +145,7 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 pm_opt = PermanentMagnetOptimizer(
     s, coil_offset=0.02, dr=0.02, plasma_offset=0.08,
     B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
-    filename=filename, out_dir=OUT_DIR
+    filename=filename, out_dir=OUT_DIR,  # cylindrical_flag=False
 )
 print('Done initializing the permanent magnet object')
 
@@ -159,20 +160,18 @@ t2 = time.time()
 print("optimization took t = ", t2 - t1, " s")
 
 # Initialize permanent magnet DipoleField class (equivalent to BiotSavart for the coils) 
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, stellsym=s.stellsym, nfp=s.nfp, cylindrical_flag=pm_opt.cylindrical_flag)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 pm_opt._plot_final_dipoles()
-plt.show()
-exit()
 
 # print some error metrics
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
-      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
 print("Average Bn with the PMs = ", 
-      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))))
+      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
 
 # make some plots of the dipoles and grid
 make_plots = True 
@@ -269,7 +268,7 @@ s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
 pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
 
-# plt.show()
+plt.show()
 
 
 def make_qfm(s, Bfield, Bfield_tf):
@@ -330,8 +329,8 @@ def make_qfm(s, Bfield, Bfield_tf):
 
 if final_run:
     # need to call set_points again here for the combined field
-    Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
-    Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+    Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp, cylindrical_flag=pm_opt.cylindrical_flag)
+    Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp, cylindrical_flag=pm_opt.cylindrical_flag)
     Bfield.set_points(s.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s, Bfield, Bfield_tf)
 

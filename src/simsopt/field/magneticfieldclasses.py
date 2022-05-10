@@ -546,13 +546,21 @@ class DipoleField(MagneticField):
                 dipole_grid_x[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.cos(phi_sym)
                 dipole_grid_y[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.sin(phi_sym)
                 dipole_grid_z[running_tally + nr * fp:running_tally + nr * (fp + 1)] = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
-                # Need to change m to be in cartesian for the call to _B_impl()
                 if self.cylindrical_flag:
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi_sym) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi_sym)
-                # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
-                m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
-                m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
+                    # transform into cartesian
+                    #mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi[i]) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi[i])
+                    mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
+                    my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi_sym) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi_sym)
+                    #my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi[i]) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi[i])
+                    # For fp symmetry, now have mx, my, mz and need to rotate by phi0
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp * np.cos(phi0) - my_temp * np.sin(phi0)
+                    #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp
+                    #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = my_temp
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = mx_temp * np.sin(phi0) + my_temp * np.cos(phi0)
+                else:
+                    # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
+                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
                 m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
                 m_maxima[running_tally + nr * fp:running_tally + nr * (fp + 1)] = self.m_maxima[running_tally_m:running_tally_m + nr]
             running_tally += nr * nfp

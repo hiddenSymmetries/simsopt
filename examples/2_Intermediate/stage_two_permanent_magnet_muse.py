@@ -112,8 +112,8 @@ filename = TEST_DIR / 'input.MUSE'
 # Directory for output
 reg_l2 = 1e-6  # 1e-7
 reg_l0 = 0  # 2e-2  # 0
-nphi = 32
-ntheta = 32
+nphi = 16
+ntheta = 16
 dr = 0.01
 coff = 0.035
 poff = 0.05
@@ -178,10 +178,10 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles.reshape(pm_opt.ndipoles, 3) **
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
 t1 = time.time()
-b_dipole_initial = DipoleField(pm_opt.dipole_grid, np.ravel(pm_opt.m0), pm_opt, nfp=s.nfp, stellsym=s.stellsym)
+b_dipole_initial = DipoleField(pm_opt.dipole_grid, np.ravel(pm_opt.m0), pm_opt, nfp=s.nfp, stellsym=s.stellsym, cylindrical_flag=pm_opt.cylindrical_flag)
 b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
 b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_muse_initial")
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, nfp=s.nfp, stellsym=s.stellsym)
+b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, nfp=s.nfp, stellsym=s.stellsym, cylindrical_flag=pm_opt.cylindrical_flag)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields_muse")
 pm_opt._plot_final_dipoles()
@@ -361,8 +361,8 @@ def make_qfm(s, Bfield, Bfield_tf):
 
 if final_run:
     # need to call set_points again here for the combined field
-    Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
-    Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp)
+    Bfield = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp, cylindrical_flag=pm_opt.cylindrical_flag)
+    Bfield_tf = BiotSavart(coils) + DipoleField(pm_opt.dipole_grid, pm_opt.m_proxy, pm_opt, stellsym=s.stellsym, nfp=s.nfp, cylindrical_flag=pm_opt.cylindrical_flag)
     Bfield.set_points(s.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s, Bfield, Bfield_tf)
 

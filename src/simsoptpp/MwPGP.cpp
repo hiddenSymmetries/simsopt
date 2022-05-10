@@ -13,7 +13,8 @@ std::tuple<double, double, double> phi_MwPGP(double x1, double x2, double x3, do
 {
     // phi(x_i, g_i) = g_i(x_i) if x_i is not on the L2 ball,
     // otherwise set phi to zero
-    if (abs(x1 * x1 + x2 * x2 + x3 * x3 - m_maxima * m_maxima) > 1.0e-8 + 1.0e-5 * m_maxima * m_maxima) {
+    double xmag2 = x1 * x1 + x2 * x2 + x3 * x3;
+    if (abs(xmag2 - m_maxima * m_maxima) > 1.0e-8 + 1.0e-5 * m_maxima * m_maxima) {
         return std::make_tuple(g1, g2, g3);
     }
     else {
@@ -72,8 +73,8 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
     double a, b, c, alphaf_plus;
     double tol = 1e-20;
     a = p1 * p1 + p2 * p2 + p3 * p3;
-    b = - 2 * (x1 * p1 + x2 * p2 + x3 * p3);
     c = x1 * x1 + x2 * x2 + x3 * x3 - m_maxima * m_maxima;
+    b = - 2 * (x1 * p1 + x2 * p2 + x3 * p3);
     if (a > tol) { 
         // c is always negative and a is always positive
         // so alphaf_plus >= 0 always
@@ -207,10 +208,10 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 #pragma omp parallel for reduction(+: norm_g_alpha_p, norm_phi_temp, gp, pATAp) private(phi_temp1, phi_temp2, phi_temp3, g_alpha_p1, g_alpha_p2, g_alpha_p3)
         for(int i = 0; i < N; ++i) {
             std::tie(g_alpha_p1, g_alpha_p2, g_alpha_p3) = g_reduced_projected_gradient(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), alpha, m_maxima(i));
-            norm_g_alpha_p += g_alpha_p1 * g_alpha_p1 + g_alpha_p2 * g_alpha_p2 + g_alpha_p3 * g_alpha_p3;
             std::tie(phi_temp1, phi_temp2, phi_temp3) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
+	    norm_g_alpha_p += g_alpha_p1 * g_alpha_p1 + g_alpha_p2 * g_alpha_p2 + g_alpha_p3 * g_alpha_p3;
             norm_phi_temp += phi_temp1 * phi_temp1 + phi_temp2 * phi_temp2 + phi_temp3 * phi_temp3;
-            gp += g(i, 0) * p(i, 0) + g(i, 1) * p(i, 1) + g(i, 2) * p(i, 2);
+	    gp += g(i, 0) * p(i, 0) + g(i, 1) * p(i, 1) + g(i, 2) * p(i, 2);
             alpha_fs[i] = find_max_alphaf(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), p(i, 0), p(i, 1), p(i, 2), m_maxima(i));
             pATAp += p(i, 0) * ATAp(i, 0) + p(i, 1) * ATAp(i, 1) + p(i, 2) * ATAp(i, 2);
         }

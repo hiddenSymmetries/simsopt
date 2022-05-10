@@ -3,7 +3,6 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import cm
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-#from scipy.linalg import svd as SVD
 import simsoptpp as sopp
 import time
 
@@ -159,12 +158,19 @@ class PermanentMagnetOptimizer:
         # The issue is that the normal vectors on the inner and outer toroidal surfaces
         # look very different on MUSE than on the original plasma surface. To avoid this issue,
         # just use the nice plasma boundary normal vectors for the ray-tracing. This generates
-        # small errors when resolution is low but works well when nphi, ntheta >~ 16 or so. 
-        self.final_RZ_grid, self.inds = sopp.make_final_surface(
-            2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
-            # self.normal_inner, self.normal_outer, 
-            RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
-        )
+        # small errors when resolution is low but works well when nphi, ntheta >~ 16 or so.
+
+        if self.FOCUS:
+            self.final_RZ_grid, self.inds = sopp.make_final_surface(
+                2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
+                # self.normal_inner, self.normal_outer, 
+                RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
+            )
+        else:
+            self.final_RZ_grid, self.inds = sopp.make_final_surface(
+                2 * np.pi * self.phi, self.normal_inner, self.normal_outer, 
+                RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
+            )
         self.inds = np.array(self.inds, dtype=int)
         for i in reversed(range(1, len(self.inds))):
             for j in range(0, i):
@@ -339,6 +345,7 @@ class PermanentMagnetOptimizer:
         self.dphi = dphi
         self.dtheta = dtheta
         grid_fac = np.sqrt(dphi * dtheta)
+        print('grid_fac = ', grid_fac, grid_fac ** 2)
 
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)
@@ -356,6 +363,20 @@ class PermanentMagnetOptimizer:
             np.ascontiguousarray(self.b_obj),
             self.cylindrical_flag  # If False use Cartesian coords. If True, cylindrical coords
         )
+        t1 = time.time()
+        UA, SA, VhA = np.linalg.svd(self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3), full_matrices=False)
+        print(SA.shape, UA.shape, VhA.shape)
+        plt.figure()
+        plt.semilogy(SA)
+        plt.savefig(self.out_dir + 'SA.png')
+        trunc = UA.shape[1] // 2  # np.where(S < S[-10] * 1.2)[0][0] * 2
+        print("Truncation index = ", trunc)
+
+        ATA_svd = VhA[:trunc, :].T @ np.diag(SA[:trunc] ** 2) @ VhA[:trunc, :]
+        print(self.ATA - ATA_svd, np.allclose(self.ATA, ATA_svd))
+        t2 = time.time()
+        print('SVD of A took t = ', t2 - t1, ' s')
+
         # Rescale
         self.A_obj_expanded = self.A_obj * grid_fac
         self.A_obj = self.A_obj_expanded.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
@@ -576,9 +597,10 @@ class PermanentMagnetOptimizer:
         """
         N = len(x) // 3
         x_shaped = x.reshape(N, 3)
+        denom_fac = np.sqrt(x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) / m_maxima 
         denom = np.maximum(
             1,
-            np.sqrt(x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) / m_maxima 
+            denom_fac, 
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
@@ -758,25 +780,18 @@ class PermanentMagnetOptimizer:
 
         t1 = time.time()
         U, S, Vh = np.linalg.svd(ATA, full_matrices=False, hermitian=True)
-        UA, SA, VhA = np.linalg.svd(self.A_obj, full_matrices=False)
 
         # WARNING: scipy is overwriting ATA for speed here!!
         #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
         plt.figure()
         plt.semilogy(S)
         plt.savefig(self.out_dir + 'S.png')
-        plt.figure()
-        plt.semilogy(SA)
-        plt.savefig(self.out_dir + 'SA.png')
-        trunc = U.shape[1] // 10  # np.where(S < S[-10] * 1.2)[0][0] * 2
-        print("Truncation index = ", trunc)
 
-        ATA_svd = VhA.T @ np.diag(SA ** 2) @ VhA
-        print(ATA - ATA_svd, np.allclose(ATA, ATA_svd))
-
+        trunc = S.shape[0] // 2  # 500
         # convert to contiguous arrays for c++ code to work right
         U = np.ascontiguousarray(U[:, :trunc])
         SV = np.ascontiguousarray(np.diag(S[:trunc]) @ Vh[:trunc, :])
+        print(ATA - U @ SV)
         t2 = time.time()
         print("SVD took ", t2 - t1, " s")
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
@@ -837,7 +852,7 @@ class PermanentMagnetOptimizer:
                 reg_l1=reg_l1,
                 reg_l2=reg_l2,
                 reg_l2_shifted=reg_l2_shifted,
-                nu=nu
+                nu=nu,
             )    
             m = np.ravel(m)
             m_proxy = m
