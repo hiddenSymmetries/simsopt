@@ -4,6 +4,14 @@ simsopt.mhd package
 Submodules
 ----------
 
+simsopt.mhd.bootstrap module
+----------------------------
+
+.. automodule:: simsopt.mhd.bootstrap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.boozer module
 -------------------------
 
@@ -12,10 +20,26 @@ simsopt.mhd.boozer module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.profiles module
+---------------------------
+
+.. automodule:: simsopt.mhd.profiles
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.spec module
 -----------------------
 
 .. automodule:: simsopt.mhd.spec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.mhd.virtual\_casing module
+----------------------------------
+
+.. automodule:: simsopt.mhd.virtual_casing
    :members:
    :undoc-members:
    :show-inheritance:

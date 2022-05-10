@@ -9,7 +9,7 @@ except ImportError:
     gridToVTK = None
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.dev import SimsoptRequires
 from .plot import fix_matplotlib_3d
 
@@ -61,6 +61,12 @@ class Surface(Optimizable):
               If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
             quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
+
+        Returns:
+            Tuple containing
+
+            - **quadpoints_phi**: List of grid points :math:`\phi_j`.
+            - **quadpoints_theta**: List of grid points :math:`\theta_j`.
         """
         # Handle theta:
         if (quadpoints_theta is not None) and (ntheta is not None):
@@ -455,8 +461,8 @@ class Surface(Optimizable):
         for evaluating the adjoint shape gradient for free-boundary calculations.
 
         Returns:
-            theta_arclength: 2d array (numquadpoints_phi,numquadpoints_theta)
-                of arclength poloidal angle
+            2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
+            containing the arclength poloidal angle
         """
         gamma = self.gamma()
         X = gamma[:, :, 0]
@@ -604,3 +610,57 @@ class SurfaceClassifier():
         self.dist.evaluate_batch(RPhiZ, vals)
         vals = vals.reshape(R.shape)
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
+
+
+class SurfaceScaled(Optimizable):
+    """
+    Allows you to take any Surface class and scale the dofs. This is
+    useful for stage-1 optimization.
+    """
+
+    def __init__(self, surf, scale_factors):
+        self.surf = surf
+        self.scale_factors = scale_factors
+        super().__init__(x0=surf.x / scale_factors, names=surf.local_dof_names)
+
+    def recompute_bell(self, parent=None):
+        self.surf.local_full_x = self.local_full_x * self.scale_factors
+
+    def to_RZFourier(self):
+        return self.surf.to_RZFourier()
+
+    def update_fixed(self):
+        """
+        Copy the fixed status from self.surf to self.
+        """
+        for j, is_free in enumerate(self.surf.local_dofs_free_status):
+            if is_free:
+                self.unfix(j)
+            else:
+                self.fix(j)
+
+
+def best_nphi_over_ntheta(surf):
+    """
+    Given a surface, estimate the ratio of ``nphi / ntheta`` that
+    minimizes the mesh anisotropy. This is useful for improving speed
+    and accuracy of the virtual casing calculation. The result refers
+    to the number of grid points in ``phi`` covering the full torus,
+    not just one field period or half a field period. The input
+    surface need not have ``range=="full torus"`` however; any
+    ``range`` will work.
+
+    The result of this function will depend somewhat on the quadrature
+    points of the input surface, but the dependence should be weak.
+
+    Args:
+        surf: A surface object.
+
+    Returns:
+        float with the best ratio ``nphi / ntheta``.
+    """
+    gammadash1 = np.linalg.norm(surf.gammadash1(), axis=2)
+    gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
+    ratio = gammadash1 / gammadash2
+    return np.sqrt(np.max(ratio) / np.max(1 / ratio))
+

@@ -87,10 +87,14 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly
+        sudo apt-get install graphviz graphviz-dev
+        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+
+    - name: Install virtual_casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
@@ -159,7 +163,7 @@ jobs:
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      run: pip install -v .[MPI,SPEC]
+      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py

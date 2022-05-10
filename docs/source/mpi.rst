@@ -53,7 +53,7 @@ The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the 
 
   # ... code to define an optimization problem "prob" ...
   
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.solve.mpi import least_squares_mpi_solve
   
   least_squares_mpi_solve(prob, mpi, grad=True)
 
