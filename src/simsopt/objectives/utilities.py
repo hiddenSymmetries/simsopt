@@ -63,7 +63,7 @@ class MPIObjective(Optimizable):
 
 class QuadraticPenalty(Optimizable):
 
-    def __init__(self, obj, threshold=0., cons='inequality'):
+    def __init__(self, obj, threshold=0., cons='min'):
         r"""
         A penalty function of the form :math:`\max(J - \text{threshold}, 0)^2` for an underlying objective ``J``.
 
@@ -77,18 +77,24 @@ class QuadraticPenalty(Optimizable):
         self.cons = cons
 
     def J(self):
-        if self.cons == 'inequality':
+        if self.cons == 'max':
             return 0.5*np.maximum(self.obj.J()-self.threshold, 0)**2
-        elif self.cons == 'equality':
+        elif self.cons == 'min':
+            return 0.5*np.minimum(self.obj.J()-self.threshold, 0)**2
+        elif self.cons == '=':
             return 0.5*(self.obj.J()-self.threshold)**2
 
     @derivative_dec
     def dJ(self):
-        if self.cons == 'inequality':
+        if self.cons == 'max':
             val = self.obj.J()
             dval = self.obj.dJ(partials=True)
             return np.maximum(val-self.threshold, 0)*dval
-        elif self.cons == 'equality':
+        elif self.cons == 'min':
+            val = self.obj.J()
+            dval = self.obj.dJ(partials=True)
+            return np.minimum(val-self.threshold, 0)*dval
+        elif self.cons == '=':
             val = self.obj.J()
             dval = self.obj.dJ(partials=True)
             return (val-self.threshold)*dval

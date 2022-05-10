@@ -557,7 +557,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=10, iota=res['iota'], G=res['G'])
+            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
         self.surface.set_dofs(self.in_surface.get_dofs())
         self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
@@ -688,7 +688,7 @@ class Iotas(Optimizable):
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=10, iota=res['iota'], G=res['G'])
+            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
         self._J = self.boozer_surface.res['iota']
         
