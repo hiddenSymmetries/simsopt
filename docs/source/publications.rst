@@ -24,7 +24,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
      "Single-stage gradient-based stellarator coil design: stochastic optimization",
-     *Submitted*, (2021).
+     *Nuclear Fusion* **62**, 076034 (2022).
+     `[journal version] <https://doi.org/10.1088/1741-4326/ac45f3>`__
      `[arXiv version] <https://arxiv.org/pdf/2106.12137>`__
    |
    
@@ -49,8 +50,33 @@ Here is a list of publications in which simsopt results appear:
      `[arXiv version] <https://arxiv.org/pdf/2108.03711>`__
    |
 
+#. | F Wechsung and M Landreman and A Giuliani and A Cerfon and G Stadler,
+     "Precise stellarator quasi-symmetry can be achieved with electromagnetic coils",
+     *Proceedings of the National Academy of Sciences* **119**, e2202084119 (2022).
+     `[journal version] <https://doi.org/10.1073/pnas.2202084119>`__
+   |
+
 #. | A Baillod, J Loizu, J P Graves, and M Landreman,
      "Stellarator optimization for good magnetic surfaces at finite β and toroidal current",
-     *Submitted*, (2021).
+     *Physics of Plasmas*, **29**, 042505 (2021).
+     `[journal version] <https://doi.org/10.1063/5.0080809>`__
      `[arXiv version] <https://arxiv.org/pdf/2111.15564>`__
+   |
+
+#. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
+     "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
+     *Submitted*, (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
+   |
+
+#. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
+     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
+     *Submitted*, (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
+   |
+
+#. | M Landreman, S Buller, and M Drevlak,
+     "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |

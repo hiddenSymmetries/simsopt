@@ -3,11 +3,16 @@ import unittest
 import numpy as np
 
 from simsopt.geo import parameters
-from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
-    LpCurveTorsion, MinimumDistance, ArclengthVariation, MeanSquaredCurvature
+    LpCurveTorsion, CurveCurveDistance, ArclengthVariation, \
+    MeanSquaredCurvature, CurveSurfaceDistance
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.field.coil import coils_via_symmetries
+from simsopt.util.zoo import get_ncsx_data
+import simsoptpp as sopp
 
 parameters['jit'] = False
 
@@ -129,7 +134,7 @@ class Testing(unittest.TestCase):
         ncurves = 3
         curve_t = curve.curve.__class__.__name__ if isinstance(curve, RotatedCurve) else curve.__class__.__name__
         curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
-        J = MinimumDistance(curves, 0.2)
+        J = CurveCurveDistance(curves, 0.2)
         mindist = 1e10
         for i in range(len(curves)):
             for j in range(i):
@@ -228,6 +233,110 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     curve = self.create_curve(curvetype, rotated)
                     self.subtest_curve_meansquaredcurvature_taylor_test(curve)
+
+    def test_minimum_distance_candidates_one_collection(self):
+        np.random.seed(0)
+        n_clouds = 4
+        pointClouds = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        true_min_dists = {}
+        from scipy.spatial.distance import cdist
+
+        for i in range(n_clouds):
+            for j in range(i):
+                true_min_dists[(i, j)] = np.min(cdist(pointClouds[i], pointClouds[j]))
+
+        threshold = max(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
+        assert len(candidates) == len(true_min_dists)
+
+        threshold = min(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
+        assert len(candidates) == 1
+
+    def test_minimum_distance_candidates_two_collections(self):
+        np.random.seed(0)
+        n_clouds = 4
+        pointCloudsA = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        pointCloudsB = [np.random.uniform(low=-1.0, high=+1.0, size=(5, 3)) for _ in range(n_clouds)]
+        true_min_dists = {}
+        from scipy.spatial.distance import cdist
+
+        for i in range(n_clouds):
+            for j in range(n_clouds):
+                true_min_dists[(i, j)] = np.min(cdist(pointCloudsA[i], pointCloudsB[j]))
+
+        threshold = max(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
+        assert len(candidates) == len(true_min_dists)
+
+        threshold = min(true_min_dists.values()) * 1.0001
+        candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
+        assert len(candidates) == 1
+
+    def test_minimum_distance_candidates_symmetry(self):
+        from scipy.spatial.distance import cdist
+        base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
+        curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
+        for t in np.linspace(0.05, 0.5, num=10):
+            Jnosym = CurveCurveDistance(curves, t)
+            Jsym = CurveCurveDistance(curves, t, num_basecurves=3)
+            assert abs(Jnosym.shortest_distance_among_candidates() - Jsym.shortest_distance_among_candidates()) < 1e-15
+            print(len(Jnosym.candidates), len(Jsym.candidates), Jnosym.shortest_distance_among_candidates())
+            distsnosym = [np.min(cdist(Jnosym.curves[i].gamma(), Jnosym.curves[j].gamma())) for i, j in Jnosym.candidates]
+            distssym = [np.min(cdist(Jsym.curves[i].gamma(), Jsym.curves[j].gamma())) for i, j in Jsym.candidates]
+            print("distsnosym", distsnosym)
+            print("distssym", distssym)
+            print((Jnosym.candidates), (Jsym.candidates))
+
+            assert np.allclose(
+                np.unique(np.round(distsnosym, 8)),
+                np.unique(np.round(distssym, 8))
+            )
+
+    def test_curve_surface_distance(self):
+        from scipy.spatial.distance import cdist
+        np.random.seed(0)
+        base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
+        curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
+        ntor = 0
+        surface = SurfaceRZFourier(nfp=3, nphi=32, ntheta=32, ntor=ntor)
+        surface.set(f'rc(0,{ntor})', 1.6)
+        surface.set(f'rc(1,{ntor})', 0.2)
+        surface.set(f'zs(1,{ntor})', 0.2)
+
+        last_num_candidates = 0
+        for t in np.linspace(0.01, 1.0, num=10):
+            J = CurveSurfaceDistance(curves, surface, t)
+            J.compute_candidates()
+            assert len(J.candidates) >= last_num_candidates
+            last_num_candidates = len(J.candidates)
+            if len(J.candidates) == 0:
+                assert J.shortest_distance() > J.shortest_distance_among_candidates()
+            else:
+                assert J.shortest_distance() == J.shortest_distance_among_candidates()
+
+        assert last_num_candidates == len(curves)
+        threshold = 1.0
+        J = CurveSurfaceDistance(curves, surface, threshold)
+
+        curve_dofs = J.x
+        h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        dJ = J.dJ()
+        deriv = np.sum(dJ * h)
+        assert np.abs(deriv) > 1e-10
+        err = 1e6
+        for i in range(5, 12):
+            eps = 0.5**i
+            J.x = curve_dofs + eps * h
+            Jp = J.J()
+            J.x = curve_dofs - eps * h
+            Jm = J.J()
+            deriv_est = (Jp-Jm)/(2*eps)
+            err_new = np.linalg.norm(deriv_est-deriv)
+            print("err_new %s" % (err_new))
+            print(err_new/err)
+            assert err_new < 0.3 * err
+            err = err_new
 
 
 if __name__ == "__main__":

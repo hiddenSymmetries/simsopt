@@ -427,6 +427,21 @@ class Testing(unittest.TestCase):
                     ax = curve.plot(engine=engine, ax=ax, show=False, close=close)
                 c.plot(engine=engine, ax=ax, close=close, plot_derivative=True, show=show)
 
+    def test_rotated_curve_gamma_impl(self):
+        rc = get_curve("CurveXYZFourier", True, x=100)
+        c = rc.curve
+        mat = rc.rotmat
+
+        rcg = rc.gamma()
+        cg = c.gamma()
+        quadpoints = rc.quadpoints
+
+        assert np.allclose(rcg, cg@mat)
+        # run gamma_impl so that the `else` in RotatedCurve.gamma_impl gets triggered
+        tmp = np.zeros_like(cg[:10, :])
+        rc.gamma_impl(tmp, quadpoints[:10])
+        assert np.allclose(cg[:10, :]@mat, tmp)
+
 
 if __name__ == "__main__":
     unittest.main()

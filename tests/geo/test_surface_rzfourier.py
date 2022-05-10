@@ -140,6 +140,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try a stellarator-symmetric example:
         filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
         s = SurfaceRZFourier.from_wout(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up to 4 even
         # though the RBC/ZBS arrays for the input file go up to m=6,
         # since mpol is only 4.
@@ -173,6 +176,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try some stellarator-symmetric examples:
         filename = TEST_DIR / 'input.li383_low_res'
         s = SurfaceRZFourier.from_vmec_input(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up through 6,
         # even though mpol in the file is 4.
         true_volume = 2.97871721453671
@@ -322,6 +328,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'tf_only_half_tesla.plasma'
 
         s = SurfaceRZFourier.from_focus(filename)
+
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
 
         self.assertEqual(s.nfp, 3)
         self.assertTrue(s.stellsym)
@@ -482,6 +492,75 @@ class SurfaceRZFourierTests(unittest.TestCase):
         via_vjp = s.dgammadash2_by_dcoeff_vjp(h)
         via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
         assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+    def test_names_order(self):
+        """
+        Verify that the order of rc, rs, zc, zs in the dof names is
+        correct. This requires that the order of these four arrays in
+        ``_make_names()`` matches the order in the C++ functions
+        ``set_dofs_impl()`` and ``get_dofs()`` in
+        ``src/simsoptpp/surfacerzfourier.h``.
+        """
+        mpol = 1
+        ntor = 1
+        nfp = 4
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        s.set_rc(0, 0, 100.0)
+        s.set_zs(0, 1, 200.0)
+        self.assertAlmostEqual(s.get('rc(0,0)'), 100.0)
+        self.assertAlmostEqual(s.get('zs(0,1)'), 200.0)
+
+        # Now try non-stellarator-symmetry
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        s.set_rc(0, 0, 10.0)
+        s.set_zs(0, 1, 20.0)
+        s.set_zc(0, 0, 30.0)
+        s.set_rs(0, 1, 40.0)
+        self.assertAlmostEqual(s.get('rc(0,0)'), 10.0)
+        self.assertAlmostEqual(s.get('zs(0,1)'), 20.0)
+        self.assertAlmostEqual(s.get('zc(0,0)'), 30.0)
+        self.assertAlmostEqual(s.get('rs(0,1)'), 40.0)
+
+    def test_mn(self):
+        """
+        Test the arrays of mode numbers m and n.
+        """
+        mpol = 3
+        ntor = 2
+        nfp = 4
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        m_correct = [0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3,
+                     0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3]
+        n_correct = [0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2,
+                     1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]
+        np.testing.assert_array_equal(s.m, m_correct)
+        np.testing.assert_array_equal(s.n, n_correct)
+
+        # Now try a non-stellarator-symmetric case
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        np.testing.assert_array_equal(s.m, m_correct + m_correct)
+        np.testing.assert_array_equal(s.n, n_correct + n_correct)
+
+    def test_mn_matches_names(self):
+        """
+        Verify that the m and n attributes match the dof names.
+        """
+        mpol = 2
+        ntor = 3
+        nfp = 5
+        surf = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        # Drop the rc or zs from the start of the names:
+        names = [s[2:] for s in surf.local_dof_names]
+        names2 = [f'({m},{n})' for m, n in zip(surf.m, surf.n)]
+        self.assertEqual(names, names2)
+
+        # Now try a non-stellarator-symmetric case:
+        surf = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        assert 'zc(0,0)' in surf.local_dof_names
+        # Drop the rc or zs from the start of the names:
+        names = [s[2:] for s in surf.local_dof_names]
+        names2 = [f'({m},{n})' for m, n in zip(surf.m, surf.n)]
+        self.assertEqual(names, names2)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):

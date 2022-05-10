@@ -3,87 +3,88 @@
 # Distributed under the terms of the LGPL License
 
 """
-This module provides functions for solving least-squares and general optimization
-problems, without parallelization in the optimization algorithm itself,
-and without parallelized finite-difference gradients. 
-These functions could still be used for cases in which there is parallelization within the objective
-function evaluations.
-These functions essentially
-are interfaces between a :obj:`simsopt.core.least_squares_problem.LeastSquaresProblem`
-object and `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
-The functions here also create a log file with history of the objective function evaluations.
-
-If you want parallelized finite difference gradient evaluations, you should instead use
-:meth:`simsopt.solve.mpi_solve.least_squares_mpi_solve()`. If not, the methods here may be preferable
-due to their greater simplicity.
+This module provides the least_squares_serial_solve
+function. Eventually I can also put a serial_solve function here for
+general optimization problems.
 """
 
-import logging
 from datetime import datetime
 from time import time
-import traceback
+from typing import Union, Callable
+import logging
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
 
 from ..objectives.least_squares import LeastSquaresProblem
-from .graph_serial import least_squares_serial_solve as glsss
-from ..util.dev import deprecated
+from .._core.optimizable import Optimizable
+from .._core.finite_difference import FiniteDifference
+
 
 logger = logging.getLogger(__name__)
 
 
-@deprecated(replacement=glsss,
-            message="This class has been deprecated from v0.6.0 and will be "
-                    "deleted from future versions of simsopt. Use graph "
-                    "framework to define the optimization problem. Use "
-                    "simsopt.objectives.graph_least_squares.LeastSquaresProblem"
-                    " class in conjunction with"
-                    " simsopt.solve.graph_serial.least_squares_serial_solve")
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
+                               abs_step: float = 1.0e-7,
+                               rel_step: float = 0.0,
+                               diff_method: str = "forward",
                                **kwargs):
     """
-    Solve a nonlinear-least-squares minimization problem.
+    Solve a nonlinear-least-squares minimization problem using
+    scipy.optimize, and without using any parallelization.
 
     Args:
-        prob: An instance of LeastSquaresProblem, defining the objective
-                function(s) and parameter space.
+        prob: LeastSquaresProblem object defining the objective function(s)
+             and parameter space.
         grad: Whether to use a gradient-based optimization algorithm, as
-                opposed to a gradient-free algorithm. If unspecified, a
-                gradient-based algorithm will be used if ``prob`` has
-                gradient information available, otherwise a gradient-free
-                algorithm will be used by default. If you set ``grad=True``
-                for a problem in which gradient information is not available,
-                finite-difference gradients will be used.
-        kwargs: Any arguments to pass to 
+             opposed to a gradient-free algorithm. If unspecified, a
+             a gradient-free algorithm
+             will be used by default. If you set ``grad=True`` for a problem,
+             finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are ``"centered"``, and
+             ``"forward"``. If ``"centered"``, centered finite differences will
+             be used. If ``"forward"``, one-sided finite differences will
+             be used. Else, error is raised.
+        kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
-                For instance, you can supply ``max_nfev=100`` to set the
-                maximum number of function evaluations (not counting
-                finite-difference gradient evaluations) to 100.
+                For instance, you can supply ``max_nfev=100`` to set
+                the maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100. Or, you
+                can supply ``method`` to choose the optimization algorithm.
     """
 
-    objective_file = None
-    datalogging_started = False
-    residuals_file = None
+    datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    objective_file = open(f"simsopt_{datestr}.dat", 'w')
+    residuals_file = open(f"residuals_{datestr}.dat", 'w')
+
     nevals = 0
     start_time = time()
+    datalogging_started = False
 
     def objective(x):
         nonlocal datalogging_started, objective_file, residuals_file, nevals
+        #success = True
+        try:
+            residuals = prob.residuals(x)
+        except:
+            logger.info("Exception caught during function evaluation")
+            residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            #success = False
 
-        f_unshifted = prob.dofs.f(x)
-        f_shifted = prob.f_from_unshifted(f_unshifted)
-        objective_val = prob.objective_from_shifted_f(f_shifted)
+        objective_val = prob.objective()
 
         # Check that 2 ways of computing the objective give same
         # answer within roundoff:
-        objective2 = prob.objective()
-        logger.info("objective_from_f={} objective={} diff={}".format(
-            objective_val, objective2, objective_val - objective2))
-        abs_diff = np.abs(objective_val - objective2)
-        rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
-        assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
+        #if success:
+        #    objective2 = prob.objective()
+        #    logger.info("objective_from_f={} objective={} diff={}".format(
+        #        objective_val, objective2, objective_val - objective2))
+        #    abs_diff = np.abs(objective_val - objective2)
+        #    rel_diff = abs_diff / (1e-12 + np.abs(objective_val + objective2))
+        #    assert (abs_diff < 1e-12) or (rel_diff < 1e-12)
 
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
@@ -92,57 +93,57 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         if not datalogging_started:
             # Initialize log file
             datalogging_started = True
-            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            filename = "simsopt_" + datestr + ".dat"
-            objective_file = open(filename, 'w')
-            objective_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            ndofs = prob.dof_size
+            objective_file.write(
+                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
             objective_file.write("function_evaluation,seconds")
-            for j in range(prob.dofs.nparams):
-                objective_file.write(",x({})".format(j))
-            objective_file.write(",objective_function")
-            objective_file.write("\n")
+            for j in range(ndofs):
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n")
 
-            filename = "residuals_" + datestr + ".dat"
-            residuals_file = open(filename, 'w')
-            residuals_file.write("Problem type:\nleast_squares\nnparams:\n{}\n".format(prob.dofs.nparams))
+            residuals_file.write(
+                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
             residuals_file.write("function_evaluation,seconds")
-            for j in range(prob.dofs.nparams):
-                residuals_file.write(",x({})".format(j))
+            for j in range(ndofs):
+                residuals_file.write(f",x({j})")
             residuals_file.write(",objective_function")
-            for j in range(prob.dofs.nvals):
-                residuals_file.write(",F({})".format(j))
+            for j in range(len(residuals)):
+                residuals_file.write(f",F({j})")
             residuals_file.write("\n")
 
-        objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        elapsed_t = time() - start_time
+        objective_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
-            objective_file.write(",{:24.16e}".format(xj))
-        objective_file.write(",{:24.16e}".format(objective_val))
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}")
         objective_file.write("\n")
         objective_file.flush()
 
-        residuals_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
+        residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
         for xj in x:
-            residuals_file.write(",{:24.16e}".format(xj))
-        residuals_file.write(",{:24.16e}".format(objective_val))
-        for fj in f_unshifted:
-            residuals_file.write(",{:24.16e}".format(fj))
+            residuals_file.write(f",{xj:24.16e}")
+        residuals_file.write(f",{objective_val:24.16e}")
+        for fj in residuals:
+            residuals_file.write(f",{fj:24.16e}")
         residuals_file.write("\n")
         residuals_file.flush()
 
         nevals += 1
-        return f_shifted
+        return residuals
 
     logger.info("Beginning solve.")
-    prob._init()  # In case 'fixed', 'mins', etc have changed since the problem was created.
-    if grad is None:
-        grad = prob.dofs.grad_avail
+    #if grad is None:
+    #    grad = prob.dofs.grad_avail
 
     #if not 'verbose' in kwargs:
 
+    print('prob is ', prob)
     x0 = np.copy(prob.x)
     if grad:
+        fd = FiniteDifference(prob.residuals, abs_step=abs_step,
+                              rel_step=rel_step, diff_method=diff_method)
         logger.info("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
+        result = least_squares(objective, x0, verbose=2, jac=fd.jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
@@ -152,87 +153,106 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     residuals_file.close()
     logger.info("Completed solve.")
 
-    #print("optimum x:",result.x)
-    #print("optimum residuals:",result.fun)
-    #print("optimum cost function:",result.cost)
-    # Set Parameters to their values for the optimum
     prob.x = result.x
 
 
-def serial_solve(prob, grad=None, **kwargs):
+def serial_solve(prob: Union[Optimizable, Callable],
+                 grad: bool = None,
+                 abs_step: float = 1.0e-7,
+                 rel_step: float = 0.0,
+                 diff_method: str = "centered",
+                 **kwargs):
     """
     Solve a general minimization problem (i.e. one that need not be of
     least-squares form) using scipy.optimize.minimize, and without using any
     parallelization.
 
-    prob should be a simsopt problem.
-
-    kwargs allows you to pass any arguments to scipy.optimize.minimize.
+    Args:
+        prob: Optimizable object defining the objective function(s)
+             and parameter space.
+        grad: Whether to use a gradient-based optimization algorithm, as
+             opposed to a gradient-free algorithm. If unspecified, a
+             gradient-based algorithm will be used if ``prob`` has gradient
+             information available, otherwise a gradient-free algorithm
+             will be used by default. If you set ``grad=True``
+             in which gradient information is not available,
+             finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are ``"centered"``, and
+             ``"forward"``. If ``"centered"``, centered finite differences will
+             be used. If ``"forward"``, one-sided finite differences will
+             be used. Else, error is raised.
+        kwargs: Any arguments to pass to
+                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+                For instance, you can supply ``max_nfev=100`` to set
+                the maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100. Or, you
+                can supply ``method`` to choose the optimization algorithm.
     """
 
-    objective_file = None
-    datalogging_started = False
-    nevals = 0
-    start_time = time()
+    filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") \
+               + ".dat"
+    with open(filename, 'w') as objective_file:
+        datalogging_started = False
+        nevals = 0
+        start_time = time()
 
-    def objective(x):
-        nonlocal datalogging_started, objective_file, nevals
+        def objective(x):
+            nonlocal datalogging_started, objective_file, nevals
+            try:
+                result = prob(x)
+            except:
+                result = 1e+12
 
-        result = prob.objective(x)
+            # Since the number of terms is not known until the first
+            # evaluation of the objective function, we cannot write the
+            # header of the output file until this first evaluation is
+            # done.
+            if not datalogging_started:
+                # Initialize log file
+                datalogging_started = True
+                objective_file.write(
+                    f"Problem type:\ngeneral\nnparams:\n{prob.dof_size}\n")
+                objective_file.write("function_evaluation,seconds")
+                for j in range(prob.dof_size):
+                    objective_file.write(f",x({j})")
+                objective_file.write(",objective_function")
+                objective_file.write("\n")
 
-        # Since the number of terms is not known until the first
-        # evaluation of the objective function, we cannot write the
-        # header of the output file until this first evaluation is
-        # done.
-        if not datalogging_started:
-            # Initialize log file
-            datalogging_started = True
-            filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".dat"
-            objective_file = open(filename, 'w')
-            objective_file.write("Problem type:\ngeneral\nnparams:\n{}\n".format(prob.dofs.nparams))
-            objective_file.write("function_evaluation,seconds")
-            for j in range(prob.dofs.nparams):
-                objective_file.write(",x({})".format(j))
-            objective_file.write(",objective_function")
+            del_t = time() - start_time
+            objective_file.write(f"{nevals:6d},{del_t:12.4e}")
+            for xj in x:
+                objective_file.write(f",{xj:24.16e}")
+            # objective_file.write(f",{result:24.16e}")
+            objective_file.write(f",{result}")
             objective_file.write("\n")
+            objective_file.flush()
 
-        objective_file.write("{:6d},{:12.4e}".format(nevals, time() - start_time))
-        for xj in x:
-            objective_file.write(",{:24.16e}".format(xj))
-        objective_file.write(",{:24.16e}".format(result))
-        objective_file.write("\n")
-        objective_file.flush()
+            nevals += 1
+            return result
 
-        nevals += 1
-        return result
+        # Need to fix up this next line for non-least-squares problems:
+        #if grad is None:
+        #    grad = prob.dofs.grad_avail
 
-    logger.info("Beginning solve.")
-    # Not sure if the next line has an analog for non-least-squares problems:
-    # prob._init() # In case 'fixed', 'mins', etc have changed since the problem was created.
+        #if not 'verbose' in kwargs:
 
-    # Need to fix up this next line for non-least-squares problems:
-    #if grad is None:
-    #    grad = prob.dofs.grad_avail
+        logger.info("Beginning solve.")
+        x0 = np.copy(prob.x)
+        if grad:
+            raise RuntimeError("Need to convert least-squares Jacobian to "
+                               "gradient of the scalar objective function")
+            logger.info("Using derivatives")
+            fd = FiniteDifference(prob, abs_step=abs_step,
+                                  rel_step=rel_step, diff_method=diff_method)
+            result = least_squares(objective, x0, verbose=2, jac=fd.jac,
+                                   **kwargs)
+        else:
+            logger.info("Using derivative-free method")
+            result = minimize(objective, x0, options={'disp': True}, **kwargs)
 
-    #if not 'verbose' in kwargs:
+        datalogging_started = False
+        logger.info("Completed solve.")
 
-    x0 = np.copy(prob.x)
-    if grad:
-        raise RuntimeError("Need to convert least-squares Jacobian to gradient of the scalar objective function")
-        logger.info("Using derivatives")
-        print("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=prob.jac, **kwargs)
-    else:
-        logger.info("Using derivative-free method")
-        print("Using derivative-free method")
-        result = minimize(objective, x0, options={'disp': True}, **kwargs)
-
-    datalogging_started = False
-    objective_file.close()
-    logger.info("Completed solve.")
-
-    #print("optimum x:",result.x)
-    #print("optimum residuals:",result.fun)
-    #print("optimum cost function:",result.cost)
-    # Set Parameters to their values for the optimum
     prob.x = result.x

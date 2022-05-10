@@ -6,7 +6,6 @@ from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
 from scipy.optimize import minimize
 from simsopt._core.util import ObjectiveFailure
-from simsopt._core.dofs import Dofs
 import sys
 
 """

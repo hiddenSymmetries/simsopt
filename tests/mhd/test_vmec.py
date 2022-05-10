@@ -14,8 +14,12 @@ try:
 except ImportError:
     vmec_found = False
 
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt._core.optimizable import make_optimizable
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
+from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec
 
@@ -23,6 +27,15 @@ from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
+
+
+def netcdf_to_str(arr):
+    """
+    Strings read in from a netcdf file (such as a vmec wout file) are
+    loaded as a numpy array of bytestrings. This function converts
+    them to standard python strings.
+    """
+    return ''.join(x.decode() for x in arr)
 
 
 class InitializedFromWout(unittest.TestCase):
@@ -83,6 +96,17 @@ class InitializedFromWout(unittest.TestCase):
 
         self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
         self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
+
+    def test_external_current(self):
+        """
+        Test the external_current() function.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        bsubvmnc = 1.5 * vmec.wout.bsubvmnc[0, -1] - 0.5 * vmec.wout.bsubvmnc[0, -2]
+        mu0 = 4 * np.pi * (1.0e-7)
+        external_current = 2 * np.pi * bsubvmnc / mu0
+        np.testing.assert_allclose(external_current, vmec.external_current())
 
     def test_error_on_rerun(self):
         """
@@ -338,6 +362,241 @@ class VmecTests(unittest.TestCase):
             f = prob.residuals()
             print(f)
             np.testing.assert_allclose(f, correct_f, rtol=0.1)
+
+    def test_pressure_profile(self):
+        """
+        Set a prescribed pressure profile, run vmec, and check that we got
+        the pressure we requested.
+        """
+        # First, try a polynomial Profile with vmec using a power series:
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.indata.pres_scale = 5.0  # Vmec should change this to 1
+        pressure = ProfilePolynomial(1.0e4 * np.array([1, 1, -2.0]))
+        vmec.pressure_profile = pressure
+        vmec.run()
+        s = vmec.s_half_grid
+        np.testing.assert_allclose(vmec.wout.pres[1:], pressure(s))
+        # Change the Profile dofs, and confirm that the output pressure from VMEC is updated:
+        pressure.local_unfix_all()
+        pressure.x = 1.0e4 * np.array([1, 2, -3.0])
+        vmec.run()
+        self.assertAlmostEqual(vmec.indata.pres_scale, 1.0)
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (1 + 2 * s - 3 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'power_series')
+        #assert vmec.wout.pmass_type[:12] == b'power_series'
+
+        # Now try a spline Profile with vmec using a power series:
+        s_spline = np.linspace(0, 1, 5)
+        pressure2 = ProfileSpline(s_spline, 1.0e4 * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2))
+        vmec.pressure_profile = pressure2
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (2.0 + 0.6 * s - 1.5 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'power_series')
+
+        # Now try a spline Profile with vmec using splines:
+        vmec.indata.pmass_type = 'cubic_spline'
+        pressure2.local_full_x = 1.0e4 * (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (2.2 - 0.7 * s - 1.1 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'cubic_spline')
+
+        # Now try a polynomial Profile with vmec using splines:
+        vmec.pressure_profile = pressure
+        # Try lowering the number of spline nodes:
+        vmec.n_pressure = 7
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (1 + 2 * s - 3 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'cubic_spline')
+
+        # Now try a spline Profile with vmec using Amika splines:
+        vmec.pressure_profile = pressure2
+        vmec.indata.pmass_type = 'akima_spline'
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (2.2 - 0.7 * s - 1.1 * s * s), rtol=0.02)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'akima_spline')
+
+        # Now try a polynomial Profile with vmec using splines:
+        vmec.pressure_profile = pressure
+        # Try lowering the number of spline nodes:
+        vmec.n_pressure = 7
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 1.0e4 * (1 + 2 * s - 3 * s * s), atol=250)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'akima_spline')
+
+        # Now try having vmec use line_segment:
+        vmec.pressure_profile = ProfilePolynomial([2.0e4, -1.9e4])
+        vmec.indata.pmass_type = 'line_segment'
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.pres[1:], 2.0e4 - 1.9e4 * s)
+        self.assertEqual(netcdf_to_str(vmec.wout.pmass_type[:12]), 'line_segment')
+
+    def test_current_profile(self):
+        """
+        Set a prescribed current profile, run vmec, and check that we got
+        the current we requested.
+        """
+        # First, try a polynomial Profile with vmec using a power series:
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.indata.ncurr = 1
+        vmec.indata.curtor = -3e6  # This value should be over-written
+        factor = 5.0e6
+        current = ProfilePolynomial(factor * np.array([1, 1, -1.5]))
+        # Integral of that current profile is 1.0 * factor
+        vmec.current_profile = current
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor, rtol=1e-2)
+        s = vmec.s_full_grid
+        s_test = s[1:-1]
+        # Vmec's jcurv is (dI/ds) / (2pi) where I(s) is the current enclosed by the surface s.
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + s_test - 1.5 * s_test ** 2), rtol=1e-3)
+
+        # Change the Profile dofs, and confirm that the output current from VMEC is updated:
+        current.local_unfix_all()
+        current.x = factor * np.array([1, 2, -2.2])
+        # Now the total (s-integrated) current is factor * 1.2666666666
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.266666666, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
+        self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:12]), 'power_series')
+
+        # Now try a spline Profile with vmec using a power series:
+        s_spline = np.linspace(0, 1, 5)
+        current2 = ProfileSpline(s_spline, factor * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2))
+        # Now the total (s-integrated) current is factor * 1.8
+        vmec.current_profile = current2
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.8, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (2.0 + 0.6 * s_test - 1.5 * s_test ** 2), rtol=1e-3)
+        self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:12]), 'power_series')
+
+        # Now try a spline Profile with vmec using splines. Note that
+        # current is different from pressure and iota in that the
+        # "cubic_spline" option in VMEC is replaced by
+        # "cubic_spline_ip" or "cubic_spline_i"
+        vmec.indata.pcurr_type = 'cubic_spline_ip'
+        current2.local_unfix_all()
+        current2.x = factor * (1.0 + 1.0 * s_spline - 1.5 * s_spline ** 2)
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.0, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1.0 + 1.0 * s_test - 1.5 * s_test ** 2), rtol=1e-3)
+        self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
+
+        # Now try a polynomial Profile with vmec using splines:
+        vmec.current_profile = current
+        # Try lowering the number of spline nodes:
+        vmec.n_current = 7
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.ctor, factor * 1.266666666, rtol=1e-2)
+        np.testing.assert_allclose(vmec.wout.jcurv[1:-1] * 2 * np.pi,
+                                   factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
+        self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
+
+    def test_iota_profile(self):
+        """
+        Set a prescribed iota profile, run vmec, and check that we got
+        the iota we requested.
+        """
+        # First, try a polynomial Profile with vmec using a power series:
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.indata.ncurr = 0
+        iota = ProfilePolynomial(np.array([1, 1, -2.0]))
+        vmec.iota_profile = iota
+        vmec.run()
+        s = vmec.s_half_grid
+        np.testing.assert_allclose(vmec.wout.iotas[1:], iota(s))
+        # Change the Profile dofs, and confirm that the output iota from VMEC is updated:
+        iota.local_unfix_all()
+        iota.x = np.array([1, 2, -3.0])
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.iotas[1:], (1 + 2 * s - 3 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.piota_type[:12]), 'power_series')
+
+        # Now try a spline Profile with vmec using a power series:
+        s_spline = np.linspace(0, 1, 5)
+        iota2 = ProfileSpline(s_spline, (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2))
+        vmec.iota_profile = iota2
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.iotas[1:], (2.0 + 0.6 * s - 1.5 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.piota_type[:12]), 'power_series')
+
+        # Now try a spline Profile with vmec using splines:
+        vmec.indata.piota_type = 'cubic_spline'
+        iota2.local_unfix_all()
+        newx = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
+        iota2.x = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.iotas[1:], (2.2 - 0.7 * s - 1.1 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.piota_type[:12]), 'cubic_spline')
+
+        # Now try a polynomial Profile with vmec using splines:
+        vmec.iota_profile = iota
+        # Try lowering the number of spline nodes:
+        vmec.n_iota = 7
+        vmec.run()
+        np.testing.assert_allclose(vmec.wout.iotas[1:], (1 + 2 * s - 3 * s * s))
+        self.assertEqual(netcdf_to_str(vmec.wout.piota_type[:12]), 'cubic_spline')
+
+    def test_profile_invalid(self):
+        """
+        When using a simsopt profile, the Vmec profile type must be
+        "power_series" or "cubic_spline"
+        """
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        pressure = ProfilePolynomial(1.0e4 * np.array([1, 1, -2.0]))
+        vmec.pressure_profile = pressure
+        vmec.indata.pmass_type = 'two_power'
+        with self.assertRaises(RuntimeError):
+            vmec.run()
+
+    def test_profile_demo(self):
+        """
+        Run an example from the Vmec docstring.
+        """
+        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+        Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+        ni = ne
+        pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+        pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.pressure_profile = pressure_Pa
+        vmec.indata.pmass_type = "cubic_spline"
+        vmec.n_pressure = 8  # Use 8 spline nodes
+        vmec.run()
+        logging.info(f'betatotal: {vmec.wout.betatotal}')
+        np.testing.assert_allclose(vmec.wout.betatotal, 0.0127253894792956)
+
+    def test_profile_optimization(self):
+        """
+        Vary the pressure profile by an overall scale factor in order to
+        achieve a desired "betatotal".
+        """
+        # Initial pressure profile is p(s) = (1.0e4) * (1 - s)
+        base_pressure = ProfilePolynomial([1, -1])
+        pressure = ProfileScaled(base_pressure, 1.0e4)
+        pressure.local_unfix_all()
+        filename = os.path.join(TEST_DIR, 'input.circular_tokamak')
+        vmec = Vmec(filename)
+        vmec.boundary.local_fix_all()
+        vmec.pressure_profile = pressure
+
+        def beta_func(vmec):
+            vmec.run()
+            return vmec.wout.betatotal
+
+        prob = LeastSquaresProblem.from_tuples([(make_optimizable(beta_func, vmec).J, 0.03, 1)])
+        assert len(prob.x) == 1
+        least_squares_serial_solve(prob, gtol=1e-15)
+        np.testing.assert_allclose(prob.x, [644053.93838138])
 
     def test_write_input(self):
         """
