@@ -54,6 +54,15 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("compute_kmns",&compute_kmns);
 
+    m.def("vprime", &vprime<xt::pytensor>,
+        py::arg("field"),
+        py::arg("s"),
+        py::arg("theta0"),
+        py::arg("nfp"),
+        py::arg("nmax"),
+        py::arg("step_zie")=1e-3
+    );
+
     m.def("find_bounce_points", &find_bounce_points<xt::pytensor>,
         py::arg("field"),
         py::arg("s"),

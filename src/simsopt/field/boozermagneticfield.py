@@ -403,15 +403,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         BoozerMagneticField.__init__(self, self.booz.equil.wout.phi[-1]/(2*np.pi))
 
-        print('Beginning splines')
         # self.booz.mpi.comm_world.Barrier()
         if self.mpi is not None:
             if self.mpi.proc0_groups:
                 self.init_splines()
-                print('Finished init_splines')
                 if self.no_K is False:
                     self.compute_K()
-                print('Finished compute_K')
             else:
                 self.psip_spline = None
                 self.G_spline = None
@@ -454,11 +451,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
         else:
             self.init_splines()
-            print('Finished init_splines')
             if self.no_K is False:
                 self.compute_K()
-            print('Finished compute_K')
-        print('Finished splines')
 
     def init_splines(self):
         self.xm_b = self.booz.bx.xm_b
