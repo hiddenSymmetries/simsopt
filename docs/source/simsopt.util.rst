@@ -20,6 +20,14 @@ simsopt.util.dev module
    :undoc-members:
    :show-inheritance:
 
+simsopt.util.fourier_interpolation module
+-----------------------------------------
+
+.. automodule:: simsopt.util.fourier_interpolation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.util.log module
 -----------------------
 

@@ -68,6 +68,14 @@ simsopt.geo.curvexyzfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.finitebuild module
+------------------------------
+
+.. automodule:: simsopt.geo.finitebuild
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.jit module
 ----------------------
 
