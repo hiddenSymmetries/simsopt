@@ -15,8 +15,9 @@ warnings.catch_warnings()
 
 logger = logging.getLogger(__name__)
 
+
 def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
-        tol=1e-8, nzeta=1000, step_size=1e-3):
+                         tol=1e-8, nzeta=1000, step_size=1e-3):
     """
     Computes the parallel adiabatic invariant (divided by v)
 
@@ -49,19 +50,20 @@ def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
     # Compute bounce points
     bouncel_try = sopp.find_bounce_points(field, s, alpha0, lam, nfp, 0, nmax, root_tol=root_tol, nzeta=nzeta)
     bouncel_try = np.asarray(bouncel_try)
-    if (len(bouncel_try)>0):
+    if (len(bouncel_try) > 0):
         bouncer_try = bouncel_try + 2*np.pi*nmax/nfp
 
         # Compute bounce integrals
-        integrals = sopp.bounce_integral(bouncel_try,bouncer_try, field, s, alpha0, lam, nfp, True,
-                False, False, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
+        integrals = sopp.bounce_integral(bouncel_try, bouncer_try, field, s, alpha0, lam, nfp, True,
+                                         False, False, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
 
-        return integrals[:,0], integrals[:,7], integrals[:,8]
+        return integrals[:, 0], integrals[:, 7], integrals[:, 8]
     else:
         raise RuntimeError("Unable to find left bounce point.")
 
+
 def bounce_averaged_psi_dot(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
-        tol=1e-8, nzeta=1000, step_size=1e-3):
+                            tol=1e-8, nzeta=1000, step_size=1e-3):
     """
     Computes the bounce integral of the radial magnetic drift (divided by m v/q)
 
@@ -94,19 +96,20 @@ def bounce_averaged_psi_dot(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
     # Compute bounce points
     bouncel_try = sopp.find_bounce_points(field, s, alpha0, lam, nfp, 0, nmax, root_tol=root_tol, nzeta=nzeta)
     bouncel_try = np.asarray(bouncel_try)
-    if (len(bouncel_try)>0):
+    if (len(bouncel_try) > 0):
         bouncer_try = bouncel_try + 2*np.pi*nmax/nfp
 
         # Compute bounce integrals
-        integrals = sopp.bounce_integral(bouncel_try,bouncer_try, field, s, alpha0, lam, nfp, False,
-                True, False, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
+        integrals = sopp.bounce_integral(bouncel_try, bouncer_try, field, s, alpha0, lam, nfp, False,
+                                         True, False, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
 
-        return integrals[:,1], integrals[:,7], integrals[:,8]
+        return integrals[:, 1], integrals[:, 7], integrals[:, 8]
     else:
         raise RuntimeError("Unable to find bounce point pair.")
 
+
 def bounce_averaged_alpha_dot(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
-        tol=1e-8, nzeta=1000, step_size=1e-3):
+                              tol=1e-8, nzeta=1000, step_size=1e-3):
     """
     Computes the bounce integral of the alpha magnetic drift (divided by m v/q)
 
@@ -147,20 +150,21 @@ def bounce_averaged_alpha_dot(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
     # Compute bounce points
     bouncel_try = sopp.find_bounce_points(field, s, alpha0, lam, nfp, 0, nmax, root_tol=root_tol, nzeta=nzeta)
     bouncel_try = np.asarray(bouncel_try)
-    if (len(bouncel_try)>0):
+    if (len(bouncel_try) > 0):
         bouncer_try = bouncel_try + 2*np.pi*nmax/nfp
 
         # Compute bounce integrals
-        integrals = sopp.bounce_integral(bouncel_try,bouncer_try, field, s, alpha0, lam, nfp, False,
-                False, True, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
+        integrals = sopp.bounce_integral(bouncel_try, bouncer_try, field, s, alpha0, lam, nfp, False,
+                                         False, True, False, False, False, False, adjust=True, tol=tol, step_size=step_size)
 
-        return integrals[:,2], integrals[:,7], integrals[:,8]
+        return integrals[:, 2], integrals[:, 7], integrals[:, 8]
     else:
         raise RuntimeError("Unable to find bounce point pair.")
 
+
 def eps_eff(field, s, nfp, nlam=30, ntheta=100, nzeta=100, nmin=100, nmax=1000,
-     nstep=100, nmin_tol=1e-3, step_size=1e-3, tol=1e-8, nmax_bounce=5, root_tol=1e-8,
-     nzeta_bounce=1000, norm=2):
+            nstep=100, nmin_tol=1e-3, step_size=1e-3, tol=1e-8, nmax_bounce=5, root_tol=1e-8,
+            nzeta_bounce=1000, norm=2):
     """
     Performs calculation of the effective ripple on a prescribe surface of a
     given :class:`BoozerMagneticField` instance.
@@ -207,16 +211,16 @@ def eps_eff(field, s, nfp, nlam=30, ntheta=100, nzeta=100, nmin=100, nmax=1000,
         strength is taken to be the average over the Boozer angles. If = 2, then
         normalizing field strength is taken to be the maximum on the surface.
     """
-    assert norm in [1,2]
+    assert norm in [1, 2]
 
     points = np.zeros((1, 3))
     points[:, 0] = s
     field.set_points(points)
-    iota = field.iota()[0,0]
+    iota = field.iota()[0, 0]
 
     theta0 = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
     zeta = np.linspace(0, 2*np.pi/nfp, nzeta, endpoint=False)
-    [theta02d,zeta2d] = np.meshgrid(theta0,zeta)
+    [theta02d, zeta2d] = np.meshgrid(theta0, zeta)
     dtheta = theta0[1]-theta0[0]
     dzeta = zeta[1]-zeta[0]
 
@@ -225,10 +229,10 @@ def eps_eff(field, s, nfp, nlam=30, ntheta=100, nzeta=100, nmin=100, nmax=1000,
     points[:, 1] = theta02d.flatten()
     points[:, 2] = zeta2d.flatten()
     field.set_points(points)
-    modB = field.modB()[:,0]
+    modB = field.modB()[:, 0]
     minB = np.min(modB)
     maxB = np.max(modB)
-    if (norm==2):
+    if (norm == 2):
         Bref = maxB
 
     R = field.R()[:, 0]
@@ -256,12 +260,12 @@ def eps_eff(field, s, nfp, nlam=30, ntheta=100, nzeta=100, nmin=100, nmax=1000,
     gthetazeta = dXdtheta*dXdzeta + dYdtheta*dYdzeta + dZdtheta*dZdzeta
     gzetazeta = dXdzeta**2 + dYdzeta**2 + dZdzeta**2
 
-    sqrtg = (field.G()[:,0]+field.iota()[:,0]*field.I()[:,0])/(modB*modB)
+    sqrtg = (field.G()[:, 0]+field.iota()[:, 0]*field.I()[:, 0])/(modB*modB)
     norm_grad_psi = (gthetatheta*gzetazeta - gthetazeta**2)**(1/2) / sqrtg
 
     norm_grad_psi_average = np.sum(sqrtg*norm_grad_psi)/np.sum(sqrtg)
 
-    lam = np.linspace(1/maxB,1/minB,nlam)
+    lam = np.linspace(1/maxB, 1/minB, nlam)
     dlam = (lam[1]-lam[0])*np.ones_like(lam)
     dlam[0] *= 0.5
     dlam[-1] *= 0.5
@@ -270,45 +274,45 @@ def eps_eff(field, s, nfp, nlam=30, ntheta=100, nzeta=100, nmin=100, nmax=1000,
     for il in range(len(lam)):
         alpha0 = 0
         bouncel = sopp.find_bounce_points(field, s, alpha0, lam[il], nfp, 0, nmin,
-            root_tol=root_tol, nzeta=nzeta_bounce)
-        if (len(bouncel)==0):
+                                          root_tol=root_tol, nzeta=nzeta_bounce)
+        if (len(bouncel) == 0):
             continue
         bouncel = np.asarray(bouncel)
         bouncer = bouncel + 2*np.pi*nmax_bounce/nfp
 
         integrals = sopp.bounce_integral(bouncel, bouncer, field, s,
-            alpha0, lam[il], nfp, False, False, False, True, False, True,
-            False,step_size=step_size,tol=tol,adjust=True)
-        I = integrals[:,3]
-        dKdalpha = integrals[:,5]
-        this_int = np.sum(dKdalpha[I!=0]**2/I[I!=0])*dlam[il]/lam[il]
+                                         alpha0, lam[il], nfp, False, False, False, True, False, True,
+                                         False, step_size=step_size, tol=tol, adjust=True)
+        I = integrals[:, 3]
+        dKdalpha = integrals[:, 5]
+        this_int = np.sum(dKdalpha[I != 0]**2/I[I != 0])*dlam[il]/lam[il]
         ntransits = nmin
 
         # Now add nstep transits at a time until convergence
-        for i in range(nmin+nstep,nmax+1,nstep):
+        for i in range(nmin+nstep, nmax+1, nstep):
             alpha0 = 2*np.pi*ntransits*iota/nfp
             ntransits += nstep
 
             bouncel = sopp.find_bounce_points(field, s, alpha0, lam[il], nfp, 0, nmin,
-                root_tol=root_tol, nzeta=nzeta_bounce)
-            if (len(bouncel)==0):
+                                              root_tol=root_tol, nzeta=nzeta_bounce)
+            if (len(bouncel) == 0):
                 continue
             bouncel = np.asarray(bouncel)
             bouncer = bouncel + 2*np.pi*nmax_bounce/nfp
             integrals = sopp.bounce_integral(bouncel, bouncer, field, s,
-                alpha0, lam[il], nfp, False, False, False, True, False, True,
-                False,step_size=step_size,tol=tol,adjust=True)
+                                             alpha0, lam[il], nfp, False, False, False, True, False, True,
+                                             False, step_size=step_size, tol=tol, adjust=True)
 
-            d_I = integrals[:,3]
-            d_dKdalpha = integrals[:,5]
-            new_int = np.sum(d_dKdalpha[d_I!=0]**2/d_I[d_I!=0])*dlam[il]/lam[il]
+            d_I = integrals[:, 3]
+            d_dKdalpha = integrals[:, 5]
+            new_int = np.sum(d_dKdalpha[d_I != 0]**2/d_I[d_I != 0])*dlam[il]/lam[il]
             this_int += new_int
             if (new_int <= nmin_tol*this_int):
                 break
 
         # Normalize by vprime at the correct number of transits
         alpha0 = 0.
-        vprime = sopp.vprime(field,s,alpha0,nfp,ntransits,step_size)
+        vprime = sopp.vprime(field, s, alpha0, nfp, ntransits, step_size)
         int += this_int/vprime
 
     int *= np.pi/(2*np.sqrt(2)*norm_grad_psi_average**2)
