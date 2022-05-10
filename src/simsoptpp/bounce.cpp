@@ -13,6 +13,7 @@ typedef xt::pyarray<double> Array;
 #include <boost/math/tools/roots.hpp>
 #include <boost/numeric/odeint/integrate/integrate.hpp>
 #include <boost/numeric/odeint.hpp>
+#include <math.h>
 
 #include <tuple>
 using namespace boost::numeric::odeint;
@@ -29,6 +30,10 @@ Array bounce_integral<xt::pytensor>(std::vector<double> bouncel, std::vector<dou
             double theta0, double lam, int nfp, bool jpar,
             bool psidot, bool alphadot, bool ihat, bool khat, bool dkhatdalpha, bool tau,
             double step_size, double tol, bool adjust);
+
+template
+double vprime<xt::pytensor>(shared_ptr<BoozerMagneticField<xt::pytensor>> field, double s,
+    double theta0, int nfp, int nmax, double step_size);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 std::vector<double> find_bounce_points(shared_ptr<BoozerMagneticField<T>> field, double s,
@@ -261,8 +266,8 @@ Array bounce_integral(std::vector<double> bouncel, std::vector<double> bouncer, 
     double zetamax, zetal;
     bool adjusted;
 
-    std::function<void(const state_type&, const double)> factor_observer = [adjust,modBf,lam,&zetal,&zetamax,&adjusted](const state_type &x , const double t) mutable {
-      if (adjust && (1 <= lam*modBf(t)) && (t <= zetamax) && (t > zetal)) {
+    std::function<void(const state_type&, const double)> factor_observer = [adjust,modBf,lam,&zetal,&zetamax,&adjusted,step_size](const state_type &x , const double t) mutable {
+      if (adjust && (1 <= lam*modBf(t)) && (t <= zetamax) && (t > zetal + step_size)) {
           // Store smallest value of right bounce point
           zetamax = t;
           // Remember that we have reached a bounce point
@@ -271,7 +276,7 @@ Array bounce_integral(std::vector<double> bouncel, std::vector<double> bouncer, 
     };
 
     std::function<void(const state_type&, state_type&, const double)> ihatf = [modBf,lam,jacfac,&zetamax](const state_type &x , state_type &dxdt , const double t) mutable {
-        if ((1 >= lam*modBf(t)) && (t <= zetamax)) {
+        if ((1 > lam*modBf(t)) && (t <= zetamax)) {
           dxdt[0] = std::sqrt(1 - lam*modBf(t))*jacfac/(modBf(t)*modBf(t));
         } else {
           dxdt[0] = 0;
@@ -279,7 +284,7 @@ Array bounce_integral(std::vector<double> bouncel, std::vector<double> bouncer, 
     };
 
     std::function<void(const state_type&, state_type&, const double)> jparf = [modBf,lam,jacfac,&zetamax](const state_type &x , state_type &dxdt , const double t) mutable {
-      if ((1 >= lam*modBf(t)) && (t <= zetamax)) {
+      if ((1 > lam*modBf(t)) && (t <= zetamax)) {
           dxdt[0] = std::sqrt(std::abs(1 - lam*modBf(t)))*jacfac/modBf(t);
         } else {
           dxdt[0] = 0;
@@ -287,7 +292,7 @@ Array bounce_integral(std::vector<double> bouncel, std::vector<double> bouncer, 
     };
 
     std::function<void(const state_type&, state_type&, const double)> dkhatdalphaf = [modBf,dmodBdthetaf,lam,jacfac,&zetamax](const state_type &x , state_type &dxdt , const double t) mutable {
-      if ((1 >= lam*modBf(t)) && (t <= zetamax)) {
+      if ((1 > lam*modBf(t)) && (t <= zetamax)) {
           dxdt[0] = std::sqrt(1 - lam*modBf(t))*dmodBdthetaf(t)*(-1.5*lam - 2*(1 - lam*modBf(t))/modBf(t))*jacfac/(modBf(t)*modBf(t));
         } else {
           dxdt[0] = 0;
@@ -369,4 +374,36 @@ Array bounce_integral(std::vector<double> bouncel, std::vector<double> bouncer, 
       integrals(i,8) = zetar;
     }
     return integrals;
+}
+
+template<template<class, std::size_t, xt::layout_type> class T>
+double vprime(shared_ptr<BoozerMagneticField<T>> field, double s,
+    double theta0, int nfp, int nmax, double step_size) {
+
+      typename BoozerMagneticField<T>::Tensor2 points0({{s, 0, 0}});
+      field->set_points(points0);
+
+      double iota = field->iota_ref()(0);
+      double G = field->G_ref()(0);
+      double I = field->I_ref()(0);
+      double jacfac = (G + iota*I);
+
+      typename BoozerMagneticField<T>::Tensor2 point = xt::zeros<double>({1, 3});
+      point(0,0) = s;
+
+      typedef std::vector< double > state_type;
+
+      std::function<void(const state_type&, state_type&, const double)> vprimef = [jacfac,field,point,theta0,iota](const state_type &x , state_type &dxdt , const double t) mutable {
+          point(0,1) = theta0 + iota * t;
+          point(0,2) = t;
+          field->set_points(point);
+          auto modB = field->modB();
+          dxdt[0] = jacfac/(modB(0,0)*modB(0,0));
+      };
+
+      state_type x(1);
+      x[0] = 0;
+      double zetaend = 2*M_PI*nmax/nfp;
+      boost::numeric::odeint::integrate(vprimef, x, 0., zetaend, step_size);
+      return x[0];
 }
