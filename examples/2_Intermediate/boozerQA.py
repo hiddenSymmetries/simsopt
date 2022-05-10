@@ -20,7 +20,7 @@ import os
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-print("Running 2_Intermediate/boozer.py")
+print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
 base_curves, base_currents, ma = get_ncsx_data()
@@ -31,8 +31,10 @@ bs_tf = BiotSavart(coils)
 current_sum = sum(abs(c.current.get_value()) for c in coils)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
-mpol = 6  # try increasing this to 8 or 10 for smoother surfaces
-ntor = 6  # try increasing this to 8 or 10 for smoother surfaces
+
+## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
+mpol = 6  
+ntor = 6  
 stellsym = True
 nfp = 3
 
@@ -40,25 +42,26 @@ phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 s = SurfaceXYZTensorFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-s.fit_to_curve(ma, 0.10, flip_theta=True)
+s.fit_to_curve(ma, 0.1, flip_theta=True)
 iota = -0.406
 
 vol = Volume(s)
 vol_target = vol.J()
 
+## COMPUTE THE SURFACE
 boozer_surface = BoozerSurface(bs, s, vol, vol_target)
-res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=10, iota=iota, G=G0)
-print(f"NEWTON {res['success']}: iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
+res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
+print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 
-# let's optimize for QA on a surface in NCSX set up
+## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES
 bs_nonQS = BiotSavart(coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 
-J_major_radius = QuadraticPenalty(mr, 1.5, 'equality')
-J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'equality')
+J_major_radius = QuadraticPenalty(mr, 1.5, '=')
+J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], '=')
 J_nonQSRatio = NonQuasiAxisymmetricRatio(boozer_surface, bs_nonQS)
-Jls = QuadraticPenalty(sum(ls), 21., 'inequality') 
+Jls = QuadraticPenalty(sum(ls), 21., 'max') 
 
 JF = J_nonQSRatio + J_iotas + J_major_radius + Jls
 
@@ -67,7 +70,6 @@ boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 
 # let's fix the coil current
 base_currents[0].fix_all()
-
 
 def fun(dofs):
     # save these in case the boozer surface solve fails
@@ -117,7 +119,7 @@ print("""
 """)
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if ci else 1e5
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
