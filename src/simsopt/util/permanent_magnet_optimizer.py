@@ -363,20 +363,6 @@ class PermanentMagnetOptimizer:
             np.ascontiguousarray(self.b_obj),
             self.cylindrical_flag  # If False use Cartesian coords. If True, cylindrical coords
         )
-        t1 = time.time()
-        UA, SA, VhA = np.linalg.svd(self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3), full_matrices=False)
-        print(SA.shape, UA.shape, VhA.shape)
-        plt.figure()
-        plt.semilogy(SA)
-        plt.savefig(self.out_dir + 'SA.png')
-        trunc = UA.shape[1] // 2  # np.where(S < S[-10] * 1.2)[0][0] * 2
-        print("Truncation index = ", trunc)
-
-        ATA_svd = VhA[:trunc, :].T @ np.diag(SA[:trunc] ** 2) @ VhA[:trunc, :]
-        print(self.ATA - ATA_svd, np.allclose(self.ATA, ATA_svd))
-        t2 = time.time()
-        print('SVD of A took t = ', t2 - t1, ' s')
-
         # Rescale
         self.A_obj_expanded = self.A_obj * grid_fac
         self.A_obj = self.A_obj_expanded.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
@@ -415,8 +401,8 @@ class PermanentMagnetOptimizer:
                 z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
 
                 plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
-                plt.plot(r_inner, z_inner, 'k', linewidth=2)
-                plt.plot(r_outer, z_outer, 'k', linewidth=2)
+                #plt.plot(r_inner, z_inner, 'k', linewidth=2)
+                #plt.plot(r_outer, z_outer, 'k', linewidth=2)
 
                 running_tally = 0
                 for k in range(ind):
@@ -636,7 +622,7 @@ class PermanentMagnetOptimizer:
                 np.linalg.pinv(self.A_obj) @ self.b_obj, 
                 self.m_maxima
             )
-            m0 = np.zeros(m0.shape)
+            #m0 = np.zeros(m0.shape)
             # m0 = np.random.rand(m0.shape)
 
         self.m0 = m0
@@ -778,22 +764,21 @@ class PermanentMagnetOptimizer:
             self.m_maxima
         )
 
-        t1 = time.time()
-        U, S, Vh = np.linalg.svd(ATA, full_matrices=False, hermitian=True)
+        #t1 = time.time()
+        #U, S, Vh = np.linalg.svd(ATA, full_matrices=False, hermitian=True)
 
-        # WARNING: scipy is overwriting ATA for speed here!!
-        #U, S, Vh = SVD(ATA, full_matrices=False, check_finite=False, overwrite_a=True, lapack_driver='gesdd') 
-        plt.figure()
-        plt.semilogy(S)
-        plt.savefig(self.out_dir + 'S.png')
+        #plt.figure()
+        #plt.semilogy(S)
+        #plt.savefig(self.out_dir + 'S.png')
 
-        trunc = S.shape[0] // 2  # 500
+        #trunc = S.shape[0] # // 2
         # convert to contiguous arrays for c++ code to work right
-        U = np.ascontiguousarray(U[:, :trunc])
-        SV = np.ascontiguousarray(np.diag(S[:trunc]) @ Vh[:trunc, :])
-        print(ATA - U @ SV)
-        t2 = time.time()
-        print("SVD took ", t2 - t1, " s")
+        #U = np.ascontiguousarray(U[:, :trunc])
+        #SV = np.ascontiguousarray(np.diag(S[:trunc]) @ Vh[:trunc, :])
+        #print(ATA - U @ SV, ATA, U @ SV)
+        #t2 = time.time()
+        #print("SVD took ", t2 - t1, " s")
+        ATA = np.ascontiguousarray(ATA)
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
 
         # Begin optimization
@@ -810,9 +795,10 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj_expanded,
                     b_obj=self.b_obj,
+                    ATA=ATA,
                     ATb=ATb,
-                    U=U,
-                    SV=SV,
+                    #U=U,
+                    #SV=SV,
                     m_proxy=np.ascontiguousarray(m_proxy.reshape(self.ndipoles, 3)),
                     m0=np.ascontiguousarray(m.reshape(self.ndipoles, 3)),
                     m_maxima=self.m_maxima,
@@ -838,12 +824,13 @@ class PermanentMagnetOptimizer:
             MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                 A_obj=self.A_obj_expanded,
                 b_obj=self.b_obj,
+                ATA=ATA,
                 ATb=ATb,
                 m_proxy=m0,
                 m0=m0,
                 m_maxima=self.m_maxima,
-                U=U,
-                SV=SV,
+                #U=U,
+                #SV=SV,
                 alpha=alpha_max,
                 epsilon=epsilon,
                 max_iter=max_iter_MwPGP,

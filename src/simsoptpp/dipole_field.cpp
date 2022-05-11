@@ -282,16 +282,16 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
             for (int j = 0; j < num_dipoles; ++j) {
                 auto G_i = Vec3dSimd();
                 auto H_i = Vec3dSimd();
-	        simd_t phij = phi[j] + phi0;
-	        //simd_t phij = xsimd::atan2(point_i.y, point_i.x) + phi0; 
+	        simd_t phi_sym = phi[j] + phi0;
+	        simd_t phij = phi_sym - phi0;
 		simd_t sphij = xsimd::sin(phij); 
-		//simd_t sphij = xsimd::sin(phi_sym - phi0); 
+		simd_t sphi = xsimd::sin(phi_sym); 
 	        simd_t cphij = xsimd::cos(phij); 
-	        //simd_t cphij = xsimd::cos(phi_sym - phi0); 
+	        simd_t cphi = xsimd::cos(phi_sym); 
                 Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
                 simd_t mmag = xsimd::sqrt(xsimd::fma(mp_j.x, mp_j.x, mp_j.y * mp_j.y));
-		simd_t mp_x_new = mmag * cphij;
-		simd_t mp_y_new = mmag * sphij;
+		simd_t mp_x_new = mmag * cphi;
+		simd_t mp_y_new = mmag * sphi;
 		Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z);
 		Vec3dSimd r = point_i - mp_j_new;
                 simd_t rmag_2 = normsq(r);
@@ -327,11 +327,8 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
 		        if (stellsym > 0) {
 			    double Ax_temp = (H_i.x[k] * cphi0[k] - H_i.y[k] * sphi0[k]);
 			    double Ay_temp = (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
-		            // For conversion to
 			    A(i + k, j, 0) += - fak * (Ax_temp * cphij[k] - Ay_temp * sphij[k]);
-		            //A(i + k, j, 0) += - fak * (Ax_temp * cphij[k] + Ay_temp * sphij[k]);
 		            A(i + k, j, 1) += fak * (Ax_temp * sphij[k] + Ay_temp * cphij[k]);
-		            //A(i + k, j, 1) += fak * ( - Ax_temp * sphij[k] + Ay_temp * cphij[k]);
 			    A(i + k, j, 2) += fak * H_i.z[k];
 		        }
 		    }

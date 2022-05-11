@@ -548,10 +548,10 @@ class DipoleField(MagneticField):
                 dipole_grid_z[running_tally + nr * fp:running_tally + nr * (fp + 1)] = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
                 if self.cylindrical_flag:
                     # transform into cartesian
-                    #mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi[i]) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi[i])
-                    mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
-                    my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi_sym) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi_sym)
-                    #my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi[i]) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi[i])
+                    mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi[i]) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi[i])
+                    #mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi_sym) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi_sym)
+                    #my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi_sym) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi_sym)
+                    my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi[i]) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi[i])
                     # For fp symmetry, now have mx, my, mz and need to rotate by phi0
                     m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp * np.cos(phi0) - my_temp * np.sin(phi0)
                     #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp
