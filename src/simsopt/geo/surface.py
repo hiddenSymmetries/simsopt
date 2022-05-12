@@ -1,7 +1,7 @@
 import abc
 
 import numpy as np
-
+from monty.json import MSONable, MontyDecoder
 
 try:
     from pyevtk.hl import gridToVTK
@@ -9,7 +9,7 @@ except ImportError:
     gridToVTK = None
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from ..util.dev import SimsoptRequires
 from .plot import fix_matplotlib_3d
 
@@ -502,6 +502,16 @@ class Surface(Optimizable):
 
         return function_interpolated
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        # d = {}
+        # d["@module"] = self.__class__.__module__
+        # d["@class"] = self.__class__.__name__
+        d["nfp"] = self.nfp
+        d["quadpoints_phi"] = list(self.quadpoints_phi)
+        d["quadpoints_theta"] = list(self.quadpoints_theta)
+        return d
+
 
 def signed_distance_from_surface(xyz, surface):
     """
@@ -632,3 +642,11 @@ class SurfaceScaled(Optimizable):
                 self.unfix(j)
             else:
                 self.fix(j)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = MontyDecoder.process_decoded(d["surf"])
+        return cls(surf, d["scale_factors"])

@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 
-from simsopt._core.graph_optimizable import DOFs
-from simsopt.objectives.graph_functions import Identity, Adder, Rosenbrock
+from simsopt._core.optimizable import DOFs
+from simsopt.objectives.functions import Identity, Adder, Rosenbrock
 from simsopt._core.util import DofLengthMismatchError
 
 
@@ -10,7 +10,7 @@ class DOFsTests(unittest.TestCase):
 
     def setUp(self):
         self.identity_dofs = Identity(x=1, dof_name='x')._dofs
-        self.adder_dofs = Adder(3, x0=[2, 3, 4], dof_names=["x", "y", "z"])._dofs
+        self.adder_dofs = Adder(3, x0=[2, 3, 4], names=["x", "y", "z"])._dofs
         self.rosenbrock_dofs = Rosenbrock()._dofs
 
     def tearDown(self) -> None:

@@ -188,6 +188,7 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("ntor", &PySurfaceXYZTensorFourier::ntor)
         .def_readwrite("mpol", &PySurfaceXYZTensorFourier::mpol)
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
-        .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym);
+        .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym)
+        .def_readwrite("clamped_dims", &PySurfaceXYZTensorFourier::clamped_dims);
     register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 }

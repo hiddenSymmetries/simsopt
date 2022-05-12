@@ -5,9 +5,10 @@ from jax import vjp, jacfwd, jvp
 from .jit import jit
 import jax.numpy as jnp
 from monty.dev import requires
+from monty.json import MontyDecoder
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from .plot import fix_matplotlib_3d
 
@@ -624,6 +625,7 @@ class RotatedCurve(sopp.Curve, Curve):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self, depends_on=[curve])
+        self._phi = phi
         self.rotmat = np.asarray(
             [[cos(phi), -sin(phi), 0],
              [sin(phi), cos(phi), 0],
@@ -662,8 +664,12 @@ class RotatedCurve(sopp.Curve, Curve):
 
         """
 
-        self.curve.gamma_impl(gamma, quadpoints)
-        gamma[:] = gamma @ self.rotmat
+        if len(quadpoints) == len(self.curve.quadpoints) \
+                and np.sum((quadpoints-self.curve.quadpoints)**2) < 1e-15:
+            gamma[:] = self.curve.gamma() @ self.rotmat
+        else:
+            self.curve.gamma_impl(gamma, quadpoints)
+            gamma[:] = gamma @ self.rotmat
 
     def gammadash_impl(self, gammadash):
         r"""
@@ -804,6 +810,20 @@ class RotatedCurve(sopp.Curve, Curve):
 
         v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["curve"] = self.curve.as_dict()
+        d["phi"] = self._phi
+        d["flip"] = True if self.rotmat[2][2] == -1 else False
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve, d["phi"], d["flip"])
 
 
 def curves_to_vtk(curves, filename, close=False):

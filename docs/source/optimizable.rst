@@ -5,20 +5,20 @@ The Optimizable class
 ---------------------
 
 A basic tool for defining optimization problems in simsopt is the
-class :obj:`~simsopt._core.graph_optimizable.Optimizable`. Many
+class :obj:`~simsopt._core.optimizable.Optimizable`. Many
 classes in simsopt are subclasses of this class.  This parent class
 provides several functions.  First, it allows for the parameters of an
 object to be either fixed or varied in an optimization, for a useful
 name string to be associated with each such degree of freedom, and for
 box constraints on each parameter to be set.  Second, the
-:obj:`~simsopt._core.graph_optimizable.Optimizable` class manages
+:obj:`~simsopt._core.optimizable.Optimizable` class manages
 dependencies between objects.  For example, if an MHD equilibrium
 depends on a :obj:`~simsopt.geo.surface.Surface` object representing
 the boundary, the equilibrium object will know it needs to recompute
 the equilibrium if the :obj:`~simsopt.geo.surface.Surface` changes.
 Third, when a set of objects with dependencies is combined into an
 objective function, the
-:obj:`~simsopt._core.graph_optimizable.Optimizable` class
+:obj:`~simsopt._core.optimizable.Optimizable` class
 automatically combines the non-fixed degrees of freedom into a global
 state vector, which can be passed to numerical optimization
 algorithms.
@@ -27,7 +27,7 @@ Users can create their own optimizable objects in two ways. One method
 is to create a standard python function, and apply the
 :obj:`simsopt.make_optimizable()` function to it, as explained
 below. Or, you can directly subclass
-:obj:`simsopt._core.graph_optimizable.Optimizable`.
+:obj:`simsopt._core.optimizable.Optimizable`.
 
 
 Optimizable degrees of freedom
@@ -60,7 +60,7 @@ parameter :math:`\theta`. By choosing ``order=1``, only mode numbers 0
 and 1 are included.
 
 Each dof has a string name, which can be queried using the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_dof_names`
+:obj:`~simsopt._core.optimizable.Optimizable.local_dof_names`
 property::
 
   >>> c.local_dof_names
@@ -70,7 +70,7 @@ property::
 Evidently there are nine dofs in this case. For each, the number in
 parentheses is the mode number :math:`m`. The values of the dofs can
 be read or written to using the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x` property::
+:obj:`~simsopt._core.optimizable.Optimizable.x` property::
 
   >>> c.x
 
@@ -86,14 +86,14 @@ be read or written to using the
   -2.0
 
 Although you can use indices to retrieve selected elements of
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x`, as in the last
+:obj:`~simsopt._core.optimizable.Optimizable.x`, as in the last
 line, you *cannot* assign values to individual elements of
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x`, i.e. ``c.x[2] =
+:obj:`~simsopt._core.optimizable.Optimizable.x`, i.e. ``c.x[2] =
 7.0`` will not work -- you can only assign an entire array to
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x`. You can get or
+:obj:`~simsopt._core.optimizable.Optimizable.x`. You can get or
 set individual dofs using their index or string name with the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.get()` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.set()` methods::
+:obj:`~simsopt._core.optimizable.Optimizable.get()` and
+:obj:`~simsopt._core.optimizable.Optimizable.set()` methods::
 
   >>> c.get(5)
 
@@ -120,11 +120,11 @@ surface, fixing the high-mode-number modes of a surface, or fixing the
 current in a coil.  All dofs in our
 :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` object are free by
 default. We can fix a dof using the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.fix()` method.
+:obj:`~simsopt._core.optimizable.Optimizable.fix()` method.
 When a dof is fixed, it is excluded from the state vector
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x`, but you can
+:obj:`~simsopt._core.optimizable.Optimizable.x`, but you can
 still access its value either by name, or with the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.full_x` property
+:obj:`~simsopt._core.optimizable.Optimizable.full_x` property
 (which gives both the free and fixed dofs)::
 
   >>> c.fix('xc(0)')
@@ -141,10 +141,10 @@ still access its value either by name, or with the
   1.0
 
 To check which dofs are free, you can use the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.dofs_free_status`
+:obj:`~simsopt._core.optimizable.Optimizable.dofs_free_status`
 property. The status of individual dofs can also be checked using
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_fixed` or
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_free`, specify
+:obj:`~simsopt._core.optimizable.Optimizable.is_fixed` or
+:obj:`~simsopt._core.optimizable.Optimizable.is_free`, specify
 the dof either using its index or string name ::
 
   >>> c.dofs_free_status
@@ -164,11 +164,13 @@ the dof either using its index or string name ::
   False
 
 In addition to
-:obj:`~simsopt._core.graph_optimizable.Optimizable.fix()`, you can
+:obj:`~simsopt._core.optimizable.Optimizable.fix()`, you can
 also manipulate the fixed/free status of dofs using the functions
-:obj:`~simsopt._core.graph_optimizable.Optimizable.unfix()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.fix_all()`, and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.unfix_all()`::
+:obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.local_fix_all()`, 
+:obj:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`,
+:obj:`~simsopt._core.optimizable.Optimizable.fix_all()`, and
+:obj:`~simsopt._core.optimizable.Optimizable.unfix_all()`::
 
   >>> c.fix_all()
   >>> c.x
@@ -194,9 +196,9 @@ Dependencies
 A collection of optimizable objects with dependencies is represented
 in simsopt as a directed acyclic graph (DAG): each vertex in the graph
 is an instance of an
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object, and the
+:obj:`~simsopt._core.optimizable.Optimizable` object, and the
 direction of each edge indicates dependency.  An
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object can depend
+:obj:`~simsopt._core.optimizable.Optimizable` object can depend
 on the dofs of other objects, which are called its parents. The
 orignal object is considered a child of the parent objects. An
 object's "ancestors" are the an object's parents, their parents, and
@@ -210,11 +212,11 @@ directly by an object, and another that applies to the dofs of an
 object together with its ancestors. The version that applies just to
 the dofs directly owned by an object has a name beginning ``local_``.
 For example, analogous to the properties
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.dof_names`, which
+:obj:`~simsopt._core.optimizable.Optimizable.x` and
+:obj:`~simsopt._core.optimizable.Optimizable.dof_names`, which
 include all ancestor dofs, there are also properties
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_x` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_dof_names`.
+:obj:`~simsopt._core.optimizable.Optimizable.local_x` and
+:obj:`~simsopt._core.optimizable.Optimizable.local_dof_names`.
 To demonstrate these features, we can consider the following small
 collection of objects: a :obj:`simsopt.field.coil.Coil`, which is a
 pairing of a :obj:`simsopt.field.coil.Current` with a
@@ -265,14 +267,14 @@ properties include the dofs of both of its parents::
    'CurveXYZFourier1:zc(1)']
 
 Note that the names returned by
-:obj:`~simsopt._core.graph_optimizable.Optimizable.dof_names` have the
+:obj:`~simsopt._core.optimizable.Optimizable.dof_names` have the
 name of the object and a colon prepended, to distinguish which
 instance owns the dof. This unique name for each object instance can
 be accessed by
-:obj:`~simsopt._core.graph_optimizable.Optimizable.name`. For the ``current`` and ``curve`` objects,
+:obj:`~simsopt._core.optimizable.Optimizable.name`. For the ``current`` and ``curve`` objects,
 since they have no ancestors, their
-:obj:`~simsopt._core.graph_optimizable.Optimizable.dof_names` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_dof_names` are the same, except
+:obj:`~simsopt._core.optimizable.Optimizable.dof_names` and
+:obj:`~simsopt._core.optimizable.Optimizable.local_dof_names` are the same, except
 that the non-``local_`` versions have the object name prepended::
 
   >>> curve.local_dof_names
@@ -293,13 +295,13 @@ that the non-``local_`` versions have the object name prepended::
 
   ['Current1:x0']
 
-The :obj:`~simsopt._core.graph_optimizable.Optimizable.x` property
+The :obj:`~simsopt._core.optimizable.Optimizable.x` property
 discussed in the previous section includes dofs from ancestors. The
 related property
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_x` applies
+:obj:`~simsopt._core.optimizable.Optimizable.local_x` applies
 only to the dofs directly owned by an object. When the dofs of a
 parent are changed, the
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x` property of
+:obj:`~simsopt._core.optimizable.Optimizable.x` property of
 child objects is automatically updated::
 
   >>> curve.x = [1.7, -0.2, 0.1, -1.1, 0.7, 0.3, 1.3, -0.6, 0.5]
@@ -329,34 +331,39 @@ child objects is automatically updated::
   array([], dtype=float64)
 
 Above, you can see that
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_x`
+:obj:`~simsopt._core.optimizable.Optimizable.x` and
+:obj:`~simsopt._core.optimizable.Optimizable.local_x`
 give the same results for ``curve`` and ``current`` since these objects have no ancestors.
 For ``coil``,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_x`
+:obj:`~simsopt._core.optimizable.Optimizable.local_x`
 returns an empty array because ``coil`` does not
 own any dofs itself, while
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x`
+:obj:`~simsopt._core.optimizable.Optimizable.x`
 is a concatenation of the dofs of its ancestors.
 
-The functions
-:obj:`~simsopt._core.graph_optimizable.Optimizable.get()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.set()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.fix()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.unfix()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_fixed()`, and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_free()` refer
-only to dofs directly owned by an object. If an integer index is
-supplied to these functions it must be the local index, and if a
-string name is supplied to these functions, it does not have the
-object name and colon prepended. So for instance,
-``curve.fix('yc(0)')`` works, but
+The functions :obj:`~simsopt._core.optimizable.Optimizable.get()`,
+:obj:`~simsopt._core.optimizable.Optimizable.set()`,
+:obj:`~simsopt._core.optimizable.Optimizable.fix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.is_fixed()`, and
+:obj:`~simsopt._core.optimizable.Optimizable.is_free()` refer only to
+dofs directly owned by an object. If an integer index is supplied to
+these functions it must be the local index, and if a string name is
+supplied to these functions, it does not have the object name and
+colon prepended. So for instance, ``curve.fix('yc(0)')`` works, but
 ``curve.fix('CurveXYZFourier3:yc(0)')``, ``coil.fix('yc(0)')``, and
-``coil.fix('CurveXYZFourier3:yc(0)')`` do not.
+``coil.fix('CurveXYZFourier3:yc(0)')`` do not.  The functions
+:func:`~simsopt._core.optimizable.Optimizable.fix_all()` and
+:func:`~simsopt._core.optimizable.Optimizable.unfix_all()` fix or
+unfix all the dofs owned by an object as well as the dofs of all its
+ancestors.  To fix or unfix all the dofs owned by an object without
+affecting its ancestors, use
+:func:`~simsopt._core.optimizable.Optimizable.local_fix_all()` or
+:func:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`.
 
 When some dofs are fixed in parent objects, these dofs are
 automatically removed from the global state vector
-:obj:`~simsopt._core.graph_optimizable.Optimizable.x` of a child
+:obj:`~simsopt._core.optimizable.Optimizable.x` of a child
 object::
 
   >>> curve.fix_all()
@@ -369,19 +376,19 @@ object::
 
   ['Current1:x0', 'CurveXYZFourier1:zc(0)']
 
-Thus, the :obj:`~simsopt._core.graph_optimizable.Optimizable.x`
+Thus, the :obj:`~simsopt._core.optimizable.Optimizable.x`
 property of a child object is convenient to use as the state vector
 for numerical optimization packages, as it automatically combines the
 selected degrees of freedom that you wish to vary from all objects
 that are involved in the optimization problem. If you wish to get or
 set the state vector *including* the fixed dofs, you can use the
-properties :obj:`~simsopt._core.graph_optimizable.Optimizable.full_x`
+properties :obj:`~simsopt._core.optimizable.Optimizable.full_x`
 (which includes ancestors) or
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_full_x`
+:obj:`~simsopt._core.optimizable.Optimizable.local_full_x`
 (which does not). The corresponding string labels including the fixed
 dofs can be accessed using
-:obj:`~simsopt._core.graph_optimizable.Optimizable.full_dof_names` and
-:obj:`~simsopt._core.graph_optimizable.Optimizable.local_full_dof_names`::
+:obj:`~simsopt._core.optimizable.Optimizable.full_dof_names` and
+:obj:`~simsopt._core.optimizable.Optimizable.local_full_dof_names`::
        
   >>> coil.full_x
 
@@ -409,7 +416,7 @@ Function reference
 ------------------
 
 The following tables provide a reference for many of the properties
-and functions of :obj:`~simsopt._core.graph_optimizable.Optimizable`
+and functions of :obj:`~simsopt._core.optimizable.Optimizable`
 objects. Many come in a set of 2x2 variants:
 
 .. list-table:: State vector
@@ -421,11 +428,11 @@ objects. Many come in a set of 2x2 variants:
      - Excluding ancestors
      - Including ancestors
    * - Both fixed and free
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_full_x`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.full_x`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_full_x`
+     - :obj:`~simsopt._core.optimizable.Optimizable.full_x`
    * - Free only
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_x`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.x`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_x`
+     - :obj:`~simsopt._core.optimizable.Optimizable.x`
 
 .. list-table:: Number of elements in the state vector
    :widths: 20 20 20
@@ -436,11 +443,11 @@ objects. Many come in a set of 2x2 variants:
      - Excluding ancestors
      - Including ancestors
    * - Both fixed and free
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_full_dof_size`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.full_dof_size`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_full_dof_size`
+     - :obj:`~simsopt._core.optimizable.Optimizable.full_dof_size`
    * - Free only
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_dof_size`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.dof_size`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_dof_size`
+     - :obj:`~simsopt._core.optimizable.Optimizable.dof_size`
 
 .. list-table:: String names
    :widths: 20 20 20
@@ -451,11 +458,11 @@ objects. Many come in a set of 2x2 variants:
      - Excluding ancestors
      - Including ancestors
    * - Both fixed and free
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_full_dof_names`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.full_dof_names`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_full_dof_names`
+     - :obj:`~simsopt._core.optimizable.Optimizable.full_dof_names`
    * - Free only
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_dof_names`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.dof_names`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_dof_names`
+     - :obj:`~simsopt._core.optimizable.Optimizable.dof_names`
 
 .. list-table:: Whether dofs are free
    :widths: 20 20 20
@@ -466,8 +473,25 @@ objects. Many come in a set of 2x2 variants:
      - Excluding ancestors
      - Including ancestors
    * - Both fixed and free
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.local_dofs_free_status`
-     - :obj:`~simsopt._core.graph_optimizable.Optimizable.dofs_free_status`
+     - :obj:`~simsopt._core.optimizable.Optimizable.local_dofs_free_status`
+     - :obj:`~simsopt._core.optimizable.Optimizable.dofs_free_status`
+   * - Free only
+     - N/A
+     - N/A
+
+.. list-table:: Making all dofs fixed or free
+   :widths: 20 20 20
+   :header-rows: 1
+   :stub-columns: 1
+
+   * -
+     - Excluding ancestors
+     - Including ancestors
+   * - Both fixed and free
+     - :func:`~simsopt._core.optimizable.Optimizable.local_fix_all()`,
+       :func:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`
+     - :func:`~simsopt._core.optimizable.Optimizable.fix_all()`,
+       :func:`~simsopt._core.optimizable.Optimizable.unfix_all()`
    * - Free only
      - N/A
      - N/A
@@ -475,12 +499,12 @@ objects. Many come in a set of 2x2 variants:
 Other attributes: ``name``, ``parents``, ``ancestors``
 
 Other functions:
-:obj:`~simsopt._core.graph_optimizable.Optimizable.get()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.set()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.fix()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.unfix()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_fixed()`,
-:obj:`~simsopt._core.graph_optimizable.Optimizable.is_free()`.
+:obj:`~simsopt._core.optimizable.Optimizable.get()`,
+:obj:`~simsopt._core.optimizable.Optimizable.set()`,
+:obj:`~simsopt._core.optimizable.Optimizable.fix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.is_fixed()`,
+:obj:`~simsopt._core.optimizable.Optimizable.is_free()`.
 
        
 Caching
@@ -493,14 +517,14 @@ However if any dofs change, either dofs owned locally or by an
 ancestor object, this computation needs to be re-run. Many Optimizable
 objects in simsopt therefore implement caching: results are saved,
 until the cache is cleared due to changes in dofs.  The
-:obj:`~simsopt._core.graph_optimizable.Optimizable` base class
+:obj:`~simsopt._core.optimizable.Optimizable` base class
 provides a function
-:obj:`~simsopt._core.graph_optimizable.Optimizable.recompute_bell()`
+:obj:`~simsopt._core.optimizable.Optimizable.recompute_bell()`
 to assist with caching. This function is called automatically whenever
 dofs of an object or any of its ancestors change. Subclasses of
-:obj:`~simsopt._core.graph_optimizable.Optimizable` can overload the
+:obj:`~simsopt._core.optimizable.Optimizable` can overload the
 default (empty)
-:obj:`~simsopt._core.graph_optimizable.Optimizable.recompute_bell()`
+:obj:`~simsopt._core.optimizable.Optimizable.recompute_bell()`
 function to manage their cache in a customized way.
 
 
@@ -509,15 +533,15 @@ Specifying least-squares objective functions
 
 A common use case is to minimize a nonlinear least-squares objective
 function, which consists of a sum of several terms. In this case the
-:obj:`simsopt.objectives.graph_least_squares.LeastSquaresProblem`
+:obj:`simsopt.objectives.least_squares.LeastSquaresProblem`
 class can be used.  Suppose we want to solve a least-squares
 optimization problem in which an
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object ``obj`` has
+:obj:`~simsopt._core.optimizable.Optimizable` object ``obj`` has
 some dofs to be optimized. If ``obj`` has a function ``func()``, we
 can define the objective function ``weight * ((obj.func() - goal) **
 2)`` as follows::
 
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.objectives.least_squares import LeastSquaresProblem
   prob = LeastSquaresProblem.from_tuples([(obj.func, goal, weight)])
 
 Note that the problem was defined using a 3-element tuple of the form
@@ -537,19 +561,19 @@ The corresponding objective funtion is then ``weight1 *
 2)``. The list of tuples can include any mixture of terms defined by
 scalar functions and by 1D numpy array-valued functions.  Note that
 the function handles that are specified should be members of an
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object.  As
-:obj:`~simsopt.objectives.graph_least_squares.LeastSquaresProblem` is
-a subclass of :obj:`~simsopt._core.graph_optimizable.Optimizable`, the
+:obj:`~simsopt._core.optimizable.Optimizable` object.  As
+:obj:`~simsopt.objectives.least_squares.LeastSquaresProblem` is
+a subclass of :obj:`~simsopt._core.optimizable.Optimizable`, the
 free dofs of all the objects that go into the objective function are
 available in the global state vector ``prob.x``. The overall scalar
 objective function is available from
-:func:`simsopt.objectives.graph_least_squares.LeastSquaresProblem.objective`.
+:func:`simsopt.objectives.least_squares.LeastSquaresProblem.objective`.
 The vector of residuals before scaling by the ``weight`` factors
 ``obj.func() - goal`` is available from
-:func:`simsopt.objectives.graph_least_squares.LeastSquaresProblem.unweighted_residuals`.
+:func:`simsopt.objectives.least_squares.LeastSquaresProblem.unweighted_residuals`.
 The vector of residuals after scaling by the ``weight`` factors,
 ``sqrt(weight) * (obj.func() - goal)``, is available from
-:func:`simsopt.objectives.graph_least_squares.LeastSquaresProblem.residuals`.
+:func:`simsopt.objectives.least_squares.LeastSquaresProblem.residuals`.
 
 Least-squares problems can also be defined in an alternative way::
   
@@ -570,16 +594,16 @@ Custom objective functions and optimizable objects
 
 You may wish to use a custom objective function.  The recommended
 approach for this is to use
-:func:`simsopt._core.graph_optimizable.make_optimizable()`, which can
+:func:`simsopt._core.optimizable.make_optimizable()`, which can
 be imported from the top-level ``simsopt`` module. In this approach,
 you first define a standard python function which takes as arguments
-any :obj:`~simsopt._core.graph_optimizable.Optimizable` objects that
+any :obj:`~simsopt._core.optimizable.Optimizable` objects that
 the function depends on. This function can return a float or 1D numpy
 array.  You then apply
-:func:`~simsopt._core.graph_optimizable.make_optimizable()` to the
+:func:`~simsopt._core.optimizable.make_optimizable()` to the
 function handle, including the parent objects as additional
 arguments. The newly created
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object will have a
+:obj:`~simsopt._core.optimizable.Optimizable` object will have a
 function ``.J()`` that returns the function you created.
 
 For instance, suppose we wish to minimize the objective function
@@ -589,7 +613,7 @@ can be accomplished as follows::
 
   from simsopt import make_optimizable
   from simsopt.mhd.vmec import Vmec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.objectives.least_squares import LeastSquaresProblem
 
   def myfunc(v):
      v.run()  # Ensure VMEC has run with the latest dofs.
@@ -600,22 +624,22 @@ can be accomplished as follows::
   prob = LeastSquaresProblem.from_tuples([(myopt.J, 0.1, 1)])
       
 In this example, the new
-:obj:`~simsopt._core.graph_optimizable.Optimizable` object did not own
+:obj:`~simsopt._core.optimizable.Optimizable` object did not own
 any dofs.  However the
-:func:`~simsopt._core.graph_optimizable.make_optimizable()` can also
-create :obj:`~simsopt._core.graph_optimizable.Optimizable` objects
+:func:`~simsopt._core.optimizable.make_optimizable()` can also
+create :obj:`~simsopt._core.optimizable.Optimizable` objects
 with their own dofs and other parameters. For this syntax, see the API documentation for
-:func:`~simsopt._core.graph_optimizable.make_optimizable()`.
+:func:`~simsopt._core.optimizable.make_optimizable()`.
 
 An alternative to using
-:func:`~simsopt._core.graph_optimizable.make_optimizable()` is to
+:func:`~simsopt._core.optimizable.make_optimizable()` is to
 write your own subclass of
-:obj:`~simsopt._core.graph_optimizable.Optimizable`.  In this
+:obj:`~simsopt._core.optimizable.Optimizable`.  In this
 approach, the above example looks as follows::
   
-  from simsopt._core.graph_optimizable import Optimizable
+  from simsopt._core.optimizable import Optimizable
   from simsopt.mhd.vmec import Vmec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+  from simsopt.objectives.least_squares import LeastSquaresProblem
 
   class Myopt(Optimizable):
       def __init__(self, v):
@@ -649,3 +673,45 @@ mode", using vector-Jacobian products, which is efficient for cases in
 which the objective function is a scalar or a vector with fewer
 dimensions than the number of dofs.  For objects that return a
 gradient, the gradient function is typically named ``.dJ()``.
+
+Serialization
+-------------
+
+Simsopt has the ability to serialize geometric and field objects 
+into JSON objects for archiving and sharing. To save a single simsopt 
+object, one can use the ``save`` method, which returns a json string with 
+optional file saving.
+
+.. code-block::
+
+    curve = CurveRZFourier(...)
+    curve_json_str = curve.save(filename='curve.json')
+    # or
+    curve_json_str = curve.save(fmt='json')
+
+To load individual serialized simsopt objects, you can use ``from_str`` or ``from_file``
+class methods. One could use the base class name such as ``Optimizable`` instead of trying to figure
+out the exact class name of the saved object.
+
+.. code-block::
+
+    curve = Optimizable.from_str(curve_json_str)
+    # or
+    curve = Optimizable.from_file('curve.json')
+
+To save multiple simsopt objects use ``save_simsopt`` function.
+
+.. code-block::
+
+    from simsopt import save_simsopt
+
+    curves = [CurveRZFourier(...), CurveXYZFourier(...), CurveHelical(...), ...]
+    save_simsopt(curves, 'curves.json')
+
+To load the geometric objects from the saved json file, use the ``load_simsopt`` function.
+
+.. code-block::
+
+    from simsopt import load_simsopt
+
+    curves = load_simsopt('curves.json') 

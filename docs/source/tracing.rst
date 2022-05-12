@@ -33,7 +33,7 @@ two different sets of equations depending on the input parameter
 .. math::
 
   [\dot x, \dot y, \dot z] &= v_{||}\frac{\mathbf B}{B} + \frac{m}{q|B|^3}  \left(\frac{v_\perp^2}{2} + v_{||}^2\right)  \mathbf B\times \nabla B\\
-  \dot v_{||}    &= -\mu  \mathbf B \cdot \nabla B
+  \dot v_{||}    &= -\frac{\mu}{B}  \mathbf B \cdot \nabla B
 
 where :math:`v_\perp^2 = 2\mu B`.
 See equations (12) and (13) of `Guiding Center Motion, H.J. de Blank <https://doi.org/10.13182/FST04-A468>`_.

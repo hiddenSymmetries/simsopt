@@ -1,6 +1,9 @@
-from simsopt._core.graph_optimizable import Optimizable
-from .._core.derivative import derivative_dec
 import numpy as np
+from monty.json import MSONable, MontyDecoder, MontyEncoder
+
+import simsoptpp as sopp
+from .._core.optimizable import Optimizable
+from .._core.derivative import derivative_dec
 
 
 class SquaredFlux(Optimizable):
@@ -32,17 +35,10 @@ class SquaredFlux(Optimizable):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
-        xyz = self.surface.gamma()
         n = self.surface.normal()
-        absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:, :, None]
-        Bcoil = self.field.B().reshape(xyz.shape)
-        Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.target is not None:
-            B_n = (Bcoil_n - self.target)
-        else:
-            B_n = Bcoil_n
-        return 0.5 * np.mean(B_n**2 * absn)
+        Bcoil = self.field.B().reshape(n.shape)
+        Btarget = self.target if self.target is not None else []
+        return sopp.integral_BdotN(Bcoil, Btarget, n)
 
     @derivative_dec
     def dJ(self):
@@ -58,3 +54,13 @@ class SquaredFlux(Optimizable):
         dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        surface = decoder.process_decoded(d["surface"])
+        field = decoder.process_decoded(d["field"])
+        return cls(surface, field, d["target"])

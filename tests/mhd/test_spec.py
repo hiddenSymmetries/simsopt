@@ -26,9 +26,9 @@ except:
 
 if (MPI is not None) and spec_found:
     from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.solve.serial import least_squares_serial_solve
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ class SpecTests(unittest.TestCase):
             # parameters are all non-fixed by default. You can choose
             # which parameters are optimized by setting their 'fixed'
             # attributes.
-            surf.fix_all()
+            surf.local_fix_all()
             surf.unfix('rc(0,0)')
 
             # Turn off Poincare plots and use low resolution, for speed:
@@ -194,7 +194,7 @@ class SpecTests(unittest.TestCase):
             # parameters are all non-fixed by default. You can choose
             # which parameters are optimized by setting their 'fixed'
             # attributes.
-            surf.fix_all()
+            surf.local_fix_all()
             surf.unfix('Delta(1,-1)')
 
             # Use low resolution, for speed:
@@ -243,7 +243,7 @@ class SpecTests(unittest.TestCase):
 
         # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
         # You can choose which parameters are optimized by setting their 'fixed' attributes.
-        surf.fix_all()
+        surf.local_fix_all()
         surf.unfix('rc(1,1)')
         surf.unfix('zs(1,1)')
 
