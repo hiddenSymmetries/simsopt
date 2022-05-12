@@ -160,3 +160,22 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
         return mask
+
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["stellsym"] = self.stellsym
+        d["mpol"] = self.mpol
+        d["ntor"] = self.ntor
+        d["clamped_dims"] = list(self.clamped_dims)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
+                   mpol=d["mpol"], ntor=d["ntor"],
+                   clamped_dims=d["clamped_dims"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
+        surf.set_dofs(d["x0"])
+        return surf
+

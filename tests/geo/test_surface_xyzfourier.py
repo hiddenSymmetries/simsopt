@@ -1,6 +1,8 @@
 import unittest
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from .surface_test_helpers import get_surface, get_exact_surface
@@ -285,6 +287,41 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, quadpoints_phi=phis, quadpoints_theta=thetas)
 
         s.to_vtk('/tmp/surface')
+
+    def test_serialization(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+
+        np.random.seed(0)
+
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.xc = s.xc * 0
+        s.xs = s.xs * 0
+        s.ys = s.ys * 0
+        s.yc = s.yc * 0
+        s.zs = s.zs * 0
+        s.zc = s.zc * 0
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1, r2])
+        minor_R = np.min([r1, r2])
+        s.xc[0, ntor] = major_R
+        s.xc[1, ntor] = minor_R
+        s.zs[1, ntor] = minor_R
+        # TODO: x should be updated whenever [x,y,z][c,s] are modified without
+        # TODO: explict setting of local_full_x
+        s.local_full_x = s.get_dofs()
+
+        surf_str = json.dumps(s, cls=MontyEncoder)
+        s_regen = json.loads(surf_str, cls=MontyDecoder)
+
+        self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
+        self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
 
 
 if __name__ == "__main__":

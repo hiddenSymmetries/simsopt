@@ -1,10 +1,11 @@
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from math import pi
 import numpy as np
+from monty.json import MontyDecoder, MSONable
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -15,8 +16,8 @@ class Coil(sopp.Coil, Optimizable):
     """
 
     def __init__(self, curve, current):
-        self.__curve = curve
-        self.__current = current
+        self._curve = curve
+        self._current = current
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
 
@@ -33,6 +34,16 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        current = decoder.process_decoded(d["current"])
+        curve = decoder.process_decoded(d["curve"])
+        return cls(curve, current)
 
 
 class Current(sopp.Current, Optimizable):
@@ -53,6 +64,17 @@ class Current(sopp.Current, Optimizable):
     def __neg__(self):
         return ScaledCurrent(self, -1.)
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["current"] = self.get_value()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["current"])
+
 
 class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
     """
@@ -61,15 +83,62 @@ class ScaledCurrent(sopp.ScaledCurrent, Optimizable):
     """
 
     def __init__(self, basecurrent, scale):
-        self.__basecurrent = basecurrent
+        self._basecurrent = basecurrent
         sopp.ScaledCurrent.__init__(self, basecurrent, scale)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[basecurrent])
 
     def vjp(self, v_current):
-        return self.__basecurrent.vjp(self.scale * v_current)
+        return self._basecurrent.vjp(self.scale * v_current)
 
     def __neg__(self):
         return ScaledCurrent(self, -1.)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["current"] = self.get_value()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(Current(d["current"]), 1.0)
+
+
+def apply_symmetries_to_curves(base_curves, nfp, stellsym):
+    """
+    Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
+    (1+int(stellsym))`` :mod:`simsopt.geo.curve.Curve` objects obtained by
+    applying rotations and flipping corresponding to ``nfp`` fold rotational
+    symmetry and optionally stellarator symmetry.
+    """
+    flip_list = [False, True] if stellsym else [False]
+    curves = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(base_curves)):
+                if k == 0 and not flip:
+                    curves.append(base_curves[i])
+                else:
+                    rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
+                    curves.append(rotcurve)
+    return curves
+
+
+def apply_symmetries_to_currents(base_currents, nfp, stellsym):
+    """
+    Take a list of ``n`` :mod:`Current`s and return ``n * nfp * (1+int(stellsym))``
+    :mod:`Current` objects obtained by copying (for ``nfp`` rotations) and
+    sign-flipping (optionally for stellarator symmetry).
+    """
+    flip_list = [False, True] if stellsym else [False]
+    currents = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(base_currents)):
+                current = ScaledCurrent(base_currents[i], -1.) if flip else base_currents[i]
+                currents.append(current)
+    return currents
 
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
@@ -80,15 +149,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     """
 
     assert len(curves) == len(currents)
-    flip_list = [False, True] if stellsym else [False]
-    coils = []
-    for k in range(0, nfp):
-        for flip in flip_list:
-            for i in range(len(curves)):
-                if k == 0 and not flip:
-                    coils.append(Coil(curves[i], currents[i]))
-                else:
-                    rotcurve = RotatedCurve(curves[i], 2*pi*k/nfp, flip)
-                    current = ScaledCurrent(currents[i], -1.) if flip else currents[i]
-                    coils.append(Coil(rotcurve, current))
+    curves = apply_symmetries_to_curves(curves, nfp, stellsym)
+    currents = apply_symmetries_to_currents(currents, nfp, stellsym)
+    coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils

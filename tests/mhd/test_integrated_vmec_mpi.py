@@ -11,11 +11,11 @@ try:
 except ImportError:
     vmec = None
 
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
+from simsopt.objectives.least_squares import LeastSquaresProblem
 
 if MPI is not None:
     from simsopt.mhd.vmec import Vmec
-    from simsopt.solve.graph_mpi import least_squares_mpi_solve
+    from simsopt.solve.mpi import least_squares_mpi_solve
     from simsopt.util.mpi import MpiPartition
 
 #logging.basicConfig(level=logging.DEBUG)
@@ -70,7 +70,7 @@ class IntegratedTests(unittest.TestCase):
 
                 # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
                 # You can choose which parameters are optimized by setting their 'fixed' attributes.
-                surf.fix_all()
+                surf.local_fix_all()
                 surf.unfix('rc(0,0)')
 
                 # Each Target is then equipped with a shift and weight, to become a

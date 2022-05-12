@@ -1,10 +1,14 @@
 import unittest
 import re
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
+from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.graph_optimizable import Optimizable, make_optimizable
 from simsopt.objectives.graph_functions import Identity, Rosenbrock, TestObject2
+from simsopt.objectives.graph_functions import Adder as FAdder
 
 
 class Adder(Optimizable):
@@ -23,6 +27,22 @@ class Adder(Optimizable):
 
     return_fn_map = {'sum': sum}
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["dof_names"] = d["names"]
+        d["dof_fixed"] = d["fixed"]
+        del d["names"]
+        del d["fixed"]
+        d["n"] = self.n
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["n"],
+                   d.get("x0", None),
+                   d.get("dof_names", None),
+                   d.get("dof_fixed", None))
+
 
 class OptClassWithParents(Optimizable):
     def __init__(self, val, depends_on=None):
@@ -35,6 +55,17 @@ class OptClassWithParents(Optimizable):
             / (10.0 + self.parents[1](child=self))
 
     return_fn_map = {'f': f}
+
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        del d["x0"]
+        del d["names"]
+        d['val'] = self.local_full_x[0]
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(d["val"], d["depends_on"])
 
 
 class N_No(Optimizable):
@@ -670,10 +701,10 @@ class OptimizableTests(unittest.TestCase):
         # Set dofs and call
         adder.x = [6]
         self.assertAlmostEqual(adder(), 9.0)
-        adder.unfix_all()
+        adder.local_unfix_all()
         adder.x = [4, 5, 6]
         self.assertAlmostEqual(adder(), 15.0)
-        iden.unfix_all()
+        iden.local_unfix_all()
         iden.x = [20]
         self.assertAlmostEqual(iden(), 20.0)
 
@@ -688,9 +719,9 @@ class OptimizableTests(unittest.TestCase):
         # Fix dofs and now call
         adder.fix('x')
         self.assertAlmostEqual(adder([1, 2]), 13)
-        adder.fix_all()
+        adder.local_fix_all()
         self.assertAlmostEqual(adder(), 13)
-        iden.fix_all()
+        iden.local_fix_all()
         self.assertAlmostEqual(iden(), 20)
 
         # Check with Optimizable objects containing parents
@@ -849,10 +880,10 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(self.adder.dof_size, 2)
         self.assertEqual(self.rosen.dof_size, 1)
 
-    def test_fix_all(self):
-        self.iden.fix_all()
-        self.adder.fix_all()
-        self.rosen.fix_all()
+    def test_local_fix_all(self):
+        self.iden.local_fix_all()
+        self.adder.local_fix_all()
+        self.rosen.local_fix_all()
 
         self.assertEqual(self.iden.dof_size, 0)
         self.assertEqual(self.adder.dof_size, 0)
@@ -861,7 +892,7 @@ class OptimizableTests(unittest.TestCase):
     def test_unfix(self):
         pass
 
-    def test_unfix_all(self):
+    def test_local_unfix_all(self):
         # Test with leaf nodes
         adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
                       dof_fixed=[True, False, False])
@@ -879,8 +910,8 @@ class OptimizableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adder.x = [4, 5, 6]
 
-        iden.unfix_all()
-        adder.unfix_all()
+        iden.local_unfix_all()
+        adder.local_unfix_all()
         iden.x = [10]
         adder.x = [4, 5, 6]
         self.assertEqual(iden.dof_size, 1)
@@ -895,14 +926,14 @@ class OptimizableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             test_obj.x = np.array([20, 4, 5, 6, 25])
 
-        adder.unfix_all()
+        adder.local_unfix_all()
         test_obj.x = np.array([4, 5, 6, 25])
         self.assertAlmostEqual(adder.local_full_x[0], 4)
         self.assertAlmostEqual(adder.local_full_x[1], 5)
         self.assertAlmostEqual(adder.local_full_x[2], 6)
         self.assertAlmostEqual(test_obj.local_full_x[0], 25)
 
-        iden.unfix_all()
+        iden.local_unfix_all()
         test_obj.x = np.array([1, 2, 3, 1, 10])
 
         self.assertAlmostEqual(adder.local_full_x[0], 1)
@@ -1068,6 +1099,30 @@ class TestMakeOptimizable(unittest.TestCase):
         self.assertEqual(len(x), 4)
         opt.x = x / 2.0
         self.assertAlmostEqual(opt.J(), 9.0)
+
+
+class TestOptimizableSerialize(unittest.TestCase):
+    """
+    Test the serialization of the Optimizable class based on as_dict and
+    from_dict methods using various sub-classes
+    """
+
+    def test_serialize(self):
+        adder = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                       fixed=[True, False, True])
+        s = json.dumps(adder, cls=MontyEncoder)
+        print(s)
+
+    def test_deserialize(self):
+        adder_orig = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                            fixed=[True, False, True])
+        s = json.dumps(adder_orig, cls=MontyEncoder)
+        adder = json.loads(s, cls=MontyDecoder)
+        print(adder.name)
+        print(adder.n)
+        print(adder.full_x)
+        print(adder.dofs_free_status)
+        print(adder.local_full_dof_names)
 
 
 if __name__ == "__main__":

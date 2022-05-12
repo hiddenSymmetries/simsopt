@@ -111,6 +111,17 @@ class ToroidalField(MagneticField):
                   (points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2]), np.zeros((len(points)))]],
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["R0"] = self.R0
+        d["B0"] = self.B0
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["R0"], d["B0"])
+
 
 class PoloidalField(MagneticField):
     '''
@@ -206,6 +217,18 @@ class PoloidalField(MagneticField):
 
         dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["R0"] = self.R0
+        d["B0"] = self.B0
+        d["q"] = self.q
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["R0"], d["B0"], d["q"])
+
 
 class ScalarPotentialRZMagneticField(MagneticField):
     """
@@ -291,6 +314,17 @@ class ScalarPotentialRZMagneticField(MagneticField):
         dB[:, 1, 1] = dBrdy * np.sin(phi) + Br * dsinphidy + dBphidy * np.cos(phi) \
             + Bphi * dcosphidy
         dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["phi_str"] = self.phi_str
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["phi_str"])
 
 
 class CircularCoil(MagneticField):
@@ -442,6 +476,20 @@ class CircularCoil(MagneticField):
             (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
             ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
             np.array([-points[:, 1], points[:, 0], 0])).T)
+
+    def as_dict(self):
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["r0"] = self.r0
+        d["center"] = self.center
+        d["I"] = self.Inorm * 25e5
+        d["normal"] = self.normal
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["r0"], d["center"], d["I"], d["normal"])
 
 
 class DipoleField(MagneticField):
@@ -650,6 +698,19 @@ class Dommaschk(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = np.add.reduce(sopp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        mn = [list(self.m), list(self.n)]
+        d["mn"] = mn
+        d["coeffs"] = self.coeffs
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["mn"], d["coeffs"])
+
 
 class Reiman(MagneticField):
     '''
@@ -681,6 +742,25 @@ class Reiman(MagneticField):
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
         dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
+
+    def as_dict(self):
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["iota0"] = self.iota0
+        d["iota1"] = self.iota1
+        d["k"] = self.k
+        d["epsilonk"] = self.epsilonk
+        d["m0"] = self.m0
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["iota0"],
+                   d["iota1"],
+                   d["k"],
+                   d["epsilonk"],
+                   d["m0"])
 
 
 class UniformInterpolationRule(sopp.UniformInterpolationRule):

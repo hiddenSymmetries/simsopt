@@ -29,7 +29,7 @@ except ImportError as e:
     vmec = None
     logger.debug(str(e))
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
@@ -710,6 +710,8 @@ class Vmec(Optimizable):
 
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
+        # Make sure all procs have finished loading the wout file before we delete it:
+        self.mpi.comm_groups.barrier()
         logger.info("Done loading VMEC output.")
 
         # Group leaders handle deletion of files:
