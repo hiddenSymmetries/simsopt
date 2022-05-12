@@ -27,7 +27,7 @@ from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
-final_run = False
+final_run = True
 if final_run:
     from mpi4py import MPI
     from simsopt.field.tracing import SurfaceClassifier, \
@@ -246,11 +246,7 @@ if make_plots:
     plt.savefig(OUT_DIR + 'm_histogram_muse.png')
     print('Done optimizing the permanent magnets')
 
-nphi = 2 * nphi
-ntheta = ntheta
-quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
-quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-s = SurfaceRZFourier.from_focus(filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+s = SurfaceRZFourier.from_focus(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 #sc_fieldline = SurfaceClassifier(s, h=0.1, p=2)
 #sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
@@ -267,8 +263,8 @@ def trace_fieldlines(bfield, label):
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(400000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
+        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
     t2 = time.time()
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
@@ -277,6 +273,7 @@ def trace_fieldlines(bfield, label):
 
 
 if final_run:
+    t1 = time.time()
     n = 16
     rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
     zs = s.gamma()[:, :, 2]
@@ -288,9 +285,16 @@ if final_run:
         bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
     )
     bsh.to_vtk('dipole_fields')
-    t2 = time.time()
     trace_fieldlines(bsh, 'bsh_PMs')
+    t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+
+
+nphi = 2 * nphi
+ntheta = ntheta
+quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+s = SurfaceRZFourier.from_focus(filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
 bs.set_points(s.gamma().reshape((-1, 3)))
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
@@ -368,7 +372,7 @@ if final_run:
 
     # Run VMEC with new QFM surface
     filename = '../../tests/test_files/input.LandremanPaul2021_QA'
-    equil = Vmec(filename, mpi)
+    equil = Vmec(filename) #, mpi)
     equil.boundary = qfm_surf
     equil.run()
 
