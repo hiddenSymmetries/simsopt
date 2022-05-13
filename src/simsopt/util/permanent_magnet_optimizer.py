@@ -57,7 +57,7 @@ class PermanentMagnetOptimizer:
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, B_plasma_surface=None, dr=0.1,
         filename=None, FOCUS=False, out_dir='',
-        cylindrical_flag=True,
+        cylindrical_flag=True, test_flag=False
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -70,6 +70,7 @@ class PermanentMagnetOptimizer:
         self.B_plasma_surface = B_plasma_surface
         self.dr = dr
         self.cylindrical_flag = cylindrical_flag
+        self.test_flag = test_flag
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
             raise ValueError(
@@ -198,6 +199,9 @@ class PermanentMagnetOptimizer:
         self._geo_setup()
         t2 = time.time()
         print("C++ geometric setup, t = ", t2 - t1, " s")
+
+        # Set initial condition for the dipoles to default IC
+        self._setup_initial_condition()        
 
         # optionally plot the plasma boundary + inner/outer surfaces
         self._plot_surfaces()
@@ -541,7 +545,7 @@ class PermanentMagnetOptimizer:
             magnet gridding procedure.
         """
         plt.figure(figsize=(14, 14))
-        for i, ind in enumerate([0, 5, 12, 15]):
+        for i, ind in enumerate(np.random.choice(self.nphi, 4, replace=False)):
             plt.subplot(2, 2, i + 1)
             plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
             r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -590,7 +594,7 @@ class PermanentMagnetOptimizer:
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
-    def _setup_initial_condition(self, m0):
+    def _setup_initial_condition(self, m0=None):
         """
             If an initial guess for the dipole moments is specified,
             checks the initial condition lies in the allowed hypersurface.
@@ -691,6 +695,43 @@ class PermanentMagnetOptimizer:
 
         return ATA, ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["curve"] = self.curve.as_dict()
+        d["plasma_boundary"] = self.plasma_boundary
+        d["rz_inner_surface"] = self.rz_inner_surface
+        d["rz_outer_surface"] = self.rz_outer_surface
+        d["plasma_offset"] = self.plasma_offset
+        d["coil_offset"] = self.coil_offset
+        d["B_plasma_surface"] = self.B_plasma_surface
+        d["dr"] = self.dr
+        d["filename"] = self.filename
+        d["FOCUS"] = self.FOCUS
+        d["out_dir"] = self.out_dir
+        d["cylindrical_flag"] = self.cylindrical_flag
+        d["test_flag"] = self.test_flag
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(
+            d["plasma_boundary"],
+            d["rz_inner_surface"],
+            d["rz_outer_surface"],
+            d["plasma_offset"],
+            d["coil_offset"],
+            d["B_plasma_surface"],
+            d["dr"],
+            d["filename"],
+            d["FOCUS"],
+            d["out_dir"],
+            d["cylindrical_flag"],
+            d["test_flag"]
+        )
+
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e100,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
@@ -742,7 +783,7 @@ class PermanentMagnetOptimizer:
                 verbose: Prints out all the loss term errors separately.
         """
 
-        # Check initial condition is valid
+        # reset m0 if desired
         self._setup_initial_condition(m0)        
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
