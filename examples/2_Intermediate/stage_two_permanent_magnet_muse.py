@@ -27,7 +27,7 @@ from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 import time
 
-final_run = True
+final_run = False
 if final_run:
     from mpi4py import MPI
     from simsopt.field.tracing import SurfaceClassifier, \
@@ -111,13 +111,13 @@ filename = TEST_DIR / 'input.MUSE'
 
 # Directory for output
 reg_l2 = 1e-8  # 1e-7
-reg_l0 = 2e-2  # 0.0
-nphi = 32
-ntheta = 32
+reg_l0 = 0.0
+nphi = 16
+ntheta = 8
 dr = 0.01
-coff = 0.04
+coff = 0.01
 poff = 0.05
-nu = 1  # 1e100
+nu = 1e100
 OUT_DIR = "./output_muse_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -160,6 +160,10 @@ pm_opt = PermanentMagnetOptimizer(
     filename=filename, FOCUS=True, out_dir=OUT_DIR,
     cylindrical_flag=True,
 )
+pm_opt.m = pm_opt.m0
+b_dipole_initial = DipoleField(pm_opt)
+b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
+b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_muse_initial")
 t2 = time.time()
 max_iter_MwPGP = 1000
 print('Done initializing the permanent magnet object')
@@ -179,10 +183,7 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles.reshape(pm_opt.ndipoles, 3) **
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
 t1 = time.time()
-b_dipole_initial = DipoleField(pm_opt.dipole_grid, np.ravel(pm_opt.m0), pm_opt, nfp=s.nfp, stellsym=s.stellsym, cylindrical_flag=pm_opt.cylindrical_flag)
-b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
-b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_muse_initial")
-b_dipole = DipoleField(pm_opt.dipole_grid, dipoles, pm_opt, nfp=s.nfp, stellsym=s.stellsym, cylindrical_flag=pm_opt.cylindrical_flag)
+b_dipole = DipoleField(pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields_muse")
 pm_opt._plot_final_dipoles()
@@ -372,7 +373,7 @@ if final_run:
 
     # Run VMEC with new QFM surface
     filename = '../../tests/test_files/input.LandremanPaul2021_QA'
-    equil = Vmec(filename) #, mpi)
+    equil = Vmec(filename)  # , mpi)
     equil.boundary = qfm_surf
     equil.run()
 
