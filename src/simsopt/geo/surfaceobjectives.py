@@ -141,6 +141,65 @@ class ToroidalFlux(Optimizable):
         return out
 
 
+class PrincipalCurvature(Optimizable):
+    r"""
+
+    Given a Surface, evaluates a metric based on the principal curvatures,
+    :math:`\kappa_1` and :math:`\kappa_2`, where :math:`\kappa_1>\kappa_2`.
+    This metric is designed to penalize :math:`\kappa_1 > \kappa_{\max,1}` and
+    :math:`-\kappa_2 > \kappa_{\max,2}`.
+
+    .. math::
+       J &= \int d^2 x \exp \left(- ( \kappa_1 - \kappa_{\max,1})/w_1) \right) \\
+         &+ \int d^2 x \exp \left(- (-\kappa_2 - \kappa_{\max,2})/w_2) \right).
+
+    """
+
+    def __init__(self, surface, kappamax1=1, kappamax2=1, weight1=0.05, weight2=0.05):
+        super().__init__(depends_on=[surface])
+        self.surface = surface
+        self.kappamax1 = kappamax1
+        self.kappamax2 = kappamax2
+        self.weight1 = weight1
+        self.weight2 = weight2
+        self.recompute_bell()
+
+    def J(self):
+        if (self._J is None):
+            self.compute()
+        return self._J
+
+    def dJ(self):
+        if (self._dJ is None):
+            self.compute()
+        return self._dJ
+
+    def recompute_bell(self, parent=None):
+        self._J = None
+        self._dJ = None
+
+    def compute(self):
+        curvature = self.surface.surface_curvature()
+        k1 = curvature[:, :, 2]  # larger
+        k2 = curvature[:, :, 3]  # smaller
+        normal = self.surface.normal()
+        norm_normal = np.sqrt(normal[:, :, 0]**2 + normal[:, :, 1]**2 + normal[:, :, 2]**2)
+        self._J = np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
+            np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
+
+        dcurvature_dc = self.surface.dsurface_curvature_by_dcoeff()
+        dk1_dc = dcurvature_dc[:, :, 2, :]
+        dk2_dc = dcurvature_dc[:, :, 3, :]
+        dnormal_dc = self.surface.dnormal_by_dcoeff()
+        dnorm_normal_dc = normal[:, :, 0, None]*dnormal_dc[:, :, 0, :]/norm_normal[:, :, None] + \
+            normal[:, :, 1, None]*dnormal_dc[:, :, 1, :]/norm_normal[:, :, None] + \
+            normal[:, :, 2, None]*dnormal_dc[:, :, 2, :]/norm_normal[:, :, None]
+        self._dJ = np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
+            np.sum(norm_normal[:, :, None] * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1) * (- dk1_dc/self.weight1), axis=(0, 1)) + \
+            np.sum(dnorm_normal_dc * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2), axis=(0, 1)) + \
+            np.sum(norm_normal[:, :, None] * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2) * (dk2_dc/self.weight2), axis=(0, 1))
+
+
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     r"""
     For a given surface, this function computes the
