@@ -80,3 +80,9 @@ Here is a list of publications in which simsopt results appear:
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |
+
+#. | R Jorge, G G Plunk, M Drevlak, M Landreman, J-F Lobsien, K Camacho Mata, and P Helander
+     "A single-field-period quasi-isodynamic stellarator",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
+   |
