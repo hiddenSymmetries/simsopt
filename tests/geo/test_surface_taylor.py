@@ -231,11 +231,11 @@ class SurfaceTaylorTests(unittest.TestCase):
 
         def f(dofs):
             s.x = dofs
-            return s.surface_curvature()[1, 1, 2].copy()
+            return s.surface_curvatures()[1, 1, 2].copy()
 
         def df(dofs):
             s.x = dofs
-            return s.dsurface_curvature_by_dcoeff()[1, 1, 2, :].copy()
+            return s.dsurface_curvatures_by_dcoeff()[1, 1, 2, :].copy()
         taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
 
     def test_fund_form_coefficient_derivative(self):

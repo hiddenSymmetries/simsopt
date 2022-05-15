@@ -263,7 +263,7 @@ void Surface<Array>::dsecond_fund_form_by_dcoeff_impl(Array& data) {
 };
 
 template<class Array>
-void Surface<Array>::dsurface_curvature_by_dcoeff_impl(Array& data) {
+void Surface<Array>::dsurface_curvatures_by_dcoeff_impl(Array& data) {
   auto first = this->first_fund_form();
   auto second = this->second_fund_form();
   auto dfirst_dc = this->dfirst_fund_form_by_dcoeff();
@@ -312,7 +312,7 @@ void Surface<Array>::dsurface_curvature_by_dcoeff_impl(Array& data) {
 
 
 template<class Array>
-void Surface<Array>::surface_curvature_impl(Array& data) {
+void Surface<Array>::surface_curvatures_impl(Array& data) {
   auto drd1 = this->gammadash1();
   auto drd2 = this->gammadash2();
   auto d2rd1d1 = this->gammadash1dash1();
