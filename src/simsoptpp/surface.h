@@ -128,8 +128,8 @@ class Surface {
             return surface_vjp_contraction<Array>(dgammadash2_by_dcoeff(), v);
         };
 
-        void surface_curvature_impl(Array& data);
-        void dsurface_curvature_by_dcoeff_impl(Array& data);
+        void surface_curvatures_impl(Array& data);
+        void dsurface_curvatures_by_dcoeff_impl(Array& data);
         void first_fund_form_impl(Array& data);
         void dfirst_fund_form_by_dcoeff_impl(Array& data);
         void second_fund_form_impl(Array& data);
@@ -177,11 +177,11 @@ class Surface {
         Array& dgammadash2dash2_by_dcoeff() {
             return check_the_cache("dgammadash2dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2dash2_by_dcoeff_impl(A);});
         }
-        Array& surface_curvature() {
-            return check_the_cache("surface_curvature", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvature_impl(A);});
+        Array& surface_curvatures() {
+            return check_the_cache("surface_curvatures", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvatures_impl(A);});
         }
-        Array& dsurface_curvature_by_dcoeff() {
-            return check_the_cache("dsurface_curvature_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,4,num_dofs()}, [this](Array& A) { return dsurface_curvature_by_dcoeff_impl(A);});
+        Array& dsurface_curvatures_by_dcoeff() {
+            return check_the_cache("dsurface_curvatures_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,4,num_dofs()}, [this](Array& A) { return dsurface_curvatures_by_dcoeff_impl(A);});
         }
         Array& first_fund_form() {
             return check_the_cache("first_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return first_fund_form_impl(A);});

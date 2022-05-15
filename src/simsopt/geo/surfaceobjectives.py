@@ -179,7 +179,7 @@ class PrincipalCurvature(Optimizable):
         self._dJ = None
 
     def compute(self):
-        curvature = self.surface.surface_curvature()
+        curvature = self.surface.surface_curvatures()
         k1 = curvature[:, :, 2]  # larger
         k2 = curvature[:, :, 3]  # smaller
         normal = self.surface.normal()
@@ -187,7 +187,7 @@ class PrincipalCurvature(Optimizable):
         self._J = np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
             np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
 
-        dcurvature_dc = self.surface.dsurface_curvature_by_dcoeff()
+        dcurvature_dc = self.surface.dsurface_curvatures_by_dcoeff()
         dk1_dc = dcurvature_dc[:, :, 2, :]
         dk2_dc = dcurvature_dc[:, :, 3, :]
         dnormal_dc = self.surface.dnormal_by_dcoeff()
