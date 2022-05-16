@@ -535,6 +535,19 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``z`` is always mapped to be positive, hence it makes sense to use
                       ``zmin=0``.
+            skip: a function that takes in a point (in cylindrical (r,phi,z)
+                  coordinates) and returns whether to skip that location when
+                  building the interpolant or not. The signature should be
+
+                  .. code-block:: Python
+
+                      def skip(r: double, phi: double, z: double) -> bool:
+                          ...
+
+                  See also here
+                  https://github.com/hiddenSymmetries/simsopt/pull/227 for a
+                  graphical illustration.
+
         """
         MagneticField.__init__(self)
         if stellsym and zrange[0] != 0:

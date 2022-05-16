@@ -55,10 +55,8 @@ curves_to_vtk(curves + [ma], OUT_DIR + 'coils')
 mpol = 5
 ntor = 5
 stellsym = True
-phis = np.linspace(0, 1, 64, endpoint=True)
-thetas = np.linspace(0, 1, 24, endpoint=True)
-s = SurfaceRZFourier(
-    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+s = SurfaceRZFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
+                     range="full torus", nphi=64, ntheta=24)
 s.fit_to_curve(ma, 0.70, flip_theta=False)
 
 s.to_vtk(OUT_DIR + 'surface')
@@ -92,6 +90,7 @@ rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
 zs = s.gamma()[:, :, 2]
 rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2*np.pi/nfp, n*2)
+# exploit stellarator symmetry and only consider positive z values:
 zrange = (0, np.max(zs), n//2)
 
 
@@ -116,11 +115,8 @@ bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=nfp, stellsym=True, skip=skip
 )
 
-bsh.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
 bsh.set_points(ma.gamma().reshape((-1, 3)))
 bs.set_points(ma.gamma().reshape((-1, 3)))
-
 Bh = bsh.B()
 B = bs.B()
 print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
