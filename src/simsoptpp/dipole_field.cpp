@@ -236,7 +236,8 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 }
 
 // Calculate the geometric factor needed for the permanent magnet optimization
-std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
+std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
+//std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -256,7 +257,7 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
     constexpr int simd_size = xsimd::simd_type<double>::size;
     Array A = xt::zeros<double>({num_points, num_dipoles, 3});
     Array ATb = xt::zeros<double>({num_dipoles, 3});
-    Array ATA = xt::zeros<double>({num_dipoles * 3, num_dipoles * 3});
+    //Array ATA = xt::zeros<double>({num_dipoles * 3, num_dipoles * 3});
    
     // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
@@ -353,9 +354,10 @@ std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, 
     eigen_res = eigen_v*eigen_mat;
     
     // compute ATA
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
-    eigen_res2 = eigen_mat.transpose()*eigen_mat;
-    return std::make_tuple(A, ATb, ATA);
+    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
+    //eigen_res2 = eigen_mat.transpose()*eigen_mat;
+    //return std::make_tuple(A, ATb, ATA);
+    return std::make_tuple(A, ATb);
 }
 
 // Takes a uniform grid of dipoles, and loops through
@@ -387,7 +389,7 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 
     // initialize new_grids with size of the full uniform grid,
     // and then chop later in the python part of the code
-    Array new_grids = xt::zeros<double>({rz_max * nphi, nphi, 3});
+    Array new_grids = xt::zeros<double>({rz_max * nphi, 3});
 
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < nphi; i++) {
@@ -465,9 +467,9 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
                 continue;
             // nearest distance from the outer surface to the ray should be NOT be the original point
             if (nearest_loc_outer > 0) {
-                new_grids(ind_count + i * rz_max, i, 0) = Rpoint;
-                new_grids(ind_count + i * rz_max, i, 1) = phi_i; 
-                new_grids(ind_count + i * rz_max, i, 2) = Zpoint;
+                new_grids(ind_count + i * rz_max, 0) = Rpoint;
+                new_grids(ind_count + i * rz_max, 1) = phi_i; 
+                new_grids(ind_count + i * rz_max, 2) = Zpoint;
 		ind_count += 1;
 	    }
 	}

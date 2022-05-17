@@ -533,9 +533,9 @@ class DipoleField(MagneticField):
                     running_tally = 0
                     for i in range(pm_opt.nphi):
                         if i > 0:
-                            radii = pm_opt.final_RZ_grid[inds[i-1]:inds[i], i, 0]
+                            radii = pm_opt.final_RZ_grid[inds[i-1]:inds[i], 0]
                         else:
-                            radii = pm_opt.final_RZ_grid[:inds[i], i, 0]
+                            radii = pm_opt.final_RZ_grid[:inds[i], 0]
                         dipole_grid_x[running_tally:running_tally + len(radii)] = radii * np.cos(phi[i])
                         dipole_grid_y[running_tally:running_tally + len(radii)] = radii * np.sin(phi[i])
                         running_tally += len(radii)
@@ -594,9 +594,9 @@ class DipoleField(MagneticField):
         offsetm = ndipoles * nfp
         for i in range(len(phi)):
             if i > 0:
-                radii = RZ_grid[inds[i-1]:inds[i], i, 0]
+                radii = RZ_grid[inds[i-1]:inds[i], 0]
             else:
-                radii = RZ_grid[:inds[i], i, 0]
+                radii = RZ_grid[:inds[i], 0]
             nr = len(radii)
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
