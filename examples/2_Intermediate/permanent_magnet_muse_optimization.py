@@ -41,7 +41,7 @@ if final_run:
     tmax_fl = 30000 if ci else 50000
     degree = 2 if ci else 4
 
-
+t1 = time.time()
 class_filename = "PM_optimizer_muse"
 reg_l2 = 1e-8  # 1e-7
 reg_l0 = 0.0
@@ -63,6 +63,8 @@ assert poff == pm_opt.plasma_offset
 
 OUT_DIR = IN_DIR + "output_muse_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
+t2 = time.time()
+print('Loading pickle file and other initialization took ', t2 - t1, ' s')
 
 t1 = time.time()
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -165,8 +167,8 @@ def trace_fieldlines(bfield, label):
     # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     if comm is None or comm.rank == 0:
-        particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}_muse')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}_muse.png', dpi=300)
+        # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}_muse')
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}_muse.png', dpi=150)
 
 
 def make_qfm(s, Bfield, Bfield_tf):
