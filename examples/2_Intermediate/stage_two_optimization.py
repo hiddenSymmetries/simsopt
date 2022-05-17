@@ -15,7 +15,8 @@ The objective is given by
 
 if any of the weights are increased, or the thresholds are tightened, the coils
 are more regular and better separated, but the target normal field may not be
-achieved as well.
+achieved as well. This example demonstrates the adjustment of weights and
+penalties via the use of the `Weight` class.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
@@ -24,6 +25,7 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
+from simsopt._core.optimizable import Weight
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
@@ -46,12 +48,14 @@ R1 = 0.5
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 5
 
-# Weight on the curve lengths in the objective function:
-LENGTH_WEIGHT = 1e-6
+# Weight on the curve lengths in the objective function. We use the `Weight`
+# class here to later easily adjust the scalar value and rerun the optimization
+# without having to rebuild the objective.
+LENGTH_WEIGHT = Weight(1e-6)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
-CC_WEIGHT = 10
+CC_WEIGHT = 1000
 
 # Threshold and weight for the coil-to-surface distance penalty in the objective function:
 CS_THRESHOLD = 0.3
@@ -166,6 +170,17 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt")
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
+
+
+# We now use the result from the optimization as the initial guess for a
+# subsequent optimization with reduced penalty for the coil length. This will
+# result in slightly longer coils but smaller `B·n` on the surface.
+dofs = res.x
+LENGTH_WEIGHT *= 0.1
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
