@@ -55,11 +55,11 @@ bs.to_mgrid(f_test, nphi=6, nr=11, nz=11, rmin=0.5, rmax=1.5, zmin=-0.5, zmax=0.
 
 
 ### Compare against standard
-from simsopt.field import mgrid as mg
+from simsopt.field.mgrid import ReadMGRID 
 f_standard = str(TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc')
 
-m_standard = mg.ReadMGRID(f_standard)
-m_test = mg.ReadMGRID(f_test)
+m_standard = ReadMGRID(f_standard)
+m_test     = ReadMGRID(f_test)
 
 assert np.allclose(m_test.bvec, m_standard.bvec)
 
