@@ -670,10 +670,10 @@ class OptimizableTests(unittest.TestCase):
         # Set dofs and call
         adder.x = [6]
         self.assertAlmostEqual(adder(), 9.0)
-        adder.unfix_all()
+        adder.local_unfix_all()
         adder.x = [4, 5, 6]
         self.assertAlmostEqual(adder(), 15.0)
-        iden.unfix_all()
+        iden.local_unfix_all()
         iden.x = [20]
         self.assertAlmostEqual(iden(), 20.0)
 
@@ -688,9 +688,9 @@ class OptimizableTests(unittest.TestCase):
         # Fix dofs and now call
         adder.fix('x')
         self.assertAlmostEqual(adder([1, 2]), 13)
-        adder.fix_all()
+        adder.local_fix_all()
         self.assertAlmostEqual(adder(), 13)
-        iden.fix_all()
+        iden.local_fix_all()
         self.assertAlmostEqual(iden(), 20)
 
         # Check with Optimizable objects containing parents
@@ -849,17 +849,105 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(self.adder.dof_size, 2)
         self.assertEqual(self.rosen.dof_size, 1)
 
-    def test_fix_all(self):
-        self.iden.fix_all()
-        self.adder.fix_all()
-        self.rosen.fix_all()
+    def test_local_fix_all(self):
+        self.iden.local_fix_all()
+        self.adder.local_fix_all()
+        self.rosen.local_fix_all()
 
         self.assertEqual(self.iden.dof_size, 0)
         self.assertEqual(self.adder.dof_size, 0)
         self.assertEqual(self.rosen.dof_size, 0)
 
+    def test_fix_all(self):
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=False)
+        adder_x = adder.x
+        iden_x = iden.x
+        self.assertEqual(len(adder_x), 2)
+        self.assertAlmostEqual(adder_x[0], 2)
+        self.assertAlmostEqual(adder_x[1], 3)
+        self.assertEqual(len(iden_x), 1)
+
+        iden.fix_all()
+        adder.fix_all()
+        with self.assertRaises(ValueError):
+            iden.x = [10]
+        with self.assertRaises(ValueError):
+            adder.x = [4, 5, 6]
+
+        self.assertEqual(iden.dof_size, 0)
+        self.assertEqual(adder.dof_size, 0)
+
+        # Check with Optimizable objects containing parents
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=False)
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+
+        test_x = test_obj.x
+        self.assertEqual(len(test_x), 4)
+        test_obj.fix_all()
+
+        with self.assertRaises(ValueError):
+            test_obj.x = np.array([20, 5, 6, 25])
+
+        self.assertEqual(test_obj.dof_size, 0)
+        self.assertEqual(adder.dof_size, 0)
+        self.assertEqual(iden.dof_size, 0)
+
     def test_unfix(self):
         pass
+
+    def test_local_unfix_all(self):
+        # Test with leaf nodes
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=True)
+        adder_x = adder.x
+        iden_x = iden.x
+        self.assertEqual(len(adder_x), 2)
+        self.assertEqual(adder.dof_size, 2)
+        self.assertAlmostEqual(adder_x[0], 2)
+        self.assertAlmostEqual(adder_x[1], 3)
+        self.assertEqual(len(iden_x), 0)
+
+        with self.assertRaises(ValueError):
+            iden.x = [10]
+        with self.assertRaises(ValueError):
+            adder.x = [4, 5, 6]
+
+        iden.local_unfix_all()
+        adder.local_unfix_all()
+        iden.x = [10]
+        adder.x = [4, 5, 6]
+        self.assertEqual(iden.dof_size, 1)
+        self.assertEqual(adder.dof_size, 3)
+
+        # Check with Optimizable objects containing parents
+        adder = Adder(n=3, x0=[1, 2, 3], dof_names=['x', 'y', 'z'],
+                      dof_fixed=[True, False, False])
+        iden = Identity(x=10, dof_fixed=True)
+        test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+
+        with self.assertRaises(ValueError):
+            test_obj.x = np.array([20, 4, 5, 6, 25])
+
+        adder.local_unfix_all()
+        test_obj.x = np.array([4, 5, 6, 25])
+        self.assertAlmostEqual(adder.local_full_x[0], 4)
+        self.assertAlmostEqual(adder.local_full_x[1], 5)
+        self.assertAlmostEqual(adder.local_full_x[2], 6)
+        self.assertAlmostEqual(test_obj.local_full_x[0], 25)
+
+        iden.local_unfix_all()
+        test_obj.x = np.array([1, 2, 3, 1, 10])
+
+        self.assertAlmostEqual(adder.local_full_x[0], 1)
+        self.assertAlmostEqual(adder.local_full_x[1], 2)
+        self.assertAlmostEqual(adder.local_full_x[2], 3)
+        self.assertAlmostEqual(iden.local_full_x[0], 1)
+        self.assertAlmostEqual(test_obj.local_full_x[0], 10)
 
     def test_unfix_all(self):
         # Test with leaf nodes
@@ -891,25 +979,19 @@ class OptimizableTests(unittest.TestCase):
                       dof_fixed=[True, False, False])
         iden = Identity(x=10, dof_fixed=True)
         test_obj = OptClassWithParents(10, depends_on=[iden, adder])
+        test_obj.fix('val')
 
         with self.assertRaises(ValueError):
             test_obj.x = np.array([20, 4, 5, 6, 25])
 
-        adder.unfix_all()
-        test_obj.x = np.array([4, 5, 6, 25])
+        test_obj.unfix_all()
+        test_obj.x = np.array([4, 5, 6, 20, 25])
+        print(iden.x)
         self.assertAlmostEqual(adder.local_full_x[0], 4)
         self.assertAlmostEqual(adder.local_full_x[1], 5)
         self.assertAlmostEqual(adder.local_full_x[2], 6)
+        self.assertAlmostEqual(iden.local_full_x[0], 20)
         self.assertAlmostEqual(test_obj.local_full_x[0], 25)
-
-        iden.unfix_all()
-        test_obj.x = np.array([1, 2, 3, 1, 10])
-
-        self.assertAlmostEqual(adder.local_full_x[0], 1)
-        self.assertAlmostEqual(adder.local_full_x[1], 2)
-        self.assertAlmostEqual(adder.local_full_x[2], 3)
-        self.assertAlmostEqual(iden.local_full_x[0], 1)
-        self.assertAlmostEqual(test_obj.local_full_x[0], 10)
 
     def test_get_ancestors(self):
         iden = Identity(x=10, dof_fixed=True)
