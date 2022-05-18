@@ -675,6 +675,13 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
+
+    # Perhaps the file currently called test_mgrid.py should live here.
+    # We can write a function called get_pnas-qa_data()
+    #    The to_vtk() test only tests file writing, it does not appear to check the contents of the file.
+    def test_to_mgrid(self):
+        pass
+
     def test_poloidal_field(self):
         B0 = 1.1
         R0 = 1.2

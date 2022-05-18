@@ -59,7 +59,7 @@ from simsopt.field.mgrid import ReadMGRID
 f_standard = str(TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc')
 
 m_standard = ReadMGRID(f_standard)
-m_test     = ReadMGRID(f_test)
+m_test = ReadMGRID(f_test)
 
 assert np.allclose(m_test.bvec, m_standard.bvec)
 
