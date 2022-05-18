@@ -5,8 +5,9 @@ template<class Array>
 class CurrentBase {
     public:
         virtual double get_value() = 0;
-        virtual ~CurrentBase() = default;
+        virtual ~CurrentBase() {}//; = default;
 };
+
 
 template<class Array>
 class Current : public CurrentBase<Array>{
@@ -19,13 +20,3 @@ class Current : public CurrentBase<Array>{
         double get_value() override { return value; }
 };
 
-template<class Array>
-class ScaledCurrent : public CurrentBase<Array> {
-    private:
-        const std::shared_ptr<CurrentBase<Array>> current;
-
-    public:
-        const double scale;
-        ScaledCurrent(std::shared_ptr<CurrentBase<Array>> current, double scale) : current(current), scale(scale) {}
-        double get_value() override { return scale * (current->get_value()); }
-};

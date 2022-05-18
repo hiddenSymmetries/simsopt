@@ -64,7 +64,7 @@ class ProfilePolynomial(Profile):
 
     def __init__(self, data):
         super().__init__(x0=np.array(data))
-        self.fix_all()
+        self.local_fix_all()
 
     def f(self, s):
         """ Return the value of the profile at specified points in s. """
@@ -88,7 +88,7 @@ class ProfileScaled(Profile):
     def __init__(self, base, scalefac):
         self.base = base
         super().__init__(x0=np.array([scalefac]), names=['scalefac'], depends_on=[base])
-        self.fix_all()
+        self.local_fix_all()
 
     def f(self, s):
         """ Return the value of the profile at specified points in s. """
@@ -117,7 +117,7 @@ class ProfileSpline(Profile):
         self.s = s
         self.degree = degree
         super().__init__(x0=f)
-        self.fix_all()
+        self.local_fix_all()
 
     def f(self, s):
         """ Return the value of the profile at specified points in s. """
