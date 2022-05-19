@@ -22,6 +22,7 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core.optimizable import Optimizable
+from permanent_magnet_helpers import *
 import time
 
 t_start = time.time()
@@ -91,6 +92,9 @@ elif config_flag == 'ncsx':
     dr = 0.02
     coff = 0.02
     poff = 0.1
+    FOCUS = True
+    input_name = 'NCSX_c09r00_halfTeslaTF' 
+    coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
 
 if final_run:
     from mpi4py import MPI
@@ -136,14 +140,18 @@ print('Loading pickle file and other initialization took ', t2 - t1, ' s')
 t1 = time.time()
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / ('input.' + input_name)
-if config_flag == 'muse':
+if FOCUS:
     s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 else:
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 t2 = time.time()
 print("Done loading in plasma boundary surface, t = ", t2 - t1)
-bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
-bs.set_points(s.gamma().reshape((-1, 3)))
+if config_flag != 'ncsx':
+    bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
+    bs.set_points(s.gamma().reshape((-1, 3)))
+    Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+else:
+    Bnormal = pm_opt.Bn
 
 # Set the pm_opt plasma boundary 
 pm_opt.plasma_boundary = s
@@ -183,9 +191,11 @@ t1 = time.time()
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
-      np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
+      np.mean(np.abs(Bnormal * dphi * dtheta)))
+Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
+Bnormal_total = Bnormal + Bnormal_dipoles
 print("Average Bn with the PMs = ", 
-      np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * dphi * dtheta, axis=2))))
+      np.mean(np.abs(Bnormal_total * dphi * dtheta)))
 
 print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles)
@@ -212,7 +222,7 @@ if make_plots:
 t2 = time.time()
 print("Done printing and plotting, ", t2 - t1, " s")
 
-if config_flag == 'muse':
+if FOCUS:
     s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 else:
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
@@ -306,9 +316,14 @@ if final_run:
     phirange = (0, 2 * np.pi / s.nfp, n * 2)
     zrange = (0, np.max(zs), n // 2)
     t1 = time.time()
-    bsh = InterpolatedField(
-        bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
-    )
+    if config_flag != 'ncsx':
+        bsh = InterpolatedField(
+            bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+        )
+    else:
+        bsh = InterpolatedField(
+            b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+        )
     # bsh.to_vtk('dipole_fields')
     trace_fieldlines(bsh, 'bsh_PMs')
     t2 = time.time()
@@ -341,20 +356,33 @@ if comm is None or comm.rank == 0:
     quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 
-    if config_flag == 'muse':
+    if FOCUS:
         s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     else:
         s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
-    bs.set_points(s.gamma().reshape((-1, 3)))
+    if config_flag == 'ncsx':
+        Bnormal = load_ncsx_coil_data(s, coil_name)
+    else:
+        bs.set_points(s.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+    Bnormal_total = Bnormal + Bnormal_dipoles
     # For plotting Bn on the full torus surface at the end with just the dipole fields
-    pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    pointData = {"B_N": Bnormal[:, :, None]}
     s.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
-    pointData = {"B_N": np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    pointData = {"B_N": Bnormal_dipoles[:, :, None]}
     s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
-    pointData = {"B_N": np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    pointData = {"B_N": Bnormal_total[:, :, None]}
     s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
     t2 = time.time()
     print('Done saving final vtk files, ', t2 - t1, " s")
     plt.show()
+
+file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
+# SurfaceRZFourier objects not pickle-able, so set to None
+pm_opt.plasma_boundary = None
+pm_opt.rz_inner_surface = None
+pm_opt.rz_outer_surface = None
+pickle.dump(pm_opt, file_out)

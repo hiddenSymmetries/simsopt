@@ -91,6 +91,7 @@ scratch_path = '/global/cscratch1/sd/akaptano/'
 
 # Make the output directory
 OUT_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
+print(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 class_filename = "PM_optimizer_" + config_flag
 
@@ -175,12 +176,13 @@ if config_flag != 'ncsx':
     curves = [c.curve for c in coils]
     curves_to_vtk(curves, OUT_DIR + "curves_init")
     pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-    s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+    s.to_vtk(OUT_DIR + "biot_savart_init", extra_data=pointData)
     t2 = time.time()
     print("Done loading in coils", t2 - t1, " s")
 
     # If BiotSavart not yet optimized, optimize it
     if 'qa' in config_flag or 'qh' in config_flag:
+
         quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
         quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
         if config_flag == 'muse' or config_flag == 'ncsx':
@@ -200,9 +202,21 @@ if config_flag != 'ncsx':
     # Save optimized BiotSavart object
     biotsavart_json_str = bs.save(filename=OUT_DIR + 'BiotSavart.json')
     Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+
+    # Save Biot Savart fields
+    pointData = {"B_N": Bnormal[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
 else:
     Bnormal = load_ncsx_coil_data(s, coil_name)
     is_premade_ncsx = True
+
+    quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
+    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    Bnormal_plot = load_ncsx_coil_data(s_plot, coil_name)
+    # Save Biot Savart fields
+    pointData = {"B_N": Bnormal_plot[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "biot_savart_init", extra_data=pointData)
 
 # permanent magnet setup 
 t1 = time.time()

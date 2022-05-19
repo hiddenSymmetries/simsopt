@@ -571,7 +571,10 @@ class DipoleField(MagneticField):
         inds = pm_opt.inds
         nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
-        phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
+        if pm_opt.is_premade_ncsx:
+            phi = pm_opt.pm_uniq_phi
+        else:
+            phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
         RZ_grid = pm_opt.final_RZ_grid
         dipole_grid = pm_opt.dipole_grid
         ndipoles = pm_opt.dipole_grid.shape[0]
@@ -648,6 +651,7 @@ class DipoleField(MagneticField):
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
         mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
+        print(self.m_maxima)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
