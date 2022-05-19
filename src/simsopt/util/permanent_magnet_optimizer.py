@@ -202,17 +202,18 @@ class PermanentMagnetOptimizer:
             premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
             # Dipole grid should be a list of x, y, z locations
             self.ndipoles = premade_dipole_grid.shape[0]
+            # Not normalized to 1 like quadpoints_phi!
             self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
             # reorder the PMs grid by the phi values
             phi_order = np.argsort(self.pm_phi)
             self.pm_phi = self.pm_phi[phi_order]
             uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
             self.pm_nphi = len(uniq_phi)
-            print(self.pm_nphi, counts_phi, uniq_phi)
-            self.inds = np.zeros(self.pm_nphi, dtype=int)
+            self.pm_uniq_phi = uniq_phi
+            self.inds = counts_phi
             for i in reversed(range(1, self.pm_nphi)):
                 for j in range(0, i):
-                    self.inds[i] += counts_phi[j] 
+                    self.inds[i] += self.inds[j] 
             print(self.inds)
             premade_dipole_grid = premade_dipole_grid[phi_order, :]
             self.final_RZ_grid = np.zeros((self.ndipoles, 3))
@@ -340,7 +341,11 @@ class PermanentMagnetOptimizer:
         dipole_grid_phi = np.zeros(self.ndipoles)
         dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
-        for i in range(self.nphi):
+        if self.is_premade_ncsx:
+            nphi = self.pm_nphi
+        else:
+            nphi = self.nphi
+        for i in range(nphi):
             if i > 0:
                 radii = self.final_RZ_grid[self.inds[i-1]:self.inds[i], 0]
                 phi = self.final_RZ_grid[self.inds[i-1]:self.inds[i], 1]
@@ -422,7 +427,7 @@ class PermanentMagnetOptimizer:
         """
         for kk, dipoles in enumerate([self.m, self.m_proxy]):
             dipole_grid = self.dipole_grid_xyz
-            plt.figure()
+            plt.figure(100)
             ax = plt.axes(projection="3d")
             colors = []
             dipoles = dipoles.reshape(self.ndipoles, 3)
@@ -433,20 +438,14 @@ class PermanentMagnetOptimizer:
             plt.axis('off')
             plt.grid(None)
 
-            fig = plt.figure(figsize=(10, 10))
-            for i, ind in enumerate(np.arange(0, len(self.phi) - 1, len(self.phi) // 3)):
+            fig = plt.figure(200, figsize=(10, 10))
+            for i, ind in enumerate(np.arange(0, len(self.phi), len(self.phi) // 3)):
                 plt.subplot(2, 2, i + 1)
                 plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
                 r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
                 z_plasma = np.hstack((self.z_plasma[ind, :], self.z_plasma[ind, 0]))
-                #r_inner = np.hstack((self.r_inner[ind, :], self.r_inner[ind, 0]))
-                #z_inner = np.hstack((self.z_inner[ind, :], self.z_inner[ind, 0]))
-                #r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
-                #z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
 
                 plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
-                #plt.plot(r_inner, z_inner, 'k', linewidth=2)
-                #plt.plot(r_outer, z_outer, 'k', linewidth=2)
 
                 if not self.is_premade_ncsx:
                     running_tally = 0
@@ -493,19 +492,19 @@ class PermanentMagnetOptimizer:
                             dipoles_i[:, 2],
                         )
                 else:
-                    phi_ind = np.ravel(np.where(self.pm_phi < self.phi[i]))[-1]
+                    phi_ind = np.ravel(np.where(self.pm_uniq_phi < 2 * np.pi * self.phi[ind]))[-1]  # + 1
                     sax = plt.scatter(
-                            self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
-                            self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                            #c=cm.cool(colors),
-                            label='PMs'
-                        )
+                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
+                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
+                        c=cm.cool(colors[phi_ind * 896:(phi_ind + 1) * 896]),
+                        label='PMs'
+                    )
                     plt.quiver(
-                            self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
-                            self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                            dipoles[phi_ind * 896:(phi_ind + 1) * 896, 0] * np.cos(2 * np.pi * self.pm_phi[phi_ind]) + dipoles[phi_ind * 896:(phi_ind + 1) * 896, 1] * np.sin(2 * np.pi * self.pm_phi[phi_ind]),
-                            dipoles[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                        )
+                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
+                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
+                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 0] * np.cos(2 * np.pi * self.pm_uniq_phi[phi_ind]) + dipoles[phi_ind * 896:(phi_ind + 1) * 896, 1] * np.sin(2 * np.pi * self.pm_uniq_phi[phi_ind]),
+                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 2],
+                    )
 
                 if i == 2 or i == 3:
                     plt.xlabel('R (m)', fontsize=16)
@@ -940,9 +939,14 @@ class PermanentMagnetOptimizer:
         grid_fac = np.sqrt(self.dphi * self.dtheta)
         ave_Bn_proxy = np.mean(np.abs(self.A_obj.dot(m_proxy) - self.b_obj)) * grid_fac
         ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
+        ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
+        f_B_init = np.linalg.norm(self.b_obj) ** 2
+        f_B = np.linalg.norm(self.A_obj.dot(m) - self.b_obj) ** 2
         print(np.max(self.m_maxima), np.max(m_proxy))
         print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 
         print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy)) 
+        print('f_B without the optimized permanent magnets = {0:.8e}'.format(f_B_init)) 
+        print('f_B with the optimized permanent magnets = {0:.8e}'.format(f_B)) 
 
         # note m = m_proxy if not using relax-and-split 
         self.m = m

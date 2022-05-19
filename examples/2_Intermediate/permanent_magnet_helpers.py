@@ -157,13 +157,23 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot):
 
 def load_ncsx_coil_data(s, coil_name):
     n, m, bmnc, bmns = np.loadtxt('../../tests/test_files/' + coil_name, skiprows=2, unpack=True)
-    phi = s.quadpoints_phi
-    theta = s.quadpoints_theta
-    Bn = np.zeros((len(phi), len(theta)))
-    nmodes = 24
+    phi = s.quadpoints_phi * 2 * np.pi
+    theta = s.quadpoints_theta * 2 * np.pi
+    nfp = s.nfp
+    Bn1 = np.zeros((len(phi), len(theta)))
+    #Bn2 = np.zeros((len(phi), len(theta)))
+    #Bn3 = np.zeros((len(phi), len(theta)))
+    #nmodes = 24
     for i in range(len(phi)):
+        #phi_shift = phi[i] + 2 * np.pi / nfp
+        #phi_shift2 = phi[i] + 2 * 2 * np.pi / nfp
         for j in range(len(theta)):
-            for ii in range(len(n) // nmodes):
-                for jj in range(nmodes):
-                    Bn[i, j] += bmnc[ii * nmodes + jj] * np.cos(- n[ii * nmodes + jj] * phi[i] + m[ii * nmodes + jj] * theta[j]) + bmns[ii * nmodes + jj] * np.sin(- n[ii * nmodes + jj] * phi[i] + m[ii * nmodes + jj] * theta[j])
-    return Bn
+            for ii in range(len(n)):
+                #for ii in range(len(n) // nmodes):
+                #for jj in range(nmodes):
+                Bn1[i, j] += bmnc[ii] * np.cos(- n[ii] * nfp * phi[i] + m[ii] * theta[j]) + bmns[ii] * np.sin(- n[ii] * nfp * phi[i] + m[ii] * theta[j])
+                #Bn1[i, j] += bmnc[ii * nmodes + jj] * np.cos(- n[ii * nmodes + jj] * phi[i] + m[ii * nmodes + jj] * theta[j]) + bmns[ii * nmodes + jj] * np.sin(- n[ii * nmodes + jj] * phi[i] + m[ii * nmodes + jj] * theta[j])
+                #Bn2[i, j] += bmnc[ii * nmodes + jj] * np.cos(- n[ii * nmodes + jj] * phi_shift + m[ii * nmodes + jj] * theta[j]) + bmns[ii * nmodes + jj] * np.sin(- n[ii * nmodes + jj] * phi_shift + m[ii * nmodes + jj] * theta[j])
+                #Bn3[i, j] += bmnc[ii * nmodes + jj] * np.cos(- n[ii * nmodes + jj] * phi_shift2 + m[ii * nmodes + jj] * theta[j]) + bmns[ii * nmodes + jj] * np.sin(- n[ii * nmodes + jj] * phi_shift2 + m[ii * nmodes + jj] * theta[j])
+    return Bn1 
+    #return (Bn1 + Bn2 + Bn3) / 3.0
