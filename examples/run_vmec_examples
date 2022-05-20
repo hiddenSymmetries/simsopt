@@ -16,6 +16,8 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
+./2_Intermediate/B_external_normal.py
+
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
 mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py

@@ -97,6 +97,17 @@ class InitializedFromWout(unittest.TestCase):
         self.assertAlmostEqual(mean_iota, mean_iota_alt, places=3)
         self.assertAlmostEqual(mean_shear, mean_shear_alt, places=3)
 
+    def test_external_current(self):
+        """
+        Test the external_current() function.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        bsubvmnc = 1.5 * vmec.wout.bsubvmnc[0, -1] - 0.5 * vmec.wout.bsubvmnc[0, -2]
+        mu0 = 4 * np.pi * (1.0e-7)
+        external_current = 2 * np.pi * bsubvmnc / mu0
+        np.testing.assert_allclose(external_current, vmec.external_current())
+
     def test_error_on_rerun(self):
         """
         If a vmec object is initialized from a wout file, and if the dofs

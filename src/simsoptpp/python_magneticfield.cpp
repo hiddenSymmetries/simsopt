@@ -14,6 +14,7 @@ namespace py = pybind11;
 #include "magneticfield_interpolated.h"
 #include "pymagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
+#include "pycurrent.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
 typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
 typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
@@ -74,18 +75,15 @@ void init_magneticfields(py::module_ &m){
         .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
 
-    py::class_<CurrentBase<PyArray>, shared_ptr<CurrentBase<PyArray>>>(m, "CurrentBase");
+    py::class_<CurrentBase<PyArray>, shared_ptr<CurrentBase<PyArray>>, PyCurrentBaseTrampoline>(m, "CurrentBase")
+        .def(py::init<>())
+        .def("get_value", &CurrentBase<PyArray>::get_value, "Get the current.");
+
     py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>, CurrentBase<PyArray>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
         .def(py::init<double>())
         .def("set_dofs", &Current<PyArray>::set_dofs, "Set the current.")
         .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
-
-    py::class_<ScaledCurrent<PyArray>, shared_ptr<ScaledCurrent<PyArray>>, CurrentBase<PyArray>>(m, "ScaledCurrent", "Multiply a current object with a scalar (e.g. to flip its sign).")
-        .def(py::init<shared_ptr<CurrentBase<PyArray>>, double>())
-        .def("get_value", &ScaledCurrent<PyArray>::get_value, "Get the current.")
-        .def_readonly("scale", &ScaledCurrent<PyArray>::scale, "Get the scaling factor.");
-        
 
     py::class_<Coil<PyArray>, shared_ptr<Coil<PyArray>>>(m, "Coil", "Optimizable that represents a coil, consisting of a curve and a current.")
         .def(py::init<shared_ptr<Curve<PyArray>>, shared_ptr<CurrentBase<PyArray>>>())
