@@ -135,8 +135,10 @@ PYBIND11_MODULE(simsoptpp, m) {
         int ntheta = Bcoil.shape(1);
         double *Bcoil_ptr = &(Bcoil(0, 0, 0));
         double *Btarget_ptr = NULL;
-        if(Btarget.size() == Bcoil.size())
-             Btarget_ptr = &(Btarget(0, 0, 0));
+        //if(Btarget.size() == Bcoil.size())
+        //     Btarget_ptr = &(Btarget(0, 0, 0));
+        if(Btarget.size() == nphi * ntheta)
+            Btarget_ptr = &(Btarget(0, 0));
         double *n_ptr = &(n(0, 0, 0));
         double res = 0;
 #pragma omp parallel for reduction(+:res)
@@ -147,7 +149,8 @@ PYBIND11_MODULE(simsoptpp, m) {
             double Nz = n_ptr[3*i+2]/normN;
             double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
             if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[3*i];
+                BcoildotN -= Btarget_ptr[i];
+                //BcoildotN -= Btarget_ptr[3*i+0]*Nx + Btarget_ptr[3*i+1]*Ny + Btarget_ptr[3*i+2]*Nz;  //Btarget_ptr[3*i];
             res += (BcoildotN * BcoildotN) * normN;
         }
         return 0.5 * res / (nphi*ntheta);
