@@ -206,6 +206,7 @@ class PermanentMagnetOptimizer:
             self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
             # reorder the PMs grid by the phi values
             phi_order = np.argsort(self.pm_phi)
+            self.phi_order = phi_order
             self.pm_phi = self.pm_phi[phi_order]
             uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
             self.pm_nphi = len(uniq_phi)
@@ -366,7 +367,7 @@ class PermanentMagnetOptimizer:
 
         if self.is_premade_ncsx:
             M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
-            cell_vol = M0s * mu0 / B_max
+            cell_vol = M0s[self.phi_order] * mu0 / B_max
         else:
             cell_vol = abs(dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * self.plasma_boundary.stellsym)
         print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * self.plasma_boundary.stellsym, ' m^3')
@@ -941,6 +942,7 @@ class PermanentMagnetOptimizer:
         ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
         ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
         f_B_init = np.linalg.norm(self.b_obj) ** 2
+        print(self.dphi, self.dtheta, self.plasma_boundary.quadpoints_phi, self.plasma_boundary.quadpoints_theta)
         f_B = np.linalg.norm(self.A_obj.dot(m) - self.b_obj) ** 2
         print(np.max(self.m_maxima), np.max(m_proxy))
         print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 

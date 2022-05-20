@@ -18,6 +18,7 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, DipoleField
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
@@ -158,7 +159,7 @@ pm_opt.plasma_boundary = s
 
 print('Done initializing the permanent magnet object')
 t1 = time.time()
-max_iter_MwPGP = 500
+max_iter_MwPGP = 100
 max_iter_RS = 20
 epsilon = 1e-2
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
@@ -192,6 +193,8 @@ dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
       np.mean(np.abs(Bnormal * dphi * dtheta)))
+print("Total Bn without the coils = ", 
+      np.sum((pm_opt.A_obj @ pm_opt.m) ** 2))
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
 print("Average Bn with the PMs = ", 
@@ -378,6 +381,8 @@ if comm is None or comm.rank == 0:
     s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
     t2 = time.time()
     print('Done saving final vtk files, ', t2 - t1, " s")
+    f_B_sf = SquaredFlux(s, b_dipole, Bnormal).J() 
+    print('f_B = ', f_B_sf)
     plt.show()
 
 file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")

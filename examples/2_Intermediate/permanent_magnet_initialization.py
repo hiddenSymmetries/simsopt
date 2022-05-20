@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field.magneticfieldclasses import DipoleField
+from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
@@ -180,15 +180,15 @@ if config_flag != 'ncsx':
     t2 = time.time()
     print("Done loading in coils", t2 - t1, " s")
 
+    quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
+    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    if config_flag == 'muse' or config_flag == 'ncsx':
+        s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    else:
+        s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     # If BiotSavart not yet optimized, optimize it
     if 'qa' in config_flag or 'qh' in config_flag:
 
-        quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
-        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-        if config_flag == 'muse' or config_flag == 'ncsx':
-            s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        else:
-            s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot)
         bs.set_points(bspoints)
         B0 = np.linalg.norm(bs.B(), axis=-1)
@@ -209,14 +209,18 @@ if config_flag != 'ncsx':
 else:
     Bnormal = load_ncsx_coil_data(s, coil_name)
     is_premade_ncsx = True
-
     quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
     s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     Bnormal_plot = load_ncsx_coil_data(s_plot, coil_name)
-    # Save Biot Savart fields
+    # Save Tf fields 
     pointData = {"B_N": Bnormal_plot[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "biot_savart_init", extra_data=pointData)
+    Btoroidal = ToroidalField(0.5, s_plot.get_rc(0, 0))
+    Btoroidal.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal_toroidal = np.sum(Btoroidal.B().reshape((2 * nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    pointData = {"B_N": Bnormal_toroidal[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "biot_savart_init_toroidal", extra_data=pointData)
 
 # permanent magnet setup 
 t1 = time.time()
@@ -238,20 +242,70 @@ b_dipole_initial = DipoleField(pm_opt)
 b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
 b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
 pm_opt._plot_final_dipoles()
+m_maxima = pm_opt.m_maxima
 t2 = time.time()
 print('Done setting up the Dipole Field class')
 print('Process took t = ', t2 - t1, ' s')
+
+if config_flag == 'ncsx':
+    t1 = time.time()
+    # Save FAMUS solution
+    ox, oy, oz, m0, p, mp, mt = np.loadtxt('../../tests/test_files/init_orient_pm_nonorm_5E4_q4_dp.focus', skiprows=3, usecols=[3, 4, 5, 7, 8, 10, 11], delimiter=',', unpack=True)
+    # r = np.sqrt(ox * ox + oy * oy)
+    phi = np.arctan2(oy, ox)
+    rho = p ** 4
+    mm = rho * m0
+    mx = mm * np.sin(mt) * np.cos(mp) 
+    my = mm * np.sin(mt) * np.sin(mp) 
+    mz = mm * np.cos(mt)
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+    mr = cosphi * mx + sinphi * my
+    mphi = -sinphi * mx + cosphi * my
+    m_FAMUS = np.ravel((np.array([mr, mphi, mz]).T)[pm_opt.phi_order, :])
+    print(m_FAMUS.shape)
+    pm_opt.m = m_FAMUS 
+    pm_opt.m_proxy = m_FAMUS
+    pm_opt.m_maxima = m0[pm_opt.phi_order]
+    b_dipole_FAMUS = DipoleField(pm_opt)
+    b_dipole_FAMUS.set_points(s_plot.gamma().reshape((-1, 3)))
+    b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
+    pm_opt._plot_final_dipoles()
+    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((2 * nphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    pointData = {"B_N": Bnormal_FAMUS[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "Bnormal_opt_FAMUS", extra_data=pointData)
+    pointData = {"B_N": (Bnormal_FAMUS + Bnormal_plot)[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "Bnormal_total_FAMUS", extra_data=pointData)
+    t2 = time.time()
+    print('Saving FAMUS solution took ', t2 - t1, ' s')
+    dphi = (s_plot.quadpoints_phi[1] - s_plot.quadpoints_phi[0]) * 2 * np.pi  # / 6.0
+    dtheta = (s_plot.quadpoints_theta[1] - s_plot.quadpoints_theta[0]) * 2 * np.pi
+    grid_fac = np.sqrt(dphi * dtheta)
+    print(grid_fac)
+    f_B_init = np.linalg.norm(Bnormal_plot) ** 2 * grid_fac ** 2
+    f_B_dipole = np.linalg.norm(Bnormal_FAMUS) ** 2 * grid_fac ** 2
+    f_B = np.linalg.norm(Bnormal_FAMUS + Bnormal_plot) ** 2 * grid_fac ** 2
+    print(f_B_init)
+    print(f_B_dipole)
+    print(f_B)
+    f_B_famus = SquaredFlux(s_plot, b_dipole_FAMUS).J() 
+    f_B_Bnormal = SquaredFlux(s_plot, Btoroidal).J() 
+    f_B_sf = SquaredFlux(s_plot, b_dipole_FAMUS, Bnormal_plot).J() 
+    print(f_B_famus, f_B_Bnormal, f_B_sf)
 
 # Save PM class object to file for reuse
 t1 = time.time()
 file_out = open(OUT_DIR + class_filename + ".pickle", "wb")
 # SurfaceRZFourier objects not pickle-able, so set to None
+pm_opt.m_maxima = m_maxima
 pm_opt.plasma_boundary = None
 pm_opt.rz_inner_surface = None
 pm_opt.rz_outer_surface = None
 pickle.dump(pm_opt, file_out)
 t2 = time.time()
 print('Pickling took ', t2 - t1, ' s')
+
+
 t_end = time.time()
 print('In total, script took ', t_end - t_start, ' s')
 
