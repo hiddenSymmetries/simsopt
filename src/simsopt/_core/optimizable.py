@@ -1522,6 +1522,19 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
 
 
+class Weight(object):
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __imul__(self, alpha):
+        self.value *= alpha
+        return self
+
+
 class ScaledOptimizable(Optimizable):
     """
     Represents an :obj:`~simsopt._core.optimizable.Optimizable`
@@ -1542,12 +1555,12 @@ class ScaledOptimizable(Optimizable):
         super().__init__(depends_on=[opt])
 
     def J(self):
-        return self.factor * self.opt.J()
+        return float(self.factor) * self.opt.J()
 
     @derivative_dec
     def dJ(self):
         # Next line uses __rmul__ function for the Derivative class
-        return self.factor * self.opt.dJ(partials=True)
+        return float(self.factor) * self.opt.dJ(partials=True)
 
     def as_dict(self) -> dict:
         d = {}
