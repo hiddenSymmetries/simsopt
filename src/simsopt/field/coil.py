@@ -136,6 +136,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         current = decoder.process_decoded(d["current_to_scale"])
         return cls(current, d["scale"])
 
+
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
     Take the sum of two :mod:`Current` objects.
