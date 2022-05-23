@@ -41,7 +41,7 @@ if len(sys.argv) < 3:
     )
     exit(1)
 config_flag = str(sys.argv[1])
-if config_flag not in ['qa', 'qa_nonplanar', 'qh', 'qh_nonplanar', 'muse', 'ncsx']:
+if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'ncsx']:
     print(
         "Error! The configuration flag must specify one of "
         "the pre-set plasma equilibria: qa, qa_nonplanar, "
@@ -58,12 +58,12 @@ if res_flag not in ['low', 'high']:
 print('Config flag = ', config_flag, ', Resolution flag = ', res_flag)
 
 # Pre-set parameters for each configuration
-FOCUS = False
+surface_flag = 'vmec'
 cylindrical_flag = True
 is_premade_ncsx = False
 if res_flag == 'high':
-    nphi = 32
-    ntheta = 32
+    nphi = 64
+    ntheta = 64
 else:
     nphi = 8
     ntheta = 8
@@ -71,19 +71,35 @@ if config_flag == 'muse':
     dr = 0.01
     coff = 0.04
     poff = 0.05
-    FOCUS = True
-    input_name = config_flag 
-elif 'qa' in config_flag or 'qh' in config_flag:
-    dr = 0.02
-    coff = 0.05
-    poff = 0.1
-    input_name = 'LandremanPaul2021_' + config_flag[:2].upper()
+    surface_flag = 'focus'
+    input_name = 'input.' + config_flag 
+elif 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
+    if 'QH' in config_flag:
+        dr = 0.4
+        coff = 3.4
+        poff = 1.6
+    elif 'qa' in config_flag:
+        dr = 0.01
+        coff = 0.1
+        poff = 0.04
+    elif 'qh' in config_flag:
+        dr = 0.01
+        coff = 0.06
+        poff = 0.04
+    if 'qa' in config_flag:
+        input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
+    if 'qh' in config_flag:
+        input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
+        surface_flag = 'wout'
+    if 'QH' in config_flag:
+        input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
+        surface_flag = 'wout'
 elif config_flag == 'ncsx':
     dr = 0.02
     coff = 0.02
     poff = 0.1
-    FOCUS = True
-    input_name = 'NCSX_c09r00_halfTeslaTF' 
+    surface_flag = 'focus'
+    input_name = 'input.NCSX_c09r00_halfTeslaTF' 
     coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
 
 # Don't save in home directory on NERSC -- save on SCRATCH
@@ -97,12 +113,14 @@ class_filename = "PM_optimizer_" + config_flag
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-surface_filename = TEST_DIR / ('input.' + input_name)
+surface_filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 t1 = time.time()
 if config_flag == 'muse' or config_flag == 'ncsx':
     s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta) 
+elif 'qh' in config_flag or 'QH' in config_flag:
+    s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta) 
 else:
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta) 
 t2 = time.time()
@@ -119,16 +137,16 @@ if config_flag == 'muse':
     coils = []
     for i in range(ncoils):
         coils.append(Coil(base_curves[i], base_currents[i]))
-elif config_flag == 'qa':
+elif config_flag == 'qh':
     # generate planar TF coils
-    ncoils = 6
+    ncoils = 4
     R0 = 1.0
     R1 = 0.5
     order = 5
 
     # Create the initial coils:
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-    base_currents = [Current(1e5) for i in range(ncoils)]
+    base_currents = [Current(0.78e5) for i in range(ncoils)]
 
     # fix one of the currents:
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
@@ -137,7 +155,43 @@ elif config_flag == 'qa':
     # fix all the coil shapes so only the currents are optimized 
     for i in range(ncoils):
         base_curves[i].fix_all()
-elif config_flag == 'qa_nonplanar':
+elif config_flag == 'qa':
+    # generate planar TF coils
+    ncoils = 8
+    R0 = 1.0
+    R1 = 0.5
+    order = 5
+
+    # Create the initial coils:
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
+    base_currents = [Current(0.78e5) for i in range(ncoils)]
+
+    # fix one of the currents:
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    base_currents[0].fix_all()
+
+    # fix all the coil shapes so only the currents are optimized 
+    for i in range(ncoils):
+        base_curves[i].fix_all()
+elif 'QH' in config_flag:
+    # generate planar TF coils
+    ncoils = 1
+    R0 = s.get_rc(0, 0)
+    R1 = 5
+    order = 5
+
+    # Create the initial coils:
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
+    base_currents = [Current(6e7) for i in range(ncoils)]
+
+    # fix one of the currents:
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    base_currents[0].fix_all()
+
+    # fix all the coil shapes so only the currents are optimized 
+    #for i in range(ncoils):
+    #    base_curves[i].fix_all()
+elif config_flag == 'qa_nonplanar' or config_flag == 'qh_nonplanar':
     # generate planar TF coils
     ncoils = 1
     R0 = 1.0
@@ -184,12 +238,14 @@ if config_flag != 'ncsx':
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
     if config_flag == 'muse' or config_flag == 'ncsx':
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    elif 'qh' in config_flag or 'QH' in config_flag:
+        s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     else:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     # If BiotSavart not yet optimized, optimize it
-    if 'qa' in config_flag or 'qh' in config_flag:
+    if 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
 
-        s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot)
+        s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag)
         bs.set_points(bspoints)
         B0 = np.linalg.norm(bs.B(), axis=-1)
         B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
@@ -202,6 +258,9 @@ if config_flag != 'ncsx':
     # Save optimized BiotSavart object
     biotsavart_json_str = bs.save(filename=OUT_DIR + 'BiotSavart.json')
     Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    f_B_sf = SquaredFlux(s_plot, bs).J() 
+    print('BiotSavart f_B = ', f_B_sf)
 
     # Save Biot Savart fields
     pointData = {"B_N": Bnormal[:, :, None]}
@@ -211,7 +270,8 @@ else:
     is_premade_ncsx = True
     quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-    s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    s_plot = SurfaceRZFourier.from_focus(surface_filename, range="half period", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    #s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     Bnormal_plot = load_ncsx_coil_data(s_plot, coil_name)
     # Save Tf fields 
     pointData = {"B_N": Bnormal_plot[:, :, None]}
@@ -227,7 +287,7 @@ t1 = time.time()
 pm_opt = PermanentMagnetOptimizer(
     s, is_premade_ncsx=is_premade_ncsx, coil_offset=coff, dr=dr, plasma_offset=poff,
     Bn=Bnormal, 
-    filename=surface_filename, FOCUS=FOCUS, out_dir=OUT_DIR,
+    filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
     cylindrical_flag=cylindrical_flag,
 )
 t2 = time.time()
@@ -239,10 +299,13 @@ t1 = time.time()
 pm_opt.m = pm_opt.m0
 pm_opt.m_proxy = pm_opt.m0
 b_dipole_initial = DipoleField(pm_opt)
-b_dipole_initial.set_points(s.gamma().reshape((-1, 3)))
+b_dipole_initial.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
 pm_opt._plot_final_dipoles()
-m_maxima = pm_opt.m_maxima
+if is_premade_ncsx:
+    Bnormal_init = np.sum(b_dipole_initial.B().reshape((2 * nphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    pointData = {"B_N": (Bnormal_init + Bnormal_plot)[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "Bnormal_init_guess", extra_data=pointData)
 t2 = time.time()
 print('Done setting up the Dipole Field class')
 print('Process took t = ', t2 - t1, ' s')
@@ -253,8 +316,12 @@ if config_flag == 'ncsx':
     ox, oy, oz, m0, p, mp, mt = np.loadtxt('../../tests/test_files/init_orient_pm_nonorm_5E4_q4_dp.focus', skiprows=3, usecols=[3, 4, 5, 7, 8, 10, 11], delimiter=',', unpack=True)
     # r = np.sqrt(ox * ox + oy * oy)
     phi = np.arctan2(oy, ox)
+    print('Max and min phi FAMUS = ', np.max(phi), np.min(phi))
     rho = p ** 4
+    plt.figure()
+    plt.hist(rho)
     mm = rho * m0
+    print('FAMUS effective volume = ', np.sum(mm) * 4 * np.pi * 1e-7 / 1.4 * 6) 
     mx = mm * np.sin(mt) * np.cos(mp) 
     my = mm * np.sin(mt) * np.sin(mp) 
     mz = mm * np.cos(mt)
@@ -282,9 +349,10 @@ if config_flag == 'ncsx':
     dtheta = (s_plot.quadpoints_theta[1] - s_plot.quadpoints_theta[0]) * 2 * np.pi
     grid_fac = np.sqrt(dphi * dtheta)
     print(grid_fac)
-    f_B_init = np.linalg.norm(Bnormal_plot) ** 2 * grid_fac ** 2
-    f_B_dipole = np.linalg.norm(Bnormal_FAMUS) ** 2 * grid_fac ** 2
-    f_B = np.linalg.norm(Bnormal_FAMUS + Bnormal_plot) ** 2 * grid_fac ** 2
+    f_B_init = np.linalg.norm(Bnormal_plot) ** 2  # * grid_fac ** 2
+    print('Max Bnormal FAMUS = ', np.max(Bnormal_FAMUS + Bnormal_plot))
+    f_B_dipole = np.linalg.norm(Bnormal_FAMUS) ** 2  # * grid_fac ** 2
+    f_B = np.linalg.norm(Bnormal_FAMUS + Bnormal_plot) ** 2  # * grid_fac ** 2
     print(f_B_init)
     print(f_B_dipole)
     print(f_B)
@@ -292,12 +360,12 @@ if config_flag == 'ncsx':
     f_B_Bnormal = SquaredFlux(s_plot, Btoroidal).J() 
     f_B_sf = SquaredFlux(s_plot, b_dipole_FAMUS, Bnormal_plot).J() 
     print(f_B_famus, f_B_Bnormal, f_B_sf)
+    read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
 
 # Save PM class object to file for reuse
 t1 = time.time()
 file_out = open(OUT_DIR + class_filename + ".pickle", "wb")
 # SurfaceRZFourier objects not pickle-able, so set to None
-pm_opt.m_maxima = m_maxima
 pm_opt.plasma_boundary = None
 pm_opt.rz_inner_surface = None
 pm_opt.rz_outer_surface = None

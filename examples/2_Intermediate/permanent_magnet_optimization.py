@@ -28,7 +28,7 @@ import time
 
 t_start = time.time()
 # Determine which plasma equilibrium is being used
-print("Usage requires a configuration flag chosen from: qa(_nonplanar), qh(_nonplanar), muse, ncsx, and a flag specifying high or low resolution")
+print("Usage requires a configuration flag chosen from: qa(_nonplanar), QH, qh(_nonplanar), muse, ncsx, and a flag specifying high or low resolution")
 if len(sys.argv) < 4:
     print(
         "Error! You must specify at least 3 arguments: "
@@ -39,11 +39,11 @@ if len(sys.argv) < 4:
     )
     exit(1)
 config_flag = str(sys.argv[1])
-if config_flag not in ['qa', 'qa_nonplanar', 'qh', 'qh_nonplanar', 'muse', 'ncsx']:
+if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'ncsx']:
     print(
         "Error! The configuration flag must specify one of "
         "the pre-set plasma equilibria: qa, qa_nonplanar, "
-        "qh, qh_nonplanar, muse, or ncsx. "
+        "QH, qh, qh_nonplanar, muse, or ncsx. "
     )
     exit(1)
 res_flag = str(sys.argv[2])
@@ -57,8 +57,8 @@ final_run = (str(sys.argv[3]) == 'True')
 print('Config flag = ', config_flag, ', Resolution flag = ', res_flag, ', Final run =', final_run)
 if len(sys.argv) >= 5:
     reg_l0 = float(sys.argv[4])
-    if not np.isclose(reg_l0, 0.0):
-        nu = 1
+    if not np.isclose(reg_l0, 0.0, atol=1e-16):
+        nu = 1e2
     else:
         nu = 1e100
 else:
@@ -70,11 +70,11 @@ else:
     reg_l2 = 1e-8
 
 # Pre-set parameters for each configuration
-FOCUS = False
+surface_flag = 'vmec'
 cylindrical_flag = True
 if res_flag == 'high':
-    nphi = 32
-    ntheta = 32
+    nphi = 64
+    ntheta = 64
 else:
     nphi = 8
     ntheta = 8
@@ -82,19 +82,34 @@ if config_flag == 'muse':
     dr = 0.01
     coff = 0.04
     poff = 0.05
-    FOCUS = True
-    input_name = config_flag 
+    surface_flag = 'focus'
+    input_name = 'input.' + config_flag 
+elif 'QH' in config_flag:
+    dr = 0.4
+    coff = 3.4
+    poff = 1.6
+    input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
+    surface_flag = 'wout'
 elif 'qa' in config_flag or 'qh' in config_flag:
-    dr = 0.02
-    coff = 0.05
-    poff = 0.1
-    input_name = 'LandremanPaul2021_' + config_flag[:2].upper()
+    if 'qa' in config_flag:
+        dr = 0.01
+        coff = 0.06
+        poff = 0.04
+    if 'qh' in config_flag:
+        dr = 0.01
+        coff = 0.06
+        poff = 0.04
+    if 'qa' in config_flag:
+        input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
+    else:
+        input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
+        surface_flag = 'wout'
 elif config_flag == 'ncsx':
     dr = 0.02
     coff = 0.02
     poff = 0.1
-    FOCUS = True
-    input_name = 'NCSX_c09r00_halfTeslaTF' 
+    surface_flag = 'focus'
+    input_name = 'input.NCSX_c09r00_halfTeslaTF' 
     coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
 
 if final_run:
@@ -140,9 +155,11 @@ print('Loading pickle file and other initialization took ', t2 - t1, ' s')
 
 t1 = time.time()
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-surface_filename = TEST_DIR / ('input.' + input_name)
-if FOCUS:
+surface_filename = TEST_DIR / input_name
+if surface_flag == 'focus':
     s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+elif surface_flag == 'wout':
+    s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 else:
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 t2 = time.time()
@@ -159,9 +176,12 @@ pm_opt.plasma_boundary = s
 
 print('Done initializing the permanent magnet object')
 t1 = time.time()
-max_iter_MwPGP = 100
-max_iter_RS = 20
-epsilon = 1e-2
+if reg_l0 > 0:
+    max_iter_MwPGP = 100
+else:
+    max_iter_MwPGP = 100
+max_iter_RS = 10
+epsilon = 1e-3
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon,
     reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS
@@ -177,11 +197,16 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 # recompute normal error using the dipole field and bs field
 # to check nothing got mistranslated
 t1 = time.time()
+m_copy = np.copy(pm_opt.m)
+pm_opt.m = pm_opt.m_proxy
+b_dipole = DipoleField(pm_opt)
+b_dipole.set_points(s.gamma().reshape((-1, 3)))
+b_dipole._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
+pm_opt.m = m_copy
 b_dipole = DipoleField(pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 pm_opt._plot_final_dipoles()
-
 t2 = time.time()
 print('Done setting up the Dipole Field class')
 print('Process took t = ', t2 - t1, ' s')
@@ -199,9 +224,15 @@ Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(
 Bnormal_total = Bnormal + Bnormal_dipoles
 print("Average Bn with the PMs = ", 
       np.mean(np.abs(Bnormal_total * dphi * dtheta)))
+print('F_B INITIAL = ', 2 * s.nfp * SquaredFlux(s, b_dipole, Bnormal).J()) 
+print('F_B INITIAL = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, pm_opt.Bn).J()) 
+print(np.mean(np.abs(Bnormal)))
+print(np.mean(np.abs(Bnormal_dipoles)))
+print(np.mean(np.abs(Bnormal_total)))
 
+num_nonzero = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
 print("Number of possible dipoles = ", pm_opt.ndipoles)
-print("% of dipoles that are nonzero = ", np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles)
+print("% of dipoles that are nonzero = ", num_nonzero)
 dipoles = np.ravel(dipoles)
 print('Dipole field setup done')
 
@@ -225,89 +256,12 @@ if make_plots:
 t2 = time.time()
 print("Done printing and plotting, ", t2 - t1, " s")
 
-if FOCUS:
-    s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
-else:
-    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
-
-# Makes a Vmec file for the MUSE boundary -- only needed to do it once
-#filename = '../../tests/test_files/input.LandremanPaul2021_QA'  # _lowres
-#equil = Vmec(filename, mpi)
-#equil.boundary = s 
-#equil.run()
-
-
-def trace_fieldlines(bfield, label): 
-    t1 = time.time()
-    R0 = np.linspace(0.2, 0.4, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
-    phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
-    t2 = time.time()
-    # print(fieldlines_phi_hits, np.shape(fieldlines_phi_hits))
-    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    if comm is None or comm.rank == 0:
-        # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=150)
-
-
-def make_qfm(s, Bfield, Bfield_tf):
-    constraint_weight = 1e0
-
-    # First optimize at fixed volume
-
-    qfm = QfmResidual(s, Bfield)
-    qfm.J()
-
-    vol = Volume(s)
-    vol_target = vol.J()
-
-    qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
-
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                             constraint_weight=constraint_weight)
-    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
-    print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    # Now optimize at fixed toroidal flux
-    tf = ToroidalFlux(s, Bfield_tf)
-    tf_target = tf.J()
-
-    qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
-
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                             constraint_weight=constraint_weight)
-    print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
-    print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    # Check that volume is not changed
-    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
-
-    # Now optimize at fixed area
-
-    ar = Area(s)
-    ar_target = ar.J()
-
-    qfm_surface = QfmSurface(Bfield, s, ar, ar_target)
-
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                             constraint_weight=constraint_weight)
-    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
-    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
-    # Check that volume is not changed
-    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
-    # s.plot()
-    return qfm_surface.surface 
-
+#if surface_flag == 'focus':
+#    s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
+#elif surface_flag == 'wout':
+#    s = SurfaceRZFourier.from_wout(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
+#else:
+#    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
 if final_run:
     # run Poincare plots
@@ -328,7 +282,7 @@ if final_run:
             b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
         )
     # bsh.to_vtk('dipole_fields')
-    trace_fieldlines(bsh, 'bsh_PMs')
+    trace_fieldlines(bsh, 'bsh_PMs', config_flag)
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
 
@@ -344,9 +298,10 @@ if final_run:
 
     # Run VMEC with new QFM surface
     t1 = time.time()
-    filename = '../../tests/test_files/input.LandremanPaul2021_QA'
-    equil = Vmec(filename, mpi)
+    equil = Vmec(surface_filename, mpi)
     equil.boundary = qfm_surf
+    equil._boundary = qfm_surf
+    equil.need_to_run_code = True
     equil.run()
     t2 = time.time()
     print("VMEC took ", t2 - t1, " s")
@@ -354,24 +309,46 @@ if final_run:
 if comm is None or comm.rank == 0:
     # double the plasma surface resolution for the vtk plots
     t1 = time.time()
-    nphi = 2 * nphi
-    ntheta = ntheta
-    quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
-    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    #nphi = 4 * nphi
+    #ntheta = 4 * ntheta
+    quadpoints_phi = np.linspace(0, 1, 2 * s.nfp * nphi + 1, endpoint=True)
+    #quadpoints_phi = np.linspace(0, 0.25, nphi, endpoint=False) + s.quadpoints_phi[0]
+    print('theta = ', s.quadpoints_theta)
+    print('phi = ', s.quadpoints_phi)
+    #quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+    quadpoints_theta = np.linspace(0, 1, ntheta + 1, endpoint=True)
+    print('quadtheta = ', quadpoints_theta)
+    print('quadphi = ', quadpoints_phi)
 
-    if FOCUS:
+    if surface_flag == 'focus':
         s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    elif surface_flag == 'wout':
+        #s = SurfaceRZFourier.from_wout(surface_filename, range="half period", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        #s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
     else:
+        #s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        #s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
         s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
     if config_flag == 'ncsx':
         Bnormal = load_ncsx_coil_data(s, coil_name)
     else:
+        print(np.mean(np.abs(Bnormal)))
+        bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s.gamma().reshape((-1, 3)))
-        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+        Bnormal = np.sum(bs.B().reshape((len(s.quadpoints_phi), len(s.quadpoints_theta), 3)) * s.unitnormal(), axis=2)
+
+    ######## TEMPORARY #########
+    print(np.mean(np.abs(Bnormal)))
+    #b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((len(s.quadpoints_phi), len(s.quadpoints_theta), 3)) * s.unitnormal(), axis=2)
     Bnormal_total = Bnormal + Bnormal_dipoles
+    print(np.mean(np.abs(Bnormal_dipoles)))
+    print(np.mean(np.abs(Bnormal_total)))
+
     # For plotting Bn on the full torus surface at the end with just the dipole fields
     pointData = {"B_N": Bnormal[:, :, None]}
     s.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
@@ -381,13 +358,28 @@ if comm is None or comm.rank == 0:
     s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
     t2 = time.time()
     print('Done saving final vtk files, ', t2 - t1, " s")
+    ########################
     f_B_sf = SquaredFlux(s, b_dipole, Bnormal).J() 
     print('f_B = ', f_B_sf)
-    plt.show()
+    B_max = 1.4
+    mu0 = 4 * np.pi * 1e-7
+    total_volume = np.sum(pm_opt.m) * s.nfp * s.stellsym * mu0 / B_max
+    total_volume_sparse = np.sum(pm_opt.m_proxy) * s.nfp * s.stellsym * mu0 / B_max
+    print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
+    pm_opt.m = pm_opt.m_proxy
+    b_dipole = DipoleField(pm_opt)
+    b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    f_B_sp = SquaredFlux(s, b_dipole, Bnormal).J() 
+    print('f_B_sparse = ', f_B_sp)
+    dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
+    num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
+    np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
+    # plt.show()
 
-file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
-# SurfaceRZFourier objects not pickle-able, so set to None
-pm_opt.plasma_boundary = None
-pm_opt.rz_inner_surface = None
-pm_opt.rz_outer_surface = None
-pickle.dump(pm_opt, file_out)
+if final_run:
+    file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
+    # SurfaceRZFourier objects not pickle-able, so set to None
+    pm_opt.plasma_boundary = None
+    pm_opt.rz_inner_surface = None
+    pm_opt.rz_outer_surface = None
+    pickle.dump(pm_opt, file_out)
