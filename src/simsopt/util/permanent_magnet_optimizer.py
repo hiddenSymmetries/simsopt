@@ -53,9 +53,7 @@ class PermanentMagnetOptimizer:
                               magnet optimization.
             dr:               Radial and axial grid spacing in the permanent magnet manifold.
             filename:         Filename for the file containing the plasma boundary surface.
-            FOCUS:            Flag to specify if the file containing the plasma boundary 
-                              surface is in FOCUS format. Defaults to False, in which case the
-                              file is assumed to be in VMEC format. 
+            surface_flag:     Flag to specify if the format of the surface file. Defaults to VMEC. 
     """
 
     def __init__(
@@ -63,7 +61,7 @@ class PermanentMagnetOptimizer:
         rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, Bn=None, dr=0.1,
-        filename=None, FOCUS=False, out_dir='',
+        filename=None, surface_flag='vmec', out_dir='',
         cylindrical_flag=True, test_flag=False
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -71,7 +69,7 @@ class PermanentMagnetOptimizer:
 
         self.is_premade_ncsx = is_premade_ncsx
         self.filename = filename
-        self.FOCUS = FOCUS
+        self.surface_flag = surface_flag 
         self.out_dir = out_dir
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
@@ -172,7 +170,7 @@ class PermanentMagnetOptimizer:
             # just use the nice plasma boundary normal vectors for the ray-tracing. This generates
             # small errors when resolution is low but works well when nphi, ntheta >~ 16 or so.
 
-            if self.FOCUS:
+            if self.surface_flag == 'focus' or self.surface_flag == 'wout':
                 self.final_RZ_grid, self.inds = sopp.make_final_surface(
                     2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
                     # self.normal_inner, self.normal_outer, 
@@ -369,8 +367,9 @@ class PermanentMagnetOptimizer:
             M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
             cell_vol = M0s[self.phi_order] * mu0 / B_max
         else:
-            cell_vol = abs(dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * self.plasma_boundary.stellsym)
-        print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * self.plasma_boundary.stellsym, ' m^3')
+            #cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+        print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3')
         # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper as typo that m_max = B_r / (mu0 * cell_vol) but it 
@@ -440,7 +439,11 @@ class PermanentMagnetOptimizer:
             plt.grid(None)
 
             fig = plt.figure(200, figsize=(10, 10))
-            for i, ind in enumerate(np.arange(0, len(self.phi), len(self.phi) // 3)):
+            if self.r_plasma.shape[0] > 31:
+                phis = [0, 15, 16, 31]
+            else:
+                phis = [0, 3, 4, 7]
+            for i, ind in enumerate(phis):
                 plt.subplot(2, 2, i + 1)
                 plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
                 r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
@@ -503,7 +506,7 @@ class PermanentMagnetOptimizer:
                     plt.quiver(
                         self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
                         self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 0] * np.cos(2 * np.pi * self.pm_uniq_phi[phi_ind]) + dipoles[phi_ind * 896:(phi_ind + 1) * 896, 1] * np.sin(2 * np.pi * self.pm_uniq_phi[phi_ind]),
+                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 0] * np.cos(self.pm_uniq_phi[phi_ind]) + dipoles[phi_ind * 896:(phi_ind + 1) * 896, 1] * np.sin(self.pm_uniq_phi[phi_ind]),
                         dipoles[phi_ind * 896:(phi_ind + 1) * 896, 2],
                     )
 
@@ -548,8 +551,10 @@ class PermanentMagnetOptimizer:
         #        rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
         #        rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
         #        rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
-        if self.FOCUS:
+        if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+        elif self.surface_flag == 'wout':
+            rz_inner_surface = SurfaceRZFourier.from_wout(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
             rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
@@ -583,8 +588,10 @@ class PermanentMagnetOptimizer:
         #        rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
         #        rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
         #        rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
-        if self.FOCUS:
+        if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+        elif self.surface_flag == 'wout':
+            rz_outer_surface = SurfaceRZFourier.from_wout(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         else:
             rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
 
@@ -770,7 +777,7 @@ class PermanentMagnetOptimizer:
         d["Bn"] = self.Bn
         d["dr"] = self.dr
         d["filename"] = self.filename
-        d["FOCUS"] = self.FOCUS
+        d["surface_flag"] = self.surface_flag
         d["out_dir"] = self.out_dir
         d["cylindrical_flag"] = self.cylindrical_flag
         d["test_flag"] = self.test_flag
@@ -788,7 +795,7 @@ class PermanentMagnetOptimizer:
             d["Bn"],
             d["dr"],
             d["filename"],
-            d["FOCUS"],
+            d["surface_flag"],
             d["out_dir"],
             d["cylindrical_flag"],
             d["test_flag"]
@@ -862,11 +869,12 @@ class PermanentMagnetOptimizer:
         self._print_initial_opt()
 
         # Auxiliary variable in relax-and-split is default
-        # initialized to proj(pinv(A) * b)
+        # initialized to proj(pinv(A) * b), plus prox
         m_proxy = self._projection_L2_balls(
             np.linalg.pinv(self.A_obj) @ self.b_obj, 
             self.m_maxima
         )
+        m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
 
         # ATA = np.ascontiguousarray(ATA)
         self.A_obj_expanded = np.ascontiguousarray(self.A_obj_expanded)
