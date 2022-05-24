@@ -2,21 +2,40 @@ Coil optimization
 =================
 
 Here we work through an example of "stage 2" coil optimization.  In
-this approach, we consider the target plasma boundary shape to have
-been already chosen in a "stage 1", and the present task is to
-optimize the shapes of coils to produce this target field. The
-tutorial here is similar to the example
-``examples/2_Intermediate/stage_two_optimization.py``.  Note that for
-this stage-2 problem, no MHD codes like VMEC or SPEC are used, so you
+this approach, we consider that a surface of constant magnetic flux (plasma
+boundary shape) has already been found in what is commonly known as
+a "stage 1" optimization, and the present task is to
+optimize the shapes of coils to produce this target field.
+For this stage-2 problem, no MHD codes like VMEC or SPEC are used, so you
 do not need to have them installed.
 
-The objective function we will minimize is
+We first describe the basic principles of "stage 2" coil optimization and
+how they are used in SIMSOPT, namely, what is the objective function used
+in the minimal example ``examples/2_Intermediate/stage_two_optimization.py``,
+what does each term mean and how to set up the optimization problem.
+We then add increasingly more terms to the objective function in order to illustrate
+how to perform various extensions of the minimal example, namely:
+- Take into account coil perturbations via systematic and statistical
+errors using a stochastic optimization method similar to the example in
+``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
+- Take into account the presence of the plasma and its respective magnetic field
+using the virtual casing principle, similar to the example
+in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
+- Take into account finite coil width using a multifilament approach
+similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_buid.py``.
+
+Simplest Objective function
+---------------------------
+
+The simplest form of the objective function :math:`J` (or cost function)
+present in ``examples/2_Intermediate/stage_two_optimization.py`` that will be
+minimized in order to find coils that yield the desired magnetic field is:
 
 .. math::
 
    J = \frac{1}{2} \int |\vec{B}\cdot\vec{n}|^2 ds + \alpha \sum_j L_j  + \beta J_{dist}
 
-The first right-hand-side term is the "quadratic flux", the area
+The first term in the right-hand-side term is the "quadratic flux", the area
 integral over the target plasma surface of the square of the magnetic
 field normal to the surface. If the coils exactly produce a flux
 surface of the target shape, this term will vanish.  Next, :math:`L_j`
