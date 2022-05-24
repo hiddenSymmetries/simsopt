@@ -153,6 +153,11 @@ class PrincipalCurvature(Optimizable):
        J &= \int d^2 x \exp \left(- ( \kappa_1 - \kappa_{\max,1})/w_1) \right) \\
          &+ \int d^2 x \exp \left(- (-\kappa_2 - \kappa_{\max,2})/w_2) \right).
 
+    This metric can be used as a regularization within fixed-boundary optimization
+    to prevent, for example, surfaces with concave regions
+    (large values of :math:`|\kappa_2|`) or surfaces with large elongation
+    (large values of :math:`\kappa_1`).
+
     """
 
     def __init__(self, surface, kappamax1=1, kappamax2=1, weight1=0.05, weight2=0.05):
