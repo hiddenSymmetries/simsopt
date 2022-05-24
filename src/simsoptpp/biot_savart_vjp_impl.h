@@ -16,7 +16,7 @@
 
 #include <iostream>
 template<class T, int derivs>
-void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
+void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
     if(gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("gamma needs to be in row-major storage order");
     if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
@@ -174,7 +174,7 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
 
 
 template<class T, int derivs>
-void biot_savart_vector_potential_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_type& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
+void biot_savart_vector_potential_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
 
     if(gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("gamma needs to be in row-major storage order");

@@ -69,6 +69,7 @@ void init_magneticfields(py::module_ &m){
             Interpolates a (vector valued) function on a uniform grid. 
             This interpolant is optimized for fast function evaluation (at the cost of memory usage). The main purpose of this class is to be used to interpolate magnetic fields and then use the interpolant for tasks such as fieldline or particle tracing for which the field needs to be evaluated many many times.
             )pbdoc")
+        .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
         .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
         .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch, "Interpolate a function by evaluating the function on all interpolation nodes simultanuously.")
         .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate, "Evaluate the interpolant at a point.")
@@ -104,8 +105,8 @@ void init_magneticfields(py::module_ &m){
     register_common_field_methods<PyBiotSavart>(bs);
 
     auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
-        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)

@@ -74,6 +74,7 @@ optimization.  Others include `STELLOPT
    source
    publications
    contributing
+   cpp
 
 .. toctree::
    :maxdepth: 3
