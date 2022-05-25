@@ -120,6 +120,19 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["current_to_scale"] = self.current_to_scale.as_dict()
+        d["scale"] = self.scale
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        current = decoder.process_decoded(d["current_to_scale"])
+        return cls(current, d["scale"])
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
