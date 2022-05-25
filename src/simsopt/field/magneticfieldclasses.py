@@ -798,7 +798,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
     This resulting interpolant can then be evaluated very quickly.
     """
 
-    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False):
+    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False, skip=None):
         r"""
         Args:
             field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated.
@@ -816,6 +816,19 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``z`` is always mapped to be positive, hence it makes sense to use
                       ``zmin=0``.
+            skip: a function that takes in a point (in cylindrical (r,phi,z)
+                  coordinates) and returns whether to skip that location when
+                  building the interpolant or not. The signature should be
+
+                  .. code-block:: Python
+
+                      def skip(r: double, phi: double, z: double) -> bool:
+                          ...
+
+                  See also here
+                  https://github.com/hiddenSymmetries/simsopt/pull/227 for a
+                  graphical illustration.
+
         """
         MagneticField.__init__(self)
         if stellsym and zrange[0] != 0:
@@ -823,10 +836,14 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
         if nfp > 1 and abs(phirange[1] - 2*np.pi/nfp) > 1e-14:
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
-        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
+        if skip is None:
+            def skip(xs, ys, zs):
+                return [False for _ in xs]
+
+        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym, skip)
         self.__field = field
 
-    def to_vtk(self, filename, h=0.1):
+    def to_vtk(self, filename):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         degree = self.rule.degree
         MagneticField.to_vtk(

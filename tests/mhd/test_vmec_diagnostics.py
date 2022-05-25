@@ -208,25 +208,51 @@ class BCartesianTests(unittest.TestCase):
         """
         Check that B^2 matches bmnc from wout file.
         """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        # Cover both the cases of initializing from a wout file and from an input file:
+        filenames = ['wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
+                     'input.rotating_ellipse']
+        for filename_base in filenames:
+            for grid_option in range(3):
+                filename = os.path.join(TEST_DIR, filename_base)
+                vmec = Vmec(filename, ntheta=50, nphi=53)
 
-        Bx, By, Bz = B_cartesian(vmec)
-        B2 = Bx*Bx + By*By + Bz*Bz
+                if grid_option == 0:
+                    # Use the (phi, theta) grid from vmec.boundary:
+                    Bx, By, Bz = B_cartesian(vmec)
+                    theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
+                    phi1D = vmec.boundary.quadpoints_phi * 2 * np.pi
+                elif grid_option == 1:
+                    # Specify nphi and ntheta:
+                    ntheta = 55
+                    nphi = 52
+                    Bx, By, Bz = B_cartesian(vmec, ntheta=ntheta, nphi=nphi, range="field period")
+                    # The previous line runs vmec so now vmec.wout.nfp is available.
+                    theta1D = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+                    phi1D = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
+                elif grid_option == 2:
+                    # Specify a custom (phi, theta) grid:
+                    quadpoints_theta = np.array([-0.1, 0.4, 0.9])
+                    quadpoints_phi = np.array([0.02, 0.3, 0.35, 2.3])
+                    Bx, By, Bz = B_cartesian(vmec,
+                                             quadpoints_phi=quadpoints_phi,
+                                             quadpoints_theta=quadpoints_theta)
+                    theta1D = quadpoints_theta * 2 * np.pi
+                    phi1D = quadpoints_phi * 2 * np.pi
 
-        theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
-        phi1D = vmec.boundary.quadpoints_phi * 2 * np.pi
-        nphi = len(phi1D)
-        ntheta = len(theta1D)
-        theta, phi = np.meshgrid(theta1D, phi1D)
+                B2 = Bx*Bx + By*By + Bz*Bz
 
-        bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
-        xm = vmec.wout.xm_nyq
-        xn = vmec.wout.xn_nyq
-        angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
-            - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
-        B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
-        np.testing.assert_allclose(B**2, B2, atol=1e-4)
+                nphi = len(phi1D)
+                ntheta = len(theta1D)
+                theta, phi = np.meshgrid(theta1D, phi1D)
+
+                bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
+                xm = vmec.wout.xm_nyq
+                xn = vmec.wout.xn_nyq
+                angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
+                    - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
+                B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
+                logger.info(f'Max difference in B2: {np.max(np.abs(B**2 - B2))}')
+                np.testing.assert_allclose(B**2, B2, atol=1e-4, rtol=1e-4)
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
