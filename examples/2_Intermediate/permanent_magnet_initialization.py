@@ -15,6 +15,7 @@ import os
 import sys
 import pickle
 from matplotlib import pyplot as plt
+from simsopt.mhd.vmec import Vmec
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
@@ -23,7 +24,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, Coil, coils_via_symmetries
+from simsopt.field.coil import ScaledCurrent, Current, Coil, coils_via_symmetries
 from simsopt.geo.curveobjectives import CurveLength, MinimumDistance, \
     MeanSquaredCurvature, LpCurveCurvature
 from simsopt.geo.plot import plot
@@ -151,31 +152,33 @@ elif config_flag == 'qh':
     R1 = 0.6
     order = 5
 
-    # Create the initial coils:
-    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-    base_currents = [Current(0.78e5) for i in range(ncoils)]
-
-    # fix one of the currents:
+    vmec_file = 'wout_LandremanPaul2021_QH.nc'
+    total_current = Vmec(vmec_file).external_current() / (2 * s.nfp) / 1.6
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+    total_current = Current(total_current)
+    total_current.fix_all()
+    base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-    base_currents[0].fix_all()
 
     # fix all the coil shapes so only the currents are optimized 
     for i in range(ncoils):
         base_curves[i].fix_all()
 elif config_flag == 'qa':
     # generate planar TF coils
-    ncoils = 8
+    ncoils = 4
     R0 = 1.0
     R1 = 0.6
     order = 5
-
-    # Create the initial coils:
-    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-    base_currents = [Current(0.78e5) for i in range(ncoils)]
-
-    # fix one of the currents:
+    
+    vmec_file = 'wout_LandremanPaul2021_QA.nc'
+    total_current = Vmec(vmec_file).external_current() / (2 * s.nfp) / 1.6
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+    total_current = Current(total_current)
+    total_current.fix_all()
+    base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-    base_currents[0].fix_all()
 
     # fix all the coil shapes so only the currents are optimized 
     for i in range(ncoils):
@@ -251,7 +254,7 @@ if config_flag != 'ncsx':
     else:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     # If BiotSavart not yet optimized, optimize it
-    if 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag or 'muse' in config_flag:
+    if 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
 
         s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag)
         bs.set_points(bspoints)

@@ -107,6 +107,20 @@ base_currents += [total_current - sum(base_currents)]
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
+
+bspoints = np.zeros((nphi, 3))
+R0 = s.get_rc(0, 0)
+for i in range(nphi):
+    bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), R0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
+bs.set_points(bspoints)
+B0 = np.linalg.norm(bs.B(), axis=-1)
+B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
+surface_area = s.area()
+bnormalization = B0avg * surface_area
+print("Bmag at R = ", R0, ", Z = 0: ", B0) 
+print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
+bs.set_points(s.gamma().reshape((-1, 3)))
+
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
@@ -173,3 +187,11 @@ Bbs = bs.B().reshape((nphi, ntheta, 3))
 BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+
+bs.set_points(bspoints)
+B0 = np.linalg.norm(bs.B(), axis=-1)
+B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
+surface_area = s.area()
+bnormalization = B0avg * surface_area
+print("Bmag at R = ", R0, ", Z = 0: ", B0) 
+print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
