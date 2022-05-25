@@ -55,8 +55,9 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 surf = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="full torus")
 nfp = surf.nfp
 
-# Load in coils from stage_two_optimization.py:
-bs = simsopt.load_simsopt("inputs/biot_savart_opt.json")
+# Load in the optimized coils from stage_two_optimization.py:
+coils_filename = Path(__file__).parent / "inputs" / "biot_savart_opt.json"
+bs = simsopt.load_simsopt(coils_filename)
 
 surf.to_vtk(OUT_DIR + 'surface')
 sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)
