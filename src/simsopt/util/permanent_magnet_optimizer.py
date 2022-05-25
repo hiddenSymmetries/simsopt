@@ -415,7 +415,12 @@ class PermanentMagnetOptimizer:
         # Rescale
         self.A_obj_expanded = self.A_obj * grid_fac
         self.A_obj = self.A_obj_expanded.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
-        self.ATb = np.ravel(self.ATb) * grid_fac  # only one factor here since b is already scaled!
+        #self.ATb = np.ravel(self.ATb) * grid_fac  # only one factor here since b is already scaled!
+        Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
+        for i in range(self.A_obj.shape[0]):
+            self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i]) 
+        self.b_obj = self.b_obj * np.sqrt(Nnorms)
+        self.ATb = self.A_obj.T @ self.b_obj
         #self.ATA = self.ATA * grid_fac ** 2  # grid_fac from each A matrix
         #self.ATA_scale = np.linalg.norm(np.transpose(self.A_obj) @ self.A_obj, ord=2)
 
@@ -652,7 +657,7 @@ class PermanentMagnetOptimizer:
         x_shaped = x.reshape(N, 3)
         denom_fac = np.sqrt(x_shaped[:, 0] ** 2 + x_shaped[:, 1] ** 2 + x_shaped[:, 2] ** 2) / m_maxima 
         denom = np.maximum(
-            1,
+            np.ones(len(denom_fac)),
             denom_fac, 
         )
         return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
@@ -870,14 +875,15 @@ class PermanentMagnetOptimizer:
 
         # Auxiliary variable in relax-and-split is default
         # initialized to proj(pinv(A) * b), plus prox
-        m_proxy = self._projection_L2_balls(
-            np.linalg.pinv(self.A_obj) @ self.b_obj, 
-            self.m_maxima
-        )
+        #m_proxy = self._projection_L2_balls(
+        #    np.linalg.pinv(self.A_obj) @ self.b_obj, 
+        #    self.m_maxima
+        #)
+        m_proxy = self.m0
         m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
 
         # ATA = np.ascontiguousarray(ATA)
-        self.A_obj_expanded = np.ascontiguousarray(self.A_obj_expanded)
+        # self.A_obj_expanded = np.ascontiguousarray(self.A_obj_expanded)
         self.A_obj = np.ascontiguousarray(self.A_obj)
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
 
@@ -944,20 +950,7 @@ class PermanentMagnetOptimizer:
             m = np.ravel(m)
             m_proxy = m
 
-        # Compute metrics with permanent magnet results
-        grid_fac = np.sqrt(self.dphi * self.dtheta)
-        ave_Bn_proxy = np.mean(np.abs(self.A_obj.dot(m_proxy) - self.b_obj)) * grid_fac
-        ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
-        ave_Bn = np.mean(np.abs(self.A_obj.dot(m) - self.b_obj)) * grid_fac
-        f_B_init = np.linalg.norm(self.b_obj) ** 2
-        print(self.dphi, self.dtheta, self.plasma_boundary.quadpoints_phi, self.plasma_boundary.quadpoints_theta)
-        f_B = np.linalg.norm(self.A_obj.dot(m) - self.b_obj) ** 2
         print(np.max(self.m_maxima), np.max(m_proxy))
-        print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 
-        print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy)) 
-        print('f_B without the optimized permanent magnets = {0:.8e}'.format(f_B_init)) 
-        print('f_B with the optimized permanent magnets = {0:.8e}'.format(f_B)) 
-
         # note m = m_proxy if not using relax-and-split 
         self.m = m
         self.m_proxy = m_proxy

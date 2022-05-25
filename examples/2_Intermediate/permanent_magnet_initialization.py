@@ -49,7 +49,7 @@ if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse',
     )
     exit(1)
 res_flag = str(sys.argv[2])
-if res_flag not in ['low', 'high']:
+if res_flag not in ['low', 'medium', 'high']:
     print(
         "Error! The resolution flag must specify one of "
         "low or high."
@@ -59,24 +59,27 @@ print('Config flag = ', config_flag, ', Resolution flag = ', res_flag)
 
 # Pre-set parameters for each configuration
 surface_flag = 'vmec'
-cylindrical_flag = True
+cylindrical_flag = False
 is_premade_ncsx = False
 if res_flag == 'high':
     nphi = 64
     ntheta = 64
+elif res_flag == 'medium':
+    nphi = 16
+    ntheta = 16
 else:
     nphi = 8
     ntheta = 8
 if config_flag == 'muse':
     dr = 0.01
-    coff = 0.04
+    coff = 0.05
     poff = 0.05
     surface_flag = 'focus'
     input_name = 'input.' + config_flag 
 elif 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
     if 'QH' in config_flag:
         dr = 0.4
-        coff = 3.4
+        coff = 2.4
         poff = 1.6
     elif 'qa' in config_flag:
         dr = 0.01
@@ -84,7 +87,7 @@ elif 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
         poff = 0.04
     elif 'qh' in config_flag:
         dr = 0.01
-        coff = 0.06
+        coff = 0.1
         poff = 0.04
     if 'qa' in config_flag:
         input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
@@ -126,7 +129,6 @@ else:
 t2 = time.time()
 print("Done loading in plasma boundary surface, t = ", t2 - t1)
 
-
 # File for the desired TF coils
 t1 = time.time()
 if config_flag == 'muse':
@@ -137,11 +139,16 @@ if config_flag == 'muse':
     coils = []
     for i in range(ncoils):
         coils.append(Coil(base_curves[i], base_currents[i]))
+    base_currents[0].fix_all()
+
+    # fix all the coil shapes so only the currents are optimized 
+    for i in range(ncoils):
+        base_curves[i].fix_all()
 elif config_flag == 'qh':
     # generate planar TF coils
     ncoils = 4
     R0 = 1.0
-    R1 = 0.5
+    R1 = 0.6
     order = 5
 
     # Create the initial coils:
@@ -159,7 +166,7 @@ elif config_flag == 'qa':
     # generate planar TF coils
     ncoils = 8
     R0 = 1.0
-    R1 = 0.5
+    R1 = 0.6
     order = 5
 
     # Create the initial coils:
@@ -175,22 +182,23 @@ elif config_flag == 'qa':
         base_curves[i].fix_all()
 elif 'QH' in config_flag:
     # generate planar TF coils
-    ncoils = 1
+    ncoils = 4
     R0 = s.get_rc(0, 0)
-    R1 = 5
+    R1 = 10
     order = 5
 
     # Create the initial coils:
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-    base_currents = [Current(6e7) for i in range(ncoils)]
+    base_currents = [Current(1.2e7) for i in range(ncoils)]
+    #base_currents = [Current(6e7) for i in range(ncoils)]
 
     # fix one of the currents:
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     base_currents[0].fix_all()
 
     # fix all the coil shapes so only the currents are optimized 
-    #for i in range(ncoils):
-    #    base_curves[i].fix_all()
+    for i in range(ncoils):
+        base_curves[i].fix_all()
 elif config_flag == 'qa_nonplanar' or config_flag == 'qh_nonplanar':
     # generate planar TF coils
     ncoils = 1
@@ -243,7 +251,7 @@ if config_flag != 'ncsx':
     else:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     # If BiotSavart not yet optimized, optimize it
-    if 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag:
+    if 'qa' in config_flag or 'qh' in config_flag or 'QH' in config_flag or 'muse' in config_flag:
 
         s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag)
         bs.set_points(bspoints)
@@ -348,14 +356,6 @@ if config_flag == 'ncsx':
     dphi = (s_plot.quadpoints_phi[1] - s_plot.quadpoints_phi[0]) * 2 * np.pi  # / 6.0
     dtheta = (s_plot.quadpoints_theta[1] - s_plot.quadpoints_theta[0]) * 2 * np.pi
     grid_fac = np.sqrt(dphi * dtheta)
-    print(grid_fac)
-    f_B_init = np.linalg.norm(Bnormal_plot) ** 2  # * grid_fac ** 2
-    print('Max Bnormal FAMUS = ', np.max(Bnormal_FAMUS + Bnormal_plot))
-    f_B_dipole = np.linalg.norm(Bnormal_FAMUS) ** 2  # * grid_fac ** 2
-    f_B = np.linalg.norm(Bnormal_FAMUS + Bnormal_plot) ** 2  # * grid_fac ** 2
-    print(f_B_init)
-    print(f_B_dipole)
-    print(f_B)
     f_B_famus = SquaredFlux(s_plot, b_dipole_FAMUS).J() 
     f_B_Bnormal = SquaredFlux(s_plot, Btoroidal).J() 
     f_B_sf = SquaredFlux(s_plot, b_dipole_FAMUS, Bnormal_plot).J() 
