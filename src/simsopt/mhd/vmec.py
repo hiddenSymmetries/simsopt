@@ -364,7 +364,7 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename)
+            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
             self.output_file = filename
             self.load_wout()
 
@@ -878,6 +878,23 @@ class Vmec(Optimizable):
         """
         return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
                f" ntor={self.indata.ntor})"
+
+    def external_current(self):
+        """
+        Return the total electric current associated with external
+        currents, i.e. the current through the "doughnut hole". This
+        number is useful for coil optimization, to know what the sum
+        of the coil currents must be.
+
+        Returns:
+            float with the total external electric current in Amperes.
+        """
+        self.run()
+        bvco = self.wout.bvco[-1] * 1.5 - self.wout.bvco[-2] * 0.5
+        mu0 = 4 * np.pi * (1.0e-7)
+        # The formula in the next line follows from Ampere's law:
+        # \int \vec{B} dot (d\vec{r} / d phi) d phi = mu_0 I.
+        return 2 * np.pi * bvco / mu0
 
     def vacuum_well(self):
         """
