@@ -14,5 +14,6 @@ set -ex
 
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
-mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldline.py
+mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldlines_NCSX.py
+mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldlines_QA.py
 mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_particle.py
