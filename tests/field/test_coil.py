@@ -88,7 +88,8 @@ class TestCurrent(unittest.TestCase):
         self.assertAlmostEqual(scaled_current.get_value(),
                                current_regen.get_value())
 
-class CoilTesting(unittest.TestCase):
+
+class ScaledCurrentTesting(unittest.TestCase):
 
     def test_scaled_current(self):
         one = np.asarray([1.])
