@@ -151,6 +151,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             if(Btarget_ptr != NULL)
                 BcoildotN -= Btarget_ptr[i];
                 //BcoildotN -= Btarget_ptr[3*i+0]*Nx + Btarget_ptr[3*i+1]*Ny + Btarget_ptr[3*i+2]*Nz;  //Btarget_ptr[3*i];
+            //res += (BcoildotN * BcoildotN);
             res += (BcoildotN * BcoildotN) * normN;
         }
         return 0.5 * res / (nphi*ntheta);

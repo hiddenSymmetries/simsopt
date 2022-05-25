@@ -127,7 +127,7 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
     L2_shift = reg_l2_shift * L2_shift;
     L1 = reg_l1 * L1;
     L0 = reg_l0 * L0;
-    cost = R2 + N2 + L2 + L2_shift + L1 + L0;
+    cost = R2 + N2 + L2 + L2_shift; // + L1 + L0;
     objective_history(print_iter) = cost;
     R2_history(print_iter) = R2;
     printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
@@ -161,9 +161,9 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     Array x_k_prev;
 
     // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 101});
-    Array objective_history = xt::zeros<double>({101});
-    Array R2_history = xt::zeros<double>({101});
+    Array m_history = xt::zeros<double>({N, 3, 21});
+    Array objective_history = xt::zeros<double>({21});
+    Array R2_history = xt::zeros<double>({21});
 
     // Add contribution from relax-and-split term
     Array ATb_rs = ATb + m_proxy / nu;
@@ -196,7 +196,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 	x_k_prev = x_k1;
        
 	// fairly convoluted way to print every ~ max_iter / 10 iterations 
-        if (verbose && ((k % (int)(max_iter / 100) == 0) || k == 0 || k == max_iter - 1)) {
+        if (verbose && ((k % ((int)(max_iter / 20)) == 0) || k == 0 || k == max_iter - 1)) {
 	    print_verbose(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
             print_iter += 1;
 	}    

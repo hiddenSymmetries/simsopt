@@ -73,11 +73,11 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
 
     if 'QH' in config_flag:
         # Weight on the curve lengths in the objective function:
-        LENGTH_WEIGHT = 1e-2
+        LENGTH_WEIGHT = 1e-1
 
         # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-        CC_THRESHOLD = 0.1
-        CC_WEIGHT = 10
+        CC_THRESHOLD = 0.5
+        CC_WEIGHT = 1e3
 
         # Threshold and weight for the coil-to-surface distance penalty in the objective function:
         CS_THRESHOLD = 0.3
@@ -90,8 +90,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
         # Threshold and weight for the mean squared curvature penalty in the objective function:
         MSC_THRESHOLD = 1
         MSC_WEIGHT = 1e-6
-
-    if 'qa' in config_flag or 'qh' in config_flag:
+    else: 
         # Weight on the curve lengths in the objective function:
         LENGTH_WEIGHT = 1e-4
 
