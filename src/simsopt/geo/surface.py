@@ -666,6 +666,7 @@ class SurfaceScaled(Optimizable):
         surf = MontyDecoder.process_decoded(d["surf"])
         return cls(surf, d["scale_factors"])
 
+
 def best_nphi_over_ntheta(surf):
     """
     Given a surface, estimate the ratio of ``nphi / ntheta`` that
@@ -689,3 +690,4 @@ def best_nphi_over_ntheta(surf):
     gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
     ratio = gammadash1 / gammadash2
     return np.sqrt(np.max(ratio) / np.max(1 / ratio))
+
