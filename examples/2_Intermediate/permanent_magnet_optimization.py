@@ -28,7 +28,7 @@ import time
 
 t_start = time.time()
 # Determine which plasma equilibrium is being used
-print("Usage requires a configuration flag chosen from: qa(_nonplanar), QH, qh(_nonplanar), muse, ncsx, and a flag specifying high or low resolution")
+print("Usage requires a configuration flag chosen from: qa(_nonplanar), QH, qh(_nonplanar), muse(_famus), ncsx, and a flag specifying high or low resolution")
 if len(sys.argv) < 4:
     print(
         "Error! You must specify at least 3 arguments: "
@@ -39,11 +39,11 @@ if len(sys.argv) < 4:
     )
     exit(1)
 config_flag = str(sys.argv[1])
-if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'ncsx']:
+if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx']:
     print(
         "Error! The configuration flag must specify one of "
         "the pre-set plasma equilibria: qa, qa_nonplanar, "
-        "QH, qh, qh_nonplanar, muse, or ncsx. "
+        "QH, qh, qh_nonplanar, muse, muse_famus, or ncsx. "
     )
     exit(1)
 res_flag = str(sys.argv[2])
@@ -83,10 +83,17 @@ else:
     ntheta = 8
 if config_flag == 'muse':
     dr = 0.01
-    coff = 0.04
+    coff = 0.1
     poff = 0.05
     surface_flag = 'focus'
     input_name = 'input.' + config_flag 
+if config_flag == 'muse_famus':
+    dr = 0.01
+    coff = 0.1
+    poff = 0.02
+    surface_flag = 'focus'
+    input_name = 'input.muse'
+    pms_name = 'zot80.focus'
 elif 'QH' in config_flag:
     dr = 0.4
     coff = 2.4
@@ -182,10 +189,10 @@ pm_opt.plasma_boundary = s
 print('Done initializing the permanent magnet object')
 t1 = time.time()
 if reg_l0 > 0:
-    max_iter_MwPGP = 300
-else:
     max_iter_MwPGP = 100
-max_iter_RS = 30
+else:
+    max_iter_MwPGP = 20
+max_iter_RS = 10
 epsilon = 1e-2
 #m0_max = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
@@ -225,17 +232,20 @@ dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
       np.mean(np.abs(Bnormal * dphi * dtheta)))
+print("Total Bn without the PMs = ", 
+      np.sum((pm_opt.b_obj) ** 2))
 print("Total Bn without the coils = ", 
       np.sum((pm_opt.A_obj @ pm_opt.m) ** 2))
-grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
+# grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
 print("Total Bn = ", 
-      np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2) / (grid_fac ** 2 * 2 * pm_opt.nphi * pm_opt.ntheta))
+      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
 
 # Compute metrics with permanent magnet results
 Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
-ave_Bn_proxy = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m_proxy) - pm_opt.b_obj) / np.sqrt(Nnorms)) / grid_fac / (2 * pm_opt.nphi * pm_opt.ntheta)
-Bn_Am = (pm_opt.A_obj.dot(pm_opt.m)) / np.sqrt(Nnorms) / grid_fac 
-Bn_opt = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) / np.sqrt(Nnorms) / grid_fac 
+Ngrid = pm_opt.nphi * pm_opt.ntheta
+ave_Bn_proxy = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m_proxy) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)) / (2 * pm_opt.nphi * pm_opt.ntheta)
+Bn_Am = (pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms) 
+Bn_opt = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
 ave_Bn = np.mean(np.abs(Bn_opt) / (2 * pm_opt.nphi * pm_opt.ntheta))
 print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 
 print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy)) 
@@ -243,11 +253,14 @@ print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_pr
 ### b_dipole appears not be calculated correctly with qh (wout) but is correctly calculated with qa (vmec)
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
-#print(Bnormal, Bnormal_dipoles, Bn_Am)
+print(Bnormal)
+print(Bnormal_dipoles)
+print(Bn_Am)
 print("Average Bn with the PMs = ", 
       np.mean(np.abs(Bnormal_total) / (2 * pm_opt.nphi * pm_opt.ntheta)))
-print('F_B INITIAL = ', SquaredFlux(s, b_dipole, Bnormal).J()) 
-print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, pm_opt.Bn).J()) 
+#grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
+print('F_B INITIAL = ', SquaredFlux(s, b_dipole, -Bnormal).J())  # * grid_fac ** 2) 
+print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, -pm_opt.Bn).J())  # * grid_fac ** 2) 
 print(np.mean(np.abs(Bnormal)))
 print(np.mean(np.abs(Bnormal_dipoles)))
 print(np.mean(np.abs(Bnormal_total)))
@@ -379,7 +392,7 @@ if comm is None or comm.rank == 0:
     t2 = time.time()
     print('Done saving final vtk files, ', t2 - t1, " s")
     ########################
-    f_B_sf = SquaredFlux(s, b_dipole, Bnormal).J() 
+    f_B_sf = SquaredFlux(s, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
     print('f_B = ', f_B_sf)
     B_max = 1.4
     mu0 = 4 * np.pi * 1e-7
@@ -389,7 +402,7 @@ if comm is None or comm.rank == 0:
     pm_opt.m = pm_opt.m_proxy
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    f_B_sp = SquaredFlux(s, b_dipole, Bnormal).J() 
+    f_B_sp = SquaredFlux(s, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
     print('f_B_sparse = ', f_B_sp)
     dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
     num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100

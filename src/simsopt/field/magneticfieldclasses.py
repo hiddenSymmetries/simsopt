@@ -571,7 +571,7 @@ class DipoleField(MagneticField):
         inds = pm_opt.inds
         nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
-        if pm_opt.is_premade_ncsx:
+        if pm_opt.is_premade_famus_grid:
             phi = pm_opt.pm_uniq_phi
         else:
             phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi

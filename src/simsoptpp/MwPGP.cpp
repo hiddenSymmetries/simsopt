@@ -193,13 +193,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     // Main loop over the optimization iterations
     for (int k = 0; k < max_iter; ++k) {
 	
-	x_k_prev = x_k1;
-       
-	// fairly convoluted way to print every ~ max_iter / 10 iterations 
-        if (verbose && ((k % ((int)(max_iter / 20)) == 0) || k == 0 || k == max_iter - 1)) {
-	    print_verbose(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
-            print_iter += 1;
-	}    
+	x_k_prev = x_k1;    
 
         // compute L2 norm of reduced g and L2 norm of phi(x, g)
         // as well as some dot products needed for the algorithm
@@ -300,6 +294,11 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
                 std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
             }
         }
+	// fairly convoluted way to print every ~ max_iter / 10 iterations 
+        if (verbose && ((k % ((int)(max_iter / 20)) == 0) || k == 0 || k == max_iter - 1)) {
+	    print_verbose(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
+            print_iter += 1;
+	}
 	// check if converged
 	x_sum = 0; 
 #pragma omp parallel for

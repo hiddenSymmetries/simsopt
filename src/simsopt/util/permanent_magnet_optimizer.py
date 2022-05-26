@@ -25,8 +25,8 @@ class PermanentMagnetOptimizer:
         Args:
             plasma_boundary:  SurfaceRZFourier object representing 
                               the plasma boundary surface.  
-            is_premade_ncsx:  Flag to use the pre-made dipole grid from the
-                              half-Tesla NCSX configuration to match with
+            is_premade_famus_grid:  Flag to use the pre-made dipole grid from the
+                              half-Tesla NCSX configuration (or MUSE) to match with
                               the equivalent FAMUS run. 
                               If specified, rz_inner_surface, rz_outer_surface,
                               dr, plasma_offset, and coil_offset are all
@@ -57,17 +57,19 @@ class PermanentMagnetOptimizer:
     """
 
     def __init__(
-        self, plasma_boundary, is_premade_ncsx=False,
+        self, plasma_boundary, is_premade_famus_grid=False,
         rz_inner_surface=None, 
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec', out_dir='',
-        cylindrical_flag=True, test_flag=False
+        cylindrical_flag=True, test_flag=False,
+        pms_name=None
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
-        self.is_premade_ncsx = is_premade_ncsx
+        self.is_premade_famus_grid = is_premade_famus_grid
+        self.pms_name = pms_name
         self.filename = filename
         self.surface_flag = surface_flag 
         self.out_dir = out_dir
@@ -94,7 +96,7 @@ class PermanentMagnetOptimizer:
 
         t1 = time.time()
         # If the inner surface is not specified, make default surface.
-        if rz_inner_surface is None and not is_premade_ncsx:
+        if rz_inner_surface is None and not is_premade_famus_grid:
             print(
                 "Inner toroidal surface not specified, defaulting to "
                 "extending the plasma boundary shape using the normal "
@@ -109,12 +111,12 @@ class PermanentMagnetOptimizer:
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
-        if not is_premade_ncsx:
+        if not is_premade_famus_grid:
             if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
                 raise ValueError("Inner surface is not SurfaceRZFourier object.")
 
         # If the outer surface is not specified, make default surface. 
-        if rz_outer_surface is None and not is_premade_ncsx:
+        if rz_outer_surface is None and not is_premade_famus_grid:
             print(
                 "Outer toroidal surface not specified, defaulting to "
                 "extending the inner toroidal surface shape using the normal "
@@ -129,13 +131,13 @@ class PermanentMagnetOptimizer:
             self._set_outer_rz_surface()
         else:
             self.rz_outer_surface = rz_outer_surface
-        if not is_premade_ncsx:
+        if not is_premade_famus_grid:
             if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
                 raise ValueError("Outer surface is not SurfaceRZFourier object.")
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done") 
 
-        if not is_premade_ncsx:
+        if not is_premade_famus_grid:
             # check the inner and outer surface are same size
             # and defined at the same (theta, phi) coordinate locations
             if len(self.rz_inner_surface.quadpoints_theta) != len(self.rz_outer_surface.quadpoints_theta):
@@ -196,7 +198,6 @@ class PermanentMagnetOptimizer:
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
-            self.pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
             premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
             # Dipole grid should be a list of x, y, z locations
             self.ndipoles = premade_dipole_grid.shape[0]
@@ -207,6 +208,7 @@ class PermanentMagnetOptimizer:
             self.phi_order = phi_order
             self.pm_phi = self.pm_phi[phi_order]
             uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
+            print(uniq_phi)
             self.pm_nphi = len(uniq_phi)
             self.pm_uniq_phi = uniq_phi
             self.inds = counts_phi
@@ -241,7 +243,7 @@ class PermanentMagnetOptimizer:
         self._setup_initial_condition()        
 
         # optionally plot the plasma boundary + inner/outer surfaces
-        if not is_premade_ncsx:
+        if not is_premade_famus_grid:
             self._plot_surfaces()
 
     def _setup_uniform_grid(self):
@@ -340,7 +342,7 @@ class PermanentMagnetOptimizer:
         dipole_grid_phi = np.zeros(self.ndipoles)
         dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
-        if self.is_premade_ncsx:
+        if self.is_premade_famus_grid:
             nphi = self.pm_nphi
         else:
             nphi = self.nphi
@@ -363,7 +365,7 @@ class PermanentMagnetOptimizer:
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
         self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
 
-        if self.is_premade_ncsx:
+        if self.is_premade_famus_grid:
             M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
             cell_vol = M0s[self.phi_order] * mu0 / B_max
         else:
@@ -394,12 +396,12 @@ class PermanentMagnetOptimizer:
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         self.dphi = dphi
         self.dtheta = dtheta
-        grid_fac = np.sqrt(dphi * dtheta)
-        print('grid_fac = ', grid_fac, grid_fac ** 2)
+        #grid_fac = np.sqrt(dphi * dtheta)
+        #print('grid_fac = ', grid_fac, grid_fac ** 2)
 
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)
-        self.b_obj = - Bs.reshape(self.nphi * self.ntheta) * grid_fac 
+        self.b_obj = - Bs.reshape(self.nphi * self.ntheta)  # * grid_fac 
 
         # Compute geometric factor with the C++ routine
         #self.A_obj, self.ATb, self.ATA = sopp.dipole_field_Bn(
@@ -413,13 +415,14 @@ class PermanentMagnetOptimizer:
             self.cylindrical_flag  # If False use Cartesian coords. If True, cylindrical coords
         )
         # Rescale
-        self.A_obj_expanded = self.A_obj * grid_fac
+        Ngrid = self.nphi * self.ntheta
+        self.A_obj_expanded = self.A_obj  # * grid_fac
         self.A_obj = self.A_obj_expanded.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
-        #self.ATb = np.ravel(self.ATb) * grid_fac  # only one factor here since b is already scaled!
+        self.ATb = np.ravel(self.ATb)  # * grid_fac  # only one factor here since b is already scaled!
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
-            self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i]) 
-        self.b_obj = self.b_obj * np.sqrt(Nnorms)
+            self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid) 
+        self.b_obj = self.b_obj * np.sqrt(Nnorms / Ngrid)
         self.ATb = self.A_obj.T @ self.b_obj
         #self.ATA = self.ATA * grid_fac ** 2  # grid_fac from each A matrix
         #self.ATA_scale = np.linalg.norm(np.transpose(self.A_obj) @ self.A_obj, ord=2)
@@ -456,7 +459,7 @@ class PermanentMagnetOptimizer:
 
                 plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
 
-                if not self.is_premade_ncsx:
+                if not self.is_premade_famus_grid:
                     running_tally = 0
                     for k in range(ind):
                         if k > 0:
@@ -502,17 +505,19 @@ class PermanentMagnetOptimizer:
                         )
                 else:
                     phi_ind = np.ravel(np.where(self.pm_uniq_phi < 2 * np.pi * self.phi[ind]))[-1]  # + 1
+                    inds = self.inds
+                    skip = inds[phi_ind + 1] - inds[phi_ind]
                     sax = plt.scatter(
-                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
-                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                        c=cm.cool(colors[phi_ind * 896:(phi_ind + 1) * 896]),
+                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 0],
+                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 2],
+                        c=cm.cool(colors[inds[phi_ind]:inds[phi_ind + 1]]),
                         label='PMs'
                     )
                     plt.quiver(
-                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 0],
-                        self.final_RZ_grid[phi_ind * 896:(phi_ind + 1) * 896, 2],
-                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 0] * np.cos(self.pm_uniq_phi[phi_ind]) + dipoles[phi_ind * 896:(phi_ind + 1) * 896, 1] * np.sin(self.pm_uniq_phi[phi_ind]),
-                        dipoles[phi_ind * 896:(phi_ind + 1) * 896, 2],
+                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 0],
+                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 2],
+                        dipoles[inds[phi_ind]:inds[phi_ind + 1], 0] * np.cos(self.pm_uniq_phi[phi_ind]) + dipoles[inds[phi_ind]:inds[phi_ind + 1], 1] * np.sin(self.pm_uniq_phi[phi_ind]),
+                        dipoles[inds[phi_ind]:inds[phi_ind + 1], 2],
                     )
 
                 if i == 2 or i == 3:
@@ -704,8 +709,8 @@ class PermanentMagnetOptimizer:
             Print out initial errors and the bulk optimization parameters 
             before the permanent magnets are optimized.
         """
-        grid_fac = np.sqrt(self.dphi * self.dtheta)
-        ave_Bn = np.mean(np.abs(self.b_obj)) * grid_fac
+        #grid_fac = np.sqrt(self.dphi * self.dtheta)
+        ave_Bn = np.mean(np.abs(self.b_obj))  # * grid_fac
         total_Bn = np.sum(np.abs(self.b_obj) ** 2)
         dipole_error = np.linalg.norm(self.A_obj.dot(self.m0), ord=2) ** 2
         total_error = np.linalg.norm(self.A_obj.dot(self.m0) - self.b_obj, ord=2) ** 2
