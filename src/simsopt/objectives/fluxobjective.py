@@ -31,15 +31,14 @@ class SquaredFlux(Optimizable):
         self.target = target
         self.field = field
         xyz = self.surface.gamma()
-        #self.field.set_points(xyz.reshape((-1, 3)))
+        self.field.set_points(xyz.reshape((-1, 3)))
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
         if self.target is not None:
-            #Btarget = -self.target.B().reshape(n.shape)
-            Btarget = -self.target
+            Btarget = np.ascontiguousarray(self.target)
         else:
             Btarget = []
         return sopp.integral_BdotN(Bcoil, Btarget, n)

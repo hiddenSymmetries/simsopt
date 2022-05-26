@@ -102,6 +102,7 @@ class Current(sopp.Current, CurrentBase):
     def from_dict(cls, d):
         return cls(d["current"])
 
+
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
     Scales :mod:`Current` by a factor. To be used for example to flip currents
@@ -135,16 +136,17 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         current = decoder.process_decoded(d["current_to_scale"])
         return cls(current, d["scale"])
 
+
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
     Take the sum of two :mod:`Current` objects.
     """
 
-    def __init__(self, current_a, current_b):
+    def __init__(self, current_a, current_b, **kwargs):
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_a, current_b])
+        CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_a, current_b], **kwargs)
 
     def vjp(self, v_current):
         return self.current_a.vjp(v_current) + self.current_b.vjp(v_current)
@@ -156,12 +158,16 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        d["current"] = self.get_value()
+        d["current_a"] = self.current_a.as_dict()
+        d["current_b"] = self.current_b.as_dict()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(Current(d["current"]), 1.0)
+        decoder = MontyDecoder()
+        current_a = decoder.process_decoded(d["current_a"])
+        current_b = decoder.process_decoded(d["current_b"])
+        return cls(current_a, current_b)
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
