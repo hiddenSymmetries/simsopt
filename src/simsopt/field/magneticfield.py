@@ -122,7 +122,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         ## should implement multiple coil groups
 
-        mgrid = MGRID(fname=filename, nfp=nfp, \
+        mgrid = MGRID(nfp=nfp, \
                       nr=nr, nz=nz, nphi=nphi, \
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
         mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  

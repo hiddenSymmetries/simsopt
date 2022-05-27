@@ -1,22 +1,30 @@
 import numpy as np
-#import netCDF4 as nc
 from scipy.io import netcdf as nc
 import sys
 
-### File I/O ###
-# This class is prepared by Tony Qian (tqian@pppl.gov)
-# the original file included reading options for netCDF and binary
-# these have been removed and the code only writes netCDF
-#
-# updated 15 November 2021
-
-
 class MGRID():
 
-    def __init__(self, fname='temp', binary=False,\
-                 nr=51, nz=51, nphi=24, nfp=2,\
-                 rmin=0.20, rmax=0.40, zmin=-0.10, zmax=0.10,\
-                 nextcur=0):
+    '''
+    This class writes Mgrid files for use in free boundary VMEC and other codes.
+
+    The B vector field is given in cylindricial coordinates for each coil.
+    It is written as a netCDF binary file.
+
+    Args:
+        nr: number of radial points
+    '''
+
+    def __init__(self, #fname='temp', #binary=False,
+                 nr: int = 51, 
+                 nz: int = 51, 
+                 nphi: int = 24, 
+                 nfp: int = 2,
+                 rmin: float = 0.20, 
+                 rmax: float = 0.40, 
+                 zmin: float = -0.10, 
+                 zmax: float = 0.10,
+                 #nextcur=0
+                 ):
 
         self.nr = nr
         self.nz = nz
@@ -35,12 +43,27 @@ class MGRID():
         self.bz_arr = [] 
         self.bp_arr = [] 
 
-        print('Initialized mgrid file: (nr,nphi,nz,nfp) = ({}, {}, {}, {})'.format(nr, nphi, nz, nfp))
+
+        print(f"Initialized mgrid file: (nr,nphi,nz,nfp) = ({nr}, {nphi}, {nz}, {nfp})")
 
     def add_field_cylindrical(self, br, bp, bz, name='default'):
 
-        # structure Bfield data into arrays (phi,z,r) arrays
+        '''
+        This function saves the vector field B.
+        B is defined by cylindrical components.
+        
+        The Mgrid array assumes B is sampled linearly first in r, then z, and last phi.
+        Python arrays use the opposite convention such that B[0] gives a (r,z) square at const phi
+        and B[0,0] gives a radial line and const phi and z.
 
+        It is assumed that the (br,bp,bz) inputs for this function is already in a
+        (nphi, nz, nr) shaped array.
+
+        This function may be called once for each coil group, 
+        to save sets of fields that can be scaled using EXTCUR in VMEC.
+        '''
+
+        # appending B field to an array for all coil groups.
         self.br_arr.append(br)
         self.bz_arr.append(bz)
         self.bp_arr.append(bp)
@@ -53,14 +76,19 @@ class MGRID():
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
-    def write(self, fout):
+    def write(self, filename):
 
-        ### Write
+        '''
+        Export class data as a netCDF binary.
+
+        Args:
+            filename: output file name
+        '''
+
         print('Writing mgrid file')
-        #ds = nc.Dataset(fout, 'w', format='NETCDF4')
-        ds = nc.netcdf_file(fout, 'w')
+        ds = nc.netcdf_file(filename, 'w')
 
-        # set dimensions
+        # set netcdf dimensions
         ds.createDimension('stringsize', 30)
         ds.createDimension('dim_00001', 1)
         ds.createDimension('external_coil_groups', self.n_ext_cur)
@@ -69,7 +97,7 @@ class MGRID():
         ds.createDimension('zee', self.nz)
         ds.createDimension('phi', self.nphi)
 
-        # declare variables
+        # declare netcdf variables
         var_ir = ds.createVariable('ir', 'i4', ('dim_00001',))
         var_jz = ds.createVariable('jz', 'i4', ('dim_00001',))
         var_kp = ds.createVariable('kp', 'i4', ('dim_00001',))
@@ -115,7 +143,7 @@ class MGRID():
 
         ds.close()
 
-        print('  Wrote to file:', fout)
+        print('  Wrote to file:', filename)
 
     def export_phi(self):
         phi = np.linspace(0, 2*np.pi/self.nfp, self.nphi)
@@ -125,17 +153,27 @@ class MGRID():
         return self.nr, self.nz, self.nphi
 
 
-### for writing coil groups
 def pad_string(string):
+#def _pad_string(string): ### _ in function name means 'private'
+    '''
+    Pads a string with 30 underscores (for writing coil group names).
+    '''
     return '{:^30}'.format(string).replace(' ', '_')
 
 
 ### for reading coil groups
 def unpack(binary_array):
+    '''
+    Decrypt binary char array into a string
+    '''
     return "".join(np.char.decode(binary_array)).strip()
 
 
 class ReadMGRID():
+
+    '''
+        This class reads Mgrid netCDF files for the purpose of debugging.
+    '''
 
     def __init__(self, fin):
 
