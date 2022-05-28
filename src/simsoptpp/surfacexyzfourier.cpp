@@ -135,13 +135,10 @@ void SurfaceXYZFourier<Array>::gammadash1dash1_impl(Array& data) {
                     double xhatdd = -get_coeff(0, true, m, i) * (-n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * (-n*nfp) * (-n*nfp)*sin(m*theta-n*nfp*phi);
                     double yhatdd = -get_coeff(1, true, m, i) * (-n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * (-n*nfp) * (-n*nfp)*sin(m*theta-n*nfp*phi);
 
-                    // xd  += xhatd * cos(phi) - xhat * sin(phi) - yhatd * sin(phi) - yhat * cos(phi);
                     xdd += xhatdd * cos(phi) - 2*xhatd * sin(phi) - xhat * cos(phi)
                          - yhatdd * sin(phi) - 2*yhatd * cos(phi) + yhat * sin(phi);
-                    // yd += xhatd * sin(phi) + xhat * cos(phi) + yhatd * cos(phi)  - yhat * sin(phi);
                     ydd += xhatdd * sin(phi) + 2*xhatd * cos(phi) - xhat * sin(phi)
                          + yhatdd * cos(phi) - 2*yhatd * sin(phi) - yhat * cos(phi);
-                    // zd += get_coeff(2, true , m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                     zdd += -get_coeff(2, true , m, i) * (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * (-n*nfp) * (-n*nfp) * sin(m*theta-n*nfp*phi);
                 }
             }
@@ -172,13 +169,10 @@ void SurfaceXYZFourier<Array>::gammadash1dash2_impl(Array& data) {
                     double xhatd1d2 = -get_coeff(0, true, m, i) * (-n*nfp)*(m)*cos(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * (-n*nfp) * (m)*sin(m*theta-n*nfp*phi);
                     double yhatd1d2 = -get_coeff(1, true, m, i) * (-n*nfp)*(m)*cos(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * (-n*nfp) * (m)*sin(m*theta-n*nfp*phi);
 
-                    // xd  += xhatd * cos(phi) - xhat * sin(phi) - yhatd * sin(phi) - yhat * cos(phi);
                     xd1d2 += xhatd1d2 * cos(phi) - xhatd2 * sin(phi)
                            - yhatd1d2 * sin(phi) - yhatd2 * cos(phi);
-                    // yd += xhatd * sin(phi) + xhat * cos(phi) + yhatd * cos(phi)  - yhat * sin(phi);
                     yd1d2 += xhatd1d2 * sin(phi) + xhatd2 * cos(phi)
                            + yhatd1d2 * cos(phi) - yhatd2 * sin(phi);
-                    // zd += get_coeff(2, true , m, i) * (n*nfp)*sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                     zd1d2 += -get_coeff(2, true , m, i) * (-n*nfp) * (m) * cos(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * (-n*nfp) * (m) * sin(m*theta-n*nfp*phi);
                 }
             }
@@ -204,11 +198,8 @@ void SurfaceXYZFourier<Array>::gammadash2dash2_impl(Array& data) {
                     int n  = i - ntor;
                     double xhatdd = -get_coeff(0, true, m, i) * (m) * (m) * cos(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * m * m * sin(m*theta-n*nfp*phi);
                     double yhatdd = -get_coeff(1, true, m, i) * (m) * (m) * cos(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * m * m * sin(m*theta-n*nfp*phi);
-                    // xdash += xhatdash * cos(phi) - yhatdash * sin(phi);
                     xdd += xhatdd * cos(phi) - yhatdd * sin(phi);
-                    // ydash += xhatdash * sin(phi) + yhatdash * cos(phi);
                     ydd += xhatdd * sin(phi) + yhatdd * cos(phi);
-                    // zdash += -get_coeff(2, true , m, i) * (m) * sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * m * cos(m*theta-n*nfp*phi);
                     zdd += -get_coeff(2, true , m, i) * (m) * (m) * cos(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * m * m * sin(m*theta-n*nfp*phi);
                 }
             }
@@ -390,22 +381,18 @@ void SurfaceXYZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<0) continue;
                         if(d == 0) {
-                            // data(k1, k2, 0, counter) = (n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 0, counter) = (n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi) * cos(phi) \
                                                       - 2*(n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                       - cos(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) = (n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) + cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = (n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi)*sin(phi) \
                                                      + 2*(n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                      - cos(m*theta-n*nfp*phi) * sin(phi);
                         } else if(d == 1) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = -(n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) - cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = -(n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                        - 2*(n*nfp)*      sin(m*theta-n*nfp*phi) * cos(phi) \
                                                                  +       cos(m*theta-n*nfp*phi) * sin(phi);
-                            // data(k1, k2, 1, counter) =  (n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = (n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi)*cos(phi) \
                                                      - 2*(n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                      - cos(m*theta-n*nfp*phi) * cos(phi);
@@ -413,7 +400,6 @@ void SurfaceXYZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                         else if (d == 2) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 2, counter) =  (n*nfp)*sin(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = (n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi);
                         }
                         counter++;
@@ -425,26 +411,21 @@ void SurfaceXYZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                         if(d == 0) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = -(n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 0, counter) = (n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                       +       2*(n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                       -                 sin(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) = -(n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) + sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = (n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                       - 2*(n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) \
                                                       - sin(m*theta-n*nfp*phi) * sin(phi);
                         } else if(d == 1) {
-                            // data(k1, k2, 0, counter) = (n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi)  - sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = -(n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                        + 2*(n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) \
                                                        + sin(m*theta-n*nfp*phi) * sin(phi);
-                            // data(k1, k2, 1, counter) = (-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = -(-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                        - 2*(-n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                        - sin(m*theta-n*nfp*phi) * cos(phi);
                         }
                         else if(d == 2) {
-                            // data(k1, k2, 2, counter) = (-n*nfp)*cos(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = -(-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
                         }
                         counter++;
@@ -468,26 +449,21 @@ void SurfaceXYZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<0) continue;
                         if(d == 0) {
-                            // data(k1, k2, 0, counter) = (n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 0, counter) = (n*nfp) * m * cos(m*theta-n*nfp*phi) * cos(phi) \
                                                       + m * sin(m*theta-n*nfp*phi) * sin(phi);
-                            // data(k1, k2, 1, counter) = (n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) + cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = (n*nfp)*m*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                       - m * sin(m*theta-n*nfp*phi) * cos(phi);
                         }else if(d == 1) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = -(n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) - cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = -(n*nfp)*m*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                        + m * sin(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) =  (n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = (n*nfp)*m*cos(m*theta-n*nfp*phi) * cos(phi) \
                                                        + m * sin(m*theta-n*nfp*phi) * sin(phi);
                         }
                         else if(d == 2) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 2, counter) =  (n*nfp)*sin(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = (n*nfp)*m*cos(m*theta-n*nfp*phi);
                         }
                         counter++;
@@ -499,22 +475,17 @@ void SurfaceXYZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                         if(d == 0) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = -(n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 0, counter) = (n*nfp)*m*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                       - m * cos(m*theta-n*nfp*phi) * sin(phi);
-                            // data(k1, k2, 1, counter) = -(n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) + sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = (n*nfp) * m * sin(m*theta-n*nfp*phi) * sin(phi) \
                                                       + m * cos(m*theta-n*nfp*phi) * cos(phi);
                         }else if(d == 1) {
-                            // data(k1, k2, 0, counter) = (n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi)  - sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = -(n*nfp)*m*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                        - m * cos(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) = (-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = -(-n*nfp)*m*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                        - m * cos(m*theta-n*nfp*phi) * sin(phi);
                         }
                         else if(d == 2) {
-                            // data(k1, k2, 2, counter) = (-n*nfp)*cos(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = -(-n*nfp)*(m)*sin(m*theta-n*nfp*phi);
                         }
                         counter++;
@@ -538,22 +509,17 @@ void SurfaceXYZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<0) continue;
                         if(d == 0) {
-                            // data(k1, k2, 0, counter) = (-m)* sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = (-m) * m * cos(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) = (-m)* sin(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = (-m) * m * cos(m*theta-n*nfp*phi) * sin(phi);
                         }else if(d == 1) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = (-m)* sin(m*theta-n*nfp*phi) * (-1) * sin(phi);
                             data(k1, k2, 0, counter) = (-m)* m * cos(m*theta-n*nfp*phi) * (-1) * sin(phi);
-                            // data(k1, k2, 1, counter) = (-m)* sin(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = (-m) *m * cos(m*theta-n*nfp*phi) * cos(phi);
                         }
                         else if(d == 2) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 2, counter) = (-m) * sin(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = (-m) * m * cos(m*theta-n*nfp*phi);
                         }
                         counter++;
@@ -565,18 +531,13 @@ void SurfaceXYZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
                         if(d == 0) {
                             if(stellsym)
                                 continue;
-                            // data(k1, k2, 0, counter) = m * cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 0, counter) = - m * m * sin(m*theta-n*nfp*phi) * cos(phi);
-                            // data(k1, k2, 1, counter) = m * cos(m*theta-n*nfp*phi) * sin(phi);
                             data(k1, k2, 1, counter) = - m * m * sin(m*theta-n*nfp*phi) * sin(phi);
                         }else if(d == 1) {
-                            // data(k1, k2, 0, counter) = m * cos(m*theta-n*nfp*phi) * (-1) * sin(phi);
                             data(k1, k2, 0, counter) = - m * m * sin(m*theta-n*nfp*phi) * (-1) * sin(phi);
-                            // data(k1, k2, 1, counter) = m * cos(m*theta-n*nfp*phi) * cos(phi);
                             data(k1, k2, 1, counter) = - m * m * sin(m*theta-n*nfp*phi) * cos(phi);
                         }
                         else if(d == 2) {
-                            // data(k1, k2, 2, counter) = m * cos(m*theta-n*nfp*phi);
                             data(k1, k2, 2, counter) = - m * m * sin(m*theta-n*nfp*phi);
                         }
                         counter++;

@@ -177,18 +177,13 @@ void SurfaceRZFourier<Array>::gammadash1dash1_impl(Array& data) {
                         r  += rs(m, i) * sin(m*theta-n*nfp*phi);
                         rd += rs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                         rdd += -rs(m, i) * (-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
-                        // zd += -zc(m, i) * (-n*nfp)*sin(m*theta-n*nfp*phi);
                         zdd += -zc(m, i) * (-n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi);
                     }
-                    // zd += zs(m, i) * (-n*nfp)*cos(m*theta-n*nfp*phi);
                     zdd += -zs(m, i) * (-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
                 }
             }
-            // data(k1, k2, 0) = 2*M_PI*(rd * cos(phi) - r * sin(phi));
             data(k1, k2, 0) = 4*M_PI*M_PI*(rdd * cos(phi) - 2 * rd * sin(phi) - r * cos(phi));
-            // data(k1, k2, 1) = 2*M_PI*(rd * sin(phi) + r * cos(phi));
             data(k1, k2, 1) = 4*M_PI*M_PI*(rdd * sin(phi) + 2 * rd * cos(phi) - r * sin(phi));
-            // data(k1, k2, 2) = 2*M_PI*zd;
             data(k1, k2, 2) = 4*M_PI*M_PI*zdd;
         }
     }
@@ -580,10 +575,8 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
                     if(m==0 && n<0) continue;
-                    // data(k1, k2, 0, counter) = 2*M_PI*((n*nfp) * sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi));
                     data(k1, k2, 0, counter) = 4*M_PI*M_PI*(m * (n*nfp) * cos(m*theta-n*nfp*phi) * cos(phi) \
                                                             + m * sin(m*theta-n*nfp*phi) * sin(phi));
-                    // data(k1, k2, 1, counter) = 2*M_PI*((n*nfp) * sin(m*theta-n*nfp*phi) * sin(phi) + cos(m*theta-n*nfp*phi) * cos(phi));
                     data(k1, k2, 1, counter) = 4*M_PI*M_PI*(   m * (n*nfp) * cos(m*theta-n*nfp*phi) * sin(phi) \
                                                              - m * sin(m*theta-n*nfp*phi) * cos(phi));
                     data(k1, k2, 2, counter) = 0;
@@ -594,10 +587,8 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                 for (int m = 0; m <= mpol; ++m) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<=0) continue;
-                        // data(k1, k2, 0, counter) = 2*M_PI*((-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi));
                         data(k1, k2, 0, counter) = 4*M_PI*M_PI*(-(-n*nfp)*m*sin(m*theta-n*nfp*phi)*cos(phi) \
                                                                 - m*cos(m*theta-n*nfp*phi)*sin(phi));
-                        // data(k1, k2, 1, counter) = 2*M_PI*((-n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) + sin(m*theta-n*nfp*phi) * cos(phi));
                         data(k1, k2, 1, counter) = 4*M_PI*M_PI*(-(-n*nfp)*m*sin(m*theta-n*nfp*phi)*sin(phi) \
                                                                 + m*cos(m*theta-n*nfp*phi)*cos(phi));
                         data(k1, k2, 2, counter) = 0;
@@ -609,7 +600,6 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                         if(m==0 && n<0) continue;
                         data(k1, k2, 0, counter) = 0;
                         data(k1, k2, 1, counter) = 0;
-                        // data(k1, k2, 2, counter) = 2*M_PI*(n*nfp)*sin(m*theta-n*nfp*phi);
                         data(k1, k2, 2, counter) = 4*M_PI*M_PI*n*nfp*m*cos(m*theta-n*nfp*phi);
                         counter++;
                     }
@@ -620,7 +610,6 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
                     if(m==0 && n<=0) continue;
                     data(k1, k2, 0, counter) = 0;
                     data(k1, k2, 1, counter) = 0;
-                    // data(k1, k2, 2, counter) = 2*M_PI*(-n*nfp)*cos(m*theta-n*nfp*phi);
                     data(k1, k2, 2, counter) = -4*M_PI*M_PI*(-n*nfp)*m*sin(m*theta-n*nfp*phi);
                     counter++;
                 }
@@ -639,11 +628,9 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
                     if(m==0 && n<0) continue;
-                    // data(k1, k2, 0, counter) = 2*M_PI*(- (-n*nfp) * sin(m*theta-n*nfp*phi) * cos(phi) - cos(m*theta-n*nfp*phi) * sin(phi));
                     data(k1, k2, 0, counter) = 4*M_PI*M_PI*(- (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi) * cos(phi) \
                                                             + 2 * (-n*nfp) * sin(m*theta-n*nfp*phi) * sin(phi) \
                                                             - cos(m*theta-n*nfp*phi) * cos(phi));
-                    // data(k1, k2, 1, counter) = 2*M_PI*(-(-n*nfp) * sin(m*theta-n*nfp*phi) * sin(phi) + cos(m*theta-n*nfp*phi) * cos(phi));
                     data(k1, k2, 1, counter) = 4*M_PI*M_PI*(- (-n*nfp) * (-n*nfp) * cos(m*theta-n*nfp*phi) * sin(phi) \
                                                             - 2 * (-n*nfp) * sin(m*theta-n*nfp*phi) * cos(phi) \
                                                             - cos(m*theta-n*nfp*phi) * sin(phi));
@@ -655,11 +642,9 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                 for (int m = 0; m <= mpol; ++m) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<=0) continue;
-                        // data(k1, k2, 0, counter) = 2*M_PI*((-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) - sin(m*theta-n*nfp*phi) * sin(phi));
                         data(k1, k2, 0, counter) = 4*M_PI*M_PI*(-(-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * cos(phi) \
                                                                 - 2*(-n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) \
                                                                 - sin(m*theta-n*nfp*phi) * cos(phi));
-                        // data(k1, k2, 1, counter) = 2*M_PI*((-n*nfp)*cos(m*theta-n*nfp*phi) * sin(phi) + sin(m*theta-n*nfp*phi) * cos(phi));
                         data(k1, k2, 1, counter) = 4*M_PI*M_PI*(-(-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi) * sin(phi) \
                                                                 + 2*(-n*nfp)*cos(m*theta-n*nfp*phi) * cos(phi) \
                                                                 - sin(m*theta-n*nfp*phi) * sin(phi));
@@ -672,7 +657,6 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                         if(m==0 && n<0) continue;
                         data(k1, k2, 0, counter) = 0;
                         data(k1, k2, 1, counter) = 0;
-                        // data(k1, k2, 2, counter) = -2*M_PI*(-n*nfp)*sin(m*theta-n*nfp*phi);
                         data(k1, k2, 2, counter) = -4*M_PI*M_PI*(-n*nfp)*(-n*nfp)*cos(m*theta-n*nfp*phi);
                         counter++;
                     }
@@ -683,7 +667,6 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
                     if(m==0 && n<=0) continue;
                     data(k1, k2, 0, counter) = 0;
                     data(k1, k2, 1, counter) = 0;
-                    // data(k1, k2, 2, counter) = 2*M_PI*(-n*nfp)*cos(m*theta-n*nfp*phi);
                     data(k1, k2, 2, counter) = -4*M_PI*M_PI*(-n*nfp)*(-n*nfp)*sin(m*theta-n*nfp*phi);
                     counter++;
                 }
@@ -834,9 +817,7 @@ void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
                     if(m==0 && n<0) continue;
-                    // data(k1, k2, 0, counter) = -2*M_PI*(m) * sin(m*theta-n*nfp*phi)*cos(phi);
                     data(k1, k2, 0, counter) = -4*M_PI*M_PI * m * m * cos(m*theta-n*nfp*phi)*cos(phi);
-                    // data(k1, k2, 1, counter) = 2*M_PI*(-m) * sin(m*theta-n*nfp*phi)*sin(phi);
                     data(k1, k2, 1, counter) = -4*M_PI*M_PI* m * m * cos(m*theta-n*nfp*phi)*sin(phi);
                     data(k1, k2, 2, counter) = 0;
                     counter++;
@@ -846,9 +827,7 @@ void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
                 for (int m = 0; m <= mpol; ++m) {
                     for (int n = -ntor; n <= ntor; ++n) {
                         if(m==0 && n<=0) continue;
-                        // data(k1, k2, 0, counter) = 2*M_PI*m * cos(m*theta-n*nfp*phi)*cos(phi);
                         data(k1, k2, 0, counter) = -4*M_PI*M_PI*m*m*sin(m*theta-n*nfp*phi)*cos(phi);
-                        // data(k1, k2, 1, counter) = 2*M_PI*m * cos(m*theta-n*nfp*phi)*sin(phi);
                         data(k1, k2, 1, counter) = -4*M_PI*M_PI*m*m*sin(m*theta-n*nfp*phi)*sin(phi);
                         data(k1, k2, 2, counter) = 0;
                         counter++;
@@ -859,7 +838,6 @@ void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
                         if(m==0 && n<0) continue;
                         data(k1, k2, 0, counter) = 0;
                         data(k1, k2, 1, counter) = 0;
-                        // data(k1, k2, 2, counter) = -2*M_PI*(m) * sin(m*theta-n*nfp*phi);
                         data(k1, k2, 2, counter) = -4*M_PI*M_PI*m*m*cos(m*theta-n*nfp*phi);
                         counter++;
                     }
@@ -870,7 +848,6 @@ void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
                     if(m==0 && n<=0) continue;
                     data(k1, k2, 0, counter) = 0;
                     data(k1, k2, 1, counter) = 0;
-                    // data(k1, k2, 2, counter) = 2*M_PI*m * cos(m*theta-n*nfp*phi);
                     data(k1, k2, 2, counter) = -4*M_PI*M_PI*m*m*sin(m*theta-n*nfp*phi);
                     counter++;
                 }
