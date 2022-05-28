@@ -167,31 +167,22 @@ class PrincipalCurvature(Optimizable):
         self.kappamax2 = kappamax2
         self.weight1 = weight1
         self.weight2 = weight2
-        self.recompute_bell()
 
     def J(self):
-        if (self._J is None):
-            self.compute()
-        return self._J
-
-    def dJ(self):
-        if (self._dJ is None):
-            self.compute()
-        return self._dJ
-
-    def recompute_bell(self, parent=None):
-        self._J = None
-        self._dJ = None
-
-    def compute(self):
         curvature = self.surface.surface_curvatures()
         k1 = curvature[:, :, 2]  # larger
         k2 = curvature[:, :, 3]  # smaller
         normal = self.surface.normal()
         norm_normal = np.sqrt(normal[:, :, 0]**2 + normal[:, :, 1]**2 + normal[:, :, 2]**2)
-        self._J = np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
+        return np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
             np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
 
+    def dJ(self):
+        curvature = self.surface.surface_curvatures()
+        k1 = curvature[:, :, 2]  # larger
+        k2 = curvature[:, :, 3]  # smaller
+        normal = self.surface.normal()
+        norm_normal = np.sqrt(normal[:, :, 0]**2 + normal[:, :, 1]**2 + normal[:, :, 2]**2)
         dcurvature_dc = self.surface.dsurface_curvatures_by_dcoeff()
         dk1_dc = dcurvature_dc[:, :, 2, :]
         dk2_dc = dcurvature_dc[:, :, 3, :]
@@ -199,7 +190,7 @@ class PrincipalCurvature(Optimizable):
         dnorm_normal_dc = normal[:, :, 0, None]*dnormal_dc[:, :, 0, :]/norm_normal[:, :, None] + \
             normal[:, :, 1, None]*dnormal_dc[:, :, 1, :]/norm_normal[:, :, None] + \
             normal[:, :, 2, None]*dnormal_dc[:, :, 2, :]/norm_normal[:, :, None]
-        self._dJ = np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
+        return np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
             np.sum(norm_normal[:, :, None] * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1) * (- dk1_dc/self.weight1), axis=(0, 1)) + \
             np.sum(dnorm_normal_dc * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2), axis=(0, 1)) + \
             np.sum(norm_normal[:, :, None] * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2) * (dk2_dc/self.weight2), axis=(0, 1))
