@@ -573,16 +573,19 @@ class DipoleField(MagneticField):
         stellsym = pm_opt.plasma_boundary.stellsym
         if pm_opt.is_premade_famus_grid:
             phi = pm_opt.pm_uniq_phi
+            print(phi, len(phi))
         else:
             phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
         RZ_grid = pm_opt.final_RZ_grid
         dipole_grid = pm_opt.dipole_grid
-        ndipoles = pm_opt.dipole_grid.shape[0]
+        ndipoles = pm_opt.ndipoles
         m = pm_opt.m
         dipole_grid_Z = dipole_grid[:, 2]
         if stellsym:
+            stell_num = 2
             nsym = nfp * 2
         else:
+            stell_num = 1
             nsym = nfp
         m = m.reshape(ndipoles, 3)
 
@@ -594,45 +597,46 @@ class DipoleField(MagneticField):
         m_maxima = np.zeros((ndipoles * nsym))
         running_tally = 0
         running_tally_m = 0
-        offsetm = ndipoles * nfp
+        #offsetm = ndipoles * nfp
         for i in range(len(phi)):
             if i > 0:
                 radii = RZ_grid[inds[i-1]:inds[i], 0]
             else:
                 radii = RZ_grid[:inds[i], 0]
             nr = len(radii)
+
+            ox = radii * np.cos(phi[i])
+            oy = radii * np.sin(phi[i])
+            oz = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
+
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
                 phi_sym = phi[i] + phi0
-                dipole_grid_x[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.cos(phi_sym)
-                dipole_grid_y[running_tally + nr * fp:running_tally + nr * (fp + 1)] = radii * np.sin(phi_sym)
-                dipole_grid_z[running_tally + nr * fp:running_tally + nr * (fp + 1)] = dipole_grid_Z[running_tally_m:running_tally_m + nr] 
-                if pm_opt.cylindrical_flag:
-                    # transform into cartesian
-                    mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi[i]) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi[i])
-                    my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi[i]) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi[i])
-                    # For fp symmetry, now have mx, my, mz and need to rotate by phi0
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp * np.cos(phi0) - my_temp * np.sin(phi0)
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = mx_temp * np.sin(phi0) + my_temp * np.cos(phi0)
-                else:
-                    # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
-                    m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
-                m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 2] = m[running_tally_m:running_tally_m + nr, 2]
-                m_maxima[running_tally + nr * fp:running_tally + nr * (fp + 1)] = self.m_maxima[running_tally_m:running_tally_m + nr]
-            running_tally += nr * nfp
+                for stell in range(stell_num):
+                    skip1 = nr * (fp + nfp * stell)
+                    skip2 = nr * (fp + nfp * stell) + nr
+                    i1 = running_tally + skip1
+                    i2 = running_tally + skip2
+                    dipole_grid_x[i1:i2] = ox * np.cos(phi0) - oy * np.sin(phi0) * (-1) ** stell
+                    dipole_grid_y[i1:i2] = ox * np.sin(phi0) + oy * np.cos(phi0) * (-1) ** stell
+                    dipole_grid_z[i1:i2] = oz * (-1) ** stell 
+                    if pm_opt.cylindrical_flag:
+                        # transform into cartesian
+                        mx_temp = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi[i]) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi[i])
+                        my_temp = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi[i]) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi[i])
+                        # For fp symmetry, now have mx, my, mz and need to rotate by phi0
+                        m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = mx_temp * np.cos(phi0) - my_temp * np.sin(phi0)
+                        m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = mx_temp * np.sin(phi0) + my_temp * np.cos(phi0)
+                    else:
+                        # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
+                        #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 0] = m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) - m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)
+                        m_vec[i1:i2, 0] = (m[running_tally_m:running_tally_m + nr, 0] * np.cos(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.sin(phi0)) * (-1) ** stell
+                        #m_vec[running_tally + nr * fp:running_tally + nr * (fp + 1), 1] = m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
+                        m_vec[i1:i2, 1] = - m[running_tally_m:running_tally_m + nr, 0] * np.sin(phi0) + m[running_tally_m:running_tally_m + nr, 1] * np.cos(phi0)
+                    m_vec[i1:i2, 2] = m[running_tally_m:running_tally_m + nr, 2]
+                    m_maxima[i1:i2] = self.m_maxima[running_tally_m:running_tally_m + nr]
+            running_tally += nr * nfp * stell_num
             running_tally_m += nr 
-
-        if stellsym:
-            # Phi (or Y) and Z coordinates OF THE GRID flip under stellarator symmetry
-            # but R (or X) component of the m vector flips under this change
-            dipole_grid_x[offsetm:] = dipole_grid_x[:offsetm]
-            dipole_grid_y[offsetm:] = - dipole_grid_y[:offsetm]
-            dipole_grid_z[offsetm:] = - dipole_grid_z[:offsetm]
-            m_vec[offsetm:, 0] = - m_vec[:offsetm, 0]
-            m_vec[offsetm:, 1] = m_vec[:offsetm, 1]
-            m_vec[offsetm:, 2] = m_vec[:offsetm, 2]
-            m_maxima[offsetm:] = m_maxima[:offsetm]
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec

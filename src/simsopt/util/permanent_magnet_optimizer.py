@@ -62,7 +62,7 @@ class PermanentMagnetOptimizer:
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec', out_dir='',
-        cylindrical_flag=True, test_flag=False,
+        cylindrical_flag=False, test_flag=False,
         pms_name=None
     ):
         if plasma_offset <= 0 or coil_offset <= 0:

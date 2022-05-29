@@ -336,15 +336,18 @@ print('Process took t = ', t2 - t1, ' s')
 if is_premade_famus_grid:  # config_flag == 'ncsx':
     t1 = time.time()
     # Save FAMUS solution
-    ox, oy, oz, m0, p, mp, mt = np.loadtxt('../../tests/test_files/' + pms_name, skiprows=3, usecols=[3, 4, 5, 7, 8, 10, 11], delimiter=',', unpack=True)
+    famus_file = '../../tests/test_files/' + pms_name
+    ox, oy, oz, m0, p, mp, mt = np.loadtxt(famus_file, skiprows=3, usecols=[3, 4, 5, 7, 8, 10, 11], delimiter=',', unpack=True)
     # r = np.sqrt(ox * ox + oy * oy)
     phi = np.arctan2(oy, ox)
     print('Max and min phi FAMUS = ', np.max(phi), np.min(phi))
-    rho = p ** 4
+    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
+    print('momentq = ', momentq)
+    rho = p ** momentq
     plt.figure()
     plt.hist(rho)
     mm = rho * m0
-    print('FAMUS effective volume = ', np.sum(mm) * 4 * np.pi * 1e-7 / 1.4 * 2 * s.nfp) 
+    print('FAMUS effective volume = ', np.sum(abs(mm)) * 4 * np.pi * 1e-7 / 1.4 * 2 * s.nfp) 
     mx = mm * np.sin(mt) * np.cos(mp) 
     my = mm * np.sin(mt) * np.sin(mp) 
     mz = mm * np.cos(mt)
@@ -371,7 +374,7 @@ if is_premade_famus_grid:  # config_flag == 'ncsx':
     t2 = time.time()
     print('Saving FAMUS solution took ', t2 - t1, ' s')
     f_B_famus = SquaredFlux(s, b_dipole_FAMUS).J()  # * grid_fac ** 2
-    f_B_sf = SquaredFlux(s, b_dipole_FAMUS, Bnormal).J()  # * grid_fac ** 2 
+    f_B_sf = SquaredFlux(s, b_dipole_FAMUS, -Bnormal).J()  # * grid_fac ** 2 
     #f_B_sf = SquaredFlux(s, b_dipole_FAMUS, Bnormal_plot).J() #* grid_fac ** 2 
     print(f_B_famus, f_B_sf)
     if config_flag == 'ncsx':
