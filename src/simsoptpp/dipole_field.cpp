@@ -281,66 +281,40 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 	    simd_t sphi0 = xsimd::sin(phi0);
 	    simd_t cphi0 = xsimd::cos(phi0);
             for (int j = 0; j < num_dipoles; ++j) {
-                auto G_i = Vec3dSimd();
-                auto H_i = Vec3dSimd();
-	        simd_t phi_sym = phi[j] + phi0;
-	        simd_t phij = phi_sym - phi0;
-		simd_t sphij = xsimd::sin(phij); 
-		simd_t sphi = xsimd::sin(phi_sym); 
-	        simd_t cphij = xsimd::cos(phij); 
-	        simd_t cphi = xsimd::cos(phi_sym); 
-                Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
-                simd_t mmag = xsimd::sqrt(xsimd::fma(mp_j.x, mp_j.x, mp_j.y * mp_j.y));
-		simd_t mp_x_new = mmag * cphi;
-		simd_t mp_y_new = mmag * sphi;
-		Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z);
-		Vec3dSimd r = point_i - mp_j_new;
-                simd_t rmag_2 = normsq(r);
-                simd_t rmag_inv   = rsqrt(rmag_2);
-                simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-                simd_t rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
-                simd_t rdotn = inner(r, n_i);
-                G_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
-                G_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
-                G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
-	        
-		// stellarator symmetry means dipole grid -> (x, -y, -z)
-		if (stellsym > 0) {
-		    Vec3dSimd mp_j_stell = Vec3dSimd(mp_x_new, -mp_y_new, -mp_j.z);
-		    r = point_i - mp_j_stell;
-                    rmag_2 = normsq(r);
-                    rmag_inv   = rsqrt(rmag_2);
-                    rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-                    rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
-                    rdotn = inner(r, n_i);
-		    H_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
-                    H_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
-                    H_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
-		}
-		for(int k = 0; k < klimit; k++){
-		    A(i + k, j, 2) += fak * G_i.z[k];
-		    if (cylindrical) {
-			double Ax_temp = (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]);
-			double Ay_temp = (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-			A(i + k, j, 0) += fak * (Ax_temp* cphij[k] + Ay_temp* sphij[k]);
-			A(i + k, j, 1) += fak * ( - Ax_temp * sphij[k] + Ay_temp * cphij[k]);
-		        // if stellsym, flip sign of x or r component here
-		        if (stellsym > 0) {
-			    double Ax_temp = (H_i.x[k] * cphi0[k] - H_i.y[k] * sphi0[k]);
-			    double Ay_temp = (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
-			    A(i + k, j, 0) += - fak * (Ax_temp * cphij[k] - Ay_temp * sphij[k]);
-		            A(i + k, j, 1) += fak * (Ax_temp * sphij[k] + Ay_temp * cphij[k]);
-			    A(i + k, j, 2) += fak * H_i.z[k];
+		simd_t phi_sym = phi[j] + phi0;
+		simd_t phij = phi_sym - phi0;
+		simd_t cphij = xsimd::cos(phij);
+		simd_t sphij = xsimd::sin(phij);
+		for (int stell = 0; stell < (stellsym + 1); ++stell) { 
+                    auto G_i = Vec3dSimd();
+                    Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+                    simd_t mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
+                    simd_t mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
+		    Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z * pow(-1, stell));
+		    Vec3dSimd r = point_i - mp_j_new;
+                    simd_t rmag_2 = normsq(r);
+                    simd_t rmag_inv   = rsqrt(rmag_2);
+                    simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+                    simd_t rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
+                    simd_t rdotn = inner(r, n_i);
+                    G_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
+                    G_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
+                    G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
+		    for(int k = 0; k < klimit; k++){
+		        A(i + k, j, 2) += fak * G_i.z[k];
+			//double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			//double Ay_temp = ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		        if (cylindrical) {
+			    double Ax_temp = (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    double Ay_temp = (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    A(i + k, j, 0) += fak * (Ax_temp* cphij[k] + Ay_temp* sphij[k]);
+			    A(i + k, j, 1) += fak * ( - Ax_temp * sphij[k] + Ay_temp * cphij[k]);
 		        }
-		    }
-		    else {
-		        A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]);
-		        A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-		        // if stellsym, flip sign of x or r component here
-		        if (stellsym > 0) {
-		            A(i + k, j, 0) += - fak * (H_i.x[k] * cphi0[k] - H_i.y[k] * sphi0[k]);
-		            A(i + k, j, 1) += fak * (H_i.x[k] * sphi0[k] + H_i.y[k] * cphi0[k]);
-		            A(i + k, j, 2) += fak * H_i.z[k];
+		        else {
+			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    A(i + k, j, 1) += fak * ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		            //A(i + k, j, 0) += fak * Ax_temp; 
+		            //A(i + k, j, 1) += fak * Ay_temp;
 		        }
 		    }
 		}

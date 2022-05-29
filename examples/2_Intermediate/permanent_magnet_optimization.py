@@ -191,9 +191,9 @@ t1 = time.time()
 if reg_l0 > 0:
     max_iter_MwPGP = 100
 else:
-    max_iter_MwPGP = 20
+    max_iter_MwPGP = 1000
 max_iter_RS = 10
-epsilon = 1e-2
+epsilon = 1e-4
 #m0_max = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon,
