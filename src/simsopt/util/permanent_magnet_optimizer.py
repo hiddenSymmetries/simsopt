@@ -199,14 +199,15 @@ class PermanentMagnetOptimizer:
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
+            self.premade_dipole_grid = premade_dipole_grid
             # Dipole grid should be a list of x, y, z locations
             self.ndipoles = premade_dipole_grid.shape[0]
             # Not normalized to 1 like quadpoints_phi!
             self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
             # reorder the PMs grid by the phi values
-            phi_order = np.argsort(self.pm_phi)
-            self.phi_order = phi_order
-            self.pm_phi = self.pm_phi[phi_order]
+            #phi_order = np.argsort(self.pm_phi)
+            #self.phi_order = phi_order
+            #self.pm_phi = self.pm_phi[phi_order]
             uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
             print(uniq_phi)
             self.pm_nphi = len(uniq_phi)
@@ -216,13 +217,12 @@ class PermanentMagnetOptimizer:
                 for j in range(0, i):
                     self.inds[i] += self.inds[j] 
             print(self.inds)
-            premade_dipole_grid = premade_dipole_grid[phi_order, :]
+            #premade_dipole_grid = premade_dipole_grid[phi_order, :]
             self.final_RZ_grid = np.zeros((self.ndipoles, 3))
             self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
             self.final_RZ_grid[:, 1] = self.pm_phi
             self.final_RZ_grid[:, 2] = premade_dipole_grid[:, 2] 
-            #for i in range(pm_nphi):
-            #    self.final_RZ_grid[:, i, 0] = dipole_grid[:, 
+            self.dipole_grid_xyz = premade_dipole_grid
         xyz_plasma = self.plasma_boundary.gamma()
         self.r_plasma = np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2)
         self.z_plasma = xyz_plasma[:, :, 2]
@@ -241,6 +241,13 @@ class PermanentMagnetOptimizer:
 
         # Set initial condition for the dipoles to default IC
         self._setup_initial_condition()        
+
+        # Print initial f_B metric using the initial guess
+        # Ngrid = self.nphi * self.ntheta
+        # Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
+        total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
+        #total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj) * np.sqrt(Ngrid / Nnorms), ord=2) ** 2
+        print('f_B (total with initial SIMSOPT guess) = ', total_error)
 
         # optionally plot the plasma boundary + inner/outer surfaces
         if not is_premade_famus_grid:
@@ -363,18 +370,19 @@ class PermanentMagnetOptimizer:
             dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
-        self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
+        #self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
 
         if self.is_premade_famus_grid:
             M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
-            cell_vol = M0s[self.phi_order] * mu0 / B_max
+            #cell_vol = M0s[self.phi_order] * mu0 / B_max
+            cell_vol = M0s * mu0 / B_max
         else:
             #cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
         print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3')
         # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
-        # FAMUS paper as typo that m_max = B_r / (mu0 * cell_vol) but it 
+        # FAMUS paper has a typo that m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
         self.m_maxima = B_max * cell_vol / mu0
 
@@ -391,7 +399,6 @@ class PermanentMagnetOptimizer:
             raise ValueError(
                 'Normal magnetic field surface data is incorrect shape.'
             )
-        Bs = self.Bn
         dphi = (self.phi[1] - self.phi[0]) * 2 * np.pi
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         self.dphi = dphi
@@ -401,7 +408,7 @@ class PermanentMagnetOptimizer:
 
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)
-        self.b_obj = - Bs.reshape(self.nphi * self.ntheta)  # * grid_fac 
+        self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)  # * grid_fac 
 
         # Compute geometric factor with the C++ routine
         #self.A_obj, self.ATb, self.ATA = sopp.dipole_field_Bn(
@@ -416,8 +423,7 @@ class PermanentMagnetOptimizer:
         )
         # Rescale
         Ngrid = self.nphi * self.ntheta
-        self.A_obj_expanded = self.A_obj  # * grid_fac
-        self.A_obj = self.A_obj_expanded.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
+        self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
         self.ATb = np.ravel(self.ATb)  # * grid_fac  # only one factor here since b is already scaled!
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
@@ -699,7 +705,8 @@ class PermanentMagnetOptimizer:
                 np.linalg.pinv(self.A_obj) @ self.b_obj, 
                 self.m_maxima
             )
-            #m0 = np.zeros(m0.shape)
+            #m0 = np.linalg.pinv(self.A_obj) @ self.b_obj 
+            m0 = np.zeros(m0.shape)
             # m0 = np.random.rand(m0.shape)
 
         self.m0 = m0
@@ -888,7 +895,6 @@ class PermanentMagnetOptimizer:
         m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
 
         # ATA = np.ascontiguousarray(ATA)
-        # self.A_obj_expanded = np.ascontiguousarray(self.A_obj_expanded)
         self.A_obj = np.ascontiguousarray(self.A_obj)
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
 

@@ -251,7 +251,6 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     if(b.layout() != xt::layout_type::row_major)
           throw std::runtime_error("b needs to be in row-major storage order");
     
-    int nsym = nfp * (stellsym + 1);
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -281,13 +280,13 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 	    simd_t sphi0 = xsimd::sin(phi0);
 	    simd_t cphi0 = xsimd::cos(phi0);
             for (int j = 0; j < num_dipoles; ++j) {
+                Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
 		simd_t phi_sym = phi[j] + phi0;
 		simd_t phij = phi_sym - phi0;
 		simd_t cphij = xsimd::cos(phij);
 		simd_t sphij = xsimd::sin(phij);
 		for (int stell = 0; stell < (stellsym + 1); ++stell) { 
                     auto G_i = Vec3dSimd();
-                    Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
                     simd_t mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
                     simd_t mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
 		    Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z * pow(-1, stell));
@@ -312,7 +311,9 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 		        }
 		        else {
 			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    //A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]) * pow(-1, stell);
 			    A(i + k, j, 1) += fak * ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    //A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
 		            //A(i + k, j, 0) += fak * Ax_temp; 
 		            //A(i + k, j, 1) += fak * Ay_temp;
 		        }

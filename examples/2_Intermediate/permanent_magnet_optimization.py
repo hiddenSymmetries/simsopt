@@ -4,6 +4,8 @@ In this example we optimize the permanent magnets from a
 pre-computed permanent magnet grid, plasma surface, and BiotSavart
 field. 
 
+This is the companion script with permanent_magnets_initialization.py. 
+
 Several pre-set permanent magnet grids are available for the
 LandremanPaul QA and QH plasma surfaces, the MUSE surface, 
 and the NCSX C09R00 half-Tesla surface.
@@ -16,10 +18,8 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, DipoleField
+from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core.optimizable import Optimizable
@@ -27,6 +27,7 @@ from permanent_magnet_helpers import *
 import time
 
 t_start = time.time()
+
 # Determine which plasma equilibrium is being used
 print("Usage requires a configuration flag chosen from: qa(_nonplanar), QH, qh(_nonplanar), muse(_famus), ncsx, and a flag specifying high or low resolution")
 if len(sys.argv) < 4:
@@ -55,10 +56,12 @@ if res_flag not in ['low', 'medium', 'high']:
     exit(1)
 final_run = (str(sys.argv[3]) == 'True')
 print('Config flag = ', config_flag, ', Resolution flag = ', res_flag, ', Final run =', final_run)
+
+# Check for L2 and L0 regularization
 if len(sys.argv) >= 5:
     reg_l0 = float(sys.argv[4])
     if not np.isclose(reg_l0, 0.0, atol=1e-16):
-        nu = 1e2
+        nu = 1e3
     else:
         nu = 1e100
 else:
@@ -101,14 +104,9 @@ elif 'QH' in config_flag:
     input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
     surface_flag = 'wout'
 elif 'qa' in config_flag or 'qh' in config_flag:
-    if 'qa' in config_flag:
-        dr = 0.01
-        coff = 0.1
-        poff = 0.04
-    if 'qh' in config_flag:
-        dr = 0.01
-        coff = 0.1
-        poff = 0.04
+    dr = 0.01
+    coff = 0.1
+    poff = 0.04
     if 'qa' in config_flag:
         input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
     else:
@@ -142,11 +140,11 @@ else:
     comm = None
 
 t1 = time.time()
+
+# Read in permanent magnet class object that has already been initialized
+# using the companion script.
 class_filename = "PM_optimizer_" + config_flag
-
-# Don't save in home directory on NERSC -- save on SCRATCH
 scratch_path = '/global/cscratch1/sd/akaptano/'
-
 IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 pickle_name = IN_DIR + class_filename + ".pickle"
 pm_opt = pickle.load(open(pickle_name, "rb", -1))
@@ -158,12 +156,14 @@ assert (ntheta == pm_opt.ntheta)
 assert (coff == pm_opt.coil_offset)
 assert (poff == pm_opt.plasma_offset)
 
+# Make a directory for the optimization output
 OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
 pm_opt.out_dir = OUT_DIR 
 t2 = time.time()
 print('Loading pickle file and other initialization took ', t2 - t1, ' s')
 
+# Read in the correct plasma equilibrium file
 t1 = time.time()
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
@@ -173,9 +173,10 @@ elif surface_flag == 'wout':
     s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 else:
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-
 t2 = time.time()
 print("Done loading in plasma boundary surface, t = ", t2 - t1)
+
+# Read in the Bnormal or BiotSavart fields from any coils 
 if config_flag != 'ncsx':
     bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
     bs.set_points(s.gamma().reshape((-1, 3)))
@@ -185,15 +186,18 @@ else:
 
 # Set the pm_opt plasma boundary 
 pm_opt.plasma_boundary = s
-
 print('Done initializing the permanent magnet object')
+
+# Set some hyperparameters for the optimization
 t1 = time.time()
 if reg_l0 > 0:
     max_iter_MwPGP = 100
 else:
-    max_iter_MwPGP = 1000
-max_iter_RS = 10
-epsilon = 1e-4
+    max_iter_MwPGP = 300
+max_iter_RS = 50
+epsilon = 1e-3
+
+# Optimize the permanent magnets
 #m0_max = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon,
@@ -203,39 +207,39 @@ MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
+
+# Print effective permanent magnet volume
 M_max = 1.4 / (4 * np.pi * 1e-7)
 dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-# recompute normal error using the dipole field and bs field
-# to check nothing got mistranslated
+# Plot the sparse and less sparse solutions from SIMSOPT 
 t1 = time.time()
-#m_copy = np.copy(pm_opt.m)
-#pm_opt.m = pm_opt.m_proxy
+m_copy = np.copy(pm_opt.m)
+pm_opt.m = pm_opt.m_proxy
 b_dipole = DipoleField(pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
-#pm_opt.m = m_copy
-#b_dipole = DipoleField(pm_opt)
-#b_dipole.set_points(s.gamma().reshape((-1, 3)))
-#b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
+pm_opt.m = m_copy
+b_dipole = DipoleField(pm_opt)
+b_dipole.set_points(s.gamma().reshape((-1, 3)))
+b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 pm_opt._plot_final_dipoles()
 t2 = time.time()
 print('Done setting up the Dipole Field class')
 print('Process took t = ', t2 - t1, ' s')
 
-# b_dipole._toVTK("Dipole_Fields_surf", dim=())
-
+# Print optimized metrics
 t1 = time.time()
 dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
 dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
 print("Average Bn without the PMs = ", 
       np.mean(np.abs(Bnormal * dphi * dtheta)))
 print("Total Bn without the PMs = ", 
-      np.sum((pm_opt.b_obj) ** 2))
+      np.sum((pm_opt.b_obj) ** 2) / 2.0)
 print("Total Bn without the coils = ", 
-      np.sum((pm_opt.A_obj @ pm_opt.m) ** 2))
+      np.sum((pm_opt.A_obj @ pm_opt.m) ** 2) / 2.0)
 # grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
 print("Total Bn = ", 
       0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
@@ -250,7 +254,6 @@ ave_Bn = np.mean(np.abs(Bn_opt) / (2 * pm_opt.nphi * pm_opt.ntheta))
 print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 
 print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy)) 
 
-### b_dipole appears not be calculated correctly with qh (wout) but is correctly calculated with qa (vmec)
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
 print(Bnormal)
@@ -261,9 +264,6 @@ print("Average Bn with the PMs = ",
 #grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
 print('F_B INITIAL = ', SquaredFlux(s, b_dipole, -Bnormal).J())  # * grid_fac ** 2) 
 print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, -pm_opt.Bn).J())  # * grid_fac ** 2) 
-print(np.mean(np.abs(Bnormal)))
-print(np.mean(np.abs(Bnormal_dipoles)))
-print(np.mean(np.abs(Bnormal_total)))
 
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 num_nonzero = np.count_nonzero(dipoles_m[:, 0] ** 2 + dipoles_m[:, 1] ** 2 + dipoles_m[:, 2] ** 2) / pm_opt.ndipoles * 100
@@ -352,47 +352,44 @@ if final_run:
 if comm is None or comm.rank == 0:
     # double the plasma surface resolution for the vtk plots
     t1 = time.time()
-    #nphi = 4 * nphi
-    #ntheta = 4 * ntheta
     quadpoints_phi = np.linspace(0, 1, 2 * s.nfp * nphi + 1, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta + 1, endpoint=True)
 
     if surface_flag == 'focus':
-        s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     elif surface_flag == 'wout':
-        #s = SurfaceRZFourier.from_wout(surface_filename, range="half period", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        s = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        #s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     else:
-        #s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        #s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
     if config_flag == 'ncsx':
         Bnormal = load_ncsx_coil_data(s, coil_name)
     else:
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bnormal = np.sum(bs.B().reshape((len(s.quadpoints_phi), len(s.quadpoints_theta), 3)) * s.unitnormal(), axis=2)
+        bs.set_points(s_plot.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
 
-    ######## TEMPORARY #########
-    #b_dipole = DipoleField(pm_opt)
-    b_dipole.set_points(s.gamma().reshape((-1, 3)))
-
-    Bnormal_dipoles = np.sum(b_dipole.B().reshape((len(s.quadpoints_phi), len(s.quadpoints_theta), 3)) * s.unitnormal(), axis=2)
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
     Bnormal_total = Bnormal + Bnormal_dipoles
+
+    Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+    Ngrid = pm_opt.nphi * pm_opt.ntheta
+    Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m0)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
+    print(Bnormal, Bnormal_dipoles, Bnormal_Am)
 
     # For plotting Bn on the full torus surface at the end with just the dipole fields
     pointData = {"B_N": Bnormal[:, :, None]}
-    s.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
     pointData = {"B_N": Bnormal_dipoles[:, :, None]}
-    s.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "only_pms_opt", extra_data=pointData)
     pointData = {"B_N": Bnormal_total[:, :, None]}
-    s.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
     t2 = time.time()
     print('Done saving final vtk files, ', t2 - t1, " s")
-    ########################
-    f_B_sf = SquaredFlux(s, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
+
+    # Print optimized f_B and other metrics
+    f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
     print('f_B = ', f_B_sf)
     B_max = 1.4
     mu0 = 4 * np.pi * 1e-7
@@ -401,14 +398,17 @@ if comm is None or comm.rank == 0:
     print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
     pm_opt.m = pm_opt.m_proxy
     b_dipole = DipoleField(pm_opt)
-    b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    f_B_sp = SquaredFlux(s, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
     print('f_B_sparse = ', f_B_sp)
     dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
     num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
     np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
+
+    # Show the figures
     plt.show()
 
+# Save optimized permanent magnet class object
 if final_run:
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
     # SurfaceRZFourier objects not pickle-able, so set to None
