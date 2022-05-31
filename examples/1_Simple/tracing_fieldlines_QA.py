@@ -57,7 +57,7 @@ nfp = surf.nfp
 
 # Load in the optimized coils from stage_two_optimization.py:
 coils_filename = Path(__file__).parent / "inputs" / "biot_savart_opt.json"
-bs = simsopt.load_simsopt(coils_filename)
+bs = simsopt.load(coils_filename)
 
 surf.to_vtk(OUT_DIR + 'surface')
 sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)

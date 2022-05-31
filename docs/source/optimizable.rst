@@ -699,19 +699,19 @@ out the exact class name of the saved object.
     # or
     curve = Optimizable.from_file('curve.json')
 
-To save multiple simsopt objects use ``save_simsopt`` function.
+To save multiple simsopt objects use ``save`` function implemented in simsopt.
 
 .. code-block::
 
-    from simsopt import save_simsopt
+    from simsopt import save
 
     curves = [CurveRZFourier(...), CurveXYZFourier(...), CurveHelical(...), ...]
-    save_simsopt(curves, 'curves.json')
+    save(curves, 'curves.json')
 
-To load the geometric objects from the saved json file, use the ``load_simsopt`` function.
+To load the geometric objects from the saved json file, use the ``load`` function.
 
 .. code-block::
 
-    from simsopt import load_simsopt
+    from simsopt import load
 
-    curves = load_simsopt('curves.json') 
+    curves = load('curves.json')
