@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from monty.json import MSONable
+from monty.json import MSONable, MontyDecoder
 from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
@@ -512,14 +512,14 @@ class Dommaschk(MagneticField):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        mn = [list(self.m), list(self.n)]
-        d["mn"] = mn
+        d["mn"] = np.column_stack((self.m, self.n))
         d["coeffs"] = self.coeffs
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["mn"], d["coeffs"])
+        mn = MontyDecoder().process_decoded(d["mn"])
+        return cls(mn, d["coeffs"])
 
 
 class Reiman(MagneticField):
