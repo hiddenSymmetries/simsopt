@@ -488,7 +488,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def set_zs(self, m, n, val):
         """
-        Set a particular `zs` Parametfollow uper.
+        Set a particular `zs` Parameter.
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
