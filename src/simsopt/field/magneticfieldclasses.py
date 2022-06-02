@@ -548,12 +548,24 @@ class DipoleField(MagneticField):
             self.dipole_grid = pm_opt.dipole_grid
         # reformat memory for c++ routines
         self.dipole_grid = np.ascontiguousarray(self.dipole_grid) 
+        self.B_grid = np.ascontiguousarray(self.B_grid) 
+        self.B_m = np.ascontiguousarray(self.B_m) 
         self.m_vec = np.ascontiguousarray(self.m_vec)
         self.pm_opt = pm_opt
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec) 
+        #B[:] = sopp.dipole_field_B(points, self.B_grid, self.B_m)
+        #print('SHAPE OF B = ', B.shape)
+        #Bx_temp = np.zeros(B[:, 0].shape)
+        #By_temp = np.zeros(B[:, 0].shape)
+        #for fp in range(self.nfp):
+        #    phi0 = (2 * np.pi / self.nfp) * fp
+        #    Bx_temp += B[:, 0] * np.cos(phi0) - B[:, 1] * np.sin(phi0)
+        #    By_temp += B[:, 0] * np.sin(phi0) + B[:, 1] * np.cos(phi0)
+        #B[:, 0] = Bx_temp
+        #B[:, 1] = By_temp
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
@@ -569,7 +581,7 @@ class DipoleField(MagneticField):
 
     def _dipole_fields_from_symmetries(self, pm_opt):
         inds = pm_opt.inds
-        nfp = pm_opt.plasma_boundary.nfp
+        self.nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
         if pm_opt.is_premade_famus_grid:
             phi = pm_opt.pm_uniq_phi
@@ -581,51 +593,64 @@ class DipoleField(MagneticField):
         dipole_grid_Z = dipole_grid[:, 2]
         if stellsym:
             stell_num = 2
-            nsym = nfp * 2
+            nsym = self.nfp * 2
         else:
             stell_num = 1
-            nsym = nfp
+            nsym = self.nfp
         m = pm_opt.m
         m = m.reshape(ndipoles, 3)
 
         dipole_grid_x = np.zeros(len(dipole_grid_Z) * nsym)
         dipole_grid_y = np.zeros(len(dipole_grid_Z) * nsym)
         dipole_grid_z = np.zeros(len(dipole_grid_Z) * nsym)
+        B_grid_x = np.zeros(ndipoles * 2)
+        B_grid_y = np.zeros(ndipoles * 2)
+        B_grid_z = np.zeros(ndipoles * 2)
 
         m_vec = np.zeros((ndipoles * nsym, 3))
+        B_m = np.zeros((ndipoles * 2, 3))
         m_maxima = np.zeros((ndipoles * nsym))
 
         ox = pm_opt.dipole_grid_xyz[:, 0] 
         oy = pm_opt.dipole_grid_xyz[:, 1] 
         oz = pm_opt.dipole_grid_xyz[:, 2] 
         for j in range(ndipoles):
-            for fp in range(nfp):
-                phi0 = (2 * np.pi / nfp) * fp
-                for stell in range(stell_num):
-                    j2 = j + ndipoles * (fp + nfp * stell)
+            for stell in range(stell_num):
+                j1 = j + ndipoles * stell
+                B_grid_x[j1] = ox[j]
+                B_grid_y[j1] = oy[j] * (-1) ** stell
+                B_grid_z[j1] = oz[j] * (-1) ** stell
+
+                B_m[j1, 0] = m[j, 0] * (-1) ** stell
+                B_m[j1, 1] = m[j, 1]
+                B_m[j1, 2] = m[j, 2]
+                for fp in range(self.nfp):
+                    phi0 = (2 * np.pi / self.nfp) * fp
+                    j2 = j + ndipoles * (fp + self.nfp * stell)
                     dipole_grid_x[j2] = ox[j] * np.cos(phi0) - oy[j] * np.sin(phi0) * (-1) ** stell
                     dipole_grid_y[j2] = ox[j] * np.sin(phi0) + oy[j] * np.cos(phi0) * (-1) ** stell
                     dipole_grid_z[j2] = oz[j] * (-1) ** stell 
 
                     # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
-                    m_vec[j2, 0] = (m[j, 0] * np.cos(phi0) + m[j, 1] * np.sin(phi0)) * (-1) ** stell
-                    m_vec[j2, 1] = - m[j, 0] * np.sin(phi0) + m[j, 1] * np.cos(phi0)
+                    m_vec[j2, 0] = m[j, 0] * np.cos(phi0) * (-1) ** stell - m[j, 1] * np.sin(phi0)
+                    m_vec[j2, 1] = m[j, 0] * np.sin(phi0) * (-1) ** stell + m[j, 1] * np.cos(phi0)
                     m_vec[j2, 2] = m[j, 2]
                     m_maxima[j2] = self.m_maxima[j]
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec
         self.m_maxima = m_maxima
+        self.B_m = B_m
+        self.B_grid = np.array([B_grid_x, B_grid_y, B_grid_z]).T
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
-    def _toVTK(self, vtkname, dim=(1)):
+    def _toVTK(self, vtkname):
         """write dipole data into a VTK file
 
         Args:
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
             dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
-        dim = np.atleast_1d(dim)
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
@@ -637,23 +662,16 @@ class DipoleField(MagneticField):
         ox = np.ascontiguousarray(self.dipole_grid[:, 0])
         oy = np.ascontiguousarray(self.dipole_grid[:, 1])
         oz = np.ascontiguousarray(self.dipole_grid[:, 2])
-        if len(dim) == 1:  # save as points
-            print("write VTK as points")
-            data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized)}
-            pointsToVTK(
-                vtkname, ox, oy, oz, data=data
-            )
-        else:  # save as surfaces
-            assert len(dim) == 3
-            print("write VTK as closed surface")
-            ox = np.reshape(ox, dim)
-            oy = np.reshape(oy, dim)
-            oz = np.reshape(oz, dim)
-            mx = np.reshape(mx, dim)
-            my = np.reshape(my, dim)
-            mz = np.reshape(mz, dim)
-            data = {"m": (mx, my, mz)}
-            gridToVTK(vtkname, ox, oy, oz, pointData=data)
+        ophi = np.arctan2(oy, ox)
+        mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
+        mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
+        mr_normalized = np.ascontiguousarray(mr / self.m_maxima) 
+        mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima) 
+        print("write VTK as points")
+        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized)}
+        pointsToVTK(
+            vtkname, ox, oy, oz, data=data
+        )
 
     def as_dict(self) -> dict:
         d = {}
