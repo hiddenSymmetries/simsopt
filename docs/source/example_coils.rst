@@ -6,13 +6,12 @@ this approach, we consider that a surface of constant magnetic flux (plasma
 boundary shape) has already been found in what is commonly known as
 a "stage 1" optimization, and the present task is to
 optimize the shapes of coils to produce this target field.
-For this stage-2 problem, no MHD codes like VMEC or SPEC are used, so you
-do not need to have them installed.
+For this stage-2 problem, no MHD codes are used (example, VMEC or SPEC), so
+there is no need to have them installed.
 
 We first describe the basic principles of "stage 2" coil optimization and
-how they are used in SIMSOPT, namely, what is the objective function used
-in the minimal example ``examples/2_Intermediate/stage_two_optimization.py``,
-what does each term mean and how to set up the optimization problem.
+how they are used in SIMSOPT, namely, how to set up the optimization problem
+in the minimal example ``examples/2_Intermediate/stage_two_optimization.py``.
 We then add increasingly more terms to the objective function in order to illustrate
 how to perform various extensions of the minimal example, namely:
 - Take into account coil perturbations via systematic and statistical
@@ -22,14 +21,15 @@ errors using a stochastic optimization method similar to the example in
 using the virtual casing principle, similar to the example
 in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
 - Take into account finite coil width using a multifilament approach
-similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_buid.py``.
+similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
 
 Simplest Objective function
 ---------------------------
 
 The simplest form of the objective function :math:`J` (or cost function)
 present in ``examples/2_Intermediate/stage_two_optimization.py`` that will be
-minimized in order to find coils that yield the desired magnetic field is:
+minimized in order to find coils that yield the desired magnetic field is
+given by:
 
 .. math::
 
@@ -62,21 +62,8 @@ simsopt using OpenMP and vectorization, but MPI is not used, so the
 ``mpi4py`` python package is not needed. This example can be run in a
 few seconds on a laptop.
 
-To begin solving this optimization problem in simsopt, we first import
-some classes that will be used::
-
-  import numpy as np
-  from scipy.optimize import minimize
-  from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-  from simsopt.objectives.fluxobjective import SquaredFlux
-  from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-  from simsopt.field.biotsavart import BiotSavart
-  from simsopt.field.coil import Current, coils_via_symmetries
-  from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
-  from simsopt.geo.plot import plot
-
 The target plasma surface is given in the VMEC input file ``tests/test_files/input.LandremanPaul2021_QA``.
-We load the surface using
+We load the surface using::
 
 .. code-block::
 
@@ -88,22 +75,23 @@ We load the surface using
 You can adjust the directory in ``"filename"`` as appropriate for your
 system. The surface could also be read in from a VMEC wout file using
 :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier.from_wout()`.
-(VMEC does not need to be installed to initialize a surface from a
-VMEC input or output file.)  Note that surface objects carry a grid of
-"quadrature points" at which the position vector is evaluated, and in
-different circumstances we may want these points to cover different
+Note that VMEC does not need to be installed to initialize a surface from a
+VMEC input or output file. As surface objects carry a grid of
+"quadrature points" at which the position vector is evaluated
+we may want these points to cover different
 ranges of the toroidal angle. For this problem with stellarator
 symmetry and field-period symmetry, we need only consider half of a
 field period in order to evaluate integrals over the entire
 surface. For this reason, the ``range`` parameter of the surface is
-set to ``"half period"`` here.
+set to ``"half period"`` here. Possible options are ``full torus``, ``field period`` and ``half period``.
 
-Next, we set the initial condition for the coils, which will be equally spaced circles.
-Here we will consider a case with four unique coil shapes, each of which is repeated four times due to
+After importing the necessary classes (see ``examples/2_Intermediate/stage_two_optimization.py``),
+we set the initial condition for the coils, which will be equally spaced circles.
+We consider here a case with four unique coil shapes, each of which is repeated four times due to
 stellarator symmetry and two-field-period symmetry, giving a total of 16 coils.
 The four unique coil shapes are called the "base coils". Each copy of a coil also carries the same current,
 but we will allow the unique coil shapes to have different current from each other,
-as is allowed in W7-X. For this tutorial we will consider the coils to be infinitesimally thin filaments.
+as is allowed on W7-X. For this tutorial we consider the coils to be infinitesimally thin filaments.
 In simsopt, such a coil is represented with the :obj:`simsopt.field.coil.Coil` class,
 which is essentially a curve paired with a current, represented using
 :obj:`simsopt.geo.curve.Curve` and :obj:`simsopt.field.coil.Current` respectively.
