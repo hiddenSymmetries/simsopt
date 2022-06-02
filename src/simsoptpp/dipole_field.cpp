@@ -310,9 +310,11 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 			    A(i + k, j, 1) += fak * ( - Ax_temp * sphij[k] + Ay_temp * cphij[k]);
 		        }
 		        else {
-			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    //A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] * pow(-1, stell) - G_i.y[k] * sphi0[k]);
 			    //A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			    A(i + k, j, 1) += fak * ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    //A(i + k, j, 1) += fak * ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] * pow(-1, stell) + G_i.y[k] * cphi0[k]);
 			    //A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
 		            //A(i + k, j, 0) += fak * Ax_temp; 
 		            //A(i + k, j, 1) += fak * Ay_temp;

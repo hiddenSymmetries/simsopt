@@ -170,9 +170,9 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     """)
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     curves_to_vtk(curves, OUT_DIR + f"curves_opt")
-    bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(bs.B().reshape((2 * nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+    #bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    #pointData = {"B_N": np.sum(bs.B().reshape((2 * nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    #s_plot.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
     bs.set_points(s.gamma().reshape((-1, 3)))
     return s, bs
 
@@ -251,6 +251,9 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
     s_plot.to_vtk(OUT_DIR + "regcoil_pm_ncsx_total", extra_data=pointData)
     # Plot the dipole grid
     Mvec = Mvec[-1, :, :, :, :].reshape(3, nzeta_coil, ntheta_coil)
+    m_maxima = np.ravel(abs_M[-1, :, :, :])
+    print(m_maxima.shape)
+    print('Effective volume = ', np.sum(np.ravel(np.sqrt(np.sum(Mvec ** 2, axis=0))) / np.ravel(m_maxima)))
     Mvec_total = np.zeros((nzetal_coil, ntheta_coil, 3))
     # convert Mvec to cartesian
     for i in range(ntheta_coil):
@@ -260,9 +263,10 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
             phi0 = (2 * np.pi / nfp) * fp
             Mvec_total[fp * nzeta_coil:(fp + 1) * nzeta_coil, i, 0] = Mvec_x * np.cos(phi0) - Mvec_y * np.sin(phi0)
             Mvec_total[fp * nzeta_coil:(fp + 1) * nzeta_coil, i, 1] = Mvec_x * np.sin(phi0) + Mvec_y * np.cos(phi0)
+            Mvec_total[fp * nzeta_coil:(fp + 1) * nzeta_coil, i, 2] = Mvec[2, :, i]
 
     Mvec_total = Mvec_total.reshape(nzetal_coil * ntheta_coil, 3)
-    m_maxima = np.ravel(abs_M[-1, :, :, :])
+    Mvec = np.transpose(Mvec, [1, 2, 0]).reshape(nzeta_coil * ntheta_coil, 3)
     m_maxima = np.ravel(np.array([m_maxima, m_maxima, m_maxima]))
     ox = np.ascontiguousarray(r_coil[:, :, 0])  # * np.cos(r_coil[:, :, 1]))
     oy = np.ascontiguousarray(r_coil[:, :, 1])  # * np.sin(r_coil[:, :, 1]))
@@ -273,7 +277,6 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
     mx = np.ascontiguousarray(Mvec_total[:, 0])
     my = np.ascontiguousarray(Mvec_total[:, 1])
     mz = np.ascontiguousarray(Mvec_total[:, 2])
-    mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
     mx_normalized = np.ascontiguousarray(mx / m_maxima)
     my_normalized = np.ascontiguousarray(my / m_maxima)
     mz_normalized = np.ascontiguousarray(mz / m_maxima)
@@ -282,6 +285,7 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
     pointsToVTK(
         OUT_DIR + "Dipole_Fields_REGCOIL_PM", ox, oy, oz, data=data
     )
+    return np.array([ox, oy, oz])
 
 
 def trace_fieldlines(bfield, label, config): 

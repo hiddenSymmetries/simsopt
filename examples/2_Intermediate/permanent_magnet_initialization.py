@@ -77,12 +77,12 @@ if config_flag == 'muse':
     input_name = 'input.' + config_flag 
 elif 'qa' in config_flag:
     dr = 0.01
-    coff = 0.1
+    coff = 0.16
     poff = 0.04
     input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
 elif 'qh' in config_flag:
     dr = 0.01
-    coff = 0.1
+    coff = 0.16
     poff = 0.04
     input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
     surface_flag = 'wout'
@@ -159,7 +159,7 @@ elif config_flag == 'qh':
     # qh needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH.nc'
-    total_current = Vmec(vmec_file).external_current() / (2 * s.nfp) / 8.5
+    total_current = Vmec(vmec_file).external_current() / (2 * s.nfp) / 8.75
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
     base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
     total_current = Current(total_current)
@@ -363,7 +363,11 @@ if is_premade_famus_grid:
     momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
     rho = p ** momentq
     plt.figure()
-    plt.hist(rho)
+    plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
+    plt.grid(True)
+    plt.xlabel('Normalized magnitudes')
+    plt.ylabel('Number of dipoles')
+    plt.savefig(OUT_DIR + 'm_FAMUS_histogram.png')
     mm = rho * m0
     mu0 = 4 * np.pi * 1e-7
     Bmax = 1.4 
@@ -394,6 +398,14 @@ if is_premade_famus_grid:
     b_dipole_FAMUS.set_points(s.gamma().reshape((-1, 3)))
     b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
     pm_opt._plot_final_dipoles()
+    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
+    print(Bnormal_FAMUS, Bnormal)
+    #grid_fac = pm_opt.dphi * pm_opt.dtheta
+    #print(pm_opt.dphi, pm_opt.dtheta, grid_fac, grid_fac / (4 * np.pi ** 2))
+    f_B_famus = SquaredFlux(s, b_dipole_FAMUS).J()
+    f_B_sf = SquaredFlux(s, b_dipole_FAMUS, -Bnormal).J()  # * grid_fac / (4 * np.pi ** 2)
+    print('f_B (only the FAMUS dipoles) = ', f_B_famus)
+    print('f_B (FAMUS total) = ', f_B_sf)
 
     # Plot Bnormal from optimized Bnormal dipoles
     b_dipole_FAMUS.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -402,19 +414,37 @@ if is_premade_famus_grid:
     s_plot.to_vtk(OUT_DIR + "Bnormal_opt_FAMUS", extra_data=pointData)
 
     # Plot total Bnormal from optimized Bnormal dipoles + coils
-    print(Bnormal_FAMUS, Bnormal_plot)
     pointData = {"B_N": (Bnormal_FAMUS + Bnormal_plot)[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "Bnormal_total_FAMUS", extra_data=pointData)
     t2 = time.time()
     print('Saving FAMUS solution took ', t2 - t1, ' s')
-    f_B_famus = SquaredFlux(s_plot, b_dipole_FAMUS).J()
-    f_B_sf = SquaredFlux(s_plot, b_dipole_FAMUS, -Bnormal_plot).J()
-    print('f_B (only the FAMUS dipoles) = ', f_B_famus)
-    print('f_B (FAMUS total) = ', f_B_sf)
 
     # Plot the REGCOIL_PM solution for the NCSX example
     if config_flag == 'ncsx':
-        read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
+        _, _, _ = read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
+
+    # check results with Coilpy
+    from coilpy import Dipole 
+    dipole_coilpy = Dipole()
+    dipole_coilpy = dipole_coilpy.open(famus_file, verbose=True)
+    dipole_coilpy.full_period(nfp=3)
+    print(s.gamma().shape)
+    B_coilpy = np.zeros((2 * nphi, ntheta, 3))
+    s_points = s_plot.gamma()
+    for i in range(2 * nphi):
+        for j in range(ntheta):
+            B_coilpy[i, j, :] = dipole_coilpy.bfield(s_points[i, j, :])
+    #B_coilpy = B_coilpy.reshape(nphi * ntheta, 3)
+    #print(B_coilpy.shape)
+    Bn_coilpy = np.sum(B_coilpy * s_plot.unitnormal(), axis=2)
+    pointData = {"B_N": Bn_coilpy[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "Bnormal_opt_Coilpy", extra_data=pointData)
+
+    # Plot total Bnormal from optimized Bnormal dipoles + coils
+    pointData = {"B_N": (Bn_coilpy + Bnormal_plot)[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "Bnormal_total_Coilpy", extra_data=pointData)
+
+    #print(Bnormal_FAMUS, Bn_coilpy, Bnormal)
 
 t1 = time.time()
 # Save PM class object to file for optimization
@@ -425,6 +455,7 @@ file_out = open(OUT_DIR + class_filename + ".pickle", "wb")
 pm_opt.plasma_boundary = None
 pm_opt.rz_inner_surface = None
 pm_opt.rz_outer_surface = None
+print(file_out)
 pickle.dump(pm_opt, file_out)
 t2 = time.time()
 print('Pickling took ', t2 - t1, ' s')
@@ -432,4 +463,4 @@ t_end = time.time()
 print('In total, script took ', t_end - t_start, ' s')
 
 # Show the generated figures 
-plt.show()
+# plt.show()

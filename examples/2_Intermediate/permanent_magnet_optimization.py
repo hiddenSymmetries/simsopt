@@ -61,7 +61,7 @@ print('Config flag = ', config_flag, ', Resolution flag = ', res_flag, ', Final 
 if len(sys.argv) >= 5:
     reg_l0 = float(sys.argv[4])
     if not np.isclose(reg_l0, 0.0, atol=1e-16):
-        nu = 1e3
+        nu = 1e2
     else:
         nu = 1e100
 else:
@@ -105,7 +105,7 @@ elif 'QH' in config_flag:
     surface_flag = 'wout'
 elif 'qa' in config_flag or 'qh' in config_flag:
     dr = 0.01
-    coff = 0.1
+    coff = 0.16
     poff = 0.04
     if 'qa' in config_flag:
         input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
@@ -193,7 +193,7 @@ t1 = time.time()
 if reg_l0 > 0:
     max_iter_MwPGP = 100
 else:
-    max_iter_MwPGP = 300
+    max_iter_MwPGP = 1000
 max_iter_RS = 50
 epsilon = 1e-3
 
@@ -283,18 +283,26 @@ if make_plots:
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    #plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    #plt.hist(abs(pm_opt.m) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
+    x_multi = [abs(dipoles), abs(pm_opt.m)]
+    if pm_opt.is_premade_famus_grid:
+        famus_file = '../../tests/test_files/' + pm_opt.pms_name
+        m0, p = np.loadtxt(
+            famus_file, skiprows=3, 
+            usecols=[7, 8], 
+            delimiter=',', unpack=True
+        )
+        # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
+        momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
+        rho = p ** momentq
+        #plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
+        x_multi = [abs(dipoles), abs(pm_opt.m), abs(rho)]
+    plt.hist(x_multi, bins=np.linspace(0, 1, 15), log=True, histtype='bar')
     plt.grid(True)
     plt.xlabel('Normalized magnitudes')
     plt.ylabel('Number of dipoles')
-    plt.savefig(OUT_DIR + 'm_sparse_histogram.png')
-
-    plt.figure()
-    plt.hist(abs(pm_opt.m) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-    plt.grid(True)
-    plt.xlabel('Normalized magnitudes')
-    plt.ylabel('Number of dipoles')
-    plt.savefig(OUT_DIR + 'm_histogram.png')
+    plt.savefig(OUT_DIR + 'm_histograms.png')
     print('Done optimizing the permanent magnets')
 t2 = time.time()
 print("Done printing and plotting, ", t2 - t1, " s")
@@ -363,7 +371,7 @@ if comm is None or comm.rank == 0:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
     if config_flag == 'ncsx':
-        Bnormal = load_ncsx_coil_data(s, coil_name)
+        Bnormal = load_ncsx_coil_data(s_plot, coil_name)
     else:
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -406,7 +414,7 @@ if comm is None or comm.rank == 0:
     np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
 
     # Show the figures
-    plt.show()
+    # plt.show()
 
 # Save optimized permanent magnet class object
 if final_run:

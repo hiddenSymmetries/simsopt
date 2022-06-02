@@ -5,7 +5,6 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 import simsoptpp as sopp
 import time
-
 logger = logging.getLogger(__name__)
 
 
@@ -199,6 +198,7 @@ class PermanentMagnetOptimizer:
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
+
             self.premade_dipole_grid = premade_dipole_grid
             # Dipole grid should be a list of x, y, z locations
             self.ndipoles = premade_dipole_grid.shape[0]
@@ -370,15 +370,15 @@ class PermanentMagnetOptimizer:
             dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
-        #self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
 
         if self.is_premade_famus_grid:
             M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
             #cell_vol = M0s[self.phi_order] * mu0 / B_max
             cell_vol = M0s * mu0 / B_max
         else:
-            #cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            #cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3')
         # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
