@@ -127,9 +127,8 @@ symmetry::
 
   coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 
-It is illuminating to look at the non-fixed degrees of freedom that
-each coil depends on. This can be done by printing the ``dof_names``
-property::
+To make sure that the coils class has the non-fixed degrees of freedom that
+we specified, we can print the ``dof_names`` property::
 
   >>> print(coil[0].dof_names)
 
