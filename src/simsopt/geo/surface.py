@@ -577,12 +577,21 @@ class SurfaceClassifier():
             rule, [rmin, rmax, nr], [0., 2*np.pi, nphi], [zmin, zmax, nz], 1, True)
         self.dist.interpolate_batch(fbatch)
 
-    def evaluate(self, xyz):
+    def evaluate_xyz(self, xyz):
         rphiz = np.zeros_like(xyz)
         rphiz[:, 0] = np.linalg.norm(xyz[:, :2], axis=1)
         rphiz[:, 1] = np.mod(np.arctan2(xyz[:, 1], xyz[:, 0]), 2*np.pi)
         rphiz[:, 2] = xyz[:, 2]
-        d = np.zeros((xyz.shape[0], 1))
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((xyz.shape[0], 1))
+        self.dist.evaluate_batch(rphiz, d)
+        return d
+
+    def evaluate_rphiz(self, rphiz):
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((rphiz.shape[0], 1))
         self.dist.evaluate_batch(rphiz, d)
         return d
 
@@ -606,7 +615,7 @@ class SurfaceClassifier():
         RPhiZ[:, 0] = R.flatten()
         RPhiZ[:, 1] = Phi.flatten()
         RPhiZ[:, 2] = Z.flatten()
-        vals = np.zeros((R.size, 1))
+        vals = -np.ones((R.size, 1))
         self.dist.evaluate_batch(RPhiZ, vals)
         vals = vals.reshape(R.shape)
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
