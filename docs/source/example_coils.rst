@@ -196,7 +196,10 @@ before optimization we can run::
   B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
   print('Initial max B dot n:', np.max(B_dot_n))
 
-The result is 0.19 Tesla. We now define the objective function::
+The result is 0.19 Tesla.
+
+We now define the objective function by stating what are the weights
+used and the corresponding terms::
 
   # Weight on the curve lengths in the objective function. We use the `Weight`
   # class here to later easily adjust the scalar value and rerun the optimization
@@ -355,6 +358,7 @@ the goal is to find coils that generate a specific target
 normal field on a given surface. As we are still considering a vacuum
 field the target is just zero.
 The target equilibrium is the precise QA configuration of arXiv:2108.03711.
+The complete script can be found in ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
 
 The objective function similar to :ref:`the first example <_simplest_stage2>`
 with small modifications::
@@ -396,3 +400,119 @@ so we can afford :math:`2p-1` constraints, which corresponds to
 :math:`L=2p`.
 
 
+We now define the objective function by stating what are the weights
+used and the corresponding terms. Besides the terms in
+:ref:`the first example <_simplest_stage2>`, we additionally define::
+
+  # Weight for the arclength variation penalty in the objective function:
+  ARCLENGTH_WEIGHT = 1e-2
+
+  # Standard deviation for the coil errors
+  SIGMA = 1e-3
+
+  # Length scale for the coil errors
+  L = 0.5
+
+  # Number of samples to approximate the mean
+  N_SAMPLES = 16
+
+  # Number of samples for out-of-sample evaluation
+  N_OOS = 256
+
+  # Objective function for the arclength variation
+  Jals = [ArclengthVariation(c) for c in base_curves]
+
+  # Objective function for the coils and its perturbations
+  rg = np.random.Generator(PCG64(seed, inc=0))
+  sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
+  Jfs = []
+  curves_pert = []
+  for i in range(N_SAMPLES):
+      # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
+      base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler, randomgen=rg)) for c in base_curves]
+      coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
+      # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
+      coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler, randomgen=rg)), c.current) for c in coils]
+      curves_pert.append([c.curve for c in coils_pert])
+      bs_pert = BiotSavart(coils_pert)
+      Jfs.append(SquaredFlux(s, bs_pert))
+  Jmpi = MPIObjective(Jfs, comm, needs_splitting=True)
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jmpi \
+      + LENGTH_WEIGHT * sum(Jls) \
+      + DISTANCE_WEIGHT * Jdist \
+      + CURVATURE_WEIGHT * sum(Jcs) \
+      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
+      + ARCLENGTH_WEIGHT * sum(Jals)
+
+As can be seen here, in the stochastic optimization method,
+we apply two different types of errors.
+The first one is the systematic error which is applied where
+a random perturbation and a Gaussian Sampler with a predefined standard deviation
+are added to the base curves. The second is a statistical error that is
+added to each of the final coils, and is independent between coils.
+
+
+Finite Beta Optimization
+---------------------------
+
+In this example, we solve a finite beta version of
+the :ref:`first example here <_simplest_stage2>`.
+By finite beta, it is understood that the effect of
+the plasma is also taken into accout when calculating
+the normal field on a given surface. Therefore, the
+target quantity :math:`B_{external}\cdot \mathbf n` is no longer zero
+and a virtual casing calculation is used to find its value.
+The complete script can be found in ``examples/2_Intermediate/stage_two_finite_beta.py``.
+
+We use an objective function similar to :ref:`the first example <_simplest_stage2>`
+with small modifications::
+
+    J = (1/2) \int |(B_{BiotSavart} - B_{External}) dot n|^2 ds
+        + LENGTH_WEIGHT * (sum CurveLength)
+
+The first term, while similar to the previous examples, it
+calculates the external field :math:`B_{external}` using a
+virtual casing principle.
+
+
+  # Resolution for the virtual casing calculation:
+  vc_src_nphi = 80
+  # (For the virtual casing src_ resolution, only nphi needs to be
+  # specified; the theta resolution is computed automatically to
+  # minimize anisotropy of the grid.)
+
+
+
+  # Once the virtual casing calculation has been run once, the results
+  # can be used for many coil optimizations. Therefore here we check to
+  # see if the virtual casing output file alreadys exists. If so, load
+  # the results, otherwise run the virtual casing calculation and save
+  # the results.
+  head, tail = os.path.split(vmec_file)
+  vc_filename = os.path.join(head, tail.replace('wout', 'vcasing'))
+  print('virtual casing data file:', vc_filename)
+  if os.path.isfile(vc_filename):
+      print('Loading saved virtual casing result')
+      vc = VirtualCasing.load(vc_filename)
+  else:
+      # Virtual casing must not have been run yet.
+      print('Running the virtual casing calculation')
+      vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
+
+  # Initialize the boundary magnetic surface:
+  s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
+  total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
+
+
+
+
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jf \
+      + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
