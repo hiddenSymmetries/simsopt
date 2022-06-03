@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField
+from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField, ToroidalField
 from simsopt.geo.plot import plot
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core.optimizable import Optimizable
@@ -74,7 +74,6 @@ else:
 
 # Pre-set parameters for each configuration
 surface_flag = 'vmec'
-cylindrical_flag = False
 if res_flag == 'high':
     nphi = 64
     ntheta = 64
@@ -122,20 +121,10 @@ elif config_flag == 'ncsx':
 
 if final_run:
     from mpi4py import MPI
-    from simsopt.field.tracing import SurfaceClassifier, \
-        particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data, \
-        IterationStoppingCriterion
     from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
-    from simsopt.geo.qfmsurface import QfmSurface
-    from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
     mpi = MpiPartition(ngroups=4)
     comm = MPI.COMM_WORLD
-    # Number of iterations to perform:
-    ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-    nfieldlines = 40 if ci else 40
-    tmax_fl = 30000 if ci else 50000
-    degree = 2 if ci else 4
 else:
     comm = None
 
@@ -148,6 +137,7 @@ scratch_path = '/global/cscratch1/sd/akaptano/'
 IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 pickle_name = IN_DIR + class_filename + ".pickle"
 pm_opt = pickle.load(open(pickle_name, "rb", -1))
+print("Cylindrical coordinates are being used = ", pm_opt.cylindrical_flag)
 
 # Check that you loaded the correct file with the same parameters
 assert (dr == pm_opt.dr)
@@ -225,7 +215,6 @@ pm_opt.m = m_copy
 b_dipole = DipoleField(pm_opt)
 b_dipole.set_points(s.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
-pm_opt._plot_final_dipoles()
 t2 = time.time()
 print('Done setting up the Dipole Field class')
 print('Process took t = ', t2 - t1, ' s')
@@ -283,8 +272,6 @@ if make_plots:
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    #plt.hist(abs(dipoles) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
-    #plt.hist(abs(pm_opt.m) / np.ravel(np.outer(pm_opt.m_maxima, np.ones(3))), bins=np.linspace(0, 1, 30), log=True)
     x_multi = [abs(dipoles), abs(pm_opt.m)]
     if pm_opt.is_premade_famus_grid:
         famus_file = '../../tests/test_files/' + pm_opt.pms_name
@@ -296,7 +283,6 @@ if make_plots:
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
         momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
         rho = p ** momentq
-        #plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
         x_multi = [abs(dipoles), abs(pm_opt.m), abs(rho)]
     plt.hist(x_multi, bins=np.linspace(0, 1, 15), log=True, histtype='bar')
     plt.grid(True)
@@ -314,64 +300,32 @@ print("Done printing and plotting, ", t2 - t1, " s")
 #else:
 #    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
-if final_run:
-    # run Poincare plots
-    t1 = time.time()
-    n = 16
-    rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
-    zs = s.gamma()[:, :, 2]
-    rrange = (np.min(rs), np.max(rs), n)
-    phirange = (0, 2 * np.pi / s.nfp, n * 2)
-    zrange = (0, np.max(zs), n // 2)
-    t1 = time.time()
-    if config_flag != 'ncsx':
-        bsh = InterpolatedField(
-            bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
-        )
-    else:
-        bsh = InterpolatedField(
-            b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
-        )
-    # bsh.to_vtk('dipole_fields')
-    trace_fieldlines(bsh, 'bsh_PMs', config_flag)
-    t2 = time.time()
-    print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
-
-    # Make the QFM surfaces
-    t1 = time.time()
-    # need to call set_points again here for the combined field
-    Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-    Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-    Bfield.set_points(s.gamma().reshape((-1, 3)))
-    qfm_surf = make_qfm(s, Bfield, Bfield_tf)
-    t2 = time.time()
-    print("Making the QFM took ", t2 - t1, " s")
-
-    # Run VMEC with new QFM surface
-    t1 = time.time()
-    equil = Vmec(surface_filename, mpi)
-    equil.boundary = qfm_surf
-    equil._boundary = qfm_surf
-    equil.need_to_run_code = True
-    equil.run()
-    t2 = time.time()
-    print("VMEC took ", t2 - t1, " s")
-
 if comm is None or comm.rank == 0:
     # double the plasma surface resolution for the vtk plots
     t1 = time.time()
-    quadpoints_phi = np.linspace(0, 1, 2 * s.nfp * nphi + 1, endpoint=True)
-    quadpoints_theta = np.linspace(0, 1, ntheta + 1, endpoint=True)
+    qphi = 2 * s.nfp * nphi + 1
+    qtheta = ntheta + 1
+    endpoint = True
+    quadpoints_phi = np.linspace(0, 1, qphi, endpoint=endpoint) 
+    quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=endpoint)
+    srange = 'half period' 
 
     if surface_flag == 'focus':
-        s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_plot = SurfaceRZFourier.from_focus(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     elif surface_flag == 'wout':
-        s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_plot = SurfaceRZFourier.from_wout(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     else:
-        s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
     if config_flag == 'ncsx':
-        Bnormal = load_ncsx_coil_data(s_plot, coil_name)
+        #Bnormal = load_ncsx_coil_data(s_plot, coil_name)
+        # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
+        net_poloidal_current_Amperes = 3.7713e+6
+        mu0 = 4 * np.pi * (1e-7)
+        RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
+        tf = ToroidalField(R0=1, B0=RB)
+        tf.set_points(s_plot.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(tf.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
     else:
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -416,8 +370,59 @@ if comm is None or comm.rank == 0:
     # Show the figures
     # plt.show()
 
-# Save optimized permanent magnet class object
 if final_run:
+    # run Poincare plots
+    t1 = time.time()
+    n = 16
+    rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
+    zs = s_plot.gamma()[:, :, 2]
+    rrange = (np.min(rs), np.max(rs), n)
+    phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
+    zrange = (0, np.max(zs), n // 2)
+    degree = 2
+    t1 = time.time()
+    if config_flag != 'ncsx':
+        bsh = InterpolatedField(
+            bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+        )
+    else:
+        bsh = InterpolatedField(
+            b_dipole, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym
+        )
+    # bsh.to_vtk('dipole_fields')
+    try:
+        trace_fieldlines(bsh, 'bsh_PMs', config_flag, s_plot, comm)
+    except SystemError:
+        print('Poincare plot failed.')
+
+    t2 = time.time()
+    print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+
+    # Make the QFM surfaces
+    t1 = time.time()
+    # need to call set_points again here for the combined field
+    Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+    Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+    Bfield.set_points(s.gamma().reshape((-1, 3)))
+    qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+    t2 = time.time()
+    print("Making the QFM took ", t2 - t1, " s")
+
+    # Run VMEC with new QFM surface
+    t1 = time.time()
+    try:
+        equil = Vmec(surface_filename, mpi)
+        equil.boundary = qfm_surf
+        equil._boundary = qfm_surf
+        equil.need_to_run_code = True
+        equil.run()
+    except RuntimeError:
+        print('VMEC cannot be initialized from a wout file for some reason.')
+
+    t2 = time.time()
+    print("VMEC took ", t2 - t1, " s")
+
+    # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
     # SurfaceRZFourier objects not pickle-able, so set to None
     pm_opt.plasma_boundary = None

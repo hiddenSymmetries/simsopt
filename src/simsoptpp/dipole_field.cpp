@@ -2,7 +2,6 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <Eigen/Dense>
-#include <Eigen/Sparse>
 
 // Calculate the B field at a set of evaluation points from N dipoles
 // points: where to evaluate the field
@@ -33,14 +32,16 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
         auto B_i = Vec3dSimd();
-        // check that i + k isn't bigger than num_points
+        
+	// check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
         for(int k = 0; k < klimit; k++){
             for (int d = 0; d < 3; ++d) {
                 point_i[d][k] = points(i + k, d);
             }
         }
-        for (int j = 0; j < num_dipoles; ++j) {
+        // Loops through all the dipoles
+	for (int j = 0; j < num_dipoles; ++j) {
             Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
             Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
             Vec3dSimd r = point_i - mp_j;
@@ -86,6 +87,7 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
         auto A_i = Vec3dSimd();
+
         // check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
         for(int k = 0; k < klimit; k++){
@@ -130,6 +132,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
     double fak = 1e-7;
+    
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
@@ -189,6 +192,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
     double fak = 1e-7;
+    
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
@@ -237,7 +241,6 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 
 // Calculate the geometric factor needed for the permanent magnet optimization
 std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
-//std::tuple<Array, Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -256,18 +259,18 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     constexpr int simd_size = xsimd::simd_type<double>::size;
     Array A = xt::zeros<double>({num_points, num_dipoles, 3});
     Array ATb = xt::zeros<double>({num_dipoles, 3});
-    //Array ATA = xt::zeros<double>({num_dipoles * 3, num_dipoles * 3});
    
     // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
-#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd();
         auto n_i = Vec3dSimd();
-        // check that i + k isn't bigger than num_points
+        
+	// check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
         for(int k = 0; k < klimit; k++){
             for (int d = 0; d < 3; ++d) {
@@ -275,21 +278,27 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
                 n_i[d][k] = unitnormal(i + k, d);
             }
         }
-	for(int fp = 0; fp < nfp; fp++) {
-	    simd_t phi0 = (2 * M_PI / ((simd_t) nfp)) * fp;
-	    simd_t sphi0 = xsimd::sin(phi0);
-	    simd_t cphi0 = xsimd::cos(phi0);
-            for (int j = 0; j < num_dipoles; ++j) {
-                Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
-		simd_t phi_sym = phi[j] + phi0;
-		simd_t phij = phi_sym - phi0;
-		simd_t cphij = xsimd::cos(phij);
-		simd_t sphij = xsimd::sin(phij);
-		for (int stell = 0; stell < (stellsym + 1); ++stell) { 
-                    auto G_i = Vec3dSimd();
-                    simd_t mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
+	// Loop through all the dipoles, using all the symmetries
+        for (int j = 0; j < num_dipoles; ++j) {
+            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+	    for (int stell = 0; stell < (stellsym + 1); ++stell) { 
+	        for(int fp = 0; fp < nfp; ++fp) {
+	            simd_t phi0 = (2 * M_PI / ((simd_t) nfp)) * fp;
+	            simd_t sphi0 = xsimd::sin(phi0);
+	            simd_t cphi0 = xsimd::cos(phi0);
+		    auto G_i = Vec3dSimd();
+                    
+                    // Calculate new dipole location after accounting for the symmetries
+	            // reflect the y and z-components and then rotate by phi0
+		    simd_t mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
                     simd_t mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
 		    Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z * pow(-1, stell));
+		    
+		    // Calculate new phi location if switching to cylindrical coordinates
+		    simd_t mp_phi_new = xsimd::atan2(mp_y_new, mp_x_new);
+		    simd_t sphi_new = xsimd::sin(mp_phi_new);
+		    simd_t cphi_new = xsimd::cos(mp_phi_new);
+		    
 		    Vec3dSimd r = point_i - mp_j_new;
                     simd_t rmag_2 = normsq(r);
                     simd_t rmag_inv   = rsqrt(rmag_2);
@@ -301,23 +310,19 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
                     G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
 		    for(int k = 0; k < klimit; k++){
 		        A(i + k, j, 2) += fak * G_i.z[k];
-			//double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			//double Ay_temp = ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
 		        if (cylindrical) {
-			    double Ax_temp = (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			    double Ay_temp = (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-			    A(i + k, j, 0) += fak * (Ax_temp* cphij[k] + Ay_temp* sphij[k]);
-			    A(i + k, j, 1) += fak * ( - Ax_temp * sphij[k] + Ay_temp * cphij[k]);
+			    double Ax_temp = fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    double Ay_temp = fak * (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] + Ay_temp * sphi_new[k]);
+			    A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
 		        }
 		        else {
-			    //A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] * pow(-1, stell) - G_i.y[k] * sphi0[k]);
-			    //A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] - G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			    //A(i + k, j, 1) += fak * ( - G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-			    A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] * pow(-1, stell) + G_i.y[k] * cphi0[k]);
-			    //A(i + k, j, 1) += fak * (G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-		            //A(i + k, j, 0) += fak * Ax_temp; 
-		            //A(i + k, j, 1) += fak * Ay_temp;
+			    // rotate by -phi0 and then flip x component
+			    // This should be the reverse of what is done to the m vector and the dipole grid
+			    // because A * m = A * R^T * R * m and R is an orthogonal matrix both
+			    // for a reflection and a rotation. 
+			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    A(i + k, j, 1) += fak * (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
 		        }
 		    }
 		}
@@ -329,11 +334,6 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(b.data()), 1, num_points);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATb.data()), 1, 3 * num_dipoles);
     eigen_res = eigen_v*eigen_mat;
-    
-    // compute ATA
-    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(ATA.data()), 3 * num_dipoles,  3 * num_dipoles);
-    //eigen_res2 = eigen_mat.transpose()*eigen_mat;
-    //return std::make_tuple(A, ATb, ATA);
     return std::make_tuple(A, ATb);
 }
 
@@ -415,7 +415,8 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	    double norm_vec = sqrt(normal_vec_r * normal_vec_r + normal_vec_z * normal_vec_z);
             double ray_dir_r = normal_vec_r / norm_vec;
             double ray_dir_z = normal_vec_z / norm_vec;
-            
+           
+	    // Compute all the rays and find the location of minimum ray-surface distance
 	    double dist_inner_ray = 0.0;
 	    double dist_outer_ray = 0.0;
 	    double min_dist_inner_ray = 1e5;

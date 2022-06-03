@@ -62,7 +62,7 @@ class PermanentMagnetOptimizer:
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec', out_dir='',
         cylindrical_flag=False, test_flag=False,
-        pms_name=None
+        pms_name=None, cylindrical_vol_flag=False,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -73,6 +73,7 @@ class PermanentMagnetOptimizer:
         self.surface_flag = surface_flag 
         self.out_dir = out_dir
         self.plasma_offset = plasma_offset
+        self.cylindrical_vol_flag = cylindrical_vol_flag
         self.coil_offset = coil_offset
         self.Bn = Bn
         self.dr = dr
@@ -198,18 +199,12 @@ class PermanentMagnetOptimizer:
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
-
             self.premade_dipole_grid = premade_dipole_grid
-            # Dipole grid should be a list of x, y, z locations
             self.ndipoles = premade_dipole_grid.shape[0]
+
             # Not normalized to 1 like quadpoints_phi!
             self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
-            # reorder the PMs grid by the phi values
-            #phi_order = np.argsort(self.pm_phi)
-            #self.phi_order = phi_order
-            #self.pm_phi = self.pm_phi[phi_order]
             uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
-            print(uniq_phi)
             self.pm_nphi = len(uniq_phi)
             self.pm_uniq_phi = uniq_phi
             self.inds = counts_phi
@@ -217,12 +212,12 @@ class PermanentMagnetOptimizer:
                 for j in range(0, i):
                     self.inds[i] += self.inds[j] 
             print(self.inds)
-            #premade_dipole_grid = premade_dipole_grid[phi_order, :]
             self.final_RZ_grid = np.zeros((self.ndipoles, 3))
             self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
             self.final_RZ_grid[:, 1] = self.pm_phi
             self.final_RZ_grid[:, 2] = premade_dipole_grid[:, 2] 
             self.dipole_grid_xyz = premade_dipole_grid
+
         xyz_plasma = self.plasma_boundary.gamma()
         self.r_plasma = np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2)
         self.z_plasma = xyz_plasma[:, :, 2]
@@ -243,15 +238,8 @@ class PermanentMagnetOptimizer:
         self._setup_initial_condition()        
 
         # Print initial f_B metric using the initial guess
-        # Ngrid = self.nphi * self.ntheta
-        # Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
-        #total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj) * np.sqrt(Ngrid / Nnorms), ord=2) ** 2
         print('f_B (total with initial SIMSOPT guess) = ', total_error)
-
-        # optionally plot the plasma boundary + inner/outer surfaces
-        if not is_premade_famus_grid:
-            self._plot_surfaces()
 
     def _setup_uniform_grid(self):
         """ 
@@ -273,17 +261,9 @@ class PermanentMagnetOptimizer:
         # which seems to be an issue with the MUSE inner/outer PM surfaces
         if False:
             ax = plt.figure().add_subplot(projection='3d')
-            #u = np.ravel(self.normal_inner[:, :, 0])
             u = np.ravel(self.plasma_boundary.unitnormal()[:, :, 0]) 
-            #v = np.ravel(self.normal_inner[:, :, 1])
             v = np.ravel(self.plasma_boundary.unitnormal()[:, :, 1])
-            #w = np.ravel(self.normal_inner[:, :, 2])
             w = np.ravel(self.plasma_boundary.unitnormal()[:, :, 2])
-            #x = np.ravel(xyz_inner[:, :, 0]) 
-            #y = np.ravel(xyz_inner[:, :, 1]) 
-            #z = np.ravel(xyz_inner[:, :, 2]) 
-            #ax.scatter(x, y, z, color='k')
-            #ax.quiver(x, y, z, u, v, w, length=0.1, normalize=True)
             x = np.ravel(xyz_plasma[:, :, 0]) 
             y = np.ravel(xyz_plasma[:, :, 1]) 
             z = np.ravel(xyz_plasma[:, :, 2]) 
@@ -302,28 +282,9 @@ class PermanentMagnetOptimizer:
         self.Delta_z = self.Delta_r
         Nz = int((z_max - z_min) / self.Delta_z)
         self.Nz = Nz
-        phi = 2 * np.pi * np.copy(self.rz_outer_surface.quadpoints_phi)
-        print('Largest possible dipole dimension is = {0:.2f}'.format(
-            (
-                r_max - self.plasma_boundary.get_rc(0, 0)
-            ) * (phi[1] - phi[0])
-        )
-        )
+        phi = 2 * np.pi * np.copy(self.plasma_boundary.quadpoints_phi)
         print('dR = {0:.2f}'.format(self.Delta_r))
         print('dZ = {0:.2f}'.format(self.Delta_z))
-        norm = self.plasma_boundary.unitnormal()
-        norms = np.zeros(norm.shape)
-        for i in range(self.nphi):
-            rot_matrix = [[np.cos(phi[i]), np.sin(phi[i]), 0],
-                          [-np.sin(phi[i]), np.cos(phi[i]), 0],
-                          [0, 0, 1]]
-            for j in range(self.ntheta):
-                norms[i, j, :] = rot_matrix @ norm[i, j, :]
-        print(
-            'Approximate closest distance between plasma and inner surface = {0:.2f}'.format(
-                np.min(np.sqrt(norms[:, :, 0] ** 2 + norms[:, :, 2] ** 2) * self.plasma_offset)
-            )    
-        )
         R = np.linspace(r_min, r_max, Nr)
         Z = np.linspace(z_min, z_max, Nz)
 
@@ -372,15 +333,18 @@ class PermanentMagnetOptimizer:
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
 
         if self.is_premade_famus_grid:
-            M0s = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[7], delimiter=',')
-            #cell_vol = M0s[self.phi_order] * mu0 / B_max
+            M0s = np.loadtxt(
+                '../../tests/test_files/' + self.pms_name, 
+                skiprows=3, usecols=[7], delimiter=','
+            )
             cell_vol = M0s * mu0 / B_max
         else:
+            #if self.cylindrical_vol_flag:
             cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            #cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            #else:
+            #    cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3')
-        # cell_vol = dipole_grid_r * Delta_r * Delta_z * (phi[1] - phi[0])
 
         # FAMUS paper has a typo that m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
@@ -403,15 +367,12 @@ class PermanentMagnetOptimizer:
         dtheta = (self.theta[1] - self.theta[0]) * 2 * np.pi
         self.dphi = dphi
         self.dtheta = dtheta
-        #grid_fac = np.sqrt(dphi * dtheta)
-        #print('grid_fac = ', grid_fac, grid_fac ** 2)
 
         # minus sign below because ||Ax - b||^2 term but original
-        # term is integral(B_P + B_C + B_M)
-        self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)  # * grid_fac 
+        # term is integral(B_P + B_C + B_M)^2
+        self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)
 
         # Compute geometric factor with the C++ routine
-        #self.A_obj, self.ATb, self.ATA = sopp.dipole_field_Bn(
         self.A_obj, self.ATb = sopp.dipole_field_Bn(
             np.ascontiguousarray(self.plasma_boundary.gamma().reshape(self.nphi * self.ntheta, 3)), 
             np.ascontiguousarray(self.dipole_grid_xyz), 
@@ -424,124 +385,12 @@ class PermanentMagnetOptimizer:
         # Rescale
         Ngrid = self.nphi * self.ntheta
         self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
-        self.ATb = np.ravel(self.ATb)  # * grid_fac  # only one factor here since b is already scaled!
+        self.ATb = np.ravel(self.ATb)
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
             self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid) 
         self.b_obj = self.b_obj * np.sqrt(Nnorms / Ngrid)
         self.ATb = self.A_obj.T @ self.b_obj
-        #self.ATA = self.ATA * grid_fac ** 2  # grid_fac from each A matrix
-        #self.ATA_scale = np.linalg.norm(np.transpose(self.A_obj) @ self.A_obj, ord=2)
-
-    def _plot_final_dipoles(self):
-        """
-            Makes cross-sections of the dipole grid and
-            quiver plots of the sparse and nonsparse 
-            dipole vectors after optimization.
-        """
-        for kk, dipoles in enumerate([self.m, self.m_proxy]):
-            dipole_grid = self.dipole_grid_xyz
-            plt.figure(100)
-            ax = plt.axes(projection="3d")
-            colors = []
-            dipoles = dipoles.reshape(self.ndipoles, 3)
-            for i in range(self.ndipoles):
-                colors.append(np.sqrt(dipoles[i, 0] ** 2 + dipoles[i, 1] ** 2 + dipoles[i, 2] ** 2))
-            sax = ax.scatter(dipole_grid[:, 0], dipole_grid[:, 1], dipole_grid[:, 2], c=colors)
-            plt.colorbar(sax)
-            plt.axis('off')
-            plt.grid(None)
-
-            fig = plt.figure(200, figsize=(10, 10))
-            if self.r_plasma.shape[0] > 31:
-                phis = [0, 15, 16, 31]
-            else:
-                phis = [0, 3, 4, 7]
-            for i, ind in enumerate(phis):
-                plt.subplot(2, 2, i + 1)
-                plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
-                r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
-                z_plasma = np.hstack((self.z_plasma[ind, :], self.z_plasma[ind, 0]))
-
-                plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
-
-                if not self.is_premade_famus_grid:
-                    running_tally = 0
-                    for k in range(ind):
-                        if k > 0:
-                            running_tally += len(self.final_RZ_grid[self.inds[k-1]:self.inds[k], 0])
-                        else:
-                            running_tally += len(self.final_RZ_grid[:self.inds[k], 0])
-                    colors = []
-                    if ind > 0:
-                        dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 0]), :]
-                        maxima_i = self.m_maxima[running_tally:running_tally + len(self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 0])]
-                    else: 
-                        dipoles_i = dipoles[running_tally:running_tally + len(self.final_RZ_grid[:self.inds[ind], 0]), :]
-                        maxima_i = self.m_maxima[running_tally:running_tally + len(self.final_RZ_grid[:self.inds[ind], 0])]
-                    for j in range(len(dipoles_i)):
-                        colors.append(np.sqrt(dipoles_i[j, 0] ** 2 + dipoles_i[j, 1] ** 2 + dipoles_i[j, 2] ** 2) / maxima_i[j])
-
-                    if ind > 0:
-                        sax = plt.scatter(
-                            self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 0],
-                            self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 2],
-                            c=cm.cool(colors),  # cm.rainbow(colors),
-                            label='PMs'
-                        )
-                        plt.quiver(
-                            self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 0],
-                            self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 2],
-                            dipoles_i[:, 0] * np.cos(2 * np.pi * self.phi[ind]) + dipoles_i[:, 1] * np.sin(2 * np.pi * self.phi[ind]),
-                            dipoles_i[:, 2],
-                        )
-                    else:
-                        sax = plt.scatter(
-                            self.final_RZ_grid[:self.inds[ind], 0],
-                            self.final_RZ_grid[:self.inds[ind], 2],
-                            c=cm.cool(colors),
-                            label='PMs'
-                        )
-                        plt.quiver(
-                            self.final_RZ_grid[:self.inds[ind], 0],
-                            self.final_RZ_grid[:self.inds[ind], 2],
-                            #dipoles_i[:, 0],
-                            dipoles_i[:, 0] * np.cos(2 * np.pi * self.phi[ind]) + dipoles_i[:, 1] * np.sin(2 * np.pi * self.phi[ind]),
-                            dipoles_i[:, 2],
-                        )
-                else:
-                    phi_ind = np.ravel(np.where(self.pm_uniq_phi < 2 * np.pi * self.phi[ind]))[-1]  # + 1
-                    inds = self.inds
-                    skip = inds[phi_ind + 1] - inds[phi_ind]
-                    sax = plt.scatter(
-                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 0],
-                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 2],
-                        c=cm.cool(colors[inds[phi_ind]:inds[phi_ind + 1]]),
-                        label='PMs'
-                    )
-                    plt.quiver(
-                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 0],
-                        self.final_RZ_grid[inds[phi_ind]:inds[phi_ind + 1], 2],
-                        dipoles[inds[phi_ind]:inds[phi_ind + 1], 0] * np.cos(self.pm_uniq_phi[phi_ind]) + dipoles[inds[phi_ind]:inds[phi_ind + 1], 1] * np.sin(self.pm_uniq_phi[phi_ind]),
-                        dipoles[inds[phi_ind]:inds[phi_ind + 1], 2],
-                    )
-
-                if i == 2 or i == 3:
-                    plt.xlabel('R (m)', fontsize=16)
-                if i == 0 or i == 2:
-                    plt.ylabel('Z (m)', fontsize=16)
-                if i == 1:
-                    plt.legend(framealpha=1.0, fontsize=12, loc='lower left')
-                plt.grid(True)
-            fig.subplots_adjust(right=0.85)
-            cbar_ax = fig.add_axes([0.9, 0.25, 0.025, 0.5])
-            cb = fig.colorbar(cax=cbar_ax, mappable=cm.ScalarMappable(norm=None, cmap=cm.cool))
-            cb.ax.tick_params(labelsize=12)
-            plt.clim(vmin=0, vmax=1)
-            if kk == 0:
-                plt.savefig(self.out_dir + 'grids_permanent_magnets.png')
-            else:
-                plt.savefig(self.out_dir + 'grids_permanent_magnets_sparse.png')
 
     def _set_inner_rz_surface(self):
         """
@@ -550,23 +399,6 @@ class PermanentMagnetOptimizer:
             plasma boundary and shifts it by self.plasma_offset at constant
             theta value. 
         """
-        #mpol = self.plasma_boundary.mpol
-        #ntor = self.plasma_boundary.ntor
-        #nfp = self.plasma_boundary.nfp
-        #stellsym = self.plasma_boundary.stellsym
-        #range_surf = self.plasma_boundary.range 
-        #rz_inner_surface = SurfaceRZFourier(
-        #    mpol=mpol, ntor=ntor, nfp=nfp,
-        #    stellsym=stellsym, range=range_surf,
-        #    quadpoints_theta=self.theta, 
-        #    quadpoints_phi=self.phi
-        #)
-        #for i in range(mpol + 1):
-        #    for j in range(-ntor, ntor + 1):
-        #        rz_inner_surface.set_rc(i, j, self.plasma_boundary.get_rc(i, j))
-        #        rz_inner_surface.set_rs(i, j, self.plasma_boundary.get_rs(i, j))
-        #        rz_inner_surface.set_zc(i, j, self.plasma_boundary.get_zc(i, j))
-        #        rz_inner_surface.set_zs(i, j, self.plasma_boundary.get_zs(i, j))
         if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         elif self.surface_flag == 'wout':
@@ -585,25 +417,6 @@ class PermanentMagnetOptimizer:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value. 
         """
-        #mpol = self.rz_inner_surface.mpol
-        #ntor = self.rz_inner_surface.ntor
-        #nfp = self.rz_inner_surface.nfp
-        #stellsym = self.rz_inner_surface.stellsym
-        #range_surf = self.rz_inner_surface.range 
-        #quadpoints_theta = self.rz_inner_surface.quadpoints_theta 
-        #quadpoints_phi = self.rz_inner_surface.quadpoints_phi 
-        #rz_outer_surface = SurfaceRZFourier(
-        #    mpol=mpol, ntor=ntor, nfp=nfp,
-        #    stellsym=stellsym, range=range_surf,
-        #    quadpoints_theta=quadpoints_theta, 
-        #    quadpoints_phi=quadpoints_phi
-        #) 
-        #for i in range(mpol + 1):
-        #    for j in range(-ntor, ntor + 1):
-        #        rz_outer_surface.set_rc(i, j, self.rz_inner_surface.get_rc(i, j))
-        #        rz_outer_surface.set_rs(i, j, self.rz_inner_surface.get_rs(i, j))
-        #        rz_outer_surface.set_zc(i, j, self.rz_inner_surface.get_zc(i, j))
-        #        rz_outer_surface.set_zs(i, j, self.rz_inner_surface.get_zs(i, j))
         if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
         elif self.surface_flag == 'wout':
@@ -617,38 +430,6 @@ class PermanentMagnetOptimizer:
         t2 = time.time()
         print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
-
-    def _plot_surfaces(self):
-        """
-            Simple plotting function for debugging the permanent
-            magnet gridding procedure.
-        """
-        plt.figure(figsize=(14, 14))
-        for i, ind in enumerate(np.random.choice(self.nphi, 4, replace=False)):
-            plt.subplot(2, 2, i + 1)
-            plt.title(r'$\phi = ${0:.2f}$^o$'.format(360 * self.phi[ind]))
-            r_plasma = np.hstack((self.r_plasma[ind, :], self.r_plasma[ind, 0]))
-            z_plasma = np.hstack((self.z_plasma[ind, :], self.z_plasma[ind, 0]))
-            r_inner = np.hstack((self.r_inner[ind, :], self.r_inner[ind, 0]))
-            z_inner = np.hstack((self.z_inner[ind, :], self.z_inner[ind, 0]))
-            r_outer = np.hstack((self.r_outer[ind, :], self.r_outer[ind, 0]))
-            z_outer = np.hstack((self.z_outer[ind, :], self.z_outer[ind, 0]))
-
-            plt.plot(r_plasma, z_plasma, 'r', label='Plasma', linewidth=2)
-            plt.plot(r_inner, z_inner, 'k', linewidth=2)
-            plt.plot(r_outer, z_outer, 'k', label='PM surface', linewidth=2)
-
-            plt.scatter(
-                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 0], 
-                self.final_RZ_grid[self.inds[ind-1]:self.inds[ind], 2], 
-                label='Final grid',
-                c='k'
-            )
-            plt.scatter(np.ravel(self.RPhiZ[:, i, :, 0]), np.ravel(self.RPhiZ[:, i, :, 2]), c='k')
-            if i == 0:
-                plt.legend()
-            plt.grid(True)
-        plt.savefig(self.out_dir + 'grids_permanent_magnets.png')
 
     def _prox_l0(self, m, reg_l0, nu):
         """Proximal operator for L0 regularization."""
@@ -678,8 +459,7 @@ class PermanentMagnetOptimizer:
             If an initial guess for the dipole moments is specified,
             checks the initial condition lies in the allowed hypersurface.
             If an initial guess is not specified, defaults to initializing
-            the permanent magnet dipole moments to the projection of the
-            least-squares solution on the hypersurface, proj(pinv(A) * m).
+            the permanent magnet dipole moments to all zeros.
         """
         # Initialize initial guess for the dipole strengths
         if m0 is not None:
@@ -700,13 +480,12 @@ class PermanentMagnetOptimizer:
                     'that are satisfy the maximum bound constraints.'
                 )
         else:
-            # Default initialized to proj(pinv(A) * b)
-            m0 = self._projection_L2_balls(
-                np.linalg.pinv(self.A_obj) @ self.b_obj, 
-                self.m_maxima
-            )
-            #m0 = np.linalg.pinv(self.A_obj) @ self.b_obj 
-            m0 = np.zeros(m0.shape)
+            # initialization to proj(pinv(A) * b) is usually a bad guess!
+            # m0 = self._projection_L2_balls(
+            #     np.linalg.pinv(self.A_obj) @ self.b_obj, 
+            #     self.m_maxima
+            # )
+            m0 = np.zeros(self.ndipoles * 3)
             # m0 = np.random.rand(m0.shape)
 
         self.m0 = m0
@@ -716,8 +495,7 @@ class PermanentMagnetOptimizer:
             Print out initial errors and the bulk optimization parameters 
             before the permanent magnets are optimized.
         """
-        #grid_fac = np.sqrt(self.dphi * self.dtheta)
-        ave_Bn = np.mean(np.abs(self.b_obj))  # * grid_fac
+        ave_Bn = np.mean(np.abs(self.b_obj))
         total_Bn = np.sum(np.abs(self.b_obj) ** 2)
         dipole_error = np.linalg.norm(self.A_obj.dot(self.m0), ord=2) ** 2
         total_error = np.linalg.norm(self.A_obj.dot(self.m0) - self.b_obj, ord=2) ** 2
@@ -755,30 +533,27 @@ class PermanentMagnetOptimizer:
                 'dipole maximum values, so reg_l0 = 1 should basically '
                 'truncate all the dipoles to zero. '
             )
+        # Compute singular values of A, use this to determine optimal step size
+        # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
         S = np.linalg.svd(self.A_obj, full_matrices=False, compute_uv=False)
         self.ATA_scale = S[0] ** 2
+
+        # Rescale L0, L1, and relax-and-split hyperparameters so that
+        # these terms are normalized to the scale of the least-squares term.
         reg_l0 = reg_l0 * self.ATA_scale * np.max(self.m_maxima) ** 2 / (2 * nu)
         reg_l1 = reg_l1 * self.ATA_scale / nu
         nu = nu / self.ATA_scale
 
-        reg_l2 = reg_l2  # * self.ATA_scale
-        reg_l2_shifted = reg_l2_shifted  # * self.ATA_scale
+        # Do not rescale L2 terms for now
+        reg_l2 = reg_l2
+        reg_l2_shifted = reg_l2_shifted
+
+        # Update optimal algorithm step size if have extra loss terms
         self.ATA_scale = S[0] ** 2 + 2 * (reg_l2 + reg_l2_shifted) + 1.0 / nu
-
-        # Below, changing it because A is used instead of ATA
-        # Need to add in the reg_l2 stuff directly in the optimization!!
-
-        #ATA = self.A_obj.transpose() @ self.A_obj + 2 * (reg_l2 + reg_l2_shifted) * np.eye(self.A_obj.shape[1])
-        #ATA = self.ATA + 2 * (reg_l2 + reg_l2_shifted) * np.eye(self.ATA.shape[0])
-        # if using relax and split, add that contribution to ATA
-        #if reg_l0 > 0.0 or reg_l1 > 0.0: 
-        #    ATA += np.eye(ATA.shape[0]) / nu
-        #print(np.linalg.norm(ATA, ord=2), self.ATA_scale)
 
         # Add shifted L2 contribution to ATb
         ATb = self.ATb + reg_l2_shifted * np.ravel(np.outer(self.m_maxima, np.ones(3)))
 
-        #return ATA, ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
         return ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
 
     def as_dict(self) -> dict:
@@ -834,7 +609,7 @@ class PermanentMagnetOptimizer:
             Args:
                 m0: Initial guess for the permanent magnet
                     dipole moments. Defaults to a 
-                    starting guess that is proj(pinv(A) * b).
+                    starting guess of all zeros.  
                     This vector must lie in the hypersurface
                     spanned by the L2 ball constraints. Note 
                     that if algorithm is being used properly,
@@ -873,7 +648,6 @@ class PermanentMagnetOptimizer:
         self._setup_initial_condition(m0)        
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
-        #ATA, ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu = self._rescale_for_opt(
         ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu = self._rescale_for_opt(
             reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
         )
@@ -885,16 +659,12 @@ class PermanentMagnetOptimizer:
         # print initial errors and values before optimization
         self._print_initial_opt()
 
-        # Auxiliary variable in relax-and-split is default
-        # initialized to proj(pinv(A) * b), plus prox
-        #m_proxy = self._projection_L2_balls(
-        #    np.linalg.pinv(self.A_obj) @ self.b_obj, 
-        #    self.m_maxima
-        #)
+        # Auxiliary variable in relax-and-split is initialized
+        # to prox(m0), where m0 is the initial guess for m.
         m_proxy = self.m0
         m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
 
-        # ATA = np.ascontiguousarray(ATA)
+        # change to row-major order for the C++ code
         self.A_obj = np.ascontiguousarray(self.A_obj)
         ATb = np.ascontiguousarray(np.reshape(ATb, (self.ndipoles, 3)))
 
@@ -912,12 +682,9 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj,
                     b_obj=self.b_obj,
-                    # ATA=ATA,
                     ATb=ATb,
-                    #U=U,
-                    #SV=SV,
                     m_proxy=np.ascontiguousarray(m_proxy.reshape(self.ndipoles, 3)),
-                    m0=np.ascontiguousarray(m.reshape(self.ndipoles, 3)),
+                    m0=np.ascontiguousarray(m.reshape(self.ndipoles, 3)),  # note updated m is new guess
                     m_maxima=self.m_maxima,
                     alpha=alpha_max,
                     epsilon=epsilon,
@@ -931,6 +698,8 @@ class PermanentMagnetOptimizer:
                 )    
                 m = np.ravel(m)
                 err_RS.append(MwPGP_hist[-1])
+
+                # Solve the nonconvex optimization -- i.e. take a prox
                 m_proxy = prox(m, reg_l0, nu)
                 if np.linalg.norm(m - m_proxy) < epsilon:
                     print('Relax-and-split finished early, at iteration ', i)
@@ -941,13 +710,10 @@ class PermanentMagnetOptimizer:
             MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
                 A_obj=self.A_obj,
                 b_obj=self.b_obj,
-                # ATA=ATA,
                 ATb=ATb,
                 m_proxy=m0,
                 m0=m0,
                 m_maxima=self.m_maxima,
-                #U=U,
-                #SV=SV,
                 alpha=alpha_max,
                 epsilon=epsilon,
                 max_iter=max_iter_MwPGP,
@@ -961,8 +727,7 @@ class PermanentMagnetOptimizer:
             m = np.ravel(m)
             m_proxy = m
 
-        print(np.max(self.m_maxima), np.max(m_proxy))
-        # note m = m_proxy if not using relax-and-split 
+        # note m = m_proxy if not using relax-and-split (i.e. problem is convex) 
         self.m = m
         self.m_proxy = m_proxy
         return MwPGP_hist, err_RS, m_hist, m_proxy
