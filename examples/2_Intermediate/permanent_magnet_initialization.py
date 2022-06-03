@@ -17,7 +17,7 @@ import pickle
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from simsopt.field.magneticfieldclasses import DipoleField
+from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
@@ -54,12 +54,20 @@ if res_flag not in ['low', 'medium', 'high']:
     )
     exit(1)
 print('Config flag = ', config_flag, ', Resolution flag = ', res_flag)
+if len(sys.argv) > 3:
+    cylindrical_flag = (str(sys.argv[3]) == 'True')
+    print(
+        "Assuming that the third command-line argument is a boolean "
+        "for using cylindrical coordinates or not."
+    )
+else:
+    cylindrical_flag = False
 
 # Pre-set parameters for each configuration
 surface_flag = 'vmec'
 pms_name = None
-cylindrical_flag = False
 is_premade_famus_grid = False
+cylindrical_vol_flag = False
 if res_flag == 'high':
     nphi = 64
     ntheta = 64
@@ -92,12 +100,14 @@ elif 'QH' in config_flag:
     poff = 1.6
     input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
     surface_flag = 'wout'
+    cylindrical_vol_flag = True
 elif config_flag == 'ncsx':
     dr = 0.02
     coff = 0.02
     poff = 0.1
-    surface_flag = 'focus'
-    input_name = 'input.NCSX_c09r00_halfTeslaTF' 
+    surface_flag = 'wout'
+    #input_name = 'input.NCSX_c09r00_halfTeslaTF'
+    input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
     coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
     pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus'    
     is_premade_famus_grid = True
@@ -198,14 +208,18 @@ elif 'QH' in config_flag:
     R1 = 10
     order = 5
 
-    # Create the initial coils:
-    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=s.stellsym, R0=R0, R1=R1, order=order)
-    base_currents = [Current(1.2e7) for i in range(ncoils)]
+    #base_currents = [Current(1.2e7) for i in range(ncoils)]
     #base_currents = [Current(6e7) for i in range(ncoils)]
 
-    # fix one of the currents:
+    # QH needs to be scaled to 5.7 T on-axis magnetic field strength
+    from simsopt.mhd.vmec import Vmec
+    total_current = Vmec(surface_filename).external_current() / (2 * s.nfp) / 0.9
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+    total_current = Current(total_current)
+    total_current.fix_all()
+    base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-    base_currents[0].fix_all()
 
     # fix all the coil shapes so only the currents are optimized 
     for i in range(ncoils):
@@ -298,11 +312,38 @@ if config_flag != 'ncsx':
     pointData = {"B_N": Bnormal_plot[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "biot_savart_opt", extra_data=pointData)
 else:
-    Bnormal = load_ncsx_coil_data(s, coil_name)
+    # Set up the contribution to Bnormal from a purely toroidal field.
+    # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
+    net_poloidal_current_Amperes = 3.7713e+6
+    mu0 = 4 * np.pi * (1e-7)
+    RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
+    print('B0 of toroidal field = ', RB)
+    tf = ToroidalField(R0=1, B0=RB)
+
+    # Check average on-axis magnetic field strength
+    R0 = s.get_rc(0, 0)
+    bspoints = np.zeros((nphi, 3))
+    for i in range(nphi):
+        bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), R0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
+    tf.set_points(bspoints)
+    B0 = np.linalg.norm(tf.B(), axis=-1)
+    B0avg = np.mean(np.linalg.norm(tf.B(), axis=-1))
+    surface_area = s.area()
+    bnormalization = B0avg * surface_area
+    print("Bmag at R = ", R0, ", Z = 0: ", B0) 
+    print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
+
+    tf.set_points(s.gamma().reshape((-1, 3)))
+    Bnormal = np.sum(tf.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+
+    #Bnormal = load_ncsx_coil_data(s, coil_name)
 
     # Plot Bnormal on plasma surface from optimized BiotSavart coils
-    s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-    Bnormal_plot = load_ncsx_coil_data(s_plot, coil_name)
+    s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    tf.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal_plot = np.sum(tf.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
+    #s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    #Bnormal_plot = load_ncsx_coil_data(s_plot, coil_name)
     pointData = {"B_N": Bnormal_plot[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "biot_savart_init", extra_data=pointData)
 
@@ -312,7 +353,8 @@ pm_opt = PermanentMagnetOptimizer(
     s, is_premade_famus_grid=is_premade_famus_grid, coil_offset=coff, 
     dr=dr, plasma_offset=poff, Bn=Bnormal, 
     filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
-    cylindrical_flag=cylindrical_flag, pms_name=pms_name
+    cylindrical_flag=cylindrical_flag, pms_name=pms_name,
+    cylindrical_vol_flag=cylindrical_vol_flag
 )
 t2 = time.time()
 print('Done initializing the permanent magnet object')
@@ -325,10 +367,10 @@ pm_opt.m_proxy = pm_opt.m0
 b_dipole_initial = DipoleField(pm_opt)
 b_dipole_initial.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
-pm_opt._plot_final_dipoles()
 
 # Plot total Bnormal after dipoles are initialized to their initial guess
 Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+print(np.min(abs(Nnorms)), np.max(abs(Nnorms)))
 Ngrid = pm_opt.nphi * pm_opt.ntheta
 Bnormal_init = np.sum(b_dipole_initial.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m0)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
@@ -377,27 +419,17 @@ if is_premade_famus_grid:
     mx = mm * np.sin(mt) * np.cos(mp) 
     my = mm * np.sin(mt) * np.sin(mp) 
     mz = mm * np.cos(mt)
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
-
-    # optionally switch to cylindrical
-    if cylindrical_flag:
-        mr = cosphi * mx + sinphi * my
-        mphi = -sinphi * mx + cosphi * my
-        m_FAMUS = np.ravel((np.array([mr, mphi, mz]).T)[pm_opt.phi_order, :])
-    else:
-        m_FAMUS = np.ravel((np.array([mx, my, mz]).T))  # [pm_opt.phi_order, :])
+    m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
+    pm_opt.cylindrical_flag = False
 
     # Set pm_opt m values to the FAMUS solution so we can use the
-    # plotting routines from the class object. Note everything
-    # needs to be sorted by pm_opt.phi_order!
+    # plotting routines from the class object. 
     pm_opt.m = m_FAMUS 
     pm_opt.m_proxy = m_FAMUS
-    pm_opt.m_maxima = m0  # [pm_opt.phi_order] 
+    pm_opt.m_maxima = m0 
     b_dipole_FAMUS = DipoleField(pm_opt)
     b_dipole_FAMUS.set_points(s.gamma().reshape((-1, 3)))
     b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
-    pm_opt._plot_final_dipoles()
     Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
     print(Bnormal_FAMUS, Bnormal)
     #grid_fac = pm_opt.dphi * pm_opt.dtheta
@@ -421,21 +453,19 @@ if is_premade_famus_grid:
 
     # Plot the REGCOIL_PM solution for the NCSX example
     if config_flag == 'ncsx':
-        _, _, _ = read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
+        read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
 
     # check results with Coilpy
     from coilpy import Dipole 
     dipole_coilpy = Dipole()
     dipole_coilpy = dipole_coilpy.open(famus_file, verbose=True)
     dipole_coilpy.full_period(nfp=3)
-    print(s.gamma().shape)
     B_coilpy = np.zeros((2 * nphi, ntheta, 3))
     s_points = s_plot.gamma()
     for i in range(2 * nphi):
         for j in range(ntheta):
             B_coilpy[i, j, :] = dipole_coilpy.bfield(s_points[i, j, :])
-    #B_coilpy = B_coilpy.reshape(nphi * ntheta, 3)
-    #print(B_coilpy.shape)
+
     Bn_coilpy = np.sum(B_coilpy * s_plot.unitnormal(), axis=2)
     pointData = {"B_N": Bn_coilpy[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "Bnormal_opt_Coilpy", extra_data=pointData)
@@ -444,7 +474,7 @@ if is_premade_famus_grid:
     pointData = {"B_N": (Bn_coilpy + Bnormal_plot)[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "Bnormal_total_Coilpy", extra_data=pointData)
 
-    #print(Bnormal_FAMUS, Bn_coilpy, Bnormal)
+    pm_opt.cylindrical_flag = cylindrical_flag
 
 t1 = time.time()
 # Save PM class object to file for optimization

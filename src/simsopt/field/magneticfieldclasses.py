@@ -546,26 +546,15 @@ class DipoleField(MagneticField):
             # while the PM class may have it in (R, Phi, Z)
             self.m_vec = m.reshape(ndipoles, 3)
             self.dipole_grid = pm_opt.dipole_grid
+
         # reformat memory for c++ routines
         self.dipole_grid = np.ascontiguousarray(self.dipole_grid) 
-        self.B_grid = np.ascontiguousarray(self.B_grid) 
-        self.B_m = np.ascontiguousarray(self.B_m) 
         self.m_vec = np.ascontiguousarray(self.m_vec)
         self.pm_opt = pm_opt
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec) 
-        #B[:] = sopp.dipole_field_B(points, self.B_grid, self.B_m)
-        #print('SHAPE OF B = ', B.shape)
-        #Bx_temp = np.zeros(B[:, 0].shape)
-        #By_temp = np.zeros(B[:, 0].shape)
-        #for fp in range(self.nfp):
-        #    phi0 = (2 * np.pi / self.nfp) * fp
-        #    Bx_temp += B[:, 0] * np.cos(phi0) - B[:, 1] * np.sin(phi0)
-        #    By_temp += B[:, 0] * np.sin(phi0) + B[:, 1] * np.cos(phi0)
-        #B[:, 0] = Bx_temp
-        #B[:, 1] = By_temp
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
@@ -580,6 +569,16 @@ class DipoleField(MagneticField):
         dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec) 
 
     def _dipole_fields_from_symmetries(self, pm_opt):
+        """
+        Takes the dipoles and grid initialized in a PermanentMagnetOptimizer (for a half-period surface)
+        and generates the full dipole manifold so that the call to B() (the magnetic field from
+        the dipoles) correctly returns contributions from all the dipoles from symmetries. 
+
+        Args:
+            pm_opt (PermanentMagnetOptimizer): Permanent magnet optimizer class object with
+                                               a set of initialized dipoles + dipole grid.
+        """
+        # Read in the required fields from pm_opt object
         inds = pm_opt.inds
         self.nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
@@ -600,48 +599,53 @@ class DipoleField(MagneticField):
         m = pm_opt.m
         m = m.reshape(ndipoles, 3)
 
-        dipole_grid_x = np.zeros(len(dipole_grid_Z) * nsym)
-        dipole_grid_y = np.zeros(len(dipole_grid_Z) * nsym)
-        dipole_grid_z = np.zeros(len(dipole_grid_Z) * nsym)
-        B_grid_x = np.zeros(ndipoles * 2)
-        B_grid_y = np.zeros(ndipoles * 2)
-        B_grid_z = np.zeros(ndipoles * 2)
-
+        # Initialize new grid and dipole vectors for all the dipoles
+        # after we account for the symmetries below.
+        dipole_grid_x = np.zeros(ndipoles * nsym)
+        dipole_grid_y = np.zeros(ndipoles * nsym)
+        dipole_grid_z = np.zeros(ndipoles * nsym)
         m_vec = np.zeros((ndipoles * nsym, 3))
-        B_m = np.zeros((ndipoles * 2, 3))
-        m_maxima = np.zeros((ndipoles * nsym))
+        m_maxima = np.zeros(ndipoles * nsym)
 
+        # Load in the dipole locations for a half-period surface
         ox = pm_opt.dipole_grid_xyz[:, 0] 
         oy = pm_opt.dipole_grid_xyz[:, 1] 
         oz = pm_opt.dipole_grid_xyz[:, 2] 
-        for j in range(ndipoles):
-            for stell in range(stell_num):
-                j1 = j + ndipoles * stell
-                B_grid_x[j1] = ox[j]
-                B_grid_y[j1] = oy[j] * (-1) ** stell
-                B_grid_z[j1] = oz[j] * (-1) ** stell
 
-                B_m[j1, 0] = m[j, 0] * (-1) ** stell
-                B_m[j1, 1] = m[j, 1]
-                B_m[j1, 2] = m[j, 2]
-                for fp in range(self.nfp):
-                    phi0 = (2 * np.pi / self.nfp) * fp
-                    j2 = j + ndipoles * (fp + self.nfp * stell)
-                    dipole_grid_x[j2] = ox[j] * np.cos(phi0) - oy[j] * np.sin(phi0) * (-1) ** stell
-                    dipole_grid_y[j2] = ox[j] * np.sin(phi0) + oy[j] * np.cos(phi0) * (-1) ** stell
-                    dipole_grid_z[j2] = oz[j] * (-1) ** stell 
+        # loop through the dipoles and repeat for fp and stellarator symmetries
+        index = 0
+        n = ndipoles
+        mmx = m[:, 0]
+        mmy = m[:, 1]
+        mmz = m[:, 2]
+        for stell in [-1, 1]:
+            for fp in range(self.nfp):
+                phi0 = (2 * np.pi / self.nfp) * fp
 
-                    # For fp symmetry, set mx, my, mz (or mr, mphi, mz) and rotate by phi0
-                    m_vec[j2, 0] = m[j, 0] * np.cos(phi0) * (-1) ** stell - m[j, 1] * np.sin(phi0)
-                    m_vec[j2, 1] = m[j, 0] * np.sin(phi0) * (-1) ** stell + m[j, 1] * np.cos(phi0)
-                    m_vec[j2, 2] = m[j, 2]
-                    m_maxima[j2] = self.m_maxima[j]
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                dipole_grid_x[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                dipole_grid_y[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                dipole_grid_z[index:index + n] = oz * stell 
+
+                # get new dipole vectors by flipping the x component, then rotating by phi0
+                m_vec[index:index + n, 0] = mmx * np.cos(phi0) * stell - mmy * np.sin(phi0)
+                m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
+                m_vec[index:index + n, 2] = mmz
+                m_maxima[index:index + n] = self.m_maxima
+
+                # If using cylindrical coordinates (for m_vec), get the phi coordinate and rotate
+                if pm_opt.cylindrical_flag:
+                    phi_dipole = np.arctan2(dipole_grid_y, dipole_grid_x)
+                    mr_temp = m_vec[index:index + n, 0] * np.cos(phi_dipole) + m_vec[index:index + n, 1] * np.sin(phi_dipole)
+                    mphi_temp = - m_vec[index:index + n, 0] * np.sin(phi_dipole) + m_vec[index:index + n, 1] * np.cos(phi_dipole)
+                    m_vec[index:index + n, 0] = mr_temp
+                    m_vec[index:index + n, 1] = mphi_temp
+
+                index += n
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
         self.m_vec = m_vec
         self.m_maxima = m_maxima
-        self.B_m = B_m
-        self.B_grid = np.array([B_grid_x, B_grid_y, B_grid_z]).T
 
     @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def _toVTK(self, vtkname):
@@ -651,18 +655,22 @@ class DipoleField(MagneticField):
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
             dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
-        mx = np.ascontiguousarray(self.m_vec[:, 0])
-        my = np.ascontiguousarray(self.m_vec[:, 1])
+        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
+        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
+        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
+        ophi = np.arctan2(oy, ox)
+        if self.pm_opt.cylindrical_flag:
+            mx = np.ascontiguousarray(self.m_vec[:, 0] * np.cos(ophi) - self.m_vec[:, 1] * np.sin(ophi))
+            my = np.ascontiguousarray(self.m_vec[:, 0] * np.sin(ophi) + self.m_vec[:, 1] * np.cos(ophi))
+        else:
+            mx = np.ascontiguousarray(self.m_vec[:, 0])
+            my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
         mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
         print(self.m_maxima)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
-        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
-        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
-        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
-        ophi = np.arctan2(oy, ox)
         mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
         mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
         mr_normalized = np.ascontiguousarray(mr / self.m_maxima) 
