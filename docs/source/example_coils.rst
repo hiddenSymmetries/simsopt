@@ -23,35 +23,46 @@ in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
 - Take into account finite coil width using a multifilament approach
 similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
 
-Simplest Objective function
+Stage 2 Objective function
 ---------------------------
 
-The simplest form of the objective function :math:`J` (or cost function)
-present in ``examples/2_Intermediate/stage_two_optimization.py`` that will be
-minimized in order to find coils that yield the desired magnetic field is
-given by:
+The first form of the objective function :math:`J` (or cost function)
+that will be minimized in order to find coils that yield the desired magnetic field is
+the one present in ``examples/2_Intermediate/stage_two_optimization.py`` and given by:
 
 .. math::
 
-   J = \frac{1}{2} \int |\vec{B}\cdot\vec{n}|^2 ds + \alpha \sum_j L_j  + \beta J_{dist}
+  J = (1/2) \int |B dot n|^2 ds
+      + LENGTH_WEIGHT * \sum_j L_j
+      + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
+      + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
+      + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
 
 The first term in the right-hand-side term is the "quadratic flux", the area
 integral over the target plasma surface of the square of the magnetic
 field normal to the surface. If the coils exactly produce a flux
-surface of the target shape, this term will vanish.  Next, :math:`L_j`
+surface of the target shape, this term will vanish. 
+
+Next, :math:`L_j`
 is the length of the :math:`j`-th coil.  The scalar regularization
-parameter :math:`\alpha` is chosen to balance a trade-off: large
+parameter `LENGTH_WEIGHT` is chosen to balance a trade-off: large
 values will give smooth coils at the cost of inaccuracies in producing
-the target field; small values of :math:`\alpha` will give a more
+the target field; small values of `LENGTH_WEIGHT` will give a more
 accurate match to the target field at the cost of complicated coils.
-Finally, :math:`J_{dist}` is a penalty that prevents coils from
+
+Next, `MininumDistancePenalty` is a penalty that prevents coils from
 becoming too close.  For its precise definition, see
 :obj:`simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
-:math:`\beta` is selected to balance this minimum distance penalty
+`DISTANCE_WEIGHT` is selected to balance this minimum distance penalty
 against the other objectives.  Analytic derivatives are used for the
 optimization.
 
-In this tutorial we will consider vacuum fields, so the magnetic field
+Finally, the two remaining terms `CurvaturePenalty` and `MeanSquaredCurvaturePenalty`
+are regularization terms the prevent the coils from becoming to wiggly.
+These try to make the coils as smooth as possible to accomodate
+possible engineering constraints.
+
+In this first section we consider vacuum fields only, so the magnetic field
 due to current in the plasma does not need to be subtracted in the
 quadratic flux term. The configuration considered is the "precise QA"
 case from `arXiv:2108.03711 <http://arxiv.org/pdf/2108.03711.pdf>`_,
@@ -177,26 +188,51 @@ and instruct it to evaluate the field on the surface::
 (The surface position vector ``gamma()`` returns an array of size
 ``(nphi, ntheta, 3)``, which we reshaped here to
 ``(number_of_evaluation_points, 3)`` for the
-:obj:`~simsopt.field.biotsavart.BiotSavart` object.)  Let us check the
-size of the field normal to the target surface before optimization::
+:obj:`~simsopt.field.biotsavart.BiotSavart` object.) 
+To check the size of the field normal to the target surface
+before optimization we can run::
 
   B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
   print('Initial max B dot n:', np.max(B_dot_n))
 
 The result is 0.19 Tesla. We now define the objective function::
 
-  # Weight on the curve lengths in the objective function:
-  ALPHA = 1e-6
-  # Threshhold for the coil-to-coil distance penalty in the objective function:
-  MIN_DIST = 0.1
-  # Weight on the coil-to-coil distance penalty term in the objective function:
-  BETA = 10
+  # Weight on the curve lengths in the objective function. We use the `Weight`
+  # class here to later easily adjust the scalar value and rerun the optimization
+  # without having to rebuild the objective.
+  LENGTH_WEIGHT = Weight(1e-6)
+
+  # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+  CC_THRESHOLD = 0.1
+  CC_WEIGHT = 1000
+
+  # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+  CS_THRESHOLD = 0.3
+  CS_WEIGHT = 10
+
+  # Threshold and weight for the curvature penalty in the objective function:
+  CURVATURE_THRESHOLD = 5.
+  CURVATURE_WEIGHT = 1e-6
+
+  # Threshold and weight for the mean squared curvature penalty in the objective function:
+  MSC_THRESHOLD = 5
+  MSC_WEIGHT = 1e-6
   
+  # Define the individual terms objective function:
   Jf = SquaredFlux(s, bs)
   Jls = [CurveLength(c) for c in base_curves]
-  Jdist = CurveCurveDistance(curves, MIN_DIST)
-  # Scale and add terms to form the total objective function:
-  objective = Jf + ALPHA * sum(Jls) + BETA * Jdist
+  Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+  Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+  Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+  Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+
+  # Form the total objective function.
+  JF = Jf \
+      + LENGTH_WEIGHT * sum(Jls) \
+      + CC_WEIGHT * Jccdist \
+      + CS_WEIGHT * Jcsdist \
+      + CURVATURE_WEIGHT * sum(Jcs) \
+      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
 In the last line, we have used the fact that the Optimizable objects
 representing the individual terms in the objective can be scaled by a
