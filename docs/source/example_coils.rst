@@ -476,16 +476,14 @@ with small modifications::
 
 The first term, while similar to the previous examples, it
 calculates the external field :math:`B_{external}` using a
-virtual casing principle.
-
+virtual casing principle. The virtual casing calculation
+is done in the following way::
 
   # Resolution for the virtual casing calculation:
   vc_src_nphi = 80
   # (For the virtual casing src_ resolution, only nphi needs to be
   # specified; the theta resolution is computed automatically to
   # minimize anisotropy of the grid.)
-
-
 
   # Once the virtual casing calculation has been run once, the results
   # can be used for many coil optimizations. Therefore here we check to
@@ -503,16 +501,108 @@ virtual casing principle.
       print('Running the virtual casing calculation')
       vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
 
-  # Initialize the boundary magnetic surface:
-  s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
-  total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
+We then define the objective function as the squared flux targeting
+the value of the dot product between :math:`B_{external}` and the
+surface normal vector computed with the results of the virtual casing principle::
 
-
-
-
+  # Define the objective function:
+  Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
+  Jls = [CurveLength(c) for c in base_curves]
 
   # Form the total objective function. To do this, we can exploit the
   # fact that Optimizable objects with J() and dJ() functions can be
   # multiplied by scalars and added:
   JF = Jf \
       + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+
+
+
+Finite Build Optimization
+---------------------------
+
+In this final example, we perform a stage 2 optimization with
+finite build coils. The script for this case can be found in
+``examples/3_Advanced/stage_two_optimization_finite_build.py`` and
+will make use of the virtual casing principle.
+In particular, we use a multifilament approach
+to approximate a finite build coil in order to have finite thickness.
+The target equilibrium is the precise QA configuration of arXiv:2108.03711.
+The approach used here follows::
+
+  Optimization of finite-build stellarator coils,
+  Singh, Luquant, et al.  Journal of Plasma Physics 86.4 (2020).
+
+Besides the degrees of freedom listed in :ref:`first example here <_simplest_stage2>`,
+in this case, we have additional degrees of freedom related to the rotation
+of the coil pack. The objective function is given by::
+
+    J = (1/2) \int |(B_{BiotSavart} - B_{External}) dot n|^2 ds
+        + LENGTH_PEN * (sum CurveLength)
+        + DIST_PEN * PairwiseDistancePenalty
+
+In here, the `PairwiseDistancePenalty` is the same term as the 
+`MininumDistancePenalty` of the :ref:`first example <_simplest_stage2>`
+that is used to prevents coils from
+becoming too close. The constant
+`DIST_PEN` is selected to balance this minimum distance penalty
+against the other objectives.
+To initialize the finite build optimization, we use the definitions below::
+
+  # Weight on the curve length penalty in the objective function:
+  LENGTH_PEN = 1e-2
+
+  # Threshhold and weight for the coil-to-coil distance penalty in the objective function:
+  DIST_MIN = 0.1
+  DIST_PEN = 10
+
+  # Settings for multifilament approximation.  In the following
+  # parameters, note that "normal" and "binormal" refer not to the
+  # Frenet frame but rather to the "coil centroid frame" defined by
+  # Singh et al., before rotation.
+  numfilaments_n = 2  # number of filaments in normal direction
+  numfilaments_b = 3  # number of filaments in bi-normal direction
+  gapsize_n = 0.02  # gap between filaments in normal direction
+  gapsize_b = 0.04  # gap between filaments in bi-normal direction
+  rot_order = 1  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
+
+  nfil = numfilaments_n * numfilaments_b
+  base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+  base_currents = []
+  for i in range(ncoils):
+      curr = Current(1.)
+      # since the target field is zero, one possible solution is just to set all
+      # currents to 0. to avoid the minimizer finding that solution, we fix one
+      # of the currents
+      if i == 0:
+          curr.fix_all()
+      base_currents.append(ScaledCurrent(curr, 1e5/nfil))
+
+  # use sum here to concatenate lists
+  base_curves_finite_build = sum([
+      create_multifilament_grid(c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=rot_order) for c in base_curves], [])
+  base_currents_finite_build = sum([[c]*nfil for c in base_currents], [])
+
+  # apply stellarator and rotation symmetries
+  curves_fb = apply_symmetries_to_curves(base_curves_finite_build, s.nfp, True)
+  currents_fb = apply_symmetries_to_currents(base_currents_finite_build, s.nfp, True)
+  # also apply symmetries to the underlying base curves, as we use those in the
+  # curve-curve distance penalty
+  curves = apply_symmetries_to_curves(base_curves, s.nfp, True)
+
+  coils_fb = [Coil(c, curr) for (c, curr) in zip(curves_fb, currents_fb)]
+  bs = BiotSavart(coils_fb)
+  bs.set_points(s.gamma().reshape((-1, 3)))
+
+Finally, the objective function takes the form
+
+  # Define the objective function:
+  Jf = SquaredFlux(s, bs)
+  Jls = [CurveLength(c) for c in base_curves]
+  Jdist = CurveCurveDistance(curves, DIST_MIN)
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jf \
+      + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves))) \
+      + DIST_PEN * Jdist
