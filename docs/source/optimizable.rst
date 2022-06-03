@@ -699,7 +699,7 @@ out the exact class name of the saved object.
     # or
     curve = Optimizable.from_file('curve.json')
 
-To save multiple simsopt objects use ``save`` function implemented in simsopt.
+To save multiple simsopt objects use the ``save`` function implemented in simsopt.
 
 .. code-block::
 
