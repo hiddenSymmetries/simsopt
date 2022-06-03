@@ -23,7 +23,8 @@ in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
 - Take into account finite coil width using a multifilament approach
 similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
 
-Stage 2 Objective function
+.. _simplest_stage2:
+Simplest objective function
 ---------------------------
 
 The first form of the objective function :math:`J` (or cost function)
@@ -344,3 +345,54 @@ for coil ``j`` can be obtained from ``coils[j].curve.x``, where the
 meaning of each array element can be seen from
 ``coils[j].curve.dof_names``.  The position vector for coil ``j`` in
 Cartesian coordinates can be obtained from ``coils[j].curve.gamma()``.
+
+Stochastic Optimization
+---------------------------
+
+In this example we solve a stochastic version of
+the :ref:`first example here <_simplest_stage2>`. As before,
+the goal is to find coils that generate a specific target
+normal field on a given surface. As we are still considering a vacuum
+field the target is just zero.
+The target equilibrium is the precise QA configuration of arXiv:2108.03711.
+
+The objective function similar to :ref:`the first example <_simplest_stage2>`
+with small modifications::
+
+    J = (1/2) Mean(\int |B dot n|^2 ds)
+        + LENGTH_WEIGHT * (sum CurveLength)
+        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
+        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
+        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
+        + ARCLENGTH_WEIGHT * ArclengthVariation
+
+The first term is altered to be given by the Mean of the flux instead of the
+flux itself. In here, the Mean is approximated by a sample average over perturbed coils.
+The coil perturbations for each coil are the sum of a 'systematic error' and a
+'statistical error'.  The former satisfies rotational and stellarator symmetry,
+the latter is independent for each coil.
+
+An extra term term is also added, namely the variation of the arclength along a curve.
+The idea is to avoid ill-posedness of curve objectives due to
+non-uniqueness of the underlying parametrization. Essentially we want to
+achieve constant arclength along the curve. Since we can not expect
+perfectly constant arclength along the entire curve, this class has
+some support to relax this notion. Consider a partition of the :math:`[0, 1]`
+interval into intervals :math:`\{I_i\}_{i=1}^L`, and tenote the average incremental arclength
+on interval :math:`I_i` by :math:`\ell_i`. This objective then penalises the variance
+.. math::
+    J = \mathrm{Var}(\ell_i)
+it remains to choose the number of intervals :math:`L` that :math:`[0, 1]` is split into.
+If ``nintervals="full"``, then the number of intervals :math:`L` is equal to the number of quadrature
+points of the curve. If ``nintervals="partial"``, then the argument is as follows:
+A curve in 3d space is defined uniquely by an initial point, an initial
+direction, and the arclength, curvature, and torsion along the curve. For a
+:mod:`simsopt.geo.curvexyzfourier.CurveXYZFourier`, the intuition is now as
+follows: assuming that the curve has order :math:`p`, that means we have
+:math:`3*(2p+1)` degrees of freedom in total. Assuming that three each are
+required for both the initial position and direction, :math:`6p-3` are left
+over for curvature, torsion, and arclength. We want to fix the arclength,
+so we can afford :math:`2p-1` constraints, which corresponds to
+:math:`L=2p`.
+
+
