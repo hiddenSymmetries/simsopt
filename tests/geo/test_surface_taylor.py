@@ -5,7 +5,6 @@ from simsopt.geo import parameters
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-
 parameters['jit'] = False
 
 
@@ -117,7 +116,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
 
 
 class SurfaceTaylorTests(unittest.TestCase):
-
     surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
                     "SurfaceXYZTensorFourier"]
 
@@ -152,6 +150,33 @@ class SurfaceTaylorTests(unittest.TestCase):
             return s.dgammadash2_by_dcoeff()[1, 1, :, :].copy()
         taylor_test(f, df, coeffs)
 
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash2dash2()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash2dash2_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash1dash1()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash1dash1_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.gammadash1dash2()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dgammadash1dash2_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs)
+
     def test_surface_coefficient_derivative(self):
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -181,6 +206,70 @@ class SurfaceTaylorTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_normal_coefficient_derivative(s)
+
+    def subtest_fund_form_coefficient_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.first_fund_form()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dfirst_fund_form_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+        def f(dofs):
+            s.x = dofs
+            return s.second_fund_form()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dsecond_fund_form_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+        def f(dofs):
+            s.x = dofs
+            return s.surface_curvatures()[1, 1, 2].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dsurface_curvatures_by_dcoeff()[1, 1, 2, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=4)
+
+    def test_fund_form_coefficient_derivative(self):
+        """
+        Taylor test for the first derivative of the surface normal w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_fund_form_coefficient_derivative(s)
+
+    def subtest_unit_normal_coefficient_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.unitnormal()[1, 1, :].copy()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dunitnormal_by_dcoeff()[1, 1, :, :].copy()
+        taylor_test(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(10, 15))), order=2)
+
+    def test_unit_normal_coefficient_derivative(self):
+        """
+        Taylor test for the first derivative of the surface normal w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_unit_normal_coefficient_derivative(s)
 
     def subtest_surface_area_coefficient_derivative(self, s):
         coeffs = s.x
@@ -330,6 +419,76 @@ class SurfaceTaylorTests(unittest.TestCase):
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_surface_theta_derivative(surfacetype, stellsym)
+
+    def subtest_surface_theta2_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(5, 10)]
+        thetas = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, thetas=thetas)
+        f0 = s.gammadash2()[0, 0, :]
+        deriv = s.gammadash2dash2()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash2()[0, i+1, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_theta2_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_theta2_derivative(surfacetype, stellsym)
+
+    def subtest_surface_phi2_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, phis=phis)
+        f0 = s.gammadash1()[0, 0, :]
+        deriv = s.gammadash1dash1()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash1()[i+1, 0, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_phi2_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_phi2_derivative(surfacetype, stellsym)
+
+    def subtest_surface_thetaphi_derivative(self, surfacetype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        thetas = np.asarray([0.3] + [0.3 + eps for eps in epss])
+        s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
+        f0 = s.gammadash1()[0, 0, :]
+        deriv = s.gammadash1dash2()[0, 0, :]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = s.gammadash1()[0, i+1, :]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_surface_thetaphi_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_surface_thetaphi_derivative(surfacetype, stellsym)
 
     def subtest_surface_conversion(self, surfacetype, stellsym):
         s = get_surface(surfacetype, stellsym)
