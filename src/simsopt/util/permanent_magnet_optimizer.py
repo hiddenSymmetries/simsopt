@@ -198,7 +198,14 @@ class PermanentMagnetOptimizer:
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
-            premade_dipole_grid = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5], delimiter=',')
+            ox, oy, oz, Ic = np.loadtxt('../../tests/test_files/' + self.pms_name, skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True)
+
+            nonzero_inds = (Ic == 1.0)
+            ox = ox[nonzero_inds]
+            oy = oy[nonzero_inds]
+            oz = oz[nonzero_inds]
+            self.Ic_inds = nonzero_inds
+            premade_dipole_grid = np.array([ox, oy, oz]).T
             self.premade_dipole_grid = premade_dipole_grid
             self.ndipoles = premade_dipole_grid.shape[0]
 
@@ -302,7 +309,7 @@ class PermanentMagnetOptimizer:
             the m_maxima factors needed for the constraints in the
             optimization.
         """
-        B_max = 1.4
+        B_max = 1.465
         mu0 = 4 * np.pi * 1e-7
         dipole_grid_r = np.zeros(self.ndipoles)
         dipole_grid_x = np.zeros(self.ndipoles)
@@ -338,17 +345,18 @@ class PermanentMagnetOptimizer:
                 skiprows=3, usecols=[7], delimiter=','
             )
             cell_vol = M0s * mu0 / B_max
+            self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
         else:
             #if self.cylindrical_vol_flag:
             cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             #else:
             #    cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
+            self.m_maxima = B_max * cell_vol / mu0
         print('Total initial volume for magnet placement = ', np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3')
 
         # FAMUS paper has a typo that m_max = B_r / (mu0 * cell_vol) but it 
         # should be m_max = B_r * cell_vol / mu0  (just from units)
-        self.m_maxima = B_max * cell_vol / mu0
 
     def _geo_setup(self):
         """
@@ -479,16 +487,17 @@ class PermanentMagnetOptimizer:
                     'Initial dipole guess must contain values '
                     'that are satisfy the maximum bound constraints.'
                 )
-        else:
+            self.m0 = m0
+        elif not hasattr(self, 'm0'):
             # initialization to proj(pinv(A) * b) is usually a bad guess!
-            # m0 = self._projection_L2_balls(
-            #     np.linalg.pinv(self.A_obj) @ self.b_obj, 
-            #     self.m_maxima
-            # )
+            #m0 = self._projection_L2_balls(
+            #    np.linalg.pinv(self.A_obj) @ self.b_obj, 
+            #    self.m_maxima
+            #)
             m0 = np.zeros(self.ndipoles * 3)
             # m0 = np.random.rand(m0.shape)
 
-        self.m0 = m0
+            self.m0 = m0
 
     def _print_initial_opt(self):
         """
@@ -697,6 +706,7 @@ class PermanentMagnetOptimizer:
                     nu=nu,
                 )    
                 m = np.ravel(m)
+                MwPGP_hist = MwPGP_hist[MwPGP_hist != 0]
                 err_RS.append(MwPGP_hist[-1])
 
                 # Solve the nonconvex optimization -- i.e. take a prox

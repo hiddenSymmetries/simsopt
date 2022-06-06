@@ -57,20 +57,34 @@ if res_flag not in ['low', 'medium', 'high']:
 final_run = (str(sys.argv[3]) == 'True')
 print('Config flag = ', config_flag, ', Resolution flag = ', res_flag, ', Final run =', final_run)
 
-# Check for L2 and L0 regularization
+# Check for other arguments such as L2 and L0 regularization
 if len(sys.argv) >= 5:
     reg_l0 = float(sys.argv[4])
     if not np.isclose(reg_l0, 0.0, atol=1e-16):
-        nu = 1e2
+        nu = 1e1
     else:
         nu = 1e100
 else:
     reg_l0 = 0.0  # default is no L0 norm
     nu = 1e100
+
+# L2 regularization
 if len(sys.argv) >= 6:
     reg_l2 = float(sys.argv[5])
 else:
     reg_l2 = 1e-8
+
+# Maximum iterations for solving the nonconvex problem
+if len(sys.argv) >= 7:
+    max_iter_RS = int(sys.argv[6])
+else:
+    max_iter_RS = 400
+
+# Error tolerance for declaring convex problem finished
+if len(sys.argv) >= 8:
+    epsilon = float(sys.argv[7])
+else:
+    epsilon = 1e-3
 
 # Pre-set parameters for each configuration
 surface_flag = 'vmec'
@@ -104,7 +118,7 @@ elif 'QH' in config_flag:
     surface_flag = 'wout'
 elif 'qa' in config_flag or 'qh' in config_flag:
     dr = 0.01
-    coff = 0.16
+    coff = 0.06
     poff = 0.04
     if 'qa' in config_flag:
         input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
@@ -115,10 +129,16 @@ elif config_flag == 'ncsx':
     dr = 0.02
     coff = 0.02
     poff = 0.1
-    surface_flag = 'focus'
-    input_name = 'input.NCSX_c09r00_halfTeslaTF' 
+    #surface_flag = 'focus'
+    surface_flag = 'wout'
+    #input_name = 'input.NCSX_c09r00_halfTeslaTF'
+    input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
     coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
 
+# Load in MPI, VMEC, etc. if doing a final run 
+# to generate a VMEC wout file which can be 
+# used to plot symmetry-breaking bmn, the flux
+# surfaces, epsilon_eff, etc. 
 if final_run:
     from mpi4py import MPI
     from simsopt.util.mpi import MpiPartition
@@ -183,23 +203,22 @@ t1 = time.time()
 if reg_l0 > 0:
     max_iter_MwPGP = 100
 else:
-    max_iter_MwPGP = 1000
-max_iter_RS = 50
-epsilon = 1e-3
+    max_iter_MwPGP = 50
 
 # Optimize the permanent magnets
 #m0_max = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
+#m0 = np.zeros(pm_opt.m0.shape)
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
     max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon,
     reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS,
-    #m0=m0_max
+    #m0=m0
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 
 # Print effective permanent magnet volume
-M_max = 1.4 / (4 * np.pi * 1e-7)
+M_max = 1.465 / (4 * np.pi * 1e-7)
 dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
@@ -229,9 +248,10 @@ print("Total Bn without the PMs = ",
       np.sum((pm_opt.b_obj) ** 2) / 2.0)
 print("Total Bn without the coils = ", 
       np.sum((pm_opt.A_obj @ pm_opt.m) ** 2) / 2.0)
-# grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
 print("Total Bn = ", 
       0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+print("Total Bn (sparse) = ", 
+      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m_proxy - pm_opt.b_obj) ** 2))
 
 # Compute metrics with permanent magnet results
 Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
@@ -245,14 +265,13 @@ print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_pr
 
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
-print(Bnormal)
-print(Bnormal_dipoles)
-print(Bn_Am)
+#print(Bnormal)
+#print(Bnormal_dipoles)
+#print(Bn_Am)
 print("Average Bn with the PMs = ", 
       np.mean(np.abs(Bnormal_total) / (2 * pm_opt.nphi * pm_opt.ntheta)))
-#grid_fac = np.sqrt(pm_opt.dphi * pm_opt.dtheta)
-print('F_B INITIAL = ', SquaredFlux(s, b_dipole, -Bnormal).J())  # * grid_fac ** 2) 
-print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, -pm_opt.Bn).J())  # * grid_fac ** 2) 
+print('F_B INITIAL = ', SquaredFlux(s, b_dipole, -Bnormal).J())
+print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, -pm_opt.Bn).J())
 
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 num_nonzero = np.count_nonzero(dipoles_m[:, 0] ** 2 + dipoles_m[:, 1] ** 2 + dipoles_m[:, 2] ** 2) / pm_opt.ndipoles * 100
@@ -261,7 +280,7 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 dipoles = np.ravel(dipoles)
 print('Dipole field setup done')
 
-make_plots = True 
+make_plots = False
 if make_plots:
 
     # Make plot of the relax-and-split convergence
@@ -270,35 +289,45 @@ if make_plots:
     plt.grid(True)
     plt.savefig(OUT_DIR + 'objective_history.png')
 
+    # Make plot of the relax-and-split convergence
+    plt.figure()
+    plt.subplot(1, 2, 1)
+    plt.plot(RS_history)
+    plt.yscale('log')
+    plt.grid(True)
+    plt.subplot(1, 2, 2)
+    plt.plot(RS_history)
+    plt.yscale('log')
+    plt.grid(True)
+    if len(RS_history) > 10:
+        plt.xlim(10, len(RS_history))
+        plt.ylim(RS_history[9], RS_history[-1])
+    plt.savefig(OUT_DIR + 'RS_objective_history.png')
+
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    x_multi = [abs(dipoles), abs(pm_opt.m)]
+    x_multi = [abs(pm_opt.m), abs(dipoles)]
     if pm_opt.is_premade_famus_grid:
         famus_file = '../../tests/test_files/' + pm_opt.pms_name
-        m0, p = np.loadtxt(
+        p = np.loadtxt(
             famus_file, skiprows=3, 
-            usecols=[7, 8], 
+            usecols=[8], 
             delimiter=',', unpack=True
         )
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
         momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
         rho = p ** momentq
-        x_multi = [abs(dipoles), abs(pm_opt.m), abs(rho)]
-    plt.hist(x_multi, bins=np.linspace(0, 1, 15), log=True, histtype='bar')
+        x_multi = [abs(pm_opt.m), abs(dipoles), abs(rho)]
+    plt.hist(x_multi, bins=np.linspace(0, 1, 40), histtype='bar')
+    plt.hist(x_multi, bins=np.linspace(0, 1, 40), log=True, histtype='bar')
     plt.grid(True)
+    plt.legend(['m', 'w', 'FAMUS'])
     plt.xlabel('Normalized magnitudes')
     plt.ylabel('Number of dipoles')
     plt.savefig(OUT_DIR + 'm_histograms.png')
     print('Done optimizing the permanent magnets')
 t2 = time.time()
 print("Done printing and plotting, ", t2 - t1, " s")
-
-#if surface_flag == 'focus':
-#    s = SurfaceRZFourier.from_focus(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
-#elif surface_flag == 'wout':
-#    s = SurfaceRZFourier.from_wout(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
-#else:
-#    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
 if comm is None or comm.rank == 0:
     # double the plasma surface resolution for the vtk plots
@@ -308,7 +337,8 @@ if comm is None or comm.rank == 0:
     endpoint = True
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=endpoint) 
     quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=endpoint)
-    srange = 'half period' 
+    srange = 'full torus' 
+    #srange = 'half period' 
 
     if surface_flag == 'focus':
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -337,7 +367,7 @@ if comm is None or comm.rank == 0:
 
     Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
     Ngrid = pm_opt.nphi * pm_opt.ntheta
-    Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m0)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
+    Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
     print(Bnormal, Bnormal_dipoles, Bnormal_Am)
 
     # For plotting Bn on the full torus surface at the end with just the dipole fields
@@ -351,9 +381,9 @@ if comm is None or comm.rank == 0:
     print('Done saving final vtk files, ', t2 - t1, " s")
 
     # Print optimized f_B and other metrics
-    f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
+    f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
     print('f_B = ', f_B_sf)
-    B_max = 1.4
+    B_max = 1.465
     mu0 = 4 * np.pi * 1e-7
     total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * s.stellsym * mu0 / B_max
     total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * s.stellsym * mu0 / B_max
@@ -361,7 +391,7 @@ if comm is None or comm.rank == 0:
     pm_opt.m = pm_opt.m_proxy
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()  # * grid_fac ** 2 
+    f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
     print('f_B_sparse = ', f_B_sp)
     dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
     num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100

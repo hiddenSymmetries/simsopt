@@ -579,17 +579,10 @@ class DipoleField(MagneticField):
                                                a set of initialized dipoles + dipole grid.
         """
         # Read in the required fields from pm_opt object
-        inds = pm_opt.inds
         self.nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
-        if pm_opt.is_premade_famus_grid:
-            phi = pm_opt.pm_uniq_phi
-        else:
-            phi = 2 * np.pi * pm_opt.plasma_boundary.quadpoints_phi
-        RZ_grid = pm_opt.final_RZ_grid
         dipole_grid = pm_opt.dipole_grid_xyz
         ndipoles = pm_opt.ndipoles
-        dipole_grid_Z = dipole_grid[:, 2]
         if stellsym:
             stell_num = 2
             nsym = self.nfp * 2
