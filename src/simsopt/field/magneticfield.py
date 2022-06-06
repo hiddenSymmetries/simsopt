@@ -125,12 +125,18 @@ class MagneticFieldMultiply(MagneticField):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
     def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        Bfield = MontyDecoder().process_decoded(d["Bfield"])
-        return cls(d["scalar"], Bfield)
+        decoder = MontyDecoder()
+        Bfield = decoder.process_decoded(d["Bfield"])
+        field = cls(d["scalar"], Bfield)
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class MagneticFieldSum(MagneticField):
@@ -171,7 +177,9 @@ class MagneticFieldSum(MagneticField):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
 
     def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
 
     @classmethod
     def from_dict(cls, d):
@@ -179,7 +187,10 @@ class MagneticFieldSum(MagneticField):
         Bfields = []
         for field in d["Bfields"]:
             Bfields.append(decoder.process_decoded(field))
-        return cls(Bfields)
+        field_sum = cls(Bfields)
+        xyz = decoder.process_decoded(d["points"])
+        field_sum.set_points_cart(xyz)
+        return field_sum
 
 
 
