@@ -85,12 +85,12 @@ if config_flag == 'muse':
     input_name = 'input.' + config_flag 
 elif 'qa' in config_flag:
     dr = 0.01
-    coff = 0.16
+    coff = 0.06
     poff = 0.04
     input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
 elif 'qh' in config_flag:
     dr = 0.01
-    coff = 0.16
+    coff = 0.06
     poff = 0.04
     input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
     surface_flag = 'wout'
@@ -360,33 +360,6 @@ t2 = time.time()
 print('Done initializing the permanent magnet object')
 print('Process took t = ', t2 - t1, ' s')
 
-# check nothing got mistranslated by plotting the initial dipole guess
-t1 = time.time()
-pm_opt.m = pm_opt.m0
-pm_opt.m_proxy = pm_opt.m0
-b_dipole_initial = DipoleField(pm_opt)
-b_dipole_initial.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
-
-# Plot total Bnormal after dipoles are initialized to their initial guess
-Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
-print(np.min(abs(Nnorms)), np.max(abs(Nnorms)))
-Ngrid = pm_opt.nphi * pm_opt.ntheta
-Bnormal_init = np.sum(b_dipole_initial.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m0)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
-print(Bnormal_init, Bnormal_plot, Bnormal_Am)
-pointData = {"B_N": Bnormal_init[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "Bnormal_dipoles_init_guess", extra_data=pointData)
-pointData = {"B_N": Bnormal_Am[:, :, None]}
-s.to_vtk(OUT_DIR + "Bnormal_dipoles_init_guess_Am", extra_data=pointData)
-pointData = {"B_N": (Bnormal_init + Bnormal_plot)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "Bnormal_init_guess", extra_data=pointData)
-f_B_init = SquaredFlux(s_plot, b_dipole_initial, -Bnormal_plot).J()
-print('f_B (total with initial SIMSOPT dipoles) = ', f_B_init)
-
-t2 = time.time()
-print('Done setting up the Dipole Field class')
-print('Process took t = ', t2 - t1, ' s')
 
 # If using a pre-made FAMUS grid of permanent magnet
 # locations, save the FAMUS grid and FAMUS solution.
@@ -394,11 +367,23 @@ if is_premade_famus_grid:
     t1 = time.time()
     famus_file = '../../tests/test_files/' + pms_name
     # FAMUS files are for the half-period surface 
-    ox, oy, oz, m0, p, mp, mt = np.loadtxt(
+    ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
         famus_file, skiprows=3, 
-        usecols=[3, 4, 5, 7, 8, 10, 11], 
+        usecols=[3, 4, 5, 6, 7, 8, 10, 11], 
         delimiter=',', unpack=True
     )
+    print('Number of FAMUS dipoles = ', len(ox))
+    nonzero_inds = (Ic == 1.0)
+    print(nonzero_inds)
+    ox = ox[nonzero_inds]
+    oy = oy[nonzero_inds]
+    oz = oz[nonzero_inds]
+    m0 = m0[nonzero_inds]
+    p = p[nonzero_inds]
+    mp = mp[nonzero_inds]
+    mt = mt[nonzero_inds]
+    print('Number of FAMUS dipoles (with ports) = ', len(ox))
+
     phi = np.arctan2(oy, ox)
 
     # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
@@ -422,6 +407,9 @@ if is_premade_famus_grid:
     m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
     pm_opt.cylindrical_flag = False
 
+    ### TEMPORARY -- setting pm_opt initial guess to the FAMUS solution
+    pm_opt.m0 = m_FAMUS
+
     # Set pm_opt m values to the FAMUS solution so we can use the
     # plotting routines from the class object. 
     pm_opt.m = m_FAMUS 
@@ -431,7 +419,7 @@ if is_premade_famus_grid:
     b_dipole_FAMUS.set_points(s.gamma().reshape((-1, 3)))
     b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
     Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
-    print(Bnormal_FAMUS, Bnormal)
+    # print(Bnormal_FAMUS, Bnormal)
     #grid_fac = pm_opt.dphi * pm_opt.dtheta
     #print(pm_opt.dphi, pm_opt.dtheta, grid_fac, grid_fac / (4 * np.pi ** 2))
     f_B_famus = SquaredFlux(s, b_dipole_FAMUS).J()
@@ -475,6 +463,37 @@ if is_premade_famus_grid:
     s_plot.to_vtk(OUT_DIR + "Bnormal_total_Coilpy", extra_data=pointData)
 
     pm_opt.cylindrical_flag = cylindrical_flag
+
+
+# check nothing got mistranslated by plotting the initial dipole guess
+t1 = time.time()
+pm_opt.m = pm_opt.m0
+pm_opt.m_proxy = pm_opt.m0
+b_dipole_initial = DipoleField(pm_opt)
+b_dipole_initial.set_points(s_plot.gamma().reshape((-1, 3)))
+b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
+
+# Plot total Bnormal after dipoles are initialized to their initial guess
+Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+Ngrid = pm_opt.nphi * pm_opt.ntheta
+Bnormal_init = np.sum(b_dipole_initial.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m0)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
+print(Bnormal_init, Bnormal_plot, Bnormal_Am)
+pointData = {"B_N": Bnormal_init[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "Bnormal_dipoles_init_guess", extra_data=pointData)
+pointData = {"B_N": Bnormal_Am[:, :, None]}
+s.to_vtk(OUT_DIR + "Bnormal_dipoles_init_guess_Am", extra_data=pointData)
+pointData = {"B_N": (Bnormal_init + Bnormal_plot)[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "Bnormal_init_guess", extra_data=pointData)
+f_B_init = SquaredFlux(s, b_dipole_initial, -Bnormal).J()
+
+f_B_Am = np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m0) - pm_opt.b_obj, ord=2) ** 2 / 2.0
+print('f_B (total with initial SIMSOPT dipoles) = ', f_B_init)
+print('f_B (A * m with initial SIMSOPT dipoles) = ', f_B_Am)
+
+t2 = time.time()
+print('Done setting up the Dipole Field class')
+print('Process took t = ', t2 - t1, ' s')
 
 t1 = time.time()
 # Save PM class object to file for optimization
