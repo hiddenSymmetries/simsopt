@@ -170,9 +170,15 @@ class MagneticFieldSum(MagneticField):
     def B_vjp(self, v):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
 
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
     @classmethod
     def from_dict(cls, d):
-        Bfields = Optimizable._decode(d)
+        decoder = MontyDecoder()
+        Bfields = []
+        for field in d["Bfields"]:
+            Bfields.append(decoder.process_decoded(field))
         return cls(Bfields)
 
 

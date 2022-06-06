@@ -3,7 +3,7 @@
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
-from simsopt import load_simsopt, save_simsopt
+from simsopt import load, save
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
 obtain a desired volume and area.
@@ -44,7 +44,7 @@ print(" -------------------------\n\n")
 surf.save("surf_fw.json", indent=2)
 
 # Load the saved surface, and redo optimization using central difference scheme
-surf1 = load_simsopt("surf_fw.json")
+surf1 = load("surf_fw.json")
 
 desired_volume1 = 0.8
 desired_area1 = 9.0   # These are different from previous values
@@ -60,7 +60,7 @@ print(" zs(m=1,n=0) = ", surf1.get_zs(1, 0))
 print(" volume = ", surf1.volume())
 print(" area = ", surf1.area())
 print(" objective function = ", prob2.objective())
-save_simsopt(surf1, "surf_centered.json", indent=2)
+save(surf1, "surf_centered.json", indent=2)
 print(" -------------------------\n\n")
 print("End of 1_Simple/surf_vol_area.py")
 print("=======================================")

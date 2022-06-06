@@ -1,14 +1,17 @@
-import numpy as np
-from scipy.special import ellipk, ellipe
-from simsopt.field.magneticfield import MagneticField
-import simsoptpp as sopp
 import logging
+
+import numpy as np
+from monty.json import MSONable, MontyDecoder
+from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
     sympy_found = True
 except ImportError:
     sympy_found = False
+
+from simsopt.field.magneticfield import MagneticField
+import simsoptpp as sopp
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +110,7 @@ class ToroidalField(MagneticField):
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["R0"] = self.R0
-        d["B0"] = self.B0
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -213,12 +212,7 @@ class PoloidalField(MagneticField):
         dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["R0"] = self.R0
-        d["B0"] = self.B0
-        d["q"] = self.q
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -311,11 +305,7 @@ class ScalarPotentialRZMagneticField(MagneticField):
         dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["phi_str"] = self.phi_str
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -522,14 +512,14 @@ class Dommaschk(MagneticField):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        mn = [list(self.m), list(self.n)]
-        d["mn"] = mn
+        d["mn"] = np.column_stack((self.m, self.n))
         d["coeffs"] = self.coeffs
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["mn"], d["coeffs"])
+        mn = MontyDecoder().process_decoded(d["mn"])
+        return cls(mn, d["coeffs"])
 
 
 class Reiman(MagneticField):
@@ -564,15 +554,7 @@ class Reiman(MagneticField):
         dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
     def as_dict(self):
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["iota0"] = self.iota0
-        d["iota1"] = self.iota1
-        d["k"] = self.k
-        d["epsilonk"] = self.epsilonk
-        d["m0"] = self.m0
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -597,7 +579,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
     This resulting interpolant can then be evaluated very quickly.
     """
 
-    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False):
+    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False, skip=None):
         r"""
         Args:
             field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated.
@@ -615,6 +597,19 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``z`` is always mapped to be positive, hence it makes sense to use
                       ``zmin=0``.
+            skip: a function that takes in a point (in cylindrical (r,phi,z)
+                  coordinates) and returns whether to skip that location when
+                  building the interpolant or not. The signature should be
+
+                  .. code-block:: Python
+
+                      def skip(r: double, phi: double, z: double) -> bool:
+                          ...
+
+                  See also here
+                  https://github.com/hiddenSymmetries/simsopt/pull/227 for a
+                  graphical illustration.
+
         """
         MagneticField.__init__(self)
         if stellsym and zrange[0] != 0:
@@ -622,10 +617,14 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
         if nfp > 1 and abs(phirange[1] - 2*np.pi/nfp) > 1e-14:
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
-        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
+        if skip is None:
+            def skip(xs, ys, zs):
+                return [False for _ in xs]
+
+        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym, skip)
         self.__field = field
 
-    def to_vtk(self, filename, h=0.1):
+    def to_vtk(self, filename):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         degree = self.rule.degree
         MagneticField.to_vtk(

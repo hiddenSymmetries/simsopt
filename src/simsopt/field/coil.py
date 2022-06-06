@@ -123,12 +123,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         return self.scale * self.current_to_scale.get_value()
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["current_to_scale"] = self.current_to_scale.as_dict()
-        d["scale"] = self.scale
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -155,15 +150,14 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         return self.current_a.get_value() + self.current_b.get_value()
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["current"] = self.get_value()
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
-        return cls(Current(d["current"]), 1.0)
+        decoder = MontyDecoder()
+        current_a = decoder.process_decoded(d["current_a"])
+        current_b = decoder.process_decoded(d["current_b"])
+        return cls(current_a, current_b)
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
