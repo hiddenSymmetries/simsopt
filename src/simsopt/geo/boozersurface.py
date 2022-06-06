@@ -500,7 +500,7 @@ class BoozerSurface(MSONable):
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abiotsavart(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
