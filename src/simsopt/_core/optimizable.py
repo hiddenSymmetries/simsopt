@@ -1337,6 +1337,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         if fmt == "json" or fnmatch(fname.lower(), "*.json"):
             if "cls" not in kwargs:
                 kwargs["cls"] = MontyEncoder
+            if "indent" not in kwargs:
+                kwargs["indent"] = 2
             s = json.dumps(self.as_dict(), **kwargs)
             if filename:
                 with zopen(filename, "wt") as f:
@@ -1362,7 +1364,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             return cls.from_str(contents, fmt="json")
 
 
-def load_simsopt(filename, *args, **kwargs):
+def load(filename, *args, **kwargs):
     """
     Function to load simsopt object from a file.
     Only JSON format is supported at this time. Support for additional
@@ -1383,7 +1385,7 @@ def load_simsopt(filename, *args, **kwargs):
         return json.load(fp, *args, **kwargs)
 
 
-def save_simsopt(simsopt_objects, filename, *args, **kwargs):
+def save(simsopt_objects, filename, *args, **kwargs):
     fname = Path(filename).suffix.lower()
     if (not fname == '.json'):
         raise ValueError(f"Invalid format: `{str(fname[1:])}`")
@@ -1391,6 +1393,8 @@ def save_simsopt(simsopt_objects, filename, *args, **kwargs):
     with zopen(filename, "wt") as fp:
         if "cls" not in kwargs:
             kwargs["cls"] = MontyEncoder
+        if "indent" not in kwargs:
+            kwargs["indent"] = 2
         return json.dump(simsopt_objects, fp, *args, **kwargs)
 
 
