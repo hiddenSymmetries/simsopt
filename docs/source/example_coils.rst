@@ -29,9 +29,7 @@ Simplest objective function
 
 The first form of the objective function :math:`J` (or cost function)
 that will be minimized in order to find coils that yield the desired magnetic field is
-the one present in ``examples/2_Intermediate/stage_two_optimization.py`` and given by:
-
-.. math::
+the one presented in ``examples/2_Intermediate/stage_two_optimization.py`` and given by::
 
   J = (1/2) \int |B dot n|^2 ds
       + LENGTH_WEIGHT * \sum_j L_j
@@ -59,7 +57,7 @@ against the other objectives.  Analytic derivatives are used for the
 optimization.
 
 Finally, the two remaining terms `CurvaturePenalty` and `MeanSquaredCurvaturePenalty`
-are regularization terms the prevent the coils from becoming to wiggly.
+are regularization terms that prevent the coils from becoming to wiggly.
 These try to make the coils as smooth as possible to accomodate
 possible engineering constraints.
 
@@ -75,7 +73,7 @@ simsopt using OpenMP and vectorization, but MPI is not used, so the
 few seconds on a laptop.
 
 The target plasma surface is given in the VMEC input file ``tests/test_files/input.LandremanPaul2021_QA``.
-We load the surface using::
+We load the surface using:
 
 .. code-block::
 
@@ -158,7 +156,7 @@ Notice that the current appears in the list of dofs for ``coil[1]``
 but not for ``coil[0]``, since we fixed the current for
 ``coil[0]``. Also notice that ``coil[4]`` has the same degrees of
 freedom (owned by ``CurveXYZFourier1``) as ``coil[0]``, because coils
-0 and 4 refer to the same base coil shape.
+0 and 4 refer to the same base coil shape and current.
 
 There are several ways to view the objects we have created so far. One
 approach is the function :obj:`simsopt.geo.plot.plot()`, which accepts
@@ -179,7 +177,7 @@ open them in Paraview::
   curves_to_vtk(curves, "curves_init")
   s.to_vtk("surf_init")
   
-To evaluate the magnetic field on the target surface, we create
+To evaluate the magnetic field on the target surface, we create a
 :obj:`simsopt.field.biotsavart.BiotSavart` object based on the coils,
 and instruct it to evaluate the field on the surface::
 
@@ -188,7 +186,7 @@ and instruct it to evaluate the field on the surface::
 
 (The surface position vector ``gamma()`` returns an array of size
 ``(nphi, ntheta, 3)``, which we reshaped here to
-``(number_of_evaluation_points, 3)`` for the
+``(nphi*ntheta, 3)`` for the
 :obj:`~simsopt.field.biotsavart.BiotSavart` object.) 
 To check the size of the field normal to the target surface
 before optimization we can run::
@@ -258,8 +256,8 @@ do three of the four currents.  Next, to interface with scipy's
 minimization routines, we write a small function::
 
   def fun(dofs):
-    objective.x = dofs
-    return objective.J(), objective.dJ()
+      objective.x = dofs
+      return objective.J(), objective.dJ()
 
 Note that when the ``dJ()`` method of the objective is called to
 compute the gradient, simsopt automatically applies the chain rule to
@@ -451,7 +449,7 @@ used and the corresponding terms. Besides the terms in
 As can be seen here, in the stochastic optimization method,
 we apply two different types of errors.
 The first one is the systematic error which is applied where
-a random perturbation and a Gaussian Sampler with a predefined standard deviation
+random perturbations based on a Gaussian Sampler with a predefined standard deviation
 are added to the base curves. The second is a statistical error that is
 added to each of the final coils, and is independent between coils.
 
@@ -516,27 +514,29 @@ surface normal vector computed with the results of the virtual casing principle:
       + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
 
 
+The example above uses very minimal coil regularization: only the deviation
+from the initial coil length is penalized; curvature and distance are not
+targeted here.
 
 Finite Build Optimization
 ---------------------------
 
 In this final example, we perform a stage 2 optimization with
 finite build coils. The script for this case can be found in
-``examples/3_Advanced/stage_two_optimization_finite_build.py`` and
-will make use of the virtual casing principle.
-In particular, we use a multifilament approach
-to approximate a finite build coil in order to have finite thickness.
-The target equilibrium is the precise QA configuration of arXiv:2108.03711.
-The approach used here follows::
+``examples/3_Advanced/stage_two_optimization_finite_build.py``.
+In particular, we use a multifilament approach that follows::
 
   Optimization of finite-build stellarator coils,
   Singh, Luquant, et al.  Journal of Plasma Physics 86.4 (2020).
 
+to approximate a finite build coil in order to have finite thickness.
+
+The target equilibrium is the precise QA configuration of arXiv:2108.03711.
 Besides the degrees of freedom listed in :ref:`first example here <_simplest_stage2>`,
 in this case, we have additional degrees of freedom related to the rotation
 of the coil pack. The objective function is given by::
 
-    J = (1/2) \int |(B_{BiotSavart} - B_{External}) dot n|^2 ds
+    J = (1/2) \int |(B_{BiotSavart}) dot n|^2 ds
         + LENGTH_PEN * (sum CurveLength)
         + DIST_PEN * PairwiseDistancePenalty
 
@@ -593,7 +593,7 @@ To initialize the finite build optimization, we use the definitions below::
   bs = BiotSavart(coils_fb)
   bs.set_points(s.gamma().reshape((-1, 3)))
 
-Finally, the objective function takes the form
+Finally, the objective function takes the form::
 
   # Define the objective function:
   Jf = SquaredFlux(s, bs)
