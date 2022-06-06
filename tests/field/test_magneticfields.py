@@ -38,7 +38,6 @@ class Testing(unittest.TestCase):
 
         field_json_str = json.dumps(Bfield, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(points)
         B1_regen = Bfield_regen.B()
         self.assertTrue(np.allclose(B1, B1_regen))
 
@@ -107,7 +106,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Btotal2, cls=MontyEncoder)
         Btotal_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Btotal_regen.set_points(points)
         self.assertTrue(np.allclose(B2, Btotal_regen.B()))
 
         # Verify
@@ -139,7 +137,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bscalar, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(points)
         self.assertTrue(np.allclose(B1, np.array(Bfield_regen.B())))
 
         # Analytical Formula for B
@@ -214,7 +211,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bfield, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(points)
         self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
 
         # Verify that divergence is zero
@@ -435,7 +431,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bhelical, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(point)
         self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B()))
 
     def test_Dommaschk(self):
@@ -455,7 +450,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bfield, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(point)
         self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_BifieldMultiply(self):
@@ -493,7 +487,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bfield2, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(points)
         self.assertTrue(np.allclose(Bfield2.B(), Bfield_regen.B()))
 
     def test_Reiman(self):
@@ -516,7 +509,6 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(Bfield, cls=MontyEncoder)
         Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
-        Bfield_regen.set_points(points)
         self.assertTrue(np.allclose(B1, Bfield_regen.B()))
         # Bfield analytical
         x = points[:, 0]
