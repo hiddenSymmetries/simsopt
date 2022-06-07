@@ -109,25 +109,53 @@ class GX_Runner():
 
 
     # queues a slurm file
-    def run_slurm(self, f_batch, tag='test'):
+    def run_slurm(self, f_batch, gx_name):
 
         with open(f_batch, 'w') as f:
             
             for line in self.slurm_header:
                 f.write(line)
 
-            run_cmd = 'srun gx {}.in > log.{}'.format(tag, tag)
+            run_cmd = f"srun gx {gx_name}.in > log.{gx_name} \n"
             f.write(run_cmd)
 
         batch_cmd = 'sbatch {}'.format(f_batch)
         print('  running:', batch_cmd)
-        os.system( batch_cmd )
+#        os.system( batch_cmd )  # halt for temporary stellar-traverse interface
 
-    def execute(self):
+    # this combines 4 gx runs into 1 batch job
+    def batch_slurm_init(self, f_batch, gx_name):
 
-        # assume Trinity is in a salloc environment with GPUs
-        # write input file, write batch file, execute srun
-        pass
+        with open(f_batch, 'w') as f:
+            
+            for line in self.slurm_header:
+                f.write(line)
+
+            run_cmd = f"srun gx {gx_name}.in > log.{gx_name} &\n"
+            f.write(run_cmd)
+
+    def batch_slurm_append(self, f_batch, gx_name):
+
+        with open(f_batch, 'a') as f:
+            
+            run_cmd = f"srun gx {gx_name}.in > log.{gx_name} &\n"
+            f.write(run_cmd)
+
+
+    def batch_slurm_close(self, f_batch):
+
+        with open(f_batch, 'a') as f:
+            
+            run_cmd = "wait \n"
+            f.write(run_cmd)
+
+        batch_cmd = 'sbatch {}'.format(f_batch)
+        print('  preparing:', batch_cmd)
+
+    ### the above should be functions in a GX_Slurm Class
+    # issue with slurm, if I ask for 4 tasks per node, 1 gpu per task
+    # all gpus get started on the first job. Maybe the issue is deviceid hard coded in CUDA?
+
 
     def pretty_print(self, entry=''):
     # dumps out current input data, in GX input format
