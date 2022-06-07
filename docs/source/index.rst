@@ -45,6 +45,8 @@ repositories. These separate modules include
   equilibrium.
 - `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
   Boozer coordinates and quasisymmetry.
+- `virtual_casing <https://github.com/hiddenSymmetries/virtual_casing>`_,
+  needed for coil optimization in the case of finite-beta plasmas.
   
 We gratefully acknowledge funding from the `Simons Foundation's Hidden
 symmetries and fusion energy project
@@ -72,6 +74,7 @@ optimization.  Others include `STELLOPT
    source
    publications
    contributing
+   cpp
 
 .. toctree::
    :maxdepth: 3

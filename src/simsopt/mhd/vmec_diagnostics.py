@@ -18,6 +18,8 @@ from .._core.util import Struct
 from .._core.optimizable import Optimizable
 from ..util.types import RealArray
 from ..geo.surfaceobjectives import parameter_derivatives
+from ..geo.surface import Surface
+from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -281,29 +283,69 @@ class QuasisymmetryRatioResidual(Optimizable):
         return results.total
 
 
-def B_cartesian(vmec):
+def B_cartesian(vmec,
+                quadpoints_phi=None,
+                quadpoints_theta=None,
+                range=Surface.RANGE_FULL_TORUS,
+                nphi=None,
+                ntheta=None):
     r"""
-    Computes Cartesian vector components of magnetic field on boundary
-    on a grid in the vmec toroidal and poloidal angles. This is
-    required to compute adjoint-based shape gradients.
+    Computes Cartesian vector components of the magnetic field on the
+    Vmec boundary.  The results are returned on a grid in the Vmec
+    toroidal and poloidal angles. This routine is required to compute
+    adjoint-based shape gradients and for the virtual casing
+    calculation.
+
+    There are two ways to define the grid points in the poloidal and
+    toroidal angles on which the field is returned.  The default
+    option, if ``quadpoints_phi``, ``quadpoints_theta``, ``nphi``, and
+    ``ntheta`` are all unspecified, is to use the quadrature grid
+    associated with the ``Surface`` object attached to
+    ``vmec.boundary``.  The second option is that you can specify
+    custom ``phi`` and ``theta`` grids using the arguments
+    ``quadpoints_phi``, ``quadpoints_theta``, ``nphi``, ``ntheta``,
+    and ``range``, exactly as when initializing a ``Surface`` object.
+    For more details, see the documentation on :ref:`surfaces`.  Note
+    that both angles go up to 1, not :math:`2\pi`.
+
+    For now, this routine only works for stellarator symmetry.
 
     Args:
-        vmec : instance of Vmec
+        vmec: instance of Vmec
 
-    Returns: 3 element tuple containing (Bx, By, Bz)
-        Bx, By, Bz : 2d arrays of size (numquadpoints_phi,numquadpoints_theta)
-            defining Cartesian components of magnetic field on vmec.boundary
+    Returns:
+        Tuple containing ``(Bx, By, Bz)``. Each of these three entries is a
+        2D array of size ``(numquadpoints_phi, numquadpoints_theta)``
+        containing the Cartesian component of the magnetic field on the Vmec boundary surface.
     """
-    dgamma1 = vmec.boundary.gammadash1()
-    dgamma2 = vmec.boundary.gammadash2()
+    vmec.run()
+    nfp = vmec.wout.nfp
+    if vmec.wout.lasym:
+        raise RuntimeError('B_cartesian presently only works for stellarator symmetry')
 
-    theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
-    phi1D = vmec.boundary.quadpoints_phi * 2 * np.pi
+    if (nphi is None) and (quadpoints_phi is None) and (ntheta is None) and (quadpoints_theta is None):
+        theta1D_1 = vmec.boundary.quadpoints_theta
+        phi1D_1 = vmec.boundary.quadpoints_phi
+    else:
+        phi1D_1, theta1D_1 = Surface.get_quadpoints(quadpoints_phi, quadpoints_theta,
+                                                    range, nphi, ntheta, vmec.wout.nfp)
+
+    theta1D = np.array(theta1D_1) * 2 * np.pi
+    phi1D = np.array(phi1D_1) * 2 * np.pi
+
     nphi = len(phi1D)
     ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
-    vmec.run()
+    # Get the tangent vectors using the gammadash1/2 functions from SurfaceRZFourier:
+    surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=vmec.wout.nfp,
+                            quadpoints_phi=phi1D_1, quadpoints_theta=theta1D_1)
+    for jmn in np.arange(vmec.wout.mnmax):
+        surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
+        surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
+    dgamma1 = surf.gammadash1()
+    dgamma2 = surf.gammadash2()
+
     bsupumnc = 1.5 * vmec.wout.bsupumnc[:, -1] - 0.5 * vmec.wout.bsupumnc[:, -2]
     bsupvmnc = 1.5 * vmec.wout.bsupvmnc[:, -1] - 0.5 * vmec.wout.bsupvmnc[:, -2]
     angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
