@@ -58,6 +58,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_even", &inverse_fourier_transform_even);
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("compute_kmns",&compute_kmns);
+    m.def("compute_kmnc_kmns",&compute_kmnc_kmns);
 
     // the computation below is used in boozer_surface_residual.
     //
@@ -122,11 +123,37 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n) {
         int nphi = Bcoil.shape(0);
         int ntheta = Bcoil.shape(1);
-        double *Bcoil_ptr = &(Bcoil(0, 0, 0));
+        double *Bcoil_ptr = Bcoil.data();
         double *Btarget_ptr = NULL;
-        if(Btarget.size() == Bcoil.size())
-             Btarget_ptr = &(Btarget(0, 0, 0));
-        double *n_ptr = &(n(0, 0, 0));
+        double *n_ptr = n.data();
+        if(Bcoil.layout() != xt::layout_type::row_major)
+              throw std::runtime_error("Bcoil needs to be in row-major storage order");
+        if(Bcoil.shape(2) != 3)
+            throw std::runtime_error("Bcoil has wrong shape.");
+        if(Bcoil.size() != 3*nphi*ntheta)
+            throw std::runtime_error("Bcoil has wrong size.");
+        if(n.layout() != xt::layout_type::row_major)
+              throw std::runtime_error("n needs to be in row-major storage order");
+        if(n.shape(0) != nphi)
+            throw std::runtime_error("n has wrong shape.");
+        if(n.shape(1) != ntheta)
+            throw std::runtime_error("n has wrong shape.");
+        if(n.shape(2) != 3)
+            throw std::runtime_error("n has wrong shape.");
+        if(n.size() != 3*nphi*ntheta)
+            throw std::runtime_error("n has wrong size.");
+        if(Btarget.size() > 0){
+            if(Btarget.layout() != xt::layout_type::row_major)
+                throw std::runtime_error("Btarget needs to be in row-major storage order");
+            if(Btarget.shape(0) != nphi)
+                throw std::runtime_error("Btarget has wrong shape.");
+            if(Btarget.shape(1) != ntheta)
+                throw std::runtime_error("Btarget has wrong shape.");
+            if(Btarget.size() != nphi*ntheta)
+                throw std::runtime_error("Btarget has wrong size.");
+
+            Btarget_ptr = Btarget.data();
+        }
         double res = 0;
 #pragma omp parallel for reduction(+:res)
         for(int i=0; i<nphi*ntheta; i++){
@@ -136,7 +163,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             double Nz = n_ptr[3*i+2]/normN;
             double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
             if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[3*i];
+                BcoildotN -= Btarget_ptr[i];
             res += (BcoildotN * BcoildotN) * normN;
         }
         return 0.5 * res / (nphi*ntheta);

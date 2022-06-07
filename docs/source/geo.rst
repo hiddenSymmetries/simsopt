@@ -8,7 +8,7 @@ are provided.  The curve and surface objects can all be found in the
 :obj:`simsopt.geo` module.
 
 .. _curves:
-     
+
 Curves
 ~~~~~~
 
@@ -145,10 +145,17 @@ the :obj:`~simsopt.geo.curve.Curve` class:
 - ``Surface.normal()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)\times \partial_\theta \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
 - ``Surface.area()``: returns the surface area.
 - ``Surface.volume()``: returns the volume enclosed by the surface.
+- ``Surface.gammadash1dash1()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial^2_{\phi,\phi} \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.gammadash2dash2()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial^2_{\theta,\theta} \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.gammadash1dash2()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial^2_{\theta,\phi} \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.first_fund_form()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`[\partial_{\phi} \Gamma(\phi_i, \theta_j) \cdot \partial_{\phi} \Gamma(\phi_i, \theta_j), \partial_{\phi} \Gamma(\phi_i, \theta_j) \cdot \partial_{\theta} \Gamma(\phi_i, \theta_j), \partial_{\theta} \Gamma(\phi_i, \theta_j) \cdot \partial_{\theta} \Gamma(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
+- ``Surface.second_fund_form()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`[\hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\phi} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\theta} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\theta,\theta} \Gamma(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`\hat{\textbf{n}}` is the unit normal.
+- ``Surface.surface_curvatures()``: returns a ``(n_phi, n_theta, 4)`` array containing :math:`[H(\phi_i, \theta_j),K(\phi_i, \theta_j),\kappa_1(\phi_i, \theta_j),\kappa_2(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`H` is the mean curvature, :math:`K` is the Gaussian curvature, and :math:`\kappa_{1,2}` are the principal curvatures with :math:`\kappa_1>\kappa_2`.
 
 A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.surface.Surface`:
 
 - ``ToroidalFlux``: computes the flux through a toroidal cross section of a ``Surface``.
+- ``PrincipalCurvature``: computes a metric which penalizes large values of the principal curvatures of a given ``Surface``.
 
 The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., ``ToroidalFlux.J()`` and ``ToroidalFlux.dJ_dsurfacecoefficients()``.
 
@@ -197,5 +204,3 @@ pyevtk``. A list of curve objects can be exported using the function
 :func:`simsopt.geo.curve.curves_to_vtk()`. To export a VTK file for a
 surface, call the ``.to_vtk(filename)`` function of the object.  See
 :func:`simsopt.geo.surface.Surface.to_vtk()` for more details.
-
-
