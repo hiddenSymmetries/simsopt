@@ -809,6 +809,23 @@ class Vmec(Optimizable):
         self.run()
         return self.wout.volume
 
+    def gx_qflux(self):
+        """
+            get wout, 
+            make fluxtube, 
+            run gx, 
+            wait, 
+            read output
+        """
+        self.run()
+
+        f_wout = self.output_file
+        print(' found', f_wout)
+        from simsopt.turbulence.GX_io import GX_Runner
+
+        gx = GX_Runner("gx-sample.in")
+        gx.make_fluxtube(f_wout)
+
     def iota_axis(self):
         """
         Return the rotational transform on axis
