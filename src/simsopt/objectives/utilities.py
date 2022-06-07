@@ -63,41 +63,44 @@ class MPIObjective(Optimizable):
 
 class QuadraticPenalty(Optimizable):
 
-    def __init__(self, obj, threshold=0., cons='min'):
+    def __init__(self, obj, cons=0., f='min'):
         r"""
-        A penalty function of the form :math:`\max(J - \text{threshold}, 0)^2` for an underlying objective ``J``.
+        A penalty function of the form :math:`0.5*f(obj - \text{cons}, 0)^2` for an underlying objective ``obj``
+        and wrapping function `f`. The wrapping function defaults to 'min'.
 
         Args:
             obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
-            threshold: the threshold past which values should be penalized.
+            cons: constant
+            f: the function that wraps the difference `obj-\text{cons}`
         """
+        assert f == 'min' or f == 'max' or f == 'identity'
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj
-        self.threshold = threshold
         self.cons = cons
+        self.f = f
 
     def J(self):
-        if self.cons == 'max':
-            return 0.5*np.maximum(self.obj.J()-self.threshold, 0)**2
-        elif self.cons == 'min':
-            return 0.5*np.minimum(self.obj.J()-self.threshold, 0)**2
-        elif self.cons == '=':
-            return 0.5*(self.obj.J()-self.threshold)**2
+        if self.f == 'max':
+            return 0.5*np.maximum(self.obj.J()-self.cons, 0)**2
+        elif self.f == 'min':
+            return 0.5*np.minimum(self.obj.J()-self.cons, 0)**2
+        elif self.f == 'identity':
+            return 0.5*(self.obj.J()-self.cons)**2
 
     @derivative_dec
     def dJ(self):
-        if self.cons == 'max':
+        if self.f == 'max':
             val = self.obj.J()
             dval = self.obj.dJ(partials=True)
-            return np.maximum(val-self.threshold, 0)*dval
-        elif self.cons == 'min':
+            return np.maximum(val-self.cons, 0)*dval
+        elif self.f == 'min':
             val = self.obj.J()
             dval = self.obj.dJ(partials=True)
-            return np.minimum(val-self.threshold, 0)*dval
-        elif self.cons == '=':
+            return np.minimum(val-self.cons, 0)*dval
+        elif self.f == 'identity':
             val = self.obj.J()
             dval = self.obj.dJ(partials=True)
-            return (val-self.threshold)*dval
+            return (val-self.cons)*dval
 
     return_fn_map = {'J': J, 'dJ': dJ}
 

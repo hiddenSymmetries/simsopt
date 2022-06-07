@@ -58,8 +58,8 @@ bs_nonQS = BiotSavart(coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 
-J_major_radius = QuadraticPenalty(mr, 1.5, '=')
-J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], '=')
+J_major_radius = QuadraticPenalty(mr, 1.5, 'identity')
+J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')
 J_nonQSRatio = NonQuasiAxisymmetricRatio(boozer_surface, bs_nonQS)
 Jls = QuadraticPenalty(sum(ls), 21., 'max') 
 
