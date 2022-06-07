@@ -36,6 +36,14 @@ simsopt.mhd.spec module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.virtual\_casing module
+----------------------------------
+
+.. automodule:: simsopt.mhd.virtual_casing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.vmec module
 -----------------------
 
