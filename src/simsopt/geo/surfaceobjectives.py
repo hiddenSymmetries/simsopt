@@ -510,7 +510,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
     
     Args:
         boozer_surface: input boozer surface on which the penalty term is evaluated,
-        bs: Biot-Savart magnetic field,
+        biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
         sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
 
     """
@@ -788,53 +788,3 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     if derivatives == 0:
         return r, dr_dB
 
-    dx_dc = surface.dgamma_by_dcoeff()
-    dxphi_dc = surface.dgammadash1_by_dcoeff()
-    dxtheta_dc = surface.dgammadash2_by_dcoeff()
-    nsurfdofs = dx_dc.shape[-1]
-
-    dB_by_dX = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-    dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
-    dtang_dc = dxphi_dc + iota * dxtheta_dc
-    dresidual_dc = G*dB_dc \
-        - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] \
-        - np.sum(B**2, axis=2)[..., None, None] * dtang_dc
-    dresidual_diota = -np.sum(B**2, axis=2)[..., None] * xtheta
-
-    d2residual_dcdB = -2*dB_dc[:, :, None, :, :] * tang[:, :, :, None, None] - 2*B[:, :, None, :, None] * dtang_dc[:, :, :, None, :]
-    d2residual_diotadB = -2.*B[:, :, None, :] * xtheta[:, :, :, None]
-    d2residual_dcdgradB = -2.*B[:, :, None, None, :, None]*dx_dc[:, :, None, :, None, :]*tang[:, :, :, None, None, None]
-    idx = np.arange(3)
-    d2residual_dcdgradB[:, :, idx, :, idx, :] += dx_dc * G
-
-    dresidual_dc_flattened = dresidual_dc.reshape((nphi*ntheta*3, nsurfdofs))
-    dresidual_diota_flattened = dresidual_diota.reshape((nphi*ntheta*3, 1))
-    d2residual_dcdB_flattened = d2residual_dcdB.reshape((nphi*ntheta*3, 3, nsurfdofs))
-    d2residual_diotadB_flattened = d2residual_diotadB.reshape((nphi*ntheta*3, 3, 1))
-    d2residual_dcdgradB_flattened = d2residual_dcdgradB.reshape((nphi*ntheta*3, 3, 3, nsurfdofs))
-    d2residual_diotadgradB_flattened = np.zeros((nphi*ntheta*3, 3, 3, 1))
-
-    if user_provided_G:
-        dresidual_dG = B
-        dresidual_dG_flattened = dresidual_dG.reshape((nphi*ntheta*3, 1))
-        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened, dresidual_dG_flattened), axis=1)
-
-        d2residual_dGdB = np.ones((nphi*ntheta, 3, 3))
-        d2residual_dGdB[:, :, :] = np.eye(3)[None, :, :]
-        d2residual_dGdB = d2residual_dGdB.reshape((3*nphi*ntheta, 3, 1))
-        d2residual_dGdgradB = np.zeros((3*nphi*ntheta, 3, 3, 1))
-
-        d2residual_dsurfacedB = np.concatenate((d2residual_dcdB_flattened,
-                                                d2residual_diotadB_flattened,
-                                                d2residual_dGdB), axis=-1)
-        d2residual_dsurfacedgradB = np.concatenate((d2residual_dcdgradB_flattened,
-                                                    d2residual_diotadgradB_flattened,
-                                                    d2residual_dGdgradB), axis=-1)
-    else:
-        J = np.concatenate((dresidual_dc_flattened, dresidual_diota_flattened), axis=1)
-        d2residual_dsurfacedB = np.concatenate((d2residual_dcdB_flattened, d2residual_diotadB_flattened), axis=-1)
-        d2residual_dsurfacedgradB = np.concatenate((d2residual_dcdgradB_flattened,
-                                                    d2residual_diotadgradB_flattened), axis=-1)
-
-    if derivatives == 1:
-        return r, dr_dB, J, d2residual_dsurfacedB, d2residual_dsurfacedgradB
