@@ -809,7 +809,7 @@ class Vmec(Optimizable):
         self.run()
         return self.wout.volume
 
-    def gx_qflux(self):
+    def gx_qflux(self, first_restart=False):
         """
             get wout, 
             make fluxtube, 
@@ -819,12 +819,68 @@ class Vmec(Optimizable):
         """
         self.run()
 
-        f_wout = self.output_file
+        f_wout = self.output_file.split('/')[-1]
         print(' found', f_wout)
-        from simsopt.turbulence.GX_io import GX_Runner
+        from simsopt.turbulence.GX_io import GX_Runner, GX_Output
+        import os, subprocess
+        from datetime import datetime
 
         gx = GX_Runner("gx-sample.in")
         gx.make_fluxtube(f_wout)
+
+        cmd = "convert_VMEC_to_GX scan-gx-simsopt-psi-0.50"
+        os.system(cmd)
+
+        tag = f_wout[5:-3]
+        f_geo = f"gx_wout_{tag}_psiN_0.500_nt_256_geo.nc" # todo: dont hard code this
+        gx.set_gx_wout(f_geo)
+
+
+        # run
+
+        if (first_restart):
+            print(' GX: First restart')
+            gx.inputs['Controls']['init_amp'] = 1.0e-3
+            gx.inputs['Restart']['restart'] = 'false'
+
+
+        #slurm_sample = 'batch-gx-stellar.sh'
+        #gx.load_slurm( slurm_sample )
+
+        fname = f"GX-{tag}"
+        gx.write(fout=f"{fname}.in", skip_overwrite=False)
+        #f_slurm = f"{tag}.sh"
+        #gx.run_slurm( f_slurm, fname )
+
+        #gx_cmd = f"srun -t 3:00:00 --reservation=gpu2022 --gpus-per-task=1 --ntasks=1 gx {fname}.in"
+        #os.system(gx_cmd)
+
+        #
+        #gx_cmd = ["srun", "gx", f"{fname}.in"]
+
+        # use this for login node
+        gx_cmd = ["srun", "-t", "3:00:00", "--reservation=gpu2022",
+                  "--gpus-per-task=1", "--ntasks=1", "gx", f"{fname}.in"]
+        f_log = f"{fname}.log"
+        with open(f_log, 'w') as fp:
+            p = subprocess.Popen(gx_cmd,stdout=fp)
+
+        print(' *** Waiting for GX ***')
+        p.wait()
+        print(' *** GX finished, waiting 3 more s ***')
+        print( datetime.now().strftime("%H:%M:%S") )
+        os.system("sleep 3")
+
+
+        # read
+        fout = f"{fname}.nc"
+        gx_out = GX_Output(fout)
+
+        qavg, dqavg = gx_out.exponential_window_estimator()
+        print(f" *** GX non-linear qflux: {qavg} ***")
+        return qavg
+
+
 
     def iota_axis(self):
         """

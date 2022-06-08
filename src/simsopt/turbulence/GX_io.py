@@ -78,12 +78,6 @@ class GX_Runner():
         print('  wrote input:', fout)
 
 
-    def set_gx_wout(self, fname):
-
-        self.inputs['Geometry']['geofile'] = f'"{fname}"'
-
-        # next level, could read the .nc, and get ntheta
-
     def load_slurm(self,f_slurm):
 
         with open(f_slurm) as f:
@@ -156,6 +150,22 @@ class GX_Runner():
     # issue with slurm, if I ask for 4 tasks per node, 1 gpu per task
     # all gpus get started on the first job. Maybe the issue is deviceid hard coded in CUDA?
 
+
+    def make_fluxtube(self, f_wout):
+
+        
+        gx = VMEC_GX_geometry_module(input_path='./', tag='scan')
+        gx.set_vmec( f_wout )
+        gx.init_radius(s=0.5, local_id=f"-gx-simsopt")
+
+        # get fluxtube name and return
+
+
+    def set_gx_wout(self, fname):
+
+        self.inputs['Geometry']['geofile'] = f'"{fname}"'
+
+        # next level, could read the .nc, and get ntheta
 
     def pretty_print(self, entry=''):
     # dumps out current input data, in GX input format
