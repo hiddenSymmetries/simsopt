@@ -14,6 +14,13 @@ import numpy as np
 import os
 
 """
+This example optimizes the NCSX coils and currents for QA on a single surface.
+We first compute a surface close to the magnetic axis, then optimize for QA on that surface.  
+The objective also includes penalty terms on the rotational transform, major radius,
+and total coil length.  The rotational transform and major radius penalty ensures that the surface's
+rotational transform and aspect ratio do not stray too far from the value in the initial configuration.
+There is also a penalty on the total coil length as a regularizer to prevent the coils from becoming
+too complex.  The BFGS optimizer is used, and quasisymmetry is improved substantially on the surface.
 """
 
 # Directory for output

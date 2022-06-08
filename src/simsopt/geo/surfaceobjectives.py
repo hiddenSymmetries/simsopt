@@ -208,12 +208,11 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
     residual
 
     .. math::
-        G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
+        G\mathbf B(\mathbf x) - \|\mathbf B(\mathbf x)\|^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
     iota, and G.  In the above, :math:`\mathbf x` are points on the surface, :math:`\iota` is the
-    rotational transform on that surface, and :math:`\mathbf B_{\text{BS}}` is the magnetic field
-    computed using the Biot-Savart law.
+    rotational transform on that surface, and :math:`\mathbf B` is the magnetic field.
 
     :math:`G` is known for exact boozer surfaces, so if ``G=None`` is passed, then that
     value is used instead.
@@ -493,17 +492,27 @@ class MajorRadius(Optimizable):
 class NonQuasiAxisymmetricRatio(Optimizable):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
-    non-quasiaxisymmetric components, then returns a penalty on the latter component.
-    
+    non-quasiaxisymmetric components, 
+   
     .. math::
-        J &= \frac{1}{2}\int_{\Gamma_{s}} (B-B_{\text{QS}})^2~dS
-          &= \frac{1}{2}\int_0^1 \int_0^1 (B - B_{\text{QS}})^2 \|\mathbf n\| ~d\varphi~\d\theta 
-    where
+        B_{\text{QA}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi} \\
+        B_{\text{non-QA}} &= B - B_{\text{QA}}
     
+    where :math:`B = \| \mathbf B(\varphi,\theta) \|_2`.  The objective computed by this penalty is
+
     .. math::
-        B &= \| \mathbf B(\varphi,\theta) \|_2
-        B_{\text{QS}} &= \frac{\int_0^1 \int_0^1 B \| n\| ~d\varphi ~d\theta}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi ~d\theta}
+        J &= \frac{\int_{\Gamma_{s}} B_{\text{non-QS}}^2~dS}{\int_{\Gamma_{s}} B_{\text{QS}}^2~dS} \\
     
+    When :math:`J` is zero, then there is perfect QA on the given boozer surface. The ratio of the QA and non-QA components
+    of the field is returned to avoid dependence on the magnitude of the field strength.  Note that this penalty is computed
+    on an auxilliary surface with quadrature points that different from those on the input Boozer surface.  This is to allow
+    for a spectrally accurate evaluation of the above integrals.
+    
+    Args:
+        boozer_surface: input boozer surface on which the penalty term is evaluated,
+        bs: Biot-Savart magnetic field,
+        sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
+
     """
     def __init__(self, boozer_surface, bs, sDIM=15):
         # only BoozerExact surfaces work for now
@@ -649,6 +658,11 @@ class NonQuasiAxisymmetricRatio(Optimizable):
 
 
 class Iotas(Optimizable):
+    """
+    This term returns the rotational transform on a boozer surface as well as its derivative
+    with respect to the coil degrees of freedom.
+    """
+
     def __init__(self, boozer_surface):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[boozer_surface])
         self.boozer_surface = boozer_surface
@@ -694,14 +708,23 @@ class Iotas(Optimizable):
 
 
 def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
-    """
-    For a given surface with points x on it, this function computes the
-    vector-Jacobian product of \lm^T * dresidual_dcoils:
-    lm^T dresidual_dcoils    = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcoils
-    lm^T dresidual_dcurrents = [G*lm - lm(2*||B_BS(x)|| (x_phi + iota * x_theta) ]^T * dB_dcurrents
+    r"""
+    For a given surface with points :math:`x` on it, this function computes the
+    vector-Jacobian product of :math:`\lambda^T \frac{d\mathbf r}{d\text{coils}}`:
+    
+    .. math::
+        \lambda^T \frac{d\mathbf{r}}{d\text{coils   }} &= [G\lambda - \lambda(2\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{coils}} \\ 
+        \lambda^T \frac{d\mathbf{r}}{d\text{currents}} &= [G\lambda - \lambda(2\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{currents}}
     
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
+
+    Args:
+        lm: adjoint variable,
+        booz_surf: boozer surface,
+        iota: rotational transform on the boozer surface,
+        G: constant on boozer surface,
+        biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
     """
     surface = booz_surf.surface
     user_provided_G = G is not None
@@ -723,14 +746,17 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
 
 
 def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
-    """
+    r"""
     For a given surface with points x on it, this function computes the
     differentiated residual
-       d/dB[ G*B_BS(x) - ||B_BS(x)||^2 * (x_phi + iota * x_theta) ]
+    
+    .. math::
+        \frac{d}{dB_{i,j,k}}[ G B_{i,j,k} - \|\mathbf{B}_{i,j}\|^2  (\mathbf{x}_{\varphi} + \iota  \mathbf{x}_{\theta}) ]
+    
+    where :math:`B_{i,j,k}` is the kth component of the magnetic field :math:`\mathbf B_{i,j}` at quadrature point :math:`(i,j)` 
     as well as the derivatives of this residual with respect to surface dofs,
-    iota, and G.
-    G is known for exact boozer surfaces, so if G=None is passed, then that
-    value is used instead.
+    :math:`\iota`, and :math:`G`. :math:`G` is known for exact boozer surfaces, so if 
+    G=None is passed, then that value is used instead.
     """
 
     user_provided_G = G is not None
