@@ -8,7 +8,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
-from simsopt.field.coil import Coil, Current, ScaledCurrent
+from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
 from simsopt.field.biotsavart import BiotSavart
 
 
@@ -73,7 +73,7 @@ class TestCoil(unittest.TestCase):
                     self.subtest_serialization(curvetype, rotated)
 
 
-class TestCurrent(unittest.TestCase):
+class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
         current = Current(1e4)
         current_str = json.dumps(current, cls=MontyEncoder)
@@ -86,6 +86,15 @@ class TestCurrent(unittest.TestCase):
         current_str = json.dumps(scaled_current, cls=MontyEncoder)
         current_regen = json.loads(current_str, cls=MontyDecoder)
         self.assertAlmostEqual(scaled_current.get_value(),
+                               current_regen.get_value())
+
+    def test_current_sum_serialization(self):
+        current_a = Current(1e4)
+        current_b = Current(1.5e4)
+        current = CurrentSum(current_a, current_b)
+        current_str = json.dumps(current, cls=MontyEncoder)
+        current_regen = json.loads(current_str, cls=MontyDecoder)
+        self.assertAlmostEqual(current.get_value(),
                                current_regen.get_value())
 
 
