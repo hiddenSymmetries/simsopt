@@ -71,6 +71,7 @@ boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 # let's fix the coil current
 base_currents[0].fix_all()
 
+
 def fun(dofs):
     # save these in case the boozer surface solve fails
     sdofs_prev = boozer_surface.surface.x
