@@ -224,3 +224,5 @@ class QfmTests(unittest.TestCase):
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))
+
+
