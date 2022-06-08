@@ -2,7 +2,7 @@ from scipy.optimize import minimize, least_squares
 import numpy as np
 from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 
 
 class BoozerSurface(Optimizable):

@@ -409,8 +409,10 @@ class Surface(Optimizable):
     def dminor_radius_by_dcoeff(self):
         """
         Return the derivative of the minor radius wrt surface coefficients
+        
         """
-        return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi) #dR_minor_ds
+        
+        return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi)
 
     def major_radius(self):
         """
@@ -513,19 +515,17 @@ class Surface(Optimizable):
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
         mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
         return mean_cross_sectional_area
-        #mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))
-        #dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
     
     def dmean_cross_sectional_area_by_dcoeff(self):
         """
         Return the derivative of the mean cross sectional area wrt surface coefficients
         """
 
-        g  = self.gamma()
+        g = self.gamma()
         g1 = self.gammadash1()
         g2 = self.gammadash2()
     
-        dg_ds  = self.dgamma_by_dcoeff()
+        dg_ds = self.dgamma_by_dcoeff()
         dg1_ds = self.dgammadash1_by_dcoeff()
         dg2_ds = self.dgammadash2_by_dcoeff()
     
@@ -557,7 +557,6 @@ class Surface(Optimizable):
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
         dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
         return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
-
 
     def arclength_poloidal_angle(self):
         """

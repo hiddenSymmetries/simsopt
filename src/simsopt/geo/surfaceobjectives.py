@@ -430,12 +430,8 @@ class QfmResidual(Optimizable):
 
 class MajorRadius(Optimizable): 
     r"""
-    This objective computes the major radius of a toroidal surface with the following formula:
-    
-    R_major = (1/2*pi) * (V / mean_cross_sectional_area)
-    
-    where mean_cross_sectional_area = \int^1_0 \int^1_0 z_\theta(xy_\varphi -yx_\varphi) - z_\varphi(xy_\theta-yx_\theta) ~d\theta d\varphi
-    
+    This wrapper objective computes the major radius of a toroidal Boozer surface and supplies
+    its derivative with respect to coils
     """
     def __init__(self, boozer_surface, sDIM=15):
         Optimizable.__init__(self, depends_on=[boozer_surface])
@@ -447,7 +443,6 @@ class MajorRadius(Optimizable):
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
         
-        self.volume = Volume(s)
         self.boozer_surface = boozer_surface
         self.in_surface = in_surface
         self.surface = s
@@ -469,31 +464,14 @@ class MajorRadius(Optimizable):
         self._J = None
         self._dJ = None
 
-    def compute(self, compute_derivatives=0):
+    def compute(self):
+        if self.boozer_surface.need_to_run_code:
+            res = self.boozer_surface.res
+            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
         self.surface.set_dofs(self.in_surface.get_dofs())
         surface = self.surface
-    
-        g = surface.gamma()
-        g1 = surface.gammadash1()
-        g2 = surface.gammadash2()
-        
-        x = g[:, :, 0]
-        y = g[:, :, 1]
-        
-        r = np.sqrt(x**2+y**2)
-    
-        xvarphi = g1[:, :, 0]
-        yvarphi = g1[:, :, 1]
-        zvarphi = g1[:, :, 2]
-    
-        xtheta = g2[:, :, 0]
-        ytheta = g2[:, :, 1]
-        ztheta = g2[:, :, 2]
-    
-        mean_area = np.mean((ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta))/r)/(2*np.pi)
-        R_major = self.volume.J() / (2. * np.pi * mean_area)
-        self._J = R_major
+        self._J = surface.major_radius()
         
         bs = self.biotsavart
         booz_surf = self.boozer_surface
@@ -504,59 +482,12 @@ class MajorRadius(Optimizable):
         
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.zeros(L.shape[0])
-        dj_ds = self.dJ_dsurfacecoefficients()
+        dj_ds = surface.dmajor_radius_by_dcoeff()
         dJ_ds[:dj_ds.size] = dj_ds
         adj = forward_backward(P, L, U, dJ_ds)
         
         adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
         self._dJ = -1 * adj_times_dg_dcoil
-
-    def dJ_dsurfacecoefficients(self):
-        """
-        Return the objective value
-        """
-    
-        self.surface.set_dofs(self.in_surface.get_dofs())
-        surface = self.surface
-    
-        g = surface.gamma()
-        g1 = surface.gammadash1()
-        g2 = surface.gammadash2()
-    
-        dg_ds = surface.dgamma_by_dcoeff()
-        dg1_ds = surface.dgammadash1_by_dcoeff()
-        dg2_ds = surface.dgammadash2_by_dcoeff()
-    
-        x = g[:, :, 0, None]
-        y = g[:, :, 1, None]
-    
-        dx_ds = dg_ds[:, :, 0, :]
-        dy_ds = dg_ds[:, :, 1, :]
-    
-        r = np.sqrt(x**2+y**2)
-        dr_ds = (x*dx_ds+y*dy_ds)/r
-    
-        xvarphi = g1[:, :, 0, None]
-        yvarphi = g1[:, :, 1, None]
-        zvarphi = g1[:, :, 2, None]
-    
-        xtheta = g2[:, :, 0, None]
-        ytheta = g2[:, :, 1, None]
-        ztheta = g2[:, :, 2, None]
-    
-        dxvarphi_ds = dg1_ds[:, :, 0, :]
-        dyvarphi_ds = dg1_ds[:, :, 1, :]
-        dzvarphi_ds = dg1_ds[:, :, 2, :]
-    
-        dxtheta_ds = dg2_ds[:, :, 0, :]
-        dytheta_ds = dg2_ds[:, :, 1, :]
-        dztheta_ds = dg2_ds[:, :, 2, :]
-    
-        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))
-        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
-    
-        dR_major_ds = (-self.volume.J() * dmean_area_ds + self.volume.dJ_by_dsurfacecoefficients() * mean_area) / mean_area**2
-        return dR_major_ds
 
 
 class NonQuasiAxisymmetricRatio(Optimizable):
