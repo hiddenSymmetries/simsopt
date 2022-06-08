@@ -393,7 +393,7 @@ class Surface(Optimizable):
         return dAR_ds
 
     def minor_radius(self):
-        """
+        r"""
         Return the minor radius of the surface using the formula
         
         .. math::
@@ -415,15 +415,15 @@ class Surface(Optimizable):
         return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi)
 
     def major_radius(self):
-        """
+        r"""
         Return the major radius of the surface using the formula
         
         .. math::
-            R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
-
-        where :math:`\overline{A}` is the average cross sectional area, and
-        :math: `R_{\text{minor}}` is the minor radius of the surface.
-
+            R_{\text{major}} = \frac{V}{2 \pi^2  R_{\text{minor}}^2}
+        
+        where :math:`\overline{A}` is the average cross sectional area,
+        and :math:`R_{\text{minor}}` is the minor radius of the surface.
+        
         """
 
         R_minor = self.minor_radius()
@@ -442,7 +442,7 @@ class Surface(Optimizable):
         return dR_major_ds * np.sign(self.volume()) / (2. * np.pi)
 
     def mean_cross_sectional_area(self):
-        """
+        r"""
         Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where
         :math:`\phi \in [-\pi,\pi)` and the angles that parametrize the
         surface are :math:`(\varphi, \theta) \in [0,1)^2`.
