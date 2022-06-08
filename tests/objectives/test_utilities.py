@@ -29,7 +29,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
         return curve
 
     def subtest_quadratic_penalty(self, curve, constant, f):
-        J = QuadraticPenalty(CurveLength(curve), constant)
+        J = QuadraticPenalty(CurveLength(curve), constant, f)
         J0 = J.J()
         curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
