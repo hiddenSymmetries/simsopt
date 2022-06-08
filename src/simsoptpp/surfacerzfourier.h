@@ -6,7 +6,7 @@ template<class Array>
 class SurfaceRZFourier : public Surface<Array> {
     /*
        SurfaceRZFourier is a surface that is represented in cylindrical
-       coordinates using the following Fourier series: 
+       coordinates using the following Fourier series:
 
            r(theta, phi) = \sum_{m=0}^{mpol} \sum_{n=-ntor}^{ntor} [
                r_{c,m,n} \cos(m \theta - n nfp \phi)
@@ -19,7 +19,7 @@ class SurfaceRZFourier : public Surface<Array> {
 
        Note that for m=0 we skip the n<0 term for the cos terms, and the n<=0
        for the sin terms.
-       
+
        In addition, in the stellsym=True case, we skip the sin terms for r, and
        the cos terms for z.
        */
@@ -99,16 +99,21 @@ class SurfaceRZFourier : public Surface<Array> {
             }
             return res;
         }
-        
+
         void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void gammadash1_impl(Array& data) override;
         void gammadash2_impl(Array& data) override;
+        void gammadash1dash1_impl(Array& data) override;
+        void gammadash2dash2_impl(Array& data) override;
+        void gammadash1dash2_impl(Array& data) override;
 
         void dgamma_by_dcoeff_impl(Array& data) override;
         void dgammadash1_by_dcoeff_impl(Array& data) override;
         void dgammadash2_by_dcoeff_impl(Array& data) override;
-
+        void dgammadash1dash1_by_dcoeff_impl(Array& data) override;
+        void dgammadash1dash2_by_dcoeff_impl(Array& data) override;
+        void dgammadash2dash2_by_dcoeff_impl(Array& data) override;
         Array dgamma_by_dcoeff_vjp(Array& v) override;
         Array dgammadash1_by_dcoeff_vjp(Array& v) override;
         Array dgammadash2_by_dcoeff_vjp(Array& v) override;
