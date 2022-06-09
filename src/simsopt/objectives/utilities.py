@@ -79,7 +79,6 @@ class QuadraticPenalty(Optimizable):
         self.cons = cons
         self.f = f
 
-
     def J(self):
         if self.f == 'max':
             return 0.5*np.maximum(self.obj.J()-self.cons, 0)**2
