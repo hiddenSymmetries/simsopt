@@ -510,9 +510,6 @@ class Surface(Optimizable):
 
     def as_dict(self) -> dict:
         d = super().as_dict()
-        # d = {}
-        # d["@module"] = self.__class__.__module__
-        # d["@class"] = self.__class__.__name__
         d["nfp"] = self.nfp
         d["quadpoints_phi"] = list(self.quadpoints_phi)
         d["quadpoints_theta"] = list(self.quadpoints_theta)
@@ -663,8 +660,10 @@ class SurfaceScaled(Optimizable):
 
     @classmethod
     def from_dict(cls, d):
-        surf = MontyDecoder.process_decoded(d["surf"])
-        return cls(surf, d["scale_factors"])
+        decoder = MontyDecoder()
+        surf = decoder.process_decoded(d["surf"])
+        scale_factors = decoder.process_decoded(d["scale_factors"])
+        return cls(surf, scale_factors)
 
 
 def best_nphi_over_ntheta(surf):
