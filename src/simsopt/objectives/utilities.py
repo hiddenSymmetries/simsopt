@@ -65,7 +65,7 @@ class QuadraticPenalty(Optimizable):
 
     def __init__(self, obj, cons=0., f='min'):
         r"""
-        A penalty function of the form :math:`0.5*f(obj - \text{cons}, 0)^2` for an underlying objective ``obj``
+        A penalty function of the form :math:`0.5*f(obj.J() - \text{cons}, 0)^2` for an underlying objective ``obj``
         and wrapping function `f`. The wrapping function defaults to 'min'.
 
         Args:
@@ -73,11 +73,12 @@ class QuadraticPenalty(Optimizable):
             cons: constant
             f: the function that wraps the difference `obj-\text{cons}`
         """
-        assert f == 'min' or f == 'max' or f == 'identity'
+        assert (f == 'min') or (f == 'max') or (f == 'identity')
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj
         self.cons = cons
         self.f = f
+
 
     def J(self):
         if self.f == 'max':
@@ -89,18 +90,16 @@ class QuadraticPenalty(Optimizable):
 
     @derivative_dec
     def dJ(self):
+        val = self.obj.J()
+        dval = self.obj.dJ(partials=True)
+        diff = float(val - self.cons)
+
         if self.f == 'max':
-            val = self.obj.J()
-            dval = self.obj.dJ(partials=True)
-            return np.maximum(val-self.cons, 0)*dval
+            return np.maximum(diff, 0)*dval
         elif self.f == 'min':
-            val = self.obj.J()
-            dval = self.obj.dJ(partials=True)
-            return np.minimum(val-self.cons, 0)*dval
+            return np.minimum(diff, 0)*dval
         elif self.f == 'identity':
-            val = self.obj.J()
-            dval = self.obj.dJ(partials=True)
-            return (val-self.cons)*dval
+            return diff*dval
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
