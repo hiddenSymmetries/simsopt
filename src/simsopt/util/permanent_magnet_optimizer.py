@@ -686,6 +686,7 @@ class PermanentMagnetOptimizer:
         # to prox(m0), where m0 is the initial guess for m.
         m_proxy = self.m0
         m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
+        print(m_proxy)
 
         # change to row-major order for the C++ code
         self.A_obj = np.ascontiguousarray(self.A_obj)
