@@ -436,6 +436,7 @@ class ArclengthVariation(Optimizable):
         and thus specify the number of intervals directly.
         """
         super().__init__(depends_on=[curve])
+
         assert nintervals in ["full", "partial"] \
             or (isinstance(nintervals, int) and 0 < nintervals <= curve.gamma().shape[0])
         self.curve = curve
@@ -448,8 +449,8 @@ class ArclengthVariation(Optimizable):
                 nintervals = 2*curve.order
             else:
                 raise RuntimeError("Please provide a value other than `partial` for `nintervals`. We only have a default for `CurveXYZFourier` and `JaxCurveXYZFourier`.")
-        else:
-            self.nintervals = nintervals
+
+        self.nintervals = nintervals
         indices = np.floor(np.linspace(0, nquadpoints, nintervals+1, endpoint=True)).astype(int)
         mat = np.zeros((nintervals, nquadpoints))
         for i in range(nintervals):
