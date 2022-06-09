@@ -76,8 +76,8 @@ bs_nonQS = BiotSavart(coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 
-J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity') # target major radius is that computed on the initial surface
-J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity') # target rotational transform is that computed on the initial surface
+J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
+J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
 J_nonQSRatio = NonQuasiAxisymmetricRatio(boozer_surface, bs_nonQS)
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
 
@@ -134,7 +134,7 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9]:
     J2, _ = f(dofs + eps*h)
     J3, _ = f(dofs - eps*h)
     J4, _ = f(dofs - 2*eps*h)
-    print("err", ( (J1*(-1/12) + J2*(8/12) + J3*(-8/12) + J4*(1/12))/eps - dJh)/np.linalg.norm(dJh))
+    print("err", ((J1*(-1/12) + J2*(8/12) + J3*(-8/12) + J4*(1/12))/eps - dJh)/np.linalg.norm(dJh))
 
 print("""
 ################################################################################
