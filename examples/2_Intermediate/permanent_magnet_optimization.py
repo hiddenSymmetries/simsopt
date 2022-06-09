@@ -96,10 +96,6 @@ print('Done initializing the permanent magnet object')
 
 # Set some hyperparameters for the optimization
 t1 = time.time()
-if reg_l0 > 0:
-    max_iter_MwPGP = 100
-else:
-    max_iter_MwPGP = 340
 
 # Optimize the permanent magnets
 #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
@@ -218,6 +214,7 @@ if make_plots:
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
         momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
         rho = p ** momentq
+        rho = rho[pm_opt.Ic_inds]
         x_multi = [m0_abs, mproxy_abs, abs(rho)]
     plt.hist(x_multi, bins=np.linspace(0, 1, 20), log=True, histtype='bar')
     plt.grid(True)
