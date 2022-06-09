@@ -731,7 +731,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     if not user_provided_G:
         G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
-    res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0)
+    res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart)
     dres_dB = dres_dB.reshape((-1, 3, 3))
 
     lm_label = lm[-1]
@@ -745,7 +745,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
     return lm_times_dres_dcoils+lm_times_dlabel_dcoils
 
 
-def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
+def boozer_surface_residual_dB(surface, iota, G, biotsavart):
     r"""
     For a given surface with points x on it, this function computes the
     differentiated residual
@@ -785,6 +785,6 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0):
     dresidual_dB_flattened = dresidual_dB.reshape((nphi*ntheta*3, 3))
     r = residual_flattened
     dr_dB = dresidual_dB_flattened
-    if derivatives == 0:
-        return r, dr_dB
+    
+    return r, dr_dB
 
