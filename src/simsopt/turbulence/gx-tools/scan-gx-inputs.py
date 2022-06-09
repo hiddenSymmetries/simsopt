@@ -9,9 +9,12 @@ fin = f_list[0]
 
 gx_ins = [GX_Runner(f) for f in f_list]
 
-print( 'name', 'ntheta', 'nx', 'ny', 'nhermite', 'nlaguerre', 'dt', 'nstep')
-[ g.list_inputs() for g in gx_ins ]
+print( "name         , ntheta ,  nx,    ny, nhermite, nlaguerre, dt, nstep")
+
+data = [ g.list_inputs() for g in gx_ins ]
+
+for line in data:
+    tag, ntheta,nx,ny, nhermite, nlaguerre, dt, nstep = line
+    print( f"{tag:16}, {ntheta:4}, {nx:4}, {ny:4}, {nhermite:4}, {nlaguerre:4}, {dt:8}, {nstep:6}")
 
 
-import pdb
-pdb.set_trace()

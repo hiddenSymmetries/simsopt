@@ -69,6 +69,7 @@ gx_in.load_slurm( slurm_sample )
 # fixed
 gx_in.inputs['Diagnostics']['all_non_zonal'] = 'true'
 
+slurm_list = []
 
 N_gpus_per_node = 4
 i_batch = 0
@@ -102,6 +103,7 @@ for line in vals:
 
     f_slurm = f"{group}_{k:02d}.sh"
     gx_in.run_slurm( f_slurm, fname )
+    slurm_list.append(f_slurm)
 
     k += 1
 
@@ -117,3 +119,5 @@ for line in vals:
 ##for i in np.arange(i_batch):
 ##    f_slurm = f"{group}_{i:02d}.sh"
 ##    gx_in.batch_slurm_close( f_slurm )
+
+[ print(f) for f in slurm_list]

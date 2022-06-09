@@ -99,7 +99,8 @@ class GX_Runner():
         nstep = int(self.inputs['Time']['nstep'])
 
         tag = self.filename.split('/')[-1]
-        print( tag, ntheta,nx,ny, nhermite, nlaguerre, dt, nstep)
+        #print( tag, ntheta,nx,ny, nhermite, nlaguerre, dt, nstep)
+        return tag, ntheta,nx,ny, nhermite, nlaguerre, dt, nstep
 
 
     # queues a slurm file
@@ -158,6 +159,7 @@ class GX_Runner():
         gx.set_vmec( f_wout )
         gx.init_radius(s=0.5, local_id=f"-gx-simsopt")
 
+        self.flux_tube = gx
         # get fluxtube name and return
 
 
@@ -210,7 +212,6 @@ class GX_Output():
             print('  read_GX_output: could not read', fname)
     
     
-        time  = f.variables['time'][:]
         qflux = f.groups['Fluxes'].variables['qflux'][:,0]
     
         # check for NANs
@@ -218,8 +219,13 @@ class GX_Output():
              print('  nans found in', fname)
              qflux = np.nan_to_num(qflux)
 
-        self.time = time
         self.qflux = qflux
+        self.time  = f.variables['time'][:]
+
+        self.tprim  = f.groups['Inputs']['Species']['T0_prime'][:]
+        self.fprim  = f.groups['Inputs']['Species']['n0_prime'][:]
+
+        self.data = f
 
     def median_estimator(self):
 
@@ -229,7 +235,7 @@ class GX_Output():
         self.q_median = med
         return med
 
-    def exponential_window_estimator(self, tau=50):
+    def exponential_window_estimator(self, tau=100):
 
         t0 = 0
         qavg = 0
