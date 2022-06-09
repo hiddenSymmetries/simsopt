@@ -440,8 +440,14 @@ class PermanentMagnetOptimizer:
         self.rz_outer_surface = rz_outer_surface
 
     def _prox_l0(self, m, reg_l0, nu):
-        """Proximal operator for L0 regularization."""
-        return m * (np.abs(m) > np.sqrt(2 * reg_l0 * nu))
+        """
+        Proximal operator for L0 regularization. 
+        Note that the m values are normalized before hard
+        thresholding to avoid only truncating the magnets on the 
+        inner side of the configuration (which are often important!)
+        """
+        m_normalized = (np.abs(m).reshape(self.ndipoles, 3) / np.array([self.m_maxima, self.m_maxima, self.m_maxima]).T).reshape(self.ndipoles * 3)
+        return m * (m_normalized > np.sqrt(2 * reg_l0 * nu))
 
     def _prox_l1(self, m, reg_l1, nu):
         """Proximal operator for L1 regularization."""
@@ -549,9 +555,12 @@ class PermanentMagnetOptimizer:
 
         # Rescale L0, L1, and relax-and-split hyperparameters so that
         # these terms are normalized to the scale of the least-squares term.
-        reg_l0 = reg_l0 * self.ATA_scale * np.max(self.m_maxima) ** 2 / (2 * nu)
+        reg_l0 = reg_l0 / (2 * nu)
+        #reg_l0 = reg_l0 * np.max(self.m_maxima) ** 2 / (2 * nu)
+        #reg_l0 = reg_l0 * self.ATA_scale * np.max(self.m_maxima) ** 2 / (2 * nu)
         reg_l1 = reg_l1 * self.ATA_scale / nu
-        nu = nu / self.ATA_scale
+        #reg_l1 = reg_l1 * self.ATA_scale / nu
+        #nu = nu / self.ATA_scale
 
         # Do not rescale L2 terms for now
         reg_l2 = reg_l2
@@ -559,6 +568,7 @@ class PermanentMagnetOptimizer:
 
         # Update optimal algorithm step size if have extra loss terms
         self.ATA_scale = S[0] ** 2 + 2 * (reg_l2 + reg_l2_shifted) + 1.0 / nu
+        #self.ATA_scale = S[0] ** 2 + 2 * (reg_l2 + reg_l2_shifted) + 1.0 / (nu * self.ATA_scale)
 
         # Add shifted L2 contribution to ATb
         ATb = self.ATb + reg_l2_shifted * np.ravel(np.outer(self.m_maxima, np.ones(3)))
@@ -605,6 +615,7 @@ class PermanentMagnetOptimizer:
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e100,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
                   max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
+                  min_fb=1.0e-20,
                   ): 
         """ 
             Perform the permanent magnet optimization problem, 
@@ -652,6 +663,9 @@ class PermanentMagnetOptimizer:
                     and the number of times a prox is computed.
                 verbose: Prints out all the loss term errors separately.
         """
+
+        if (max_iter_MwPGP % 20) != 0:
+            raise ValueError('Maximum iterations of MwPGP must be a multiple of 20 for now.')
 
         # reset m0 if desired
         self._setup_initial_condition(m0)        
@@ -704,13 +718,16 @@ class PermanentMagnetOptimizer:
                     reg_l2=reg_l2,
                     reg_l2_shifted=reg_l2_shifted,
                     nu=nu,
+                    min_fb=min_fb,
                 )    
                 m = np.ravel(m)
                 MwPGP_hist = MwPGP_hist[MwPGP_hist != 0]
                 err_RS.append(MwPGP_hist[-1])
 
                 # Solve the nonconvex optimization -- i.e. take a prox
-                m_proxy = prox(m, reg_l0, nu)
+                reg_l0_scaled = reg_l0  # * (1 + i / 100.0)  #### Scaling reg_l0 as algorithm progresses!
+                print(i, reg_l0_scaled * 2 * nu)
+                m_proxy = prox(m, reg_l0_scaled, nu)
                 if np.linalg.norm(m - m_proxy) < epsilon:
                     print('Relax-and-split finished early, at iteration ', i)
         else:
@@ -733,6 +750,7 @@ class PermanentMagnetOptimizer:
                 reg_l2=reg_l2,
                 reg_l2_shifted=reg_l2_shifted,
                 nu=nu,
+                min_fb=min_fb,
             )    
             m = np.ravel(m)
             m_proxy = m

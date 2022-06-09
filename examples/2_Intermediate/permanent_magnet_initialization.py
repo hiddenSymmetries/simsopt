@@ -85,12 +85,12 @@ if config_flag == 'muse':
     input_name = 'input.' + config_flag 
 elif 'qa' in config_flag:
     dr = 0.01
-    coff = 0.06
+    coff = 0.1
     poff = 0.04
     input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
 elif 'qh' in config_flag:
     dr = 0.01
-    coff = 0.06
+    coff = 0.1
     poff = 0.04
     input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
     surface_flag = 'wout'
@@ -108,7 +108,7 @@ elif config_flag == 'ncsx':
     surface_flag = 'wout'
     #input_name = 'input.NCSX_c09r00_halfTeslaTF'
     input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
-    coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
+    #coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
     pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus'    
     is_premade_famus_grid = True
 if config_flag == 'muse_famus':
@@ -512,4 +512,4 @@ t_end = time.time()
 print('In total, script took ', t_end - t_start, ' s')
 
 # Show the generated figures 
-# plt.show()
+plt.show()
