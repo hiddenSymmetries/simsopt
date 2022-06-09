@@ -495,7 +495,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
     non-quasiaxisymmetric components, 
    
     .. math::
-        B_{\text{QA}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \int_0^1 \|\mathbf n\| ~d\varphi} \\
+        B_{\text{QA}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \|\mathbf n\| ~d\varphi} \\
         B_{\text{non-QA}} &= B - B_{\text{QA}}
     
     where :math:`B = \| \mathbf B(\varphi,\theta) \|_2`.  The objective computed by this penalty is
