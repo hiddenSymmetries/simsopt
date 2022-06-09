@@ -517,30 +517,7 @@ class DipoleField(MagneticField):
         self.m_maxima = pm_opt.m_maxima
         m = pm_opt.m
         if not pm_opt.test_flag:
-            if stellsym or nfp > 1:
-                self._dipole_fields_from_symmetries(pm_opt)
-            else:
-                inds = pm_opt.inds
-                dipole_grid = pm_opt.dipole_grid
-                m = m.reshape(ndipoles, 3)
-                dipole_grid_z = dipole_grid[:, 2]
-                if pm_opt.cylindrical_flag:
-                    dipole_grid_x = dipole_grid[:, 0]
-                    dipole_grid_y = dipole_grid[:, 1]
-                else:
-                    dipole_grid_x = np.zeros(len(dipole_grid_z))
-                    dipole_grid_y = np.zeros(len(dipole_grid_z))
-                    running_tally = 0
-                    for i in range(pm_opt.nphi):
-                        if i > 0:
-                            radii = pm_opt.final_RZ_grid[inds[i-1]:inds[i], 0]
-                        else:
-                            radii = pm_opt.final_RZ_grid[:inds[i], 0]
-                        dipole_grid_x[running_tally:running_tally + len(radii)] = radii * np.cos(phi[i])
-                        dipole_grid_y[running_tally:running_tally + len(radii)] = radii * np.sin(phi[i])
-                        running_tally += len(radii)
-                self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
-                self.m_vec = m
+            self._dipole_fields_from_symmetries(pm_opt)
         else:
             # assuming the user defined the coordinates in (X, Y, Z)
             # while the PM class may have it in (R, Phi, Z)
@@ -660,7 +637,6 @@ class DipoleField(MagneticField):
             my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
         mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
-        print(self.m_maxima)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)

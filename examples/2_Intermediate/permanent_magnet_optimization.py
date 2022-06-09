@@ -28,112 +28,8 @@ import time
 
 t_start = time.time()
 
-# Determine which plasma equilibrium is being used
-print("Usage requires a configuration flag chosen from: qa(_nonplanar), QH, qh(_nonplanar), muse(_famus), ncsx, and a flag specifying high or low resolution")
-if len(sys.argv) < 4:
-    print(
-        "Error! You must specify at least 3 arguments: "
-        "the configuration flag, resolution flag, final run flag "
-        "(whether to run time-intensive processes like QFMs, Poincare "
-        "plots, VMEC, etc.), and (optionally) the L0 and L2 regularizer"
-        " strengths."
-    )
-    exit(1)
-config_flag = str(sys.argv[1])
-if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx']:
-    print(
-        "Error! The configuration flag must specify one of "
-        "the pre-set plasma equilibria: qa, qa_nonplanar, "
-        "QH, qh, qh_nonplanar, muse, muse_famus, or ncsx. "
-    )
-    exit(1)
-res_flag = str(sys.argv[2])
-if res_flag not in ['low', 'medium', 'high']:
-    print(
-        "Error! The resolution flag must specify one of "
-        "low or high."
-    )
-    exit(1)
-final_run = (str(sys.argv[3]) == 'True')
-print('Config flag = ', config_flag, ', Resolution flag = ', res_flag, ', Final run =', final_run)
-
-# Check for other arguments such as L2 and L0 regularization
-if len(sys.argv) >= 5:
-    reg_l0 = float(sys.argv[4])
-    if not np.isclose(reg_l0, 0.0, atol=1e-16):
-        nu = 1e1
-    else:
-        nu = 1e100
-else:
-    reg_l0 = 0.0  # default is no L0 norm
-    nu = 1e100
-
-# L2 regularization
-if len(sys.argv) >= 6:
-    reg_l2 = float(sys.argv[5])
-else:
-    reg_l2 = 1e-8
-
-# Maximum iterations for solving the nonconvex problem
-if len(sys.argv) >= 7:
-    max_iter_RS = int(sys.argv[6])
-else:
-    max_iter_RS = 400
-
-# Error tolerance for declaring convex problem finished
-if len(sys.argv) >= 8:
-    epsilon = float(sys.argv[7])
-else:
-    epsilon = 1e-3
-
-# Pre-set parameters for each configuration
-surface_flag = 'vmec'
-if res_flag == 'high':
-    nphi = 64
-    ntheta = 64
-elif res_flag == 'medium':
-    nphi = 16
-    ntheta = 16
-else:
-    nphi = 8
-    ntheta = 8
-if config_flag == 'muse':
-    dr = 0.01
-    coff = 0.1
-    poff = 0.05
-    surface_flag = 'focus'
-    input_name = 'input.' + config_flag 
-if config_flag == 'muse_famus':
-    dr = 0.01
-    coff = 0.1
-    poff = 0.02
-    surface_flag = 'focus'
-    input_name = 'input.muse'
-    pms_name = 'zot80.focus'
-elif 'QH' in config_flag:
-    dr = 0.4
-    coff = 2.4
-    poff = 1.6
-    input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
-    surface_flag = 'wout'
-elif 'qa' in config_flag or 'qh' in config_flag:
-    dr = 0.01
-    coff = 0.06
-    poff = 0.04
-    if 'qa' in config_flag:
-        input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
-    else:
-        input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
-        surface_flag = 'wout'
-elif config_flag == 'ncsx':
-    dr = 0.02
-    coff = 0.02
-    poff = 0.1
-    #surface_flag = 'focus'
-    surface_flag = 'wout'
-    #input_name = 'input.NCSX_c09r00_halfTeslaTF'
-    input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
-    coil_name = 'input.NCSX_c09r00_halfTeslaTF_Bn'
+# Read in all the required parameters
+config_flag, res_flag, final_run, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid = read_input()
 
 # Load in MPI, VMEC, etc. if doing a final run 
 # to generate a VMEC wout file which can be 
@@ -166,7 +62,7 @@ assert (ntheta == pm_opt.ntheta)
 assert (coff == pm_opt.coil_offset)
 assert (poff == pm_opt.plasma_offset)
 
-# Make a directory for the optimization output
+# Make a subdirectory for the optimization output
 OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
 os.makedirs(OUT_DIR, exist_ok=True)
 pm_opt.out_dir = OUT_DIR 
@@ -203,15 +99,18 @@ t1 = time.time()
 if reg_l0 > 0:
     max_iter_MwPGP = 100
 else:
-    max_iter_MwPGP = 50
+    max_iter_MwPGP = 340
 
 # Optimize the permanent magnets
-#m0_max = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
+#m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
+#m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
+m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
+#m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
 #m0 = np.zeros(pm_opt.m0.shape)
 MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
-    max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon,
+    max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
     reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS,
-    #m0=m0
+    m0=m0
 )
 t2 = time.time()
 print('Done optimizing the permanent magnet object')
@@ -280,7 +179,7 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 dipoles = np.ravel(dipoles)
 print('Dipole field setup done')
 
-make_plots = False
+make_plots = True
 if make_plots:
 
     # Make plot of the relax-and-split convergence
@@ -306,20 +205,21 @@ if make_plots:
 
     # make histogram of the dipoles, normalized by their maximum values
     plt.figure()
-    x_multi = [abs(pm_opt.m), abs(dipoles)]
+    m0_abs = np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
+    mproxy_abs = np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
+    x_multi = [m0_abs, mproxy_abs]
     if pm_opt.is_premade_famus_grid:
         famus_file = '../../tests/test_files/' + pm_opt.pms_name
-        p = np.loadtxt(
+        m0, p = np.loadtxt(
             famus_file, skiprows=3, 
-            usecols=[8], 
+            usecols=[7, 8], 
             delimiter=',', unpack=True
         )
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
         momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
         rho = p ** momentq
-        x_multi = [abs(pm_opt.m), abs(dipoles), abs(rho)]
-    plt.hist(x_multi, bins=np.linspace(0, 1, 40), histtype='bar')
-    plt.hist(x_multi, bins=np.linspace(0, 1, 40), log=True, histtype='bar')
+        x_multi = [m0_abs, mproxy_abs, abs(rho)]
+    plt.hist(x_multi, bins=np.linspace(0, 1, 20), log=True, histtype='bar')
     plt.grid(True)
     plt.legend(['m', 'w', 'FAMUS'])
     plt.xlabel('Normalized magnitudes')
@@ -338,7 +238,6 @@ if comm is None or comm.rank == 0:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=endpoint) 
     quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=endpoint)
     srange = 'full torus' 
-    #srange = 'half period' 
 
     if surface_flag == 'focus':
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -348,7 +247,6 @@ if comm is None or comm.rank == 0:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
     if config_flag == 'ncsx':
-        #Bnormal = load_ncsx_coil_data(s_plot, coil_name)
         # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
         net_poloidal_current_Amperes = 3.7713e+6
         mu0 = 4 * np.pi * (1e-7)
@@ -368,7 +266,7 @@ if comm is None or comm.rank == 0:
     Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
     Ngrid = pm_opt.nphi * pm_opt.ntheta
     Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
-    print(Bnormal, Bnormal_dipoles, Bnormal_Am)
+    #print(Bnormal, Bnormal_dipoles, Bnormal_Am)
 
     # For plotting Bn on the full torus surface at the end with just the dipole fields
     pointData = {"B_N": Bnormal[:, :, None]}
@@ -459,3 +357,6 @@ if final_run:
     pm_opt.rz_inner_surface = None
     pm_opt.rz_outer_surface = None
     pickle.dump(pm_opt, file_out)
+
+t_end = time.time()
+print('Total time = ', t_end - t_start)

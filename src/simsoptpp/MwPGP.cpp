@@ -144,7 +144,7 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
 // Run the overall algorithm for solving the convex part of
 // the permanent magnet optimization problem. This algorithm has
 // many optional parameters for additional loss terms.
-std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, double min_fb, bool verbose)
 {
     // Needs ATb in shape (N, 3)
     int npoints = A_obj.shape(0);
@@ -291,8 +291,9 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         }
 
 	// fairly convoluted way to print every ~ max_iter / 20 iterations 
-        if (verbose && ((k % ((int)(max_iter / 20)) == 0) || k == 0 || k == max_iter - 1)) {
+        if (verbose && ((k % (int(max_iter / 20.0)) == 0) || k == 0 || k == max_iter - 1)) {
 	    print_verbose(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
+	    if (R2_history(print_iter) < min_fb) break;
             print_iter += 1;
 	}
 
