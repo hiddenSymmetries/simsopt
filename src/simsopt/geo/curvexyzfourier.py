@@ -99,19 +99,15 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     def as_dict(self) -> dict:
         d = {}
-        d["quadpoints"] = self.quadpoints
+        d["quadpoints"] = list(self.quadpoints)
         d["order"] = self.order
-        d["x0"] = self.local_full_x
+        d["x0"] = list(self.local_full_x)
         return d
 
     @classmethod
     def from_dict(cls, d):
-        decoder = MontyDecoder()
-        quadpoints = decoder.process_decoded(d["quadpoints"])
-        order = decoder.process_decoded(d["order"])
-        x0 = decoder.process_decoded(d["x0"])
-        curve = cls(quadpoints, order)
-        curve.local_full_x = x0
+        curve = cls(d["quadpoints"], d["order"])
+        curve.local_full_x = d["x0"]
         return curve
 
 
