@@ -91,7 +91,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def to_mgrid(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=2):
         """Export the field evaluated on a regular grid for free boundary calculations."""
-        from simsopt.field.mgrid import MGRID          # Handles MGRID file I/O
+        from simsopt.field.mgrid import MGrid          # Handles MGRID file I/O
 
         # make grid (this part is copied with VTK, could be exported to a common function)
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
@@ -122,7 +122,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         ## should implement multiple coil groups
 
-        mgrid = MGRID(nfp=nfp, \
+        mgrid = MGrid(nfp=nfp, \
                       nr=nr, nz=nz, nphi=nphi, \
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
         mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
