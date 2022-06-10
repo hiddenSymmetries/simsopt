@@ -2,6 +2,7 @@ import numpy as np
 from scipy.io import netcdf as nc
 import sys
 
+
 def _pad_string(string): 
     '''
     Pads a string with 30 underscores (for writing coil group names).
@@ -15,6 +16,7 @@ def _unpack(binary_array):
     This function is used for reading coil group names.
     '''
     return "".join(np.char.decode(binary_array)).strip()
+
 
 class MGrid():
 
@@ -37,7 +39,7 @@ class MGrid():
     Note the (r,z) dimensions include both end points. The (phi) dimension includes the start point and excludes the end point.
     '''
 
-    def __init__(self, #fname='temp', #binary=False,
+    def __init__(self,  # fname='temp', #binary=False,
                  nr: int = 51, 
                  nz: int = 51, 
                  nphi: int = 24, 
@@ -65,15 +67,13 @@ class MGrid():
         self.bz_arr = [] 
         self.bp_arr = [] 
 
-
         print(f"Initialized mgrid file: (nr,nphi,nz,nfp) = ({nr}, {nphi}, {nz}, {nfp})")
 
     def add_field_cylindrical(self, br, bp, bz, name='default'):
-
         '''
         This function saves the vector field B.
         B is defined by cylindrical components.
-        
+
         The Mgrid array assumes B is sampled linearly first in r, then z, and last phi.
         Python arrays use the opposite convention such that B[0] gives a (r,z) square at const phi
         and B[0,0] gives a radial line and const phi and z.
@@ -104,7 +104,6 @@ class MGrid():
         self.n_ext_cur = self.n_ext_cur + 1
 
     def write(self, filename):
-
         '''
         Export class data as a netCDF binary.
 
@@ -181,14 +180,12 @@ class MGrid():
 
     @classmethod 
     def from_file(cls, filename):
-
         '''
         This method reads MGrid data from file.
 
         Args:
             filename: mgrid netCDF input file name
         '''
-
 
         f = nc.netcdf_file(filename, 'r') 
 
@@ -205,24 +202,22 @@ class MGrid():
         rmax = f.variables['rmax'].getValue()
         zmin = f.variables['zmin'].getValue()
         zmax = f.variables['zmax'].getValue()
-        kwargs =  { "nr":nr, "nphi":nphi, "nz":nz, 
-                 "rmin":rmin, "rmax":rmax, "zmin":zmin, "zmax":zmax }
+        kwargs = {"nr": nr, "nphi": nphi, "nz": nz, 
+                  "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
 
         mgrid = cls(**kwargs)
         mgrid.load_field(f)
 
         return mgrid
 
-
-    def load_field(self,f):
+    def load_field(self, f):
 
         self.nextcur = int(f.variables['nextcur'].getValue())
         coil_data = f.variables['coil_group'][:]
-        self.coil_names = [ _unpack(coil_data[j]) for j in range(self.nextcur)] 
+        self.coil_names = [_unpack(coil_data[j]) for j in range(self.nextcur)] 
 
         self.mode = f.variables['mgrid_mode'][:][0].decode()
         self.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
-
 
         br_arr = []
         bp_arr = []
@@ -281,9 +276,6 @@ class MGrid():
         axs[2, k].set_title('nr,np,nz = ({},{},{})'.format(self.nr, self.nphi, self.nz), fontsize=10)
 
 
-
-
-
 ### This class will be deleted. All its functions have been merged into MGrid()
 class ReadMGRID():
 
@@ -312,7 +304,7 @@ class ReadMGRID():
 
         self.nextcur = int(f.variables['nextcur'].getValue())
         coil_data = f.variables['coil_group'][:]
-        self.coil_names = [ _unpack(coil_data[j]) for j in range(self.nextcur)] 
+        self.coil_names = [_unpack(coil_data[j]) for j in range(self.nextcur)] 
 
         self.rmin = f.variables['rmin'].getValue()
         self.rmax = f.variables['rmax'].getValue()
