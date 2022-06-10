@@ -86,11 +86,16 @@ class QuadraticPenalty(Optimizable):
         return np.maximum(val-self.threshold, 0)*dval
 
     def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+        d = {}
+        d["obj"] = self.obj
+        d["threshold"] = np.array(self.threshold)
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        obj = MontyDecoder().process_decoded(d["obj"])
-        return cls(obj, d["threshold"])
+        decoder = MontyDecoder()
+        obj = decoder.process_decoded(d["obj"])
+        threshold = decoder.process_decoded(d["threshold"])
+        return cls(obj, threshold)
 
     return_fn_map = {'J': J, 'dJ': dJ}
