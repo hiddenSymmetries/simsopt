@@ -12,6 +12,15 @@ class MGRID():
 
     Args:
         nr: number of radial points
+        nz: number of axial points
+        nphi: number of azimuthal points, in one field period
+        nfp: number of field periods
+        rmin: minimum r grid point
+        rmax: maximum r grid point
+        zmin: minimum z grid point
+        zmax: maximum z grid point
+
+    Note the (r,z) dimensions include both end points. The (phi) dimension includes the start point and excludes the end point.
     '''
 
     def __init__(self, #fname='temp', #binary=False,
@@ -61,6 +70,11 @@ class MGRID():
 
         This function may be called once for each coil group, 
         to save sets of fields that can be scaled using EXTCUR in VMEC.
+
+        Args:
+            br: the radial component of B field
+            bp: the azimuthal component of B field
+            bz: the axial component of B field
         '''
 
         # appending B field to an array for all coil groups.
@@ -173,16 +187,19 @@ class ReadMGRID():
 
     '''
         This class reads Mgrid netCDF files for the purpose of debugging.
+
+        Args:
+            filename: mgrid netCDF input file name
     '''
 
-    def __init__(self, fin):
+    def __init__(self, filename):
 
-        self.data = nc.netcdf_file(fin, 'r') 
+        self.data = nc.netcdf_file(filename, 'r') 
 
         # store name
-        fname = "".join(fin.split('/')[-1].split('.')[1:-1])
+        fname = "".join(filename.split('/')[-1].split('.')[1:-1])
         if (fname == ""):
-            fname = "".join(fin.split('_')[1:])
+            fname = "".join(filename.split('_')[1:])
         self.fname = fname
 
         self.load_data()
