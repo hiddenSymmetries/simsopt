@@ -23,8 +23,9 @@ in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
 - Take into account finite coil width using a multifilament approach
 similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
 
-.. _simplest_stage2:
-Simplest objective function
+.. _simple_stage2:
+
+Simple objective function
 ---------------------------
 
 The first form of the objective function :math:`J` (or cost function)
@@ -51,7 +52,7 @@ accurate match to the target field at the cost of complicated coils.
 
 Next, `MininumDistancePenalty` is a penalty that prevents coils from
 becoming too close.  For its precise definition, see
-:obj:`simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
+:obj:`~simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
 `DISTANCE_WEIGHT` is selected to balance this minimum distance penalty
 against the other objectives.  Analytic derivatives are used for the
 optimization.
@@ -351,14 +352,14 @@ Stochastic Optimization
 ---------------------------
 
 In this example we solve a stochastic version of
-the :ref:`first example here <_simplest_stage2>`. As before,
+the :ref:`first example here <simple_stage2>`. As before,
 the goal is to find coils that generate a specific target
 normal field on a given surface. As we are still considering a vacuum
 field the target is just zero.
 The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
 The complete script can be found in ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
 
-The objective function similar to :ref:`the first example <_simplest_stage2>`
+The objective function similar to :ref:`the first example <simple_stage2>`
 with small modifications::
 
     J = (1/2) Mean(\int |B dot n|^2 ds)
@@ -374,33 +375,14 @@ The coil perturbations for each coil are the sum of a 'systematic error' and a
 'statistical error'.  The former satisfies rotational and stellarator symmetry,
 the latter is independent for each coil.
 
-An extra term term is also added, namely the variation of the arclength along a curve.
-The idea is to avoid ill-posedness of curve objectives due to
-non-uniqueness of the underlying parametrization. Essentially we want to
-achieve constant arclength along the curve. Since we can not expect
-perfectly constant arclength along the entire curve, this class has
-some support to relax this notion. Consider a partition of the :math:`[0, 1]`
-interval into intervals :math:`\{I_i\}_{i=1}^L`, and tenote the average incremental arclength
-on interval :math:`I_i` by :math:`\ell_i`. This objective then penalises the variance
-.. math::
-    J = \mathrm{Var}(\ell_i)
-it remains to choose the number of intervals :math:`L` that :math:`[0, 1]` is split into.
-If ``nintervals="full"``, then the number of intervals :math:`L` is equal to the number of quadrature
-points of the curve. If ``nintervals="partial"``, then the argument is as follows:
-A curve in 3d space is defined uniquely by an initial point, an initial
-direction, and the arclength, curvature, and torsion along the curve. For a
-:mod:`simsopt.geo.curvexyzfourier.CurveXYZFourier`, the intuition is now as
-follows: assuming that the curve has order :math:`p`, that means we have
-:math:`3*(2p+1)` degrees of freedom in total. Assuming that three each are
-required for both the initial position and direction, :math:`6p-3` are left
-over for curvature, torsion, and arclength. We want to fix the arclength,
-so we can afford :math:`2p-1` constraints, which corresponds to
-:math:`L=2p`.
-
+An extra term term is also added, namely the variation of the arclength along a curve
+named `ArclengthVariation`. The idea is to avoid ill-posedness of curve objectives due to
+non-uniqueness of the underlying parametrization.
+For more info see :obj:`~simsopt.geo.curveobjectives.ArclengthVariation`.
 
 We now define the objective function by stating what are the weights
 used and the corresponding terms. Besides the terms in
-:ref:`the first example <_simplest_stage2>`, we additionally define::
+:ref:`the first example <simple_stage2>`, we additionally define::
 
   # Weight for the arclength variation penalty in the objective function:
   ARCLENGTH_WEIGHT = 1e-2
@@ -458,7 +440,7 @@ Finite Beta Optimization
 ---------------------------
 
 In this example, we solve a finite beta version of
-the :ref:`first example here <_simplest_stage2>`.
+the :ref:`first example here <simple_stage2>`.
 By finite beta, it is understood that the effect of
 the plasma is also taken into accout when calculating
 the normal field on a given surface. Therefore, the
@@ -466,7 +448,7 @@ target quantity :math:`B_{external}\cdot \mathbf n` is no longer zero
 and a virtual casing calculation is used to find its value.
 The complete script can be found in ``examples/2_Intermediate/stage_two_finite_beta.py``.
 
-We use an objective function similar to :ref:`the first example <_simplest_stage2>`
+We use an objective function similar to :ref:`the first example <simple_stage2>`
 with small modifications::
 
     J = (1/2) \int |(B_{BiotSavart} - B_{External}) dot n|^2 ds
@@ -532,7 +514,7 @@ In particular, we use a multifilament approach that follows::
 to approximate a finite build coil in order to have finite thickness.
 
 The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
-Besides the degrees of freedom listed in :ref:`first example here <_simplest_stage2>`,
+Besides the degrees of freedom listed in :ref:`first example here <simple_stage2>`,
 in this case, we have additional degrees of freedom related to the rotation
 of the coil pack. The objective function is given by::
 
@@ -541,7 +523,7 @@ of the coil pack. The objective function is given by::
         + DIST_PEN * PairwiseDistancePenalty
 
 In here, the `PairwiseDistancePenalty` is the same term as the 
-`MininumDistancePenalty` of the :ref:`first example <_simplest_stage2>`
+`MininumDistancePenalty` of the :ref:`first example <simple_stage2>`
 that is used to prevents coils from
 becoming too close. The constant
 `DIST_PEN` is selected to balance this minimum distance penalty
