@@ -87,6 +87,8 @@ class QuadraticPenalty(Optimizable):
 
     def as_dict(self) -> dict:
         d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
         d["obj"] = self.obj
         d["threshold"] = np.array(self.threshold)
         return d
