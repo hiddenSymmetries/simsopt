@@ -306,7 +306,6 @@ class SurfaceScaledTests(unittest.TestCase):
                     regen_s = json.loads(scaled_s_str, cls=MontyDecoder)
 
 
-
 class BestNphiOverNthetaTests(unittest.TestCase):
     def test_axisymm(self):
         """

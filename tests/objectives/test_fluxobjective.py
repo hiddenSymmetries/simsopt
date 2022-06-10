@@ -17,7 +17,6 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
-
 class FluxObjectiveTests(unittest.TestCase):
 
     def test_flux(self):
