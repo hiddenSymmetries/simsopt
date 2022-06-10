@@ -103,6 +103,8 @@ class MGrid():
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
+        # TO-DO: this function could check for size consistency, between different fields, and for the (nr,nphi,nz) settings of a given instance
+
     def write(self, filename):
         '''
         Export class data as a netCDF binary.
