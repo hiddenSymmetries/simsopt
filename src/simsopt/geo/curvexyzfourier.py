@@ -99,6 +99,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     def as_dict(self) -> dict:
         d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
         d["quadpoints"] = list(self.quadpoints)
         d["order"] = self.order
         d["x0"] = list(self.local_full_x)
