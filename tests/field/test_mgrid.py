@@ -10,11 +10,9 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 
 '''
-    This script tests the MGRID module in simsopt/field/magneticfield.py
+This script tests the MGRID module in simsopt/field/magneticfield.py
 
-    This test is forked from Florian Weschung's PNAS Precise QA particle tracing test.
-    Contact Tony Qian <tqian@pppl.gov> 17 May 2022
-
+This test is forked from Florian Weschung's PNAS Precise QA particle tracing test.
 '''
 
 # File for the desired boundary magnetic surface:

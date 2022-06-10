@@ -2,7 +2,7 @@ import numpy as np
 from scipy.io import netcdf as nc
 import sys
 
-class MGRID():
+class MGrid():
 
     '''
     This class writes Mgrid files for use in free boundary VMEC and other codes.
