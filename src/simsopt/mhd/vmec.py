@@ -832,7 +832,8 @@ class Vmec(Optimizable):
         os.system(cmd)
 
         tag = f_wout[5:-3]
-        f_geo = f"gx_wout_{tag}_psiN_0.500_nt_256_geo.nc" # todo: dont hard code this
+        ntheta = gx.inputs['Dimensions']['ntheta']
+        f_geo = f"gx_wout_{tag}_psiN_0.500_nt_{ntheta}_geo.nc" # todo: dont hard code this
         gx.set_gx_wout(f_geo)
 
 
@@ -855,17 +856,17 @@ class Vmec(Optimizable):
         #gx_cmd = f"srun -t 3:00:00 --reservation=gpu2022 --gpus-per-task=1 --ntasks=1 gx {fname}.in"
         #os.system(gx_cmd)
 
-        #
+        # use this for salloc
         #gx_cmd = ["srun", "gx", f"{fname}.in"]
 
         # use this for login node
-        gx_cmd = ["srun", "-t", "3:00:00", "--reservation=gpu2022",
+        gx_cmd = ["srun", "-t", "3:00:00", #"--reservation=gpu2022",
                   "--gpus-per-task=1", "--ntasks=1", "gx", f"{fname}.in"]
         f_log = f"{fname}.log"
         with open(f_log, 'w') as fp:
             p = subprocess.Popen(gx_cmd,stdout=fp)
 
-        print(' *** Waiting for GX ***')
+        print(' *** Waiting for GX ***', flush=True)
         p.wait()
         print(' *** GX finished, waiting 3 more s ***')
         print( datetime.now().strftime("%H:%M:%S") )
