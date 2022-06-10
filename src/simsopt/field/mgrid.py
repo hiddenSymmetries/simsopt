@@ -2,6 +2,20 @@ import numpy as np
 from scipy.io import netcdf as nc
 import sys
 
+def _pad_string(string): 
+    '''
+    Pads a string with 30 underscores (for writing coil group names).
+    '''
+    return '{:^30}'.format(string).replace(' ', '_')
+
+
+def _unpack(binary_array):
+    '''
+    Decrypt binary char array into a string.
+    This function is used for reading coil group names.
+    '''
+    return "".join(np.char.decode(binary_array)).strip()
+
 class MGrid():
 
     '''
@@ -32,7 +46,6 @@ class MGrid():
                  rmax: float = 0.40, 
                  zmin: float = -0.10, 
                  zmax: float = 0.10,
-                 #nextcur=0
                  ):
 
         self.nr = nr
@@ -84,9 +97,9 @@ class MGrid():
 
         # add coil label
         if (name == 'default'):
-            label = pad_string('magnet_%i' % self.n_ext_cur)
+            label = _pad_string('magnet_%i' % self.n_ext_cur)
         else:
-            label = pad_string(name)
+            label = _pad_string(name)
         self.cur_labels.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
@@ -166,23 +179,112 @@ class MGrid():
     def export_grid_spacing(self):
         return self.nr, self.nz, self.nphi
 
+    @classmethod 
+    def from_file(cls, filename):
 
-def pad_string(string):
-#def _pad_string(string): ### _ in function name means 'private'
-    '''
-    Pads a string with 30 underscores (for writing coil group names).
-    '''
-    return '{:^30}'.format(string).replace(' ', '_')
+        '''
+        This method reads MGrid data from file.
 
-
-### for reading coil groups
-def unpack(binary_array):
-    '''
-    Decrypt binary char array into a string
-    '''
-    return "".join(np.char.decode(binary_array)).strip()
+        Args:
+            filename: mgrid netCDF input file name
+        '''
 
 
+        f = nc.netcdf_file(filename, 'r') 
+
+        # parse file name
+        fname = "".join(filename.split('/')[-1].split('.')[1:-1])
+        if (fname == ""):
+            fname = "".join(filename.split('_')[1:])
+
+        # load grid
+        nr = f.variables['ir'].getValue()
+        nphi = f.variables['kp'].getValue()
+        nz = f.variables['jz'].getValue()
+        rmin = f.variables['rmin'].getValue()
+        rmax = f.variables['rmax'].getValue()
+        zmin = f.variables['zmin'].getValue()
+        zmax = f.variables['zmax'].getValue()
+        kwargs =  { "nr":nr, "nphi":nphi, "nz":nz, 
+                 "rmin":rmin, "rmax":rmax, "zmin":zmin, "zmax":zmax }
+
+        mgrid = cls(**kwargs)
+        mgrid.load_field(f)
+
+        return mgrid
+
+
+    def load_field(self,f):
+
+        self.nextcur = int(f.variables['nextcur'].getValue())
+        coil_data = f.variables['coil_group'][:]
+        self.coil_names = [ _unpack(coil_data[j]) for j in range(self.nextcur)] 
+
+        self.mode = f.variables['mgrid_mode'][:][0].decode()
+        self.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
+
+
+        br_arr = []
+        bp_arr = []
+        bz_arr = []
+
+        nextcur = self.nextcur
+        for j in range(nextcur):
+            idx = '{:03d}'.format(j+1)
+            br = f.variables['br_'+idx][:]  # phi z r
+            bp = f.variables['bp_'+idx][:]
+            bz = f.variables['bz_'+idx][:]
+
+            if (self.mode == 'S'):
+                br_arr.append(br * self.raw_coil_current[j])
+                bp_arr.append(bp * self.raw_coil_current[j])
+                bz_arr.append(bz * self.raw_coil_current[j])
+            else:
+                br_arr.append(br)
+                bp_arr.append(bp)
+                bz_arr.append(bz)
+
+        self.br_arr = np.array(br_arr)
+        self.bp_arr = np.array(bp_arr)
+        self.bz_arr = np.array(bz_arr)
+
+        # sum over coil groups
+        if nextcur > 1:
+            br = np.sum(br_arr, axis=0)
+            bp = np.sum(bp_arr, axis=0)
+            bz = np.sum(bz_arr, axis=0)
+        else:
+            br = br_arr[0]
+            bp = bp_arr[0]
+            bz = bz_arr[0]
+
+        self.br = br
+        self.bp = bp
+        self.bz = bz
+
+        self.bvec = np.transpose([br, bp, bz])
+
+    # jphi - an index on the phi slice
+    # k    - which column of subplots to plot in
+    # fig,axs - subplot handles
+    def plot_mgrid(self, jphi, k, fig, axs, bscale=0):
+
+        rax = np.linspace(self.rmin, self.rmax, self.nr)
+        zax = np.linspace(self.zmin, self.zmax, self.nz)
+
+        subplot_slice(np.s_[0, k], self.br[jphi], rax, zax, tag='br', bscale=bscale)
+        subplot_slice(np.s_[1, k], self.bp[jphi], rax, zax, tag='bp', bscale=bscale)
+        subplot_slice(np.s_[2, k], self.bz[jphi], rax, zax, tag='bz', bscale=bscale)
+
+        axs[0, k].set_title(self.fname)
+        axs[1, k].set_title('nextcur = {}, mode {}'.format(self.nextcur, self.mode), fontsize=10)
+        axs[2, k].set_title('nr,np,nz = ({},{},{})'.format(self.nr, self.nphi, self.nz), fontsize=10)
+
+
+
+
+
+### This class will be deleted. All its functions have been merged into MGrid()
 class ReadMGRID():
 
     '''
@@ -210,7 +312,7 @@ class ReadMGRID():
 
         self.nextcur = int(f.variables['nextcur'].getValue())
         coil_data = f.variables['coil_group'][:]
-        self.coil_names = [unpack(coil_data[j]) for j in range(self.nextcur)] 
+        self.coil_names = [ _unpack(coil_data[j]) for j in range(self.nextcur)] 
 
         self.rmin = f.variables['rmin'].getValue()
         self.rmax = f.variables['rmax'].getValue()
