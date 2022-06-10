@@ -63,8 +63,8 @@ possible engineering constraints.
 
 In this first section we consider vacuum fields only, so the magnetic field
 due to current in the plasma does not need to be subtracted in the
-quadratic flux term. The configuration considered is the "precise QA"
-case from `arXiv:2108.03711 <http://arxiv.org/pdf/2108.03711.pdf>`_,
+quadratic flux term. The configuration considered is the
+`precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_,
 which has two field periods and is quasi-axisymmetric.
 
 The stage-2 optimization problem is automatically parallelized in
@@ -355,7 +355,7 @@ the :ref:`first example here <_simplest_stage2>`. As before,
 the goal is to find coils that generate a specific target
 normal field on a given surface. As we are still considering a vacuum
 field the target is just zero.
-The target equilibrium is the precise QA configuration of arXiv:2108.03711.
+The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
 The complete script can be found in ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
 
 The objective function similar to :ref:`the first example <_simplest_stage2>`
@@ -531,7 +531,7 @@ In particular, we use a multifilament approach that follows::
 
 to approximate a finite build coil in order to have finite thickness.
 
-The target equilibrium is the precise QA configuration of arXiv:2108.03711.
+The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
 Besides the degrees of freedom listed in :ref:`first example here <_simplest_stage2>`,
 in this case, we have additional degrees of freedom related to the rotation
 of the coil pack. The objective function is given by::
