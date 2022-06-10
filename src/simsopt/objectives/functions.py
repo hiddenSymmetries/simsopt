@@ -202,8 +202,6 @@ class Rosenbrock(Optimizable):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["b"] = self._sqrtb * self._sqrtb
         d["x"] = self.get("x")
         d["y"] = self.get("y")
@@ -257,8 +255,6 @@ class TestObject1(Optimizable):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["val"] = self.local_full_x[0]
         d["depends_on"] = []
         for opt in self.parents:

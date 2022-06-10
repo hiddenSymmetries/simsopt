@@ -482,8 +482,6 @@ class CircularCoil(MagneticField):
 
     def as_dict(self):
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["r0"] = self.r0
         d["center"] = self.center
         d["I"] = self.Inorm * 25e5
@@ -533,8 +531,6 @@ class Dommaschk(MagneticField):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["mn"] = np.column_stack((self.m, self.n))
         d["coeffs"] = self.coeffs
         d["points"] = self.get_points_cart()

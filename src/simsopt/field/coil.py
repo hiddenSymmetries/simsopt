@@ -93,8 +93,6 @@ class Current(sopp.Current, CurrentBase):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["current"] = self.get_value()
         return d
 
