@@ -172,6 +172,8 @@ class JaxCurveXYZFourier(JaxCurve):
 
     def as_dict(self) -> dict:
         d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
         d["quadpoints"] = list(self.quadpoints)
         d["order"] = self.order
         d["x0"] = list(self.local_full_x)
