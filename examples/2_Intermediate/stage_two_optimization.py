@@ -107,7 +107,7 @@ curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
-# Define the objective function:
+# Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
