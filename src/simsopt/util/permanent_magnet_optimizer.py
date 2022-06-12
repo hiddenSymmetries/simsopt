@@ -62,7 +62,7 @@ class PermanentMagnetOptimizer:
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec', out_dir='',
         cylindrical_flag=False, test_flag=False,
-        pms_name=None, cylindrical_vol_flag=False,
+        pms_name=None,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -73,7 +73,6 @@ class PermanentMagnetOptimizer:
         self.surface_flag = surface_flag 
         self.out_dir = out_dir
         self.plasma_offset = plasma_offset
-        self.cylindrical_vol_flag = cylindrical_vol_flag
         self.coil_offset = coil_offset
         self.Bn = Bn
         self.dr = dr
@@ -347,7 +346,6 @@ class PermanentMagnetOptimizer:
             cell_vol = M0s * mu0 / B_max
             self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
         else:
-            #if self.cylindrical_vol_flag:
             cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             #else:
             #    cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
@@ -447,7 +445,8 @@ class PermanentMagnetOptimizer:
         inner side of the configuration (which are often important!)
         """
         m_normalized = (np.abs(m).reshape(self.ndipoles, 3) / np.array([self.m_maxima, self.m_maxima, self.m_maxima]).T).reshape(self.ndipoles * 3)
-        return m * (m_normalized > np.sqrt(2 * reg_l0 * nu))
+        return m * (m_normalized > 2 * reg_l0 * nu)
+        #return m * (m_normalized > np.sqrt(2 * reg_l0 * nu))
 
     def _prox_l1(self, m, reg_l1, nu):
         """Proximal operator for L1 regularization."""
@@ -501,7 +500,9 @@ class PermanentMagnetOptimizer:
             #    self.m_maxima
             #)
             m0 = np.zeros(self.ndipoles * 3)
-            # m0 = np.random.rand(m0.shape)
+            #m0 = np.random.rand(m0.shape)
+            #m0 = np.ravel((np.random.rand(self.ndipoles, 3) - 0.5) * 2 * np.array([self.m_maxima, self.m_maxima, self.m_maxima]).T / np.sqrt(12))
+            #m0 = np.ravel(np.array([self.m_maxima, self.m_maxima, self.m_maxima]).T) / np.sqrt(3)
 
             self.m0 = m0
 
@@ -686,7 +687,6 @@ class PermanentMagnetOptimizer:
         # to prox(m0), where m0 is the initial guess for m.
         m_proxy = self.m0
         m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
-        print(m_proxy)
 
         # change to row-major order for the C++ code
         self.A_obj = np.ascontiguousarray(self.A_obj)
