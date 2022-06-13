@@ -12,9 +12,8 @@ from simsopt.field.mgrid import MGrid
 from scipy.io import netcdf as nc
 import unittest
 
-#test_file = "mgrid.pnas-qa-test-lowres-standard.nc"
-test_file = "test_files/mgrid.pnas-qa-test-lowres-standard.nc"
-
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+test_file = TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc'
 
 class Testing(unittest.TestCase):
 
