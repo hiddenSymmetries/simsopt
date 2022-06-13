@@ -2,40 +2,70 @@ Coil optimization
 =================
 
 Here we work through an example of "stage 2" coil optimization.  In
-this approach, we consider the target plasma boundary shape to have
-been already chosen in a "stage 1", and the present task is to
-optimize the shapes of coils to produce this target field. The
-tutorial here is similar to the example
-``examples/2_Intermediate/stage_two_optimization.py``.  Note that for
-this stage-2 problem, no MHD codes like VMEC or SPEC are used, so you
-do not need to have them installed.
+this approach, we consider that a surface of constant magnetic flux (plasma
+boundary shape) has already been found in what is commonly known as
+a "stage 1" optimization, and the present task is to
+optimize the shapes of coils to produce this target field.
+For this stage-2 problem, no MHD codes are used (example, VMEC or SPEC), so
+there is no need to have them installed.
 
-The objective function we will minimize is
+We first describe the basic principles of "stage 2" coil optimization and
+how they are used in SIMSOPT, namely, how to set up the optimization problem
+in the minimal example ``examples/2_Intermediate/stage_two_optimization.py``.
+We then add increasingly more terms to the objective function in order to illustrate
+how to perform various extensions of the minimal example, namely:
+- Take into account coil perturbations via systematic and statistical
+errors using a stochastic optimization method similar to the example in
+``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
+- Take into account the presence of the plasma and its respective magnetic field
+using the virtual casing principle, similar to the example
+in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
+- Take into account finite coil width using a multifilament approach
+similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
 
-.. math::
+.. _simple_stage2:
 
-   J = \frac{1}{2} \int |\vec{B}\cdot\vec{n}|^2 ds + \alpha \sum_j L_j  + \beta J_{dist}
+Simple objective function
+---------------------------
 
-The first right-hand-side term is the "quadratic flux", the area
+The first form of the objective function :math:`J` (or cost function)
+that will be minimized in order to find coils that yield the desired magnetic field is
+the one presented in ``examples/2_Intermediate/stage_two_optimization.py`` and given by::
+
+  J = (1/2) \int |B dot n|^2 ds
+      + LENGTH_WEIGHT * \sum_j L_j
+      + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
+      + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
+      + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
+
+The first term in the right-hand-side term is the "quadratic flux", the area
 integral over the target plasma surface of the square of the magnetic
 field normal to the surface. If the coils exactly produce a flux
-surface of the target shape, this term will vanish.  Next, :math:`L_j`
+surface of the target shape, this term will vanish. 
+
+Next, :math:`L_j`
 is the length of the :math:`j`-th coil.  The scalar regularization
-parameter :math:`\alpha` is chosen to balance a trade-off: large
+parameter `LENGTH_WEIGHT` is chosen to balance a trade-off: large
 values will give smooth coils at the cost of inaccuracies in producing
-the target field; small values of :math:`\alpha` will give a more
+the target field; small values of `LENGTH_WEIGHT` will give a more
 accurate match to the target field at the cost of complicated coils.
-Finally, :math:`J_{dist}` is a penalty that prevents coils from
+
+Next, `MininumDistancePenalty` is a penalty that prevents coils from
 becoming too close.  For its precise definition, see
-:obj:`simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
-:math:`\beta` is selected to balance this minimum distance penalty
+:obj:`~simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
+`DISTANCE_WEIGHT` is selected to balance this minimum distance penalty
 against the other objectives.  Analytic derivatives are used for the
 optimization.
 
-In this tutorial we will consider vacuum fields, so the magnetic field
+Finally, the two remaining terms `CurvaturePenalty` and `MeanSquaredCurvaturePenalty`
+are regularization terms that prevent the coils from becoming to wiggly.
+These try to make the coils as smooth as possible to accomodate
+possible engineering constraints.
+
+In this first section we consider vacuum fields only, so the magnetic field
 due to current in the plasma does not need to be subtracted in the
-quadratic flux term. The configuration considered is the "precise QA"
-case from `arXiv:2108.03711 <http://arxiv.org/pdf/2108.03711.pdf>`_,
+quadratic flux term. The configuration considered is the
+`precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_,
 which has two field periods and is quasi-axisymmetric.
 
 The stage-2 optimization problem is automatically parallelized in
@@ -43,21 +73,8 @@ simsopt using OpenMP and vectorization, but MPI is not used, so the
 ``mpi4py`` python package is not needed. This example can be run in a
 few seconds on a laptop.
 
-To begin solving this optimization problem in simsopt, we first import
-some classes that will be used::
-
-  import numpy as np
-  from scipy.optimize import minimize
-  from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-  from simsopt.objectives.fluxobjective import SquaredFlux
-  from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-  from simsopt.field.biotsavart import BiotSavart
-  from simsopt.field.coil import Current, coils_via_symmetries
-  from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
-  from simsopt.geo.plot import plot
-
 The target plasma surface is given in the VMEC input file ``tests/test_files/input.LandremanPaul2021_QA``.
-We load the surface using
+We load the surface using:
 
 .. code-block::
 
@@ -69,22 +86,23 @@ We load the surface using
 You can adjust the directory in ``"filename"`` as appropriate for your
 system. The surface could also be read in from a VMEC wout file using
 :obj:`simsopt.geo.surfacerzfourier.SurfaceRZFourier.from_wout()`.
-(VMEC does not need to be installed to initialize a surface from a
-VMEC input or output file.)  Note that surface objects carry a grid of
-"quadrature points" at which the position vector is evaluated, and in
-different circumstances we may want these points to cover different
+Note that VMEC does not need to be installed to initialize a surface from a
+VMEC input or output file. As surface objects carry a grid of
+"quadrature points" at which the position vector is evaluated
+we may want these points to cover different
 ranges of the toroidal angle. For this problem with stellarator
 symmetry and field-period symmetry, we need only consider half of a
 field period in order to evaluate integrals over the entire
 surface. For this reason, the ``range`` parameter of the surface is
-set to ``"half period"`` here.
+set to ``"half period"`` here. Possible options are ``full torus``, ``field period`` and ``half period``.
 
-Next, we set the initial condition for the coils, which will be equally spaced circles.
-Here we will consider a case with four unique coil shapes, each of which is repeated four times due to
+After importing the necessary classes (see ``examples/2_Intermediate/stage_two_optimization.py``),
+we set the initial condition for the coils, which will be equally spaced circles.
+We consider here a case with four unique coil shapes, each of which is repeated four times due to
 stellarator symmetry and two-field-period symmetry, giving a total of 16 coils.
 The four unique coil shapes are called the "base coils". Each copy of a coil also carries the same current,
 but we will allow the unique coil shapes to have different current from each other,
-as is allowed in W7-X. For this tutorial we will consider the coils to be infinitesimally thin filaments.
+as is allowed on W7-X. For this tutorial we consider the coils to be infinitesimally thin filaments.
 In simsopt, such a coil is represented with the :obj:`simsopt.field.coil.Coil` class,
 which is essentially a curve paired with a current, represented using
 :obj:`simsopt.geo.curve.Curve` and :obj:`simsopt.field.coil.Current` respectively.
@@ -120,9 +138,8 @@ symmetry::
 
   coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 
-It is illuminating to look at the non-fixed degrees of freedom that
-each coil depends on. This can be done by printing the ``dof_names``
-property::
+To make sure that the coils class has the non-fixed degrees of freedom that
+we specified, we can print the ``dof_names`` property::
 
   >>> print(coil[0].dof_names)
 
@@ -140,7 +157,7 @@ Notice that the current appears in the list of dofs for ``coil[1]``
 but not for ``coil[0]``, since we fixed the current for
 ``coil[0]``. Also notice that ``coil[4]`` has the same degrees of
 freedom (owned by ``CurveXYZFourier1``) as ``coil[0]``, because coils
-0 and 4 refer to the same base coil shape.
+0 and 4 refer to the same base coil shape and current.
 
 There are several ways to view the objects we have created so far. One
 approach is the function :obj:`simsopt.geo.plot.plot()`, which accepts
@@ -161,7 +178,7 @@ open them in Paraview::
   curves_to_vtk(curves, "curves_init")
   s.to_vtk("surf_init")
   
-To evaluate the magnetic field on the target surface, we create
+To evaluate the magnetic field on the target surface, we create a
 :obj:`simsopt.field.biotsavart.BiotSavart` object based on the coils,
 and instruct it to evaluate the field on the surface::
 
@@ -170,27 +187,55 @@ and instruct it to evaluate the field on the surface::
 
 (The surface position vector ``gamma()`` returns an array of size
 ``(nphi, ntheta, 3)``, which we reshaped here to
-``(number_of_evaluation_points, 3)`` for the
-:obj:`~simsopt.field.biotsavart.BiotSavart` object.)  Let us check the
-size of the field normal to the target surface before optimization::
+``(nphi*ntheta, 3)`` for the
+:obj:`~simsopt.field.biotsavart.BiotSavart` object.) 
+To check the size of the field normal to the target surface
+before optimization we can run::
 
   B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
   print('Initial max B dot n:', np.max(B_dot_n))
 
-The result is 0.19 Tesla. We now define the objective function::
+The result is 0.19 Tesla.
 
-  # Weight on the curve lengths in the objective function:
-  ALPHA = 1e-6
-  # Threshhold for the coil-to-coil distance penalty in the objective function:
-  MIN_DIST = 0.1
-  # Weight on the coil-to-coil distance penalty term in the objective function:
-  BETA = 10
+We now define the objective function by stating what are the weights
+used and the corresponding terms::
+
+  # Weight on the curve lengths in the objective function. We use the `Weight`
+  # class here to later easily adjust the scalar value and rerun the optimization
+  # without having to rebuild the objective.
+  LENGTH_WEIGHT = Weight(1e-6)
+
+  # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+  CC_THRESHOLD = 0.1
+  CC_WEIGHT = 1000
+
+  # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+  CS_THRESHOLD = 0.3
+  CS_WEIGHT = 10
+
+  # Threshold and weight for the curvature penalty in the objective function:
+  CURVATURE_THRESHOLD = 5.
+  CURVATURE_WEIGHT = 1e-6
+
+  # Threshold and weight for the mean squared curvature penalty in the objective function:
+  MSC_THRESHOLD = 5
+  MSC_WEIGHT = 1e-6
   
+  # Define the individual terms objective function:
   Jf = SquaredFlux(s, bs)
   Jls = [CurveLength(c) for c in base_curves]
-  Jdist = CurveCurveDistance(curves, MIN_DIST)
-  # Scale and add terms to form the total objective function:
-  objective = Jf + ALPHA * sum(Jls) + BETA * Jdist
+  Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+  Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+  Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+  Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+
+  # Form the total objective function.
+  JF = Jf \
+      + LENGTH_WEIGHT * sum(Jls) \
+      + CC_WEIGHT * Jccdist \
+      + CS_WEIGHT * Jcsdist \
+      + CURVATURE_WEIGHT * sum(Jcs) \
+      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
 In the last line, we have used the fact that the Optimizable objects
 representing the individual terms in the objective can be scaled by a
@@ -212,8 +257,8 @@ do three of the four currents.  Next, to interface with scipy's
 minimization routines, we write a small function::
 
   def fun(dofs):
-    objective.x = dofs
-    return objective.J(), objective.dJ()
+      objective.x = dofs
+      return objective.J(), objective.dJ()
 
 Note that when the ``dJ()`` method of the objective is called to
 compute the gradient, simsopt automatically applies the chain rule to
@@ -302,3 +347,244 @@ for coil ``j`` can be obtained from ``coils[j].curve.x``, where the
 meaning of each array element can be seen from
 ``coils[j].curve.dof_names``.  The position vector for coil ``j`` in
 Cartesian coordinates can be obtained from ``coils[j].curve.gamma()``.
+
+Stochastic Optimization
+---------------------------
+
+In this example we solve a stochastic version of
+the :ref:`first example here <simple_stage2>`. As before,
+the goal is to find coils that generate a specific target
+normal field on a given surface. As we are still considering a vacuum
+field the target is just zero.
+The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
+The complete script can be found in ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
+
+The objective function similar to :ref:`the first example <simple_stage2>`
+with small modifications::
+
+    J = (1/2) Mean(\int |B dot n|^2 ds)
+        + LENGTH_WEIGHT * (sum CurveLength)
+        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
+        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
+        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
+        + ARCLENGTH_WEIGHT * ArclengthVariation
+
+The first term is altered to be given by the Mean of the flux instead of the
+flux itself. In here, the Mean is approximated by a sample average over perturbed coils.
+The coil perturbations for each coil are the sum of a 'systematic error' and a
+'statistical error'.  The former satisfies rotational and stellarator symmetry,
+the latter is independent for each coil.
+
+An extra term term is also added, namely the variation of the arclength along a curve
+named `ArclengthVariation`. The idea is to avoid ill-posedness of curve objectives due to
+non-uniqueness of the underlying parametrization.
+For more info see :obj:`~simsopt.geo.curveobjectives.ArclengthVariation`.
+
+We now define the objective function by stating what are the weights
+used and the corresponding terms. Besides the terms in
+:ref:`the first example <simple_stage2>`, we additionally define::
+
+  # Weight for the arclength variation penalty in the objective function:
+  ARCLENGTH_WEIGHT = 1e-2
+
+  # Standard deviation for the coil errors
+  SIGMA = 1e-3
+
+  # Length scale for the coil errors
+  L = 0.5
+
+  # Number of samples to approximate the mean
+  N_SAMPLES = 16
+
+  # Number of samples for out-of-sample evaluation
+  N_OOS = 256
+
+  # Objective function for the arclength variation
+  Jals = [ArclengthVariation(c) for c in base_curves]
+
+  # Objective function for the coils and its perturbations
+  rg = np.random.Generator(PCG64(seed, inc=0))
+  sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
+  Jfs = []
+  curves_pert = []
+  for i in range(N_SAMPLES):
+      # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
+      base_curves_perturbed = [CurvePerturbed(c, PerturbationSample(sampler, randomgen=rg)) for c in base_curves]
+      coils = coils_via_symmetries(base_curves_perturbed, base_currents, s.nfp, True)
+      # now add the 'statistical' error. this error is added to each of the final coils, and independent between all of them.
+      coils_pert = [Coil(CurvePerturbed(c.curve, PerturbationSample(sampler, randomgen=rg)), c.current) for c in coils]
+      curves_pert.append([c.curve for c in coils_pert])
+      bs_pert = BiotSavart(coils_pert)
+      Jfs.append(SquaredFlux(s, bs_pert))
+  Jmpi = MPIObjective(Jfs, comm, needs_splitting=True)
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jmpi \
+      + LENGTH_WEIGHT * sum(Jls) \
+      + DISTANCE_WEIGHT * Jdist \
+      + CURVATURE_WEIGHT * sum(Jcs) \
+      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
+      + ARCLENGTH_WEIGHT * sum(Jals)
+
+As can be seen here, in the stochastic optimization method,
+we apply two different types of errors.
+The first one is the systematic error which is applied where
+random perturbations based on a Gaussian Sampler with a predefined standard deviation
+are added to the base curves. The second is a statistical error that is
+added to each of the final coils, and is independent between coils.
+
+
+Finite Beta Optimization
+---------------------------
+
+In this example, we solve a finite beta version of
+the :ref:`first example here <simple_stage2>`.
+By finite beta, it is understood that the effect of
+the plasma is also taken into accout when calculating
+the normal field on a given surface. Therefore, the
+target quantity :math:`B_{external}\cdot \mathbf n` is no longer zero
+and a virtual casing calculation is used to find its value.
+The complete script can be found in ``examples/2_Intermediate/stage_two_finite_beta.py``.
+
+We use an objective function similar to :ref:`the first example <simple_stage2>`
+with small modifications::
+
+    J = (1/2) \int |(B_{BiotSavart} - B_{External}) dot n|^2 ds
+        + LENGTH_WEIGHT * (sum CurveLength)
+
+The first term, while similar to the previous examples, it
+calculates the external field :math:`B_{external}` using a
+virtual casing principle. The virtual casing calculation
+is done in the following way::
+
+  # Resolution for the virtual casing calculation:
+  vc_src_nphi = 80
+  # (For the virtual casing src_ resolution, only nphi needs to be
+  # specified; the theta resolution is computed automatically to
+  # minimize anisotropy of the grid.)
+
+  # Once the virtual casing calculation has been run once, the results
+  # can be used for many coil optimizations. Therefore here we check to
+  # see if the virtual casing output file alreadys exists. If so, load
+  # the results, otherwise run the virtual casing calculation and save
+  # the results.
+  head, tail = os.path.split(vmec_file)
+  vc_filename = os.path.join(head, tail.replace('wout', 'vcasing'))
+  print('virtual casing data file:', vc_filename)
+  if os.path.isfile(vc_filename):
+      print('Loading saved virtual casing result')
+      vc = VirtualCasing.load(vc_filename)
+  else:
+      # Virtual casing must not have been run yet.
+      print('Running the virtual casing calculation')
+      vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
+
+We then define the objective function as the squared flux targeting
+the value of the dot product between :math:`B_{external}` and the
+surface normal vector computed with the results of the virtual casing principle::
+
+  # Define the objective function:
+  Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
+  Jls = [CurveLength(c) for c in base_curves]
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jf \
+      + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+
+
+The example above uses very minimal coil regularization: only the deviation
+from the initial coil length is penalized; curvature and distance are not
+targeted here.
+
+Finite Build Optimization
+---------------------------
+
+In this final example, we perform a stage 2 optimization with
+finite build coils. The script for this case can be found in
+``examples/3_Advanced/stage_two_optimization_finite_build.py``.
+In particular, we use a multifilament approach that follows::
+
+  Optimization of finite-build stellarator coils,
+  Singh, Luquant, et al.  Journal of Plasma Physics 86.4 (2020).
+
+to approximate a finite build coil in order to have finite thickness.
+
+The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
+Besides the degrees of freedom listed in :ref:`first example here <simple_stage2>`,
+in this case, we have additional degrees of freedom related to the rotation
+of the coil pack. The objective function is given by::
+
+    J = (1/2) \int |(B_{BiotSavart}) dot n|^2 ds
+        + LENGTH_PEN * (sum CurveLength)
+        + DIST_PEN * PairwiseDistancePenalty
+
+In here, the `PairwiseDistancePenalty` is the same term as the 
+`MininumDistancePenalty` of the :ref:`first example <simple_stage2>`
+that is used to prevents coils from
+becoming too close. The constant
+`DIST_PEN` is selected to balance this minimum distance penalty
+against the other objectives.
+To initialize the finite build optimization, we use the definitions below::
+
+  # Weight on the curve length penalty in the objective function:
+  LENGTH_PEN = 1e-2
+
+  # Threshhold and weight for the coil-to-coil distance penalty in the objective function:
+  DIST_MIN = 0.1
+  DIST_PEN = 10
+
+  # Settings for multifilament approximation.  In the following
+  # parameters, note that "normal" and "binormal" refer not to the
+  # Frenet frame but rather to the "coil centroid frame" defined by
+  # Singh et al., before rotation.
+  numfilaments_n = 2  # number of filaments in normal direction
+  numfilaments_b = 3  # number of filaments in bi-normal direction
+  gapsize_n = 0.02  # gap between filaments in normal direction
+  gapsize_b = 0.04  # gap between filaments in bi-normal direction
+  rot_order = 1  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
+
+  nfil = numfilaments_n * numfilaments_b
+  base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+  base_currents = []
+  for i in range(ncoils):
+      curr = Current(1.)
+      # since the target field is zero, one possible solution is just to set all
+      # currents to 0. to avoid the minimizer finding that solution, we fix one
+      # of the currents
+      if i == 0:
+          curr.fix_all()
+      base_currents.append(ScaledCurrent(curr, 1e5/nfil))
+
+  # use sum here to concatenate lists
+  base_curves_finite_build = sum([
+      create_multifilament_grid(c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=rot_order) for c in base_curves], [])
+  base_currents_finite_build = sum([[c]*nfil for c in base_currents], [])
+
+  # apply stellarator and rotation symmetries
+  curves_fb = apply_symmetries_to_curves(base_curves_finite_build, s.nfp, True)
+  currents_fb = apply_symmetries_to_currents(base_currents_finite_build, s.nfp, True)
+  # also apply symmetries to the underlying base curves, as we use those in the
+  # curve-curve distance penalty
+  curves = apply_symmetries_to_curves(base_curves, s.nfp, True)
+
+  coils_fb = [Coil(c, curr) for (c, curr) in zip(curves_fb, currents_fb)]
+  bs = BiotSavart(coils_fb)
+  bs.set_points(s.gamma().reshape((-1, 3)))
+
+Finally, the objective function takes the form::
+
+  # Define the objective function:
+  Jf = SquaredFlux(s, bs)
+  Jls = [CurveLength(c) for c in base_curves]
+  Jdist = CurveCurveDistance(curves, DIST_MIN)
+
+  # Form the total objective function. To do this, we can exploit the
+  # fact that Optimizable objects with J() and dJ() functions can be
+  # multiplied by scalars and added:
+  JF = Jf \
+      + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves))) \
+      + DIST_PEN * Jdist

@@ -2,9 +2,9 @@
 #include "biot_savart_vjp_py.h"
 
 void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, Array& vgrad, vector<Array>& dgamma_by_dcoeffs, vector<Array>& d2gamma_by_dphidcoeffs, vector<Array>& res_B, vector<Array>& res_dB){
-    auto pointsx = vector_type(points.shape(0), 0);
-    auto pointsy = vector_type(points.shape(0), 0);
-    auto pointsz = vector_type(points.shape(0), 0);
+    auto pointsx = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsy = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsz = AlignedPaddedVec(points.shape(0), 0);
     for (int i = 0; i < points.shape(0); ++i) {
         pointsx[i] = points(i, 0);
         pointsy[i] = points(i, 1);
@@ -64,9 +64,9 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
 }
 
 void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, vector<Array>& res_gamma, vector<Array>& res_dgamma_by_dphi, Array& vgrad, vector<Array>& res_grad_gamma, vector<Array>& res_grad_dgamma_by_dphi) {
-    auto pointsx = vector_type(points.shape(0), 0);
-    auto pointsy = vector_type(points.shape(0), 0);
-    auto pointsz = vector_type(points.shape(0), 0);
+    auto pointsx = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsy = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsz = AlignedPaddedVec(points.shape(0), 0);
     for (int i = 0; i < points.shape(0); ++i) {
         pointsx[i] = points(i, 0);
         pointsy[i] = points(i, 1);
@@ -99,9 +99,9 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
 }
 
 void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, vector<Array>& res_gamma, vector<Array>& res_dgamma_by_dphi, Array& vgrad, vector<Array>& res_grad_gamma, vector<Array>& res_grad_dgamma_by_dphi) {
-    auto pointsx = vector_type(points.shape(0), 0);
-    auto pointsy = vector_type(points.shape(0), 0);
-    auto pointsz = vector_type(points.shape(0), 0);
+    auto pointsx = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsy = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsz = AlignedPaddedVec(points.shape(0), 0);
     for (int i = 0; i < points.shape(0); ++i) {
         pointsx[i] = points(i, 0);
         pointsy[i] = points(i, 1);

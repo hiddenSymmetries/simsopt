@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume
+from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature
 from simsopt.util.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
@@ -144,6 +144,33 @@ class ToroidalFluxTests(unittest.TestCase):
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs)
+
+
+class PrincipalCurvatureTests(unittest.TestCase):
+    def test_principal_curvature_first_derivative(self):
+        """
+        Taylor test for gradient of principal curvature metric.
+        """
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_principal_curvature(surfacetype, stellsym)
+
+    def subtest_principal_curvature(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym)
+
+        pc = PrincipalCurvature(s, kappamax1=1, kappamax2=2.2, weight1=1, weight2=2.)
+        coeffs = s.x
+
+        def f(dofs):
+            s.x = dofs
+            return pc.J()
+
+        def df(dofs):
+            s.x = dofs
+            return pc.dJ()
+
+        taylor_test1(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(13, 22))))
 
 
 class ParameterDerivativesTest(unittest.TestCase):
