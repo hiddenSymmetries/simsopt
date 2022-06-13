@@ -7,7 +7,7 @@
 #include "magneticfield.h"
 #include "coil.h"
 
-typedef vector_type AlignedVector;
+typedef AlignedPaddedVec AlignedPaddedVector;
 
 template<template<class, std::size_t, xt::layout_type> class T, class Array>
 class BiotSavart : public MagneticField<T> {
@@ -23,19 +23,19 @@ class BiotSavart : public MagneticField<T> {
         Cache<Array> field_cache;
 
         // this vectors are aligned in memory for fast simd usage.
-        AlignedVector pointsx = AlignedVector(xsimd::simd_type<double>::size, 0.);
-        AlignedVector pointsy = AlignedVector(xsimd::simd_type<double>::size, 0.);
-        AlignedVector pointsz = AlignedVector(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVector pointsx = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVector pointsy = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVector pointsz = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
 
         inline void fill_points(const Tensor2& points) {
             // allocating these aligned vectors is not super cheap, so reuse
             // whenever possible.
             if(pointsx.size() != npoints)
-                pointsx = AlignedVector(npoints, 0.);
+                pointsx = AlignedPaddedVector(npoints, 0.);
             if(pointsy.size() != npoints)
-                pointsy = AlignedVector(npoints, 0.);
+                pointsy = AlignedPaddedVector(npoints, 0.);
             if(pointsz.size() != npoints)
-                pointsz = AlignedVector(npoints, 0.);
+                pointsz = AlignedPaddedVector(npoints, 0.);
             for (int i = 0; i < npoints; ++i) {
                 pointsx[i] = points(i, 0);
                 pointsy[i] = points(i, 1);
