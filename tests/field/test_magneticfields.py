@@ -423,7 +423,7 @@ class Testing(unittest.TestCase):
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
         nphi = 4
         ntheta = 4
-        filename = "../test_files/input.LandremanPaul2021_QA"
+        filename = "test_files/input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -462,7 +462,7 @@ class Testing(unittest.TestCase):
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
         nphi = 4
         ntheta = 4
-        filename = "../test_files/input.LandremanPaul2021_QA"
+        filename = "test_files/input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -506,7 +506,7 @@ class Testing(unittest.TestCase):
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
         nphi = 4
         ntheta = 4
-        filename = "../test_files/input.LandremanPaul2021_QA"
+        filename = "test_files/input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -564,7 +564,7 @@ class Testing(unittest.TestCase):
         ]
 
         for filename in file_tests: 
-            sfilename = "../test_files/" + filename
+            sfilename = "test_files/" + filename
             if filename[:4] == 'wout':
                 s = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
                 surface_flag = 'wout'
