@@ -277,13 +277,13 @@ class MGrid():
         '''
 
         import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(3,1, figsize=(5,10))
+        fig, axs = plt.subplots(3, 1, figsize=(5, 10))
 
         rax = np.linspace(self.rmin, self.rmax, self.nr)
         zax = np.linspace(self.zmin, self.zmax, self.nz)
 
         def subplot_slice(s, data, rax, zax, bscale=0.3, tag=''):
-        
+
             if bscale > 0:
                 cf = axs[s].contourf(rax, zax, data, np.linspace(-bscale, bscale, 11), extend='both')
             else:
