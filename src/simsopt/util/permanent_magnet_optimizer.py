@@ -68,6 +68,11 @@ class PermanentMagnetOptimizer:
             raise ValueError('permanent magnets must be offset from the plasma')
 
         self.is_premade_famus_grid = is_premade_famus_grid
+        if is_premade_famus_grid and pms_name is None:
+            raise ValueError(
+                'If using a premade FAMUS grid, you must specify the '
+                'filename of the grid for loading via the pms_name parameter. '
+            )
         self.pms_name = pms_name
         self.filename = filename
         self.surface_flag = surface_flag 
@@ -615,7 +620,7 @@ class PermanentMagnetOptimizer:
 
     def _optimize(self, m0=None, epsilon=1e-4, nu=1e100,
                   reg_l0=0, reg_l1=0, reg_l2=0, reg_l2_shifted=0, 
-                  max_iter_MwPGP=50, max_iter_RS=4, verbose=True,
+                  max_iter_MwPGP=20, max_iter_RS=4, verbose=True,
                   min_fb=1.0e-20,
                   ): 
         """ 
@@ -694,6 +699,8 @@ class PermanentMagnetOptimizer:
 
         # Begin optimization
         err_RS = []
+        m_history = []
+        m_proxy_history = []
         if reg_l0 > 0.0 or reg_l1 > 0.0: 
             # Relax-and-split algorithm
             if reg_l0 > 0.0:
@@ -703,7 +710,7 @@ class PermanentMagnetOptimizer:
             m = self.m0
             for i in range(max_iter_RS):
                 # update m with the CONVEX part of the algorithm
-                MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+                MwPGP_hist, _, _, m = sopp.MwPGP_algorithm(
                     A_obj=self.A_obj,
                     b_obj=self.b_obj,
                     ATb=ATb,
@@ -720,7 +727,8 @@ class PermanentMagnetOptimizer:
                     reg_l2_shifted=reg_l2_shifted,
                     nu=nu,
                     min_fb=min_fb,
-                )    
+                )  
+                m_history.append(m)
                 m = np.ravel(m)
                 MwPGP_hist = MwPGP_hist[MwPGP_hist != 0]
                 err_RS.append(MwPGP_hist[-1])
@@ -729,13 +737,14 @@ class PermanentMagnetOptimizer:
                 reg_l0_scaled = reg_l0  # * (1 + i / 100.0)  #### Scaling reg_l0 as algorithm progresses!
                 print(i, reg_l0_scaled * 2 * nu)
                 m_proxy = prox(m, reg_l0_scaled, nu)
+                m_proxy_history.append(m_proxy)
                 if np.linalg.norm(m - m_proxy) < epsilon:
                     print('Relax-and-split finished early, at iteration ', i)
         else:
             m0 = np.ascontiguousarray(self.m0.reshape(self.ndipoles, 3))
             # no nonconvex terms being used, so just need one round of the
             # convex algorithm called MwPGP
-            MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+            MwPGP_hist, _, m_history, m = sopp.MwPGP_algorithm(
                 A_obj=self.A_obj,
                 b_obj=self.b_obj,
                 ATb=ATb,
@@ -759,4 +768,4 @@ class PermanentMagnetOptimizer:
         # note m = m_proxy if not using relax-and-split (i.e. problem is convex) 
         self.m = m
         self.m_proxy = m_proxy
-        return MwPGP_hist, err_RS, m_hist, m_proxy
+        return err_RS, m_history, m_proxy_history

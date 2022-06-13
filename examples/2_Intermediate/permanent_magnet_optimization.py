@@ -21,19 +21,17 @@ or the equivalent command for a slurm script. This is also true for initializing
 the Landreman/Paul QA/QH surfaces, since these designs need some mpi
 functionality to get them properly scaled to a particular on-axis magnetic field.
 
-Written by Alan Kaptanoglu, June 2022, email alanakaptanoglu@gmail.com
+Written by Alan Kaptanoglu, June 2022, alanakaptanoglu@gmail.com
 """
 
 import os
-import sys
 import pickle
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField, ToroidalField
-from simsopt.geo.plot import plot
+from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core.optimizable import Optimizable
 from permanent_magnet_helpers import *
@@ -241,25 +239,29 @@ else:
     t1 = time.time()
 
     # Set an initial condition
-    m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
+    #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
     #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
     #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
     #m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
-    #m0 = np.zeros(pm_opt.m0.shape)
+    m0 = np.zeros(pm_opt.m0.shape)
 
     # Optimize the permanent magnets
-    MwPGP_history, RS_history, m_history, dipoles = pm_opt._optimize(
-        max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-        reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS,
-        m0=m0
-    )
+    for i in range(9):
+        reg_l0_scaled = reg_l0 * (1 + i / 2.0)
+        RS_history, m_history, m_proxy_history = pm_opt._optimize(
+            max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
+            reg_l2=reg_l2, reg_l0=reg_l0_scaled, nu=nu, max_iter_RS=max_iter_RS,
+            m0=m0
+        )
+        m0 = pm_opt.m 
+
     t2 = time.time()
     print('Done optimizing the permanent magnet object')
     print('Process took t = ', t2 - t1, ' s')
 
     # Print effective permanent magnet volume
     M_max = 1.465 / (4 * np.pi * 1e-7)
-    dipoles = dipoles.reshape(pm_opt.ndipoles, 3)
+    dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
     print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
     print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
@@ -317,7 +319,7 @@ else:
     dipoles = np.ravel(dipoles)
     print('Dipole field setup done')
 
-    make_optimization_plots(MwPGP_history, RS_history, pm_opt, OUT_DIR)
+    make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
     t2 = time.time()
     print("Done printing and plotting, ", t2 - t1, " s")
 

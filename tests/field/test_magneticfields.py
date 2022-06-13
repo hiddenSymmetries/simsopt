@@ -11,6 +11,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.util.zoo import get_ncsx_data
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
+from simsopt.objectives.fluxobjective import SquaredFlux
 
 import numpy as np
 import unittest
@@ -429,13 +430,15 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
+        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetOptimizer(
             s, dr=0.2, 
-            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
+            Bn=Bn,
             filename=filename
         )
         pm_opt.dipole_grid = m_loc
         pm_opt.m = m
+        pm_opt.ndipoles = m.shape[0] // 3
         pm_opt.test_flag = True
         Bfield = DipoleField(pm_opt)
         Bfield.set_points(field_loc)
@@ -466,13 +469,15 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
+        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetOptimizer(
             s, dr=0.2, 
-            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
+            Bn=Bn,
             filename=filename
         )
         pm_opt.dipole_grid = m_loc
         pm_opt.m = m
+        pm_opt.ndipoles = m.shape[0] // 3
         pm_opt.test_flag = True
         Bfield = DipoleField(pm_opt)
         Bfield.set_points(field_loc)
@@ -508,13 +513,15 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
+        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetOptimizer(
             s, dr=0.2, 
-            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
+            Bn=Bn,
             filename=filename
         )
         pm_opt.dipole_grid = m_loc
         pm_opt.m = m
+        pm_opt.ndipoles = m.shape[0] // 3
         pm_opt.stellsym = False
         pm_opt.nfp = 1
         pm_opt.test_flag = True
@@ -541,33 +548,58 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
     def test_pmopt_dipoles(self):
-        nphi = 16
-        ntheta = 16
-        filename = "../test_files/input.LandremanPaul2021_QA"
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        pm_opt = PermanentMagnetOptimizer(
-            s, dr=0.2, 
-            B_plasma_surface=bs.B().reshape((nphi, ntheta, 3)),
-            filename=filename
-        )
-        #MwPGP_history, _, m_history, dipoles = pm_opt._optimize()
-        dipoles = np.random.rand(pm_opt.ndipoles * 3)
-        pm_opt.m = dipoles
-        b_dipole = DipoleField(pm_opt)
-        b_dipole.set_points(s.gamma().reshape((-1, 3)))
-        dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
-        dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
-        B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj)) 
-        B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2)))
-        # check Bn 
-        assert np.allclose((pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj).reshape((nphi, ntheta)), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal() * np.sqrt(dphi * dtheta), axis=2))
-        # check <Bn>
-        assert np.isclose(B_opt, B_dipole_field)
+        """
+            Test that A * m in the permanent magnet optimizer class
+            agrees with SquaredFlux function using Bn from the DipoleField
+            class, with range of different plasma surfaces with different
+            values of field-period symmetry. 
+        """
+        nphi = 8
+        ntheta = 8
+        file_tests = [
+            "input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
+            "wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc", 
+            "input.LandremanPaul2021_QH_reactorScale_lowres",
+            "input.circular_tokamak", "input.rotating_ellipse"
+        ]
+
+        for filename in file_tests: 
+            sfilename = "../test_files/" + filename
+            if filename[:4] == 'wout':
+                s = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
+                surface_flag = 'wout'
+            else:
+                s = SurfaceRZFourier.from_vmec_input(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
+                surface_flag = 'vmec'
+            base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
+            base_currents = [Current(1e5) for i in range(2)]
+            coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+            bs = BiotSavart(coils)
+            bs.set_points(s.gamma().reshape((-1, 3)))
+            Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
+            pm_opt = PermanentMagnetOptimizer(
+                s, dr=0.2, 
+                Bn=Bn, 
+                surface_flag=surface_flag,
+                filename=sfilename
+            )
+            dipoles = np.random.rand(pm_opt.ndipoles * 3)
+            pm_opt.m = dipoles
+            b_dipole = DipoleField(pm_opt)
+            b_dipole.set_points(s.gamma().reshape((-1, 3)))
+            # check Bn
+            Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
+            Ngrid = nphi * ntheta
+            Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+            assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+            # check <Bn>
+            B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
+            B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            assert np.isclose(B_opt, B_dipole_field)
+            # check integral Bn^2
+            f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj, ord=2) ** 2
+            f_B = SquaredFlux(s, b_dipole, -Bn).J()
+            assert np.isclose(f_B, f_B_Am)
 
     def test_BifieldMultiply(self):
         scalar = 1.2345

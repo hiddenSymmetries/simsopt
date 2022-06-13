@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 from matplotlib import pyplot as plt
+import matplotlib.animation as animation
 from pyevtk.hl import pointsToVTK
 from scipy.optimize import minimize
 from scipy.io import netcdf
@@ -778,30 +779,16 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
     pm_opt.cylindrical_flag = cylindrical_flag_temp
 
 
-def make_optimization_plots(MwPGP_history, RS_history, pm_opt, OUT_DIR):
+def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR):
     """
         Make line plots of the algorithm convergence and make histograms
         of m, m_proxy, and if available, the FAMUS solution.
     """
     # Make plot of the relax-and-split convergence
     plt.figure()
-    plt.semilogy(MwPGP_history)
-    plt.grid(True)
-    plt.savefig(OUT_DIR + 'objective_history.png')
-
-    # Make plot of the relax-and-split convergence
-    plt.figure()
-    plt.subplot(1, 2, 1)
     plt.plot(RS_history)
     plt.yscale('log')
     plt.grid(True)
-    plt.subplot(1, 2, 2)
-    plt.plot(RS_history)
-    plt.yscale('log')
-    plt.grid(True)
-    if len(RS_history) > 10:
-        plt.xlim(10, len(RS_history))
-        plt.ylim(RS_history[9], RS_history[-1])
     plt.savefig(OUT_DIR + 'RS_objective_history.png')
 
     # make histogram of the dipoles, normalized by their maximum values
@@ -821,12 +808,45 @@ def make_optimization_plots(MwPGP_history, RS_history, pm_opt, OUT_DIR):
         rho = p ** momentq
         rho = rho[pm_opt.Ic_inds]
         x_multi = [m0_abs, mproxy_abs, abs(rho)]
-    plt.hist(x_multi, bins=np.linspace(0, 1, 20), log=True, histtype='bar')
+    plt.hist(x_multi, bins=np.linspace(0, 1, 40), log=True, histtype='bar')
     plt.grid(True)
     plt.legend(['m', 'w', 'FAMUS'])
     plt.xlabel('Normalized magnitudes')
     plt.ylabel('Number of dipoles')
     plt.savefig(OUT_DIR + 'm_histograms.png')
+
+    if len(RS_history) != 0:
+
+        m_history = np.array(m_history)
+        m_proxy_history = np.array(m_proxy_history).reshape(m_history.shape[0], pm_opt.ndipoles, 3)
+
+        for i, datum in enumerate([m_history, m_proxy_history]):
+            # Code from https://matplotlib.org/stable/gallery/animation/animated_histogram.html
+            def prepare_animation(bar_container):
+                def animate(frame_number):
+                    data = np.sqrt(np.sum(datum[frame_number, :] ** 2, axis=-1)) / pm_opt.m_maxima
+                    n, _ = np.histogram(data, np.linspace(0, 1, 40))
+                    for count, rect in zip(n, bar_container.patches):
+                        rect.set_height(count)
+                    return bar_container.patches
+                return animate
+
+            # make histogram animation of the dipoles at each relax-and-split save
+            fig, ax = plt.subplots()
+            data = np.sqrt(np.sum(datum[0, :] ** 2, axis=-1)) / pm_opt.m_maxima
+            ax.hist(abs(rho), bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
+            _, _, bar_container = ax.hist(data, bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
+            ax.set_ylim(top=1e5)  # set safe limit to ensure that all data is visible.
+            plt.grid(True)
+            plt.legend(['FAMUS', np.array(['m', 'w'])[i]])
+            plt.xlabel('Normalized magnitudes')
+            plt.ylabel('Number of dipoles')
+            ani = animation.FuncAnimation(
+                fig, prepare_animation(bar_container), 
+                m_history.shape[0],
+                repeat=False, blit=True
+            )
+            ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
 def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm):

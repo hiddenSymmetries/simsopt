@@ -6,7 +6,7 @@
 // Calculate the B field at a set of evaluation points from N dipoles
 // points: where to evaluate the field
 // m_points: where the dipoles are located
-// m: dipole moments ('orientation')
+// m: dipole moments (vectors)
 // everything in xyz coordinates
 Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -299,6 +299,7 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 		    simd_t sphi_new = xsimd::sin(mp_phi_new);
 		    simd_t cphi_new = xsimd::cos(mp_phi_new);
 		    
+		    // Compute the unsymmetrized inductance matrix
 		    Vec3dSimd r = point_i - mp_j_new;
                     simd_t rmag_2 = normsq(r);
                     simd_t rmag_inv   = rsqrt(rmag_2);
@@ -368,11 +369,14 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
     // and then chop later in the python part of the code
     Array new_grids = xt::zeros<double>({rz_max * nphi, 3});
 
+    // Loop through phi locations
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < nphi; i++) {
         int ind_count = 0;
 	double phi_i = phi(i);
         double rot_matrix[3] = {cos(phi_i), sin(phi_i), 0};
+
+	// Loop through every dipole at fixed phi_i
 	for (int j = 0; j < rz_max; j++) {
 	    // Get (R, Z) locations of the points with respect to the magnetic axis
 	    double Rpoint = dipole_grid_rz(j, i, 0);
@@ -395,9 +399,6 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	            outer_loc = k;
 		}
 	    }
-	    
-	    // Figure out which surface is closest to the point in question
-	    // and then use the normal vector associated with that closest point 
 	    
 	    // rotate normal vectors in (r, phi, z) coordinates and set phi component to zero
             // so that we keep everything in the same phi = constant cross-section
@@ -443,7 +444,8 @@ std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Arr
 	    // nearest distance from the inner surface to the ray should be just the original point
 	    if (nearest_loc_inner > 0)
                 continue;
-            // nearest distance from the outer surface to the ray should be NOT be the original point
+            
+	    // nearest distance from the outer surface to the ray should NOT be the original point
             if (nearest_loc_outer > 0) {
                 new_grids(ind_count + i * rz_max, 0) = Rpoint;
                 new_grids(ind_count + i * rz_max, 1) = phi_i; 
