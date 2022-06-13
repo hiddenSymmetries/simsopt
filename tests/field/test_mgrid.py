@@ -12,7 +12,8 @@ from simsopt.field.mgrid import MGrid
 from scipy.io import netcdf as nc
 import unittest
 
-test_file = "mgrid.pnas-qa-test-lowres-standard.nc"
+#test_file = "mgrid.pnas-qa-test-lowres-standard.nc"
+test_file = "test_files/mgrid.pnas-qa-test-lowres-standard.nc"
 
 
 class Testing(unittest.TestCase):
@@ -34,7 +35,7 @@ class Testing(unittest.TestCase):
         assert names[0] == '________simsopt_coils_________'
 
         assert mgrid.br_arr.shape == (1, 6, 11, 11)
-        assert mgrid.br[0, 0, 0] == -0.9946816978184079
+        assert mgrid.br[0, 0, 0] == -1.0633399551863771  # -0.9946816978184079
 
     def test_add_field_cylinder(self):
 
@@ -47,7 +48,7 @@ class Testing(unittest.TestCase):
         mgrid = MGrid()
         mgrid.add_field_cylindrical(br, bp, bz, name=name)
         assert mgrid.n_ext_cur == 1
-        assert mgrid.cur_labels[0] == '__________test_coil___________'
+        assert mgrid.coil_names[0] == '__________test_coil___________'
         assert np.allclose(mgrid.br_arr[0], br)
 
     def test_write(self):
@@ -67,7 +68,7 @@ class Testing(unittest.TestCase):
         assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
 
         byte_string = f.variables['coil_group'][:][0]
-        message = "".join([x.decode('ascii') for x in foo])
+        message = "".join([x.decode('ascii') for x in byte_string])
         assert message == '________simsopt_coils_________'
 
 

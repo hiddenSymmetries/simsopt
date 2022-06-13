@@ -61,7 +61,7 @@ class MGrid():
         self.zmax = zmax
 
         self.n_ext_cur = 0
-        self.cur_labels = []
+        self.coil_names = []
 
         self.br_arr = [] 
         self.bz_arr = [] 
@@ -100,7 +100,7 @@ class MGrid():
             label = _pad_string('magnet_%i' % self.n_ext_cur)
         else:
             label = _pad_string(name)
-        self.cur_labels.append(label)
+        self.coil_names.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
         # TO-DO: this function could check for size consistency, between different fields, and for the (nr,nphi,nz) settings of a given instance
@@ -153,7 +153,7 @@ class MGrid():
         var_rmax[:] = self.rmax
         var_zmax[:] = self.zmax
 
-        var_coil_group[:] = self.cur_labels
+        var_coil_group[:] = self.coil_names
         var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
         var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
 
@@ -214,9 +214,9 @@ class MGrid():
 
     def load_field(self, f):
 
-        self.nextcur = int(f.variables['nextcur'].getValue())
+        self.n_ext_cur = int(f.variables['nextcur'].getValue())
         coil_data = f.variables['coil_group'][:]
-        self.coil_names = [_unpack(coil_data[j]) for j in range(self.nextcur)] 
+        self.coil_names = [_unpack(coil_data[j]) for j in range(self.n_ext_cur)] 
 
         self.mode = f.variables['mgrid_mode'][:][0].decode()
         self.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
@@ -225,7 +225,7 @@ class MGrid():
         bp_arr = []
         bz_arr = []
 
-        nextcur = self.nextcur
+        nextcur = self.n_ext_cur
         for j in range(nextcur):
             idx = '{:03d}'.format(j+1)
             br = f.variables['br_'+idx][:]  # phi z r
