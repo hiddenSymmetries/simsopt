@@ -710,12 +710,13 @@ class Iotas(Optimizable):
 def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
     r"""
     For a given surface with points :math:`x` on it, this function computes the
-    vector-Jacobian product of :math:`\lambda^T \frac{d\mathbf r}{d\text{coils}}`:
+    vector-Jacobian product of:
     
     .. math::
-        \lambda^T \frac{d\mathbf{r}}{d\text{coils   }} &= [G\lambda - \lambda(2\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{coils}} \\ 
-        \lambda^T \frac{d\mathbf{r}}{d\text{currents}} &= [G\lambda - \lambda(2\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{currents}}
+        \lambda^T \frac{d\mathbf{r}}{d\text{coils   }} &= [G\lambda - 2\lambda\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{coils}} \\ 
+        \lambda^T \frac{d\mathbf{r}}{d\text{currents}} &= [G\lambda - 2\lambda\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{currents}}
     
+    where :math:`\mathbf{r}` is the Boozer residual.
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
 
