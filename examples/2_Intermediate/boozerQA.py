@@ -19,7 +19,7 @@ This example optimizes the NCSX coils and currents for QA on a single surface.  
     J = ( \int_S B_nonQA**2 dS )/(\int_S B_QA dS)
         + 0.5*(iota - iota_0)**2
         + 0.5*(major_radius - target_major_radius)**2
-        + 0.5*max(CurveLengthTarget - \sum_{coils} CurveLength, 0)**2
+        + 0.5*max(\sum_{coils} CurveLength - CurveLengthTarget, 0)**2
 
 We first compute a surface close to the magnetic axis, then optimize for QA on that surface.  
 The objective also includes penalty terms on the rotational transform, major radius,
