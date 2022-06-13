@@ -262,10 +262,8 @@ class MGrid():
 
         self.bvec = np.transpose([br, bp, bz])
 
-    # jphi - an index on the phi slice
-    # k    - which column of subplots to plot in
-    # fig,axs - subplot handles
-    def plot(self, jphi=0, bscale=0):
+
+    def plot(self, jphi=0, bscale=0, show=True):
         '''
         Creates a plot of the mgrid data for debugging.
         Shows the three components (br,bphi,bz) in a 2D plot for a fixed toroidal plane.
@@ -297,9 +295,9 @@ class MGrid():
         subplot_slice(np.s_[2], self.bz[jphi], rax, zax, tag='bz', bscale=bscale)
 
         axs[0].set_title(self.filename)
-        axs[1].set_title('nextcur = {}, mode {}'.format(self.n_ext_cur, self.mode), fontsize=10)
-        axs[2].set_title('nr,np,nz = ({},{},{})'.format(self.nr, self.nphi, self.nz), fontsize=10)
+        axs[1].set_title(f"nextcur = {self.n_ext_cur}, mode {self.mode}", fontsize=10)
+        axs[2].set_title(f"nr,np,nz = ({self.nr},{self.nphi},{self.nz})", fontsize=10)
 
-        plt.show()
+        if (show): plt.show()
 
 
