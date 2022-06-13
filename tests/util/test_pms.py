@@ -9,7 +9,7 @@ import simsoptpp as sopp
 import numpy as np
 import unittest
 # File for the desired boundary magnetic surface:
-filename = '../test_files/input.LandremanPaul2021_QA'
+filename = 'test_files/input.LandremanPaul2021_QA'
 
 
 class Testing(unittest.TestCase):
