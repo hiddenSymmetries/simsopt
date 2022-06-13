@@ -65,8 +65,9 @@ class QuadraticPenalty(Optimizable):
 
     def __init__(self, obj, cons=0., f='min'):
         r"""
-        A penalty function of the form :math:`0.5*f(obj.J() - \text{cons}, 0)^2` for an underlying objective ``obj``
-        and wrapping function `f`. The wrapping function defaults to 'min'.
+        A quadratic penalty function of the form :math:`0.5*f(obj.J() - \text{cons}, 0)^2` for an underlying objective ``obj``
+        and wrapping function `f`. This can be used to implement a barrier penalty function for (in)equality
+        constrained optimization problem. The wrapping function defaults to 'min'.
 
         Args:
             obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
@@ -80,12 +81,15 @@ class QuadraticPenalty(Optimizable):
         self.f = f
 
     def J(self):
+        val = self.obj.J()
+        diff = float(val - self.cons)
+
         if self.f == 'max':
-            return 0.5*np.maximum(self.obj.J()-self.cons, 0)**2
+            return 0.5*np.maximum(diff, 0)**2
         elif self.f == 'min':
-            return 0.5*np.minimum(self.obj.J()-self.cons, 0)**2
+            return 0.5*np.minimum(diff, 0)**2
         elif self.f == 'identity':
-            return 0.5*(self.obj.J()-self.cons)**2
+            return 0.5*diff**2
 
     @derivative_dec
     def dJ(self):
@@ -101,5 +105,4 @@ class QuadraticPenalty(Optimizable):
             return diff*dval
 
     return_fn_map = {'J': J, 'dJ': dJ}
-
 
