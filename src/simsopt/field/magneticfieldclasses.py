@@ -9,12 +9,7 @@ try:
     sympy_found = True
 except ImportError:
     sympy_found = False
-try:
-    from pyevtk.hl import gridToVTK, pointsToVTK
-except ImportError:
-    gridToVTK = None
-from ..util.dev import SimsoptRequires
-
+from pyevtk.hl import pointsToVTK
 logger = logging.getLogger(__name__)
 
 
@@ -511,17 +506,12 @@ class DipoleField(MagneticField):
 
     def __init__(self, pm_opt=None):
         MagneticField.__init__(self)
-        ndipoles = pm_opt.dipole_grid.shape[0]
-        stellsym = pm_opt.plasma_boundary.stellsym
-        nfp = pm_opt.plasma_boundary.nfp
-        self.m_maxima = pm_opt.m_maxima
-        m = pm_opt.m
         if not pm_opt.test_flag:
             self._dipole_fields_from_symmetries(pm_opt)
         else:
             # assuming the user defined the coordinates in (X, Y, Z)
             # while the PM class may have it in (R, Phi, Z)
-            self.m_vec = m.reshape(ndipoles, 3)
+            self.m_vec = pm_opt.m.reshape(pm_opt.ndipoles, 3)
             self.dipole_grid = pm_opt.dipole_grid
 
         # reformat memory for c++ routines
@@ -556,18 +546,17 @@ class DipoleField(MagneticField):
                                                a set of initialized dipoles + dipole grid.
         """
         # Read in the required fields from pm_opt object
-        self.nfp = pm_opt.plasma_boundary.nfp
+        nfp = pm_opt.plasma_boundary.nfp
         stellsym = pm_opt.plasma_boundary.stellsym
         dipole_grid = pm_opt.dipole_grid_xyz
         ndipoles = pm_opt.ndipoles
         if stellsym:
             stell_num = 2
-            nsym = self.nfp * 2
+            nsym = nfp * 2
         else:
             stell_num = 1
-            nsym = self.nfp
-        m = pm_opt.m
-        m = m.reshape(ndipoles, 3)
+            nsym = nfp
+        m = pm_opt.m.reshape(ndipoles, 3)
 
         # Initialize new grid and dipole vectors for all the dipoles
         # after we account for the symmetries below.
@@ -589,8 +578,8 @@ class DipoleField(MagneticField):
         mmy = m[:, 1]
         mmz = m[:, 2]
         for stell in [-1, 1]:
-            for fp in range(self.nfp):
-                phi0 = (2 * np.pi / self.nfp) * fp
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
 
                 # get new dipoles locations by flipping the y and z components, then rotating by phi0
                 dipole_grid_x[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
@@ -601,7 +590,7 @@ class DipoleField(MagneticField):
                 m_vec[index:index + n, 0] = mmx * np.cos(phi0) * stell - mmy * np.sin(phi0)
                 m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
                 m_vec[index:index + n, 2] = mmz
-                m_maxima[index:index + n] = self.m_maxima
+                m_maxima[index:index + n] = pm_opt.m_maxima
 
                 # If using cylindrical coordinates (for m_vec), get the phi coordinate and rotate
                 if pm_opt.cylindrical_flag:
@@ -617,9 +606,9 @@ class DipoleField(MagneticField):
         self.m_vec = m_vec
         self.m_maxima = m_maxima
 
-    @SimsoptRequires(gridToVTK is not None, "to_vtk method requires pyevtk module")
     def _toVTK(self, vtkname):
-        """write dipole data into a VTK file
+        """
+            Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
 
         Args:
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
@@ -644,7 +633,6 @@ class DipoleField(MagneticField):
         mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
         mr_normalized = np.ascontiguousarray(mr / self.m_maxima) 
         mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima) 
-        print("write VTK as points")
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized)}
         pointsToVTK(
             vtkname, ox, oy, oz, data=data

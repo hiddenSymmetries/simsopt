@@ -3,12 +3,11 @@
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
-    // project a 3-vector on the unit ball
     double denom = std::max(1.0, sqrt(x1 * x1 + x2 * x2 + x3 * x3) / m_maxima); 
     return std::make_tuple(x1 / denom, x2 / denom, x3 / denom);
 }
 
-// Takes a vector and zeros if is very close to the L2 ball surface
+// Takes a vector and zeros it if it is very close to the L2 ball surface
 std::tuple<double, double, double> phi_MwPGP(double x1, double x2, double x3, double g1, double g2, double g3, double m_maxima)
 {
     // phi(x_i, g_i) = g_i(x_i) if x_i is not on the L2 ball,
@@ -140,10 +139,12 @@ void print_verbose(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Arra
     printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
 }
 
-
 // Run the overall algorithm for solving the convex part of
 // the permanent magnet optimization problem. This algorithm has
 // many optional parameters for additional loss terms.
+// See Bouchala, Jiří, et al.On the solution of convex QPQC 
+// problems with elliptic and other separable constraints with 
+// strong curvature. Applied Mathematics and Computation 247 (2014): 848-864.
 std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, double min_fb, bool verbose)
 {
     // Needs ATb in shape (N, 3)
@@ -178,15 +179,19 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(m0.data()), 1, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
     
-    // need to include contributions from L2 and relax-and-split terms 
+    // A^TA * m + contributions from L2 and relax-and-split terms 
     eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));  
     
-    g -= ATb_rs;  // subtract off relax-and-split contribution
+    // subtract off A^T * b + m_proxy / nu for fully initialized g 
+    g -= ATb_rs;  
+
+    // initialize p as phi(m0, g)
 #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
         std::tie(p(i, 0), p(i, 1), p(i, 2)) = phi_MwPGP(m0(i, 0), m0(i, 1), m0(i, 2), g(i, 0), g(i, 1), g(i, 2), m_maxima(i));
     }
 
+    // print out the names of the error columns
     if (verbose)
         printf("Iteration ... |Am - b|^2 ... |m-w|^2/v ...   a|m|^2 ...  b|m-1|^2 ...   c|m|_1 ...   d|m|_0 ... Total Error:\n");
 
@@ -215,6 +220,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
             alpha_fs[i] = find_max_alphaf(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), p(i, 0), p(i, 1), p(i, 2), m_maxima(i));
             pATAp += p(i, 0) * ATAp(i, 0) + p(i, 1) * ATAp(i, 1) + p(i, 2) * ATAp(i, 2);
         }
+
         // compute step sizes for different descent step types
 	auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end()); 
         alpha_f = *max_i;
