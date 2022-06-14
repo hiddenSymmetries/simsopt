@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import os
 import logging
 import numpy as np
-from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-import os
+from simsopt.util import MpiPartition, log
+from simsopt.mhd import Spec, Residue
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_mpi_solve
 
 """
 In this example, we show how the shape of a boundary magnetic

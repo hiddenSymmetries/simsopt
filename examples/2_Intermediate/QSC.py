@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from qsc import Qsc
 
-from simsopt._core.optimizable import Optimizable
+from simsopt._core import Optimizable
 from simsopt import LeastSquaresProblem, least_squares_serial_solve
 
 """
