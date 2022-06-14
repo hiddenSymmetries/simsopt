@@ -29,7 +29,7 @@ StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
 class LeastSquaresProblem(Optimizable):
     """
-    Represents a nonlinear-least-squares problem implemented using the new
+    Represents a nonlinear-least-squares problem implemented using the 
     graph based optimization framework. A LeastSquaresProblem instance has
     3 basic attributes: a set of functions (`f_in`), target values for each
     of the functions (`goal`), and weights.  The residual

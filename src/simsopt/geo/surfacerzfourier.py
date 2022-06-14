@@ -4,6 +4,7 @@ import numpy as np
 from scipy.io import netcdf
 from scipy.interpolate import interp1d
 import f90nml
+from monty.json import MSONable
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -579,6 +580,22 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["stellsym"] = self.stellsym
+        d["mpol"] = self.mpol
+        d["ntor"] = self.ntor
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
+                   mpol=d["mpol"], ntor=d["ntor"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
+        surf.local_full_x = d["x0"]
+        return surf
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
@@ -826,3 +843,13 @@ class SurfaceRZPseudospectral(Optimizable):
                                                        r_shift=self.r_shift,
                                                        a_scale=self.a_scale)
         return surf3
+
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["x0"] = list(self.local_full_x)
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
+        surf.local_full_x = d["x0"]
+        return surf

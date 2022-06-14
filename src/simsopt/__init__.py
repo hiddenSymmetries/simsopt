@@ -10,7 +10,7 @@
 # "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is 
 # imported
 
-from ._core import make_optimizable
+from ._core import make_optimizable, load, save
 from .objectives import LeastSquaresProblem
 from .solve import least_squares_serial_solve
 

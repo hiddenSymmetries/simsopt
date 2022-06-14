@@ -1,8 +1,11 @@
 import unittest
+import json
 from pathlib import Path
 import os
 import logging
 import numpy as np
+
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -288,6 +291,19 @@ class SurfaceScaledTests(unittest.TestCase):
         surf1.fix("rc(0,0)")  # Major radius
         surf_scaled.update_fixed()
         np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
+
+    def test_serialization(self):
+        surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                        "SurfaceXYZTensorFourier"]
+        for surfacetype in surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym, full=True)
+                    dof_size = len(s.x)
+                    scale_factors = np.random.random_sample(dof_size)
+                    scaled_s = SurfaceScaled(s, scale_factors)
+                    scaled_s_str = json.dumps(scaled_s, cls=MontyEncoder)
+                    regen_s = json.loads(scaled_s_str, cls=MontyDecoder)
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):

@@ -242,6 +242,23 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         self.area_volume()
         return self._volume
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["mmax"] = self.mmax
+        d["mmin"] = self.mmin
+        d["nmax"] = self.nmax
+        d["nmin"] = self.nmin
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = cls(nfp=d["nfp"], mmax=d["mmax"], mmin=d["mmin"],
+                   nmax=d["nmax"], nmin=d["nmin"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
+        surf.set_dofs(d["x0"])
+        return surf
+
     return_fn_map = {'area': area,
                      'volume': volume,
                      'aspect-ratio': Surface.aspect_ratio}

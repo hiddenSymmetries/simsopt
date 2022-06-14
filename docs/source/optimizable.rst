@@ -167,6 +167,8 @@ In addition to
 :obj:`~simsopt._core.optimizable.Optimizable.fix()`, you can
 also manipulate the fixed/free status of dofs using the functions
 :obj:`~simsopt._core.optimizable.Optimizable.unfix()`,
+:obj:`~simsopt._core.optimizable.Optimizable.local_fix_all()`, 
+:obj:`~simsopt._core.optimizable.Optimizable.local_unfix_all()`,
 :obj:`~simsopt._core.optimizable.Optimizable.fix_all()`, and
 :obj:`~simsopt._core.optimizable.Optimizable.unfix_all()`::
 
@@ -671,3 +673,45 @@ mode", using vector-Jacobian products, which is efficient for cases in
 which the objective function is a scalar or a vector with fewer
 dimensions than the number of dofs.  For objects that return a
 gradient, the gradient function is typically named ``.dJ()``.
+
+Serialization
+-------------
+
+Simsopt has the ability to serialize geometric and field objects 
+into JSON objects for archiving and sharing. To save a single simsopt 
+object, one can use the ``save`` method, which returns a json string with 
+optional file saving.
+
+.. code-block::
+
+    curve = CurveRZFourier(...)
+    curve_json_str = curve.save(filename='curve.json')
+    # or
+    curve_json_str = curve.save(fmt='json')
+
+To load individual serialized simsopt objects, you can use ``from_str`` or ``from_file``
+class methods. One could use the base class name such as ``Optimizable`` instead of trying to figure
+out the exact class name of the saved object.
+
+.. code-block::
+
+    curve = Optimizable.from_str(curve_json_str)
+    # or
+    curve = Optimizable.from_file('curve.json')
+
+To save multiple simsopt objects use the ``save`` function implemented in simsopt.
+
+.. code-block::
+
+    from simsopt import save
+
+    curves = [CurveRZFourier(...), CurveXYZFourier(...), CurveHelical(...), ...]
+    save(curves, 'curves.json')
+
+To load the geometric objects from the saved json file, use the ``load`` function.
+
+.. code-block::
+
+    from simsopt import load
+
+    curves = load('curves.json')
