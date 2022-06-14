@@ -7,7 +7,8 @@ from math import pi
 import numpy as np
 from monty.json import MontyDecoder, MSONable
 
-__all__ = ['Coil', 'Current']
+__all__ = ['Coil', 'Current', 'coils_via_symmetries',
+           'apply_symmetries_to_currents', 'apply_symmetries_to_curves']
 
 
 class Coil(sopp.Coil, Optimizable):
