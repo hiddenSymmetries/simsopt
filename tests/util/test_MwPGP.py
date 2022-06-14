@@ -18,10 +18,9 @@ class Testing(unittest.TestCase):
         alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2) 
         ATb = np.tensordot(A, b, axes=([0, 0]))
         t1 = time.time()
-        MwPGP_hist, _, m_hist, m = sopp.MwPGP_algorithm(
+        MwPGP_hist, RS_hist, m_hist, dipoles = sopp.MwPGP_algorithm(
             A_obj=A,
             b_obj=b,
-            ATA=ATA,
             ATb=ATb,
             m_proxy=m0,
             m0=m0,
