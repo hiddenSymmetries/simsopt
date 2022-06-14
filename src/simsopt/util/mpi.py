@@ -22,6 +22,7 @@ except ImportError:
 
 STOP = 0
 
+__all__ = ['log', 'MpiPartition']
 
 def log(level: int = logging.INFO):
     """
