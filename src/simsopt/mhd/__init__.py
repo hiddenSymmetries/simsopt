@@ -25,3 +25,6 @@ else:
     Boozer = None
     Quasisymmetry = None
     logger.debug("mpi4py not installed. Not loading Vmec, Spec and other MHD modules.")
+
+from .virtual_casing import *
+from .vmec_diagnostics import *
