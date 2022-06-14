@@ -23,6 +23,8 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
+           'WellWeighted']
 
 class QuasisymmetryRatioResidual(Optimizable):
     r"""

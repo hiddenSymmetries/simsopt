@@ -28,6 +28,8 @@ from ..util.fourier_interpolation import fourier_interpolation
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['VirtualCasing']
+
 
 class VirtualCasing:
     r"""
