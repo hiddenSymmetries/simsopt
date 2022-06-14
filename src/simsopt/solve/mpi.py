@@ -35,6 +35,8 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
+__all__ = ['least_squares_mpi_solve']
+
 
 def _mpi_workers_task(mpi: MpiPartition,
                       prob: Optimizable):
