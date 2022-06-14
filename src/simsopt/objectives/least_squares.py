@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
+__all__ = ['LeastSquaresProblem']
+
 
 class LeastSquaresProblem(Optimizable):
     """
