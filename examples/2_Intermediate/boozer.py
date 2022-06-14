@@ -4,7 +4,7 @@ from simsopt.geo import SurfaceXYZTensorFourier
 from simsopt.geo import BoozerSurface
 from simsopt.geo import boozer_surface_residual, ToroidalFlux, Area
 from simsopt.field import coils_via_symmetries
-from simsopt.coil_config import get_ncsx_data
+from simsopt.configs import get_ncsx_data
 import numpy as np
 import os
 
