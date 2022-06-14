@@ -190,7 +190,7 @@ options, see the API documentation for
 
 If you have multiple curve and/or surface objects, a convenient way to
 plot them together on the same axes is the function
-:func:`simsopt.geo.plot.plot()`, which accepts a list of objects as
+:func:`simsopt.geo.plotting.plot()`, which accepts a list of objects as
 its argument. Any keywords passed to this function are passed to the
 ``.plot()`` methods of the individual objects, so you may wish to pass
 keywords such as ``engine`` or ``close``.  Alternatively, you can also
