@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
            'WellWeighted']
 
+
 class QuasisymmetryRatioResidual(Optimizable):
     r"""
     This class provides a measure of the deviation from quasisymmetry,
