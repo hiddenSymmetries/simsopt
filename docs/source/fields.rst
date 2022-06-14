@@ -25,7 +25,7 @@ is represented by a :obj:`simsopt.field.coil.Current` object.  For
 information about Curve objects see :ref:`the page on geometric
 objects <curves>`. If you wish for several filamentary curves to carry
 the same current, you can reuse a :obj:`~simsopt.field.coil.Current`
-object in multiple :obj:`~simsopt.field.coil.Coil` objects.
+object in multiple :obj:`~simsopt.field.coil.Coil` objects. 
 
 Once :obj:`~simsopt.field.coil.Coil` objects are defined, the magnetic
 field they produce can be evaluated using the class
@@ -43,9 +43,14 @@ indicates the electric currents.
 Example::
 
   import numpy as np
-  from simsopt.geo.curvexyzfourier import CurveXYZFourier
-  from simsopt.field.coil import Current, Coil
-  from simsopt.field.biotsavart import BiotSavart
+  from simsopt.geo import CurveXYZFourier
+  from simsopt.field import Current, Coil
+  from simsopt.field import BiotSavart
+
+  # Most of the classes defined in the submodules are imported one level 
+  # higher automatically. So instead of simsopt.geo.curve.CurveXYZFourier,
+  # we use simsopt.geo.CurveXYZFourier. Similar is the case for classes
+  # such as Current, Coil etc., defined in the field module.
 
   curve = CurveXYZFourier(100, 1)  # 100 = Number of quadrature points, 1 = max Fourier mode number
   curve.x = [0, 0, 1., 0., 1., 0., 0., 0., 0.]  # Set Fourier amplitudes
@@ -232,7 +237,7 @@ Example:
 .. code-block::
 
    import numpy as np
-   from simsopt.field.magneticfieldclasses import CircularCoil
+   from simsopt.field import CircularCoil
    
    field = CircularCoil(I=1.e7, r0=1.)
    points = np.array([[0.5, 0.5, 0.1], [0.1, 0.1, -0.3]])
