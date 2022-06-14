@@ -4,6 +4,8 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
+__all__ = ['SurfaceXYZTensorFourier']
+
 
 class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 

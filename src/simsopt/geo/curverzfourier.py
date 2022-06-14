@@ -3,6 +3,8 @@ import numpy as np
 import simsoptpp as sopp
 from .curve import Curve
 
+__all__ = ['CurveRZFourier']
+
 
 class CurveRZFourier(sopp.CurveRZFourier, Curve):
     r"""

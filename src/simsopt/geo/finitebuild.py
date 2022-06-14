@@ -1,5 +1,5 @@
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
 from .curve import Curve
 from .jit import jit
@@ -11,6 +11,8 @@ from jax import vjp, jvp
 The functions and classes in this model are used to deal with multifilament
 approximation of finite build coils.
 """
+
+__all__ = ['CurveFilament', 'FilamentRotation', 'ZeroRotation']
 
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None, rotation_scaling=None):
