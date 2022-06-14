@@ -105,10 +105,7 @@ def read_input():
                 "Error! If the run is interactive, then "
                 "you must specify at least 4 arguments: "
                 "the flag to indicate if the run is interactive, "
-                "the configuration flag, resolution flag, final run flag "
-                "(whether to run time-intensive processes like QFMs, Poincare "
-                "plots, VMEC, etc.), and (optionally) the L0 and L2 regularizer"
-                " strengths."
+                "the configuration flag, resolution flag, and the initialization flag. "
             )
             exit(1)
         config_flag = str(sys.argv[2])
@@ -124,57 +121,80 @@ def read_input():
                 "Error! The resolution flag must specify one of "
                 "low or high."
             )
-        final_run = str(sys.argv[4])
-        if final_run not in ['True', 'False']:
+        initialization_run = str(sys.argv[4])
+        if initialization_run not in ['True', 'False']:
             raise ValueError(
-                "Error! The final_run flag must specify one of "
+                "Error! The initialization flag must specify one of "
                 "True or False."
             )
-        final_run = (final_run == 'True')
+        initialization_run = (initialization_run == 'True')
+        if not initialization_run:
 
-        # L2 regularization
-        if len(sys.argv) >= 6:
-            reg_l2 = float(sys.argv[5])
+            if len(sys.argv) >= 6:
+                final_run = str(sys.argv[5])
+                if final_run not in ['True', 'False']:
+                    raise ValueError(
+                        "Error! The final_run flag must specify one of "
+                        "True or False."
+                    )
+                final_run = (final_run == 'True')
+            else:
+                final_run = False
+
+            # L2 regularization
+            if len(sys.argv) >= 7:
+                reg_l2 = float(sys.argv[6])
+            else:
+                reg_l2 = 1e-12
+
+            # Error tolerance for declaring convex problem finished
+            if len(sys.argv) >= 8:
+                epsilon = float(sys.argv[7])
+            else:
+                epsilon = 1e-2
+
+            # Maximum iterations for solving the convex problem
+            if len(sys.argv) >= 9:
+                max_iter_MwPGP = int(sys.argv[8])
+            else:
+                max_iter_MwPGP = 100
+
+            # Error tolerance for declaring nonconvex problem finished
+            if len(sys.argv) >= 10:
+                min_fb = float(sys.argv[9])
+            else:
+                min_fb = 1e-20
+
+            # L0 regularization
+            if len(sys.argv) >= 11:
+                reg_l0 = float(sys.argv[10])
+            else:
+                reg_l0 = 0.0  # default is no L0 norm
+
+            # nu (relax-and-split hyperparameter)
+            if len(sys.argv) >= 12:
+                nu = float(sys.argv[11])
+
+            # Set to huge value if reg_l0 is zero so it is ignored
+            if np.isclose(reg_l0, 0.0, atol=1e-16):
+                nu = 1e100
+
+            # Maximum iterations for solving the nonconvex problem
+            if len(sys.argv) >= 13:
+                max_iter_RS = int(sys.argv[12])
+            else:
+                max_iter_RS = 100
         else:
-            reg_l2 = 1e-12
-
-        # Error tolerance for declaring convex problem finished
-        if len(sys.argv) >= 7:
-            epsilon = float(sys.argv[6])
-        else:
-            epsilon = 1e-2
-
-        # Maximum iterations for solving the convex problem
-        if len(sys.argv) >= 8:
-            max_iter_MwPGP = int(sys.argv[7])
-        else:
-            max_iter_MwPGP = 100
-
-        # Error tolerance for declaring nonconvex problem finished
-        if len(sys.argv) >= 9:
-            min_fb = float(sys.argv[8])
-        else:
-            min_fb = 1e-20
-
-        # L0 regularization
-        if len(sys.argv) >= 10:
-            reg_l0 = float(sys.argv[9])
-        else:
-            reg_l0 = 0.0  # default is no L0 norm
-
-        # nu (relax-and-split hyperparameter)
-        if len(sys.argv) >= 11:
-            nu = float(sys.argv[10])
-
-        # Set to huge value if reg_l0 is zero so it is ignored
-        if np.isclose(reg_l0, 0.0, atol=1e-16):
-            nu = 1e100
-
-        # Maximum iterations for solving the nonconvex problem
-        if len(sys.argv) >= 12:
-            max_iter_RS = int(sys.argv[11])
-        else:
-            max_iter_RS = 100
+            if len(sys.argv) >= 6:
+                cylindrical_flag = str(sys.argv[5])
+                if cylindrical_flag not in ['True', 'False']:
+                    raise ValueError(
+                        "Error! The cylindrical flag must specify one of "
+                        "True or False."
+                    )
+                cylindrical_flag = (cylindrical_flag == 'True')
+            else:
+                cylindrical_flag = False
 
     # Set the remaining parameters
     surface_flag = 'vmec'
