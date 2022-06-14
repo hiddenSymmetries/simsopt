@@ -32,6 +32,7 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
+from simsopt.field.biotsavart import BiotSavart 
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core.optimizable import Optimizable
 from permanent_magnet_helpers import *
@@ -76,7 +77,7 @@ if initialization_run:
         t1 = time.time()
 
         # initialize the coils
-        base_curves, curves, coils = initialize_coils(config_flag, TEST_DIR, OUT_DIR)
+        base_curves, curves, coils = initialize_coils(config_flag, TEST_DIR, OUT_DIR, s)
 
         # Set up BiotSavart fields
         bs = BiotSavart(coils)
