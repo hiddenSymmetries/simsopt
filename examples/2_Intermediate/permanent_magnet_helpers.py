@@ -1,11 +1,13 @@
 import numpy as np
 import sys
+from pathlib import Path
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from pyevtk.hl import pointsToVTK
 from scipy.optimize import minimize
 from scipy.io import netcdf
-from simsopt.field.coil import Current
+from simsopt.field.coil import Current, ScaledCurrent, Coil, coils_via_symmetries
+from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.magneticfieldclasses import DipoleField, InterpolatedField
@@ -621,7 +623,7 @@ def make_qfm(s, Bfield, Bfield_tf):
     return qfm_surface.surface  # return QFMS
 
 
-def initialize_coils(config_flag, TEST_DIR, OUT_DIR):
+def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
     """
         Initializes coils for each of the target configurations that are
         used for permanent magnet optimization.
@@ -676,6 +678,10 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR):
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
+        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+        # fix all the coil shapes so only the currents are optimized 
+        for i in range(ncoils):
+            base_curves[i].fix_all()
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
