@@ -7,6 +7,9 @@ import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from simsopt.geo.surface import Surface
 
+__all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
+           'QfmResidual']
+
 
 class Area(Optimizable):
     """

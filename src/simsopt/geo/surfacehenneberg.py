@@ -13,6 +13,8 @@ from ..util.types import RealArray
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['SurfaceHenneberg']
+
 
 class SurfaceHenneberg(sopp.Surface, Surface):
     r"""

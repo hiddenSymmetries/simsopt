@@ -11,7 +11,7 @@ except ImportError:
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from ..util.dev import SimsoptRequires
-from .plot import fix_matplotlib_3d
+from .plotting import fix_matplotlib_3d
 
 
 class Surface(Optimizable):

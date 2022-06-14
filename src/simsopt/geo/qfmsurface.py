@@ -4,6 +4,8 @@ from monty.json import MontyDecoder, MSONable
 
 from simsopt.geo.surfaceobjectives import QfmResidual
 
+__all__ = ['QfmSurface']
+
 
 class QfmSurface(MSONable):
     r"""

@@ -7,6 +7,8 @@ from .surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['SurfaceGarabedian']
+
 
 class SurfaceGarabedian(sopp.Surface, Surface):
     r"""
