@@ -40,11 +40,11 @@ This example is also available as ``QH_fixed_resolution.py`` in the
 imports of the classes and functions we will need::
 
   import numpy as np
-  from simsopt.util.mpi import MpiPartition
-  from simsopt.mhd.vmec import Vmec
-  from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
-  from simsopt.objectives.least_squares import LeastSquaresProblem
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.util import MpiPartition
+  from simsopt.mhd import Vmec
+  from simsopt.mhd import QuasisymmetryRatioResidual
+  from simsopt.objectives import LeastSquaresProblem
+  from simsopt.solve import least_squares_mpi_solve
 
 For this problem we will want MPI for parallelized finite difference
 gradients. As explained below, this particular problem has 24
@@ -234,11 +234,11 @@ quasi-axisymmetry optimization shown in `arXiv:2108.03711
 As usual, we begin with the necessary imports::
 
   import numpy as np
-  from simsopt.util.mpi import MpiPartition
-  from simsopt.mhd.vmec import Vmec
-  from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
-  from simsopt.objectives.least_squares import LeastSquaresProblem
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.util import MpiPartition
+  from simsopt.mhd import Vmec
+  from simsopt.mhd import QuasisymmetryRatioResidual
+  from simsopt.objectives import LeastSquaresProblem
+  from simsopt.solve import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups. Here, for
 simplicity, we make each process its own worker group, by omitting the
@@ -344,11 +344,11 @@ coordinates.  This example can also be found in the
 
 In this case, the imports needed are::
 
-  from simsopt.util.mpi import MpiPartition
-  from simsopt.mhd.vmec import Vmec
-  from simsopt.mhd.boozer import Boozer, Quasisymmetry
-  from simsopt.objectives.least_squares import LeastSquaresProblem
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.util import MpiPartition
+  from simsopt.mhd import Vmec
+  from simsopt.mhd import Boozer, Quasisymmetry
+  from simsopt.objectives import LeastSquaresProblem
+  from simsopt.solve import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups and
 initialize a ``Vmec`` object as in the previous example::

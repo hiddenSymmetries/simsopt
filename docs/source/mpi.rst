@@ -43,8 +43,9 @@ For instance, to tell a Vmec object to use four worker groups, one could write
 
 .. code-block::
 
-   from simsopt.mhd.vmec import Vmec
-   from simsopt.util.mpi import MpiPartition
+   from simsopt.mhd import Vmec
+   from simsopt.util import MpiPartition
+   # NOTE: We don't have to specify the submodules most of the times
    
    mpi = MpiPartition(4)
    equil = Vmec("input.li383_low_res", mpi=mpi)
@@ -53,7 +54,7 @@ The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the 
 
   # ... code to define an optimization problem "prob" ...
   
-  from simsopt.solve.mpi import least_squares_mpi_solve
+  from simsopt.solve import least_squares_mpi_solve
   
   least_squares_mpi_solve(prob, mpi, grad=True)
 

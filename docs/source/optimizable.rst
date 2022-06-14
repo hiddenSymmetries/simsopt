@@ -49,7 +49,7 @@ To demonstrate these functions, we can use a
 :obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` object as a
 concrete example::
 
-  >>> from simsopt.geo.curvexyzfourier import CurveXYZFourier
+  >>> from simsopt.geo import CurveXYZFourier
   >>> c = CurveXYZFourier(quadpoints=30, order=1)
 
 This object provides a Fourier representation of a closed curve, as is
@@ -224,8 +224,8 @@ pairing of a :obj:`simsopt.field.coil.Current` with a
 subclass :obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` as in the
 previous section.  These objects can be created as follows::
 
-  >>> from simsopt.field.coil import Current, Coil
-  >>> from simsopt.geo.curvexyzfourier import CurveXYZFourier
+  >>> from simsopt.field import Current, Coil
+  >>> from simsopt.geo import CurveXYZFourier
   >>>
   >>> current = Current(1.0e4)
   >>> curve = CurveXYZFourier(quadpoints=30, order=1)
@@ -541,7 +541,7 @@ some dofs to be optimized. If ``obj`` has a function ``func()``, we
 can define the objective function ``weight * ((obj.func() - goal) **
 2)`` as follows::
 
-  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.objectives import LeastSquaresProblem
   prob = LeastSquaresProblem.from_tuples([(obj.func, goal, weight)])
 
 Note that the problem was defined using a 3-element tuple of the form
@@ -612,8 +612,8 @@ For instance, suppose we wish to minimize the objective function
 can be accomplished as follows::
 
   from simsopt import make_optimizable
-  from simsopt.mhd.vmec import Vmec
-  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt.mhd import Vmec
+  from simsopt.objectives import LeastSquaresProblem
 
   def myfunc(v):
      v.run()  # Ensure VMEC has run with the latest dofs.
@@ -637,9 +637,9 @@ write your own subclass of
 :obj:`~simsopt._core.optimizable.Optimizable`.  In this
 approach, the above example looks as follows::
   
-  from simsopt._core.optimizable import Optimizable
-  from simsopt.mhd.vmec import Vmec
-  from simsopt.objectives.least_squares import LeastSquaresProblem
+  from simsopt._core import Optimizable
+  from simsopt.mhd import Vmec
+  from simsopt.objectives import LeastSquaresProblem
 
   class Myopt(Optimizable):
       def __init__(self, v):
