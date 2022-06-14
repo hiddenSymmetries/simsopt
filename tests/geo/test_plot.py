@@ -5,7 +5,7 @@ from pathlib import Path
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
-from simsopt.geo.plot import plot
+from simsopt.geo.plotting import plot
 
 #logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
