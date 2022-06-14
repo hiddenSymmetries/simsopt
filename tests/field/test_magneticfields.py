@@ -558,7 +558,6 @@ class Testing(unittest.TestCase):
         ntheta = 8
         file_tests = [
             "input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
-            "wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc", 
             "input.LandremanPaul2021_QH_reactorScale_lowres",
             "input.circular_tokamak", "input.rotating_ellipse"
         ]
