@@ -46,6 +46,9 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
+__all__ = ['Optimizable', 'make_optimizable', 'load', 'save', 'Weight',
+           'OptimizableSum', 'ScaledOptimizable']
+
 
 class DOFs:
     """
