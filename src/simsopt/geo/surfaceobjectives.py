@@ -8,7 +8,7 @@ from .._core.optimizable import Optimizable
 from simsopt.geo.surface import Surface
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
-           'QfmResidual']
+           'QfmResidual', 'boozer_surface_residual']
 
 
 class Area(Optimizable):
