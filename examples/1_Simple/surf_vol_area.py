@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 from simsopt import load, save
 """
 Optimize the minor radius and elongation of an axisymmetric torus to
