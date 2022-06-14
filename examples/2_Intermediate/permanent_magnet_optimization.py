@@ -246,7 +246,7 @@ else:
     m0 = np.zeros(pm_opt.m0.shape)
 
     # Optimize the permanent magnets
-    for i in range(14):
+    for i in range(17):
         reg_l0_scaled = reg_l0 * (1 + i / 2.0)
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
             max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
