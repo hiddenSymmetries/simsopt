@@ -10,7 +10,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 
 try:
     import pyevtk
