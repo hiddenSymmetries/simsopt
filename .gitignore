@@ -60,6 +60,7 @@ docs/build/
 # IDE related
 .idea
 compile_commands.json
+.vscode
 
 # Tests output
 tests/*.dat

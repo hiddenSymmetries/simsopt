@@ -204,10 +204,3 @@ class QfmSurface(MSONable):
                 tol=tol, maxiter=maxiter, constraint_weight=constraint_weight)
         else:
             raise ValueError
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        bs = decoder.process_decoded(d["biotsavart"])
-        surf = decoder.process_decoded(d["surface"])
-        return cls(bs, surf, d["label"], d["targetlabel"])

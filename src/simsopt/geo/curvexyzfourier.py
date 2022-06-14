@@ -3,6 +3,7 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
+from monty.json import MontyDecoder
 
 from .curve import Curve, JaxCurve
 import simsoptpp as sopp
@@ -98,8 +99,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
         d["quadpoints"] = list(self.quadpoints)
         d["order"] = self.order
         d["x0"] = list(self.local_full_x)

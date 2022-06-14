@@ -1,5 +1,6 @@
+import json
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+from monty.json import MSONable, MontyDecoder, MontyEncoder
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
@@ -208,9 +209,15 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
     def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        coils = MontyDecoder().process_decoded(d["coils"])
-        return cls(coils)
+        decoder = MontyDecoder()
+        coils = decoder.process_decoded(d["coils"])
+        bs = cls(coils)
+        xyz = decoder.process_decoded(d["points"])
+        bs.set_points_cart(xyz)
+        return bs
