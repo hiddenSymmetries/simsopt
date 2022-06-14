@@ -1,6 +1,5 @@
 from .mpi import *
 
-
 import warnings
 
 warnings.warn("Importing of simsopt.solve.graph_mpi is deprecated. "

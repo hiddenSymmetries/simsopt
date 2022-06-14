@@ -1,7 +1,9 @@
 import unittest
 from pathlib import Path
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
 
@@ -561,6 +563,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
         names = [s[2:] for s in surf.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(surf.m, surf.n)]
         self.assertEqual(names, names2)
+
+    def test_serialization(self):
+        """
+        Test the serialization of an axisymmetric surface using area and volume
+        """
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        # TODO: x should be updated whenever rc and zs are modified without
+        # TODO: explict setting of x
+        s.local_full_x = s.get_dofs()
+
+        surf_str = json.dumps(s, cls=MontyEncoder)
+        s_regen = json.loads(surf_str, cls=MontyDecoder)
+
+        self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
+        self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):

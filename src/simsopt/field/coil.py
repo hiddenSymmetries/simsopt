@@ -1,10 +1,11 @@
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from math import pi
 import numpy as np
+from monty.json import MontyDecoder, MSONable
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -15,8 +16,8 @@ class Coil(sopp.Coil, Optimizable):
     """
 
     def __init__(self, curve, current):
-        self.__curve = curve
-        self.__current = current
+        self._curve = curve
+        self._current = current
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
 
@@ -33,6 +34,16 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        current = decoder.process_decoded(d["current"])
+        curve = decoder.process_decoded(d["curve"])
+        return cls(curve, current)
 
 
 class CurrentBase(Optimizable):
@@ -72,13 +83,24 @@ class Current(sopp.Current, CurrentBase):
     of coils that are constrained to use the same current.
     """
 
-    def __init__(self, current):
+    def __init__(self, current, **kwargs):
         sopp.Current.__init__(self, current)
         CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                             x0=self.get_dofs())
+                             x0=self.get_dofs(), **kwargs)
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["current"] = self.get_value()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["current"])
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
@@ -87,17 +109,27 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     for stellarator symmetric coils.
     """
 
-    def __init__(self, current_to_scale, scale):
+    def __init__(self, current_to_scale, scale, **kwargs):
         self.current_to_scale = current_to_scale
         self.scale = scale
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_to_scale])
+        CurrentBase.__init__(self, x0=np.asarray([]),
+                             depends_on=[current_to_scale], **kwargs)
 
     def vjp(self, v_current):
         return self.scale * self.current_to_scale.vjp(v_current)
 
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        current = decoder.process_decoded(d["current_to_scale"])
+        return cls(current, d["scale"])
 
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
@@ -116,6 +148,16 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
 
     def get_value(self):
         return self.current_a.get_value() + self.current_b.get_value()
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        current_a = decoder.process_decoded(d["current_a"])
+        current_b = decoder.process_decoded(d["current_b"])
+        return cls(current_a, current_b)
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):

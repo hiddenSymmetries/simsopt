@@ -1,11 +1,13 @@
+from deprecated import deprecated
+
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
 from .jit import jit
+from monty.json import MontyDecoder, MSONable
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
-from deprecated import deprecated
 import simsoptpp as sopp
 
 
@@ -46,6 +48,14 @@ class CurveLength(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve)
+
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -71,6 +81,8 @@ class LpCurveCurvature(Optimizable):
 
     def __init__(self, curve, p, threshold=0.):
         self.curve = curve
+        self.p = p
+        self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
@@ -90,6 +102,14 @@ class LpCurveCurvature(Optimizable):
         grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve, d["p"], d["threshold"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -115,6 +135,8 @@ class LpCurveTorsion(Optimizable):
 
     def __init__(self, curve, p, threshold=0.):
         self.curve = curve
+        self.p = p
+        self.threshold = threshold
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
@@ -134,6 +156,14 @@ class LpCurveTorsion(Optimizable):
         grad0 = self.thisgrad0(self.curve.torsion(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
         return self.curve.dtorsion_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve, d["p"], d["threshold"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -240,6 +270,14 @@ class CurveCurveDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curves = MontyDecoder().process_decoded(d["curves"])
+        return cls(curves, d["minimum_distance"], d["num_basecurves"])
+
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -343,6 +381,16 @@ class CurveSurfaceDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        curves = decoder.process_decoded(d["curves"])
+        surf = decoder.process_decoded(d["surface"])
+        return cls(curves, surf, d["minimum_distance"])
+
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -388,6 +436,7 @@ class ArclengthVariation(Optimizable):
         and thus specify the number of intervals directly.
         """
         super().__init__(depends_on=[curve])
+
         assert nintervals in ["full", "partial"] \
             or (isinstance(nintervals, int) and 0 < nintervals <= curve.gamma().shape[0])
         self.curve = curve
@@ -400,8 +449,8 @@ class ArclengthVariation(Optimizable):
                 nintervals = 2*curve.order
             else:
                 raise RuntimeError("Please provide a value other than `partial` for `nintervals`. We only have a default for `CurveXYZFourier` and `JaxCurveXYZFourier`.")
-        else:
-            self.nintervals = nintervals
+
+        self.nintervals = nintervals
         indices = np.floor(np.linspace(0, nquadpoints, nintervals+1, endpoint=True)).astype(int)
         mat = np.zeros((nintervals, nquadpoints))
         for i in range(nintervals):
@@ -419,6 +468,14 @@ class ArclengthVariation(Optimizable):
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve, d["nintervals"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -460,6 +517,14 @@ class MeanSquaredCurvature(Optimizable):
         grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = MontyDecoder().process_decoded(d["curve"])
+        return cls(curve)
 
 
 @deprecated("`MinimumDistance` has been deprecated and will be removed. Please use `CurveCurveDistance` instead.")

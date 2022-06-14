@@ -7,7 +7,8 @@ set -ex
 ./1_Simple/just_a_quadratic.py
 ./1_Simple/surf_vol_area.py
 ./1_Simple/minimize_curve_length.py
-./1_Simple/tracing_fieldline.py
+./1_Simple/tracing_fieldlines_NCSX.py
+./1_Simple/tracing_fieldlines_QA.py
 ./1_Simple/tracing_particle.py
 ./1_Simple/qfm.py
 ./2_Intermediate/QSC.py
