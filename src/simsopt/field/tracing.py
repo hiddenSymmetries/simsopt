@@ -16,6 +16,16 @@ from ..util.types import RealArray
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
+           'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
+           'compute_fieldlines', 'compute_resonances',
+           'compute_poloidal_transits', 'compute_toroidal_transits',
+           'trace_particles', 'trace_particles_boozer',
+           'trace_particles_starting_on_curve',
+           'trace_particles_starting_on_surface',
+           'particles_to_vtk', 'plot_poincare_data']
+
 
 def compute_gc_radius(m, vperp, q, absb):
     """

@@ -16,7 +16,7 @@ import simsoptpp as sopp
 logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
-           'CircularCoil', 'Dommaschk', 'Reiman']
+           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField']
 
 
 class ToroidalField(MagneticField):
