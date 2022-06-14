@@ -7,6 +7,8 @@ from math import pi
 import numpy as np
 from monty.json import MontyDecoder, MSONable
 
+__all__ = ['Coil', 'Current']
+
 
 class Coil(sopp.Coil, Optimizable):
     """
