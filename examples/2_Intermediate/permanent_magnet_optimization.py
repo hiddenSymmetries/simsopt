@@ -245,7 +245,7 @@ else:
     #m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
     m0 = np.zeros(pm_opt.m0.shape)
 
-    # Optimize the permanent magnets
+    # Optimize the permanent magnets, increasing L0 threshold as converging
     for i in range(17):
         reg_l0_scaled = reg_l0 * (1 + i / 2.0)
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
