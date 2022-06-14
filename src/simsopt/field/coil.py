@@ -123,12 +123,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         return self.scale * self.current_to_scale.get_value()
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["current_to_scale"] = self.current_to_scale.as_dict()
-        d["scale"] = self.scale
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):
@@ -155,12 +150,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         return self.current_a.get_value() + self.current_b.get_value()
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["current_a"] = self.current_a.as_dict()
-        d["current_b"] = self.current_b.as_dict()
-        return d
+        return MSONable.as_dict(self)
 
     @classmethod
     def from_dict(cls, d):

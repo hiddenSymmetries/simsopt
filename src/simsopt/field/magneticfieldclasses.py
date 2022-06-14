@@ -1,8 +1,8 @@
-import numpy as np
-from scipy.special import ellipk, ellipe
-from simsopt.field.magneticfield import MagneticField
-import simsoptpp as sopp
 import logging
+
+import numpy as np
+from monty.json import MSONable, MontyDecoder
+from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
@@ -10,6 +10,10 @@ try:
 except ImportError:
     sympy_found = False
 from pyevtk.hl import pointsToVTK
+
+from simsopt.field.magneticfield import MagneticField
+import simsoptpp as sopp
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,15 +111,17 @@ class ToroidalField(MagneticField):
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["R0"] = self.R0
-        d["B0"] = self.B0
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["R0"], d["B0"])
+        field = cls(d["R0"], d["B0"])
+        decoder = MontyDecoder()
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class PoloidalField(MagneticField):
@@ -213,16 +219,17 @@ class PoloidalField(MagneticField):
         dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["R0"] = self.R0
-        d["B0"] = self.B0
-        d["q"] = self.q
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["R0"], d["B0"], d["q"])
+        field = cls(d["R0"], d["B0"], d["q"])
+        decoder = MontyDecoder()
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class ScalarPotentialRZMagneticField(MagneticField):
@@ -311,15 +318,17 @@ class ScalarPotentialRZMagneticField(MagneticField):
         dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
 
     def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["phi_str"] = self.phi_str
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["phi_str"])
+        field = cls(d["phi_str"])
+        decoder = MontyDecoder()
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class CircularCoil(MagneticField):
@@ -474,17 +483,20 @@ class CircularCoil(MagneticField):
 
     def as_dict(self):
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
         d["r0"] = self.r0
         d["center"] = self.center
         d["I"] = self.Inorm * 25e5
         d["normal"] = self.normal
+        d["points"] = self.get_points_cart()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["r0"], d["center"], d["I"], d["normal"])
+        field = cls(d["r0"], d["center"], d["I"], d["normal"])
+        decoder = MontyDecoder()
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class DipoleField(MagneticField):
@@ -683,16 +695,19 @@ class Dommaschk(MagneticField):
 
     def as_dict(self) -> dict:
         d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        mn = [list(self.m), list(self.n)]
-        d["mn"] = mn
+        d["mn"] = np.column_stack((self.m, self.n))
         d["coeffs"] = self.coeffs
+        d["points"] = self.get_points_cart()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["mn"], d["coeffs"])
+        decoder = MontyDecoder()
+        mn = decoder .process_decoded(d["mn"])
+        field = cls(mn, d["coeffs"])
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class Reiman(MagneticField):
@@ -727,23 +742,17 @@ class Reiman(MagneticField):
         dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
     def as_dict(self):
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["iota0"] = self.iota0
-        d["iota1"] = self.iota1
-        d["k"] = self.k
-        d["epsilonk"] = self.epsilonk
-        d["m0"] = self.m0
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
         return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d["iota0"],
-                   d["iota1"],
-                   d["k"],
-                   d["epsilonk"],
-                   d["m0"])
+        field = cls(d["iota0"], d["iota1"], d["k"], d["epsilonk"], d["m0"])
+        decoder = MontyDecoder()
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
 
 
 class UniformInterpolationRule(sopp.UniformInterpolationRule):

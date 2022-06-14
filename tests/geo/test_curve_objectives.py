@@ -1,6 +1,8 @@
 import unittest
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
@@ -70,6 +72,9 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_length_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -96,6 +101,9 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_curvature_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -122,6 +130,9 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_torsion_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -159,6 +170,9 @@ class Testing(unittest.TestCase):
                 # print("err_new %s" % (err_new))
                 assert err_new < 0.55 * err
                 err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_minimum_distance_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -190,6 +204,9 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_arclengthvariation_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -226,6 +243,9 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_meansquaredcurvature_taylor_test(self):
         for curvetype in self.curvetypes:
