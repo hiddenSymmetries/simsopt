@@ -11,7 +11,7 @@ from ..field.boozermagneticfield import BoozerMagneticField
 from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from ..geo.surface import SurfaceClassifier
 from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-from ..util.types import RealArray
+from .._core.types import RealArray
 
 
 logger = logging.getLogger(__name__)
