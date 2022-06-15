@@ -5,7 +5,8 @@ import numpy as np
 from qsc import Qsc
 
 from simsopt._core import Optimizable
-from simsopt import LeastSquaresProblem, least_squares_serial_solve
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 
 """
 Optimize an axis shape and the first-order shape of the flux surface
