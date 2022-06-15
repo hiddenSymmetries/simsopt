@@ -99,7 +99,7 @@ for i in range(ncoils):
     # of the currents
     if i == 0:
         curr.fix_all()
-    base_currents.append(curr * 1e5/nfil)
+    base_currents.append(curr * (1e5/nfil))
 
 # use sum here to concatenate lists
 base_curves_finite_build = sum([
