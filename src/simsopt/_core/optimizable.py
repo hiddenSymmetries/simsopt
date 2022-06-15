@@ -24,8 +24,8 @@ import numpy as np
 from monty.json import MSONable, MontyDecoder, MontyEncoder
 from monty.io import zopen
 
-from ..util.dev import SimsoptRequires
-from ..util.types import RealArray, StrArray, BoolArray, Key
+from .dev import SimsoptRequires
+from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec

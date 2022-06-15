@@ -14,7 +14,7 @@ from typing import Sequence
 import numpy as np
 
 from .._core.optimizable import Optimizable
-from ..util.types import RealArray
+from .._core.types import RealArray
 
 
 class Identity(Optimizable):

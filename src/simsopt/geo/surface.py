@@ -10,7 +10,7 @@ except ImportError:
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from ..util.dev import SimsoptRequires
+from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
 
 
