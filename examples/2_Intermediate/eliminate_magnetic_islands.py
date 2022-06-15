@@ -27,7 +27,8 @@ mpi = MpiPartition()
 mpi.write()
 
 # Initialze a Spec object from a standard SPEC input file:
-s = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'QH-residues.sp'), mpi=mpi)
+s = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'QH-residues.sp'),
+         mpi=mpi)
 
 # Expand number of Fourier modes to include larger poloidal mode numbers:
 s.boundary.change_resolution(6, s.boundary.ntor)
