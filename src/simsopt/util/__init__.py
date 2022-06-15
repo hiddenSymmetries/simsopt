@@ -1,4 +1,4 @@
 from .mpi import *
-from .log import *
+from .logger import *
 
-__all__ = (mpi.__all__ + log.__all__)
+__all__ = (mpi.__all__ + logger.__all__)
