@@ -25,8 +25,8 @@ try:
 except ImportError:
     mpi4py = None
 
-from ..util.types import RealArray
-from ..util.dev import SimsoptRequires
+from .types import RealArray
+from .dev import SimsoptRequires
 from .optimizable import Optimizable
 from .util import finite_difference_steps
 

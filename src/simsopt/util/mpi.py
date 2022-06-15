@@ -14,7 +14,7 @@ import logging
 from typing import Union
 import numpy as np
 
-from .dev import SimsoptRequires
+from .._core.dev import SimsoptRequires
 try:
     from mpi4py import MPI
 except ImportError:
