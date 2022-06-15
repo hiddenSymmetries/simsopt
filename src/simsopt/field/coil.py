@@ -62,6 +62,10 @@ class CurrentBase(Optimizable):
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
 
+    def __truediv__(self, other):
+        assert isinstance(other, float) or isinstance(other, int)
+        return ScaledCurrent(self, 1.0/other)
+
     def __neg__(self):
         return ScaledCurrent(self, -1.)
 
