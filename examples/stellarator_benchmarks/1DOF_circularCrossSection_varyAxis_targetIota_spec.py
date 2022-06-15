@@ -4,11 +4,11 @@ import os
 import logging
 import numpy as np
 
-from simsopt.util.mpi import MpiPartition, log
+from simsopt.util import MpiPartition, log
 from simsopt.mhd import Spec
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-from simsopt.geo.surfacegarabedian import SurfaceGarabedian
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_mpi_solve
+from simsopt.geo import SurfaceGarabedian
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
