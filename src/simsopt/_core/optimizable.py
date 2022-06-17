@@ -46,7 +46,7 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-__all__ = ['Optimizable', 'make_optimizable', 'load', 'save', 'Weight',
+__all__ = ['Optimizable', 'make_optimizable', 'load', 'save',
            'OptimizableSum', 'ScaledOptimizable']
 
 
@@ -1527,19 +1527,6 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             return self.func(*args, **kwargs)
 
     return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
-
-
-class Weight(object):
-
-    def __init__(self, value):
-        self.value = float(value)
-
-    def __float__(self):
-        return float(self.value)
-
-    def __imul__(self, alpha):
-        self.value *= alpha
-        return self
 
 
 class ScaledOptimizable(Optimizable):
