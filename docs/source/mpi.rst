@@ -34,11 +34,11 @@ the total set of :math:`M` MPI processors into one or more worker
 groups.  If there are :math:`W` worker groups, each group has
 approximately :math:`M/W` processors (approximate because one may need to
 round up or down.)  Simsopt has a class
-:obj:`simsopt.util.mpi.MpiPartition` to manage this division of
+:obj:`simsopt.util.MpiPartition` to manage this division of
 processors into worker groups.  Each MPI-aware simsopt object, such as
-:obj:`simsopt.mhd.vmec.Vmec`, keeps an instance of :obj:`~simsopt.util.mpi.MpiPartition`
+:obj:`simsopt.mhd.Vmec`, keeps an instance of :obj:`~simsopt.util.MpiPartition`
 which can be set from its constructor.  The number of worker
-groups can be set by an argument to :obj:`~simsopt.util.mpi.MpiPartition`.
+groups can be set by an argument to :obj:`~simsopt.util.MpiPartition`.
 For instance, to tell a Vmec object to use four worker groups, one could write
 
 .. code-block::
@@ -50,7 +50,7 @@ For instance, to tell a Vmec object to use four worker groups, one could write
    mpi = MpiPartition(4)
    equil = Vmec("input.li383_low_res", mpi=mpi)
 
-The same :obj:`~simsopt.util.mpi.MpiPartition` instance should be passed to the solver::
+The same :obj:`~simsopt.util.MpiPartition` instance should be passed to the solver::
 
   # ... code to define an optimization problem "prob" ...
   
@@ -89,7 +89,7 @@ only includes the :math:`W` processors that have rank 0 in the
 communicating data within a parallel optimization *algorithm* (as
 opposed to within a parallelized objective function).
 
-Given an instance of :obj:`simsopt.util.mpi.MpiPartition` named
+Given an instance of :obj:`simsopt.util.MpiPartition` named
 ``mpi``, the number of worker groups is available as ``mpi.ngroups``,
 and the index of a given processor's group is ``mpi.group``.  The
 communicators are available as ``mpi.comm_world``,
