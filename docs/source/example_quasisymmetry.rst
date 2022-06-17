@@ -7,15 +7,15 @@ problem are shown here, including both quasi-helical symmetry and
 quasi-axisymmetry.  There are two objective functions available in
 simsopt to achieve quasisymmetry, and both are demonstrated here.  One
 objective function is
-:obj:`simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`, based
+:obj:`simsopt.mhd.QuasisymmetryRatioResidual`, based
 on the fact that :math:`(\vec{B}\times\nabla B
 \cdot\nabla\psi)/(\vec{B}\cdot\nabla B)` is a flux function in
 quasisymmetry, demonstrated in the paper `arXiv:2108.03711
 <https://arxiv.org/pdf/2108.03711>`__.  The other objective function,
-using :obj:`simsopt.mhd.boozer.Quasisymmetry`, is a more traditional
+using :obj:`simsopt.mhd.Quasisymmetry`, is a more traditional
 one based on the Fourier modes in Boozer coordinates :math:`B_{m,n}`
 that break the symmetry. The recommended approach is to use
-:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`, since
+:obj:`~simsopt.mhd.QuasisymmetryRatioResidual`, since
 it has the modest advantage of not requiring a transformation to
 Boozer coordinates, although both methods are effective. The first two
 examples on this page do not require the ``booz_xform`` package,
@@ -52,7 +52,7 @@ independent variables, so we can take advantage of 24 + 1 = 25 concurrent
 function evaluations for one-sided differences. It is therefore
 optimal to divide the MPI processes into 25 worker groups. For more
 information about MPI and worker groups, see :doc:`mpi` or
-:obj:`~simsopt.util.mpi.MpiPartition`.  In our script, we therefore
+:obj:`~simsopt.util.MpiPartition`.  In our script, we therefore
 use::
 
   mpi = MpiPartition(25)
@@ -130,10 +130,10 @@ follows::
 
 There are several adjustable options, the details of which can be
 found in the API documentation for
-:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`.
+:obj:`~simsopt.mhd.QuasisymmetryRatioResidual`.
 There you can also find the mathematical expression for the objective
 function.  The second argument to
-:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual` above
+:obj:`~simsopt.mhd.QuasisymmetryRatioResidual` above
 sets the quasisymmetry objective to be evaluated at a uniform grid of
 11 surfaces ``[0, 0.1, 0.2, ..., 1]`` in the normalized toroidal flux
 :math:`s`, with the result that quasisymmetry is targeted throughout
@@ -161,7 +161,7 @@ objective function will be a sum of 44,353 least-squares terms, 44,352
 of which correspond to the quasisymmetry residual on 63x64 grid points
 on the 11 flux surfaces targeted, plus one additional term
 ``(vmec.aspect - 7) ** 2``. (The 63x64 resolution is a default in
-:obj:`~simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual`.)  This
+:obj:`~simsopt.mhd.QuasisymmetryRatioResidual`.)  This
 large number of residual terms is no problem - it introduces
 negligible computational cost compared to the cost of the equilibrium
 calculations, so we may as well use this high resolution.
@@ -368,16 +368,16 @@ created as follows::
                      1, 0) # (M, N) you want in |B|
 
 There are several adjustable options, the details of which can be
-found in the API documentation for :obj:`~simsopt.mhd.boozer.Boozer`
-and :obj:`~simsopt.mhd.boozer.Quasisymmetry`. The numerical resolution
+found in the API documentation for :obj:`~simsopt.mhd.Boozer`
+and :obj:`~simsopt.mhd.Quasisymmetry`. The numerical resolution
 of the Boozer-coordinate transformation can be adjusted by passing
-parameters to the :obj:`~simsopt.mhd.boozer.Boozer` constructor, as in
+parameters to the :obj:`~simsopt.mhd.Boozer` constructor, as in
 ``Boozer(vmec, mpol=64, ntor=32)``. The second argument to
 ``Quasisymmetry`` above sets the quasisymmetry objective to be
 evaluated at normalized toroidal flux of 0.5, but you are free to
 provide different values.  Or, a list of values can be provided to
 target quasisymmetry on multiple surfaces. The
-:obj:`~simsopt.mhd.boozer.Quasisymmetry` also has optional arguments
+:obj:`~simsopt.mhd.Quasisymmetry` also has optional arguments
 to adjust the normalization and weighting of different Fourier modes.
 
 We now define the total objective function. As with the previous

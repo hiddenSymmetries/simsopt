@@ -4,7 +4,7 @@ Magnetic fields
 Simsopt provides several representations of magnetic fields, including
 the Biot-Savart field associated with coils, as well as others.
 Magnetic fields are represented as subclasses of the base class
-:obj:`simsopt.field.magneticfield.MagneticField`.  The various field
+:obj:`simsopt.field.MagneticField`.  The various field
 types can be scaled and summed together; for instance you can add a
 purely toroidal field to the field from coils.  Each field object has
 an associated set of evaluation points.  At these points, you can
@@ -19,17 +19,17 @@ Coils and BiotSavart
 ~~~~~~~~~~~~~~~~~~~~
 
 In simsopt, a filamentary coil is represented by the class
-:obj:`simsopt.field.coil.Coil`. A ``Coil`` is a pairing of a
-:obj:`~simsopt.geo.curve.Curve` with a current magnitude. The latter
-is represented by a :obj:`simsopt.field.coil.Current` object.  For
+:obj:`simsopt.field.Coil`. A ``Coil`` is a pairing of a
+:obj:`~simsopt.geo.Curve` with a current magnitude. The latter
+is represented by a :obj:`simsopt.field.Current` object.  For
 information about Curve objects see :ref:`the page on geometric
 objects <curves>`. If you wish for several filamentary curves to carry
-the same current, you can reuse a :obj:`~simsopt.field.coil.Current`
-object in multiple :obj:`~simsopt.field.coil.Coil` objects. 
+the same current, you can reuse a :obj:`~simsopt.field.Current`
+object in multiple :obj:`~simsopt.field.Coil` objects. 
 
-Once :obj:`~simsopt.field.coil.Coil` objects are defined, the magnetic
+Once :obj:`~simsopt.field.Coil` objects are defined, the magnetic
 field they produce can be evaluated using the class
-:obj:`simsopt.field.biotsavart.BiotSavart`. This class provides an
+:obj:`simsopt.field.BiotSavart`. This class provides an
 implementation of the Biot-Savart law
 
 .. math::
@@ -60,14 +60,14 @@ Example::
   print(field.B())
 
 For a more complex example of a
-:obj:`~simsopt.field.biotsavart.BiotSavart` object used in coil
+:obj:`~simsopt.field.BiotSavart` object used in coil
 optimization, see
 ``examples/2_Intermediate/stage_two_optimization.py``.
 
 ToroidalField
 ~~~~~~~~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.ToroidalField` class
+The :obj:`simsopt.field.ToroidalField` class
 represents a purely toroidal magnetic field. The field is given by
 :math:`\mathbf B = B_0 \frac{R_0}{R} \mathbf e_\phi`, where
 :math:`R_0` and :math:`B_0` are input scalar quantities, with
@@ -83,7 +83,7 @@ is calculated as :math:`\mathbf e_\phi=-\sin \phi \mathbf e_x+\cos
 PoloidalField
 ~~~~~~~~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.PoloidalField` class
+The :obj:`simsopt.field.PoloidalField` class
 represents a poloidal magnetic field acording to the formula
 :math:`\mathbf B = B_0 \frac{r}{q R_0} \mathbf e_\theta`, where
 :math:`R_0, q` and :math:`B_0` are input scalar
@@ -109,7 +109,7 @@ ScalarPotentialRZMagneticField
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The
-:obj:`simsopt.field.magneticfieldclasses.ScalarPotentialRZMagneticField`
+:obj:`simsopt.field.ScalarPotentialRZMagneticField`
 class initializes a vacuum magnetic field :math:`\mathbf B = \nabla
 \Phi` defined via a scalar potential :math:`\Phi` in cylindrical
 coordinates :math:`(R,Z,\phi)`. The field :math:`\Phi` is specified as
@@ -124,7 +124,7 @@ derivatives.
 CircularCoil
 ~~~~~~~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.CircularCoil` class
+The :obj:`simsopt.field.CircularCoil` class
 represents a magnetic field created by a single circular coil. It
 takes four input quantities: :math:`a`, the radius of the coil,
 :math:`\mathbf c=[c_x,c_y,c_z]`, the center of the coil, :math:`I`,
@@ -147,7 +147,7 @@ where :math:`\rho^2=x^2+y^2`, :math:`r^2=x^2+y^2+z^2`, :math:`\alpha^2=a^2+r^2-2
 Dommaschk
 ~~~~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.Dommaschk` class
+The :obj:`simsopt.field.Dommaschk` class
 represents a vacuum magnetic field :math:`\mathbf B = \nabla \Phi`
 with basis functions for the scalar potential :math:`\Phi` described
 in `W. Dommaschk (1986), Computer Physics Communications 40, 203-218
@@ -163,7 +163,7 @@ included in the definition. As input parameters, it takes two arrays:
 Reiman
 ~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.Reiman` provides the
+The :obj:`simsopt.field.Reiman` provides the
 magnetic field model in section 5 of `Reiman and Greenside, Computer
 Physics Communications 43 (1986) 157—167
 <https://www.sciencedirect.com/science/article/pii/0010465586900597>`_.
@@ -173,7 +173,7 @@ explicit calculation of the width of the magnetic field islands.
 InterpolatedField
 ~~~~~~~~~~~~~~~~~
 
-The :obj:`simsopt.field.magneticfieldclasses.InterpolatedField`
+The :obj:`simsopt.field.InterpolatedField`
 function takes an existing field and interpolates it on a regular grid
 in :math:`r,\phi,z`. This resulting interpolant can then be evaluated
 very quickly. This is useful for efficiently tracing field lines and
@@ -184,12 +184,12 @@ Scaling and summing fields
 
 Magnetic field objects can be added together, either by using the
 ``+`` operator, or by creating an instance of the class
-:obj:`simsopt.field.magneticfield.MagneticFieldSum`. (The ``+``
+:obj:`simsopt.field.MagneticFieldSum`. (The ``+``
 operator creates the latter.)
 
 Magnetic fields can also be scaled by a constant. This can be accomplished either using the ``*`` operator,
 or by creating an instance of the class
-:obj:`simsopt.field.magneticfield.MagneticFieldMultiply`. (The ``*``
+:obj:`simsopt.field.MagneticFieldMultiply`. (The ``*``
 operator creates the latter.)
 
 Example::
@@ -205,7 +205,7 @@ Common operations
 
 Magnetic field objects have a large number of functions available. Before evaluating the field, you must
 set the evaluation points. This can be done using either Cartesian or cylindrical coordinates.
-Let ``m`` be a :obj:`~simsopt.field.magneticfield.MagneticField` object, and suppose there are ``n`` points
+Let ``m`` be a :obj:`~simsopt.field.MagneticField` object, and suppose there are ``n`` points
 at which you wish to evaluate the field.
 
 - ``m.set_points_cart()`` takes a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
