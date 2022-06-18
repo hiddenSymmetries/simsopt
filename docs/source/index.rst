@@ -89,7 +89,7 @@ optimization.  Others include `STELLOPT
    :maxdepth: 3
    :caption: API
 
-   simsopt
+   simsopt <simsopt_user>
 
 .. toctree::
    :maxdepth: 3
