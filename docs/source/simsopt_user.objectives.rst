@@ -5,3 +5,4 @@ simsopt.objectives package
    :members:
    :undoc-members:
    :show-inheritance:
+

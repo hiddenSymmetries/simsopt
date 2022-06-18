@@ -6,3 +6,4 @@ simsopt.\_core package
    :undoc-members:
    :show-inheritance:
    :private-members:
+
