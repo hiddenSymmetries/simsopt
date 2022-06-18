@@ -15,12 +15,3 @@ Subpackages
    simsopt.objectives
    simsopt.solve
    simsopt.util
-   simsoptpp
-
-Module contents
----------------
-
-.. automodule:: simsopt
-   :members:
-   :undoc-members:
-   :show-inheritance:
