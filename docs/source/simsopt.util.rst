@@ -43,3 +43,4 @@ simsopt.util.mpi\_logger module
    :members:
    :undoc-members:
    :show-inheritance:
+

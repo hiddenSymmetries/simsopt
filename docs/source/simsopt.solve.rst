@@ -19,3 +19,4 @@ simsopt.solve.serial module
    :members:
    :undoc-members:
    :show-inheritance:
+
