@@ -95,7 +95,7 @@ optimization.  Others include `STELLOPT
    :maxdepth: 3
    :caption: Developer's API
 
-   simsopt <simsopt_dev>
+   simsopt
 
 Indices and tables
 ==================
