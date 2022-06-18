@@ -91,6 +91,12 @@ optimization.  Others include `STELLOPT
 
    simsopt
 
+.. toctree::
+   :maxdepth: 3
+   :caption: Developer's API
+
+   simsopt <simsopt_dev>
+
 Indices and tables
 ==================
 
