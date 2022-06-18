@@ -4,6 +4,7 @@ from simsopt._core.optimizable import Optimizable, ScaledOptimizable, Optimizabl
 from simsopt._core.derivative import Derivative, derivative_dec
 from simsopt.objectives.utilities import Weight
 
+
 class Opt(Optimizable):
     """
     This class defines a minimal object that can be optimized.
