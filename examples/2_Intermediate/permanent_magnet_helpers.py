@@ -82,11 +82,8 @@ def read_input():
     if interactive:
         config_flag = sanitised_input("Enter the plasma configuration name: ", str, range_=('qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx'), default_='muse_famus')
         res_flag = sanitised_input("Enter the resolution: ", str, range_=('low', 'medium', 'high'), default_='low')
-        initialization_run = sanitised_input("Initializing a permanent magnet grid class? ", str, range_=('False', 'True'), default_='False')
-        initialization_run = (initialization_run == 'True')
-        if not initialization_run:
-            final_run = sanitised_input("Final polished run with VMEC + poincare plots? ", str, range_=('False', 'True'), default_='False')
-            final_run = (final_run == 'True')
+        run_type = sanitised_input("Initialization, optimization, or post-processing a permanent magnet grid class? ", str, range_=('initialization', 'optimization', 'post-processing'), default_='optimization')
+        if run_type == 'optimization':
             reg_l2 = sanitised_input("L2 Regularization = ", float, 0.0, 1.0, default_=0.0)
             epsilon = sanitised_input("Error tolerance for the convex subproblem = ", float, 0.0, 1.0, default_=1e-2)
             max_iter_MwPGP = sanitised_input("Maximum iterations for the convex subproblem = ", int, 0, 1e5, default_=100)
@@ -98,16 +95,24 @@ def read_input():
             else:
                 nu = sanitised_input("nu (relax-and-split hyperparameter) = ", float, 0.0, 1e100, default_=1e6)
                 max_iter_RS = sanitised_input("Maximum number of relax-and-split iterations: ", int, 0, 1e5, default_=10) 
-        else:
+        elif run_type == 'initialization':
             cylindrical_flag = sanitised_input("Use cylindrical coordinates? ", str, range_=('False', 'True'), default_='False')
             cylindrical_flag = (cylindrical_flag == 'True')
+        elif run_type == 'post-processing':
+            reg_l2 = sanitised_input("L2 Regularization = ", float, 0.0, 1.0, default_=0.0)
+            reg_l0 = sanitised_input("L0 Regularization = ", float, 0.0, 1.0, default_=0.0)
+            if np.isclose(reg_l0, 0.0, atol=1e-16):
+                nu = 1.0e100
+                max_iter_RS = 1
+            else:
+                nu = sanitised_input("nu (relax-and-split hyperparameter) = ", float, 0.0, 1e100, default_=1e6)
     else:
         if len(sys.argv) < 5:
             print(
                 "Error! If the run is interactive, then "
                 "you must specify at least 4 arguments: "
                 "the flag to indicate if the run is interactive, "
-                "the configuration flag, resolution flag, and the initialization flag. "
+                "the configuration flag, resolution flag, and the run type flag. "
             )
             exit(1)
         config_flag = str(sys.argv[2])
@@ -123,70 +128,58 @@ def read_input():
                 "Error! The resolution flag must specify one of "
                 "low or high."
             )
-        initialization_run = str(sys.argv[4])
-        if initialization_run not in ['True', 'False']:
+        run_type = str(sys.argv[4])
+        if run_type not in ['initialization', 'optimization', 'post-processing']:
             raise ValueError(
                 "Error! The initialization flag must specify one of "
-                "True or False."
+                "initialization, optimization, or post-processing."
             )
-        initialization_run = (initialization_run == 'True')
-        if not initialization_run:
-
-            if len(sys.argv) >= 6:
-                final_run = str(sys.argv[5])
-                if final_run not in ['True', 'False']:
-                    raise ValueError(
-                        "Error! The final_run flag must specify one of "
-                        "True or False."
-                    )
-                final_run = (final_run == 'True')
-            else:
-                final_run = False
+        if run_type == 'optimization':
 
             # L2 regularization
-            if len(sys.argv) >= 7:
-                reg_l2 = float(sys.argv[6])
+            if len(sys.argv) >= 6:
+                reg_l2 = float(sys.argv[5])
             else:
                 reg_l2 = 1e-12
 
             # Error tolerance for declaring convex problem finished
-            if len(sys.argv) >= 8:
-                epsilon = float(sys.argv[7])
+            if len(sys.argv) >= 7:
+                epsilon = float(sys.argv[6])
             else:
                 epsilon = 1e-2
 
             # Maximum iterations for solving the convex problem
-            if len(sys.argv) >= 9:
-                max_iter_MwPGP = int(sys.argv[8])
+            if len(sys.argv) >= 8:
+                max_iter_MwPGP = int(sys.argv[7])
             else:
                 max_iter_MwPGP = 100
 
             # Error tolerance for declaring nonconvex problem finished
-            if len(sys.argv) >= 10:
-                min_fb = float(sys.argv[9])
+            if len(sys.argv) >= 9:
+                min_fb = float(sys.argv[8])
             else:
                 min_fb = 1e-20
 
             # L0 regularization
-            if len(sys.argv) >= 11:
-                reg_l0 = float(sys.argv[10])
+            if len(sys.argv) >= 10:
+                reg_l0 = float(sys.argv[9])
             else:
                 reg_l0 = 0.0  # default is no L0 norm
 
             # nu (relax-and-split hyperparameter)
-            if len(sys.argv) >= 12:
-                nu = float(sys.argv[11])
+            if len(sys.argv) >= 11:
+                nu = float(sys.argv[10])
 
             # Set to huge value if reg_l0 is zero so it is ignored
             if np.isclose(reg_l0, 0.0, atol=1e-16):
                 nu = 1e100
 
             # Maximum iterations for solving the nonconvex problem
-            if len(sys.argv) >= 13:
-                max_iter_RS = int(sys.argv[12])
+            if len(sys.argv) >= 12:
+                max_iter_RS = int(sys.argv[11])
             else:
                 max_iter_RS = 100
-        else:
+        elif run_type == 'initialization':
             if len(sys.argv) >= 6:
                 cylindrical_flag = str(sys.argv[5])
                 if cylindrical_flag not in ['True', 'False']:
@@ -197,6 +190,26 @@ def read_input():
                 cylindrical_flag = (cylindrical_flag == 'True')
             else:
                 cylindrical_flag = False
+        elif run_type == 'post-processing':
+            # L2 regularization
+            if len(sys.argv) >= 6:
+                reg_l2 = float(sys.argv[5])
+            else:
+                reg_l2 = 1e-12
+
+            # L0 regularization
+            if len(sys.argv) >= 7:
+                reg_l0 = float(sys.argv[6])
+            else:
+                reg_l0 = 0.0  # default is no L0 norm
+
+            # nu (relax-and-split hyperparameter)
+            if len(sys.argv) >= 8:
+                nu = float(sys.argv[7])
+
+            # Set to huge value if reg_l0 is zero so it is ignored
+            if np.isclose(reg_l0, 0.0, atol=1e-16):
+                nu = 1e100
 
     # Set the remaining parameters
     surface_flag = 'vmec'
@@ -251,9 +264,8 @@ def read_input():
 
     print('Config flag = ', config_flag)
     print('Resolution flag = ', res_flag)
-    print('Initialization run = ', initialization_run)
-    if not initialization_run:
-        print('Final run = ', final_run)
+    print('Type of run = ', run_type)
+    if run_type == 'optimization':
         print('L2 regularization = ', reg_l2)
         print('Error tolerance for the convex subproblem = ', epsilon)
         print('Maximum iterations for the convex subproblem = ', max_iter_MwPGP)
@@ -261,16 +273,18 @@ def read_input():
         print('L0 regularization = ', reg_l0)
         print('nu = ', nu)
         print('Maximum iterations for relax-and-split = ', max_iter_RS)
-    else:
+    elif run_type == 'initialization':
         print('Cylindrical coordinates = ', cylindrical_flag)
     print('Input file name = ', input_name)
     print('nphi = ', nphi)
     print('ntheta = ', ntheta)
     print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', pms_name)
-    if initialization_run:
-        return config_flag, res_flag, initialization_run, False, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag
-    else:
-        return config_flag, res_flag, initialization_run, final_run, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, False  
+    if run_type == 'initialization':
+        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag
+    elif run_type == 'optimization':
+        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, False  
+    elif run_type == 'post-processing':
+        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, False  
 
 
 def read_focus_coils(filename):
@@ -538,7 +552,7 @@ def trace_fieldlines(bfield, label, config, s, comm):
     tmax_fl = 30000
 
     # Different configurations have different cross-sections
-    if config == 'muse':
+    if 'muse' in config:
         R0 = np.linspace(0.2, 0.4, nfieldlines)
     elif 'qa' in config: 
         R0 = np.linspace(0.5, 1.0, nfieldlines)
@@ -747,6 +761,8 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
     momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
     rho = p ** momentq
 
+    print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
+
     # Make histogram of the normalized dipole magnitudes
     plt.figure()
     plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
@@ -860,11 +876,16 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
             # make histogram animation of the dipoles at each relax-and-split save
             fig, ax = plt.subplots()
             data = np.sqrt(np.sum(datum[0, :] ** 2, axis=-1)) / pm_opt.m_maxima
-            ax.hist(abs(rho), bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
+            if pm_opt.is_premade_famus_grid:
+                ax.hist(abs(rho), bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
             _, _, bar_container = ax.hist(data, bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
             ax.set_ylim(top=1e5)  # set safe limit to ensure that all data is visible.
             plt.grid(True)
-            plt.legend(['FAMUS', np.array(['m', 'w'])[i]])
+            if pm_opt.is_premade_famus_grid:
+                plt.legend(['FAMUS', np.array(['m', 'w'])[i]])
+            else:
+                plt.legend([np.array(['m', 'w'])[i]])
+
             plt.xlabel('Normalized magnitudes')
             plt.ylabel('Number of dipoles')
             ani = animation.FuncAnimation(
