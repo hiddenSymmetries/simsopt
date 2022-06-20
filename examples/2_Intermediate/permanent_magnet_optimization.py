@@ -14,14 +14,13 @@ If the script is being run on slurm, the script should be run as
 where the command line parameters must be specified as is detailed
 in permanent_magnet_helpers.py.
 
-Note that if the final_run flag is set to True, the script will generate
+Note that if the run_type flag is set to post-processing, the script will generate
 Poincare plots, QFMS, and VMEC files, so the script should then be run as:
     srun python permanent_magnet_optimization.py True
 or the equivalent command for a slurm script. This is also true for initializing
 the Landreman/Paul QA/QH surfaces, since these designs need some mpi
 functionality to get them properly scaled to a particular on-axis magnetic field.
 
-Written by Alan Kaptanoglu, June 2022, alanakaptanoglu@gmail.com
 """
 
 import os
@@ -41,7 +40,8 @@ import time
 t_start = time.time()
 
 # Read in all the required parameters
-config_flag, res_flag, initialization_run, final_run, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag = read_input()
+comm = None
+config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag = read_input()
 
 # Add cori scratch path 
 class_filename = "PM_optimizer_" + config_flag
@@ -60,7 +60,7 @@ else:
 t2 = time.time()
 print("Done loading in plasma boundary surface, t = ", t2 - t1)
 
-if initialization_run:
+if run_type == 'initialization':
     # Make the output directory
     OUT_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
     print("Output directory = ", OUT_DIR)
@@ -190,7 +190,7 @@ if initialization_run:
     print('In total, script took ', t_end - t_start, ' s')
 
 # Do optimization on pre-made grid of dipoles
-else:
+elif run_type == 'optimization':
     IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Make a subdirectory for the optimization output
@@ -201,19 +201,6 @@ else:
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     pm_opt.out_dir = OUT_DIR 
     print("Cylindrical coordinates are being used = ", pm_opt.cylindrical_flag)
-
-    # Load in MPI, VMEC, etc. if doing a final run 
-    # to generate a VMEC wout file which can be 
-    # used to plot symmetry-breaking bmn, the flux
-    # surfaces, epsilon_eff, etc. 
-    if final_run:
-        from mpi4py import MPI
-        from simsopt.util.mpi import MpiPartition
-        from simsopt.mhd.vmec import Vmec
-        mpi = MpiPartition(ngroups=4)
-        comm = MPI.COMM_WORLD
-    else:
-        comm = None
 
     # Check that you loaded the correct file with the same parameters
     assert (dr == pm_opt.dr)
@@ -247,7 +234,7 @@ else:
     m0 = np.zeros(pm_opt.m0.shape)
 
     # Optimize the permanent magnets, increasing L0 threshold as converging
-    for i in range(17):
+    for i in range(37):
         reg_l0_scaled = reg_l0 * (1 + i / 2.0)
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
             max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
@@ -270,9 +257,9 @@ else:
     t1 = time.time()
     m_copy = np.copy(pm_opt.m)
     pm_opt.m = pm_opt.m_proxy
-    b_dipole = DipoleField(pm_opt)
-    b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
+    b_dipole_proxy = DipoleField(pm_opt)
+    b_dipole_proxy.set_points(s.gamma().reshape((-1, 3)))
+    b_dipole_proxy._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
     pm_opt.m = m_copy
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
@@ -344,7 +331,7 @@ else:
         if config_flag == 'ncsx':
             # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
             net_poloidal_current_Amperes = 3.7713e+6
-            mu0 = 4 * np.pi * (1e-7)
+            mu0 = 4 * np.pi * 1e-7
             RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
             bs = ToroidalField(R0=1, B0=RB)
             bs.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -355,19 +342,20 @@ else:
             Bnormal = np.sum(bs.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
 
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+        b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
+        Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
         Bnormal_total = Bnormal + Bnormal_dipoles
-
-        # Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
-        # Ngrid = pm_opt.nphi * pm_opt.ntheta
-        # Bnormal_Am = ((pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms)).reshape(nphi, ntheta)
-        # print(Bnormal, Bnormal_dipoles, Bnormal_Am)
+        Bnormal_total_proxy = Bnormal + Bnormal_dipoles_proxy
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
         make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
-        make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_pms_optimized")
+        make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized")
+        make_Bnormal_plots(b_dipole_proxy, s_plot, OUT_DIR, "only_m_proxy_optimized")
         pointData = {"B_N": Bnormal_total[:, :, None]}
-        s_plot.to_vtk(OUT_DIR + "pms_opt", extra_data=pointData)
+        s_plot.to_vtk(OUT_DIR + "m_optimized", extra_data=pointData)
+        pointData = {"B_N": Bnormal_total_proxy[:, :, None]}
+        s_plot.to_vtk(OUT_DIR + "m_proxy_optimized", extra_data=pointData)
         t2 = time.time()
         print('Done saving final vtk files, ', t2 - t1, " s")
 
@@ -388,48 +376,94 @@ else:
         num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
         np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
 
-    if final_run:
-        # run Poincare plots
-        t1 = time.time()
-        run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm)
-        t2 = time.time()
-        print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+    # Save optimized permanent magnet class object
+    file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
 
-        # Make the QFM surfaces
-        t1 = time.time()
-        # need to call set_points again here for the combined field
-        Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-        Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-        Bfield.set_points(s.gamma().reshape((-1, 3)))
-        qfm_surf = make_qfm(s, Bfield, Bfield_tf)
-        t2 = time.time()
-        print("Making the QFM took ", t2 - t1, " s")
+    # SurfaceRZFourier objects not pickle-able, so set to None
+    pm_opt.plasma_boundary = None
+    pm_opt.rz_inner_surface = None
+    pm_opt.rz_outer_surface = None
+    pickle.dump(pm_opt, file_out)
+elif run_type == 'post-processing':
+    # Load in MPI, VMEC, etc. if doing a final run 
+    # to generate a VMEC wout file which can be 
+    # used to plot symmetry-breaking bmn, the flux
+    # surfaces, epsilon_eff, etc. 
+    from mpi4py import MPI
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.mhd.vmec import Vmec
+    mpi = MpiPartition(ngroups=4)
+    comm = MPI.COMM_WORLD
 
-        # Run VMEC with new QFM surface
-        t1 = time.time()
-        try:
-            equil = Vmec(surface_filename, mpi)
-            equil.boundary = qfm_surf
-            equil._boundary = qfm_surf
-            equil.need_to_run_code = True
-            equil.run()
-        except RuntimeError:
-            print('VMEC cannot be initialized from a wout file for some reason.')
+    # Load in optimized PMs
+    IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
-        t2 = time.time()
-        print("VMEC took ", t2 - t1, " s")
+    # Read in the correct subdirectory with the optimization output
+    OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    pickle_name = IN_DIR + class_filename + ".pickle"
+    pm_opt = pickle.load(open(pickle_name, "rb", -1))
+    pm_opt.out_dir = OUT_DIR 
+    pm_opt.plasma_boundary = s
 
-        # Save optimized permanent magnet class object
-        file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
+    b_dipole = DipoleField(pm_opt)
+    b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_fully_optimized")
 
-        # SurfaceRZFourier objects not pickle-able, so set to None
-        pm_opt.plasma_boundary = None
-        pm_opt.rz_inner_surface = None
-        pm_opt.rz_outer_surface = None
-        pickle.dump(pm_opt, file_out)
+    # run Poincare plots
+    t1 = time.time()
+
+    # Make higher resolution surface
+    quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
+    qphi = len(quadpoints_phi)
+    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    if surface_flag == 'focus': 
+        s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    elif surface_flag == 'wout': 
+        s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+    else:
+        s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+
+    # Read in the Bnormal or BiotSavart fields from any coils 
+    if config_flag != 'ncsx':
+        bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
+        bs.set_points(s.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+    else:
+        Bnormal = pm_opt.Bn
+
+    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm)
+    t2 = time.time()
+    print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+
+    # Make the QFM surfaces
+    t1 = time.time()
+    # need to call set_points again here for the combined field
+    Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+    Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+    Bfield.set_points(s.gamma().reshape((-1, 3)))
+    qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+    t2 = time.time()
+    print("Making the QFM took ", t2 - t1, " s")
+
+    # Run VMEC with new QFM surface
+    t1 = time.time()
+    #try:
+    ### Always use the QA VMEC file and just change the boundary
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA" 
+    equil = Vmec(vmec_input, mpi)
+    equil.boundary = qfm_surf
+    #    equil._boundary = qfm_surf
+    #    equil.need_to_run_code = True
+    equil.run()
+    #except RuntimeError:
+    #    print('VMEC cannot be initialized from a wout file for some reason.')
+
+    t2 = time.time()
+    print("VMEC took ", t2 - t1, " s")
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
 
 # Show the figures
-plt.show()
+# plt.show()
