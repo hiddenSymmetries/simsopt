@@ -142,6 +142,8 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("set_dofs", &T::set_dofs)
      .def("set_dofs_impl", &T::set_dofs_impl)
      .def("get_dofs", &T::get_dofs)
+     .def("d_dS_by_dcoeff", &T::d_dS_by_dcoeff)
+     .def("d2_dS_by_dcoeffdcoeff", &T::d2_dS_by_dcoeffdcoeff)
      .def_readonly("quadpoints_phi", &T::quadpoints_phi)
      .def_readonly("quadpoints_theta", &T::quadpoints_theta);
 }

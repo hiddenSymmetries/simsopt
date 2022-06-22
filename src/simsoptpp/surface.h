@@ -137,6 +137,9 @@ class Surface {
         void dvolume_by_dcoeff_impl(Array& data);
         void d2volume_by_dcoeffdcoeff_impl(Array& data);
 
+        void d_dS_by_dcoeff_impl(Array& data);
+        void d2_dS_by_dcoeffdcoeff_impl(Array& data);
+
 
         Array& gamma() {
             return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
@@ -180,7 +183,12 @@ class Surface {
         Array& d2volume_by_dcoeffdcoeff() {
             return check_the_cache("d2volume_by_dcoeffdcoeff", {num_dofs(), num_dofs()}, [this](Array& A) { return d2volume_by_dcoeffdcoeff_impl(A);});
         }
-
+        Array& d_dS_by_dcoeff() {
+            return check_the_cache("d_dS_by_dcoeff", {numquadpoints_phi, numquadpoints_theta, num_dofs()}, [this](Array& A) { return d_dS_by_dcoeff_impl(A);});
+        }
+        Array& d2_dS_by_dcoeffdcoeff() {
+            return check_the_cache("d2_dS_by_dcoeffdcoeff", {numquadpoints_phi, numquadpoints_theta, num_dofs(), num_dofs()}, [this](Array& A) { return d2_dS_by_dcoeffdcoeff_impl(A);});
+        }
 
         virtual ~Surface() = default;
 };

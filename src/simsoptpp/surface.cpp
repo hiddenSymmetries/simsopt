@@ -324,6 +324,54 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
 
+template<class Array>
+void Surface<Array>::d_dS_by_dcoeff_impl(Array& data) {
+    auto n = this->normal();
+    int ndofs = num_dofs();
+
+    auto dn_dc = this->dnormal_by_dcoeff();
+    data *= 0.;
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+            for (int m = 0; m < ndofs; ++m) {
+                data(i, j, m) = (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / norm;
+            }
+        }
+    }
+    return;
+}
+
+template<class Array>
+void Surface<Array>::d2_dS_by_dcoeffdcoeff_impl(Array& data) {
+  data *= 0.;
+  double norm, dnorm_dcoeffn;
+  auto nor = this->normal();
+  auto dnor_dc = this->dnormal_by_dcoeff();
+  auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+  int ndofs = num_dofs();
+  for (int i = 0; i < numquadpoints_phi; ++i) {
+      for (int j = 0; j < numquadpoints_theta; ++j) {
+          for (int m = 0; m < ndofs; ++m) {
+              for (int n = 0; n < ndofs; ++n) {
+                  norm = sqrt(nor(i,j,0)*nor(i,j,0)
+                          + nor(i,j,1)*nor(i,j,1)
+                          + nor(i,j,2)*nor(i,j,2));
+                  dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0)
+                          + dnor_dc(i,j,1,n)*nor(i,j,1)
+                          + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
+                  data(i, j, m, n) =  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
+                      + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
+                      + dnor_dc(i,j,2,m) * (dnor_dc(i,j,2,n) * norm - dnorm_dcoeffn * nor(i,j,2)) / (norm*norm)
+                      + d2nor_dcdc(i,j,0,m,n) * nor(i,j,0) / norm
+                      + d2nor_dcdc(i,j,1,m,n) * nor(i,j,1) / norm
+                      + d2nor_dcdc(i,j,2,m,n) * nor(i,j,2) / norm;
+              }
+          }
+      }
+  }
+    return;
+}
 
 template<class Array>
 double Surface<Array>::volume() {
