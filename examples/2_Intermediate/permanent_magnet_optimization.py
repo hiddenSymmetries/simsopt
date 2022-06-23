@@ -426,11 +426,32 @@ elif run_type == 'post-processing':
 
     # Read in the Bnormal or BiotSavart fields from any coils 
     if config_flag != 'ncsx':
+        pm_opt.m = pm_opt.m_proxy
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+    
+        # need to call set_points again here for the combined field
+        Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+        Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+        Bfield.set_points(s.gamma().reshape((-1, 3)))
     else:
-        Bnormal = pm_opt.Bn
+
+        # Set up the contribution to Bnormal from a purely toroidal field.
+        # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
+        net_poloidal_current_Amperes = 3.7713e+6
+        mu0 = 4 * np.pi * (1e-7)
+        RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
+        print('B0 of toroidal field = ', RB)
+        bs = ToroidalField(R0=1, B0=RB)
+
+        # Calculate Bnormal
+        bs.set_points(s.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+        
+        Bfield = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
+        Bfield_tf = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
+        Bfield.set_points(s.gamma().reshape((-1, 3)))
 
     run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm)
     t2 = time.time()
@@ -438,10 +459,6 @@ elif run_type == 'post-processing':
 
     # Make the QFM surfaces
     t1 = time.time()
-    # need to call set_points again here for the combined field
-    Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-    Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
-    Bfield.set_points(s.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s, Bfield, Bfield_tf)
     t2 = time.time()
     print("Making the QFM took ", t2 - t1, " s")
@@ -452,6 +469,7 @@ elif run_type == 'post-processing':
     ### Always use the QA VMEC file and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA" 
     equil = Vmec(vmec_input, mpi)
+    #equil.boundary(qfm_surf)
     equil.boundary = qfm_surf
     #    equil._boundary = qfm_surf
     #    equil.need_to_run_code = True
