@@ -233,7 +233,7 @@ def read_input():
     if config_flag == 'muse_famus':
         dr = 0.01
         coff = 0.1
-        poff = 0.02
+        poff = 0.05 # 0.02
         surface_flag = 'focus'
         input_name = 'input.muse'
         pms_name = 'zot80.focus'
@@ -256,7 +256,7 @@ def read_input():
     elif config_flag == 'ncsx':
         dr = 0.02
         coff = 0.02
-        poff = 0.1
+        poff = 0.2 #0.1
         surface_flag = 'wout'
         input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
         pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus' 
@@ -634,7 +634,7 @@ def make_qfm(s, Bfield, Bfield_tf):
 
     # Check that volume is not changed
     print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
-    return qfm_surface.surface  # return QFMS
+    return qfm_surface  # return QFMS
 
 
 def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):

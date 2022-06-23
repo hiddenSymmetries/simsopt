@@ -606,7 +606,7 @@ class DipoleField(MagneticField):
 
                 # If using cylindrical coordinates (for m_vec), get the phi coordinate and rotate
                 if pm_opt.cylindrical_flag:
-                    phi_dipole = np.arctan2(dipole_grid_y, dipole_grid_x)
+                    phi_dipole = np.arctan2(dipole_grid_y[index:index + n], dipole_grid_x[index:index + n])
                     mr_temp = m_vec[index:index + n, 0] * np.cos(phi_dipole) + m_vec[index:index + n, 1] * np.sin(phi_dipole)
                     mphi_temp = - m_vec[index:index + n, 0] * np.sin(phi_dipole) + m_vec[index:index + n, 1] * np.cos(phi_dipole)
                     m_vec[index:index + n, 0] = mr_temp
