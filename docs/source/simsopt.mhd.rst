@@ -60,11 +60,3 @@ simsopt.mhd.vmec\_diagnostics module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.mhd
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
