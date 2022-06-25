@@ -89,8 +89,8 @@ optimization.  Others include `STELLOPT
    :maxdepth: 3
    :caption: API reference
 
-   Puiblic functions and classes <simsopt_user>
-   For developers <simsopt>
+   Public functions and classes <simsopt_user>
+   Full listing (for developers) <simsopt>
 
 Indices and tables
 ==================

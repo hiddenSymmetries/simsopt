@@ -194,7 +194,7 @@ operator creates the latter.)
 
 Example::
 
-   from simsopt.field.magneticfieldclasses import ToroidalField, CircularCoil
+   from simsopt.field import ToroidalField, CircularCoil
    
    field1 = CircularCoil(I=1.e7, r0=1.)
    field2 = ToroidalField(R0=1., B0=1.)

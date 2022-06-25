@@ -5,6 +5,8 @@ import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
 
+__all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
+
 
 class MagneticField(sopp.MagneticField, Optimizable):
 
