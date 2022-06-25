@@ -12,6 +12,7 @@ __all__ = ['get_ncsx_data']
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     """
     Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included).
+
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
