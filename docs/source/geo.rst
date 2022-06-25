@@ -14,7 +14,7 @@ Curves
 
 Curves are useful for representing electromagnetic coils and the
 magnetic axis.  Curves are represented in simsopt with subclasses of
-the base class :obj:`simsopt.geo.curve.Curve`.  A simsopt curve is
+the base class :obj:`simsopt.geo.Curve`.  A simsopt curve is
 modelled as a function :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.  Note
 that the curve parameter goes up to 1, not to :math:`2\pi`.  Curves in
 simsopt are assumed to be periodic in the parameter. A curve object
@@ -30,8 +30,8 @@ the available methods are the following:
 - ``Curve.frenet_frame()``: returns a 3-element tuple. The leading element is a ``(n_theta, 3)`` array containing the Cartesian components of the unit tangent vector at the quadrature points. Similarly, the remaining two entries of the tuple give the unit normal and binormal vectors.
 
 The different curve classes, such as
-:obj:`simsopt.geo.curverzfourier.CurveRZFourier` and
-:obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` differ in the way
+:obj:`simsopt.geo.CurveRZFourier` and
+:obj:`simsopt.geo.CurveXYZFourier` differ in the way
 curves are discretized.  Each of these take an array of "dofs"
 (parameters, e.g. Fourier coefficients) and turn these into a function
 :math:`\Gamma:[0, 1] \to \mathbb{R}^3`.  These dofs can be queried and
@@ -39,7 +39,7 @@ set via the ``.x`` or ``.full_x`` properties; the former gives just
 the non-fixed dofs, whereas the latter gives all dofs including those
 that are fixed. You can also set an individual dof using its string
 name.  For example, for a
-:obj:`simsopt.geo.curvexyzfourier.CurveXYZFourier` object ``c``, the
+:obj:`simsopt.geo.CurveXYZFourier` object ``c``, the
 zero-frequency Fourier mode of the y Cartesian component can be set to
 5.0 using ``c.set("yc(0)", 5.0)``.  Changing the dofs will change the
 shape of the curve. Simsopt is able to compute derivatives of all
@@ -55,7 +55,7 @@ the derivative of quantities such as curvature (via
 
 A number of quantities are implemented in
 :obj:`simsopt.geo.curveobjectives` and are computed on a
-:obj:`simsopt.geo.curve.Curve`:
+:obj:`simsopt.geo.Curve`:
 
 - ``CurveLength``: computes the length of the ``Curve``.
 - ``LpCurveCurvature``: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
@@ -75,7 +75,7 @@ Surfaces
 Surfaces are used to represent flux surfaces, particularly for the
 boundary of MHD equilibria, and for the target surface in stage-2 coil
 optimization.  Surfaces are represented in simsopt using subclasses of
-the base class :obj:`simsopt.geo.surface.Surface`.  A surface is
+the base class :obj:`simsopt.geo.Surface`.  A surface is
 modelled in simsopt as a function :math:`\Gamma:[0, 1] \times [0, 1]
 \to \mathbb{R}^3` and is evaluated at quadrature points
 :math:`\{\phi_1, \ldots, \phi_{n_\phi}\}\times\{\theta_1, \ldots,
@@ -85,23 +85,23 @@ modelled in simsopt as a function :math:`\Gamma:[0, 1] \times [0, 1]
 simsopt are assumed to be periodic in both angles.
 
 In practice, you almost never use the base
-:obj:`~simsopt.geo.surface.Surface` class.  Rather, you typically use
+:obj:`~simsopt.geo.Surface` class.  Rather, you typically use
 one of the subclasses corresponding to a specific parameterization.
 Presently, the available subclasses are
-:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`,
-:obj:`~simsopt.geo.surfacegarabedian.SurfaceGarabedian`,
-:obj:`~simsopt.geo.surfacehenneberg.SurfaceHenneberg`,
-:obj:`~simsopt.geo.surfacexyzfourier.SurfaceXYZFourier`,
+:obj:`~simsopt.geo.SurfaceRZFourier`,
+:obj:`~simsopt.geo.SurfaceGarabedian`,
+:obj:`~simsopt.geo.SurfaceHenneberg`,
+:obj:`~simsopt.geo.SurfaceXYZFourier`,
 and
-:obj:`~simsopt.geo.surfacexyztensorfourier.SurfaceXYZTensorFourier`.
+:obj:`~simsopt.geo.SurfaceXYZTensorFourier`.
 In many cases you can convert a surface from one type to another by going through
-:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`, as most surface types have
+:obj:`~simsopt.geo.SurfaceRZFourier`, as most surface types have
 ``to_RZFourier()`` and ``from_RZFourier()`` methods.
-Note that :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`
+Note that :obj:`~simsopt.geo.SurfaceRZFourier`
 corresponds to the surface parameterization used internally in the VMEC and SPEC codes.
 However when using these codes in simsopt, any of the available surface subclasses
 can be used to represent the surfaces, and simsopt will automatically handle the conversion
-to :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` when running the code.
+to :obj:`~simsopt.geo.SurfaceRZFourier` when running the code.
 
 The points :math:`\phi_j` and :math:`\theta_j` are used for evaluating
 the position vector and its derivatives, for computing integrals, and
@@ -122,7 +122,7 @@ setting the ``range`` keyword argument of the surface subclasses to
 Equivalently, you can set ``range`` to the constants
 ``S.RANGE_FULL_TORUS``, ``S.RANGE_FIELD_PERIOD``, or
 ``S.RANGE_HALF_PERIOD``, where ``S`` can be
-:obj:`simsopt.geo.surface.Surface` or any of its subclasses.  Note
+:obj:`simsopt.geo.Surface` or any of its subclasses.  Note
 that the :math:`\phi` grid points begin at 0 for ``"full torus"`` and
 ``"field period"``, whereas for ``"half period"`` the :math:`\phi`
 grid is shifted by half of the grid spacing to preserve spectral
@@ -133,11 +133,11 @@ points. Alternatively, you can pass a list or array to the
 subclass to specify the :math:`\phi_j` points directly.  An exception
 will be raised if both ``nphi`` and ``quadpoints_phi`` are specified.
 For more information about these arguments, see the
-:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` API
+:obj:`~simsopt.geo.SurfaceRZFourier` API
 documentation.
 
 The methods available to each surface class are similar to those of
-the :obj:`~simsopt.geo.curve.Curve` class:
+the :obj:`~simsopt.geo.Curve` class:
 
 - ``Surface.gamma()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`, i.e. returns a list of XYZ coordinates on the surface.
 - ``Surface.gammadash1()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`\partial_\phi \Gamma(\phi_i, \theta_j)` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}`.
@@ -152,7 +152,7 @@ the :obj:`~simsopt.geo.curve.Curve` class:
 - ``Surface.second_fund_form()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`[\hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\phi} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\theta} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\theta,\theta} \Gamma(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`\hat{\textbf{n}}` is the unit normal.
 - ``Surface.surface_curvatures()``: returns a ``(n_phi, n_theta, 4)`` array containing :math:`[H(\phi_i, \theta_j),K(\phi_i, \theta_j),\kappa_1(\phi_i, \theta_j),\kappa_2(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`H` is the mean curvature, :math:`K` is the Gaussian curvature, and :math:`\kappa_{1,2}` are the principal curvatures with :math:`\kappa_1>\kappa_2`.
 
-A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.surface.Surface`:
+A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.Surface`:
 
 - ``ToroidalFlux``: computes the flux through a toroidal cross section of a ``Surface``.
 - ``PrincipalCurvature``: computes a metric which penalizes large values of the principal curvatures of a given ``Surface``.
@@ -190,7 +190,7 @@ options, see the API documentation for
 
 If you have multiple curve and/or surface objects, a convenient way to
 plot them together on the same axes is the function
-:func:`simsopt.geo.plot.plot()`, which accepts a list of objects as
+:func:`simsopt.geo.plotting.plot()`, which accepts a list of objects as
 its argument. Any keywords passed to this function are passed to the
 ``.plot()`` methods of the individual objects, so you may wish to pass
 keywords such as ``engine`` or ``close``.  Alternatively, you can also

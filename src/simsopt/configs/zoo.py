@@ -6,6 +6,8 @@ from simsopt.field.coil import Current
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
+__all__ = ['get_ncsx_data']
+
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     """

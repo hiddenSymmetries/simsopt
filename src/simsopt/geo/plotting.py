@@ -1,5 +1,7 @@
 import numpy as np
 
+__all__ = ['fix_matplotlib_3d', 'plot']
+
 
 def fix_matplotlib_3d(ax):
     '''

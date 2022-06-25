@@ -1,8 +1,9 @@
 Field line and particle tracing
 ===============================
 
-The :obj:`simsopt.field.tracing` module provides tools for tracing
+The :obj:`simsopt.field.tracing` submodule provides tools for tracing
 field lines, and for following particle motion in magnetic fields.
+These tools could be accessed from the :obj:`simsopt.field` module.
 For the latter, full orbits (including gyromotion) or guiding center
 trajectories can be followed in cylindrical coordinates, or guiding
 center motion can be followed in Boozer coordinates.  Examples of
@@ -42,10 +43,12 @@ Below is an example of the vertical drift experienced by two particles in a simp
 
 .. code-block::
 
-    from simsopt.field.magneticfieldclasses import ToroidalField
-    from simsopt.geo.curvexyzfourier import CurveXYZFourier
+    from simsopt.field import ToroidalField
+    from simsopt.geo import CurveXYZFourier
     from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-    from simsopt.field.tracing import trace_particles_starting_on_curve
+    from simsopt.field import trace_particles_starting_on_curve
+    # NOTE: Most of the functions and classes implemented in the tracing
+    # NOTE: submodule can be imported directly from the field module
 
     bfield = ToroidalField(B0=1., R0=1.)
     start_curve = CurveXYZFourier(300, 1)

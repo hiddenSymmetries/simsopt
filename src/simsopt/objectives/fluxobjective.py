@@ -5,6 +5,8 @@ import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 
+__all__ = ['SquaredFlux']
+
 
 class SquaredFlux(Optimizable):
 

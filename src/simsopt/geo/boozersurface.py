@@ -4,6 +4,8 @@ from monty.json import MontyDecoder, MSONable
 
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 
+__all__ = ['BoozerSurface']
+
 
 class BoozerSurface(MSONable):
     r"""

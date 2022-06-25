@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.qfmsurface import QfmSurface
-from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.field import BiotSavart
+from simsopt.field import coils_via_symmetries
+from simsopt.geo import SurfaceRZFourier
+from simsopt.geo import QfmSurface
+from simsopt.geo import QfmResidual, ToroidalFlux, Area, Volume
+from simsopt.configs import get_ncsx_data
 import numpy as np
 import os
 
