@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curveobjectives import CurveLength
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.geo import CurveRZFourier, CurveLength
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 
 """
 Minimize the length of a curve, holding the 0-frequency Fourier mode fixed.

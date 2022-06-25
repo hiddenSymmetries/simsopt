@@ -47,6 +47,8 @@ if MPI is not None:
 else:
     MpiPartition = None
 
+__all__ = ['Spec', 'Residue']
+
 
 class Spec(Optimizable):
     """

@@ -52,7 +52,7 @@ accurate match to the target field at the cost of complicated coils.
 
 Next, `MininumDistancePenalty` is a penalty that prevents coils from
 becoming too close.  For its precise definition, see
-:obj:`~simsopt.geo.curveobjectives.CurveCurveDistance`.  The constant
+:obj:`~simsopt.geo.CurveCurveDistance`.  The constant
 `DISTANCE_WEIGHT` is selected to balance this minimum distance penalty
 against the other objectives.  Analytic derivatives are used for the
 optimization.
@@ -103,9 +103,9 @@ stellarator symmetry and two-field-period symmetry, giving a total of 16 coils.
 The four unique coil shapes are called the "base coils". Each copy of a coil also carries the same current,
 but we will allow the unique coil shapes to have different current from each other,
 as is allowed on W7-X. For this tutorial we consider the coils to be infinitesimally thin filaments.
-In simsopt, such a coil is represented with the :obj:`simsopt.field.coil.Coil` class,
+In simsopt, such a coil is represented with the :obj:`simsopt.field.Coil` class,
 which is essentially a curve paired with a current, represented using
-:obj:`simsopt.geo.curve.Curve` and :obj:`simsopt.field.coil.Current` respectively.
+:obj:`simsopt.geo.Curve` and :obj:`simsopt.field.Current` respectively.
 The initial conditions are set as follows::
 
   # Number of unique coil shapes:
@@ -160,7 +160,7 @@ freedom (owned by ``CurveXYZFourier1``) as ``coil[0]``, because coils
 0 and 4 refer to the same base coil shape and current.
 
 There are several ways to view the objects we have created so far. One
-approach is the function :obj:`simsopt.geo.plot.plot()`, which accepts
+approach is the function :obj:`simsopt.geo.plot()`, which accepts
 a list of Coil, Curve, and/or Surface objects::
 
   plot(coils + [s], engine="mayavi", close=True)
@@ -179,7 +179,7 @@ open them in Paraview::
   s.to_vtk("surf_init")
   
 To evaluate the magnetic field on the target surface, we create a
-:obj:`simsopt.field.biotsavart.BiotSavart` object based on the coils,
+:obj:`simsopt.field.BiotSavart` object based on the coils,
 and instruct it to evaluate the field on the surface::
 
   bs = BiotSavart(coils)
@@ -188,7 +188,7 @@ and instruct it to evaluate the field on the surface::
 (The surface position vector ``gamma()`` returns an array of size
 ``(nphi, ntheta, 3)``, which we reshaped here to
 ``(nphi*ntheta, 3)`` for the
-:obj:`~simsopt.field.biotsavart.BiotSavart` object.) 
+:obj:`~simsopt.field.BiotSavart` object.) 
 To check the size of the field normal to the target surface
 before optimization we can run::
 
@@ -378,7 +378,7 @@ the latter is independent for each coil.
 An extra term term is also added, namely the variation of the arclength along a curve
 named `ArclengthVariation`. The idea is to avoid ill-posedness of curve objectives due to
 non-uniqueness of the underlying parametrization.
-For more info see :obj:`~simsopt.geo.curveobjectives.ArclengthVariation`.
+For more info see :obj:`~simsopt.geo.ArclengthVariation`.
 
 We now define the objective function by stating what are the weights
 used and the corresponding terms. Besides the terms in

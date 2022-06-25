@@ -5,6 +5,8 @@ from monty.json import MSONable, MontyDecoder
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
 
+__all__ = ['GaussianSampler', 'PerturbationSample', 'CurvePerturbed']
+
 
 class GaussianSampler(MSONable):
 

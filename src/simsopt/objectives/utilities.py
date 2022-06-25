@@ -4,6 +4,8 @@ from monty.json import MSONable, MontyDecoder
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 
+__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
+
 
 def sum_across_comm(derivative, comm):
     r"""
@@ -101,3 +103,16 @@ class QuadraticPenalty(Optimizable):
         return cls(obj, threshold)
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
+
+class Weight(object):
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __imul__(self, alpha):
+        self.value *= alpha
+        return self

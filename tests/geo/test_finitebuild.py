@@ -8,8 +8,7 @@ from simsopt.geo.finitebuild import CurveFilament, FilamentRotation, \
 from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.util.zoo import get_ncsx_data
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 
 import numpy as np
 
