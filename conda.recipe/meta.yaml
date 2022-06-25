@@ -29,13 +29,13 @@ requirements:
     - pip
     - wheel
     - setuptools
-    - numpy 
+    - numpy {{ numpy }}
     - "setuptools_scm[toml]"
     - python {{ python }}
 
   run:
     - python
-    - numpy {{ pin_compatible("numpy") }}
+    - numpy {{ numpy }}
     - jax >=0.2.5
     - jaxlib >=0.1.56
     - scipy >=1.5.4
