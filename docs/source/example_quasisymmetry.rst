@@ -41,8 +41,7 @@ imports of the classes and functions we will need::
 
   import numpy as np
   from simsopt.util import MpiPartition
-  from simsopt.mhd import Vmec
-  from simsopt.mhd import QuasisymmetryRatioResidual
+  from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
   from simsopt.objectives import LeastSquaresProblem
   from simsopt.solve import least_squares_mpi_solve
 
@@ -235,8 +234,7 @@ As usual, we begin with the necessary imports::
 
   import numpy as np
   from simsopt.util import MpiPartition
-  from simsopt.mhd import Vmec
-  from simsopt.mhd import QuasisymmetryRatioResidual
+  from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
   from simsopt.objectives import LeastSquaresProblem
   from simsopt.solve import least_squares_mpi_solve
 
@@ -274,7 +272,7 @@ axisymmetric::
 
 It can be seen here that we are seeking a configuration with aspect
 ratio 6, and average iota of 0.42, slightly above the resonance at 2 /
-5 = 0.4. The function :func:`simsopt.mhd.vmec.Vmec.mean_iota()` used
+5 = 0.4. The function :func:`simsopt.mhd.Vmec.mean_iota()` used
 here returns :math:`\int_0^1 \iota\, ds` where :math:`s` is the
 toroidal flux normalized by its value at the VMEC boundary.
 
@@ -336,7 +334,7 @@ Bmn objective
 
 Here we show an alternative method of quasisymmetry optimization using
 a different objective function,
-:obj:`simsopt.mhd.boozer.Quasisymmetry`, based on the
+:obj:`simsopt.mhd.Quasisymmetry`, based on the
 symmetry-breaking Fourier mode aplitudes :math:`B_{m,n}` in Boozer
 coordinates.  This example can also be found in the
 ``examples/2_Intermediate`` directory as
@@ -345,8 +343,7 @@ coordinates.  This example can also be found in the
 In this case, the imports needed are::
 
   from simsopt.util import MpiPartition
-  from simsopt.mhd import Vmec
-  from simsopt.mhd import Boozer, Quasisymmetry
+  from simsopt.mhd import Vmec, Boozer, Quasisymmetry
   from simsopt.objectives import LeastSquaresProblem
   from simsopt.solve import least_squares_mpi_solve
 
