@@ -25,7 +25,7 @@ algorithms.
 
 Users can create their own optimizable objects in two ways. One method
 is to create a standard python function, and apply the
-:obj:`simsopt.make_optimizable()` function to it, as explained
+:meth:`simsopt.make_optimizable()` function to it, as explained
 below. Or, you can directly subclass
 :obj:`simsopt._core.Optimizable`.
 
@@ -533,7 +533,7 @@ Specifying least-squares objective functions
 
 A common use case is to minimize a nonlinear least-squares objective
 function, which consists of a sum of several terms. In this case the
-:obj:`simsopt.objectives.least_squares.LeastSquaresProblem`
+:obj:`simsopt.objectives.LeastSquaresProblem`
 class can be used.  Suppose we want to solve a least-squares
 optimization problem in which an
 :obj:`~simsopt._core.Optimizable` object ``obj`` has
@@ -562,18 +562,18 @@ The corresponding objective funtion is then ``weight1 *
 scalar functions and by 1D numpy array-valued functions.  Note that
 the function handles that are specified should be members of an
 :obj:`~simsopt._core.Optimizable` object.  As
-:obj:`~simsopt.objectives.least_squares.LeastSquaresProblem` is
+:obj:`~simsopt.objectives.LeastSquaresProblem` is
 a subclass of :obj:`~simsopt._core.Optimizable`, the
 free dofs of all the objects that go into the objective function are
 available in the global state vector ``prob.x``. The overall scalar
 objective function is available from
-:func:`simsopt.objectives.least_squares.LeastSquaresProblem.objective`.
+:func:`simsopt.objectives.LeastSquaresProblem.objective`.
 The vector of residuals before scaling by the ``weight`` factors
 ``obj.func() - goal`` is available from
-:func:`simsopt.objectives.least_squares.LeastSquaresProblem.unweighted_residuals`.
+:func:`simsopt.objectives.LeastSquaresProblem.unweighted_residuals`.
 The vector of residuals after scaling by the ``weight`` factors,
 ``sqrt(weight) * (obj.func() - goal)``, is available from
-:func:`simsopt.objectives.least_squares.LeastSquaresProblem.residuals`.
+:func:`simsopt.objectives.LeastSquaresProblem.residuals`.
 
 Least-squares problems can also be defined in an alternative way::
   

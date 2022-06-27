@@ -13,7 +13,7 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
 
 
 @jit
