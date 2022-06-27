@@ -280,7 +280,7 @@ class BoozerSurface(Optimizable):
             return res
 
         d2val = boozer[2]
-
+        
         d2l = np.zeros((xl.shape[0]-2, xl.shape[0]-2))
         d2l[:nsurfdofs, :nsurfdofs] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
@@ -523,9 +523,16 @@ class BoozerSurface(Optimizable):
             xl = np.concatenate((s.get_dofs(), [iota, G], lm))
         else:
             xl = np.concatenate((s.get_dofs(), [iota], lm))
+
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting)
         norm = np.linalg.norm(val, ord=np.inf)
         i = 0
+
+        if s.stellsym:
+            b = val[:-1]
+        else:
+            b = val
+
         while i < maxiter and norm > tol:
             if s.stellsym:
                 A = dval[:-1, :-1]
@@ -542,6 +549,7 @@ class BoozerSurface(Optimizable):
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting)
             norm = np.linalg.norm(val, ord=np.inf)
             i = i + 1
+            print(norm)
 
         if s.stellsym:
             lm = xl[-2]
@@ -566,7 +574,7 @@ class BoozerSurface(Optimizable):
         res = {
             "residual": r, "gradient": b, "success": norm <= tol,
             "iota":iota,"G":G, "iter":i, "weighting":weighting, "type":"lscons", "PLU": (P, L, U),
-            "firstorderop":val, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
+            "firstorderop":b, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel), 
         }
         self.res = res
         self.need_to_run_code = False

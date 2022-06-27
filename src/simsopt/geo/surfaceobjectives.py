@@ -6,7 +6,7 @@ from nptyping import NDArray, Float
 import simsoptpp as sopp
 from .._core.graph_optimizable import Optimizable
 from simsopt.geo.surface import Surface
-
+import gc
 
 class Area(Optimizable):
     """
@@ -252,13 +252,18 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
         d2w_dc2 = (2 * dA[:, :, None, None] * d2A_dc2 - dA_dc[:, :, :, None]*dA_dc[:, :, None, :])/(4*dA[:, :, None, None]**1.5)
     elif weighting == '1/B':
         d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
-        d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
-        term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc)
-        term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B)
-        d2B2_dcdc = 2*(term1 + term2)
+        #d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc, optimize=True)
+        #term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)
+        #term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B, optimize=True)
+        #d2B2_dcdc = 2*(term1 + term2)
+        
+        term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)
+        term2 = np.einsum('ijkpl,ijpn,ijkm,ijl->ijmn', d2B_by_dXdX, dx_dc, dx_dc, B, optimize=True)
+        d2B2_dcdc = 2*(term1+term2)
+        
         d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc -dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])/(4*B2[:, :, None, None]**1.5)
         d2w_dc2 = (2*dmodB_dc[:, :, :, None] * dmodB_dc[:, :, None, :] - modB[:, :, None, None] * d2modB_dc2)/modB[:, :, None, None]**3.
-
+        
     elif weighting =='dS/B':
         d2A_dc2 = surface.d2_dS_by_dcoeffdcoeff()
         d2w1_dc2 = (2 * dA[:, :, None, None] * d2A_dc2 - dA_dc[:, :, :, None]*dA_dc[:, :, None, :])/(4*dA[:, :, None, None]**1.5)
@@ -273,7 +278,6 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
         d2w2_dc2 = (2*dmodB_dc[:, :, :, None] * dmodB_dc[:, :, None, :] - modB[:, :, None, None] * d2modB_dc2)/modB[:, :, None, None]**3.
 
         d2w_dc2 = dw1_dc[:, :, :, None] * dw2_dc[:, :, None, :] + dw1_dc[:, :, None, :] * dw2_dc[:, :, :, None] + d2w1_dc2 * w2[:, :, None, None] + d2w2_dc2 * w1[:, :, None, None]
-
 
     if weighting is None:
         d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
