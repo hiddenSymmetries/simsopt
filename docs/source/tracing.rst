@@ -18,7 +18,7 @@ Particle motion in cylindrical coordinates
 ------------------------------------------
 
 The main function to use in this case is
-:obj:`simsopt.field.tracing.trace_particles` (click the link for more
+:obj:`simsopt.field.trace_particles` (click the link for more
 information on the input and output parameters) and it is able to use
 two different sets of equations depending on the input parameter
 ``mode``:

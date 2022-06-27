@@ -53,15 +53,15 @@ the derivative of quantities such as curvature (via
 ``Curve.dkappa_by_dcoeff()``) or torsion (via
 ``Curve.dtorsion_by_dcoeff()``).
 
-A number of quantities are implemented in
-:obj:`simsopt.geo.curveobjectives` and are computed on a
+A number of objective functions are available in
+:obj:`simsopt.geo` and are computed on a
 :obj:`simsopt.geo.Curve`:
 
-- ``CurveLength``: computes the length of the ``Curve``.
-- ``LpCurveCurvature``: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
-- ``LpCurveTorsion``: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
-- ``CurveCurveDistance``: computes a penalty term on the minimum distance between a set of curves.
-- ``CurveSurfaceDistance``: computes a penalty term on the minimum distance between a set of curves and a surface.
+- :obj:`~simsopt.geo.CurveLength`: computes the length of the ``Curve``.
+- :obj:`~simsopt.geo.LpCurveCurvature`: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
+- :obj:`~simsopt.geo.LpCurveTorsion`: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
+- :obj:`~simsopt.geo.CurveCurveDistance`: computes a penalty term on the minimum distance between a set of curves.
+- :obj:`~simsopt.geo.CurveSurfaceDistance`: computes a penalty term on the minimum distance between a set of curves and a surface.
 
 The value of the quantity and its derivative with respect to the curve
 dofs can be obtained by calling e.g., ``CurveLength.J()`` and
@@ -152,10 +152,10 @@ the :obj:`~simsopt.geo.Curve` class:
 - ``Surface.second_fund_form()``: returns a ``(n_phi, n_theta, 3)`` array containing :math:`[\hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\phi} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\phi,\theta} \Gamma(\phi_i, \theta_j), \hat{\textbf{n}}(\phi_i, \theta_j) \cdot \partial^2_{\theta,\theta} \Gamma(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`\hat{\textbf{n}}` is the unit normal.
 - ``Surface.surface_curvatures()``: returns a ``(n_phi, n_theta, 4)`` array containing :math:`[H(\phi_i, \theta_j),K(\phi_i, \theta_j),\kappa_1(\phi_i, \theta_j),\kappa_2(\phi_i, \theta_j)]` for :math:`i\in\{1, \ldots, n_\phi\}, j\in\{1, \ldots, n_\theta\}` where :math:`H` is the mean curvature, :math:`K` is the Gaussian curvature, and :math:`\kappa_{1,2}` are the principal curvatures with :math:`\kappa_1>\kappa_2`.
 
-A number of quantities are implemented in :obj:`simsopt.geo.surfaceobjectives` and are computed on a :obj:`simsopt.geo.Surface`:
+A number of objective functions related to surfaces are available in :obj:`simsopt.geo`:
 
-- ``ToroidalFlux``: computes the flux through a toroidal cross section of a ``Surface``.
-- ``PrincipalCurvature``: computes a metric which penalizes large values of the principal curvatures of a given ``Surface``.
+- :obj:`~simsopt.geo.ToroidalFlux`: computes the flux through a toroidal cross section of a ``Surface``.
+- :obj:`~simsopt.geo.PrincipalCurvature`: computes a metric which penalizes large values of the principal curvatures of a given ``Surface``.
 
 The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., ``ToroidalFlux.J()`` and ``ToroidalFlux.dJ_dsurfacecoefficients()``.
 
@@ -185,12 +185,12 @@ plotting engine by passing the ``engine`` keyword argument, e.g. if
 can use the ``close`` argument to control whether segments are drawn
 between the last quadrature point and the first. For these and other
 options, see the API documentation for
-:func:`simsopt.geo.curve.Curve.plot()` and
-:func:`simsopt.geo.surface.Surface.plot()`.
+:func:`simsopt.geo.Curve.plot()` and
+:func:`simsopt.geo.Surface.plot()`.
 
 If you have multiple curve and/or surface objects, a convenient way to
 plot them together on the same axes is the function
-:func:`simsopt.geo.plotting.plot()`, which accepts a list of objects as
+:func:`simsopt.geo.plot()`, which accepts a list of objects as
 its argument. Any keywords passed to this function are passed to the
 ``.plot()`` methods of the individual objects, so you may wish to pass
 keywords such as ``engine`` or ``close``.  Alternatively, you can also
@@ -201,6 +201,6 @@ It is also possible to export curve and surface objects in VTK format,
 so they can be viewed in Paraview.  This functionality requires the
 python package ``pyevtk``, which can be installed via ``pip install
 pyevtk``. A list of curve objects can be exported using the function
-:func:`simsopt.geo.curve.curves_to_vtk()`. To export a VTK file for a
+:func:`simsopt.geo.curves_to_vtk()`. To export a VTK file for a
 surface, call the ``.to_vtk(filename)`` function of the object.  See
-:func:`simsopt.geo.surface.Surface.to_vtk()` for more details.
+:func:`simsopt.geo.Surface.to_vtk()` for more details.
