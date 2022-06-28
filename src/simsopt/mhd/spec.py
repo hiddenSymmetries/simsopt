@@ -409,7 +409,7 @@ class Spec(Optimizable):
         if ((self.volume_current_profile is not None) or \
             (self.interface_current_profile is not None)) and \
                 si.lfreebound==1:
-            si.curtor = si.ivolume[nvol-1] + np.sum(si.isurf)
+            si.curtor = si.ivolume[si.nvol-1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
             si.iota[0:si.nvol] = self.iota_profile.get(np.arange(0,si.nvol))
