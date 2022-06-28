@@ -54,6 +54,23 @@ class Profile(Optimizable):
         if show:
             plt.show()
 
+class SpecProfile(Profile):
+    """
+    A profile described by a an array of size Nvol
+    """
+
+    def __init__(self, data):
+        super().__init__(x0=np.array(data))
+        self.local_fix_all()
+    
+    def f(self, lvol):
+        """Return the value of the profile in volume lvol"""
+        if (lvol<1):
+            raise ValueError('lvol shoul be larger than zero')
+
+        return self.x0[lvol-1]
+
+
 
 class ProfilePolynomial(Profile):
     """

@@ -145,6 +145,14 @@ class Spec(Optimizable):
                                           mpol=si.mpol,
                                           ntor=si.ntor)
 
+        self._volume_current_profile = None
+        self._interface_current_profile = None
+        self._pressure_profile = None
+        self._iota_profile = None
+        self._oita_profile = None
+        self._mu_profile = None
+        self._pflux_profile = None
+
         # Transfer the boundary shape from fortran to the boundary
         # surface object:
         for m in range(si.mpol + 1):
@@ -173,6 +181,128 @@ class Spec(Optimizable):
     def boundary(self):
         return self._boundary
 
+
+    @property
+    def pressure_profile(self):
+        return self._pressure_profile
+
+    @pressure_profile.setter
+    def pressure_profile(self, pressure_profile):
+        if not pressure_profile is self._pressure_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._pressure_profile is not None:
+                self.remove_parent(self._pressure_profile)
+            self._pressure_profile = pressure_profile
+            if pressure_profile is not None:
+                self.append_parent(pressure_profile)
+                self.need_to_run_code = True
+
+
+
+    @property
+    def volume_current_profile(self):
+        return self._volume_current_profile
+
+    @volume_current_profile.setter
+    def volume_current_profile(self, volume_current_profile):
+        if not volume_current_profile is self._volume_current_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._volume_current_profile is not None:
+                self.remove_parent(self._volume_current_profile)
+            self._volume_current_profile = volume_current_profile
+            if volume_current_profile is not None:
+                self.append_parent(volume_current_profile)
+                self.need_to_run_code = True
+
+
+    @property
+    def interface_current_profile(self):
+        return self._interface_current_profile
+
+    @interface_current_profile.setter
+    def interface_current_profile(self, interface_current_profile):
+        if not interface_current_profile is self._interface_current_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._interface_current_profile is not None:
+                self.remove_parent(self._interface_current_profile)
+            self._interface_current_profile = interface_current_profile
+            if interface_current_profile is not None:
+                self.append_parent(interface_current_profile)
+                self.need_to_run_code = True
+
+    @property
+    def iota_profile(self):
+        return self._iota_profile
+
+    @iota_profile.setter
+    def iota_profile(self, iota_profile):
+        if not iota_profile is self._iota_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._iota_profile is not None:
+                self.remove_parent(self._iota_profile)
+            self._iota_profile = iota_profile
+            if iota_profile is not None:
+                self.append_parent(iota_profile)
+                self.need_to_run_code = True
+
+    @property
+    def oita_profile(self):
+        return self._oita_profile
+
+    @oita_profile.setter
+    def oita_profile(self, oita_profile):
+        if not oita_profile is self._oita_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._oita_profile is not None:
+                self.remove_parent(self._oita_profile)
+            self._oita_profile = oita_profile
+            if oita_profile is not None:
+                self.append_parent(oita_profile)
+                self.need_to_run_code = True
+
+    @property
+    def mu_profile(self):
+        return self._mu_profile
+
+    @mu_profile.setter
+    def mu_profile(self, mu_profile):
+        if not mu_profile is self._mu_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._mu_profile is not None:
+                self.remove_parent(self._mu_profile)
+            self._mu_profile = mu_profile
+            if mu_profile is not None:
+                self.append_parent(mu_profile)
+                self.need_to_run_code = True
+
+    @property
+    def pflux_profile(self):
+        return self._pflux_profile
+
+    @pflux_profile.setter
+    def pflux_profile(self, pflux_profile):
+        if not pflux_profile is self._pflux_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._pflux_profile is not None:
+                self.remove_parent(self._pflux_profile)
+            self._pflux_profile = pflux_profile
+            if pflux_profile is not None:
+                self.append_parent(pflux_profile)
+                self.need_to_run_code = True
+
+    def set_profile(self, longname, lvol, value):
+        """
+        This function is used to set the pressure, currents, iota, oita,
+        mu and/or pflux profiles.
+        """
+        profile = self.__getattribute__(longname + "_profile")
+        if profile is None:
+            return
+
+        profile.set(lvol, value)
+
+        
+    
     @boundary.setter
     def boundary(self, boundary):
         if self._boundary is not boundary:
@@ -258,6 +388,45 @@ class Spec(Optimizable):
         si.rac[:] = 0.0
         si.zas[:] = 0.0
         si.zac[:] = 0.0
+
+
+        # Set profiles from dofs
+        if self.pressure_profile is not None:
+            si.pressure[0:si.nvol-1] = self.pressure_profile.get(range(0,si.nvol))
+            if si.lfreebound == 1:
+                si.pressure[si.nvol] = 0
+
+        if self.volume_current_profile is not None:
+            si.ivolume[0:si.nvol-1] = self.volume_current_profile.get(range(0,si.nvol))
+            if si.lfreebound == 1:
+                si.ivolume[si.nvol] = 0
+
+        if self.interface_current_profile is not None:
+            si.isurf[0:si.nvol-1] = self.interface_current_profile.get(range(0,si.nvol))
+            if si.lfreebound == 1:
+                si.ivolume[si.nvol] = si.ivolume[si.nvol-1]
+
+        if ((self.volume_current_profile is not None) or \
+            (self.interface_current_profile is not None)) and \
+                si.lfreebound==1:
+            si.curtor = si.ivolume[nvol-1] + np.sum(si.isurf)
+
+        if self.iota_profile is not None:
+            si.iota[0:si.nvol] = self.iota_profile.get(range(0,si.nvol))
+
+        if self.oita_profile is not None:
+            si.oita[0:si.nvol] = self.oita_profile.get(range(0,si.nvol))
+
+        if self.mu_profile is not None:
+            si.mu[0:si.nvol-1] = self.mu_profile.get(range(0,si.nvol))
+            if si.lfreebound == 1:
+                si.mu[si.nvol] = 0   
+
+        if self.pflux_profile is not None:
+            si.pflux[0:si.nvol-1] = self.pflux_profile.get(range(0,si.nvol))
+            if si.lfreebound == 1:
+                si.pflux[si.nvol] = 0     
+
 
         # Another possible way to initialize the coordinate axis: use
         # the m=0 modes of the boundary.
