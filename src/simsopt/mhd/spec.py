@@ -392,17 +392,17 @@ class Spec(Optimizable):
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
-            si.pressure[0:si.nvol-1] = self.pressure_profile.get(range(0,si.nvol))
+            si.pressure[0:si.nvol] = self.pressure_profile.get(np.arange(0,si.nvol))
             if si.lfreebound == 1:
                 si.pressure[si.nvol] = 0
 
         if self.volume_current_profile is not None:
-            si.ivolume[0:si.nvol-1] = self.volume_current_profile.get(range(0,si.nvol))
+            si.ivolume[0:si.nvol] = self.volume_current_profile.get(np.arange(0,si.nvol))
             if si.lfreebound == 1:
                 si.ivolume[si.nvol] = 0
 
         if self.interface_current_profile is not None:
-            si.isurf[0:si.nvol-1] = self.interface_current_profile.get(range(0,si.nvol))
+            si.isurf[0:si.nvol-1] = self.interface_current_profile.get(np.arange(0,si.nvol))
             if si.lfreebound == 1:
                 si.ivolume[si.nvol] = si.ivolume[si.nvol-1]
 
@@ -412,18 +412,18 @@ class Spec(Optimizable):
             si.curtor = si.ivolume[nvol-1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
-            si.iota[0:si.nvol] = self.iota_profile.get(range(0,si.nvol))
+            si.iota[0:si.nvol] = self.iota_profile.get(np.arange(0,si.nvol))
 
         if self.oita_profile is not None:
-            si.oita[0:si.nvol] = self.oita_profile.get(range(0,si.nvol))
+            si.oita[0:si.nvol] = self.oita_profile.get(np.arange(0,si.nvol))
 
         if self.mu_profile is not None:
-            si.mu[0:si.nvol-1] = self.mu_profile.get(range(0,si.nvol))
+            si.mu[0:si.nvol-1] = self.mu_profile.get(np.arange(0,si.nvol))
             if si.lfreebound == 1:
                 si.mu[si.nvol] = 0   
 
         if self.pflux_profile is not None:
-            si.pflux[0:si.nvol-1] = self.pflux_profile.get(range(0,si.nvol))
+            si.pflux[0:si.nvol-1] = self.pflux_profile.get(np.arange(0,si.nvol))
             if si.lfreebound == 1:
                 si.pflux[si.nvol] = 0     
 
