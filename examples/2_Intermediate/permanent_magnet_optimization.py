@@ -41,7 +41,7 @@ t_start = time.time()
 
 # Read in all the required parameters
 comm = None
-config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag = read_input()
+config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag = read_input()
 
 # Add cori scratch path 
 class_filename = "PM_optimizer_" + config_flag
@@ -62,7 +62,7 @@ print("Done loading in plasma boundary surface, t = ", t2 - t1)
 
 if run_type == 'initialization':
     # Make the output directory
-    OUT_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
+    OUT_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
     print("Output directory = ", OUT_DIR)
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -145,7 +145,7 @@ if run_type == 'initialization':
         s, is_premade_famus_grid=is_premade_famus_grid, coil_offset=coff, 
         dr=dr, plasma_offset=poff, Bn=Bnormal, 
         filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
-        cylindrical_flag=cylindrical_flag, pms_name=pms_name,
+        coordinate_flag=coordinate_flag, pms_name=pms_name,
     )
     t2 = time.time()
     print('Done initializing the permanent magnet object')
@@ -191,7 +191,7 @@ if run_type == 'initialization':
 
 # Do optimization on pre-made grid of dipoles
 elif run_type == 'optimization':
-    IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
+    IN_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Make a subdirectory for the optimization output
     OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
@@ -200,7 +200,7 @@ elif run_type == 'optimization':
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     pm_opt.out_dir = OUT_DIR 
-    print("Cylindrical coordinates are being used = ", pm_opt.cylindrical_flag)
+    print("Coordinate system being used = ", pm_opt.coordinate_flag)
 
     # Check that you loaded the correct file with the same parameters
     assert (dr == pm_opt.dr)
@@ -225,7 +225,7 @@ elif run_type == 'optimization':
 
     # Set some hyperparameters for the optimization
     t1 = time.time()
-
+ 
     # Set an initial condition
     #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
     #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
@@ -234,18 +234,36 @@ elif run_type == 'optimization':
     m0 = np.zeros(pm_opt.m0.shape)
 
     # Optimize the permanent magnets, increasing L0 threshold as converging
-    for i in range(37):
-        reg_l0_scaled = reg_l0 * (1 + i / 2.0)
+    total_m_history = []
+    total_mproxy_history = []
+    total_RS_history = []
+    if not np.isclose(reg_l0, 0.0):
+        for i in range(37):
+            reg_l0_scaled = reg_l0 * (1 + i / 2.0)
+            RS_history, m_history, m_proxy_history = pm_opt._optimize(
+                max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
+                reg_l2=reg_l2, reg_l0=reg_l0_scaled, nu=nu, max_iter_RS=max_iter_RS,
+                m0=m0
+            )
+            total_RS_history.append(RS_history)
+            total_m_history.append(m_history)
+            total_mproxy_history.append(m_proxy_history)
+            m0 = pm_opt.m 
+    else:
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
             max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-            reg_l2=reg_l2, reg_l0=reg_l0_scaled, nu=nu, max_iter_RS=max_iter_RS,
+            reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS,
             m0=m0
         )
-        m0 = pm_opt.m 
+        total_RS_history.append(RS_history)
+        total_m_history.append(m_history)
+        total_mproxy_history.append(m_proxy_history)
 
+    total_RS_history = np.ravel(np.array(total_RS_history))
     t2 = time.time()
     print('Done optimizing the permanent magnet object')
     print('Process took t = ', t2 - t1, ' s')
+    make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
 
     # Print effective permanent magnet volume
     M_max = 1.465 / (4 * np.pi * 1e-7)
@@ -307,7 +325,7 @@ elif run_type == 'optimization':
     dipoles = np.ravel(dipoles)
     print('Dipole field setup done')
 
-    make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
+    #make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
     t2 = time.time()
     print("Done printing and plotting, ", t2 - t1, " s")
 
@@ -396,7 +414,7 @@ elif run_type == 'post-processing':
     comm = MPI.COMM_WORLD
 
     # Load in optimized PMs
-    IN_DIR = scratch_path + config_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
+    IN_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Read in the correct subdirectory with the optimization output
     OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
@@ -435,6 +453,14 @@ elif run_type == 'post-processing':
         Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
         Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
         Bfield.set_points(s.gamma().reshape((-1, 3)))
+    
+        # need to call set_points again here for the combined field
+        m_copy = np.copy(pm_opt.m)
+        pm_opt.m = pm_opt.m_proxy
+        Bfield_mproxy = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+        Bfield_tf_mproxy = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
+        Bfield_mproxy.set_points(s.gamma().reshape((-1, 3)))
+        pm_opt.m = m_copy
     else:
 
         # Set up the contribution to Bnormal from a purely toroidal field.
@@ -453,13 +479,28 @@ elif run_type == 'post-processing':
         Bfield_tf = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
         Bfield.set_points(s.gamma().reshape((-1, 3)))
 
-    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm)
+        m_copy = np.copy(pm_opt.m)
+        pm_opt.m = pm_opt.m_proxy
+        Bfield_mproxy = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
+        Bfield_tf_mproxy = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
+        Bfield_mproxy.set_points(s.gamma().reshape((-1, 3)))
+        pm_opt.m = m_copy
+
+    filename_poincare = 'm'
+    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare)
+    pm_opt.m = pm_opt.m_proxy 
+    b_dipole = DipoleField(pm_opt)
+    b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    filename_poincare = 'mproxy'
+    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare)
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
 
     # Make the QFM surfaces
     t1 = time.time()
     qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+    qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
+    qfm_surf_mproxy = qfm_surf_mproxy.surface
     t2 = time.time()
     print("Making the QFM took ", t2 - t1, " s")
 
@@ -473,6 +514,12 @@ elif run_type == 'post-processing':
     equil.boundary = qfm_surf
     #    equil._boundary = qfm_surf
     #    equil.need_to_run_code = True
+    equil.run()
+    
+    ### Always use the QH VMEC file and just change the boundary
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres" 
+    equil = Vmec(vmec_input, mpi)
+    equil.boundary = qfm_surf_mproxy
     equil.run()
     #except RuntimeError:
     #    print('VMEC cannot be initialized from a wout file for some reason.')

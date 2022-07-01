@@ -61,7 +61,7 @@ class PermanentMagnetOptimizer:
         rz_outer_surface=None, plasma_offset=0.1, 
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec', out_dir='',
-        cylindrical_flag=False, test_flag=False,
+        coordinate_flag='cartesian', test_flag=False,
         pms_name=None,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -81,7 +81,7 @@ class PermanentMagnetOptimizer:
         self.coil_offset = coil_offset
         self.Bn = Bn
         self.dr = dr
-        self.cylindrical_flag = cylindrical_flag
+        self.coordinate_flag = coordinate_flag
         self.test_flag = test_flag
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
@@ -90,6 +90,7 @@ class PermanentMagnetOptimizer:
             )
         else:
             self.plasma_boundary = plasma_boundary
+            self.R0 = plasma_boundary.get_rc(0, 0)
             self.phi = self.plasma_boundary.quadpoints_phi
             self.nphi = len(self.phi)
             self.theta = self.plasma_boundary.quadpoints_theta
@@ -384,6 +385,7 @@ class PermanentMagnetOptimizer:
         self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)
 
         # Compute geometric factor with the C++ routine
+        print(self.coordinate_flag)
         self.A_obj, self.ATb = sopp.dipole_field_Bn(
             np.ascontiguousarray(self.plasma_boundary.gamma().reshape(self.nphi * self.ntheta, 3)), 
             np.ascontiguousarray(self.dipole_grid_xyz), 
@@ -391,7 +393,8 @@ class PermanentMagnetOptimizer:
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym), 
             np.ascontiguousarray(self.dipole_grid[:, 1]), 
             np.ascontiguousarray(self.b_obj),
-            self.cylindrical_flag  # If False use Cartesian coords. If True, cylindrical coords
+            self.coordinate_flag,  # cartesian, cylindrical, or simple toroidal 
+            self.R0
         )
         # Rescale
         Ngrid = self.nphi * self.ntheta
@@ -596,7 +599,7 @@ class PermanentMagnetOptimizer:
         d["filename"] = self.filename
         d["surface_flag"] = self.surface_flag
         d["out_dir"] = self.out_dir
-        d["cylindrical_flag"] = self.cylindrical_flag
+        d["coordinate_flag"] = self.coordinate_flag
         d["test_flag"] = self.test_flag
         return d
 
@@ -614,7 +617,7 @@ class PermanentMagnetOptimizer:
             d["filename"],
             d["surface_flag"],
             d["out_dir"],
-            d["cylindrical_flag"],
+            d["coordinate_flag"],
             d["test_flag"]
         )
 
