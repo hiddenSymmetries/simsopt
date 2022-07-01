@@ -8,6 +8,8 @@ from monty.json import MontyDecoder
 from .curve import Curve, JaxCurve
 import simsoptpp as sopp
 
+__all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
+
 
 class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 

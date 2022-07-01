@@ -35,7 +35,7 @@ try:
 except ImportError:
     MPI = None
 
-from .dev import SimsoptRequires
+from .._core.dev import SimsoptRequires
 
 
 # Maximum length of message in characters

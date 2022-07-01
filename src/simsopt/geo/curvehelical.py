@@ -3,6 +3,8 @@ from math import pi
 import numpy as np
 from .curve import JaxCurve
 
+__all__ = ['CurveHelical']
+
 
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     A = dofs[:order]

@@ -2,15 +2,18 @@ from math import sin, cos
 
 import numpy as np
 from jax import vjp, jacfwd, jvp
-from .jit import jit
 import jax.numpy as jnp
 from monty.dev import requires
 from monty.json import MontyDecoder
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from simsopt._core.derivative import Derivative
-from .plot import fix_matplotlib_3d
+from .._core.derivative import Derivative
+
+from .jit import jit
+from .plotting import fix_matplotlib_3d
+
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
 
 
 @jit

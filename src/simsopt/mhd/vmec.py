@@ -38,6 +38,9 @@ if MPI is not None:
 else:
     MpiPartition = None
 
+__all__ = ["Vmec"]
+
+
 # Flags used by runvmec():
 restart_flag = 1
 readin_flag = 2

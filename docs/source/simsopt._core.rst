@@ -40,11 +40,3 @@ simsopt.\_core.util module
    :show-inheritance:
    :private-members:
 
-Module contents
----------------
-
-.. automodule:: simsopt._core
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
