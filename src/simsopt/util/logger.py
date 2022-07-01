@@ -15,6 +15,8 @@ try:
 except:
     MPI = None
 
+__all__ = ['initialize_logging']
+
 
 def initialize_logging(filename: str = None,
                        level: str = None,

@@ -20,10 +20,3 @@ simsopt.solve.serial module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.solve
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -20,9 +20,9 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
-from simsopt.util.zoo import get_ncsx_data
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.configs.zoo import get_ncsx_data
 
 
 class Testing(unittest.TestCase):

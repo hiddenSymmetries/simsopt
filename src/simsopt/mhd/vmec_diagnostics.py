@@ -16,12 +16,15 @@ from scipy.optimize import root_scalar
 from .vmec import Vmec
 from .._core.util import Struct
 from .._core.optimizable import Optimizable
-from ..util.types import RealArray
+from .._core.types import RealArray
 from ..geo.surfaceobjectives import parameter_derivatives
 from ..geo.surface import Surface
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
+
+__all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
+           'WellWeighted']
 
 
 class QuasisymmetryRatioResidual(Optimizable):

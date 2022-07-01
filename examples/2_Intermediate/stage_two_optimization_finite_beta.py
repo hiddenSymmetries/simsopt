@@ -17,15 +17,15 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.mhd.vmec import Vmec
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, coils_via_symmetries, ScaledCurrent
-from simsopt.geo.curveobjectives import CurveLength
-from simsopt.mhd.virtual_casing import VirtualCasing
+from simsopt.mhd import Vmec
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.objectives import QuadraticPenalty
+from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.field import BiotSavart
+from simsopt.field import Current, coils_via_symmetries
+from simsopt.geo import CurveLength
+from simsopt.mhd import VirtualCasing
 
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
@@ -97,7 +97,7 @@ base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, 
 # Since we know the total sum of currents, we only optimize for ncoils-1
 # currents, and then pick the last one so that they all add up to the correct
 # value.
-base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+base_currents = [Current(total_current / ncoils * 1e-5) * 1e5 for _ in range(ncoils-1)]
 # Above, the factors of 1e-5 and 1e5 are included so the current
 # degrees of freedom are O(1) rather than ~ MA.  The optimization
 # algorithm may not perform well if the dofs are scaled badly.

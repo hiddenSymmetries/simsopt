@@ -13,6 +13,8 @@ from .._core.util import nested_lists_to_array
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
+
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     r"""

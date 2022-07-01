@@ -24,8 +24,8 @@ import numpy as np
 from monty.json import MSONable, MontyDecoder, MontyEncoder
 from monty.io import zopen
 
-from ..util.dev import SimsoptRequires
-from ..util.types import RealArray, StrArray, BoolArray, Key
+from .dev import SimsoptRequires
+from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
@@ -45,6 +45,9 @@ except ImportError:
     plt = None
 
 log = logging.getLogger(__name__)
+
+__all__ = ['Optimizable', 'make_optimizable', 'load', 'save',
+           'OptimizableSum', 'ScaledOptimizable']
 
 
 class DOFs:
@@ -1524,19 +1527,6 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             return self.func(*args, **kwargs)
 
     return TempOptimizable(func, *args, dof_indicators=dof_indicators, **kwargs)
-
-
-class Weight(object):
-
-    def __init__(self, value):
-        self.value = float(value)
-
-    def __float__(self):
-        return float(self.value)
-
-    def __imul__(self, alpha):
-        self.value *= alpha
-        return self
 
 
 class ScaledOptimizable(Optimizable):

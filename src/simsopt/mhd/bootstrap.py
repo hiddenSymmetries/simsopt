@@ -7,14 +7,19 @@ This module provides functions to compute the bootstrap current
 """
 
 import logging
+
 import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize, Bounds
 from scipy.integrate import quad
+
 from .._core.optimizable import Optimizable
 from .._core.util import Struct
 from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
+
+__all__ = ['compute_trapped_fraction', 'j_dot_B_Redl', 'RedlGeomVmec',
+           'RedlGeomBoozer', 'VmecRedlBootstrapMismatch']
 
 logger = logging.getLogger(__name__)
 

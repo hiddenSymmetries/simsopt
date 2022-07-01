@@ -3,6 +3,8 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
+__all__ = ['SurfaceXYZFourier']
+
 
 class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     r"""`SurfaceXYZFourier` is a surface that is represented in Cartesian
