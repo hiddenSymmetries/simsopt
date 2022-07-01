@@ -586,10 +586,30 @@ class DipoleField(MagneticField):
         # loop through the dipoles and repeat for fp and stellarator symmetries
         index = 0
         n = ndipoles
+
+        # get the components in Cartesian  
         mmx = m[:, 0]
         mmy = m[:, 1]
         mmz = m[:, 2]
-        for stell in [-1, 1]:
+        if pm_opt.coordinate_flag == 'cylindrical':
+            phi_dipole = np.arctan2(oy, ox)
+            mmx_temp = mmx * np.cos(phi_dipole) - mmy * np.sin(phi_dipole)
+            mmy_temp = mmx * np.sin(phi_dipole) + mmy * np.cos(phi_dipole)
+            mmx = mmx_temp
+            mmy = mmy_temp
+        
+        if pm_opt.coordinate_flag == 'toroidal':
+            phi_dipole = np.arctan2(oy, ox)
+            theta_dipole = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - pm_opt.R0)
+            mmx_temp = mmx * np.cos(phi_dipole) * np.cos(theta_dipole) - mmy * np.sin(phi_dipole) - mmz * np.cos(phi_dipole) * np.sin(theta_dipole)
+            mmy_temp = mmx * np.sin(phi_dipole) * np.cos(theta_dipole) + mmy * np.cos(phi_dipole) - mmz * np.sin(phi_dipole) * np.sin(theta_dipole)
+            mmz_temp = mmx * np.sin(theta_dipole) + mmz * np.cos(theta_dipole)
+            mmx = mmx_temp
+            mmy = mmy_temp
+            mmz = mmz_temp
+        
+        # Loop over stellarator and field-period symmetry contributions
+        for stell in [1, -1]:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
 
@@ -602,16 +622,8 @@ class DipoleField(MagneticField):
                 m_vec[index:index + n, 0] = mmx * np.cos(phi0) * stell - mmy * np.sin(phi0)
                 m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
                 m_vec[index:index + n, 2] = mmz
+
                 m_maxima[index:index + n] = pm_opt.m_maxima
-
-                # If using cylindrical coordinates (for m_vec), get the phi coordinate and rotate
-                if pm_opt.cylindrical_flag:
-                    phi_dipole = np.arctan2(dipole_grid_y[index:index + n], dipole_grid_x[index:index + n])
-                    mr_temp = m_vec[index:index + n, 0] * np.cos(phi_dipole) + m_vec[index:index + n, 1] * np.sin(phi_dipole)
-                    mphi_temp = - m_vec[index:index + n, 0] * np.sin(phi_dipole) + m_vec[index:index + n, 1] * np.cos(phi_dipole)
-                    m_vec[index:index + n, 0] = mr_temp
-                    m_vec[index:index + n, 1] = mphi_temp
-
                 index += n
 
         self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
@@ -630,22 +642,23 @@ class DipoleField(MagneticField):
         oy = np.ascontiguousarray(self.dipole_grid[:, 1])
         oz = np.ascontiguousarray(self.dipole_grid[:, 2])
         ophi = np.arctan2(oy, ox)
-        if self.pm_opt.cylindrical_flag:
-            mx = np.ascontiguousarray(self.m_vec[:, 0] * np.cos(ophi) - self.m_vec[:, 1] * np.sin(ophi))
-            my = np.ascontiguousarray(self.m_vec[:, 0] * np.sin(ophi) + self.m_vec[:, 1] * np.cos(ophi))
-        else:
-            mx = np.ascontiguousarray(self.m_vec[:, 0])
-            my = np.ascontiguousarray(self.m_vec[:, 1])
+        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.pm_opt.R0)
+        mx = np.ascontiguousarray(self.m_vec[:, 0])
+        my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
         mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
         mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
+        mrminor = np.ascontiguousarray(mx * np.cos(ophi) * np.cos(otheta) + my * np.sin(ophi) * np.cos(otheta) + np.sin(otheta) * mz)
         mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
+        mtheta = np.ascontiguousarray(-mx * np.cos(ophi) * np.sin(otheta) - my * np.sin(ophi) * np.sin(otheta) + np.cos(otheta) * mz)
         mr_normalized = np.ascontiguousarray(mr / self.m_maxima) 
+        mrminor_normalized = np.ascontiguousarray(mrminor / self.m_maxima) 
         mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima) 
-        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized)}
+        mtheta_normalized = np.ascontiguousarray(mtheta / self.m_maxima) 
+        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
         pointsToVTK(
             vtkname, ox, oy, oz, data=data
         )

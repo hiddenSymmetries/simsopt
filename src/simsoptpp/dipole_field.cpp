@@ -240,7 +240,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 }
 
 // Calculate the geometric factor needed for the permanent magnet optimization
-std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, bool cylindrical) 
+std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& phi, Array& b, std::string coordinate_flag, double R0) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -259,7 +259,10 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     constexpr int simd_size = xsimd::simd_type<double>::size;
     Array A = xt::zeros<double>({num_points, num_dipoles, 3});
     Array ATb = xt::zeros<double>({num_dipoles, 3});
-   
+  
+    std::string cylindrical_str = "cylindrical"; 
+    std::string toroidal_str = "toroidal"; 
+    
     // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
@@ -292,12 +295,18 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 	            // reflect the y and z-components and then rotate by phi0
 		    simd_t mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
                     simd_t mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
-		    Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_j.z * pow(-1, stell));
+                    simd_t mp_z_new = mp_j.z * pow(-1, stell);
+		    Vec3dSimd mp_j_new = Vec3dSimd(mp_x_new, mp_y_new, mp_z_new);
 		    
 		    // Calculate new phi location if switching to cylindrical coordinates
-		    simd_t mp_phi_new = xsimd::atan2(mp_y_new, mp_x_new);
+		    simd_t mp_phi_new = xsimd::atan2(mp_j.y, mp_j.x);
+		    //simd_t mp_phi_new = xsimd::atan2(mp_y_new, mp_x_new);
+		    simd_t mp_theta_new = xsimd::atan2(mp_j.z, sqrt(mp_j.x * mp_j.x + mp_j.y * mp_j.y) - R0);
+		    //simd_t mp_theta_new = xsimd::atan2(mp_z_new, rsqrt(mp_x_new * mp_x_new + mp_y_new * mp_y_new) - R0);
 		    simd_t sphi_new = xsimd::sin(mp_phi_new);
+		    simd_t stheta_new = xsimd::sin(mp_theta_new);
 		    simd_t cphi_new = xsimd::cos(mp_phi_new);
+		    simd_t ctheta_new = xsimd::cos(mp_theta_new);
 		    
 		    // Compute the unsymmetrized inductance matrix
 		    Vec3dSimd r = point_i - mp_j_new;
@@ -310,20 +319,32 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
                     G_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
                     G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
 		    for(int k = 0; k < klimit; k++){
-		        A(i + k, j, 2) += fak * G_i.z[k];
-		        if (cylindrical) {
-			    double Ax_temp = fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-			    double Ay_temp = fak * (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		        if (coordinate_flag == cylindrical_str) {
+			    double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    double Ay_temp = (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+			    //A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] - Ay_temp * sphi_new[k]);
 			    A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] + Ay_temp * sphi_new[k]);
+			    //A(i + k, j, 1) += fak * (Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
 			    A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
+		            A(i + k, j, 2) += fak * G_i.z[k];
 		        }
-		        else {
+			else if (coordinate_flag == toroidal_str) {
+
+			    double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
+			    double Ay_temp = (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		            double Az_temp = G_i.z[k];
+			    A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] * ctheta_new[k] + Ay_temp * sphi_new[k] * ctheta_new[k] + Az_temp * stheta_new[k]);
+			    A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
+			    A(i + k, j, 2) += fak * (- Ax_temp * cphi_new[k] * stheta_new[k] - Ay_temp * sphi_new[k] * stheta_new[k] + Az_temp * ctheta_new[k]);
+			}
+			else {
 			    // rotate by -phi0 and then flip x component
 			    // This should be the reverse of what is done to the m vector and the dipole grid
 			    // because A * m = A * R^T * R * m and R is an orthogonal matrix both
 			    // for a reflection and a rotation. 
 			    A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
 			    A(i + k, j, 1) += fak * (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
+		            A(i + k, j, 2) += fak * G_i.z[k];
 		        }
 		    }
 		}

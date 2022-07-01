@@ -83,6 +83,7 @@ def read_input():
         config_flag = sanitised_input("Enter the plasma configuration name: ", str, range_=('qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx'), default_='muse_famus')
         res_flag = sanitised_input("Enter the resolution: ", str, range_=('low', 'medium', 'high'), default_='low')
         run_type = sanitised_input("Initialization, optimization, or post-processing a permanent magnet grid class? ", str, range_=('initialization', 'optimization', 'post-processing'), default_='optimization')
+        coordinate_flag = sanitised_input("Coordinate system? ", str, range_=('cartesian', 'cylindrical', 'toroidal'), default_='cartesian')
         if run_type == 'optimization':
             reg_l2 = sanitised_input("L2 Regularization = ", float, 0.0, 1.0, default_=0.0)
             epsilon = sanitised_input("Error tolerance for the convex subproblem = ", float, 0.0, 1.0, default_=1e-2)
@@ -95,9 +96,6 @@ def read_input():
             else:
                 nu = sanitised_input("nu (relax-and-split hyperparameter) = ", float, 0.0, 1e100, default_=1e6)
                 max_iter_RS = sanitised_input("Maximum number of relax-and-split iterations: ", int, 0, 1e5, default_=10) 
-        elif run_type == 'initialization':
-            cylindrical_flag = sanitised_input("Use cylindrical coordinates? ", str, range_=('False', 'True'), default_='False')
-            cylindrical_flag = (cylindrical_flag == 'True')
         elif run_type == 'post-processing':
             reg_l2 = sanitised_input("L2 Regularization = ", float, 0.0, 1.0, default_=0.0)
             reg_l0 = sanitised_input("L0 Regularization = ", float, 0.0, 1.0, default_=0.0)
@@ -179,17 +177,26 @@ def read_input():
                 max_iter_RS = int(sys.argv[11])
             else:
                 max_iter_RS = 100
+
+            if len(sys.argv) >= 13:
+                coordinate_flag = str(sys.argv[12])
+                if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
+                    raise ValueError(
+                        "Error! The coordinate flag must specify one of "
+                        "cartesian, cylindrical, or toroidal."
+                    )
+            else:
+                coordinate_flag = 'cartesian' 
         elif run_type == 'initialization':
             if len(sys.argv) >= 6:
-                cylindrical_flag = str(sys.argv[5])
-                if cylindrical_flag not in ['True', 'False']:
+                coordinate_flag = str(sys.argv[5])
+                if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                     raise ValueError(
-                        "Error! The cylindrical flag must specify one of "
-                        "True or False."
+                        "Error! The coordinate flag must specify one of "
+                        "cartesian, cylindrical, or toroidal."
                     )
-                cylindrical_flag = (cylindrical_flag == 'True')
             else:
-                cylindrical_flag = False
+                coordinate_flag = 'cartesian' 
         elif run_type == 'post-processing':
             # L2 regularization
             if len(sys.argv) >= 6:
@@ -211,6 +218,16 @@ def read_input():
             if np.isclose(reg_l0, 0.0, atol=1e-16):
                 nu = 1e100
 
+            if len(sys.argv) >= 9:
+                coordinate_flag = str(sys.argv[8])
+                if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
+                    raise ValueError(
+                        "Error! The coordinate flag must specify one of "
+                        "cartesian, cylindrical, or toroidal."
+                    )
+            else:
+                coordinate_flag = 'cartesian' 
+    
     # Set the remaining parameters
     surface_flag = 'vmec'
     pms_name = None
@@ -233,7 +250,7 @@ def read_input():
     if config_flag == 'muse_famus':
         dr = 0.01
         coff = 0.1
-        poff = 0.05 # 0.02
+        poff = 0.02
         surface_flag = 'focus'
         input_name = 'input.muse'
         pms_name = 'zot80.focus'
@@ -256,7 +273,7 @@ def read_input():
     elif config_flag == 'ncsx':
         dr = 0.02
         coff = 0.02
-        poff = 0.2 #0.1
+        poff = 0.1 #0.2
         surface_flag = 'wout'
         input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
         pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus' 
@@ -273,18 +290,17 @@ def read_input():
         print('L0 regularization = ', reg_l0)
         print('nu = ', nu)
         print('Maximum iterations for relax-and-split = ', max_iter_RS)
-    elif run_type == 'initialization':
-        print('Cylindrical coordinates = ', cylindrical_flag)
+    print('Coordinate system = ', coordinate_flag)
     print('Input file name = ', input_name)
     print('nphi = ', nphi)
     print('ntheta = ', ntheta)
     print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', pms_name)
     if run_type == 'initialization':
-        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, cylindrical_flag
+        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
     elif run_type == 'optimization':
-        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, False  
+        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
     elif run_type == 'post-processing':
-        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, False  
+        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag 
 
 
 def read_focus_coils(filename):
@@ -783,8 +799,8 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
     mz = mm * np.cos(mt)
     m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
 
-    cylindrical_flag_temp = pm_opt.cylindrical_flag
-    pm_opt.cylindrical_flag = False
+    coordinate_flag_temp = pm_opt.coordinate_flag
+    pm_opt.coordinate_flag = 'cartesian'
 
     # Set pm_opt m values to the FAMUS solution so we can use the
     # plotting routines from the DipoleField class object. 
@@ -817,8 +833,7 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
     # Plot total Bnormal from optimized Bnormal dipoles + coils
     pointData = {"B_N": (Bnormal_FAMUS + Bnormal_plot)[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "Bnormal_total_FAMUS", extra_data=pointData)
-
-    pm_opt.cylindrical_flag = cylindrical_flag_temp
+    pm_opt.coordinate_flag = coordinate_flag_temp
 
 
 def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR):
@@ -837,7 +852,8 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     plt.figure()
     m0_abs = np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
     mproxy_abs = np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
-    x_multi = [m0_abs, mproxy_abs]
+    
+    # get FAMUS rho values for making comparison histograms
     if pm_opt.is_premade_famus_grid:
         famus_file = '../../tests/test_files/' + pm_opt.pms_name
         m0, p = np.loadtxt(
@@ -850,6 +866,8 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
         rho = p ** momentq
         rho = rho[pm_opt.Ic_inds]
         x_multi = [m0_abs, mproxy_abs, abs(rho)]
+    else:
+        x_multi = [m0_abs, mproxy_abs]
     plt.hist(x_multi, bins=np.linspace(0, 1, 40), log=True, histtype='bar')
     plt.grid(True)
     plt.legend(['m', 'w', 'FAMUS'])
@@ -860,12 +878,15 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     if len(RS_history) != 0:
 
         m_history = np.array(m_history)
+        m_history = m_history.reshape(m_history.shape[0] * m_history.shape[1], pm_opt.ndipoles, 3)
+        print(m_history.shape)
         m_proxy_history = np.array(m_proxy_history).reshape(m_history.shape[0], pm_opt.ndipoles, 3)
 
         for i, datum in enumerate([m_history, m_proxy_history]):
             # Code from https://matplotlib.org/stable/gallery/animation/animated_histogram.html
             def prepare_animation(bar_container):
                 def animate(frame_number):
+                    plt.title(frame_number)
                     data = np.sqrt(np.sum(datum[frame_number, :] ** 2, axis=-1)) / pm_opt.m_maxima
                     n, _ = np.histogram(data, np.linspace(0, 1, 40))
                     for count, rect in zip(n, bar_container.patches):
@@ -876,27 +897,27 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
             # make histogram animation of the dipoles at each relax-and-split save
             fig, ax = plt.subplots()
             data = np.sqrt(np.sum(datum[0, :] ** 2, axis=-1)) / pm_opt.m_maxima
-            if pm_opt.is_premade_famus_grid:
-                ax.hist(abs(rho), bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
-            _, _, bar_container = ax.hist(data, bins=np.linspace(0, 1, 40), log=True, alpha=0.8)
+            if rho is not None:
+                ax.hist(abs(rho), bins=np.linspace(0, 1, 40), log=True, alpha=0.6, color='g')
+            _, _, bar_container = ax.hist(data, bins=np.linspace(0, 1, 40), log=True, alpha=0.6, color='r')
             ax.set_ylim(top=1e5)  # set safe limit to ensure that all data is visible.
             plt.grid(True)
-            if pm_opt.is_premade_famus_grid:
-                plt.legend(['FAMUS', np.array(['m', 'w'])[i]])
+            if rho is not None:
+                plt.legend(['FAMUS', np.array([r'm$^*$', r'w$^*$'])[i]])
             else:
-                plt.legend([np.array(['m', 'w'])[i]])
+                plt.legend([np.array([r'm$^*$', r'w$^*$'])[i]])
 
             plt.xlabel('Normalized magnitudes')
             plt.ylabel('Number of dipoles')
             ani = animation.FuncAnimation(
                 fig, prepare_animation(bar_container), 
-                m_history.shape[0],
+                range(0, m_history.shape[0], 2),
                 repeat=False, blit=True
             )
             ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm):
+def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare):
     """
         Wrapper function for making Poincare plots.
     """
@@ -918,7 +939,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm):
         )
     # bsh.to_vtk('dipole_fields')
     try:
-        trace_fieldlines(bsh, 'bsh_PMs', config_flag, s_plot, comm)
+        trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm)
     except SystemError:
         print('Poincare plot failed.')
 
