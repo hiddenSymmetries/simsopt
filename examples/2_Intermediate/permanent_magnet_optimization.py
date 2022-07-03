@@ -163,17 +163,6 @@ if run_type == 'initialization':
         if config_flag == 'ncsx':
             read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
 
-    # check nothing got mistranslated by plotting the initial dipole guess
-    t1 = time.time()
-    pm_opt.m = pm_opt.m0
-    pm_opt.m_proxy = pm_opt.m0
-    b_dipole_initial = DipoleField(pm_opt)
-    b_dipole_initial.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole_initial._toVTK(OUT_DIR + "Dipole_Fields_initial")
-    t2 = time.time()
-    print('Done setting up the Dipole Field class')
-    print('Process took t = ', t2 - t1, ' s')
-
     t1 = time.time()
     # Save PM class object to file for optimization
     file_out = open(OUT_DIR + class_filename + ".pickle", "wb")
@@ -393,6 +382,9 @@ elif run_type == 'optimization':
         dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
         num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
         np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
+    
+    # write solution to FAMUS-type file
+    write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
     # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
@@ -446,8 +438,8 @@ elif run_type == 'post-processing':
     if config_flag != 'ncsx':
         pm_opt.m = pm_opt.m_proxy
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+        bs.set_points(s_plot.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
     
         # need to call set_points again here for the combined field
         Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
@@ -488,6 +480,7 @@ elif run_type == 'post-processing':
 
     filename_poincare = 'm'
     run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare)
+    exit()
     pm_opt.m = pm_opt.m_proxy 
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
@@ -499,11 +492,13 @@ elif run_type == 'post-processing':
     # Make the QFM surfaces
     t1 = time.time()
     qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+    qfm_surf = qfm_surf.surface
     qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
     qfm_surf_mproxy = qfm_surf_mproxy.surface
     t2 = time.time()
-    print("Making the QFM took ", t2 - t1, " s")
+    print("Making the two QFM surfaces took ", t2 - t1, " s")
 
+    exit()
     # Run VMEC with new QFM surface
     t1 = time.time()
     #try:
