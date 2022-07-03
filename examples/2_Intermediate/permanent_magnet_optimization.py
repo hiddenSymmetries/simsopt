@@ -28,12 +28,12 @@ import pickle
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.field.biotsavart import BiotSavart 
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
-from simsopt._core.optimizable import Optimizable
+from simsopt._core import Optimizable
 from permanent_magnet_helpers import *
 import time
 
@@ -155,6 +155,7 @@ if run_type == 'initialization':
     # locations, save the FAMUS grid and FAMUS solution.
     if is_premade_famus_grid:
         t1 = time.time()
+        #read_FAMUS_grid('SIMSOPT_dipole_solution.focus', pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, '/global/cscratch1/sd/akaptano/muse_famus_cartesian_nphi64_ntheta64_dr1.00e-02_coff1.00e-01_poff2.00e-02/output_regl20.00e+00_regl00.00e+00_nu1.00e+100/')
         read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
         t2 = time.time()
         print('Saving FAMUS solution took ', t2 - t1, ' s')

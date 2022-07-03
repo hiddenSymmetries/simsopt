@@ -6,16 +6,6 @@ import matplotlib.animation as animation
 from pyevtk.hl import pointsToVTK
 from scipy.optimize import minimize
 from scipy.io import netcdf
-from simsopt.field.coil import Current, ScaledCurrent, Coil, coils_via_symmetries
-from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.field.magneticfieldclasses import DipoleField, InterpolatedField
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
-from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.geo.curve import curves_to_vtk
 import time
 
 
@@ -307,6 +297,9 @@ def read_focus_coils(filename):
     """
         Reads in the coils for the MUSE phased TF coils.
     """
+    from simsopt.geo import CurveXYZFourier
+    from simsopt.field import Current
+
     ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
     order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
     coilcurrents = np.zeros(ncoils)
@@ -359,6 +352,13 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     """
         Optimize the coils for the QA or QH configurations.
     """
+
+    from simsopt.geo import CurveLength, CurveCurveDistance, \
+        MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+    from simsopt.objectives import QuadraticPenalty
+    from simsopt.geo import curves_to_vtk
+    from simsopt.objectives import SquaredFlux
+    
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
     ncoils = len(base_curves)
@@ -469,6 +469,8 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
         Load in REGCOIL_PM solution for NCSX half-Tesla example. This
         is likely to have errors and need to double check this.
     """
+    from simsopt.geo import SurfaceRZFourier
+    
     f = netcdf.netcdf_file(filename, 'r', mmap=False)
     nfp = f.variables['nfp'][()]
     ntheta_plasma = f.variables['ntheta_plasma'][()]
@@ -658,6 +660,10 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         Initializes coils for each of the target configurations that are
         used for permanent magnet optimization.
     """
+    from simsopt.geo import create_equally_spaced_curves
+    from simsopt.field import Current, ScaledCurrent, Coil, coils_via_symmetries
+    from simsopt.geo import curves_to_vtk
+    
     if 'muse' in config_flag:
         # Load in pre-optimized coils
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -743,12 +749,12 @@ def calculate_on_axis_B(bs, s):
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
 
 
-def get_FAMUS_dipoles(pms_name):
+def get_FAMUS_dipoles(pms_name, famus_path='../../tests/test_files/'):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples. 
     """
-    famus_file = '../../tests/test_files/' + pms_name
+    famus_file = famus_path + pms_name
 
     # FAMUS files are for the half-period surface 
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
@@ -788,12 +794,15 @@ def get_FAMUS_dipoles(pms_name):
     return m_FAMUS
 
 
-def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
+def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples. 
     """
-    famus_file = '../../tests/test_files/' + pms_name
+    from simsopt.objectives import SquaredFlux
+    from simsopt.field.magneticfieldclasses import DipoleField
+    
+    famus_file = famus_path + pms_name
 
     # FAMUS files are for the half-period surface 
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
@@ -966,6 +975,8 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
     """
         Wrapper function for making Poincare plots.
     """
+    from simsopt.field.magneticfieldclasses import InterpolatedField
+    
     n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
@@ -1010,15 +1021,17 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     my = m[:, 1]
     mz = m[:, 2]
     m0 = pm_opt.m_maxima
-    pho = np.sqrt(np.sum(m ** 2, axis=-1))
+    pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
     Lc = 0
     ox = pm_opt.dipole_grid_xyz[:, 0]
     oy = pm_opt.dipole_grid_xyz[:, 1]
     oz = pm_opt.dipole_grid_xyz[:, 2]
-    phi = np.arctan2(oy, ox)
-    theta = np.arctan2( np.sqrt(ox ** 2 + oy ** 2), oz)
-    mt = -np.sin(phi) * mx + np.cos(phi) * my 
-    mp = np.cos(phi) * np.cos(theta) * mx + np.sin(phi) * np.cos(theta) * my - np.sin(theta) * mz
+    #phi = np.arctan2(oy, ox)
+    #theta = np.arctan2( np.sqrt(ox ** 2 + oy ** 2), oz)
+    #mt = -np.sin(phi) * mx + np.cos(phi) * my 
+    #mp = np.cos(phi) * np.cos(theta) * mx + np.sin(phi) * np.cos(theta) * my - np.sin(theta) * mz
+    mt = np.arctan2(my, mx)
+    mp = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
     coilname = ["pm_{:010d}".format(i) for i in range(1, ndipoles + 1)]
     Ic = 1
     symmetry = 2 
