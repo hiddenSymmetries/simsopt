@@ -564,13 +564,13 @@ def trace_fieldlines(bfield, label, config, s, comm):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 40
-    tmax_fl = 30000
+    nfieldlines = 10
+    tmax_fl = 10000
 
     # Different configurations have different cross-sections
-    if 'muse' in config:
-        R0 = np.linspace(0.2, 0.4, nfieldlines)
-    elif 'qa' in config: 
+    #if 'muse' in config:
+    R0 = np.linspace(0.2, 0.4, nfieldlines)
+    if 'qa' in config: 
         R0 = np.linspace(0.5, 1.0, nfieldlines)
     elif 'qh' in config:
         R0 = np.linspace(0.5, 1.3, nfieldlines)
@@ -741,6 +741,51 @@ def calculate_on_axis_B(bs, s):
     bnormalization = B0avg * surface_area
     print("Bmag at R = ", R0, ", Z = 0: ", B0) 
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
+
+
+def get_FAMUS_dipoles(pms_name):
+    """
+        Reads in and makes vtk plots for a FAMUS grid and
+        solution. Used for the MUSE and NCSX examples. 
+    """
+    famus_file = '../../tests/test_files/' + pms_name
+
+    # FAMUS files are for the half-period surface 
+    ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
+        famus_file, skiprows=3, 
+        usecols=[3, 4, 5, 6, 7, 8, 10, 11], 
+        delimiter=',', unpack=True
+    )
+
+    print('Number of FAMUS dipoles = ', len(ox))
+
+    # Ic = 0 indices are used to denote grid locations
+    # that should be removed because the ports go there
+    nonzero_inds = (Ic == 1.0)
+    ox = ox[nonzero_inds]
+    oy = oy[nonzero_inds]
+    oz = oz[nonzero_inds]
+    m0 = m0[nonzero_inds]
+    p = p[nonzero_inds]
+    mp = mp[nonzero_inds]
+    mt = mt[nonzero_inds]
+    print('Number of FAMUS dipoles (with ports) = ', len(ox))
+
+    phi = np.arctan2(oy, ox)
+
+    # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
+    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
+    rho = p ** momentq
+
+    # Calculate the effective magnet volume
+    mm = rho * m0
+
+    # Convert from spherical to cartesian vectors
+    mx = mm * np.sin(mt) * np.cos(mp) 
+    my = mm * np.sin(mt) * np.sin(mp) 
+    mz = mm * np.cos(mt)
+    m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
+    return m_FAMUS
 
 
 def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
@@ -921,7 +966,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
     """
         Wrapper function for making Poincare plots.
     """
-    n = 16
+    n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     rrange = (np.min(rs), np.max(rs), n)
@@ -938,10 +983,10 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
             b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
         )
     # bsh.to_vtk('dipole_fields')
-    try:
-        trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm)
-    except SystemError:
-        print('Poincare plot failed.')
+    #try:
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm)
+    #except SystemError:
+    #    print('Poincare plot failed.')
 
 
 def make_Bnormal_plots(bs, s_plot, OUT_DIR, bs_filename):
@@ -956,3 +1001,54 @@ def make_Bnormal_plots(bs, s_plot, OUT_DIR, bs_filename):
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
     s_plot.to_vtk(OUT_DIR + bs_filename, extra_data=pointData)
+
+
+def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
+    ndipoles = pm_opt.ndipoles
+    m = pm_opt.m.reshape(ndipoles, 3)
+    mx = m[:, 0]
+    my = m[:, 1]
+    mz = m[:, 2]
+    m0 = pm_opt.m_maxima
+    pho = np.sqrt(np.sum(m ** 2, axis=-1))
+    Lc = 0
+    ox = pm_opt.dipole_grid_xyz[:, 0]
+    oy = pm_opt.dipole_grid_xyz[:, 1]
+    oz = pm_opt.dipole_grid_xyz[:, 2]
+    phi = np.arctan2(oy, ox)
+    theta = np.arctan2( np.sqrt(ox ** 2 + oy ** 2), oz)
+    mt = -np.sin(phi) * mx + np.cos(phi) * my 
+    mp = np.cos(phi) * np.cos(theta) * mx + np.sin(phi) * np.cos(theta) * my - np.sin(theta) * mz
+    coilname = ["pm_{:010d}".format(i) for i in range(1, ndipoles + 1)]
+    Ic = 1
+    symmetry = 2 
+    filename = OUT_DIR + 'SIMSOPT_dipole_solution.focus'
+    
+    with open(filename, "w") as wfile:
+        wfile.write(" # Total number of dipoles,  momentq \n")
+        wfile.write(
+            "{:6d},  {:4d}\n".format(
+                ndipoles, 1
+            )
+        )
+        wfile.write(
+            "#coiltype, symmetry,  coilname,  ox,  oy,  oz,  Ic,  M_0,  pho,  Lc,  mp,  mt \n"
+        )
+        for i in range(ndipoles):
+            wfile.write(
+                " 2, {:1d}, {:}, {:15.8E}, {:15.8E}, {:15.8E}, {:2d}, {:15.8E},"
+                "{:15.8E}, {:2d}, {:15.8E}, {:15.8E} \n".format(
+                    symmetry,
+                    coilname[i],
+                    ox[i],
+                    oy[i],
+                    oz[i],
+                    Ic,
+                    m0[i],
+                    pho[i],
+                    Lc,
+                    mp[i],
+                    mt[i],
+                )
+            )
+    return
