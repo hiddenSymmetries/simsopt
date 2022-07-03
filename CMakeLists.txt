@@ -124,7 +124,6 @@ target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thir
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
-
 #get_cmake_property(_variableNames VARIABLES)
 #list (SORT _variableNames)
 #foreach (_variableName ${_variableNames})
