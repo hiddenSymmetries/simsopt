@@ -102,7 +102,12 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+CHECK_INCLUDE_FILE_CXX("xsimd/xsimd.hpp" HAVE_XSIMD)
+IF(NOT HAVE_XSIMD)
+    message( STATUS "xsimd is not found, including from thirdparty/" )
+    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xsimd/include")
+ENDIF()
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
 if(NOT Boost_FOUND)
@@ -120,7 +125,10 @@ set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+IF(NOT HAVE_XSIMD)
+    target_include_directories(profiling PRIVATE  "thirdparty/xsimd/include")
+ENDIF()
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
 
