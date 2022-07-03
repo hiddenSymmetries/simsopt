@@ -103,6 +103,7 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+include(CheckIncludeFileCXX)
 CHECK_INCLUDE_FILE_CXX("xsimd/xsimd.hpp" HAVE_XSIMD)
 IF(NOT HAVE_XSIMD)
     message( STATUS "xsimd is not found, including from thirdparty/" )
