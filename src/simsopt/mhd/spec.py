@@ -47,6 +47,8 @@ if MPI is not None:
 else:
     MpiPartition = None
 
+from .normal_field import NormalField
+
 __all__ = ['Spec', 'Residue']
 
 
@@ -145,14 +147,6 @@ class Spec(Optimizable):
                                           mpol=si.mpol,
                                           ntor=si.ntor)
 
-        self._volume_current_profile = None
-        self._interface_current_profile = None
-        self._pressure_profile = None
-        self._iota_profile = None
-        self._oita_profile = None
-        self._mu_profile = None
-        self._pflux_profile = None
-
         # Transfer the boundary shape from fortran to the boundary
         # surface object:
         for m in range(si.mpol + 1):
@@ -168,13 +162,46 @@ class Spec(Optimizable):
         self.need_to_run_code = True
         self.counter = -1
 
+        # Set profiles as None - these have to be defined in a script if the user
+        # wish to optimize them
+        self._volume_current_profile = None
+        self._interface_current_profile = None
+        self._pressure_profile = None
+        self._iota_profile = None
+        self._oita_profile = None
+        self._mu_profile = None
+        self._pflux_profile = None
+
+        # Define normal field
+        if not si.lfreebound:
+            self.normal_field = None
+        else:
+            self.normal_field = NormalField( nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor )
+            mmpol=si.mmpol
+            mntor=si.mntor    
+            for mm in range(0, si.mpol+1):
+                for nn in range(-si.ntor, si.ntor+1):
+                    if mm==0 and nn<0: continue
+                    self.normal_field.set_vns( mm, nn, si.vns[mmpol+mm][mntor+nn] )
+            
+                    if not si.istellsym:
+                        self.normal_field.set_vnc( mm, nn, si.vnc[mmpol:mmpol+mm][mntor+nn] )
+
+    
+
+            
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['phiedge', 'curtor']
+        if si.istellsym==0:
+            depends_on=[self._boundary]
+        else:
+            depends_on=[self.normal_field]
+
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=[self._boundary],
+                         depends_on=depends_on,
                          external_dof_setter=Spec.set_dofs)
 
     @property
