@@ -545,7 +545,7 @@ class VmecFieldlinesTests(unittest.TestCase):
                 np.testing.assert_allclose(fl.B_cross_grad_B_dot_grad_alpha, fl.B_cross_grad_B_dot_grad_alpha_alternate, atol=0.02)
 
                 # Check 2 ways of computing cvdrift:
-                cvdrift_alt = 2 * fl.B_reference * fl.L_reference * fl.L_reference \
+                cvdrift_alt = -1 * 2 * fl.B_reference * fl.L_reference * fl.L_reference \
                     * np.sqrt(fl.s)[:, None, None] * fl.B_cross_kappa_dot_grad_alpha \
                     / (fl.modB * fl.modB) * fl.toroidal_flux_sign
                 np.testing.assert_allclose(fl.cvdrift, cvdrift_alt)
@@ -601,9 +601,9 @@ class VmecFieldlinesTests(unittest.TestCase):
             np.testing.assert_allclose(fl.gds2[0, j, :], np.fromstring(lines[16 + j], sep=' '), rtol=2e-4)
             np.testing.assert_allclose(fl.gds21[0, j, :], np.fromstring(lines[20 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gds22[0, j, :], np.fromstring(lines[24 + j], sep=' '), atol=2e-4)
-            np.testing.assert_allclose(fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gbdrift0[0, j, :], np.fromstring(lines[32 + j], sep=' '), atol=1e-4)
-            np.testing.assert_allclose(fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.cvdrift[0, j, :],  np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.cvdrift0[0, j, :], np.fromstring(lines[40 + j], sep=' '), atol=1e-4)
 
     def test_axisymm(self):
