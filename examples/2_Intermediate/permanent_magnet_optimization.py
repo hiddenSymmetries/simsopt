@@ -215,7 +215,7 @@ elif run_type == 'optimization':
 
     # Set some hyperparameters for the optimization
     t1 = time.time()
- 
+
     # Set an initial condition
     #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
     #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
@@ -383,9 +383,10 @@ elif run_type == 'optimization':
         dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
         num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
         np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
-    
+
     # write solution to FAMUS-type file
     write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
+    np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
 
     # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
@@ -414,6 +415,10 @@ elif run_type == 'post-processing':
     os.makedirs(OUT_DIR, exist_ok=True)
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
+    print('m = ', pm_opt.m)
+    m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
+    print('m = ', m_loadtxt)
+    pm_opt.m = m_loadtxt
     pm_opt.out_dir = OUT_DIR 
     pm_opt.plasma_boundary = s
 
@@ -441,12 +446,12 @@ elif run_type == 'post-processing':
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s_plot.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((len(quadpoints_phi), len(quadpoints_theta), 3)) * s_plot.unitnormal(), axis=2)
-    
+
         # need to call set_points again here for the combined field
         Bfield = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
         Bfield_tf = Optimizable.from_file(IN_DIR + 'BiotSavart.json') + DipoleField(pm_opt)
         Bfield.set_points(s.gamma().reshape((-1, 3)))
-    
+
         # need to call set_points again here for the combined field
         m_copy = np.copy(pm_opt.m)
         pm_opt.m = pm_opt.m_proxy
@@ -467,7 +472,7 @@ elif run_type == 'post-processing':
         # Calculate Bnormal
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-        
+
         Bfield = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
         Bfield_tf = ToroidalField(R0=1, B0=RB) + DipoleField(pm_opt)
         Bfield.set_points(s.gamma().reshape((-1, 3)))
@@ -480,13 +485,13 @@ elif run_type == 'post-processing':
         pm_opt.m = m_copy
 
     filename_poincare = 'm'
-    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare)
+    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
     exit()
-    pm_opt.m = pm_opt.m_proxy 
-    b_dipole = DipoleField(pm_opt)
-    b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    filename_poincare = 'mproxy'
-    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare)
+    #pm_opt.m = pm_opt.m_proxy 
+    #b_dipole = DipoleField(pm_opt)
+    #b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    #filename_poincare = 'mproxy'
+    #run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
 
@@ -499,7 +504,6 @@ elif run_type == 'post-processing':
     t2 = time.time()
     print("Making the two QFM surfaces took ", t2 - t1, " s")
 
-    exit()
     # Run VMEC with new QFM surface
     t1 = time.time()
     #try:
@@ -511,7 +515,7 @@ elif run_type == 'post-processing':
     #    equil._boundary = qfm_surf
     #    equil.need_to_run_code = True
     equil.run()
-    
+
     ### Always use the QH VMEC file and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres" 
     equil = Vmec(vmec_input, mpi)

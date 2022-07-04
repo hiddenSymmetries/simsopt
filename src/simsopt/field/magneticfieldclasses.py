@@ -600,7 +600,7 @@ class DipoleField(MagneticField):
             mmy_temp = mmx * np.sin(phi_dipole) + mmy * np.cos(phi_dipole)
             mmx = mmx_temp
             mmy = mmy_temp
-        
+
         if pm_opt.coordinate_flag == 'toroidal':
             phi_dipole = np.arctan2(oy, ox)
             theta_dipole = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - pm_opt.R0)
@@ -610,7 +610,7 @@ class DipoleField(MagneticField):
             mmx = mmx_temp
             mmy = mmy_temp
             mmz = mmz_temp
-        
+
         # Loop over stellarator and field-period symmetry contributions
         for stell in [1, -1]:
             for fp in range(nfp):
