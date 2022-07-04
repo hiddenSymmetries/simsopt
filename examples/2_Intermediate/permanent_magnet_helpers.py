@@ -217,7 +217,7 @@ def read_input():
                     )
             else:
                 coordinate_flag = 'cartesian' 
-    
+
     # Set the remaining parameters
     surface_flag = 'vmec'
     pms_name = None
@@ -263,7 +263,7 @@ def read_input():
     elif config_flag == 'ncsx':
         dr = 0.02
         coff = 0.02
-        poff = 0.1 #0.2
+        poff = 0.1  # 0.2
         surface_flag = 'wout'
         input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
         pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus' 
@@ -358,7 +358,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     from simsopt.objectives import QuadraticPenalty
     from simsopt.geo import curves_to_vtk
     from simsopt.objectives import SquaredFlux
-    
+
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
     ncoils = len(base_curves)
@@ -470,7 +470,7 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
         is likely to have errors and need to double check this.
     """
     from simsopt.geo import SurfaceRZFourier
-    
+
     f = netcdf.netcdf_file(filename, 'r', mmap=False)
     nfp = f.variables['nfp'][()]
     ntheta_plasma = f.variables['ntheta_plasma'][()]
@@ -554,24 +554,25 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
     )
 
 
-def trace_fieldlines(bfield, label, config, s, comm): 
+def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR): 
     """
         Make Poincare plots on a surface as in the trace_fieldlines
         example in the examples/1_Simple/ directory.
     """
     from simsopt.field.tracing import particles_to_vtk, compute_fieldlines, \
         LevelsetStoppingCriterion, plot_poincare_data, \
-        IterationStoppingCriterion
+        IterationStoppingCriterion, SurfaceClassifier
 
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 10
-    tmax_fl = 10000
+    nfieldlines = 80
+    tmax_fl = 50000
 
     # Different configurations have different cross-sections
     #if 'muse' in config:
-    R0 = np.linspace(0.2, 0.4, nfieldlines)
+    #R0 = np.linspace(1.2125346, 1.295, nfieldlines)
+    R0 = np.linspace(0.25, 0.35, nfieldlines)
     if 'qa' in config: 
         R0 = np.linspace(0.5, 1.0, nfieldlines)
     elif 'qh' in config:
@@ -584,16 +585,20 @@ def trace_fieldlines(bfield, label, config, s, comm):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
+    sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+    sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-15, comm=comm,
-        phis=phis, stopping_criteria=[IterationStoppingCriterion(200000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
+        phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        stopping_criteria=[IterationStoppingCriterion(500000)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=150)
+        # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=100, xlims=(0.225, 0.375), ylims=(-0.07, 0.07))
 
 
 def make_qfm(s, Bfield, Bfield_tf):
@@ -663,7 +668,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
     from simsopt.geo import create_equally_spaced_curves
     from simsopt.field import Current, ScaledCurrent, Coil, coils_via_symmetries
     from simsopt.geo import curves_to_vtk
-    
+
     if 'muse' in config_flag:
         # Load in pre-optimized coils
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -801,7 +806,7 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR,
     """
     from simsopt.objectives import SquaredFlux
     from simsopt.field.magneticfieldclasses import DipoleField
-    
+
     famus_file = famus_path + pms_name
 
     # FAMUS files are for the half-period surface 
@@ -906,7 +911,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     plt.figure()
     m0_abs = np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
     mproxy_abs = np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
-    
+
     # get FAMUS rho values for making comparison histograms
     if pm_opt.is_premade_famus_grid:
         famus_file = '../../tests/test_files/' + pm_opt.pms_name
@@ -971,13 +976,24 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
             ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare):
+def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR):
     """
         Wrapper function for making Poincare plots.
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
-    
-    n = 20
+    from simsopt.objectives import SquaredFlux
+    #from simsopt.geo import SurfaceRZFourier
+    #import simsopt
+
+    #TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+    #filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+    # Note that the range must be "full torus"!
+    #s_plot = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="full torus")
+    # Load in the optimized coils from stage_two_optimization.py:
+    #coils_filename = Path(__file__).parent / "../1_Simple/inputs" / "biot_savart_opt.json"
+    #bs = simsopt.load(coils_filename)
+
+    n = 40
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     rrange = (np.min(rs), np.max(rs), n)
@@ -985,8 +1001,24 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
     zrange = (0, np.max(zs), n // 2)
     degree = 2
     t1 = time.time()
+    nphi = len(s_plot.quadpoints_phi)
+    ntheta = len(s_plot.quadpoints_theta)
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+    print('Bnormal = ', Bnormal)
+    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_check")
+    print('Bnormal dipoles = ', Bnormal_dipole)
+    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "dipole_check")
+    print('Bnormal total = ', Bnormal + Bnormal_dipole)
+    make_Bnormal_plots(bs + b_dipole, s_plot, OUT_DIR, "total_check")
+    print('f_B = ', f_B)
+
     if config_flag != 'ncsx':
         bsh = InterpolatedField(
+            #bs, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
             bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
         )
     else:
@@ -995,7 +1027,8 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
         )
     # bsh.to_vtk('dipole_fields')
     #try:
-    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm)
+    bsh.set_points(s_plot.gamma().reshape((-1, 3)))
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm, OUT_DIR)
     #except SystemError:
     #    print('Poincare plot failed.')
 
@@ -1036,7 +1069,7 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     Ic = 1
     symmetry = 2 
     filename = OUT_DIR + 'SIMSOPT_dipole_solution.focus'
-    
+
     with open(filename, "w") as wfile:
         wfile.write(" # Total number of dipoles,  momentq \n")
         wfile.write(

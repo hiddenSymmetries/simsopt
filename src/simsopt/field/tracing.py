@@ -800,7 +800,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None):
     """
     Create a poincare plot. Usage:
 
@@ -827,6 +827,10 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
         axs[row, col].set_ylabel("$z$")
         axs[row, col].set_aspect(aspect)
         axs[row, col].tick_params(direction="in")
+        if xlims is not None:
+            axs[row, col].set_xlim(xlims)
+        if ylims is not None:
+            axs[row, col].set_ylim(ylims)
         for j in range(len(fieldlines_phi_hits)):
             lost = fieldlines_phi_hits[j][-1, 1] < 0
             if mark_lost:
@@ -835,7 +839,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0, c=color)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2.0, linewidths=0, c=color)
     plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()
