@@ -387,6 +387,7 @@ elif run_type == 'optimization':
     # write solution to FAMUS-type file
     write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
     np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
+    np.savetxt(OUT_DIR + class_filename + "_proxy.txt", pm_opt.m_proxy)
 
     # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
@@ -416,9 +417,14 @@ elif run_type == 'post-processing':
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     print('m = ', pm_opt.m)
+
+    #m_loadtxt = get_FAMUS_dipoles(pms_name)
     m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
+    mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
+    #mproxy_loadtxt = np.copy(m_loadtxt)
     print('m = ', m_loadtxt)
     pm_opt.m = m_loadtxt
+    pm_opt.m_proxy = mproxy_loadtxt
     pm_opt.out_dir = OUT_DIR 
     pm_opt.plasma_boundary = s
 
@@ -486,12 +492,13 @@ elif run_type == 'post-processing':
 
     filename_poincare = 'm'
     run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
-    exit()
-    #pm_opt.m = pm_opt.m_proxy 
-    #b_dipole = DipoleField(pm_opt)
-    #b_dipole.set_points(s.gamma().reshape((-1, 3)))
-    #filename_poincare = 'mproxy'
-    #run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
+    m_copy = np.copy(pm_opt.m)
+    pm_opt.m = pm_opt.m_proxy 
+    b_dipole = DipoleField(pm_opt)
+    b_dipole.set_points(s.gamma().reshape((-1, 3)))
+    filename_poincare = 'mproxy'
+    run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
+    pm_opt.m = m_copy
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
 
