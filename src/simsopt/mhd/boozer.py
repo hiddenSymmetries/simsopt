@@ -27,8 +27,10 @@ except ImportError as e:
     logger.debug(str(e))
 
 from .vmec import Vmec
-
 from .._core.optimizable import Optimizable
+from .._core.types import RealArray
+
+__all__ = ['Boozer', 'Quasisymmetry']
 
 
 class Boozer(Optimizable):
@@ -284,7 +286,7 @@ class Quasisymmetry(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def J(self) -> np.ndarray:
+    def J(self) -> RealArray:
         """
         Carry out the calculation of the quasisymmetry error.
 

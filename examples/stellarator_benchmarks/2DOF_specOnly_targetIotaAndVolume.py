@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
+import os
 import logging
 import numpy as np
 
 from simsopt.mhd import Spec
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
-import os
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from

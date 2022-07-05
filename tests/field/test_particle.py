@@ -1,7 +1,14 @@
+import unittest
+import logging
+
+logging.basicConfig()
+
+import numpy as np
+
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
     IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
@@ -13,10 +20,8 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.geo.curverzfourier import CurveRZFourier
 import simsoptpp as sopp
-import numpy as np
-import unittest
-import logging
-logging.basicConfig()
+
+
 try:
     import pyevtk
     with_evtk = True
@@ -166,8 +171,8 @@ class ParticleTracingTesting(unittest.TestCase):
         if with_evtk:
             sc.to_vtk('/tmp/classifier')
         # check that the axis is classified as inside the domain
-        assert sc.evaluate(ma.gamma()[:1, :]) > 0
-        assert sc.evaluate(2*ma.gamma()[:1, :]) < 0
+        assert sc.evaluate_xyz(ma.gamma()[:1, :]) > 0
+        assert sc.evaluate_xyz(2*ma.gamma()[:1, :]) < 0
         np.random.seed(1)
         gc_tys, gc_phi_hits = trace_particles_starting_on_curve(
             ma, bsh, nparticles, tmax=1e-4, seed=1, mass=m, charge=q,
@@ -380,7 +385,7 @@ class ParticleTracingTesting(unittest.TestCase):
         if with_evtk:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
         assert gc_phi_hits[0][-1][1] == -1
-        assert np.all(sc.evaluate(gc_tys[0][:, 1:4]) > 0)
+        assert np.all(sc.evaluate_xyz(gc_tys[0][:, 1:4]) > 0)
 
     def test_tracing_on_surface_runs(self):
         bsh = self.bsh

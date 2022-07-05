@@ -27,14 +27,14 @@ import os
 import numpy as np
 from pathlib import Path
 from scipy.optimize import minimize
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, ScaledCurrent, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
-from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-from simsopt.geo.finitebuild import create_multifilament_grid
-from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, LpCurveCurvature
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.objectives.utilities import QuadraticPenalty
+from simsopt.field import BiotSavart
+from simsopt.field import Current, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
+from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo import create_multifilament_grid
+from simsopt.geo import CurveLength, CurveCurveDistance, LpCurveCurvature
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.objectives import QuadraticPenalty
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -99,7 +99,7 @@ for i in range(ncoils):
     # of the currents
     if i == 0:
         curr.fix_all()
-    base_currents.append(ScaledCurrent(curr, 1e5/nfil))
+    base_currents.append(curr * (1e5/nfil))
 
 # use sum here to concatenate lists
 base_curves_finite_build = sum([

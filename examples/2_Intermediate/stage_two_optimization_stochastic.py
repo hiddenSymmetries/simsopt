@@ -27,15 +27,15 @@ the latter is independent for each coil.
 import os
 from pathlib import Path
 import numpy as np
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, Coil, coils_via_symmetries
-from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, \
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.geo import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.field import BiotSavart
+from simsopt.field import Current, Coil, coils_via_symmetries
+from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, ArclengthVariation
 from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
-from simsopt.objectives.utilities import QuadraticPenalty, MPIObjective
+from simsopt.objectives import QuadraticPenalty, MPIObjective
 from randomgen import PCG64
 
 try:
