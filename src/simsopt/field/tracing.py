@@ -817,16 +817,26 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     import matplotlib.pyplot as plt
     from math import ceil, sqrt
     nrowcol = ceil(sqrt(len(phis)))
-    fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(16, 10))
+    #fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
+    fig = plt.figure()
+    gs = fig.add_gridspec(nrowcol, nrowcol, hspace=0, wspace=0)
+    axs = gs.subplots()  # sharex=True, sharey=True)
+    #axs = gs.subplots(sharex=True, sharey=True)
     color = None
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$ ", loc='right', y=0.0)
-        axs[row, col].set_xlabel("$r$")
-        axs[row, col].set_ylabel("$z$")
-        axs[row, col].set_aspect(aspect)
-        axs[row, col].tick_params(direction="in")
+        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
+        if row == nrowcol - 1:
+            axs[row, col].set_xlabel("$r$")
+        if col == 0:
+            axs[row, col].set_ylabel("$z$")
+        if col == 1:
+            axs[row, col].set_yticklabels([])
+        if row == 0:
+            axs[row, col].set_xticklabels([])
+        #axs[row, col].set_aspect(aspect)
+        #axs[row, col].tick_params(direction="in")
         if xlims is not None:
             axs[row, col].set_xlim(xlims)
         if ylims is not None:
@@ -839,7 +849,11 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2.0, linewidths=0, c=color)
-    plt.tight_layout()
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.5, linewidths=0, c=color)
+
+        #axs[row, col].set_axisbelow(True)
+        plt.rc('axes', axisbelow=True)
+        axs[row, col].grid(True, linewidth=0.5)
+    #plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()

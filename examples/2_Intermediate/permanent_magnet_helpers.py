@@ -567,7 +567,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
 
     # set fieldline tracer parameters
     nfieldlines = 80
-    tmax_fl = 50000
+    tmax_fl = 40000
 
     # Different configurations have different cross-sections
     #if 'muse' in config:
@@ -598,7 +598,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     # make the poincare plots
     if comm is None or comm.rank == 0:
         # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=100, xlims=(0.225, 0.375), ylims=(-0.07, 0.07))
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075))
 
 
 def make_qfm(s, Bfield, Bfield_tf):
