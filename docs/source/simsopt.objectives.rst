@@ -36,10 +36,3 @@ simsopt.objectives.utilities module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.objectives
-   :members:
-   :undoc-members:
-   :show-inheritance:

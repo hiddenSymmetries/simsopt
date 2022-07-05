@@ -3,6 +3,8 @@ from math import pi
 import numpy as np
 from .curve import JaxCurve
 
+__all__ = ['CurveHelical']
+
 
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     A = dofs[:order]
@@ -59,3 +61,23 @@ class CurveHelical(JaxCurve):
         order = int(len(dofs)/2)
         for i in range(2):
             self.coefficients[i] = dofs[i*order:(i+1)*order]
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = list(self.quadpoints)
+        d["order"] = self.order
+        d["n0"] = self.n0
+        d["l0"] = self.l0
+        d["R0"] = self.R0
+        d["r0"] = self.r0
+        d["x0"] = list(self.local_full_x)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = cls(d["quadpoints"], d["order"], d["n0"], d["l0"], d["R0"],
+                    d["r0"])
+        curve.local_full_x = d["x0"]
+        return curve

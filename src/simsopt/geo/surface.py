@@ -1,7 +1,7 @@
 import abc
 
 import numpy as np
-
+from monty.json import MSONable, MontyDecoder
 
 try:
     from pyevtk.hl import gridToVTK
@@ -10,8 +10,10 @@ except ImportError:
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from ..util.dev import SimsoptRequires
-from .plot import fix_matplotlib_3d
+from .._core.dev import SimsoptRequires
+from .plotting import fix_matplotlib_3d
+
+__all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
 
 class Surface(Optimizable):
@@ -508,6 +510,13 @@ class Surface(Optimizable):
 
         return function_interpolated
 
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["nfp"] = self.nfp
+        d["quadpoints_phi"] = list(self.quadpoints_phi)
+        d["quadpoints_theta"] = list(self.quadpoints_theta)
+        return d
+
 
 def signed_distance_from_surface(xyz, surface):
     """
@@ -577,12 +586,21 @@ class SurfaceClassifier():
             rule, [rmin, rmax, nr], [0., 2*np.pi, nphi], [zmin, zmax, nz], 1, True)
         self.dist.interpolate_batch(fbatch)
 
-    def evaluate(self, xyz):
+    def evaluate_xyz(self, xyz):
         rphiz = np.zeros_like(xyz)
         rphiz[:, 0] = np.linalg.norm(xyz[:, :2], axis=1)
         rphiz[:, 1] = np.mod(np.arctan2(xyz[:, 1], xyz[:, 0]), 2*np.pi)
         rphiz[:, 2] = xyz[:, 2]
-        d = np.zeros((xyz.shape[0], 1))
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((xyz.shape[0], 1))
+        self.dist.evaluate_batch(rphiz, d)
+        return d
+
+    def evaluate_rphiz(self, rphiz):
+        # initialize to -1 since the regular grid interpolant will just keep
+        # that value when evaluated outside of bounds
+        d = -np.ones((rphiz.shape[0], 1))
         self.dist.evaluate_batch(rphiz, d)
         return d
 
@@ -606,7 +624,7 @@ class SurfaceClassifier():
         RPhiZ[:, 0] = R.flatten()
         RPhiZ[:, 1] = Phi.flatten()
         RPhiZ[:, 2] = Z.flatten()
-        vals = np.zeros((R.size, 1))
+        vals = -np.ones((R.size, 1))
         self.dist.evaluate_batch(RPhiZ, vals)
         vals = vals.reshape(R.shape)
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
@@ -638,6 +656,16 @@ class SurfaceScaled(Optimizable):
                 self.unfix(j)
             else:
                 self.fix(j)
+
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        surf = decoder.process_decoded(d["surf"])
+        scale_factors = decoder.process_decoded(d["scale_factors"])
+        return cls(surf, scale_factors)
 
 
 def best_nphi_over_ntheta(surf):

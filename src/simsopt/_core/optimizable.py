@@ -9,21 +9,23 @@ build an optimization problem in a graph like manner.
 
 from __future__ import annotations
 
-import types
 import weakref
 import hashlib
 from collections.abc import Callable as ABC_Callable, Hashable
-from collections import defaultdict
 from numbers import Real, Integral
-from typing import Union, Tuple, Dict, Callable, Sequence, \
-    MutableSequence as MutSeq, List
+from typing import Union, Tuple, Dict, Callable, Sequence, List
 from functools import lru_cache
 import logging
+import json
+from pathlib import Path
+from fnmatch import fnmatch
 
 import numpy as np
+from monty.json import MSONable, MontyDecoder, MontyEncoder
+from monty.io import zopen
 
-from ..util.dev import SimsoptRequires
-from ..util.types import RealArray, StrArray, BoolArray, Key
+from .dev import SimsoptRequires
+from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
@@ -43,6 +45,9 @@ except ImportError:
     plt = None
 
 log = logging.getLogger(__name__)
+
+__all__ = ['Optimizable', 'make_optimizable', 'load', 'save',
+           'OptimizableSum', 'ScaledOptimizable']
 
 
 class DOFs:
@@ -308,6 +313,10 @@ class DOFs:
         """
         return self._lb[self._free]
 
+    @property
+    def full_lower_bounds(self) -> RealArray:
+        return self._lb
+
     @lower_bounds.setter
     def lower_bounds(self, lower_bounds: RealArray) -> None:
         """
@@ -330,6 +339,10 @@ class DOFs:
         """
         return self._ub[self._free]
 
+    @property
+    def full_upper_bounds(self) -> RealArray:
+        return self._ub
+
     @upper_bounds.setter
     def upper_bounds(self, upper_bounds: RealArray) -> None:
         """
@@ -351,6 +364,10 @@ class DOFs:
             (Lower bounds list, Upper bounds list)
         """
         return (self.lower_bounds, self.upper_bounds)
+
+    @property
+    def full_bounds(self) -> Tuple[RealArray, RealArray]:
+        return (self.full_lower_bounds, self.full_upper_bounds)
 
     def update_lower_bound(self, key: Key, val: Real) -> None:
         """
@@ -410,7 +427,7 @@ class DOFs:
         return self._names
 
 
-class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
+class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
     """
     Experimental callable ABC that provides lego-like optimizable objects
     that can be used to partition the optimization problem into a graph.
@@ -532,7 +549,7 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._id = ImmutableId(next(self.__class__._ids))
         self.name = self.__class__.__name__ + str(self._id.id)
         hash_str = hashlib.sha256(self.name.encode('utf-8')).hexdigest()
-        self.hash = int(hash_str, 16) % 10**32  # 32 digit int as hash
+        self._hash = int(hash_str, 16) % 10**32  # 32 digit int as hash
         self._children = set()  # This gets populated when the object is passed
         # as argument to another Optimizable object
         self.return_fns = WeakKeyDefaultDict(list)  # Store return fn's required by each child
@@ -579,13 +596,14 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         self._update_full_dof_size_indices()
         # Inform the object that it doesn't have valid cache
         self._set_new_x()
-        super().__init__(**kwargs)
+        log.debug(f"Unused arguments for {self.__class__} are {kwargs}")
+        super().__init__()
 
     def __str__(self):
         return self.name
 
     def __hash__(self) -> int:
-        return self.hash
+        return self._hash
 
     def __eq__(self, other: Optimizable) -> bool:
         """
@@ -1054,6 +1072,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         return self._dofs.lower_bounds
 
     @property
+    def local_full_lower_bounds(self) -> RealArray:
+        return self._dofs.full_lower_bounds
+
+    @property
     def upper_bounds(self) -> RealArray:
         """
         Upper bounds of the free DOFs associated with the current
@@ -1069,6 +1091,10 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
         object
         """
         return self._dofs.upper_bounds
+
+    @property
+    def local_full_upper_bounds(self) -> RealArray:
+        return self._dofs.full_upper_bounds
 
     @local_upper_bounds.setter
     def local_upper_bounds(self, lub: RealArray) -> None:
@@ -1273,6 +1299,107 @@ class Optimizable(ABC_Callable, Hashable, metaclass=OptimizableMeta):
 
         return G, pos
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        if len(self.local_full_x):
+            d["x0"] = list(self.local_full_x)
+            d["names"] = self.local_full_dof_names
+            d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
+            d["lower_bounds"] = list(self.local_full_lower_bounds)
+            d["upper_bounds"] = list(self.local_full_upper_bounds)
+        # d["external_dof_setter"] = self.local_dof_setter
+        if self.parents:
+            d["depends_on"] = []
+            for parent in self.parents:
+                d["depends_on"].append(parent.as_dict())
+
+        return d
+
+    @staticmethod
+    def _decode(d):
+        parents_dict = d.pop("depends_on") if "depends_on" in d else None
+        if parents_dict:
+            parents = []
+            decoder = MontyDecoder()
+            for pdict in parents_dict:
+                parents.append(decoder.process_decoded(pdict))
+            return parents
+
+    @classmethod
+    def from_dict(cls, d):
+        parents = Optimizable._decode(d)
+        return cls(depends_on=parents, **d)
+
+    def save(self, filename=None, fmt=None, **kwargs):
+        filename = filename or ""
+        fmt = "" if fmt is None else fmt.lower()
+        fname = Path(filename).name
+
+        if fmt == "json" or fnmatch(fname.lower(), "*.json"):
+            if "cls" not in kwargs:
+                kwargs["cls"] = MontyEncoder
+            if "indent" not in kwargs:
+                kwargs["indent"] = 2
+            s = json.dumps(self.as_dict(), **kwargs)
+            if filename:
+                with zopen(filename, "wt") as f:
+                    f.write(s)
+            return s
+        else:
+            raise ValueError(f"Invalid format: `{str(fmt)}`")
+
+    @classmethod
+    def from_str(cls, input_str: str, fmt="json"):
+        fmt_low = fmt.lower()
+        if fmt_low == "json":
+            return json.loads(input_str, cls=MontyDecoder)
+        else:
+            raise ValueError(f"Invalid format: `{str(fmt)}`")
+
+    @classmethod
+    def from_file(cls, filename: str):
+        fname = Path(filename).name
+        if fnmatch(filename, "*.json*") or fnmatch(fname, "*.bson*"):
+            with zopen(filename, "rt") as f:
+                contents = f.read()
+            return cls.from_str(contents, fmt="json")
+
+
+def load(filename, *args, **kwargs):
+    """
+    Function to load simsopt object from a file.
+    Only JSON format is supported at this time. Support for additional
+    formats will be added in future
+    Args:
+        filename:
+            Name of file from which simsopt object has to be initialized
+    Returns:
+        Simsopt object
+    """
+    fname = Path(filename).suffix.lower()
+    if (not fname == '.json'):
+        raise ValueError(f"Invalid format: `{str(fname[1:])}`")
+
+    with zopen(filename, "rt") as fp:
+        if "cls" not in kwargs:
+            kwargs["cls"] = MontyDecoder
+        return json.load(fp, *args, **kwargs)
+
+
+def save(simsopt_objects, filename, *args, **kwargs):
+    fname = Path(filename).suffix.lower()
+    if (not fname == '.json'):
+        raise ValueError(f"Invalid format: `{str(fname[1:])}`")
+
+    with zopen(filename, "wt") as fp:
+        if "cls" not in kwargs:
+            kwargs["cls"] = MontyEncoder
+        if "indent" not in kwargs:
+            kwargs["indent"] = 2
+        return json.dump(simsopt_objects, fp, *args, **kwargs)
+
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
     """
@@ -1422,12 +1549,25 @@ class ScaledOptimizable(Optimizable):
         super().__init__(depends_on=[opt])
 
     def J(self):
-        return self.factor * self.opt.J()
+        return float(self.factor) * self.opt.J()
 
     @derivative_dec
     def dJ(self):
         # Next line uses __rmul__ function for the Derivative class
-        return self.factor * self.opt.dJ(partials=True)
+        return float(self.factor) * self.opt.dJ(partials=True)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["factor"] = self.factor
+        d["opt"] = self.opt.as_dict()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        opt = MontyDecoder().process_decoded(d["opt"])
+        return cls(d["factor"], opt)
 
 
 class OptimizableSum(Optimizable):
@@ -1454,3 +1594,21 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["opts"] = []
+        for opt in self.opts:
+            d["opts"].append(opt.as_dict())
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        opts = []
+        decoder = MontyDecoder()
+        for odict in d["opts"]:
+            opts.append(decoder.process_decoded(odict))
+        return cls(opts)
+

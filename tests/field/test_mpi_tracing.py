@@ -1,19 +1,21 @@
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.util.zoo import get_ncsx_data
-from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
-from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-import simsoptpp as sopp
-import numpy as np
 import unittest
 import logging
 logging.basicConfig()
+
+import numpy as np
 try:
     from mpi4py import MPI
     with_mpi = True
 except ImportError:
     with_mpi = False
+
+from simsopt.field.coil import coils_via_symmetries
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.configs.zoo import get_ncsx_data
+from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
+from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
+from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
+import simsoptpp as sopp
 
 
 class MPITracingTesting(unittest.TestCase):
