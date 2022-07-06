@@ -49,7 +49,7 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def boozer_penalty_constraints_accumulate(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weighting=None):
+    def boozer_penalty_constraints_accumulate(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weighting=None, reg=False):
         r"""
         Define the residual
 
@@ -91,7 +91,7 @@ class BoozerSurface(Optimizable):
         s.set_dofs(sdofs)
         
 
-        boozer = boozer_surface_residual_accumulate(s, iota, G, self.bs, derivatives=derivatives, weighting=weighting)
+        boozer = boozer_surface_residual_accumulate(s, iota, G, self.bs, derivatives=derivatives, weighting=weighting, reg=reg)
         lab = self.label.J()
         
         rnl = boozer[0]
@@ -176,6 +176,13 @@ class BoozerSurface(Optimizable):
 
         val = 0.5 * np.sum(r[:num_points]**2)/num_points + np.sum(0.5*r[num_points:]**2)
 
+        if reg:
+            tik_weight=1e-3
+            tik =0.5* tik_weight * np.sum(s.x**2)
+            val+=tik
+
+
+
 #        if reg:
 #            if weighting == 'dS' or weighting == 'dS/B':
 #                wtol = 0.033
@@ -220,12 +227,16 @@ class BoozerSurface(Optimizable):
 #                dval[:nsurfdofs]+=dregval
                 
 #        print(val, np.linalg.norm(dval))
+        if reg:
+            dtik_dc = tik_weight * s.x
+            dval[:nsurfdofs]+=dtik_dc
+
         if scalarize:
             return val, dval
         else:
             return r, J
 
-    def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True, weighting=None):
+    def boozer_exact_constraints(self, xl, derivatives=0, optimize_G=True, weighting=None, reg=False):
         r"""
         This function returns the optimality conditions corresponding to the minimization problem
 
@@ -261,7 +272,7 @@ class BoozerSurface(Optimizable):
         ntheta = s.quadpoints_theta.size
         num_points = 3 * nphi * ntheta
 
-        boozer = boozer_surface_residual_accumulate(s, iota, G, bs, derivatives=derivatives+1, weighting=weighting)
+        boozer = boozer_surface_residual_accumulate(s, iota, G, bs, derivatives=derivatives+1, weighting=weighting, reg=reg)
         val, dval = boozer[:2]
 
         dl = np.zeros((xl.shape[0]-2,))
@@ -333,7 +344,7 @@ class BoozerSurface(Optimizable):
 
         return resdict
 
-    def minimize_boozer_penalty_constraints_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, weighting=None, reg=False):
+    def minimize_boozer_penalty_constraints_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, weighting=None, reg=False, hessian=False):
         r"""
         This function tries to find the surface that approximately solves
 
@@ -343,23 +354,33 @@ class BoozerSurface(Optimizable):
 
         where :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
         the Boozer residuals at quadrature points :math:`1,\dots,n`.
-        This is done using LBFGS.
+        This is done using BFGS.
         """
-
+        if not self.need_to_run_code:
+            return self.res
+        
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
-        fun = lambda x: self.boozer_penalty_constraints(
-            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting, reg=reg)
+
+        def fun(x):
+            booz = self.boozer_penalty_constraints(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting, reg=reg)
+            return booz
+            
+        #fun = lambda x: self.boozer_penalty_constraints(
+        #    x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting, reg=reg)
         res = minimize(
             fun, x, jac=True, method='BFGS',
             options={'maxiter': maxiter, 'gtol': tol})
+        
 
         resdict = {
-                "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type':'LS', 'solver':'LVM'
+                "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type':'ls', 'solver':'BFGS',
+                "firstorderop":res.jac, "weighting":weighting, "constraint_weight":constraint_weight, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
         }
+        
         if G is None:
             s.set_dofs(res.x[:-1])
             iota = res.x[-1]
@@ -371,6 +392,15 @@ class BoozerSurface(Optimizable):
         resdict['s'] = s
         resdict['iota'] = iota
 
+        if hessian:
+            val, dval, d2val = self.boozer_penalty_constraints_accumulate(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting, reg=reg)
+            P, L, U = lu(d2val)
+            resdict["PLU"] = (P, L, U)
+        self.res = resdict
+        self.need_to_run_code = False
+        
+        print(f"BFGS - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
         return resdict
 
 
@@ -403,6 +433,7 @@ class BoozerSurface(Optimizable):
             val, dval, d2val = self.boozer_penalty_constraints_accumulate(
                 x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
             norm = np.linalg.norm(dval, ord=np.inf)
+            print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
             i = i+1
 
         P, L, U = lu(d2val)
@@ -417,8 +448,8 @@ class BoozerSurface(Optimizable):
             G = x[-1]
         res = {
             "residual": r, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None, "type": "ls",
-            "PLU":(P,L,U), "firstorderop":val, "weighting":weighting, "constraint_weight":constraint_weight, "iota":iota, "G":G,
-            "type":'ls'
+            "PLU":(P,L,U), "firstorderop":dval, "weighting":weighting, "constraint_weight":constraint_weight, "iota":iota, "G":G,
+            "type":'ls', "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
         }
 
         
@@ -485,17 +516,18 @@ class BoozerSurface(Optimizable):
             "iota":iota,"G":G, "iter":i, "weighting":weighting, "type":"ls", "constraint_weight":constraint_weight,
             "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
         }
+        print(f"LVM - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
 
         self.res=resdict
         if hessian:
             val, dval, d2val = self.boozer_penalty_constraints_accumulate(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting, reg=reg)
             P, L, U = lu(d2val)
             resdict["PLU"] = (P, L, U)
         return resdict
 
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], weighting=None):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], weighting=None, reg=False):
         r"""
         This function solves the constrained optimization problem
 
@@ -523,8 +555,9 @@ class BoozerSurface(Optimizable):
             xl = np.concatenate((s.get_dofs(), [iota, G], lm))
         else:
             xl = np.concatenate((s.get_dofs(), [iota], lm))
-        val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting)
+        val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting, reg=reg)
         norm = np.linalg.norm(val, ord=np.inf)
+        print(np.linalg.norm(val, ord=np.inf), np.linalg.cond(dval[:-1, :-1]), flush=True)
         i = 0
         while i < maxiter and norm > tol:
             if s.stellsym:
@@ -539,9 +572,10 @@ class BoozerSurface(Optimizable):
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     dx += np.linalg.solve(dval, val-dval@dx)
                 xl = xl - dx
-            val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting)
+            val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None, weighting=weighting, reg=reg)
             norm = np.linalg.norm(val, ord=np.inf)
             i = i + 1
+            print(np.linalg.norm(val, ord=np.inf), np.linalg.cond(dval[:-1, :-1]), flush=True)
 
         if s.stellsym:
             lm = xl[-2]
@@ -561,7 +595,7 @@ class BoozerSurface(Optimizable):
             iota = xl[-3]
         
         r = self.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=0, scalarize=False, optimize_G=G is not None, weighting=weighting)
+            x, derivatives=0, constraint_weight=0, scalarize=False, optimize_G=G is not None, weighting=weighting, reg=reg)
 
         res = {
             "residual": r, "gradient": b, "success": norm <= tol,
