@@ -68,6 +68,15 @@ if run_type == 'initialization':
 
     t1 = time.time()
 
+    from mpi4py import MPI
+    from simsopt.util.mpi import MpiPartition
+    from simsopt.mhd.vmec import Vmec
+    mpi = MpiPartition(ngroups=4)
+    comm = MPI.COMM_WORLD
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA" 
+    equil = Vmec(vmec_input, mpi)
+    equil.boundary = s
+    equil.run()
     # Don't have NCSX TF coils, just the Bn field on the surface 
     # so have to treat the NCSX example separately.
     quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
