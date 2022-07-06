@@ -501,6 +501,53 @@ class CircularCoil(MagneticField):
         return field
 
 
+class WindingSurfaceField(MagneticField):
+    """
+    Magnetic field object associated with a winding surface coil
+    optimization with a surface potential.
+
+    Args:
+        current_potential: CurrentPotential class object containing
+            the winding surface and the values needed for computing 
+            the magnetic field and related quantities. 
+    """
+
+    def __init__(self, current_potential): 
+        MagneticField.__init__(self)
+        self.current_potential = current_potential
+        self.K = current_potential.K
+        self.winding_surface_points = (current_potential.winding_surface.gamma()).reshape((-1, 3))
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        B[:] = sopp.WindingSurfaceB(points, self.winding_surface_points, self.K) 
+
+    def _A_impl(self, A):
+        points = self.get_points_cart_ref()
+        A[:] = sopp.WindingSurfaceA(points, self.winding_surface_points, self.K) 
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        dB[:] = sopp.WindingSurfacedB(points, self.winding_surface_points, self.K) 
+
+    def _dA_by_dX_impl(self, dA):
+        points = self.get_points_cart_ref()
+        dA[:] = sopp.WindingSurfacedA(points, self.winding_surface_points, self.K) 
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["current_potential"] = self.current_potential
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        field = cls(d["current_potential"])
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
+
 class Dommaschk(MagneticField):
     """
     Vacuum magnetic field created by an explicit representation of the magnetic
