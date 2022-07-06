@@ -141,7 +141,7 @@ class ToroidalFlux(Optimizable):
         return out
 
 
-def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives=0, weighting=None, reg=False):
+def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives=0, weighting=None):
     user_provided_G = G is not None
     if not user_provided_G:
         G = 2. * np.pi * np.sum([np.abs(c.current.x) for c in biotsavart.coils]) * (4 * np.pi * 10**(-7) / (2 * np.pi))
@@ -187,11 +187,6 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
     rtil_flattened = rtil.reshape((nphi*ntheta*3, ))
     r = rtil_flattened
     val = 0.5 * np.sum(r**2)
-
-    if reg:
-        tik_weight=1e-3
-        tik =0.5* tik_weight * np.sum(surface.x**2)
-        val+=tik
 
 
     if derivatives == 0:
@@ -253,10 +248,6 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
     dval = np.sum(r[:, None]*J, axis=0)
     
 
-
-    if reg:
-        dtik_dc = tik_weight * surface.x
-        dval[:nsurfdofs]+=dtik_dc
 
 
 
@@ -373,13 +364,6 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
             d2val[nsurfdofs+1, :nsurfdofs]  += resd2residual_by_dcdG        # noqa (2, 0) dGdc
             d2val[nsurfdofs+1, nsurfdofs]   += 0.                           # noqa (2, 1) dGdiota
             d2val[nsurfdofs+1, nsurfdofs+1] += 0.                           # noqa (2, 2) dGdG
-
-
-    if reg:
-        d2tik_dc2 = tik_weight * np.eye(nsurfdofs, nsurfdofs)
-        d2val[:nsurfdofs, :nsurfdofs]+=d2tik_dc2
-
-
 
     return val, dval, d2val
 
