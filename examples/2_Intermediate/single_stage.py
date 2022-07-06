@@ -7,7 +7,7 @@ from simsopt.mhd import Vmec
 from simsopt.mhd import QuasisymmetryRatioResidual
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
-
+import logging
 from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.objectives import Weight
@@ -19,7 +19,8 @@ from simsopt.field import BiotSavart
 from simsopt.field import Current, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
-
+from simsopt._core.finite_difference import MPIFiniteDifference
+logging.basicConfig(level=logging.INFO)
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
 and coils throughout the volume.
@@ -35,7 +36,7 @@ mpi = MpiPartition(25)
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
-vmec = Vmec(filename, mpi=mpi)
+vmec = Vmec(filename, mpi=mpi, verbose=False)
 
 # Define parameter space:
 surf = vmec.boundary
@@ -143,8 +144,28 @@ number_vmec_dofs = int(len(surf.get_dofs()))
 def fun(dofs):
     JF.x = dofs[:-number_vmec_dofs]
     surf.set_dofs(dofs[-number_vmec_dofs:])
-    J = (vmec.aspect()-7)**2+np.sum((qs.residuals())**2)+JF.J()
-    grad = JF.dJ()
+    J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
+
+    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi, diff_method="forward", abs_step=1e-7)
+    aspect_ratio_jacobian.mpi_apart()
+    aspect_ratio_jacobian.init_log()
+    if mpi.proc0_world:
+        aspect_ratio_dJ = aspect_ratio_jacobian.jac()
+    mpi.together()
+    if mpi.proc0_world:
+        aspect_ratio_jacobian.log_file.close()
+
+    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi, diff_method="forward", abs_step=1e-7)
+    qs_residuals_jacobian.mpi_apart()
+    qs_residuals_jacobian.init_log()
+    if mpi.proc0_world:
+        qs_residuals_dJ = qs_residuals_jacobian.jac()
+    mpi.together()
+    if mpi.proc0_world:
+        qs_residuals_jacobian.log_file.close()
+
+
+    grad = np.concatenate((aspect_ratio_dJ.T,qs_residuals_dJ.T,JF.dJ()))
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
@@ -157,20 +178,20 @@ def fun(dofs):
     outstr += f", Quasisymmetry objective={qs.total()}"
     outstr += f", aspect={vmec.aspect()}"
     print(outstr)
-    return J#, grad
+    return J, grad
 
 
 print("Quasisymmetry objective before optimization:", qs.total())
 # print("Total objective before optimization:", prob.objective())
 
 # Define objective function
-# initial_dofs = np.concatenate((JF.x, surf.get_dofs()))
+initial_dofs = np.concatenate((JF.x, surf.get_dofs()))
 # res = minimize(fun, initial_dofs)
-# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
-                                        (qs.residuals, 0, 1),
-                                        (Jf.J, 0, 1)])
-least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=2)
+res = minimize(fun, initial_dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
+#                                         (qs.residuals, 0, 1),
+#                                         (Jf.J, 0, 1)])
+# least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=2)
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
