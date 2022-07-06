@@ -5,13 +5,8 @@ import numpy as np
 from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec
 from simsopt.mhd import QuasisymmetryRatioResidual
-from simsopt.objectives import LeastSquaresProblem
-from simsopt.solve import least_squares_mpi_solve
-# import logging
-from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
@@ -20,37 +15,32 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
 from simsopt._core.finite_difference import MPIFiniteDifference
-# logging.basicConfig(level=logging.INFO)
 """
-Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
-and coils throughout the volume.
+Optimize a VMEC equilibrium for quasisymmetry good coils
 """
 
-# This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
-# concurrent function evaluations for 1-sided finite difference
-# gradients.
 print("Running 2_Intermediate/single_stage.py")
 print("=============================================")
 
-mpi = MpiPartition(25)
+mpi = MpiPartition()
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
-vmec = Vmec(filename, mpi=mpi, verbose=False)
+vmec = Vmec(filename, mpi=mpi, verbose=True)
 
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 1
+max_mode = 4
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
 
-print('Parameter space:', surf.dof_names)
+# print('Parameter space:', surf.dof_names)
 
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
-                                np.arange(0, 1.01, 0.1),  # Radii to target
+                                [0.1, 0.5], #np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
@@ -145,12 +135,13 @@ def fun(dofs):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
     vmec.x = dofs[-number_vmec_dofs:]
-    surf.x = dofs[-number_vmec_dofs:] # which one should I use?
+    # surf.x = dofs[-number_vmec_dofs:] # This one should be changed automatically
 
-    J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
+    # J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
+    J = vmec.aspect()-7+np.sum(qs.residuals())+JF.J()
 
     ## Finite differences for the aspect ratio
-    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi, diff_method="forward", rel_step=1e-1, abs_step=1e-4)
+    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi)
     aspect_ratio_jacobian.mpi_apart()
     aspect_ratio_jacobian.init_log()
     if mpi.proc0_world:
@@ -160,7 +151,7 @@ def fun(dofs):
         aspect_ratio_jacobian.log_file.close()
 
     ## Finite differences for the quasisymmetry residuals
-    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi, diff_method="forward", rel_step=1e-1, abs_step=1e-4)
+    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi)
     qs_residuals_jacobian.mpi_apart()
     qs_residuals_jacobian.init_log()
     if mpi.proc0_world:
@@ -173,9 +164,11 @@ def fun(dofs):
     coils_dJ = JF.dJ()
 
     ## Derivative matrix: columns = (coils dofs, surface dofs), rows = (aspect_ratio, qs_residuals, coils.J)
-    grad_with_respect_to_surface = np.vstack((aspect_ratio_dJ, qs_residuals_dJ, np.zeros((1,aspect_ratio_dJ.shape[1]))))
-    grad_with_respect_to_coils = np.vstack((np.zeros((qs_residuals_dJ.shape[0]+1,coils_dJ.shape[0])), [coils_dJ]))
-    grad = np.hstack((grad_with_respect_to_coils, grad_with_respect_to_surface))
+    # grad_with_respect_to_surface = np.vstack((aspect_ratio_dJ, qs_residuals_dJ, np.zeros((1,aspect_ratio_dJ.shape[1]))))
+    # grad_with_respect_to_coils = np.vstack((np.zeros((qs_residuals_dJ.shape[0]+1,coils_dJ.shape[0])), [coils_dJ]))
+    grad_with_respect_to_coils = coils_dJ
+    grad_with_respect_to_surface = np.sum(qs_residuals_dJ,axis=0) + aspect_ratio_dJ[0]
+    grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
