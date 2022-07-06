@@ -14,6 +14,7 @@ typedef xt::pyarray<double> PyArray;
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
+#include "winding_surface.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
 
@@ -49,6 +50,11 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("WindingSurfaceB" , &WindingSurfaceB);
+    m.def("WindingSurfacedB" , &WindingSurfacedB);
+    m.def("WindingSurfaceA" , &WindingSurfaceA);
+    m.def("WindingSurfacedA" , &WindingSurfacedA);
 
     m.def("ReimanB" , &ReimanB);
     m.def("ReimandB", &ReimandB);
