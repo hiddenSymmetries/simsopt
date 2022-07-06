@@ -31,7 +31,7 @@ vmec = Vmec(filename, mpi=mpi, verbose=True)
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 4
+max_mode = 2
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
@@ -40,7 +40,7 @@ surf.fix("rc(0,0)")  # Major radius
 
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
-                                [0.1, 0.5], #np.arange(0, 1.01, 0.1),  # Radii to target
+                                [0.1, 0.5],  # np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
@@ -87,8 +87,6 @@ OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
-nphi = 50
-ntheta = 50
 s = surf
 
 # Create the initial coils:
@@ -105,6 +103,8 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
+nphi = 50
+ntheta = 50
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
@@ -131,6 +131,8 @@ JF = Jf \
 # pass directly to scipy.optimize.minimize
 
 number_vmec_dofs = int(len(surf.x))
+
+
 def fun(dofs):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
@@ -167,9 +169,10 @@ def fun(dofs):
     # grad_with_respect_to_surface = np.vstack((aspect_ratio_dJ, qs_residuals_dJ, np.zeros((1,aspect_ratio_dJ.shape[1]))))
     # grad_with_respect_to_coils = np.vstack((np.zeros((qs_residuals_dJ.shape[0]+1,coils_dJ.shape[0])), [coils_dJ]))
     grad_with_respect_to_coils = coils_dJ
-    grad_with_respect_to_surface = np.sum(qs_residuals_dJ,axis=0) + aspect_ratio_dJ[0]
+    grad_with_respect_to_surface = np.sum(qs_residuals_dJ, axis=0) + aspect_ratio_dJ[0]
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
+    # Print some results
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     # outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
