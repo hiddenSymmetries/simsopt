@@ -508,31 +508,32 @@ class WindingSurfaceField(MagneticField):
 
     Args:
         current_potential: CurrentPotential class object containing
-            the winding surface and the values needed for computing 
-            the magnetic field and related quantities. 
+            the winding surface and the values needed for computing
+            the magnetic field and related quantities.
     """
 
-    def __init__(self, current_potential): 
+    def __init__(self, current_potential):
         MagneticField.__init__(self)
         self.current_potential = current_potential
         self.K = current_potential.K
-        self.winding_surface_points = (current_potential.winding_surface.gamma()).reshape((-1, 3))
+        self.ws_points = (current_potential.winding_surface.gamma()).reshape((-1, 3))
+        self.ws_normal = (current_potential.winding_surface.normal()).reshape((-1, 3))
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sopp.WindingSurfaceB(points, self.winding_surface_points, self.K) 
+        B[:] = sopp.WindingSurfaceB(points, self.ws_points, self.ws_normal, self.K)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        A[:] = sopp.WindingSurfaceA(points, self.winding_surface_points, self.K) 
+        A[:] = sopp.WindingSurfaceA(points, self.ws_points, self.ws_normal, self.K)
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = sopp.WindingSurfacedB(points, self.winding_surface_points, self.K) 
+        dB[:] = sopp.WindingSurfacedB(points, self.ws_points, self.ws_normal, self.K)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        dA[:] = sopp.WindingSurfacedA(points, self.winding_surface_points, self.K) 
+        dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K)
 
     def as_dict(self) -> dict:
         d = {}
@@ -547,6 +548,7 @@ class WindingSurfaceField(MagneticField):
         xyz = decoder.process_decoded(d["points"])
         field.set_points_cart(xyz)
         return field
+
 
 class Dommaschk(MagneticField):
     """
