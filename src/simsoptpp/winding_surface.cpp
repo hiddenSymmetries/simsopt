@@ -1,5 +1,7 @@
 #include "winding_surface.h"
-#include <math.h>
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
+#include <Eigen/Dense>
 
 // Calculate the B field at a set of evaluation points on a winding surface
 // points: where to evaluate the field
@@ -53,7 +55,7 @@ Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& 
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
             simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-            simd_t nmag = norm(n_j);
+            simd_t nmag = sqrt(normsq(n_j));
             Vec3dSimd Kcrossr = cross(K_j, r);
             B_i.x += nmag * Kcrossr.x * rmag_inv_3;
             B_i.y += nmag * Kcrossr.y * rmag_inv_3;
@@ -116,8 +118,8 @@ Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array&
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
             simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-            simd_t rmag_inv_5 = rmag_inv_3 * rmag_inv_2;
-            simd_t nmag = norm(n_j);
+            simd_t rmag_inv_5 = rmag_inv_3 * rmag_inv * rmag_inv;
+            simd_t nmag = sqrt(normsq(n_j));
             Vec3dSimd Kcrossr = cross(K_j, r);
             Vec3dSimd ex = Vec3dSimd(1, 0, 0);
             Vec3dSimd ey = Vec3dSimd(0, 1, 0);
@@ -195,11 +197,11 @@ Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& 
             Vec3dSimd r = point_i - r_j;
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
-            simd_t nmag = norm(n_j);
+            simd_t nmag = sqrt(normsq(n_j));
             Vec3dSimd Kcrossr = cross(K_j, r);
-            A_i.x += nmag * K.x * rmag_inv;
-            A_i.y += nmag * K.y * rmag_inv;
-            A_i.z += nmag * K.z * rmag_inv;
+            A_i.x += nmag * K_j.x * rmag_inv;
+            A_i.y += nmag * K_j.y * rmag_inv;
+            A_i.z += nmag * K_j.z * rmag_inv;
         }
         for(int k = 0; k < klimit; k++){
             A(i + k, 0) = fak * A_i.x[k];
@@ -258,16 +260,16 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
             simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-            simd_t nmag = norm(n_j);
-            dA_i1.x += - nmag * K.x * r.x * rmag_inv_3;
-            dA_i1.y += - nmag * K.y * r.x * rmag_inv_3;
-            dA_i1.z += - nmag * K.z * r.x * rmag_inv_3;
-            dA_i2.x += - nmag * K.x * r.y * rmag_inv_3;
-            dA_i2.y += - nmag * K.y * r.y * rmag_inv_3;
-            dA_i2.z += - nmag * K.z * r.y * rmag_inv_3;
-            dA_i3.x += - nmag * K.x * r.z * rmag_inv_3;
-            dA_i3.y += - nmag * K.y * r.z * rmag_inv_3;
-            dA_i3.z += - nmag * K.z * r.z * rmag_inv_3;
+            simd_t nmag = sqrt(normsq(n_j));
+            dA_i1.x += - nmag * K_j.x * r.x * rmag_inv_3;
+            dA_i1.y += - nmag * K_j.y * r.x * rmag_inv_3;
+            dA_i1.z += - nmag * K_j.z * r.x * rmag_inv_3;
+            dA_i2.x += - nmag * K_j.x * r.y * rmag_inv_3;
+            dA_i2.y += - nmag * K_j.y * r.y * rmag_inv_3;
+            dA_i2.z += - nmag * K_j.z * r.y * rmag_inv_3;
+            dA_i3.x += - nmag * K_j.x * r.z * rmag_inv_3;
+            dA_i3.y += - nmag * K_j.y * r.z * rmag_inv_3;
+            dA_i3.z += - nmag * K_j.z * r.z * rmag_inv_3;
         }
         for(int k = 0; k < klimit; k++){
             dA(i + k, 0, 0) = fak * dA_i1.x[k];

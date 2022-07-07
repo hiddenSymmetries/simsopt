@@ -512,12 +512,11 @@ class WindingSurfaceField(MagneticField):
             the magnetic field and related quantities.
     """
 
-    def __init__(self, current_potential):
+    def __init__(self, ws_points, ws_normal, K):
         MagneticField.__init__(self)
-        self.current_potential = current_potential
-        self.K = current_potential.K
-        self.ws_points = (current_potential.winding_surface.gamma()).reshape((-1, 3))
-        self.ws_normal = (current_potential.winding_surface.normal()).reshape((-1, 3))
+        self.K = K 
+        self.ws_points = ws_points 
+        self.ws_normal = ws_normal
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -537,14 +536,16 @@ class WindingSurfaceField(MagneticField):
 
     def as_dict(self) -> dict:
         d = {}
-        d["current_potential"] = self.current_potential
+        d["K"] = self.K
+        d["ws_points"] = self.ws_points
+        d["ws_normal"] = self.ws_normal
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
     def from_dict(cls, d):
         decoder = MontyDecoder()
-        field = cls(d["current_potential"])
+        field = cls(d["ws_points"], d["ws_normal"], d["K"])
         xyz = decoder.process_decoded(d["points"])
         field.set_points_cart(xyz)
         return field

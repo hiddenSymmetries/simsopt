@@ -11,11 +11,13 @@ except ImportError:
 
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    Reiman, sympy_found, InterpolatedField, PoloidalField
+    Reiman, sympy_found, InterpolatedField, PoloidalField, \
+    WindingSurfaceField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo import SurfaceRZFourier
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
@@ -751,6 +753,37 @@ class Testing(unittest.TestCase):
         ]
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
+
+    def test_winding_surface_analytic(self):
+        mmax = 20
+        km0s = 1
+        km0c = 0
+        nphi = 8
+        ntheta = nphi
+        filename = '../test_files/input.circular_tokamak_aspect_100'
+        s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+        theta = s.quadpoints_theta
+        surface_current = np.zeros((nphi * ntheta, mmax))
+        Br = np.zeros((nphi * ntheta, mmax))
+        gamma = s.gamma().reshape((-1, 3))
+        r = np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)
+        for i in range(nphi):
+            for j in range(ntheta):
+                for m in range(mmax):
+                    surface_current[i + nphi * j, m] = km0s * np.sin(m * theta[j]) + km0c * np.cos(m * theta[j])
+
+                    Br[i + nphi * j, m] = - 0.5 * m * r[i + nphi * j] ** (m - 1) / s.a_scale ** m * surface_current[i + nphi * j, m]
+        Br_analytic = np.sum(Br, axis=-1)
+        K = np.sum(surface_current, axis=-1)
+        ws_points = s.gamma().reshape((-1, 3))
+        ws_normal = s.normal().reshape((-1, 3))
+        Bfield = WindingSurfaceField(ws_points, ws_normal, K)
+        Bfield.set_points(points)
+        B1 = Bfield.B()
+        phi = s.quadpoint_phi
+        Br = B1 * np.cos(phi) + B1 * np.sin(phi)
+        print(Br, Br_analytic)
+        assert np.allclose(Br, Br_analytic)
 
 
 if __name__ == "__main__":
