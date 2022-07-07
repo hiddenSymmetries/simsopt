@@ -1,6 +1,12 @@
 #include "winding_surface.h"
 #include <math.h>
 
+// Calculate the B field at a set of evaluation points on a winding surface
+// points: where to evaluate the field
+// ws_points: evaluation points on the winding surface
+// ws_normal: normal vectors for the evaluation points on the winding surface
+// K: surface current vectors for the evaluation points on the winding surface
+// everything in xyz coordinates
 Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
