@@ -629,31 +629,31 @@ def make_qfm(s, Bfield, Bfield_tf):
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Now optimize at fixed toroidal flux
-    tf = ToroidalFlux(s, Bfield_tf)
-    tf_target = tf.J()
+#    tf = ToroidalFlux(s, Bfield_tf)
+#    tf_target = tf.J()
 
-    qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
+ #   qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                             constraint_weight=constraint_weight)
-    print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+  #  res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                          #                   constraint_weight=constraint_weight)
+    #print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
-    print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+    #res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    #print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Check that volume is not changed
-    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    #print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
 
     # Now optimize at fixed area
-    ar = Area(s)
-    ar_target = ar.J()
-    qfm_surface = QfmSurface(Bfield, s, ar, ar_target)
+    #ar = Area(s)
+    #ar_target = ar.J()
+    #qfm_surface = QfmSurface(Bfield, s, ar, ar_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000, constraint_weight=constraint_weight)
-    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+    #res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000, constraint_weight=constraint_weight)
+    #print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
-    print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
+    #res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    #print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Check that volume is not changed
     print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
