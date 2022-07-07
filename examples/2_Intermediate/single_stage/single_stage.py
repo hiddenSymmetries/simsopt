@@ -132,7 +132,7 @@ JF = Jf \
 
 number_vmec_dofs = int(len(surf.x))
 
-
+aspect_goal=7
 def fun(dofs):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
@@ -140,10 +140,10 @@ def fun(dofs):
     # surf.x = dofs[-number_vmec_dofs:] # This one should be changed automatically
 
     # J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
-    J = vmec.aspect()-7+np.sum(qs.residuals())+JF.J()
+    J = (vmec.aspect()-aspect_goal)**2+np.sum(qs.residuals()**2)+JF.J()
 
     ## Finite differences for the aspect ratio
-    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi)
+    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi, abs_step=1e-7, rel_step=1e-4)
     aspect_ratio_jacobian.mpi_apart()
     aspect_ratio_jacobian.init_log()
     if mpi.proc0_world:
@@ -153,7 +153,7 @@ def fun(dofs):
         aspect_ratio_jacobian.log_file.close()
 
     ## Finite differences for the quasisymmetry residuals
-    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi)
+    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi, abs_step=1e-7, rel_step=1e-4)
     qs_residuals_jacobian.mpi_apart()
     qs_residuals_jacobian.init_log()
     if mpi.proc0_world:
