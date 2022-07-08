@@ -1,3 +1,4 @@
-from .serial import least_squares_serial_solve, serial_solve
+from .serial import *
+from .mpi import *
 
-__all__ = ['least_squares_serial_solve', 'serial_solve']
+__all__ = (serial.__all__ + mpi.__all__)

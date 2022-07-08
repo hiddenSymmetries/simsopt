@@ -3,6 +3,8 @@ import numpy as np
 import simsoptpp as sopp
 from .curve import Curve
 
+__all__ = ['CurveRZFourier']
+
 
 class CurveRZFourier(sopp.CurveRZFourier, Curve):
     r"""
@@ -47,3 +49,23 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = list(self.quadpoints)
+        d["order"] = self.order
+        d["nfp"] = self.nfp
+        d["stellsym"] = self.stellsym
+        d["x0"] = list(self.local_full_x)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = cls(d["quadpoints"],
+                    d["order"],
+                    d["nfp"],
+                    d["stellsym"])
+        curve.local_full_x = d["x0"]
+        return curve

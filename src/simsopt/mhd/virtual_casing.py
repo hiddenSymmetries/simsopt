@@ -24,9 +24,10 @@ from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..geo.surface import best_nphi_over_ntheta
-from ..util.fourier_interpolation import fourier_interpolation
 
 logger = logging.getLogger(__name__)
+
+__all__ = ['VirtualCasing']
 
 
 class VirtualCasing:
