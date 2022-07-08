@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 from simsopt._core.optimizable import Optimizable, ScaledOptimizable, OptimizableSum
 from simsopt._core.derivative import Derivative, derivative_dec
+from simsopt.objectives.utilities import Weight
 
 
 class Opt(Optimizable):
@@ -153,6 +154,11 @@ class DerivativeTests(unittest.TestCase):
         np.testing.assert_allclose(obj2.J(), factor * obj1.J())
         np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
 
+        obj3 = ScaledOptimizable(Weight(factor), obj1)
+        taylor_test(obj3)
+        np.testing.assert_allclose(obj3.J(), factor * obj1.J())
+        np.testing.assert_allclose(obj3.dJ(), factor * obj1.dJ())
+
     def test_scaled_optimizable_operator(self):
         """
         Confirm that values and derivatives behave correctly when an
@@ -170,6 +176,17 @@ class DerivativeTests(unittest.TestCase):
         taylor_test(obj2)
         np.testing.assert_allclose(obj2.J(), factor * obj1.J())
         np.testing.assert_allclose(obj2.dJ(), factor * obj1.dJ())
+
+        factor = -10
+        w = Weight(factor)
+        obj3 = w * obj1
+        taylor_test(obj3)
+        np.testing.assert_allclose(obj3.J(), factor * obj1.J())
+        np.testing.assert_allclose(obj3.dJ(), factor * obj1.dJ())
+        w *= 3
+        taylor_test(obj3)
+        np.testing.assert_allclose(obj3.J(), 3*factor * obj1.J())
+        np.testing.assert_allclose(obj3.dJ(), 3*factor * obj1.dJ())
 
     def test_optimizable_sum(self):
         """

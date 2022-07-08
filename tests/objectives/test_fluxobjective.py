@@ -1,5 +1,9 @@
 import unittest
+import json
+
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
+
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries, Current
 from simsopt.geo.curve import create_equally_spaced_curves
@@ -13,29 +17,33 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
-def check_taylor_test(J):
-    dofs = J.x
-    np.random.seed(1)
-    h = np.random.uniform(size=dofs.shape)
-    J0, dJ0 = J.J(), J.dJ()
-    dJh = sum(dJ0 * h)
-    err_old = 1e10
-    for i in range(11, 17):
-        eps = 0.5**i
-        J.x = dofs + eps*h
-        J1 = J.J()
-        J.x = dofs - eps*h
-        J2 = J.J()
-        err = np.abs((J1-J2)/(2*eps) - dJh)
-        # print(i, "err", err)
-        # print(i, "err/err_old", err/err_old)
-        assert err < 0.6**2 * err_old
-        err_old = err
-
-
 class FluxObjectiveTests(unittest.TestCase):
 
     def test_flux(self):
+
+        def check_taylor_test(J):
+            dofs = J.x
+            np.random.seed(1)
+            h = np.random.uniform(size=dofs.shape)
+            J0, dJ0 = J.J(), J.dJ()
+            dJh = sum(dJ0 * h)
+            err_old = 1e10
+            for i in range(11, 17):
+                eps = 0.5 ** i
+                J.x = dofs + eps * h
+                J1 = J.J()
+                J.x = dofs - eps * h
+                J2 = J.J()
+                err = np.abs((J1 - J2) / (2 * eps) - dJh)
+                # print(i, "err", err)
+                # print(i, "err/err_old", err/err_old)
+                assert err < 0.6 ** 2 * err_old
+                err_old = err
+
+            J_str = json.dumps(J, cls=MontyEncoder)
+            J_regen = json.loads(J_str, cls=MontyDecoder)
+            self.assertAlmostEqual(J.J(), J_regen.J())
+
         s = SurfaceRZFourier.from_vmec_input(filename)
         ncoils = 4
         ALPHA = 1e-5

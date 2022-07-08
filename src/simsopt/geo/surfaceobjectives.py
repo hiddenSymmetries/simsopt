@@ -7,6 +7,9 @@ import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from simsopt.geo.surface import Surface
 
+__all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
+           'QfmResidual', 'boozer_surface_residual']
+
 
 class Area(Optimizable):
     """
@@ -139,6 +142,61 @@ class ToroidalFlux(Optimizable):
 
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
+
+
+class PrincipalCurvature(Optimizable):
+    r"""
+
+    Given a Surface, evaluates a metric based on the principal curvatures,
+    :math:`\kappa_1` and :math:`\kappa_2`, where :math:`\kappa_1>\kappa_2`.
+    This metric is designed to penalize :math:`\kappa_1 > \kappa_{\max,1}` and
+    :math:`-\kappa_2 > \kappa_{\max,2}`.
+
+    .. math::
+       J &= \int d^2 x \exp \left(- ( \kappa_1 - \kappa_{\max,1})/w_1) \right) \\
+         &+ \int d^2 x \exp \left(- (-\kappa_2 - \kappa_{\max,2})/w_2) \right).
+
+    This metric can be used as a regularization within fixed-boundary optimization
+    to prevent, for example, surfaces with concave regions
+    (large values of :math:`|\kappa_2|`) or surfaces with large elongation
+    (large values of :math:`\kappa_1`).
+
+    """
+
+    def __init__(self, surface, kappamax1=1, kappamax2=1, weight1=0.05, weight2=0.05):
+        super().__init__(depends_on=[surface])
+        self.surface = surface
+        self.kappamax1 = kappamax1
+        self.kappamax2 = kappamax2
+        self.weight1 = weight1
+        self.weight2 = weight2
+
+    def J(self):
+        curvature = self.surface.surface_curvatures()
+        k1 = curvature[:, :, 2]  # larger
+        k2 = curvature[:, :, 3]  # smaller
+        normal = self.surface.normal()
+        norm_normal = np.sqrt(normal[:, :, 0]**2 + normal[:, :, 1]**2 + normal[:, :, 2]**2)
+        return np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
+            np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
+
+    def dJ(self):
+        curvature = self.surface.surface_curvatures()
+        k1 = curvature[:, :, 2]  # larger
+        k2 = curvature[:, :, 3]  # smaller
+        normal = self.surface.normal()
+        norm_normal = np.sqrt(normal[:, :, 0]**2 + normal[:, :, 1]**2 + normal[:, :, 2]**2)
+        dcurvature_dc = self.surface.dsurface_curvatures_by_dcoeff()
+        dk1_dc = dcurvature_dc[:, :, 2, :]
+        dk2_dc = dcurvature_dc[:, :, 3, :]
+        dnormal_dc = self.surface.dnormal_by_dcoeff()
+        dnorm_normal_dc = normal[:, :, 0, None]*dnormal_dc[:, :, 0, :]/norm_normal[:, :, None] + \
+            normal[:, :, 1, None]*dnormal_dc[:, :, 1, :]/norm_normal[:, :, None] + \
+            normal[:, :, 2, None]*dnormal_dc[:, :, 2, :]/norm_normal[:, :, None]
+        return np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
+            np.sum(norm_normal[:, :, None] * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1) * (- dk1_dc/self.weight1), axis=(0, 1)) + \
+            np.sum(dnorm_normal_dc * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2), axis=(0, 1)) + \
+            np.sum(norm_normal[:, :, None] * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2) * (dk2_dc/self.weight2), axis=(0, 1))
 
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):

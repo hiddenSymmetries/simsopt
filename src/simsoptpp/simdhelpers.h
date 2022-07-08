@@ -39,7 +39,7 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
 };
 
 
-using vector_type = vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
+using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using simd_t = xs::simd_type<double>;
 
 #if __AVX512F__ 

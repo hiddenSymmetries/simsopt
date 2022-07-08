@@ -1,8 +1,11 @@
 import unittest
+import json
 from pathlib import Path
 import os
 import logging
 import numpy as np
+
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -289,6 +292,19 @@ class SurfaceScaledTests(unittest.TestCase):
         surf_scaled.update_fixed()
         np.testing.assert_array_equal(surf1.dofs_free_status, surf_scaled.dofs_free_status)
 
+    def test_serialization(self):
+        surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                        "SurfaceXYZTensorFourier"]
+        for surfacetype in surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym, full=True)
+                    dof_size = len(s.x)
+                    scale_factors = np.random.random_sample(dof_size)
+                    scaled_s = SurfaceScaled(s, scale_factors)
+                    scaled_s_str = json.dumps(scaled_s, cls=MontyEncoder)
+                    regen_s = json.loads(scaled_s_str, cls=MontyDecoder)
+
 
 class BestNphiOverNthetaTests(unittest.TestCase):
     def test_axisymm(self):
@@ -328,6 +344,28 @@ class BestNphiOverNthetaTests(unittest.TestCase):
                         ratio = best_nphi_over_ntheta(surf)
                         logger.info(f'range: {phi_range}, nphi: {nphi}, ntheta: {ntheta}, best nphi / ntheta: {ratio}')
                         np.testing.assert_allclose(ratio, correct, rtol=0.01)
+
+
+class CurvatureTests(unittest.TestCase):
+    surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                    "SurfaceXYZTensorFourier"]
+
+    def test_gauss_bonnet(self):
+        """
+        Tests the Gauss-Bonnet theorem for a toroidal surface, :math:`S`:
+
+        .. math::
+            \int_{S} d^2 x \, K = 0,
+
+        where :math:`K` is the Gaussian curvature.
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym, full=True)
+                    K = s.surface_curvatures()[:, :, 1]
+                    N = np.sqrt(np.sum(s.normal()**2, axis=2))
+                    assert np.abs(np.sum(K*N)) < 1e-12
 
 
 if __name__ == "__main__":

@@ -15,8 +15,10 @@ from weakref import WeakKeyDictionary
 
 import numpy as np
 
-from ..util.types import RealArray
+from .types import RealArray
 from simsoptpp import Curve   # To obtain pybind11 metaclass
+
+__all__ = ['ObjectiveFailure']
 
 
 def isbool(val):

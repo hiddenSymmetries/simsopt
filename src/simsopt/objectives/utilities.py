@@ -1,7 +1,10 @@
 import numpy as np
+from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
+
+__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
 
 
 def sum_across_comm(derivative, comm):
@@ -84,4 +87,32 @@ class QuadraticPenalty(Optimizable):
         dval = self.obj.dJ(partials=True)
         return np.maximum(val-self.threshold, 0)*dval
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
+        d["obj"] = self.obj
+        d["threshold"] = np.array(self.threshold)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        obj = decoder.process_decoded(d["obj"])
+        threshold = decoder.process_decoded(d["threshold"])
+        return cls(obj, threshold)
+
     return_fn_map = {'J': J, 'dJ': dJ}
+
+
+class Weight(object):
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __imul__(self, alpha):
+        self.value *= alpha
+        return self
