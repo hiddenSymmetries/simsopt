@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+from simsopt.objectives import LeastSquaresProblem
 from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec
 from simsopt.mhd import QuasisymmetryRatioResidual
@@ -136,31 +137,19 @@ aspect_goal=7
 def fun(dofs):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
+    bs.set_points(s.gamma().reshape((-1, 3)))
     vmec.x = dofs[-number_vmec_dofs:]
     # surf.x = dofs[-number_vmec_dofs:] # This one should be changed automatically
 
     # J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
-    J = (vmec.aspect()-aspect_goal)**2+np.sum(qs.residuals()**2)+JF.J()
-
-    ## Finite differences for the aspect ratio
-    aspect_ratio_jacobian = MPIFiniteDifference(vmec.aspect, mpi, abs_step=1e-7, rel_step=1e-4)
-    aspect_ratio_jacobian.mpi_apart()
-    aspect_ratio_jacobian.init_log()
-    if mpi.proc0_world:
-        aspect_ratio_dJ = aspect_ratio_jacobian.jac()
-    mpi.together()
-    if mpi.proc0_world:
-        aspect_ratio_jacobian.log_file.close()
-
-    ## Finite differences for the quasisymmetry residuals
-    qs_residuals_jacobian = MPIFiniteDifference(qs.residuals, mpi, abs_step=1e-7, rel_step=1e-4)
-    qs_residuals_jacobian.mpi_apart()
-    qs_residuals_jacobian.init_log()
-    if mpi.proc0_world:
-        qs_residuals_dJ = qs_residuals_jacobian.jac()
-    mpi.together()
-    if mpi.proc0_world:
-        qs_residuals_jacobian.log_file.close()
+    # J = (vmec.aspect()-aspect_goal)**2+np.sum(qs.residuals()**2)+JF.J()
+    prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
+                                            (qs.residuals, 0, 1)])
+    J = prob.objective() + JF.J()
+    ## Finite differences
+    with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-7, rel_step=1e-4) as prob_jacobian:
+        if mpi.proc0_world:
+            prob_dJ = prob_jacobian.jac()
 
     ## Finite differences for the coils objective function
     coils_dJ = JF.dJ()
@@ -169,7 +158,7 @@ def fun(dofs):
     # grad_with_respect_to_surface = np.vstack((aspect_ratio_dJ, qs_residuals_dJ, np.zeros((1,aspect_ratio_dJ.shape[1]))))
     # grad_with_respect_to_coils = np.vstack((np.zeros((qs_residuals_dJ.shape[0]+1,coils_dJ.shape[0])), [coils_dJ]))
     grad_with_respect_to_coils = coils_dJ
-    grad_with_respect_to_surface = np.sum(qs_residuals_dJ, axis=0) + aspect_ratio_dJ[0]
+    grad_with_respect_to_surface = np.sum(prob_dJ, axis=0)
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
     # Print some results
