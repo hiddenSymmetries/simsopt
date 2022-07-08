@@ -19,12 +19,12 @@ from simsopt._core.finite_difference import MPIFiniteDifference
 from simsopt.util.mpi import log
 from simsopt._core.derivative import derivative_dec, Derivative
 """
-Optimize a VMEC equilibrium for quasisymmetry good coils
+Optimize a VMEC equilibrium for quasisymmetry and coils
 """
 
 log()
 
-print("Running 2_Intermediate/single_stage.py")
+print("Running single_stage.py")
 print("=============================================")
 
 mpi = MpiPartition()
@@ -36,31 +36,28 @@ vmec = Vmec(filename, mpi=mpi, verbose=True)
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 1
+max_mode = 3
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
 
-# print('Parameter space:', surf.dof_names)
-
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
-                                [0.1, 0.5],  # np.arange(0, 1.01, 0.1),  # Radii to target
+                                np.arange(0, 1.01, 0.1),  # np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 5
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0
 
 # Minor radius for the initial circular coils:
-R1 = 0.6
+R1 = 0.5
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 4
-
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
@@ -85,7 +82,7 @@ MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 5000
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -134,10 +131,12 @@ JF = Jf \
 
 number_vmec_dofs = int(len(surf.x))
 
-aspect_goal=7
-flux_weight = 100
+aspect_goal = 7
+flux_weight = 10
+
 ## First stage objective function
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1), (qs.residuals, 0, 1)])
+
 
 def jac_fun(dofs, prob_jacobian):
     ## Order of dofs: (coils dofs, surface dofs)
@@ -154,7 +153,6 @@ def jac_fun(dofs, prob_jacobian):
     ## Mixed term - derivative of squared flux with respect to the surface shape
     n = surf.normal()
     absn = np.linalg.norm(n, axis=2)
-    unitn = n * (1./absn)[:, :, None]
     B = bs.B().reshape((nphi, ntheta, 3))
     dB_by_dX = bs.dB_by_dX().reshape((nphi, ntheta, 3, 3))
     Bcoil = bs.B().reshape(n.shape)
@@ -172,6 +170,7 @@ def jac_fun(dofs, prob_jacobian):
 
     return grad
 
+
 def fun(dofs, prob_jacobian):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
@@ -184,7 +183,7 @@ def fun(dofs, prob_jacobian):
     except:
         print("Exception caught during function evaluation. Returing J=1e12")
         J = 1e12
-    
+
     # Print some results
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)))
@@ -206,7 +205,6 @@ def fun(dofs, prob_jacobian):
 
 
 print("Quasisymmetry objective before optimization:", qs.total())
-# print("Total objective before optimization:", prob.objective())
 
 ## Optimize using finite differences
 with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
@@ -214,10 +212,17 @@ with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
         x0 = np.copy(np.concatenate((JF.x, surf.x)))
         res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
 
-
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
-# print("Total objective after optimization:", prob.objective())
 
-print("End of 2_Intermediate/QH_fixed_resolution.py")
+# Output the result
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)[:, :, None]}
+surf.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt")
+
+# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+bs.save(OUT_DIR + "biot_savart_opt.json")
+
+print("End of single_stage.py")
 print("============================================")
