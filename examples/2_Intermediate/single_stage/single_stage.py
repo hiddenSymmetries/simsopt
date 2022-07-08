@@ -16,9 +16,13 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
 from simsopt._core.finite_difference import MPIFiniteDifference
+from simsopt.util.mpi import log
+from simsopt._core.derivative import derivative_dec, Derivative
 """
 Optimize a VMEC equilibrium for quasisymmetry good coils
 """
+
+log()
 
 print("Running 2_Intermediate/single_stage.py")
 print("=============================================")
@@ -32,7 +36,7 @@ vmec = Vmec(filename, mpi=mpi, verbose=True)
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 2
+max_mode = 1
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
@@ -46,16 +50,16 @@ qs = QuasisymmetryRatioResidual(vmec,
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 4
+ncoils = 5
 
 # Major radius for the initial circular coils:
 R0 = 1.0
 
 # Minor radius for the initial circular coils:
-R1 = 0.5
+R1 = 0.6
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 5
+order = 4
 
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
@@ -87,9 +91,6 @@ MAXITER = 50 if ci else 400
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# Initialize the boundary magnetic surface:
-s = surf
-
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, vmec.indata.nfp, stellsym=True, R0=R0, R1=R1, order=order)
 base_currents = [Current(1e5) for i in range(ncoils)]
@@ -100,20 +101,20 @@ base_currents[0].fix_all()
 
 coils = coils_via_symmetries(base_curves, base_currents, vmec.indata.nfp, True)
 bs = BiotSavart(coils)
-bs.set_points(s.gamma().reshape((-1, 3)))
+bs.set_points(surf.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
 nphi = 50
 ntheta = 50
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)[:, :, None]}
+surf.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, bs)
+Jf = SquaredFlux(surf, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+Jcsdist = CurveSurfaceDistance(curves, surf, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
@@ -134,36 +135,59 @@ JF = Jf \
 number_vmec_dofs = int(len(surf.x))
 
 aspect_goal=7
-def fun(dofs):
+flux_weight = 100
+## First stage objective function
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1), (qs.residuals, 0, 1)])
+
+def jac_fun(dofs, prob_jacobian):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
-    bs.set_points(s.gamma().reshape((-1, 3)))
     vmec.x = dofs[-number_vmec_dofs:]
-    # surf.x = dofs[-number_vmec_dofs:] # This one should be changed automatically
+    bs.set_points(surf.gamma().reshape((-1, 3)))
 
-    # J = np.concatenate(([vmec.aspect()-7],qs.residuals(),[JF.J()]))
-    # J = (vmec.aspect()-aspect_goal)**2+np.sum(qs.residuals()**2)+JF.J()
-    prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
-                                            (qs.residuals, 0, 1)])
-    J = prob.objective() + JF.J()
-    ## Finite differences
-    with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-7, rel_step=1e-4) as prob_jacobian:
-        if mpi.proc0_world:
-            prob_dJ = prob_jacobian.jac()
+    ## Finite differences for the first-stage objective function
+    prob_dJ = prob_jacobian.jac()
 
-    ## Finite differences for the coils objective function
+    ## Finite differences for the second-stage objective function
     coils_dJ = JF.dJ()
 
-    ## Derivative matrix: columns = (coils dofs, surface dofs), rows = (aspect_ratio, qs_residuals, coils.J)
-    # grad_with_respect_to_surface = np.vstack((aspect_ratio_dJ, qs_residuals_dJ, np.zeros((1,aspect_ratio_dJ.shape[1]))))
-    # grad_with_respect_to_coils = np.vstack((np.zeros((qs_residuals_dJ.shape[0]+1,coils_dJ.shape[0])), [coils_dJ]))
-    grad_with_respect_to_coils = coils_dJ
-    grad_with_respect_to_surface = np.sum(prob_dJ, axis=0)
+    ## Mixed term - derivative of squared flux with respect to the surface shape
+    n = surf.normal()
+    absn = np.linalg.norm(n, axis=2)
+    unitn = n * (1./absn)[:, :, None]
+    B = bs.B().reshape((nphi, ntheta, 3))
+    dB_by_dX = bs.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+    Bcoil = bs.B().reshape(n.shape)
+    B_N = np.sum(Bcoil * n, axis=2)
+    dJdx = (B_N/absn)[:, :, None] * (np.sum(dB_by_dX*n[:, :, None, :], axis=3))
+    dJdN = (B_N/absn)[:, :, None] * B - 0.5 * (B_N**2/absn**3)[:, :, None] * n
+
+    deriv = surf.dnormal_by_dcoeff_vjp(dJdN/(nphi*ntheta)) + surf.dgamma_by_dcoeff_vjp(dJdx/(nphi*ntheta))
+    mixed_dJ = Derivative({surf: deriv})(surf)
+
+    ## Put both gradients together
+    grad_with_respect_to_coils = flux_weight * coils_dJ
+    grad_with_respect_to_surface = np.sum(prob_dJ, axis=0) + flux_weight * mixed_dJ
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
+    return grad
+
+def fun(dofs, prob_jacobian):
+    ## Order of dofs: (coils dofs, surface dofs)
+    JF.x = dofs[:-number_vmec_dofs]
+    vmec.x = dofs[-number_vmec_dofs:]
+    bs.set_points(surf.gamma().reshape((-1, 3)))
+
+    ## Objective function
+    try:
+        J = prob.objective() + flux_weight * JF.J()
+    except:
+        print("Exception caught during function evaluation. Returing J=1e12")
+        J = 1e12
+    
     # Print some results
     jf = Jf.J()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)))
     # outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     outstr = f"J={np.sum(J):.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
@@ -171,24 +195,25 @@ def fun(dofs):
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    outstr += f", Quasisymmetry objective={qs.total()}"
-    outstr += f", aspect={vmec.aspect()}"
+    # outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    try:
+        outstr += f", Quasisymmetry objective={qs.total()}"
+        outstr += f", aspect={vmec.aspect()}"
+    except Exception as e:
+        print(e)
     print(outstr)
-    return J, grad
+    return J
 
 
 print("Quasisymmetry objective before optimization:", qs.total())
 # print("Total objective before optimization:", prob.objective())
 
-# Define objective function
-initial_dofs = np.concatenate((JF.x, surf.x))
-# res = minimize(fun, initial_dofs)
-res = minimize(fun, initial_dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-# prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
-#                                         (qs.residuals, 0, 1),
-#                                         (Jf.J, 0, 1)])
-# least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=2)
+## Optimize using finite differences
+with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
+    if mpi.proc0_world:
+        x0 = np.copy(np.concatenate((JF.x, surf.x)))
+        res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
