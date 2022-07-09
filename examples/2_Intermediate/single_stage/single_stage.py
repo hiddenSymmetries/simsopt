@@ -179,7 +179,7 @@ def fun(dofs, prob_jacobian):
 
     ## Objective function
     try:
-        J = prob.objective() + flux_weight * JF.J()
+        J = np.sum(prob.objective()) + flux_weight * JF.J()
     except:
         print("Exception caught during function evaluation. Returing J=1e12")
         J = 1e12
@@ -187,8 +187,7 @@ def fun(dofs, prob_jacobian):
     # Print some results
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)))
-    # outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    outstr = f"J={np.sum(J):.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
@@ -216,7 +215,6 @@ print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
 
 # Output the result
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)[:, :, None]}
 surf.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
