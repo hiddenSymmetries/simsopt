@@ -68,15 +68,6 @@ if run_type == 'initialization':
 
     t1 = time.time()
 
-    from mpi4py import MPI
-    from simsopt.util.mpi import MpiPartition
-    from simsopt.mhd.vmec import Vmec
-    mpi = MpiPartition(ngroups=4)
-    comm = MPI.COMM_WORLD
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA" 
-    equil = Vmec(vmec_input, mpi)
-    equil.boundary = s
-    equil.run()
     # Don't have NCSX TF coils, just the Bn field on the surface 
     # so have to treat the NCSX example separately.
     quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
@@ -237,7 +228,7 @@ elif run_type == 'optimization':
     total_mproxy_history = []
     total_RS_history = []
     if not np.isclose(reg_l0, 0.0):
-        for i in range(37):
+        for i in range(38):
             reg_l0_scaled = reg_l0 * (1 + i / 2.0)
             RS_history, m_history, m_proxy_history = pm_opt._optimize(
                 max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
@@ -381,8 +372,8 @@ elif run_type == 'optimization':
         print('f_B = ', f_B_sf)
         B_max = 1.465
         mu0 = 4 * np.pi * 1e-7
-        total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * s.stellsym * mu0 / B_max
-        total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * s.stellsym * mu0 / B_max
+        total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
+        total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
         print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
         pm_opt.m = pm_opt.m_proxy
         b_dipole = DipoleField(pm_opt)
@@ -445,9 +436,11 @@ elif run_type == 'post-processing':
     t1 = time.time()
 
     # Make higher resolution surface
-    quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
+    quadpoints_phi = np.linspace(0, 1, nphi, endpoint=False)
+    #quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
     qphi = len(quadpoints_phi)
-    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    #quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
     if surface_flag == 'focus': 
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     elif surface_flag == 'wout': 
@@ -513,12 +506,16 @@ elif run_type == 'post-processing':
 
     # Make the QFM surfaces
     t1 = time.time()
-    qfm_surf = make_qfm(s, Bfield, Bfield_tf)
+    qfm_surf = make_qfm(s_plot, Bfield, Bfield_tf)
     qfm_surf = qfm_surf.surface
-    qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
-    qfm_surf_mproxy = qfm_surf_mproxy.surface
+    #qfm_surf.plot()
+    #qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
+    #qfm_surf_mproxy = qfm_surf_mproxy.surface
+    #qfm_surf_mproxy.plot()
+    qfm_surf_mproxy = qfm_surf
     t2 = time.time()
     print("Making the two QFM surfaces took ", t2 - t1, " s")
+    exit()
 
     # Run VMEC with new QFM surface
     t1 = time.time()

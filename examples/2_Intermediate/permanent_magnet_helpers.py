@@ -567,12 +567,12 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
 
     # set fieldline tracer parameters
     nfieldlines = 80
-    tmax_fl = 40000
+    tmax_fl = 20000
 
     # Different configurations have different cross-sections
     #if 'muse' in config:
     #R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    R0 = np.linspace(0.25, 0.35, nfieldlines)
+    R0 = np.linspace(0.25, 0.4, nfieldlines)
     if 'qa' in config: 
         R0 = np.linspace(0.5, 1.0, nfieldlines)
     elif 'qh' in config:
@@ -585,7 +585,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+    sc_fieldline = SurfaceClassifier(s, h=0.05, p=2)
+    #sc_fieldline = SurfaceClassifier(s, h=0.05, p=2)
     sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
@@ -617,15 +618,23 @@ def make_qfm(s, Bfield, Bfield_tf):
     qfm = QfmResidual(s, Bfield)
     qfm.J()
 
+    s.change_resolution(32, 32)
     vol = Volume(s)
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-14, maxiter=500,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
-    res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
+    #vol = Volume(s)
+    #vol_target = vol.J()
+    #qfm = QfmResidual(s, Bfield_tf)
+    #qfm_surface = QfmSurface(Bfield_tf, s, vol, vol_target)
+    #print("initial qfm value for higher-res surface", qfm.J())
+
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-16, maxiter=500,
+                                                             constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Now optimize at fixed toroidal flux
@@ -635,14 +644,14 @@ def make_qfm(s, Bfield, Bfield_tf):
  #   qfm_surface = QfmSurface(Bfield, s, tf, tf_target)
 
   #  res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                          #                   constraint_weight=constraint_weight)
+    #                   constraint_weight=constraint_weight)
     #print(f"||tf constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     #res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-12, maxiter=1000)
     #print(f"||tf constraint||={0.5*(tf.J()-tf_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Check that volume is not changed
-    #print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
 
     # Now optimize at fixed area
     #ar = Area(s)
@@ -656,7 +665,7 @@ def make_qfm(s, Bfield, Bfield_tf):
     #print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # Check that volume is not changed
-    print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
+    #print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
     return qfm_surface  # return QFMS
 
 
@@ -788,7 +797,6 @@ def get_FAMUS_dipoles(pms_name, famus_path='../../tests/test_files/'):
     momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1]) 
     rho = p ** momentq
 
-    # Calculate the effective magnet volume
     mm = rho * m0
 
     # Convert from spherical to cartesian vectors
@@ -993,7 +1001,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
     #coils_filename = Path(__file__).parent / "../1_Simple/inputs" / "biot_savart_opt.json"
     #bs = simsopt.load(coils_filename)
 
-    n = 40
+    n = 32
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     rrange = (np.min(rs), np.max(rs), n)
