@@ -22,7 +22,7 @@ from simsopt._core.derivative import derivative_dec, Derivative
 Optimize a VMEC equilibrium for quasisymmetry and coils
 """
 
-log()
+# log()
 
 print("Running single_stage.py")
 print("=============================================")
@@ -86,7 +86,7 @@ MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50
+MAXITER = 1000
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -134,13 +134,13 @@ JF = Jf \
 # pass directly to scipy.optimize.minimize
 
 number_vmec_dofs = int(len(surf.x))
-flux_weight = 1
+flux_weight = 1e4
 inner_coil_iterations = 30
 
 ## First stage objective function
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, aspect_target, 1),
                                         (qs.residuals, 0, 1),
-                                        (vmec.mean_iota, 0.42, 1)])
+                                        (vmec.mean_iota, 0.42, 1e2)])
 
 def jac_fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
@@ -174,8 +174,8 @@ def jac_fun(dofs, prob_jacobian=None):
 
     return grad
 
-def fun_coils(dofs):
-    JF.x = dofs
+def fun_coils(dofss):
+    JF.x = dofss
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
@@ -190,18 +190,21 @@ def fun_coils(dofs):
     print(outstr)
     return J, grad
 
+Nfeval=0
 def fun(dofs, prob_jacobian=None):
+    global Nfeval
+    Nfeval += 1
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
     prob.x = dofs[-number_vmec_dofs:]
     bs.set_points(surf.gamma().reshape((-1, 3)))
 
-    # Do two coil optimization loops, the latter with slightly longer coils
-    curves_to_vtk(curves, OUT_DIR + f"curves_before_inner_loop")
-    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, method='L-BFGS-B', options={'maxiter': inner_coil_iterations, 'maxcor': 300}, tol=1e-15)
-    dofs[:-number_vmec_dofs] = res.x
-    JF.x = dofs[:-number_vmec_dofs]
-    curves_to_vtk(curves, OUT_DIR + f"curves_after_inner_loop")
+    # # Inner coil optimization loops
+    # curves_to_vtk(curves, OUT_DIR + f"curves_before_inner_loop")
+    # res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, method='L-BFGS-B', options={'maxiter': inner_coil_iterations, 'maxcor': 300}, tol=1e-15)
+    # dofs[:-number_vmec_dofs] = res.x
+    # JF.x = dofs[:-number_vmec_dofs]
+    # curves_to_vtk(curves, OUT_DIR + f"curves_after_inner_loop")
 
     ## Objective function
     try:
@@ -221,18 +224,23 @@ def fun(dofs, prob_jacobian=None):
     except Exception as e:
         print(e)
     print(outstr)
+    if np.mod(Nfeval,5)==0:
+        pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)[:, :, None]}
+        surf.to_vtk(OUT_DIR + f"surf_intermediate_{Nfeval}", extra_data=pointData)
+        curves_to_vtk(curves, OUT_DIR + f"curves_intermediate_{Nfeval}")
     return J
 
 
 print("Quasisymmetry objective before optimization:", qs.total())
 
 x0 = np.copy(np.concatenate((JF.x, vmec.x)))
+dofs =np.concatenate((JF.x, vmec.x))
 ## Optimize using finite differences
 with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
     if mpi.proc0_world:
-        res = minimize(fun, np.concatenate((JF.x, vmec.x)), args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+        res = minimize(fun, dofs, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 ## Optimize without using finite differences
-# res = minimize(fun, x0)
+# res = minimize(fun, dofs)
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
