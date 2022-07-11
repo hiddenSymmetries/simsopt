@@ -24,3 +24,10 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
 std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, double reg_l2_shift, bool verbose);
+
+// helper functions for projected L-BFGS (can be used for convex solve in relax-and-split instead of MWPGP)
+Array f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxima, double reg_l2, double reg_l2_shift, double nu);
+Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double reg_l2_shift, double nu);
+
+// the hyperparameters all have default values if they are left unspecified -- see python.cpp
+std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, int max_iter, double epsilon, bool verbose, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, double nu);
