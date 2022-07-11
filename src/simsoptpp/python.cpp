@@ -58,10 +58,11 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_dA" , &dipole_field_dA);
     m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("phi"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
     m.def("make_final_surface" , &make_final_surface);
-    
+
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("delta") = 0.5, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
     m.def("BMP_algorithm", &BMP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("verbose") = false);
+    m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
