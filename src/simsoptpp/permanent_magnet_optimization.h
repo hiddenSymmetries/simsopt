@@ -30,7 +30,7 @@ Array qf_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2
 
 // Solves quadratic programs with quadratic constraints (QPQCs) so for relax-and-split SPG and PQN should
 // perform basically the same (there is no approximation to assume that we have a quadratic program)
-Array SPG(Array& A_obj, Array& b_obj, Array& m_proxy, Array& m_maxima, Array& x0, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
+std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
 
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
 std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, int max_iter, double epsilon, bool verbose, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, double nu);

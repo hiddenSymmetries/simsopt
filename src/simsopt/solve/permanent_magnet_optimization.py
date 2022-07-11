@@ -339,21 +339,21 @@ def BMP_wrapper(pm_opt, **kwargs):
     )
 
     # rescale m and m_history
-    m = m * mmax_vec
+    m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
 
     # check that algorithm worked correctly to generate K binary dipoles
     print('Number of binary dipoles to use in BMP algorithm = ', K)
     print(np.count_nonzero(m))
     print(
-        'Number of binary dipoles returned by BMP algorithm = ', 
+        'Number of binary dipoles returned by BMP algorithm = ',
         np.count_nonzero(np.sum(m.reshape(pm_opt.ndipoles, 3), axis=-1))
     )
 
     for i in range(len(m_history)):
-        m_history[i] = m_history[i] * mmax
+        m_history[i] = m_history[i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
 
     # note m = m_proxy for BMP because this is not using relax-and-split
-    pm_opt.m = m
-    pm_opt.m_proxy = m
+    pm_opt.m = np.ravel(m)
+    pm_opt.m_proxy = pm_opt.m
     return errors, m_history, m_proxy_history
