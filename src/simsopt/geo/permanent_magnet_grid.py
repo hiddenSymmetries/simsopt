@@ -13,7 +13,7 @@ class PermanentMagnetGrid:
         takes as input two toroidal surfaces specified as SurfaceRZFourier
         objects, and initializes a set of points (in cylindrical coordinates)
         between these surfaces. If an existing FAMUS grid file called
-        from FAMUS is desired, set the value of pms_name,
+        from FAMUS is desired, set the value of famus_filename,
         instead of passing the surfaces.
         It finishes initialization by pre-computing
         a number of quantities required for the optimization such as the
@@ -24,7 +24,7 @@ class PermanentMagnetGrid:
         Args:
             plasma_boundary:  SurfaceRZFourier object representing
                               the plasma boundary surface.
-            pms_name: Filename of a FAMUS grid file (a pre-made dipole grid).
+            famus_filename: Filename of a FAMUS grid file (a pre-made dipole grid).
                               The paper uses the
                               half-Tesla NCSX configuration (c09r000) and MUSE
                               to compare with the equivalent FAMUS run.
@@ -68,19 +68,19 @@ class PermanentMagnetGrid:
         coil_offset=0.2, Bn=None, dr=0.1,
         filename=None, surface_flag='vmec',
         coordinate_flag='cartesian',
-        pms_name=None,
+        famus_filename=None,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
-        if pms_name is not None:
+        if famus_filename is not None:
             warnings.warn(
-                'pms_name variable is set, so a pre-defined grid will be used. '
+                'famus_filename variable is set, so a pre-defined grid will be used. '
                 ' so that the following parameters are ignored: '
                 'rz_inner_surface, rz_outer_surface, dr, plasma_offset, '
                 'and coil_offset.'
             )
-        self.pms_name = pms_name
+        self.famus_filename = famus_filename
         self.filename = filename
         self.surface_flag = surface_flag
         self.plasma_offset = plasma_offset
@@ -112,7 +112,7 @@ class PermanentMagnetGrid:
 
         t1 = time.time()
         # If the inner surface is not specified, make default surface.
-        if (rz_inner_surface is None) and (pms_name is None):
+        if (rz_inner_surface is None) and (famus_filename is None):
             print(
                 "Inner toroidal surface not specified, defaulting to "
                 "extending the plasma boundary shape using the normal "
@@ -127,12 +127,12 @@ class PermanentMagnetGrid:
             self._set_inner_rz_surface()
         else:
             self.rz_inner_surface = rz_inner_surface
-        if pms_name is None:
+        if famus_filename is None:
             if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
                 raise ValueError("Inner surface is not SurfaceRZFourier object.")
 
         # If the outer surface is not specified, make default surface.
-        if (rz_outer_surface is None) and (pms_name is None):
+        if (rz_outer_surface is None) and (famus_filename is None):
             print(
                 "Outer toroidal surface not specified, defaulting to "
                 "extending the inner toroidal surface shape using the normal "
@@ -147,13 +147,13 @@ class PermanentMagnetGrid:
             self._set_outer_rz_surface()
         else:
             self.rz_outer_surface = rz_outer_surface
-        if pms_name is None:
+        if famus_filename is None:
             if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
                 raise ValueError("Outer surface is not SurfaceRZFourier object.")
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done")
 
-        if pms_name is None:
+        if famus_filename is None:
             # check the inner and outer surface are same size
             # and defined at the same (theta, phi) coordinate locations
             if len(self.rz_inner_surface.quadpoints_theta) != len(self.rz_outer_surface.quadpoints_theta):
@@ -217,7 +217,7 @@ class PermanentMagnetGrid:
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             ox, oy, oz, Ic = np.loadtxt(
-                '../../tests/test_files/' + self.pms_name,
+                '../../tests/test_files/' + self.famus_filename,
                 skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
                 )
 
@@ -341,7 +341,7 @@ class PermanentMagnetGrid:
         dipole_grid_phi = np.zeros(self.ndipoles)
         dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
-        if pms_name is not None:
+        if famus_filename is not None:
             nphi = self.pm_nphi
         else:
             nphi = self.nphi
@@ -363,9 +363,9 @@ class PermanentMagnetGrid:
             running_tally += len_radii
         self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
 
-        if self.pms_name is not None:
+        if self.famus_filename is not None:
             M0s = np.loadtxt(
-                '../../tests/test_files/' + self.pms_name,
+                '../../tests/test_files/' + self.famus_filename,
                 skiprows=3, usecols=[7], delimiter=','
             )
             cell_vol = M0s * mu0 / B_max
