@@ -6,7 +6,7 @@ from simsopt.objectives import LeastSquaresProblem
 from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec
 from simsopt.mhd import QuasisymmetryRatioResidual
-from scipy.optimize import minimize
+from scipy.optimize import minimize, fmin
 from simsopt.objectives import Weight
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
@@ -31,12 +31,12 @@ mpi = MpiPartition()
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
-vmec = Vmec(filename, mpi=mpi, verbose=True)
+vmec = Vmec(filename, mpi=mpi, verbose=False)
 
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 3
+max_mode = 1
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
@@ -82,7 +82,7 @@ MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 5000
+MAXITER = 50
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -138,7 +138,7 @@ flux_weight = 10
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1), (qs.residuals, 0, 1)])
 
 
-def jac_fun(dofs, prob_jacobian):
+def jac_fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
     vmec.x = dofs[-number_vmec_dofs:]
@@ -171,8 +171,9 @@ def jac_fun(dofs, prob_jacobian):
     return grad
 
 
-def fun(dofs, prob_jacobian):
+def fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
+    print(dofs)
     JF.x = dofs[:-number_vmec_dofs]
     vmec.x = dofs[-number_vmec_dofs:]
     bs.set_points(surf.gamma().reshape((-1, 3)))
@@ -205,11 +206,13 @@ def fun(dofs, prob_jacobian):
 
 print("Quasisymmetry objective before optimization:", qs.total())
 
+x0 = np.copy(np.concatenate((JF.x, vmec.x)))
 ## Optimize using finite differences
-with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
-    if mpi.proc0_world:
-        x0 = np.copy(np.concatenate((JF.x, surf.x)))
-        res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+# with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
+#     if mpi.proc0_world:
+#         res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+## Optimize without using finite differences
+res = fmin(fun, x0)
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
