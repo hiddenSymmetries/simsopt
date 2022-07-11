@@ -52,7 +52,7 @@ aspect_target = 6
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 3
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -61,7 +61,7 @@ R0 = 1.0
 R1 = 0.5
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 3
+order = 4
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
@@ -135,6 +135,7 @@ JF = Jf \
 
 number_vmec_dofs = int(len(surf.x))
 flux_weight = 1
+inner_coil_iterations = 30
 
 ## First stage objective function
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, aspect_target, 1),
@@ -173,12 +174,34 @@ def jac_fun(dofs, prob_jacobian=None):
 
     return grad
 
+def fun_coils(dofs):
+    JF.x = dofs
+    J = JF.J()
+    grad = JF.dJ()
+    jf = Jf.J()
+    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)))
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    print(outstr)
+    return J, grad
 
 def fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
     prob.x = dofs[-number_vmec_dofs:]
     bs.set_points(surf.gamma().reshape((-1, 3)))
+
+    # Do two coil optimization loops, the latter with slightly longer coils
+    curves_to_vtk(curves, OUT_DIR + f"curves_before_inner_loop")
+    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, method='L-BFGS-B', options={'maxiter': inner_coil_iterations, 'maxcor': 300}, tol=1e-15)
+    dofs[:-number_vmec_dofs] = res.x
+    JF.x = dofs[:-number_vmec_dofs]
+    curves_to_vtk(curves, OUT_DIR + f"curves_after_inner_loop")
 
     ## Objective function
     try:
@@ -190,13 +213,7 @@ def fun(dofs, prob_jacobian=None):
     # Print some results
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * surf.unitnormal(), axis=2)))
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
-    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    # outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    outstr = f"Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     try:
         outstr += f", Quasisymmetry objective={qs.total()}"
         outstr += f", aspect={vmec.aspect()}"
@@ -213,7 +230,7 @@ x0 = np.copy(np.concatenate((JF.x, vmec.x)))
 ## Optimize using finite differences
 with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
     if mpi.proc0_world:
-        res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+        res = minimize(fun, np.concatenate((JF.x, vmec.x)), args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
 ## Optimize without using finite differences
 # res = minimize(fun, x0)
 
