@@ -37,7 +37,7 @@ t_start = time.time()
 
 # Read in all the required parameters
 comm = None
-config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag = read_input()
+config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag = read_input()
 
 # Add cori scratch path
 class_filename = "PM_optimizer_" + config_flag
@@ -138,10 +138,10 @@ if run_type == 'initialization':
     # Finally, initialize the permanent magnet class
     t1 = time.time()
     pm_opt = PermanentMagnetOptimizer(
-        s, is_premade_famus_grid=is_premade_famus_grid, coil_offset=coff,
+        s, coil_offset=coff,
         dr=dr, plasma_offset=poff, Bn=Bnormal,
         filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
-        coordinate_flag=coordinate_flag, pms_name=pms_name,
+        coordinate_flag=coordinate_flag, famus_filename=famus_filename,
     )
     t2 = time.time()
     print('Done initializing the permanent magnet object')
@@ -149,10 +149,10 @@ if run_type == 'initialization':
 
     # If using a pre-made FAMUS grid of permanent magnet
     # locations, save the FAMUS grid and FAMUS solution.
-    if is_premade_famus_grid:
+    if famus_filename is not None:
         t1 = time.time()
         #read_FAMUS_grid('SIMSOPT_dipole_solution.focus', pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, '/global/cscratch1/sd/akaptano/muse_famus_cartesian_nphi64_ntheta64_dr1.00e-02_coff1.00e-01_poff2.00e-02/output_regl20.00e+00_regl00.00e+00_nu1.00e+100/')
-        read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
+        read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
         t2 = time.time()
         print('Saving FAMUS solution took ', t2 - t1, ' s')
 
@@ -409,7 +409,7 @@ elif run_type == 'post-processing':
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     print('m = ', pm_opt.m)
 
-    #m_loadtxt = get_FAMUS_dipoles(pms_name)
+    #m_loadtxt = get_FAMUS_dipoles(famus_filename)
     m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
     mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
     #mproxy_loadtxt = np.copy(m_loadtxt)

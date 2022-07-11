@@ -140,8 +140,7 @@ def read_input():
 
     # Set the remaining parameters
     surface_flag = 'vmec'
-    pms_name = None
-    is_premade_famus_grid = False
+    famus_filename = None
     if res_flag == 'high':
         nphi = 64
         ntheta = 64
@@ -163,8 +162,7 @@ def read_input():
         poff = 0.02
         surface_flag = 'focus'
         input_name = 'input.muse'
-        pms_name = 'zot80.focus'
-        is_premade_famus_grid = True
+        famus_filename = 'zot80.focus'
     elif 'QH' in config_flag:
         dr = 0.4
         coff = 2.4
@@ -186,8 +184,7 @@ def read_input():
         poff = 0.1  # 0.2
         surface_flag = 'wout'
         input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
-        pms_name = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
-        is_premade_famus_grid = True
+        famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
 
     print('Config flag = ', config_flag)
     print('Resolution flag = ', res_flag)
@@ -204,13 +201,13 @@ def read_input():
     print('Input file name = ', input_name)
     print('nphi = ', nphi)
     print('ntheta = ', ntheta)
-    print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', pms_name)
+    print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', famus_filename)
     if run_type == 'initialization':
-        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
+        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
     elif run_type == 'optimization':
-        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
+        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
     elif run_type == 'post-processing':
-        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
+        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
 
 
 def read_focus_coils(filename):
@@ -567,12 +564,12 @@ def calculate_on_axis_B(bs, s):
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
 
 
-def get_FAMUS_dipoles(pms_name, famus_path='../../tests/test_files/'):
+def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
     """
-    famus_file = famus_path + pms_name
+    famus_file = famus_path + famus_filename
 
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
@@ -611,7 +608,7 @@ def get_FAMUS_dipoles(pms_name, famus_path='../../tests/test_files/'):
     return m_FAMUS
 
 
-def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
+def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
@@ -619,7 +616,7 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR,
     from simsopt.objectives import SquaredFlux
     from simsopt.field.magneticfieldclasses import DipoleField
 
-    famus_file = famus_path + pms_name
+    famus_file = famus_path + famus_filename
 
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
@@ -725,8 +722,8 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     mproxy_abs = np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1)) / pm_opt.m_maxima
 
     # get FAMUS rho values for making comparison histograms
-    if pm_opt.is_premade_famus_grid:
-        famus_file = '../../tests/test_files/' + pm_opt.pms_name
+    if pm_opt.famus_filename is not None:
+        famus_file = '../../tests/test_files/' + pm_opt.famus_filename
         m0, p = np.loadtxt(
             famus_file, skiprows=3,
             usecols=[7, 8],

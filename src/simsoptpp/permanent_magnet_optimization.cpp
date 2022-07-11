@@ -222,7 +222,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         }
 
         // compute step sizes for different descent step types
-	auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end());
+	      auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end());
         alpha_f = *max_i;
         alpha_cg = gp / pATAp;
 
@@ -368,6 +368,9 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 // See "Binary sparse signal recovery with binary matching pursuit"
 // A, b and ATb should be rescaled by m_maxima since we are assuming all ones
 // in m.
+// NOTE: we need a slight change to the algorithm! Once we pick an index to
+// set to one, we need to eliminate the other indices from consideration
+// to keep all the dipoles grid-aligned and obeying the maximum strength requirements
 std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, double reg_l2_shift, bool verbose)
 {
     // Needs ATb in shape (N, 3)
@@ -375,10 +378,10 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     int N = int(A_obj.shape(1) / 3);
     int print_iter = 0;
     int x_sum = 0;
+    int skj, skjj;
 
     Array x = xt::zeros<int>({N});
-    Array Gamma = xt::zeros<int>({K});
-    Array s = xt::zeros<int>({K});
+    Array Gamma = xt::zeros<bool>({N, 3});
 
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, 21});
@@ -398,26 +401,37 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 
     // initialize u0
     Array uk = ATb;
+    // Array abs_uk;
+    vector<double> abs_uk(N, 3);
+
+    // initialize Gamma_complement with all indices available
+    Array Gamma_complement = xt::ones<bool>({N, 3});
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-
-        // Array Gamma_complement = xt::ones<int>({K});
-//         int sk = 0;
-// #pragma omp parallel for reduction(argmax: sk)
-//         for (int j = 0; j < N; ++j) {
-//             if (j not in Gamma):
-//                 sk = abs(uk[j])
-//             else:
-//                 sk = 0
-//         }
-//         x(sk) = 1.0;
-//         Gamma(k) = sk;
-// #pragma omp parallel for
-//         for (int j = 0; j < N; ++j) {
-//             if (j not in Gamma):
-//                 u(j) = u(j) - ATA_matrix(j, sk)
-//         }
+        abs_uk = xt::zeros<double>({N, 3});
+#pragma omp parallel for
+        for (int j = 0; j < N; ++j) {
+            for (int jj = 0; jj < 3; ++jj) {
+                if Gamma_complement(j, jj) {
+                    abs_uk[j, jj] = abs(uk(j, jj));
+                }
+            }
+        }
+        skj = std::max_element(abs_uk.begin(), abs_uk.end());
+        skjj = std::max_element(abs_uk[skj, ...]);
+        x(skj, skjj) = 1.0;
+        Gamma(skj, skjj) = True;
+        for (int j = 0; j < 3; ++j) {
+            Gamma_complement(skj, j) = False;
+        }
+#pragma omp parallel for
+        for (int j = 0; j < N; ++j) {
+            for (int jj = 0; jj < 3; ++jj) {
+                if Gamma_complement(j, jj) {
+                    u(j, jj) = u(j, jj) - ATA_matrix(j, jj, skj, skjj);
+                }
+        }
 
       	// fairly convoluted way to print every ~ K / 20 iterations
         if (verbose && ((k % (int(K / 20.0)) == 0) || k == 0 || k == K - 1)) {
@@ -437,7 +451,7 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 // is nonconvex or at least not a quadratic program. In this case,
 // SPG solves the second-order Taylor series expansion of the objective
 // function (a quadratic approximation) while PQN solves the real problem
-// and uses SPG in each iteration to make progress. 
+// and uses SPG in each iteration to make progress.
 std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
 
