@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 r"""
-This example script allows the user to explore building
+This example script allows the user to build
 permanent magnet configurations for several stage-1 optimized
 plasma boundaries, including the Landreman/Paul QA/QH designs,
 the MUSE stellarator, the NCSX stellarator, and variations.
 
-The script should be run as:
-    python permanent_magnet_optimization.py True
-for an interactive command prompt that asks user for parameters. 
-
-If the script is being run on slurm, the script should be run as
-    python permanent_magnet_optimization.py False my_config my_resolution ...
+The script should be run as
+    srun -n 1 python permanent_magnet_optimization.py my_config my_resolution ...
 where the command line parameters must be specified as is detailed
 in permanent_magnet_helpers.py.
 
@@ -31,10 +27,10 @@ import numpy as np
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
-from simsopt.field.biotsavart import BiotSavart 
+from simsopt.field.biotsavart import BiotSavart
 from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
 from simsopt._core import Optimizable
-from permanent_magnet_helpers import *
+from simsopt.util.permanent_magnet_helper_functions import *
 import time
 
 t_start = time.time()
@@ -43,7 +39,7 @@ t_start = time.time()
 comm = None
 config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag = read_input()
 
-# Add cori scratch path 
+# Add cori scratch path
 class_filename = "PM_optimizer_" + config_flag
 scratch_path = '/global/cscratch1/sd/akaptano/'
 
@@ -68,7 +64,7 @@ if run_type == 'initialization':
 
     t1 = time.time()
 
-    # Don't have NCSX TF coils, just the Bn field on the surface 
+    # Don't have NCSX TF coils, just the Bn field on the surface
     # so have to treat the NCSX example separately.
     quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
     qphi = len(quadpoints_phi)
@@ -89,9 +85,9 @@ if run_type == 'initialization':
         print("Done setting up biot savart, ", t2 - t1, " s")
 
         # Make higher resolution surface for plotting Bnormal
-        if surface_flag == 'focus': 
+        if surface_flag == 'focus':
             s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-        elif surface_flag == 'wout': 
+        elif surface_flag == 'wout':
             s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         else:
             s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -100,7 +96,7 @@ if run_type == 'initialization':
         make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 
         # If BiotSavart not yet optimized, optimize it
-        if 'muse' not in config_flag: 
+        if 'muse' not in config_flag:
             s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag)
 
             # check after-optimization average on-axis magnetic field strength
@@ -142,8 +138,8 @@ if run_type == 'initialization':
     # Finally, initialize the permanent magnet class
     t1 = time.time()
     pm_opt = PermanentMagnetOptimizer(
-        s, is_premade_famus_grid=is_premade_famus_grid, coil_offset=coff, 
-        dr=dr, plasma_offset=poff, Bn=Bnormal, 
+        s, is_premade_famus_grid=is_premade_famus_grid, coil_offset=coff,
+        dr=dr, plasma_offset=poff, Bn=Bnormal,
         filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
         coordinate_flag=coordinate_flag, pms_name=pms_name,
     )
@@ -189,7 +185,6 @@ elif run_type == 'optimization':
 
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
-    pm_opt.out_dir = OUT_DIR 
     print("Coordinate system being used = ", pm_opt.coordinate_flag)
 
     # Check that you loaded the correct file with the same parameters
@@ -201,7 +196,7 @@ elif run_type == 'optimization':
     assert (surface_flag == pm_opt.surface_flag)
     assert (surface_filename == pm_opt.filename)
 
-    # Read in the Bnormal or BiotSavart fields from any coils 
+    # Read in the Bnormal or BiotSavart fields from any coils
     if config_flag != 'ncsx':
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
         bs.set_points(s.gamma().reshape((-1, 3)))
@@ -209,7 +204,7 @@ elif run_type == 'optimization':
     else:
         Bnormal = pm_opt.Bn
 
-    # Set the pm_opt plasma boundary 
+    # Set the pm_opt plasma boundary
     pm_opt.plasma_boundary = s
     print('Done initializing the permanent magnet object')
 
@@ -238,7 +233,7 @@ elif run_type == 'optimization':
             total_RS_history.append(RS_history)
             total_m_history.append(m_history)
             total_mproxy_history.append(m_proxy_history)
-            m0 = pm_opt.m 
+            m0 = pm_opt.m
     else:
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
             max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
@@ -261,7 +256,7 @@ elif run_type == 'optimization':
     print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
     print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-    # Plot the sparse and less sparse solutions from SIMSOPT 
+    # Plot the sparse and less sparse solutions from SIMSOPT
     t1 = time.time()
     m_copy = np.copy(pm_opt.m)
     pm_opt.m = pm_opt.m_proxy
@@ -278,32 +273,28 @@ elif run_type == 'optimization':
 
     # Print optimized metrics
     t1 = time.time()
-    dphi = (pm_opt.phi[1] - pm_opt.phi[0]) * 2 * np.pi
-    dtheta = (pm_opt.theta[1] - pm_opt.theta[0]) * 2 * np.pi
-    print("Average Bn without the PMs = ", 
-          np.mean(np.abs(Bnormal * dphi * dtheta)))
-    print("Total Bn without the PMs = ", 
+    print("Total Bn without the PMs = ",
           np.sum((pm_opt.b_obj) ** 2) / 2.0)
-    print("Total Bn without the coils = ", 
+    print("Total Bn without the coils = ",
           np.sum((pm_opt.A_obj @ pm_opt.m) ** 2) / 2.0)
-    print("Total Bn = ", 
+    print("Total Bn = ",
           0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
-    print("Total Bn (sparse) = ", 
+    print("Total Bn (sparse) = ",
           0.5 * np.sum((pm_opt.A_obj @ pm_opt.m_proxy - pm_opt.b_obj) ** 2))
 
     # Compute metrics with permanent magnet results
     Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
     Ngrid = pm_opt.nphi * pm_opt.ntheta
     ave_Bn_proxy = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m_proxy) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)) / (2 * pm_opt.nphi * pm_opt.ntheta)
-    Bn_Am = (pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms) 
-    Bn_opt = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+    Bn_Am = (pm_opt.A_obj.dot(pm_opt.m)) * np.sqrt(Ngrid / Nnorms)
+    Bn_opt = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
     ave_Bn = np.mean(np.abs(Bn_opt) / (2 * pm_opt.nphi * pm_opt.ntheta))
-    print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn)) 
-    print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy)) 
+    print('<B * n> with the optimized permanent magnets = {0:.8e}'.format(ave_Bn))
+    print('<B * n> with the sparsified permanent magnets = {0:.8e}'.format(ave_Bn_proxy))
 
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
     Bnormal_total = Bnormal + Bnormal_dipoles
-    print("Average Bn with the PMs = ", 
+    print("Average Bn with the PMs = ",
           np.mean(np.abs(Bnormal_total) / (2 * pm_opt.nphi * pm_opt.ntheta)))
     print('F_B INITIAL = ', SquaredFlux(s, b_dipole, -Bnormal).J())
     print('F_B INITIAL * 2 * nfp = ', 2 * s.nfp * SquaredFlux(pm_opt.plasma_boundary, b_dipole, -pm_opt.Bn).J())
@@ -325,9 +316,9 @@ elif run_type == 'optimization':
         qphi = 2 * s.nfp * nphi + 1
         qtheta = ntheta + 1
         endpoint = True
-        quadpoints_phi = np.linspace(0, 1, qphi, endpoint=endpoint) 
+        quadpoints_phi = np.linspace(0, 1, qphi, endpoint=endpoint)
         quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=endpoint)
-        srange = 'full torus' 
+        srange = 'full torus'
 
         if surface_flag == 'focus':
             s_plot = SurfaceRZFourier.from_focus(surface_filename, range=srange, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -398,10 +389,10 @@ elif run_type == 'optimization':
     pm_opt.rz_outer_surface = None
     pickle.dump(pm_opt, file_out)
 elif run_type == 'post-processing':
-    # Load in MPI, VMEC, etc. if doing a final run 
-    # to generate a VMEC wout file which can be 
+    # Load in MPI, VMEC, etc. if doing a final run
+    # to generate a VMEC wout file which can be
     # used to plot symmetry-breaking bmn, the flux
-    # surfaces, epsilon_eff, etc. 
+    # surfaces, epsilon_eff, etc.
     from mpi4py import MPI
     from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
@@ -425,7 +416,6 @@ elif run_type == 'post-processing':
     print('m = ', m_loadtxt)
     pm_opt.m = m_loadtxt
     pm_opt.m_proxy = mproxy_loadtxt
-    pm_opt.out_dir = OUT_DIR 
     pm_opt.plasma_boundary = s
 
     b_dipole = DipoleField(pm_opt)
@@ -441,14 +431,14 @@ elif run_type == 'post-processing':
     qphi = len(quadpoints_phi)
     #quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
-    if surface_flag == 'focus': 
+    if surface_flag == 'focus':
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-    elif surface_flag == 'wout': 
+    elif surface_flag == 'wout':
         s_plot = SurfaceRZFourier.from_wout(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
     else:
         s_plot = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 
-    # Read in the Bnormal or BiotSavart fields from any coils 
+    # Read in the Bnormal or BiotSavart fields from any coils
     if config_flag != 'ncsx':
         pm_opt.m = pm_opt.m_proxy
         bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
@@ -495,7 +485,7 @@ elif run_type == 'post-processing':
     filename_poincare = 'm'
     run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR)
     m_copy = np.copy(pm_opt.m)
-    pm_opt.m = pm_opt.m_proxy 
+    pm_opt.m = pm_opt.m_proxy
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s.gamma().reshape((-1, 3)))
     filename_poincare = 'mproxy'
@@ -521,7 +511,7 @@ elif run_type == 'post-processing':
     t1 = time.time()
     #try:
     ### Always use the QA VMEC file and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA" 
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
     #equil.boundary(qfm_surf)
     equil.boundary = qfm_surf
@@ -530,7 +520,7 @@ elif run_type == 'post-processing':
     equil.run()
 
     ### Always use the QH VMEC file and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres" 
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf_mproxy
     equil.run()
