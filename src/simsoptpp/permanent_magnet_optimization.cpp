@@ -377,11 +377,9 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     int npoints = A_obj.shape(0);
     int N = int(A_obj.shape(1) / 3);
     int print_iter = 0;
-    int x_sum = 0;
     int skj, skjj;
 
-    Array x = xt::zeros<int>({N});
-    Array Gamma = xt::zeros<bool>({N, 3});
+    Array x = xt::zeros<int>({N, 3});
 
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, 21});
@@ -390,7 +388,7 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     Array ATA_matrix = xt::zeros<double>({N, N});
 
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), npoints, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATA_matrix.data()), N, N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATA_matrix.data()), 3*N, 3*N);
 
     // A^TA + contributions from L2 and relax-and-split terms
     eigen_res = eigen_mat.transpose()*eigen_mat;  // add these in later!  + 2 * (reg_l2 + reg_l2_shift);
@@ -401,35 +399,39 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 
     // initialize u0
     Array uk = ATb;
-    // Array abs_uk;
-    vector<double> abs_uk(N, 3);
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-        abs_uk = xt::zeros<double>({N, 3});
+
+        // Compute argmax(uk) over the complement of Gamma
+        vector<double> abs_uk(N, 3) = 0.0;
 #pragma omp parallel for
         for (int j = 0; j < N; ++j) {
             for (int jj = 0; jj < 3; ++jj) {
-                if Gamma_complement(j, jj) {
+                if (Gamma_complement(j, jj)) {
                     abs_uk[j, jj] = abs(uk(j, jj));
                 }
             }
         }
         skj = std::max_element(abs_uk.begin(), abs_uk.end());
         skjj = std::max_element(abs_uk[skj, ...]);
+
+        // Add binary magnet and get rid of the magnet (all three components)
+        // from the complement of Gamma
         x(skj, skjj) = 1.0;
-        Gamma(skj, skjj) = True;
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj, j) = False;
         }
+
+        // update u_k -> u_{k+1}
 #pragma omp parallel for
         for (int j = 0; j < N; ++j) {
             for (int jj = 0; jj < 3; ++jj) {
-                if Gamma_complement(j, jj) {
-                    u(j, jj) = u(j, jj) - ATA_matrix(j, jj, skj, skjj);
+                if (Gamma_complement(j, jj)) {
+                    uk(j, jj) = uk(j, jj) - ATA_matrix(j, jj, skj, skjj);
                 }
         }
 
@@ -512,15 +514,23 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
         }
         alpha = 1.0;
         xk1 = xk + dk;
+        fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+
+        // find best descent direction
         while (fk1 > fk + alpha * nu * gkTdk) {
             alpha = cubic_interp(alpha);
             xk1 = xk + alpha * dk;
+            fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
         }
+
+        // update sk, dk, gk, xk with new step
+        gk1 = df_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu);
         sk = xk1 - xk;
         dk = gk1 - gk;
         xk = xk1;
+        gk = gk1;
     }
-
+    return std::make_tuple(objective_history, R2_history, m_history, xk);
 }
 
 // compute the smooth, convex part of the objective function
@@ -580,9 +590,9 @@ Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2
 // in the convex step of relax-and-split without any approximation. However,
 // the full projected L-BFGS algorithm is required for problems where f is
 // no longer a quadratic program (QP).
-Array SPG(Array& A_obj, Array& b_obj, Array& m_proxy, Array& m_maxima, Array& x0, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
+std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
 {
-    N = x0.shape(0);
+    N = m_maxima.shape(0);
     double max_temp = 0.0;
     double alphak_bar = 0.0;
     double alpha = 1.0;
@@ -592,34 +602,49 @@ Array SPG(Array& A_obj, Array& b_obj, Array& m_proxy, Array& m_maxima, Array& x0
     double dq_PQNTdk = 0.0;
     Array projq = xt::zeros<double>({N, 3});
     Array dqPQN = xt::zeros<double>({N, 3});
-    Array xk = x0;
+    Array xk = m0;
+
+    // Add contribution from relax-and-split term
+    Array ATb_rs = ATb + m_proxy / nu;
+
+    // main iteration loop
     for (int k = 0; k < max_iter; ++k) {
         max_temp = max(alpha_min, alpha_bb);
         alphak_bar = min(alpha_max, max_temp);
         dqPQN = dq_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, reg_l2_shift, nu)
+
+        // update dk
 #pragma omp parallel for
         for (int i = 0; i < N; ++i) {
             std::tie(projq(i, 0), projq(i, 1), projq(i, 2)) = projection_L2_balls(xk(i, 0) - alphak_bar * dqPQN(i, 0), xk(i, 1) - alphak_bar * dqPQN(i, 1), xk(i, 2) - alphak_bar * dqPQN(i, 2), m_maxima(i));
             d_k = projq - xk;
         }
+
+        // compute f(xk) value
 #pragma omp parallel for reduction(max: fb)
         for (int i = max(0, k - h); i < k; ++i) {
             fb = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
         }
         alpha = 1.0;
 
+        // compute dq(xk) vector
         dq_PQNTdk = 0.0;
 #pragma omp parallel for reduction(+: dq_PQNTdk)
         for (int i = 0; i < N; ++i) {
             dq_PQNTdk = dqPQN(i, 0) * dk(i, 0) + dqPQN(i, 1) * dk(i, 1) + dqPQN(i, 2) * dk(i, 2)
         }
 
+        // figure out the best descent direction
         while (q_PQN(xk + alpha * dk) > fb + nu_SPG * alpha * dq_PQNTdk) {
             alpha = cubic_interp(alpha);
         }
+
+        // update xk and sk with the new descent direction
         xk1 = xk + alpha * dk;
         sk = xk1 - xk;
-        yk = q_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu) - dqPQN;
+
+        // compute gradient of the quadratic approximation of the objective function f(xk)
+        yk = dq_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu) - dqPQN;
         yTy = 0.0;
         sTy = 0.0;
 #pragma omp parallel for reduction(+: yTy, sTy)
@@ -627,6 +652,8 @@ Array SPG(Array& A_obj, Array& b_obj, Array& m_proxy, Array& m_maxima, Array& x0
             yTy += y(i, 0) * y(i, 0) + y(i, 1) * y(i, 1) + y(i, 2) * y(i, 2);
             sTy += s(i, 0) * y(i, 0) + s(i, 1) * y(i, 1) + s(i, 2) * y(i, 2);
         }
+
+        // update alpha_bb for next iteration
         alpha_bb = yTy / sTy;
         xk = xk1;
     }
