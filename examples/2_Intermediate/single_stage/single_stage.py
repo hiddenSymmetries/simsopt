@@ -30,8 +30,9 @@ print("=============================================")
 mpi = MpiPartition()
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
-filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
-vmec = Vmec(filename, mpi=mpi, verbose=False)
+# filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
+filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp2_QA')
+vmec = Vmec(filename, mpi=mpi, verbose=True)
 
 # Define parameter space:
 surf = vmec.boundary
@@ -44,11 +45,14 @@ surf.fix("rc(0,0)")  # Major radius
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
                                 np.arange(0, 1.01, 0.1),  # np.arange(0, 1.01, 0.1),  # Radii to target
-                                helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
+                                # helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
+                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
+# aspect_target = 7
+aspect_target = 6
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 4
+ncoils = 3
 
 # Major radius for the initial circular coils:
 R0 = 1.0
@@ -57,7 +61,7 @@ R0 = 1.0
 R1 = 0.5
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 4
+order = 3
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
@@ -130,18 +134,17 @@ JF = Jf \
 # pass directly to scipy.optimize.minimize
 
 number_vmec_dofs = int(len(surf.x))
-
-aspect_goal = 7
-flux_weight = 10
+flux_weight = 1
 
 ## First stage objective function
-prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1), (qs.residuals, 0, 1)])
-
+prob = LeastSquaresProblem.from_tuples([(vmec.aspect, aspect_target, 1),
+                                        (qs.residuals, 0, 1),
+                                        (vmec.mean_iota, 0.42, 1)])
 
 def jac_fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
     JF.x = dofs[:-number_vmec_dofs]
-    vmec.x = dofs[-number_vmec_dofs:]
+    prob.x = dofs[-number_vmec_dofs:]
     bs.set_points(surf.gamma().reshape((-1, 3)))
 
     ## Finite differences for the first-stage objective function
@@ -173,9 +176,8 @@ def jac_fun(dofs, prob_jacobian=None):
 
 def fun(dofs, prob_jacobian=None):
     ## Order of dofs: (coils dofs, surface dofs)
-    print(dofs)
     JF.x = dofs[:-number_vmec_dofs]
-    vmec.x = dofs[-number_vmec_dofs:]
+    prob.x = dofs[-number_vmec_dofs:]
     bs.set_points(surf.gamma().reshape((-1, 3)))
 
     ## Objective function
@@ -198,6 +200,7 @@ def fun(dofs, prob_jacobian=None):
     try:
         outstr += f", Quasisymmetry objective={qs.total()}"
         outstr += f", aspect={vmec.aspect()}"
+        outstr += f", mean iota={vmec.mean_iota()}"
     except Exception as e:
         print(e)
     print(outstr)
@@ -208,11 +211,11 @@ print("Quasisymmetry objective before optimization:", qs.total())
 
 x0 = np.copy(np.concatenate((JF.x, vmec.x)))
 ## Optimize using finite differences
-# with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
-#     if mpi.proc0_world:
-#         res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
+with MPIFiniteDifference(prob.objective, mpi, abs_step=1e-5) as prob_jacobian:
+    if mpi.proc0_world:
+        res = minimize(fun, x0, args=(prob_jacobian,), jac=jac_fun, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 101}, tol=1e-15)
 ## Optimize without using finite differences
-res = fmin(fun, x0)
+# res = minimize(fun, x0)
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
