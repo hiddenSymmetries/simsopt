@@ -63,6 +63,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("delta") = 0.5, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
     m.def("BMP_algorithm", &BMP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("verbose") = false);
     m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
+    m.def("SPG_algorithm", &SPG_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
