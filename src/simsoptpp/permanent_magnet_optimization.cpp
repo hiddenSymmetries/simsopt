@@ -430,7 +430,14 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 
 // Projected quasi-newton (L-BFGS) method used for convex or nonnconvex problems
 // with simple convex constraints, such as in the permanent magnet case. Can
-// be used in place of MwPGP during the convex solve.
+// be used in place of MwPGP during the convex solve, although this should
+// produce identical results to the SPG algorithm that it uses for the convex
+// step of relax-and-split because the problem is QPQC anyways. PQN is
+// required only if the first step of the relax-and-split algorithm
+// is nonconvex or at least not a quadratic program. In this case,
+// SPG solves the second-order Taylor series expansion of the objective
+// function (a quadratic approximation) while PQN solves the real problem
+// and uses SPG in each iteration to make progress. 
 std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
 {
 
@@ -469,7 +476,9 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
         if (k == 0):
             dk = - gk / gknorm;
         else:
-            xkstar = SPG(xk);
+            // xkstar is the solution to the constrained, quadratic approximation of the objective function
+            // h value needs to be experimented with
+            xkstar = SPG(A_obj, b_obj, m_proxy, m_maxima, x0, 1e-10, 1e10, alpha_bb, 100, reg_l2, reg_l2_shifted, nu);
             dk = xkstar - xk;
 
         // check for convergence
@@ -495,6 +504,7 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
         }
         sk = xk1 - xk;
         dk = gk1 - gk;
+        xk = xk1;
     }
 
 }
@@ -534,6 +544,83 @@ Array f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxi
 
 // compute the gradient of the smooth, convex part of the objective function
 Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double reg_l2_shift, double nu)
+{
+    int N = m_maxima.shape(0);
+    // update g and p
+    Array g = xt::zeros<double>({N, 3});
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), npoints, 3*N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 1, 3*N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(gk.data()), 1, 3*N);
+    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+#pragma omp parallel for
+    for (int i = 0; i < N; ++i) {
+        for (int jj = 0; jj < 3; ++jj) {
+            g(i, jj) += - ATb_rs(i, jj);
+        }
+    }
+    return g;
+}
+
+// Solves the constrained, quadratic approximation of an objective function
+// For QPQCs, this approximation is exact, so this can be used instead of MwPGP
+// in the convex step of relax-and-split without any approximation. However,
+// the full projected L-BFGS algorithm is required for problems where f is
+// no longer a quadratic program (QP).
+Array SPG(Array& A_obj, Array& b_obj, Array& m_proxy, Array& m_maxima, Array& x0, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
+{
+    N = x0.shape(0);
+    double max_temp = 0.0;
+    double alphak_bar = 0.0;
+    double alpha = 1.0;
+    double fb = 0.0;
+    double yTy = 0.0;
+    double sTy = 0.0;
+    double dq_PQNTdk = 0.0;
+    Array projq = xt::zeros<double>({N, 3});
+    Array dqPQN = xt::zeros<double>({N, 3});
+    Array xk = x0;
+    for (int k = 0; k < max_iter; ++k) {
+        max_temp = max(alpha_min, alpha_bb);
+        alphak_bar = min(alpha_max, max_temp);
+        dqPQN = dq_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, reg_l2_shift, nu)
+#pragma omp parallel for
+        for (int i = 0; i < N; ++i) {
+            std::tie(projq(i, 0), projq(i, 1), projq(i, 2)) = projection_L2_balls(xk(i, 0) - alphak_bar * dqPQN(i, 0), xk(i, 1) - alphak_bar * dqPQN(i, 1), xk(i, 2) - alphak_bar * dqPQN(i, 2), m_maxima(i));
+            d_k = projq - xk;
+        }
+#pragma omp parallel for reduction(max: fb)
+        for (int i = max(0, k - h); i < k; ++i) {
+            fb = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+        }
+        alpha = 1.0;
+
+        dq_PQNTdk = 0.0;
+#pragma omp parallel for reduction(+: dq_PQNTdk)
+        for (int i = 0; i < N; ++i) {
+            dq_PQNTdk = dqPQN(i, 0) * dk(i, 0) + dqPQN(i, 1) * dk(i, 1) + dqPQN(i, 2) * dk(i, 2)
+        }
+
+        while (q_PQN(xk + alpha * dk) > fb + nu_SPG * alpha * dq_PQNTdk) {
+            alpha = cubic_interp(alpha);
+        }
+        xk1 = xk + alpha * dk;
+        sk = xk1 - xk;
+        yk = q_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu) - dqPQN;
+        yTy = 0.0;
+        sTy = 0.0;
+#pragma omp parallel for reduction(+: yTy, sTy)
+        for (int i = 0; i < N; ++i) {
+            yTy += y(i, 0) * y(i, 0) + y(i, 1) * y(i, 1) + y(i, 2) * y(i, 2);
+            sTy += s(i, 0) * y(i, 0) + s(i, 1) * y(i, 1) + s(i, 2) * y(i, 2);
+        }
+        alpha_bb = yTy / sTy;
+        xk = xk1;
+    }
+    return xk;
+}
+
+// compute the gradient of the quadratic approximation of the objective function
+Array dq_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double reg_l2_shift, double nu)
 {
     int N = m_maxima.shape(0);
     // update g and p
