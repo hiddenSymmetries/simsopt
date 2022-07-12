@@ -94,13 +94,24 @@ pm_opt = PermanentMagnetGrid(
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
+reg_l0 = 0.05  # Threshold off magnets with 10% or less strength
+
+# Rescale the hyperparameters and then add contributions to ATA and ATb
+reg_l0, _, _, _, nu = rescale_for_opt(
+    pm_opt, reg_l0, 0.0, 0.0, 0.0, nu
+)
+
 # Set some hyperparameters for the optimization
 kwargs = {}
 kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
 kwargs['max_iter_MwPGP'] = 100  # Number of iterations to take in a convex step
 kwargs['max_iter_RS'] = 100  # Number of total iterations of the relax-and-split algorithm
-
-reg_l0 = 0.05  # Threshold off magnets with 10% or less strength
+kwargs['verbose'] = True   # print out errors every few iterations
+kwargs['reg_l0'] = reg_l0
+kwargs['nu'] = nu
+kwargs['min_fb'] = min_fb  # if fb < min_fb, quit the algorithm
+kwargs['epsilon'] = epsilon   # if norm(xk1 - xk), algorithm sufficiently converged
+kwargs['max_iter'] = max_iter_MwPGP  # maximum number of iterations during the convex step
 
 # Optimize the permanent magnets, increasing L0 threshold each iteration
 total_m_history = []

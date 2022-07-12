@@ -47,54 +47,6 @@ def projection_L2_balls(x, mmax):
     return np.divide(x_shaped, np.array([denom, denom, denom]).T).reshape(3 * N)
 
 
-def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu):
-    """
-        Scale regularizers to the largest scale of ATA (~1e-6)
-        to avoid regularization >> ||Am - b|| ** 2 term in the optimization.
-        The prox operator uses reg_l0 * nu for the threshold so normalization
-        below allows reg_l0 and reg_l1 values to be exactly the thresholds
-        used in calculation of the prox. Then add contributions to ATA and
-        ATb coming from extra loss terms such as L2 regularization and
-        relax-and-split.
-    """
-
-    print('L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2))
-    print('Shifted L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2_shifted))
-
-    if reg_l0 < 0 or reg_l0 > 1:
-        raise ValueError(
-            'L0 regularization must be between 0 and 1. This '
-            'value is automatically scaled to the largest of the '
-            'dipole maximum values, so reg_l0 = 1 should basically '
-            'truncate all the dipoles to zero. '
-        )
-    # Compute singular values of A, use this to determine optimal step size
-    # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
-    S = np.linalg.svd(pm_opt.A_obj, full_matrices=False, compute_uv=False)
-    pm_opt.ATA_scale = S[0] ** 2
-
-    # Rescale L0 and L1 so that the values used for thresholding
-    # are only parametrized by the values of reg_l0 and reg_l1
-    reg_l0 = reg_l0 / (2 * nu)
-    reg_l1 = reg_l1 / nu
-
-    # may want to rescale nu, otherwise just scan this value
-    # nu = nu / pm_opt.ATA_scale
-
-    # Do not rescale L2 terms for now. reg_l2_shifted is not well tested.
-    reg_l2 = reg_l2
-    reg_l2_shifted = reg_l2_shifted
-
-    # Update algorithm step size if we have extra smooth, convex loss terms
-    pm_opt.ATA_scale = S[0] ** 2 + 2 * (reg_l2 + reg_l2_shifted) + 1.0 / nu
-
-    # Add shifted L2 contribution to ATb. Note that relax-and-split
-    # contribution must be added within the optimization, because it
-    # depends on the 'w' optimization variable.
-    ATb = pm_opt.ATb + reg_l2_shifted * np.ravel(np.outer(pm_opt.m_maxima, np.ones(3)))
-    return ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
-
-
 def setup_initial_condition(pm_opt, m0=None):
     """
         If an initial guess for the dipole moments is specified,
@@ -148,54 +100,35 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
             that if algorithm is being used properly,
             the end result should be independent of
             the choice of initial condition.
-        epsilon: Error tolerance for the convex
-            part of the algorithm (MwPGP).
-        nu: Hyperparameter used for the relax-and-split
-            least-squares. Set nu >> 1 to reduce the
-            importance of nonconvexity in the problem.
-        reg_l0: Regularization value for the L0
-            nonconvex term in the optimization. This value
-            is automatically scaled based on the max dipole
-            moment values, so that reg_l0 = 1 corresponds
-            to reg_l0 = np.max(m_maxima). It follows that
-            users should choose reg_l0 in [0, 1].
-        reg_l1: Regularization value for the L1
-            nonsmooth term in the optimization,
-        reg_l2: Regularization value for any convex
-            regularizers in the optimization problem,
-            such as the often-used L2 norm.
-        reg_l2_shifted: Regularization value for the L2
-            smooth and convex term in the optimization,
-            shifted by the vector of maximum dipole magnitudes.
-        max_iter_MwPGP: Maximum iterations to perform during
-            a run of the convex part of the relax-and-split
-            algorithm (MwPGP).
-        max_iter_RS: Maximum iterations to perform of the
-            overall relax-and-split algorithm. Therefore,
-            also the number of times that MwPGP is called,
-            and the number of times a prox is computed.
-        verbose: Prints out all the loss term errors separately.
+        algorithm: Convex algorithm to use during relax-and-split.
+            Defaults to the MwPGP algorithm.
+        kwargs: Dictionary of keywords to pass to the algorithm. The following
+            variables can be passed to the MwPGP algorithm:
+            epsilon: Error tolerance for the convex
+                part of the algorithm (MwPGP).
+            nu: Hyperparameter used for the relax-and-split
+                least-squares. Set nu >> 1 to reduce the
+                importance of nonconvexity in the problem.
+            reg_l0: Regularization value for the L0
+                nonconvex term in the optimization. This value
+                is automatically scaled based on the max dipole
+                moment values, so that reg_l0 = 1 corresponds
+                to reg_l0 = np.max(m_maxima). It follows that
+                users should choose reg_l0 in [0, 1].
+            reg_l1: Regularization value for the L1
+                nonsmooth term in the optimization,
+            reg_l2: Regularization value for any convex
+                regularizers in the optimization problem,
+                such as the often-used L2 norm.
+            max_iter_MwPGP: Maximum iterations to perform during
+                a run of the convex part of the relax-and-split
+                algorithm (MwPGP).
+            max_iter_RS: Maximum iterations to perform of the
+                overall relax-and-split algorithm. Therefore,
+                also the number of times that MwPGP is called,
+                and the number of times a prox is computed.
+            verbose: Prints out all the loss term errors separately.
     """
-
-    # Really not sure if the kwargs approach will work here,
-    # especially with the C++ function bindings
-    if max_iter_RS not in kwargs.keys():
-        kwargs['max_iter_RS'] = 1
-    if reg_l0 not in kwargs.keys():
-        kwargs['reg_l0'] = 0.0
-    if reg_l1 not in kwargs.keys():
-        kwargs['reg_l1'] = 0.0
-    if reg_l2 not in kwargs.keys():
-        kwargs['reg_l2'] = 0.0
-    if reg_l2_shifted not in kwargs.keys():
-        kwargs['reg_l2_shifted'] = 0.0
-    if nu not in kwargs.keys():
-        kwargs['nu'] = 1e100
-
-    # Rescale the hyperparameters and then add contributions to ATA and ATb
-    ATb, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu = rescale_for_opt(
-        pm_opt, reg_l0, reg_l1, reg_l2, reg_l2_shifted, nu
-    )
 
     # change to row-major order for the C++ code
     A_obj = np.ascontiguousarray(pm_opt.A_obj)
@@ -237,6 +170,7 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
     m_proxy = pm_opt.m0
     mmax = pm_opt.m_maxima
     m_proxy = prox(m_proxy, mmax, reg_l0, nu)
+    kwargs['alpha'] = alpha_max
 
     # Begin optimization
     if reg_l0 > 0.0 or reg_l1 > 0.0:
@@ -252,16 +186,6 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
                     m0=np.ascontiguousarray(m.reshape(pm_opt.ndipoles, 3)),  # note updated m is new guess
                     m_maxima=mmax,
                     **kwargs
-                    #alpha=alpha_max,
-                    #verbose=True,
-                    #reg_l0=reg_l0,
-                    #reg_l1=reg_l1,
-                    #reg_l2=reg_l2,
-                    #reg_l2_shifted=reg_l2_shifted,
-                    #nu=nu,
-                    # min_fb=min_fb,
-                    # epsilon=epsilon,
-                    # max_iter=max_iter_MwPGP,
                 )
             m_history.append(m)
             m = np.ravel(m)
@@ -309,9 +233,6 @@ def BMP_wrapper(pm_opt, **kwargs):
         reg_l2: Regularization value for any convex
             regularizers in the optimization problem,
             such as the often-used L2 norm.
-        reg_l2_shifted: Regularization value for the L2
-            smooth and convex term in the optimization,
-            shifted by the vector of maximum dipole magnitudes.
         verbose: Prints out all the loss term errors separately.
     """
     # Begin the various algorithms
@@ -329,7 +250,6 @@ def BMP_wrapper(pm_opt, **kwargs):
     # since reg_l2 * ||m||^2 = reg_l2 * ||mmax||^2 * ||m / mmax||^2
     mmax_norm2 = np.linal.norm(mmax_vec, ord=2) ** 2
     reg_l2 = reg_l2 * mmax_norm2
-    reg_l2_shifted = reg_l2_shifted * mmax_norm2
 
     algorithm_history, _, m_history, m = sopp.BMP_algorithm(
         A_obj=A_obj,

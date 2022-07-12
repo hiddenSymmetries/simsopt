@@ -891,3 +891,45 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
                 )
             )
     return
+
+
+def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu):
+    """
+        Scale regularizers to the largest scale of ATA (~1e-6)
+        to avoid regularization >> ||Am - b|| ** 2 term in the optimization.
+        The prox operator uses reg_l0 * nu for the threshold so normalization
+        below allows reg_l0 and reg_l1 values to be exactly the thresholds
+        used in calculation of the prox. Then add contributions to ATA and
+        ATb coming from extra loss terms such as L2 regularization and
+        relax-and-split.
+    """
+
+    print('L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2))
+
+    if reg_l0 < 0 or reg_l0 > 1:
+        raise ValueError(
+            'L0 regularization must be between 0 and 1. This '
+            'value is automatically scaled to the largest of the '
+            'dipole maximum values, so reg_l0 = 1 should basically '
+            'truncate all the dipoles to zero. '
+        )
+    # Compute singular values of A, use this to determine optimal step size
+    # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
+    S = np.linalg.svd(pm_opt.A_obj, full_matrices=False, compute_uv=False)
+    pm_opt.ATA_scale = S[0] ** 2
+
+    # Rescale L0 and L1 so that the values used for thresholding
+    # are only parametrized by the values of reg_l0 and reg_l1
+    reg_l0 = reg_l0 / (2 * nu)
+    reg_l1 = reg_l1 / nu
+
+    # may want to rescale nu, otherwise just scan this value
+    # nu = nu / pm_opt.ATA_scale
+
+    # Do not rescale L2 term for now.
+    reg_l2 = reg_l2
+
+    # Update algorithm step size if we have extra smooth, convex loss terms
+    pm_opt.ATA_scale = S[0] ** 2 + 2 * reg_l2 + 1.0 / nu
+
+    return reg_l0, reg_l1, reg_l2, nu
