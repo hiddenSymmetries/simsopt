@@ -1,8 +1,8 @@
 #!/bin/bash 
 
-rm input.*
+rm input.*000*
 rm jac_log*
-rm wout_*
+rm wout_*000*
 rm threed1*
 rm parvmec*
 rm output/*
