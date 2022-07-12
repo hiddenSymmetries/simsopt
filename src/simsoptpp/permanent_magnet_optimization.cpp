@@ -87,26 +87,24 @@ double find_max_alphaf(double x1, double x2, double x3, double p1, double p2, do
 
 // print out all the possible loss terms in the objective function
 // and record histories of the dipole moments, objective values, etc.
-void print_MwPGP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array& m_maxima, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double nu, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift)
+void print_MwPGP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array& m_maxima, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double nu, double reg_l0, double reg_l1, double reg_l2)
 {
     int ngrid = A_obj.shape(0);
     int N = m_maxima.shape(0);
     double R2 = 0.0;
     double N2 = 0.0;
     double L2 = 0.0;
-    double L2_shift = 0.0;
     double L1 = 0.0;
     double L0 = 0.0;
     double cost = 0.0;
     double l0_tol = 1e-20;
     Array R2_temp = xt::zeros<double>({ngrid});
-#pragma omp parallel for reduction(+: N2, L2, L2_shift, L1, L0)
+#pragma omp parallel for reduction(+: N2, L2, L1, L0)
     for(int i = 0; i < N; ++i) {
 	for(int ii = 0; ii < 3; ++ii) {
 	    m_history(i, ii, print_iter) = x_k1(i, ii);
 	    N2 += (x_k1(i, ii) - m_proxy(i, ii)) * (x_k1(i, ii) - m_proxy(i, ii));
 	    L2 += x_k1(i, ii) * x_k1(i, ii);
-	    L2_shift += (x_k1(i, ii) - m_maxima(i)) * (x_k1(i, ii) - m_maxima(i));
 	    L1 += abs(x_k1(i, ii));
 	    L0 += ((abs(m_proxy(i, ii)) < l0_tol) ? 1.0 : 0.0);
 	}
@@ -127,16 +125,15 @@ void print_MwPGP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array&
     R2 = 0.5 * R2;
     N2 = 0.5 * N2 / nu;
     L2 = reg_l2 * L2;
-    L2_shift = reg_l2_shift * L2_shift;
     L1 = reg_l1 * L1;
     L0 = reg_l0 * L0;
 
     // L1, L0, and other nonconvex loss terms are not addressed by this algorithm
     // so they will just be constant and we can omit them from the total cost.
-    cost = R2 + N2 + L2 + L2_shift;
+    cost = R2 + N2 + L2;
     objective_history(print_iter) = cost;
     R2_history(print_iter) = R2;
-    printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L2_shift, L1, L0, cost);
+    printf("%d ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, N2, L2, L1, L0, cost);
 }
 
 // Run the MwPGP algorithm for solving the convex part of
@@ -145,7 +142,7 @@ void print_MwPGP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array&
 // See Bouchala, Jiří, et al.On the solution of convex QPQC
 // problems with elliptic and other separable constraints with
 // strong curvature. Applied Mathematics and Computation 247 (2014): 848-864.
-std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, double min_fb, bool verbose)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, double min_fb, bool verbose)
 {
     // Needs ATb in shape (N, 3)
     int npoints = A_obj.shape(0);
@@ -180,7 +177,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
 
     // A^TA * m + contributions from L2 and relax-and-split terms
-    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 
     // subtract off A^T * b + m_proxy / nu for fully initialized g
     g -= ATb_rs;
@@ -209,7 +206,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         ATAp = xt::zeros<double>({N, 3});
         Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(p.data()), 1, 3*N);
         Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATAp.data()), 1, 3*N);
-        eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+        eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 #pragma omp parallel for reduction(+: norm_g_alpha_p, norm_phi_temp, gp, pATAp) private(phi_temp1, phi_temp2, phi_temp3, g_alpha_p1, g_alpha_p2, g_alpha_p3)
         for(int i = 0; i < N; ++i) {
             std::tie(g_alpha_p1, g_alpha_p2, g_alpha_p3) = g_reduced_projected_gradient(x_k1(i, 0), x_k1(i, 1), x_k1(i, 2), g(i, 0), g(i, 1), g(i, 2), alpha, m_maxima(i));
@@ -266,7 +263,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
                 // update g and p
                 Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(x_k1.data()), 1, 3*N);
                 Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
-                eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+                eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 #pragma omp parallel for
                 for (int i = 0; i < N; ++i) {
                     for (int jj = 0; jj < 3; ++jj) {
@@ -286,7 +283,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
             // update g and p
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(x_k1.data()), 1, 3*N);
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(g.data()), 1, 3*N);
-            eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+            eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 #pragma omp parallel for
             for (int i = 0; i < N; ++i) {
                 for (int jj = 0; jj < 3; ++jj) {
@@ -298,7 +295,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 
 	// fairly convoluted way to print every ~ max_iter / 20 iterations
         if (verbose && ((k % (int(max_iter / 20.0)) == 0) || k == 0 || k == max_iter - 1)) {
-	    print_MwPGP(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2, reg_l2_shift);
+	    print_MwPGP(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2);
 	    if (R2_history(print_iter) < min_fb) break;
             print_iter += 1;
 	}
@@ -320,21 +317,19 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 }
 
 // print out the relevant loss terms for the BMP algorithm
-void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double reg_l2, double reg_l2_shift)
+void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double reg_l2)
 {
     int ngrid = A_obj.shape(0);
     int N = int(A_obj.shape(1) / 3);
     double R2 = 0.0;
     double L2 = 0.0;
-    double L2_shift = 0.0;
     double cost = 0.0;
     Array R2_temp = xt::zeros<double>({ngrid});
-#pragma omp parallel for reduction(+: N2, L2, L2_shift)
+#pragma omp parallel for reduction(+: N2, L2)
     for(int i = 0; i < N; ++i) {
 	      for(int ii = 0; ii < 3; ++ii) {
 	           m_history(i, ii, print_iter) = x_k1(i, ii);
 	           L2 += x_k1(i, ii) * x_k1(i, ii);
-	           L2_shift += (x_k1(i, ii) - 1) * (x_k1(i, ii) - 1);
 	      }
     }
 
@@ -352,14 +347,13 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
     // rescale loss terms by the hyperparameters
     R2 = 0.5 * R2;
     L2 = reg_l2 * L2;
-    L2_shift = reg_l2_shift * L2_shift;
 
     // L1, L0, and other nonconvex loss terms are not addressed by this algorithm
     // so they will just be constant and we can omit them from the total cost.
-    cost = R2 + L2 + L2_shift;
+    cost = R2 + L2;
     objective_history(print_iter) = cost;
     R2_history(print_iter) = R2;
-    printf("%d ... %.2e ... %.2e ... %.2e ... %.2e \n", k, R2, L2, L2_shift, cost);
+    printf("%d ... %.2e ... %.2e ... %.2e \n", k, R2, L2, cost);
 }
 
 // Run the binary matching pursuit algorithm for solving the convex part of
@@ -371,7 +365,7 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, double reg_l2_shift, bool verbose)
+std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose)
 {
     // Needs ATb in shape (N, 3)
     int npoints = A_obj.shape(0);
@@ -391,7 +385,7 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATA_matrix.data()), 3*N, 3*N);
 
     // A^TA + contributions from L2 and relax-and-split terms
-    eigen_res = eigen_mat.transpose()*eigen_mat;  // add these in later!  + 2 * (reg_l2 + reg_l2_shift);
+    eigen_res = eigen_mat.transpose()*eigen_mat;  // add these in later!  + 2 * (reg_l2);
 
     // print out the names of the error columns
     if (verbose)
@@ -437,7 +431,7 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 
       	// fairly convoluted way to print every ~ K / 20 iterations
         if (verbose && ((k % (int(K / 20.0)) == 0) || k == 0 || k == K - 1)) {
-      	    print_BMP(A_obj, b_obj, x, m_history, objective_history, R2_history, print_iter, k, reg_l2, reg_l2_shift);
+      	    print_BMP(A_obj, b_obj, x, m_history, objective_history, R2_history, print_iter, k, reg_l2);
             print_iter += 1;
       	}
     }
@@ -454,7 +448,7 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 // SPG solves the second-order Taylor series expansion of the objective
 // function (a quadratic approximation) while PQN solves the real problem
 // and uses SPG in each iteration to make progress.
-std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, double reg_l2_shift, int max_iter, bool verbose)
+std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, bool verbose)
 {
 
     int ngrid = A_obj.shape(0);
@@ -478,10 +472,10 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
     for (int k = 0; k < max_iter; ++k) {
 
         // Calculate objective function at xk
-        fk = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+        fk = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, nu);
 
         // Calculate gradient of objective function at xk
-        gk = df_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, reg_l2_shift, nu);
+        gk = df_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, nu);
         gknorm = 0.0;
 #pragma omp parallel for reduction(+: gknorm)
         for (int i = 0; i < N; ++i) {
@@ -494,7 +488,7 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
         else:
             // xkstar is the solution to the constrained, quadratic approximation of the objective function
             // h value needs to be experimented with
-            xkstar = SPG(A_obj, b_obj, m_proxy, m_maxima, x0, 1e-10, 1e10, alpha_bb, 100, reg_l2, reg_l2_shifted, nu);
+            xkstar = SPG(A_obj, b_obj, m_proxy, m_maxima, x0, 1e-10, 1e10, alpha_bb, 100, reg_l2, nu);
             dk = xkstar - xk;
 
         // check for convergence
@@ -514,17 +508,17 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
         }
         alpha = 1.0;
         xk1 = xk + dk;
-        fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+        fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, nu);
 
         // find best descent direction
         while (fk1 > fk + alpha * nu * gkTdk) {
             alpha = cubic_interp(alpha);
             xk1 = xk + alpha * dk;
-            fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+            fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, nu);
         }
 
         // update sk, dk, gk, xk with new step
-        gk1 = df_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu);
+        gk1 = df_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, nu);
         sk = xk1 - xk;
         dk = gk1 - gk;
         xk = xk1;
@@ -534,21 +528,19 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
 }
 
 // compute the smooth, convex part of the objective function
-Array f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxima, double reg_l2, double reg_l2_shift, double nu)
+Array f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxima, double reg_l2, double nu)
 {
     int ngrid = A_obj.shape(0);
     int N = m_maxima.shape(0);
     double R2 = 0.0;
     double N2 = 0.0;
     double L2 = 0.0;
-    double L2_shift = 0.0;
-#pragma omp parallel for reduction(+: N2, L2, L2_shift)
+#pragma omp parallel for reduction(+: N2, L2)
     for(int i = 0; i < N; ++i) {
       	for(int ii = 0; ii < 3; ++ii) {
     	      m_history(i, ii, print_iter) = xk(i, ii);
     	      N2 += (xk(i, ii) - m_proxy(i, ii)) * (xk(i, ii) - m_proxy(i, ii));
     	      L2 += xk(i, ii) * xk(i, ii);
-    	      L2_shift += (xk(i, ii) - m_maxima(i)) * (xk(i, ii) - m_maxima(i));
     	  }
     }
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
@@ -562,12 +554,11 @@ Array f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxi
     R2 = 0.5 * R2;
     N2 = 0.5 * N2 / nu;
     L2 = reg_l2 * L2;
-    L2_shift = reg_l2_shift * L2_shift;
-    return R2 + N2 + L2 + L2_shift;
+    return R2 + N2 + L2;
 }
 
 // compute the gradient of the smooth, convex part of the objective function
-Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double reg_l2_shift, double nu)
+Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double nu)
 {
     int N = m_maxima.shape(0);
     // update g and p
@@ -575,7 +566,7 @@ Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), npoints, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 1, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(gk.data()), 1, 3*N);
-    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
         for (int jj = 0; jj < 3; ++jj) {
@@ -590,7 +581,7 @@ Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2
 // in the convex step of relax-and-split without any approximation. However,
 // the full projected L-BFGS algorithm is required for problems where f is
 // no longer a quadratic program (QP).
-std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double reg_l2_shifted, double nu)
+std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double nu)
 {
     N = m_maxima.shape(0);
     double max_temp = 0.0;
@@ -611,7 +602,7 @@ std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& AT
     for (int k = 0; k < max_iter; ++k) {
         max_temp = max(alpha_min, alpha_bb);
         alphak_bar = min(alpha_max, max_temp);
-        dqPQN = dq_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, reg_l2_shift, nu)
+        dqPQN = dq_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, nu)
 
         // update dk
 #pragma omp parallel for
@@ -623,7 +614,7 @@ std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& AT
         // compute f(xk) value
 #pragma omp parallel for reduction(max: fb)
         for (int i = max(0, k - h); i < k; ++i) {
-            fb = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, reg_l2_shift, nu);
+            fb = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, nu);
         }
         alpha = 1.0;
 
@@ -644,7 +635,7 @@ std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& AT
         sk = xk1 - xk;
 
         // compute gradient of the quadratic approximation of the objective function f(xk)
-        yk = dq_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, reg_l2_shift, nu) - dqPQN;
+        yk = dq_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, nu) - dqPQN;
         yTy = 0.0;
         sTy = 0.0;
 #pragma omp parallel for reduction(+: yTy, sTy)
@@ -661,7 +652,7 @@ std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& AT
 }
 
 // compute the gradient of the quadratic approximation of the objective function
-Array dq_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double reg_l2_shift, double nu)
+Array dq_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double nu)
 {
     int N = m_maxima.shape(0);
     // update g and p
@@ -669,7 +660,7 @@ Array dq_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), npoints, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 1, 3*N);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(gk.data()), 1, 3*N);
-    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + reg_l2_shift + 1.0 / (2.0 * nu));
+    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
 #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
         for (int jj = 0; jj < 3; ++jj) {
