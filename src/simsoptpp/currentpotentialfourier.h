@@ -81,17 +81,17 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
             return res;
         }
 
-        virtual void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
-        virtual void Phidash1_impl(Array& data) override;
-        virtual void Phidash2_impl(Array& data) override;
-        virtual void Phidash1dash1_impl(Array& data) override;
-        virtual void Phidash2dash2_impl(Array& data) override;
-        virtual void Phidash1dash2_impl(Array& data) override;
-
-        virtual void dPhi_by_dcoeff_impl(Array& data) override;
-        virtual void dPhidash1_by_dcoeff_impl(Array& data) override;
-        virtual void dPhidash2_by_dcoeff_impl(Array& data) override;
-        virtual void dPhidash1dash1_by_dcoeff_impl(Array& data) override;
-        virtual void dPhidash1dash2_by_dcoeff_impl(Array& data) override;
-        virtual void dPhidash2dash2_by_dcoeff_impl(Array& data) override;
+        void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
+        void Phidash1_impl(Array& data) override;
+        void Phidash2_impl(Array& data) override;
+        // virtual void Phidash1dash1_impl(Array& data) override;
+        // virtual void Phidash2dash2_impl(Array& data) override;
+        // virtual void Phidash1dash2_impl(Array& data) override;
+        //
+        // virtual void dPhi_by_dcoeff_impl(Array& data) override;
+        // virtual void dPhidash1_by_dcoeff_impl(Array& data) override;
+        // virtual void dPhidash2_by_dcoeff_impl(Array& data) override;
+        // virtual void dPhidash1dash1_by_dcoeff_impl(Array& data) override;
+        // virtual void dPhidash1dash2_by_dcoeff_impl(Array& data) override;
+        // virtual void dPhidash2dash2_by_dcoeff_impl(Array& data) override;
 };

@@ -1,4 +1,8 @@
 import numpy as np
+from .._core.optimizable import Optimizable
+import simsoptpp as sopp
+
+__all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
 class CurrentPotential(Optimizable):
 
@@ -8,7 +12,7 @@ class CurrentPotential(Optimizable):
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
 
-class CurrentPotentialFourier(CurrentPotential):
+class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
     def __init__(self, winding_surface, nfp=1, stellsym=True, mpol=1, ntor=0, nphi=None,
                     ntheta=None, range="full torus",

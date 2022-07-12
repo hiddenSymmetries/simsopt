@@ -1,6 +1,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-#include "xtensor-python/pyarray.hpp"   
+#include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> PyArray;
 using std::shared_ptr;
 using std::vector;
@@ -9,6 +9,7 @@ namespace py = pybind11;
 #include "currentpotential.h"
 #include "pycurrentpotential.h"
 #include "pysurface.h"
+#include "surface.h"
 #include "currentpotentialfourier.h"
 typedef CurrentPotentialFourier<PyArray> PyCurrentPotentialFourier;
 
@@ -35,11 +36,21 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
         void Phi_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PyCurrentPotentialFourierBase::Phi_impl(data, quadpoints_phi, quadpoints_theta);
         }
+
+        void Phidash1_impl(PyArray& data) override {
+            PyCurrentPotentialFourierBase::Phidash1_impl(data);
+        }
+
+        void Phidash2_impl(PyArray& data) override {
+            PyCurrentPotentialFourierBase::Phidash2_impl(data);
+        }
 };
 
 template <typename T, typename S> void register_common_currentpotential_methods(S &s) {
     s.def("Phi", &T::Phi)
      .def("Phi_impl", &T::Phi_impl)
+     .def("Phidash1_impl", &T::Phidash1_impl)
+     .def("Phidash2_impl", &T::Phidash2_impl)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("set_dofs", &T::set_dofs)
      .def("set_dofs_impl", &T::set_dofs_impl)
