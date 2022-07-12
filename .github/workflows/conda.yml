@@ -58,5 +58,5 @@ jobs:
       - name: Build 
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
-          conda build conda.recipe
+          conda build --no-test conda.recipe
 

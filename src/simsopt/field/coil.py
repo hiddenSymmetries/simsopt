@@ -7,6 +7,9 @@ from math import pi
 import numpy as np
 from monty.json import MontyDecoder, MSONable
 
+__all__ = ['Coil', 'Current', 'coils_via_symmetries',
+           'apply_symmetries_to_currents', 'apply_symmetries_to_curves']
+
 
 class Coil(sopp.Coil, Optimizable):
     """
@@ -58,6 +61,10 @@ class CurrentBase(Optimizable):
     def __rmul__(self, other):
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
+
+    def __truediv__(self, other):
+        assert isinstance(other, float) or isinstance(other, int)
+        return ScaledCurrent(self, 1.0/other)
 
     def __neg__(self):
         return ScaledCurrent(self, -1.)

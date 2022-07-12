@@ -25,9 +25,9 @@ Simsopt does not use input data files to define optimization problems,
 in contrast to ``STELLOPT``. Rather, problems are specified using a
 python driver script, in which objects are defined and
 configured. However, objects related to specific physics codes may use
-their own input files. In particular, a :obj:`simsopt.mhd.vmec.Vmec` object
+their own input files. In particular, a :obj:`simsopt.mhd.Vmec` object
 can be initialized using a standard VMEC ``input.*`` input file, and a
-:obj:`simsopt.mhd.spec.Spec` object can be initialized using a standard
+:obj:`simsopt.mhd.Spec` object can be initialized using a standard
 SPEC ``*.sp`` input file.
 
 
@@ -72,18 +72,18 @@ Some typical objects are a MHD equilibrium represented by the VMEC or
 SPEC code, or some electromagnetic coils. To define objective
 functions, a variety of additional objects can be defined that depend
 on the MHD equilibrium or coils, such as a
-:obj:`simsopt.mhd.boozer.Boozer` object for Boozer-coordinate
-transformation, a :obj:`simsopt.mhd.spec.Residue` object to represent
+:obj:`simsopt.mhd.Boozer` object for Boozer-coordinate
+transformation, a :obj:`simsopt.mhd.Residue` object to represent
 Greene's residue of a magnetic island, or a
-:obj:`simsopt.geo.objectives.LpCurveCurvature` penalty on coil
+:obj:`simsopt.geo.LpCurveCurvature` penalty on coil
 curvature.
 
 More details about setting degrees of freedom and defining
 objective functions can be found on the :doc:`optimizable` page.
 
 For the solution step, two functions are provided presently,
-:meth:`simsopt.solve.serial.least_squares_serial_solve` and
-:meth:`simsopt.solve.mpi.least_squares_mpi_solve`.  The first
+:meth:`simsopt.solve.least_squares_serial_solve` and
+:meth:`simsopt.solve.least_squares_mpi_solve`.  The first
 is simpler, while the second allows MPI-parallelized finite differences
 to be used in the optimization.
 

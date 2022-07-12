@@ -8,10 +8,15 @@ temperature, pressure, and other quantities that are flux functions.
 """
 
 import logging
+
 import numpy as np
 import numpy.polynomial.polynomial as poly
 from scipy.interpolate import InterpolatedUnivariateSpline
+
 from .._core.optimizable import Optimizable
+
+__all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
+           'ProfilePressure']
 
 logger = logging.getLogger(__name__)
 

@@ -3,12 +3,16 @@ from deprecated import deprecated
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-from .jit import jit
 from monty.json import MontyDecoder, MSONable
 
+from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 import simsoptpp as sopp
+
+__all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
+           'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
+           'MeanSquaredCurvature']
 
 
 @jit

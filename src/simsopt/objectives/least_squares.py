@@ -19,8 +19,9 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from ..util.types import RealArray, IntArray, BoolArray
+from .._core.types import RealArray, IntArray, BoolArray
 
+__all__ = ['LeastSquaresProblem']
 
 logger = logging.getLogger(__name__)
 

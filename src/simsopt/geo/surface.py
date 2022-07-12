@@ -10,8 +10,10 @@ except ImportError:
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from ..util.dev import SimsoptRequires
-from .plot import fix_matplotlib_3d
+from .._core.dev import SimsoptRequires
+from .plotting import fix_matplotlib_3d
+
+__all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
 
 class Surface(Optimizable):

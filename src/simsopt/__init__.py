@@ -11,8 +11,8 @@
 # imported
 
 from ._core import make_optimizable, load, save
-from .objectives import LeastSquaresProblem
-from .solve import least_squares_serial_solve
+# from .objectives import LeastSquaresProblem
+# from .solve import least_squares_serial_solve
 
 #__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
 
