@@ -5,6 +5,8 @@ from monty.json import MSONable, MontyDecoder, MontyEncoder
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 
+__all__ = ['BiotSavart']
+
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
     r"""

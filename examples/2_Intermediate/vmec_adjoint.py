@@ -2,11 +2,10 @@
 
 import os
 import numpy as np
-from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.vmec_diagnostics import IotaTargetMetric
+from simsopt.mhd import Vmec
+from simsopt.mhd import IotaTargetMetric
 from scipy.optimize import minimize
 from simsopt._core.util import ObjectiveFailure
-import sys
 
 """
 Here, we perform an optimization begining with a 3 field period rotating ellipse

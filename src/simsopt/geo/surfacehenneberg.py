@@ -9,9 +9,11 @@ from scipy.interpolate import interp1d
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from ..util.types import RealArray
+from .._core.types import RealArray
 
 logger = logging.getLogger(__name__)
+
+__all__ = ['SurfaceHenneberg']
 
 
 class SurfaceHenneberg(sopp.Surface, Surface):

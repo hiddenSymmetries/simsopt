@@ -60,10 +60,3 @@ simsopt.field.tracing module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.field
-   :members:
-   :undoc-members:
-   :show-inheritance:

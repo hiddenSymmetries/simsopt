@@ -20,14 +20,14 @@ try:
 except ImportError:
     comm = None
 
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
-from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.tracing import SurfaceClassifier, \
+from simsopt.field import BiotSavart
+from simsopt.field import InterpolatedField
+from simsopt.geo import SurfaceRZFourier
+from simsopt.field import coils_via_symmetries
+from simsopt.field import SurfaceClassifier, \
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
-from simsopt.geo.curve import curves_to_vtk
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.geo import curves_to_vtk
+from simsopt.configs import get_ncsx_data
 
 print("Running 1_Simple/tracing_fieldlines_NCSX.py")
 print("===========================================")

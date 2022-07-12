@@ -13,7 +13,7 @@ from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     MeanSquaredCurvature, CurveSurfaceDistance
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 import simsoptpp as sopp
 
 parameters['jit'] = False
