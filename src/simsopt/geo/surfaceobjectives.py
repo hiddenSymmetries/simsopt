@@ -265,10 +265,7 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
         #term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B, optimize=True)
         #d2B2_dcdc = 2*(term1 + term2)
         
-        term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)
-        term2 = np.einsum('ijkpl,ijpn,ijkm,ijl->ijmn', d2B_by_dXdX, dx_dc, dx_dc, B, optimize=True)
-        d2B2_dcdc = 2*(term1+term2)
-        
+        d2B2_dcdc = 2*(np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)+np.einsum('ijkpl,ijpn,ijkm,ijl->ijmn', d2B_by_dXdX, dx_dc, dx_dc, B, optimize=True))
         d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc -dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])/(4*B2[:, :, None, None]**1.5)
         d2w_dc2 = (2*dmodB_dc[:, :, :, None] * dmodB_dc[:, :, None, :] - modB[:, :, None, None] * d2modB_dc2)/modB[:, :, None, None]**3.
         
