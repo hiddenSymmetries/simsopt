@@ -299,7 +299,10 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     double norm, dnorm_dcoeffn;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
-    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+    auto dg1 = this->gammadash1();
+    auto dg2 = this->gammadash2();
+    auto dg1_dc = this->dgammadash1_by_dcoeff();
+    auto dg2_dc = this->dgammadash2_by_dcoeff();
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
@@ -311,12 +314,20 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
                     dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0) 
                             + dnor_dc(i,j,1,n)*nor(i,j,1) 
                             + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
+                    
+                    double d2nor_dcdc_ij0mn =  dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n);
+                    d2nor_dcdc_ij0mn += dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m);
+                    double d2nor_dcdc_ij1mn =  dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n);
+                    d2nor_dcdc_ij1mn += dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m);
+                    double d2nor_dcdc_ij2mn =  dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n);
+                    d2nor_dcdc_ij2mn += dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m);
+
                     data(m,n) +=  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
                         + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
                         + dnor_dc(i,j,2,m) * (dnor_dc(i,j,2,n) * norm - dnorm_dcoeffn * nor(i,j,2)) / (norm*norm)
-                        + d2nor_dcdc(i,j,0,m,n) * nor(i,j,0) / norm
-                        + d2nor_dcdc(i,j,1,m,n) * nor(i,j,1) / norm
-                        + d2nor_dcdc(i,j,2,m,n) * nor(i,j,2) / norm;
+                        + d2nor_dcdc_ij0mn * nor(i,j,0) / norm
+                        + d2nor_dcdc_ij1mn * nor(i,j,1) / norm
+                        + d2nor_dcdc_ij2mn * nor(i,j,2) / norm;
                 }
             }
         }
