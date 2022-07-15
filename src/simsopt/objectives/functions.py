@@ -57,8 +57,8 @@ class Identity(Optimizable):
 
     return_fn_map = {'f': f}
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
+    def _as_dict(self) -> dict:
+        d = super()._as_dict()
         del d["x0"]
         del d["names"]
         del d["fixed"]
@@ -109,8 +109,8 @@ class Adder(Optimizable):
         """
         return self.dJ()
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
+    def _as_dict(self) -> dict:
+        d = super()._as_dict()
         d["n"] = self.n
         return d
 
@@ -200,8 +200,10 @@ class Rosenbrock(Optimizable):
         return np.array([[1.0, 0.0],
                          [2 * self.local_full_x['x'] / self._sqrtb, -1.0 / self._sqrtb]])
 
-    def as_dict(self) -> dict:
+    def _as_dict(self) -> dict:
         d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
         d["b"] = self._sqrtb * self._sqrtb
         d["x"] = self.get("x")
         d["y"] = self.get("y")
@@ -253,12 +255,15 @@ class TestObject1(Optimizable):
              np.full(self.parents[0].n, 2.0 / (10.0 + a2)),
              np.full(self.parents[1].n, -(v + 2 * a1) / ((10.0 + a2) ** 2))))
 
-    def as_dict(self) -> dict:
+
+    def _as_dict(self) -> dict:
         d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
         d["val"] = self.local_full_x[0]
         d["depends_on"] = []
         for opt in self.parents:
-            d["depends_on"].append(opt.as_dict())
+            d["depends_on"].append(f"!{opt.name}")
         return d
 
 

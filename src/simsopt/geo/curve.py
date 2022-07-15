@@ -818,7 +818,7 @@ class RotatedCurve(sopp.Curve, Curve):
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
-        d["curve"] = self.curve.as_dict()
+        d["curve"] = f"!{self.curve.name}"
         d["phi"] = self._phi
         d["flip"] = True if self.rotmat[2][2] == -1 else False
         return d

@@ -1251,11 +1251,9 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         return self.__add__(other)
 
     @SimsoptRequires(nx is not None, "print method for DAG requires networkx")
-    @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
-    @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
-    def plot_graph(self, show=True):
+    def get_graph(self):
         """
-        Plot the directed acyclical graph that represents the dependencies of an 
+        Get the directed acyclical graph that represents the dependencies of an
         ``Optimizable`` on its parents. The workflow is as follows: generate a ``networkx``
         ``DiGraph`` using the ``traversal`` function defined below.  Next, call ``graphviz_layout``
         which determines sensible positions for the nodes of the graph using the ``dot``
@@ -1265,12 +1263,8 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         can be used to convert the networkx ``DiGraph`` and positions to a 
         latex file for publication.
 
-        Args:
-            show: Whether to call the ``show()`` function of matplotlib.
-
         Returns:
             The ``networkx`` graph corresponding to this ``Optimizable``'s directed acyclical graph
-            and a dictionary of node names that map to sensible x, y positions determined by ``graphviz``
         """
 
         G = nx.DiGraph()
@@ -1284,7 +1278,23 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
                 traversal(p)
 
         traversal(self)
+        return G
 
+    @SimsoptRequires(nx is not None, "print method for DAG requires networkx")
+    @SimsoptRequires(pygraphviz is not None, "print method for DAG requires pygraphviz")
+    @SimsoptRequires(plt is not None, "print method for DAG requires matplotlib")
+    def plot_graph(self, show=True):
+        """
+        Plot the directed acyclical graph obtained from get_graph
+
+        Args:
+            show: Whether to call the ``show()`` function of matplotlib.
+
+        Returns:
+            The ``networkx`` graph corresponding to this ``Optimizable``'s directed acyclical graph
+            and a dictionary of node names that map to sensible x, y positions determined by ``graphviz``
+        """
+        G = self.get_graph()
         # this command generates sensible positions for nodes of the DAG
         # using the "dot" program
         pos = graphviz_layout(G, prog='dot')
@@ -1299,7 +1309,47 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         return G, pos
 
-    def as_dict(self) -> dict:
+    def as_dict(self, d=None) -> dict:
+        """
+        Implements serialization for Optimizable objects. Unlike the
+        composition framework typically used to serialize python objects, we
+        store the object as two parts. Part1 stores the graph of the Optimizable
+        objects. Part2 stores the serialized Optimizable objects as a dict
+        with the name of the Optimizable objects used as keys
+
+        Returns:
+
+        """
+        from networkx.readwrite import json_graph
+        d = {} if d is None else d
+
+        nld = d.get('graph', None)
+        if not nld:
+            G = self.get_graph()
+            d['graph'] = json_graph.node_link_data(G)
+        else: # Add the subgraph to the graph
+            G = json_graph.node_link_graph(nld, directed=True)
+
+            def add_subgraph(root):
+                if root.name not in G.nodes:
+                    G.add_node(root.name)
+                    for p in root.parents:
+                        G.add_edge(self.name, p.name)
+                        add_subgraph(p)
+            add_subgraph(self)
+            d['graph'] = json_graph.node_link_data(G)
+
+        dd  = d.get('optimizables', {})
+        if self.name not in dd:
+            dd[self.name] = self._as_dict(dd)
+        for ancestor in self.ancestors:
+            if not dd[ancestor.name]:
+                dd[ancestor.name] = ancestor._as_dict(dd)
+
+        d['optimazables'] = dd
+        return d
+
+    def _as_dict(self, opts_dict) -> dict:
         d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
@@ -1310,10 +1360,10 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             d["lower_bounds"] = list(self.local_full_lower_bounds)
             d["upper_bounds"] = list(self.local_full_upper_bounds)
         # d["external_dof_setter"] = self.local_dof_setter
-        if self.parents:
-            d["depends_on"] = []
-            for parent in self.parents:
-                d["depends_on"].append(parent.as_dict())
+        # if self.parents:
+        #     d["depends_on"] = []
+        #     for parent in self.parents:
+        #         d["depends_on"].append(parent.as_dict())
 
         return d
 
@@ -1329,6 +1379,11 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
     @classmethod
     def from_dict(cls, d):
+        # d should contain two keys, graph and objects
+        #
+        pass
+
+    def _from_dict(cls, d):
         parents = Optimizable._decode(d)
         return cls(depends_on=parents, **d)
 

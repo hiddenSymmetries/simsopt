@@ -52,7 +52,7 @@ class CurveLength(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def as_dict(self) -> dict:
+    def _as_dict(self) -> dict:
         return MSONable.as_dict(self)
 
     @classmethod
