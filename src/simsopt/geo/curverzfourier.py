@@ -12,7 +12,7 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
     coordinates using the following Fourier series:
 
     .. math::
-       r(\phi) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(n_{\text{fp}} m \phi) \\
+       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(n_{\text{fp}} m \phi) \\
        z(\phi) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(n_{\text{fp}} m \phi)
 
     If ``stellsym = True``, then the :math:`\sin` terms for :math:`r` and the :math:`\cos` terms for :math:`z` are zero.
