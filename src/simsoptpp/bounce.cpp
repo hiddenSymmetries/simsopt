@@ -21,7 +21,7 @@ using namespace boost::numeric::odeint;
 template
 std::vector<double> find_bounce_points<xt::pytensor>(
       shared_ptr<BoozerMagneticField<xt::pytensor>> field, double s,
-      double theta0, double lam, int nfp, int option, int nmax, int nzeta,
+      double theta0, double zeta0, double lam, int nfp, int option, int nmax, int nzeta,
       int digits, double derivative_tol, double argmin_tol, double root_tol);
 
 template
@@ -37,7 +37,7 @@ double vprime<xt::pytensor>(shared_ptr<BoozerMagneticField<xt::pytensor>> field,
 
 template<template<class, std::size_t, xt::layout_type> class T>
 std::vector<double> find_bounce_points(shared_ptr<BoozerMagneticField<T>> field, double s,
-    double theta0, double lam, int nfp, int option, int nmax, int nzeta, int digits, double derivative_tol, double argmin_tol, double root_tol) {
+    double theta0, double zeta0, double lam, int nfp, int option, int nmax, int nzeta, int digits, double derivative_tol, double argmin_tol, double root_tol) {
     ///
     // field: instance of BoozerMagneticField
     // s (double): normalized toroidal flux
@@ -63,7 +63,7 @@ std::vector<double> find_bounce_points(shared_ptr<BoozerMagneticField<T>> field,
     // are included so that we can diagnose points that lie in the last interval
     Vec zeta(nzeta, 0.);
     for (int i = 0; i < nzeta; ++i) {
-      zeta[i] = i*2*M_PI*nmax/(nfp*(nzeta-1));
+      zeta[i] = zeta0+i*2*M_PI*nmax/(nfp*(nzeta-1));
     }
 
     typename BoozerMagneticField<T>::Tensor2 points = xt::zeros<double>({nzeta, 3});
@@ -83,6 +83,7 @@ std::vector<double> find_bounce_points(shared_ptr<BoozerMagneticField<T>> field,
     // is the grid point to the immediate right.
     std::vector<double> bounce_try_l;
     std::vector<double> bounce_try_r;
+    std::cout << "Looking for potential bounce points" << std::endl;
     if (option != 2) {
       for (int i = 0; i < nzeta-1; ++i) {
         // Find points such that modB brackets 1/lam on either side and
@@ -92,6 +93,7 @@ std::vector<double> find_bounce_points(shared_ptr<BoozerMagneticField<T>> field,
           if (modB(i,0) > 1/lam && modB(i+1,0) < 1/lam) {
             bounce_try_l.push_back(zeta[i]);
             bounce_try_r.push_back(zeta[i+1]);
+            std::cout << "bounce_try_l: " << zeta[i] << std::endl;
           }
         } else if (option == 1) {
           if (modB(i,0) < 1/lam && modB(i+1,0) > 1/lam) {
