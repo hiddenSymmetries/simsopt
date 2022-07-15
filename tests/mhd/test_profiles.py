@@ -2,7 +2,7 @@ import unittest
 import logging
 import numpy as np
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileScaled, ProfileSpline, \
-    ProfilePressure
+    ProfilePressure, SpecProfile
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
@@ -14,6 +14,26 @@ except:
 
 
 class ProfilesTests(unittest.TestCase):
+    def test_spec_profile(self):
+        """
+        Test initialization and modification of a spec profile
+        """
+
+        prof = SpecProfile( np.zeros((8,)) )
+
+        mvol = 8
+        self.assertAlmostEqual( prof.f(0), 0 )
+        self.assertAlmostEqual( prof.f(mvol-1), 0 ) 
+
+        with self.assertRaises(ValueError):
+            prof.f(-1)
+        with self.assertRaises(ValueError):
+            prof.f(mvol)
+
+        #self.assertRaises( 'lvol should be larger or equal than zero', prof.f(-1) )
+        #self.assertRaises( 'lvol should be smaller than Mvol', prof.f(8) )
+
+
     def test_polynomial(self):
         """
         Test the value and derivative of a polynomial profile

@@ -14,6 +14,7 @@ import numpy.polynomial.polynomial as poly
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from .._core.optimizable import Optimizable
+from .._core.types import RealArray
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
            'ProfilePressure']
@@ -59,16 +60,21 @@ class SpecProfile(Profile):
     A profile described by a an array of size Nvol
     """
 
-    def __init__(self, data):
+    def __init__(self, data, cumulative=False):
         super().__init__(x0=np.array(data))
         self.local_fix_all()
+        self.cumulative = cumulative
     
     def f(self, lvol):
         """Return the value of the profile in volume lvol"""
-        if (lvol<1):
-            raise ValueError('lvol shoul be larger than zero')
+        if (lvol<0):
+            raise ValueError('lvol should be larger or equal than zero')
 
-        return self.x0[lvol-1]
+        if (lvol>=self.local_full_x.size):
+            raise ValueError('lvol should be smaller than Mvol')
+
+        return self.local_full_x[lvol]
+    
 
 
 

@@ -6,7 +6,6 @@
 This module provides a class that handles the transformation to
 Boozer coordinates, and an optimization target for quasisymmetry.
 """
-
 import logging
 from typing import Union, Iterable
 
@@ -26,6 +25,13 @@ except ImportError as e:
     booz_xform = None
     logger.debug(str(e))
 
+try:
+    import py_spec
+except ImportError as e:
+    py_spec = None
+    logger.debug(str(e))
+
+from .spec import Spec
 from .vmec import Vmec
 from .._core.optimizable import Optimizable
 from .._core.types import RealArray
@@ -45,7 +51,7 @@ class Boozer(Optimizable):
     """
 
     def __init__(self,
-                 equil: Vmec,
+                 equil,
                  mpol: int = 32,
                  ntor: int = 32) -> None:
         """
@@ -96,9 +102,14 @@ class Boozer(Optimizable):
             ss = {s}
 
         for new_s in ss:
-            if new_s < 0 or new_s > 1:
-                raise ValueError("Normalized toroidal flux values s must lie"
-                                 "in the interval [0, 1]")
+            if isinstance(self.equil, Vmec):
+                if new_s < 0 or new_s > 1:
+                    raise ValueError("Normalized toroidal flux values s must lie"
+                                    "in the interval [0, 1]")
+            elif isinstance(self.equil, Spec):
+                if new_s < 0 or new_s >= self.equil.inputlist.nvol:
+                    raise ValueError("Volume number must lie within 0 and Nvol-1")
+
         logger.info("Adding entries to Boozer registry: {}".format(ss))
         self.s = self.s.union(ss)
         self.need_to_run_code = True
@@ -225,8 +236,193 @@ class Boozer(Optimizable):
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor
 
+        elif isinstance(self.equil, Spec):
+            self.equil.run()
+
+            if py_spec is None:
+                raise RuntimeError(
+                    "Using Spec requires py_spec to be installed.")
+
+            d = py_spec.SPECout( self.equil.extension + '.sp.h5' )
+
+            # Seek on which surface the boozer coordinate is required
+            compute_surfs = []
+            for ss in s:
+                compute_surfs.append( ss*2   ) #inner side of interface
+                compute_surfs.append( ss*2+1 ) #outer side of interface
+
+            # Eliminate any duplicates
+            compute_surfs = sorted(list(set(compute_surfs)))
+            logger.info("compute_surfs={}".format(compute_surfs))
+
+            self.bx.asym = not bool(d.input.physics.Istellsym)
+            self.bx.nfp  = d.input.physics.Nfp
+
+            mpol = d.input.physics.Mpol+1
+            self.bx.mpol = mpol
+            ntor = d.input.physics.Ntor
+            self.bx.ntor = ntor
+            mnmax = ntor + 1 + (mpol-1) * (2*ntor    +1)
+            self.bx.mnmax = mnmax
+
+            self.bx.mpol_nyq = mpol
+            self.bx.ntor_nyq = ntor
+            self.bx.mnmax_nyq = mnmax
+
+            self.bx.xn = d.output.in_
+            self.bx.xn_nyq = d.output.in_
+
+            self.bx.xm = d.output.im
+            self.bx.xm_nyq = d.output.im
+
+            self.bx.mboz = np.max(self.bx.xm)
+            self.bx.nboz = int(np.max(self.bx.xn)/self.bx.nfp)
+
+            ns_in = int(2*d.output.Mvol-1) 
+            self.bx.ns_in = ns_in
+
+
+            iota = np.zeros((ns_in,))
+            s_in = np.zeros((ns_in,))
+
+            rmnc = np.zeros((ns_in,d.output.mn))
+            rmns = np.zeros((ns_in,d.output.mn))
+            zmnc = np.zeros((ns_in,d.output.mn))
+            zmns = np.zeros((ns_in,d.output.mn))
+
+            subumnc = np.zeros((ns_in,d.output.mn))
+            subvmnc = np.zeros((ns_in,d.output.mn))
+            subumns = np.zeros((ns_in,d.output.mn))
+            subvmns = np.zeros((ns_in,d.output.mn))
+
+            lambdamn  = np.zeros((ns_in,d.output.lmns))
+            index = 0
+            for lvol in range(0,d.output.Mvol):
+                for innout in range(0,2):
+                    
+                    if lvol==0 and innout==0: continue # No data on axis
+
+                    rmnc[index] = np.array([list(d.output.Rbc[lvol,:])])
+                    rmns[index] = np.array([list(d.output.Rbs[lvol,:])])
+                    zmnc[index] = np.array([list(d.output.Zbc[lvol,:])])
+                    zmns[index] = np.array([list(d.output.Zbs[lvol,:])])
+
+                    subumnc[index] = np.array([list(d.output.Btemn[lvol,innout,:])])
+                    subvmnc[index] = np.array([list(d.output.Bzemn[lvol,innout,:])])
+                    subumns[index] = np.array([list(d.output.Btomn[lvol,innout,:])])
+                    subvmns[index] = np.array([list(d.output.Bzomn[lvol,innout,:])])
+
+                    lambdamn[index]  = np.array([list(d.output.lambdamn[innout][lvol][:])])
+
+                    iota[index] = d.output.lambdamn[innout][lvol][0]
+                    s_in[index] = d.output.tflux[lvol]
+
+                    index = index + 1
+
+            self.bx.rmnc = rmnc.transpose()
+            self.bx.rmns = rmns.transpose()
+            self.bx.zmnc = zmnc.transpose()
+            self.bx.zmns = zmns.transpose()
+
+            self.bx.bsubumnc = subumnc.transpose()
+            self.bx.bsubvmnc = subvmnc.transpose()
+            self.bx.bsubumns = subumns.transpose()
+            self.bx.bsubvmns = subvmns.transpose()
+
+            self.bx.iota = iota
+            self.bx.s_in = s_in
+
+            lmns = np.zeros([mnmax,ns_in]) 
+            lmnc = np.zeros([mnmax,ns_in]) 
+
+            # Build lmns
+            xms = d.output.ims
+            xns = d.output.ins
+            mns = d.output.mns
+
+            index = 0
+            for lvol in range(0,d.output.Mvol):
+                for innout in range(0,2):
+
+                    if lvol==0 and innout==0: continue # No data on axis
+
+                    for ii in range (0,mns):
+                        mm = xms[ii]
+                        nn = xns[ii]
+                        
+                        if mm==0 and nn==0: #mode (0,0) is zero
+                            continue
+                        if mm>mpol-1 or mm<0:
+                            continue
+                        if nn<-ntor*self.bx.nfp or nn>ntor*self.bx.nfp:
+                            continue
+                        
+                        for jj in range(0,mnmax):
+                            if mm==self.bx.xm[jj] and nn==self.bx.xn[jj]:
+                                lmns[jj][index] = lambdamn[index][ii]
+                            
+                    index = index + 1
+
+            self.bx.lmns = lmns
+            self.bx.lmnc = lmnc
+
+            # Evaluation of modB 
+            Nt   = d.grid.Nt
+            Nz   = d.grid.Nz
+            tarr = np.linspace(0,2*np.pi,Nt)
+            zarr = np.linspace(0,2*np.pi/self.bx.nfp,Nz)  
+
+            Bmnc       = np.zeros((mnmax,ns_in))
+            
+            index = 0
+            for lvol in range(0, d.output.Mvol):
+                for innout in range(0,2):
+                    if lvol==0 and innout==0: continue
+
+                    if innout==0: sarr = np.asarray([-1])
+                    else:         sarr = np.asarray([ 1])
+
+                    Bcontrav = d.get_B(lvol=lvol, sarr=sarr, tarr=tarr, zarr=zarr)
+                    g = d.get_grid_and_jacobian_and_metric(lvol=lvol, sarr=sarr, tarr=tarr, zarr=zarr)[3]
+                    
+                    modB     = d.get_modB(Bcontrav, g)[0]
+                    modBcos  = np.zeros(np.shape(modB))
+                    K        = 2*np.pi**2/self.bx.nfp
+                    Bmn_     = np.zeros((mpol,2*ntor+1))
+                    
+                    for m in range (0,mpol):
+                        for n in range (-ntor,ntor+1):
+                            if m == 0 and n<0:
+                                continue
+                            for line in range (0,Nt):
+                                for column in range (0,Nz):
+                                    modBcos[line,column] = modB[line][column]* np.cos(m*tarr[line] - n*self.bx.nfp*zarr[column])
+
+                            Bmn_[m,n+ntor] = 1/K*np.trapz( np.trapz(modBcos, x = tarr, axis = 0)  , x=zarr)
+                            
+                    
+                    Bmn_[0,ntor] = 1/2*Bmn_[0,ntor]
+                    
+                    for ii in range(0,mnmax):
+                        m = self.bx.xm[ii]
+                        n = int(self.bx.xn[ii] / self.bx.nfp)
+                        Bmnc[ii,index] = Bmn_[m,n+ntor]
+
+                    index = index + 1
+                
+            
+            Bmns = np.array([])
+
+            self.bx.bmnc = Bmnc
+            self.bx.bmns = Bmns
+
+            self.bx.compute_surfs = compute_surfs
+            self.bx.aspect = np.nan
+            self.bx.toroidal_flux = d.output.tflux[-1]
+
+
         else:
-            # Cases for SPEC, GVEC, etc could be added here.
+            # Cases for GVEC, etc could be added here.
             raise ValueError("equil is not an equilibrium type supported by"
                              "Boozer")
 
