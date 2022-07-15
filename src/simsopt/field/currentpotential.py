@@ -1,6 +1,7 @@
 import numpy as np
 from .._core.optimizable import Optimizable
 import simsoptpp as sopp
+from simsopt.geo.surface import Surface
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
