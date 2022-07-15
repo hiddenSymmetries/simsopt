@@ -1,3 +1,4 @@
+from cmath import isnan
 import unittest
 import numpy as np
 import os
@@ -23,6 +24,11 @@ try:
     from mpi4py import MPI
 except:
     MPI = None
+
+try:
+    from simsopt.mhd.profiles import SpecProfile
+except:
+    SpecProfile = None
 
 if (MPI is not None) and spec_found:
     from simsopt.mhd.spec import Spec, Residue
@@ -73,6 +79,20 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
+    def test_init_freeboundary(self):
+        """
+        Try creating a Spec instance from a freeboundary file. Check value
+        of normal field
+        """
+
+        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+
+        s = Spec(filename)
+
+        places = 5
+        self.assertAlmostEqual(s.normal_field.get_vns( 0, 1 ), -1.116910580000000E-04, places )
+        self.assertAlmostEqual(s.normal_field.get_vns( 3,-1 ),  1.714666510000000E-03, places )
+
     def test_run(self):
         """
         Try running SPEC and reading in the output.
@@ -92,6 +112,72 @@ class SpecTests(unittest.TestCase):
                 self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
+
+    def test_set_profile_non_cumulative(self):
+        """
+        Set a SPEC profile of a non-cumulative quantity (surface current in this example)
+        and tries to modify it.
+        """
+
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
+
+
+        cumulative = False # Surfaces currents are non-cumulative quantities in SPEC
+        surface_current = SpecProfile( np.zeros((mvol,)), cumulative=cumulative )
+
+        s.interface_current_profile = surface_current
+
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual( s.get_profile('interface_current', lvol), 0 )
+
+        # Modify one interface current
+        s.set_profile( 'interface_current', lvol=3, value=1 )
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol!=3:
+                self.assertEqual( s.get_profile('interface_current', lvol), 0 )
+            else:
+                self.assertEqual( s.get_profile('interface_current', lvol), 1 )
+
+    def test_set_profile_cumulative(self):
+        """
+        Set a SPEC profile of a cumulative quantity (volume current in this example)
+        and tries to modify it.
+        """
+
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
+
+
+        cumulative = True # Surfaces currents are non-cumulative quantities in SPEC
+        volume_current = SpecProfile( np.zeros((mvol,)), cumulative=cumulative )
+
+        s.volume_current_profile = volume_current
+
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual( s.get_profile('volume_current', lvol), 0 )
+
+        # Modify one interface current
+        s.set_profile( 'volume_current', lvol=3, value=1 )
+
+        print( s.volume_current_profile )
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol<3:
+                self.assertEqual( s.get_profile('volume_current', lvol), 0 )
+            else:
+                self.assertEqual( s.get_profile('volume_current', lvol), 1 )
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """
@@ -158,6 +244,50 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
+
+    def test_optimize_net_toroidal_current(self):
+        """
+        This script demonstrate how a SpecProfile can be used to optimize SPEC input
+        profiles to reach a givenn target.
+
+        The initial equilibrium is a free-boundary rotating ellipse with a single plasma
+        volume, in vacuum. 
+
+        The degree of freedom is the net toroidal current flowing in the plasma volume.
+
+        We target a rotational transform on axis of 0.55, and the target function is 
+        defined as (iota - iota_target)^2
+        """
+        
+        # Check that SpecProfile could be imported
+        self.assertFalse( SpecProfile is None )
+
+        # Create Spec object
+        os.chdir(TEST_DIR)
+        filename = 'RotatingEllipse_Nvol2.sp'
+        s = Spec( filename=filename )
+
+        # define volume current profile
+        mvol = s.inputlist.nvol
+        ivolume = SpecProfile(np.zeros((mvol,)), cumulative=True )
+        s.volume_current_profile = ivolume
+
+        # define dofs
+        s.fix_all()
+        s.volume_current_profile.unfix(0) # unfix in first volume
+
+        # Now define target function
+        desired_iota = 0.55
+        prob = LeastSquaresProblem.from_tuples([(s.iota, desired_iota, 1)])
+
+        # Solve
+        s.keep_all_files = True
+        least_squares_serial_solve(prob, grad=False)
+
+        # Check result
+        self.assertAlmostEqual( s.iota(), 0.55, places=5 )
+        self.assertAlmostEqual( s.get_profile( 'volume_current', lvol=0 ), 0.01659580617394017, places=4 )
+        self.assertAlmostEqual( s.get_profile( 'volume_current', lvol=1 ), 0.01659580617394017, places=4 )
 
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
