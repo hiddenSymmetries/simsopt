@@ -431,9 +431,9 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
 
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            double xyzij0 = xyz(i,j,0);
-            double xyzij1 = xyz(i,j,1);
-            double xyzij2 = xyz(i,j,2);
+            simd_t xyzij0(xyz(i,j,0));
+            simd_t xyzij1(xyz(i,j,1));
+            simd_t xyzij2(xyz(i,j,2));
 
             for (int n = 0; n < ndofs; ++n) {
                 dg1x_dc[n] = dg1_dc(i, j, 0, n);
@@ -454,6 +454,22 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
             }
 
             for (int m = 0; m < ndofs; ++m){ 
+                simd_t dg1_dc_ij0m(dg1_dc(i, j, 0, m));
+                simd_t dg1_dc_ij1m(dg1_dc(i, j, 1, m));
+                simd_t dg1_dc_ij2m(dg1_dc(i, j, 2, m));
+                
+                simd_t dg2_dc_ij0m(dg2_dc(i, j, 0, m));
+                simd_t dg2_dc_ij1m(dg2_dc(i, j, 1, m));
+                simd_t dg2_dc_ij2m(dg2_dc(i, j, 2, m));
+                
+                simd_t dxyz_dc_ij0m(dxyz_dc(i, j, 0, m));
+                simd_t dxyz_dc_ij1m(dxyz_dc(i, j, 1, m));
+                simd_t dxyz_dc_ij2m(dxyz_dc(i, j, 2, m));
+                
+                simd_t dnor_dc_ij0m(dnor_dc(i, j, 0, m));
+                simd_t dnor_dc_ij1m(dnor_dc(i, j, 1, m));
+                simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
+
                 for (int n = 0; n < ndofs; n+=simd_size){ 
                     simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
                     simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
@@ -471,14 +487,18 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     simd_t dxyz_dc_ij1n = xs::load_aligned(&dxyzy_dc[n]);
                     simd_t dxyz_dc_ij2n = xs::load_aligned(&dxyzz_dc[n]);
 
-                    auto d2nor_dcdc_ij0mn =  dg1_dc(i, j, 1, m)*dg2_dc_ij2n - dg1_dc(i, j, 2, m)*dg2_dc_ij1n + dg1_dc_ij1n*dg2_dc(i, j, 2, m) - dg1_dc_ij2n*dg2_dc(i, j, 1, m);
-                    auto d2nor_dcdc_ij1mn =  dg1_dc(i, j, 2, m)*dg2_dc_ij0n - dg1_dc(i, j, 0, m)*dg2_dc_ij2n + dg1_dc_ij2n*dg2_dc(i, j, 0, m) - dg1_dc_ij0n*dg2_dc(i, j, 2, m);
-                    auto d2nor_dcdc_ij2mn =  dg1_dc(i, j, 0, m)*dg2_dc_ij1n - dg1_dc(i, j, 1, m)*dg2_dc_ij0n + dg1_dc_ij0n*dg2_dc(i, j, 1, m) - dg1_dc_ij1n*dg2_dc(i, j, 0, m);
+                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
+                         d2nor_dcdc_ij0mn += xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
+                         d2nor_dcdc_ij1mn += xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m,  dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
+                         d2nor_dcdc_ij2mn += xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
                     
-                    auto data1  = (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc_ij0n+dxyz_dc(i,j,1,m)*dnor_dc_ij1n+dxyz_dc(i,j,2,m)*dnor_dc_ij2n);
-                    auto data2  = (1./3) * (xyzij0*d2nor_dcdc_ij0mn + dxyz_dc_ij0n * dnor_dc(i,j,0,m)
-                                           +xyzij1*d2nor_dcdc_ij1mn + dxyz_dc_ij1n * dnor_dc(i,j,1,m)
-                                           +xyzij2*d2nor_dcdc_ij2mn + dxyz_dc_ij2n * dnor_dc(i,j,2,m));
+                    auto temp = xsimd::fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
+                    auto data1  = (1./3) * xsimd::fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
+                    auto data2  = (1./3) * (xsimd::fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
+                                           +xsimd::fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
+                                           +xsimd::fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
 
                     int jjlimit = std::min(simd_size, ndofs-n);
                     for(int jj=0; jj<jjlimit; jj++){
@@ -494,7 +514,6 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
 template<class Array>
 void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     data *= 0.;
-    double norm2, norm, dnorm_dcoeffn;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
     auto dg1 = this->gammadash1();
@@ -519,9 +538,15 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             
-            norm2 =  nor(i,j,0)*nor(i,j,0)+ nor(i,j,1)*nor(i,j,1) + nor(i,j,2)*nor(i,j,2);
-            norm = sqrt(norm2);
+            double val_norm2 =  nor(i,j,0)*nor(i,j,0)+ nor(i,j,1)*nor(i,j,1) + nor(i,j,2)*nor(i,j,2);
+            double val_norm = sqrt(val_norm2);
             
+            simd_t norm2(val_norm2);
+            simd_t norm(val_norm);
+            
+            simd_t rnorm2(1./val_norm2);
+            simd_t rnorm(1./val_norm);
+
             for (int n = 0; n < ndofs; ++n) {
                 dg1x_dc[n] = dg1_dc(i, j, 0, n);
                 dg1y_dc[n] = dg1_dc(i, j, 1, n);
@@ -536,7 +561,23 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
                 dnorz_dc[n] = dnor_dc(i, j, 2, n);
             }
             
+            simd_t nor_ij0(nor(i,j,0));
+            simd_t nor_ij1(nor(i,j,1));
+            simd_t nor_ij2(nor(i,j,2));
+
             for (int m = 0; m < ndofs; ++m) {
+                simd_t dg1_dc_ij0m(dg1_dc(i,j,0,m));
+                simd_t dg1_dc_ij1m(dg1_dc(i,j,1,m));
+                simd_t dg1_dc_ij2m(dg1_dc(i,j,2,m));
+
+                simd_t dg2_dc_ij0m(dg2_dc(i,j,0,m));
+                simd_t dg2_dc_ij1m(dg2_dc(i,j,1,m));
+                simd_t dg2_dc_ij2m(dg2_dc(i,j,2,m));
+
+                simd_t dnor_dc_ij0m(dnor_dc(i, j, 0, m));
+                simd_t dnor_dc_ij1m(dnor_dc(i, j, 1, m));
+                simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
+
                 for (int n = 0; n < ndofs; n+=simd_size) {
                     simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
                     simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
@@ -550,20 +591,20 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
                     simd_t dnor_dc_ij1n = xs::load_aligned(&dnory_dc[n]);
                     simd_t dnor_dc_ij2n = xs::load_aligned(&dnorz_dc[n]);
 
-                    auto dnorm_dcoeffn = (dnor_dc_ij0n*nor(i,j,0) + dnor_dc_ij1n*nor(i,j,1) + dnor_dc_ij2n*nor(i,j,2)) / norm;
-                    auto d2nor_dcdc_ij0mn =  dg1_dc(i, j, 1, m)*dg2_dc_ij2n - dg1_dc(i, j, 2, m)*dg2_dc_ij1n;
-                    d2nor_dcdc_ij0mn += dg1_dc_ij1n*dg2_dc(i, j, 2, m) - dg1_dc_ij2n*dg2_dc(i, j, 1, m);
-                    auto d2nor_dcdc_ij1mn =  dg1_dc(i, j, 2, m)*dg2_dc_ij0n - dg1_dc(i, j, 0, m)*dg2_dc_ij2n;
-                    d2nor_dcdc_ij1mn += dg1_dc_ij2n*dg2_dc(i, j, 0, m) - dg1_dc_ij0n*dg2_dc(i, j, 2, m);
-                    auto d2nor_dcdc_ij2mn =  dg1_dc(i, j, 0, m)*dg2_dc_ij1n - dg1_dc(i, j, 1, m)*dg2_dc_ij0n;
-                    d2nor_dcdc_ij2mn += dg1_dc_ij0n*dg2_dc(i, j, 1, m) - dg1_dc_ij1n*dg2_dc(i, j, 0, m);
+                    auto dnorm_dcoeffn = (dnor_dc_ij0n*nor_ij0 + dnor_dc_ij1n*nor_ij1 + dnor_dc_ij2n*nor_ij2) * rnorm;
+                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n, dg1_dc_ij2m*dg2_dc_ij1n);
+                    d2nor_dcdc_ij0mn     +=  xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m, dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n, dg1_dc_ij0m*dg2_dc_ij2n);
+                    d2nor_dcdc_ij1mn     +=  xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m, dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n, dg1_dc_ij1m*dg2_dc_ij0n);
+                    d2nor_dcdc_ij2mn     +=  xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m, dg1_dc_ij1n*dg2_dc_ij0m);
 
-                    auto batch =  dnor_dc(i,j,0,m) * (dnor_dc_ij0n * norm - dnorm_dcoeffn * nor(i,j,0)) / norm2
-                                + dnor_dc(i,j,1,m) * (dnor_dc_ij1n * norm - dnorm_dcoeffn * nor(i,j,1)) / norm2
-                                + dnor_dc(i,j,2,m) * (dnor_dc_ij2n * norm - dnorm_dcoeffn * nor(i,j,2)) / norm2
-                                + d2nor_dcdc_ij0mn * nor(i,j,0) / norm
-                                + d2nor_dcdc_ij1mn * nor(i,j,1) / norm
-                                + d2nor_dcdc_ij2mn * nor(i,j,2) / norm;
+                    auto batch =  dnor_dc_ij0m * (xsimd::fms(dnor_dc_ij0n , norm , dnorm_dcoeffn * nor_ij0)) * rnorm2
+                                + dnor_dc_ij1m * (xsimd::fms(dnor_dc_ij1n , norm , dnorm_dcoeffn * nor_ij1)) * rnorm2
+                                + dnor_dc_ij2m * (xsimd::fms(dnor_dc_ij2n , norm , dnorm_dcoeffn * nor_ij2)) * rnorm2
+                                + d2nor_dcdc_ij0mn * nor_ij0 * rnorm
+                                + d2nor_dcdc_ij1mn * nor_ij1 * rnorm
+                                + d2nor_dcdc_ij2mn * nor_ij2 * rnorm;
 
                     int jjlimit = std::min(simd_size, ndofs-n);
                     for(int jj=0; jj<jjlimit; jj++){
