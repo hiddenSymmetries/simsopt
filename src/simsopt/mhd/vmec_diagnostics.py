@@ -1000,7 +1000,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     # vmec_fieldlines new residual routine (written by Alan Goodman)
     def fzero_residuals_function(theta_vmec_trys, theta_pest_targets, phis, xm, xn, lmns, lmnc, lasym):
         angle = xm * theta_vmec_trys - xn * phis
-        fzero_residual = theta_pest_targets - (theta_vmec_trys + np.reshape(np.sum(lmns * np.sin(angle), axis=1), (-1,1)))
+        fzero_residual = theta_pest_targets - (theta_vmec_trys + np.reshape(np.sum(lmns * np.sin(angle), axis=1), (-1, 1)))
         return fzero_residual
     
     # A helper function that numerically finds values that minimize fzero_residuals_function
@@ -1030,7 +1030,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
             else:
                 break
     
-        c =1 * b
+        c = 1 * b
         fc = 1 * fb
         d = 0 * fb
         e = 0 * fb
@@ -1057,7 +1057,6 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     
             roots[indsC] = b[indsC]
             convds[indsC] = True
-            #nconv = len(inds[0])
             nconv = np.sum(indsC)
             if nconv == toteval:
                 converged = True
@@ -1101,7 +1100,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
             e[inds] = d[inds]
     
             a = 1 * b
-            fa =  1 * fb
+            fa = 1 * fb
     
             inds = np.where((np.abs(d) > tol1))
             b[inds] += d[inds]
@@ -1127,8 +1126,8 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
             theta_guess = np.reshape(theta_pest[js, jalpha, :], (-1, 1))
             theta_vmec_mins = theta_guess - 0.3*np.ones(theta_guess.shape)
             theta_vmec_maxs = theta_guess + 0.3*np.ones(theta_guess.shape)
-            theta_test, converged, nconv = get_roots(theta_vmec_mins, theta_vmec_maxs, theta_guess, np.reshape(phi[js, jalpha, :], (-1,1)), xm, xn, lmns[js], lmnc[js], 'False')
-            theta_vmec[js, jalpha] = np.reshape(theta_test, (-1,))
+            theta_test, converged, nconv = get_roots(theta_vmec_mins, theta_vmec_maxs, theta_guess, np.reshape(phi[js, jalpha, :], (-1, 1)), xm, xn, lmns[js], lmnc[js], 'False')
+            theta_vmec[js, jalpha] = np.reshape(theta_test, (-1, ))
     
             if converged == False:
                 print("* Error! Conversion from theta_pest to theta_vmec failed to converge")
@@ -1314,8 +1313,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     gbdrift0 = B_cross_grad_B_dot_grad_psi * 2 * shat[:, None, None] / (modB * modB * modB * sqrt_s[:, None, None]) * toroidal_flux_sign
     
     # temporary fix. Please see issue #238 and the discussion therein
-    cvdrift =   gbdrift + -1 * 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] \
-        * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
+    cvdrift =   gbdrift + -1 * 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
     
     cvdrift0 = gbdrift0
     
