@@ -25,14 +25,21 @@ class ProfilesTests(unittest.TestCase):
         self.assertAlmostEqual( prof.f(0), 0 )
         self.assertAlmostEqual( prof.f(mvol-1), 0 ) 
 
+        # Test that out of range volumes raises errors:
         with self.assertRaises(ValueError):
             prof.f(-1)
         with self.assertRaises(ValueError):
             prof.f(mvol)
 
-        #self.assertRaises( 'lvol should be larger or equal than zero', prof.f(-1) )
-        #self.assertRaises( 'lvol should be smaller than Mvol', prof.f(8) )
+        # Test modification of profile in fourth volume
+        lvol = 3
+        value = 1
+        prof.set( lvol, value )
+        self.assertEqual( prof.f(lvol), value )
 
+        # Check that other values have not changed:
+        self.assertEqual( prof.f(lvol-1), 0 )
+        self.assertEqual( prof.f(lvol+1), 0 )
 
     def test_polynomial(self):
         """
