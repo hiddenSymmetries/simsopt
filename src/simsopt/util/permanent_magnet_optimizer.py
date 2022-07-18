@@ -459,6 +459,7 @@ class PermanentMagnetOptimizer:
     def _prox_l1(self, m, reg_l1, nu):
         """Proximal operator for L1 regularization."""
         return np.sign(m) * np.maximum(np.abs(m) - reg_l1 * nu, 0)
+        #return np.sign(m) * np.maximum(np.abs(m_normalized) - reg_l1 * nu, 0)
 
     def _projection_L2_balls(self, x, m_maxima):
         """
@@ -567,7 +568,8 @@ class PermanentMagnetOptimizer:
         reg_l0 = reg_l0 / (2 * nu)
         #reg_l0 = reg_l0 * np.max(self.m_maxima) ** 2 / (2 * nu)
         #reg_l0 = reg_l0 * self.ATA_scale * np.max(self.m_maxima) ** 2 / (2 * nu)
-        reg_l1 = reg_l1 * self.ATA_scale / nu
+        #reg_l1 = reg_l1 * self.ATA_scale / nu
+        reg_l1 = reg_l1 * np.mean(self.m_maxima) / nu
         #reg_l1 = reg_l1 * self.ATA_scale / nu
         #nu = nu / self.ATA_scale
 
@@ -694,7 +696,14 @@ class PermanentMagnetOptimizer:
         # Auxiliary variable in relax-and-split is initialized
         # to prox(m0), where m0 is the initial guess for m.
         m_proxy = self.m0
-        m_proxy = self._prox_l0(m_proxy, reg_l0, nu)
+        
+        if reg_l0 > 0.0:
+            prox = self._prox_l0
+            reg_nonconvex = reg_l0
+        elif reg_l1 > 0.0:
+            prox = self._prox_l1
+            reg_nonconvex = reg_l1
+        m_proxy = prox(m_proxy, reg_nonconvex, nu)
 
         # change to row-major order for the C++ code
         self.A_obj = np.ascontiguousarray(self.A_obj)
@@ -706,10 +715,6 @@ class PermanentMagnetOptimizer:
         m_proxy_history = []
         if reg_l0 > 0.0 or reg_l1 > 0.0: 
             # Relax-and-split algorithm
-            if reg_l0 > 0.0:
-                prox = self._prox_l0
-            elif reg_l1 > 0.0:
-                prox = self._prox_l1
             m = self.m0
             for i in range(max_iter_RS):
                 # update m with the CONVEX part of the algorithm
@@ -736,10 +741,8 @@ class PermanentMagnetOptimizer:
                 MwPGP_hist = MwPGP_hist[MwPGP_hist != 0]
                 err_RS.append(MwPGP_hist[-1])
 
-                # Solve the nonconvex optimization -- i.e. take a prox
-                reg_l0_scaled = reg_l0  # * (1 + i / 100.0)  #### Scaling reg_l0 as algorithm progresses!
-                print(i, reg_l0_scaled * 2 * nu)
-                m_proxy = prox(m, reg_l0_scaled, nu)
+                print(i, reg_nonconvex)
+                m_proxy = prox(m, reg_nonconvex, nu)
                 m_proxy_history.append(m_proxy)
                 if np.linalg.norm(m - m_proxy) < epsilon:
                     print('Relax-and-split finished early, at iteration ', i)

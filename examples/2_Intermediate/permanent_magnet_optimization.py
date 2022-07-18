@@ -41,7 +41,7 @@ t_start = time.time()
 
 # Read in all the required parameters
 comm = None
-config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag = read_input()
+config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, reg_l1, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag = read_input()
 
 # Add cori scratch path 
 class_filename = "PM_optimizer_" + config_flag
@@ -184,7 +184,7 @@ elif run_type == 'optimization':
     IN_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Make a subdirectory for the optimization output
-    OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
+    OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
     os.makedirs(OUT_DIR, exist_ok=True)
 
     pickle_name = IN_DIR + class_filename + ".pickle"
@@ -219,20 +219,24 @@ elif run_type == 'optimization':
     # Set an initial condition
     #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
     #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
-    #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
+    m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
     #m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
-    m0 = np.zeros(pm_opt.m0.shape)
+    #m0 = np.zeros(pm_opt.m0.shape)
 
     # Optimize the permanent magnets, increasing L0 threshold as converging
     total_m_history = []
     total_mproxy_history = []
     total_RS_history = []
-    if not np.isclose(reg_l0, 0.0):
-        for i in range(38):
-            reg_l0_scaled = reg_l0 * (1 + i / 2.0)
+    num_i = 1
+    skip = 5.0
+    if not np.isclose(reg_l0, 0.0) or not np.isclose(reg_l1, 0.0):
+        for i in range(num_i):
+            reg_l0_scaled = reg_l0 * (1 + i / skip)
+            reg_l1_scaled = reg_l1 * (1 + i / skip)
+            print(i, reg_l0_scaled)
             RS_history, m_history, m_proxy_history = pm_opt._optimize(
                 max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-                reg_l2=reg_l2, reg_l0=reg_l0_scaled, nu=nu, max_iter_RS=max_iter_RS,
+                reg_l2=reg_l2, reg_l0=reg_l0_scaled, reg_l1=reg_l1_scaled, nu=nu, max_iter_RS=max_iter_RS,
                 m0=m0
             )
             total_RS_history.append(RS_history)
@@ -242,7 +246,7 @@ elif run_type == 'optimization':
     else:
         RS_history, m_history, m_proxy_history = pm_opt._optimize(
             max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-            reg_l2=reg_l2, reg_l0=reg_l0, nu=nu, max_iter_RS=max_iter_RS,
+            reg_l2=reg_l2, reg_l0=reg_l0, reg_l1=reg_l1, nu=nu, max_iter_RS=max_iter_RS,
             m0=m0
         )
         total_RS_history.append(RS_history)
@@ -260,6 +264,12 @@ elif run_type == 'optimization':
     dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
     print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
     print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
+
+    np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
+    np.savetxt(OUT_DIR + class_filename + "_proxy.txt", pm_opt.m_proxy)
+    
+    # write solution to FAMUS-type file
+    write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
     # Plot the sparse and less sparse solutions from SIMSOPT 
     t1 = time.time()
@@ -375,6 +385,7 @@ elif run_type == 'optimization':
         total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
         total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
         print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
+        
         pm_opt.m = pm_opt.m_proxy
         b_dipole = DipoleField(pm_opt)
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -383,12 +394,7 @@ elif run_type == 'optimization':
         dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
         num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
         np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
-
-    # write solution to FAMUS-type file
-    write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-    np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
-    np.savetxt(OUT_DIR + class_filename + "_proxy.txt", pm_opt.m_proxy)
-
+ 
     # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
 
@@ -412,13 +418,14 @@ elif run_type == 'post-processing':
     IN_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Read in the correct subdirectory with the optimization output
-    OUT_DIR = IN_DIR + "output_regl2{5:.2e}_regl0{6:.2e}_nu{7:.2e}/".format(nphi, ntheta, dr, coff, poff, reg_l2, reg_l0, nu)
+    OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_nu{2:.2e}/".format(reg_l2, reg_l0, nu)
+    #OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
     os.makedirs(OUT_DIR, exist_ok=True)
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     print('m = ', pm_opt.m)
 
-    #m_loadtxt = get_FAMUS_dipoles(pms_name)
+    #m_loadtxt, _ = get_FAMUS_dipoles(pms_name)
     m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
     mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
     #mproxy_loadtxt = np.copy(m_loadtxt)
@@ -503,6 +510,7 @@ elif run_type == 'post-processing':
     pm_opt.m = m_copy
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
+    exit()
 
     # Make the QFM surfaces
     t1 = time.time()
@@ -512,10 +520,10 @@ elif run_type == 'post-processing':
     #qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
     #qfm_surf_mproxy = qfm_surf_mproxy.surface
     #qfm_surf_mproxy.plot()
-    qfm_surf_mproxy = qfm_surf
+    #qfm_surf_mproxy = qfm_surf
     t2 = time.time()
     print("Making the two QFM surfaces took ", t2 - t1, " s")
-    exit()
+    #exit()
 
     # Run VMEC with new QFM surface
     t1 = time.time()
@@ -528,7 +536,9 @@ elif run_type == 'post-processing':
     #    equil._boundary = qfm_surf
     #    equil.need_to_run_code = True
     equil.run()
-
+   
+    exit()
+    
     ### Always use the QH VMEC file and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres" 
     equil = Vmec(vmec_input, mpi)
