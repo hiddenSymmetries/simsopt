@@ -180,17 +180,21 @@ class Spec(Optimizable):
         if not si.lfreebound:
             self.normal_field = None
         else:
-            self.normal_field = NormalField( nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor )
-            mmpol=si.mmpol
-            mntor=si.mntor    
-            for mm in range(0, si.mpol+1):
-                for nn in range(-si.ntor, si.ntor+1):
-                    if mm==0 and nn<0: continue
-                    self.normal_field.set_vns( mm, nn, si.vns[mntor+nn][mmpol+mm] )
+            # self.normal_field = NormalField( nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor )
+            # mmpol=si.mmpol
+            # mntor=si.mntor    
+            # for mm in range(0, si.mpol+1):
+            #     for nn in range(-si.ntor, si.ntor+1):
+            #         if mm==0 and nn<0: continue
+            #         self.normal_field.set_vns( mm, nn, si.vns[mntor+nn][mmpol+mm] )
             
-                    if not si.istellsym:
-                        self.normal_field.set_vnc( mm, nn, si.vnc[mntor+nn][mmpol:mmpol+mm] )
+            #         if not si.istellsym:
+            #             self.normal_field.set_vnc( mm, nn, si.vnc[mntor+nn][mmpol:mmpol+mm] )
 
+            self.normal_field = NormalField()
+            self.normal_field.init_from_spec( filename )
+
+        
     
 
             
