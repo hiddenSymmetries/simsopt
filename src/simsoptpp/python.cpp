@@ -16,7 +16,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
 #include "dipole_field.h"
-#include "MwPGP.h"
+#include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
 #include "bounce.h"
@@ -50,7 +50,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
-   
+
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);
     m.def("dipole_field_A" , &dipole_field_A);
@@ -58,8 +58,13 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_dA" , &dipole_field_dA);
     m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("phi"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
     m.def("make_final_surface" , &make_final_surface);
-    // MwPGP has many default arguments
-    m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("delta") = 0.5, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("reg_l2_shifted") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
+
+    // Permanent magnet optimization algorithms have many default arguments
+    m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("delta") = 0.5, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
+    m.def("BMP_algorithm", &BMP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("reg_l2") = 0.0, py::arg("verbose") = false);
+    m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
+    m.def("SPG", &SPG, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha_min") = 1e-10, py::arg("alpha_max") = 1e10, py::arg("alpha_bb_prev") = 1, py::arg("h") = 100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l2") = 0.0, py::arg("nu") = 1.0e100, py::arg("max_iter") = 500, py::arg("nu_SPG") = 1.0e-4, py::arg("verbose") = false);
+    // Need to get SPG and MwPGP in same format, ideally using kwargs for the nonmatching arguments
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
