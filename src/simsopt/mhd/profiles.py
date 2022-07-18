@@ -55,6 +55,7 @@ class Profile(Optimizable):
         if show:
             plt.show()
 
+
 class SpecProfile(Profile):
     """
     A profile described by a an array of size Nvol
@@ -64,18 +65,16 @@ class SpecProfile(Profile):
         super().__init__(x0=np.array(data))
         self.local_fix_all()
         self.cumulative = cumulative
-    
+
     def f(self, lvol):
         """Return the value of the profile in volume lvol"""
-        if (lvol<0):
+        if (lvol < 0):
             raise ValueError('lvol should be larger or equal than zero')
 
-        if (lvol>=self.local_full_x.size):
+        if (lvol >= self.local_full_x.size):
             raise ValueError('lvol should be smaller than Mvol')
 
         return self.local_full_x[lvol]
-    
-
 
 
 class ProfilePolynomial(Profile):
@@ -115,7 +114,11 @@ class ProfileScaled(Profile):
 
     def __init__(self, base, scalefac):
         self.base = base
-        super().__init__(x0=np.array([scalefac]), names=['scalefac'], depends_on=[base])
+        super().__init__(
+            x0=np.array(
+                [scalefac]),
+            names=['scalefac'],
+            depends_on=[base])
         self.local_fix_all()
 
     def f(self, s):
@@ -149,11 +152,13 @@ class ProfileSpline(Profile):
 
     def f(self, s):
         """ Return the value of the profile at specified points in s. """
-        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree)(s)
+        return InterpolatedUnivariateSpline(
+            self.s, self.full_x, k=self.degree)(s)
 
     def dfds(self, s):
         """ Return the d/ds derivative of the profile at specified points in s. """
-        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree).derivative()(s)
+        return InterpolatedUnivariateSpline(
+            self.s, self.full_x, k=self.degree).derivative()(s)
 
     def resample(self, new_s, degree=None):
         """
@@ -200,9 +205,11 @@ class ProfilePressure(Profile):
 
     def __init__(self, *args):
         if len(args) == 0:
-            raise ValueError('At least one density and temperature profile must be provided.')
+            raise ValueError(
+                'At least one density and temperature profile must be provided.')
         if len(args) % 2 == 1:
-            raise ValueError('The number of input profiles for a ProfilePressure object must be even')
+            raise ValueError(
+                'The number of input profiles for a ProfilePressure object must be even')
         super().__init__(depends_on=args)
 
     def f(self, s):
@@ -216,6 +223,6 @@ class ProfilePressure(Profile):
         """ Return the d/ds derivative of the profile at specified points in s. """
         total = 0
         for j in range(int(len(self.parents) / 2)):
-            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s) \
-                + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
+            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(
+                s) + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
         return total
