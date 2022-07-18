@@ -154,22 +154,28 @@ def read_input():
             else:
                 reg_l0 = 0.0  # default is no L0 norm
 
-            # nu (relax-and-split hyperparameter)
+            # L0 regularization
             if len(sys.argv) >= 11:
-                nu = float(sys.argv[10])
+                reg_l1 = float(sys.argv[10])
+            else:
+                reg_l1 = 0.0  # default is no L1 norm
+            
+            # nu (relax-and-split hyperparameter)
+            if len(sys.argv) >= 12:
+                nu = float(sys.argv[11])
 
             # Set to huge value if reg_l0 is zero so it is ignored
-            if np.isclose(reg_l0, 0.0, atol=1e-16):
+            if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
                 nu = 1e100
 
             # Maximum iterations for solving the nonconvex problem
-            if len(sys.argv) >= 12:
-                max_iter_RS = int(sys.argv[11])
+            if len(sys.argv) >= 13:
+                max_iter_RS = int(sys.argv[12])
             else:
                 max_iter_RS = 100
 
-            if len(sys.argv) >= 13:
-                coordinate_flag = str(sys.argv[12])
+            if len(sys.argv) >= 14:
+                coordinate_flag = str(sys.argv[13])
                 if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                     raise ValueError(
                         "Error! The coordinate flag must specify one of "
@@ -200,16 +206,22 @@ def read_input():
             else:
                 reg_l0 = 0.0  # default is no L0 norm
 
-            # nu (relax-and-split hyperparameter)
+            # L1 regularization
             if len(sys.argv) >= 8:
-                nu = float(sys.argv[7])
+                reg_l1 = float(sys.argv[7])
+            else:
+                reg_l1 = 0.0  # default is no L1 norm
+
+            # nu (relax-and-split hyperparameter)
+            if len(sys.argv) >= 9:
+                nu = float(sys.argv[8])
 
             # Set to huge value if reg_l0 is zero so it is ignored
-            if np.isclose(reg_l0, 0.0, atol=1e-16):
+            if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
                 nu = 1e100
 
-            if len(sys.argv) >= 9:
-                coordinate_flag = str(sys.argv[8])
+            if len(sys.argv) >= 10:
+                coordinate_flag = str(sys.argv[9])
                 if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                     raise ValueError(
                         "Error! The coordinate flag must specify one of "
@@ -286,11 +298,11 @@ def read_input():
     print('ntheta = ', ntheta)
     print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', pms_name)
     if run_type == 'initialization':
-        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
+        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
     elif run_type == 'optimization':
-        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
+        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, reg_l1, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag
     elif run_type == 'post-processing':
-        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag 
+        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, reg_l1, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, pms_name, is_premade_famus_grid, coordinate_flag 
 
 
 def read_focus_coils(filename):
@@ -517,7 +529,13 @@ def read_regcoil_pm(filename, surface_filename, OUT_DIR):
     # Get the magnetization vectors and max magnetization 
     Mvec = Mvec[-1, :, :, :, :].reshape(3, nzeta_coil, ntheta_coil)
     m_maxima = np.ravel(abs_M[-1, :, :, :])
-    print('Effective volume = ', np.sum(np.ravel(np.sqrt(np.sum(Mvec ** 2, axis=0))) / np.ravel(m_maxima)))
+    rho = np.ravel(np.sqrt(np.sum(Mvec ** 2, axis=0))) / np.ravel(m_maxima)
+    print(rho)
+    print('Effective volume = ', np.sum(rho))
+    
+    bf_inds = np.logical_and((rho < 0.99), (rho > 0.01))
+    print('Binary fraction = ', np.count_nonzero(rho) / len(rho))
+    
     Mvec_total = np.zeros((nzetal_coil, ntheta_coil, 3))
 
     # convert Mvec to cartesian
@@ -566,13 +584,13 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 80
+    nfieldlines = 120
     tmax_fl = 20000
 
     # Different configurations have different cross-sections
     #if 'muse' in config:
     #R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    R0 = np.linspace(0.25, 0.4, nfieldlines)
+    R0 = np.linspace(0.25, 0.35, nfieldlines)
     if 'qa' in config: 
         R0 = np.linspace(0.5, 1.0, nfieldlines)
     elif 'qh' in config:
@@ -581,7 +599,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
         R0 = np.linspace(1.0, 1.75, nfieldlines)
     elif config == 'QH':
         R0 = np.linspace(12.0, 18.0, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
+    Z0 = np.ones(nfieldlines) * 0.0
+    #Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
@@ -599,7 +618,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     # make the poincare plots
     if comm is None or comm.rank == 0:
         # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075))
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
 
 
 def make_qfm(s, Bfield, Bfield_tf):
@@ -618,12 +637,12 @@ def make_qfm(s, Bfield, Bfield_tf):
     qfm = QfmResidual(s, Bfield)
     qfm.J()
 
-    s.change_resolution(32, 32)
+    s.change_resolution(16, 16)
     vol = Volume(s)
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-14, maxiter=500,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=1000,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
@@ -633,7 +652,7 @@ def make_qfm(s, Bfield, Bfield_tf):
     #qfm_surface = QfmSurface(Bfield_tf, s, vol, vol_target)
     #print("initial qfm value for higher-res surface", qfm.J())
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-16, maxiter=500,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=3000,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
@@ -750,8 +769,8 @@ def calculate_on_axis_B(bs, s):
 
     R0 = s.get_rc(0, 0)
     for i in range(nphi):
-        bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), 
-                                R0 * np.sin(s.quadpoints_phi[i]), 
+        bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i] * 2 * np.pi), 
+                                R0 * np.sin(s.quadpoints_phi[i] * 2 * np.pi), 
                                 0.0]
                                ) 
     bs.set_points(bspoints)
@@ -804,7 +823,7 @@ def get_FAMUS_dipoles(pms_name, famus_path='../../tests/test_files/'):
     my = mm * np.sin(mt) * np.sin(mp) 
     mz = mm * np.cos(mt)
     m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
-    return m_FAMUS
+    return m_FAMUS, m0
 
 
 def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
@@ -845,6 +864,8 @@ def read_FAMUS_grid(pms_name, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR,
     rho = p ** momentq
 
     print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
+    bf_inds = np.logical_or((rho > 0.99), (rho < 0.01))
+    print('Binary fraction = ', np.count_nonzero(bf_inds) / len(rho))
 
     # Make histogram of the normalized dipole magnitudes
     plt.figure()

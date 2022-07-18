@@ -800,7 +800,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None, surf=None):
     """
     Create a poincare plot. Usage:
 
@@ -854,6 +854,16 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
         #axs[row, col].set_axisbelow(True)
         plt.rc('axes', axisbelow=True)
         axs[row, col].grid(True, linewidth=0.5)
+
+        # if passed a surface, plot the plasma surface outline
+        if surf is not None:
+            xyz_plasma = surf.gamma()
+            r_plasma = np.ravel(np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2))
+            phi_plasma = np.ravel(np.arctan2(xyz_plasma[:, :, 1], xyz_plasma[:, :, 0]))
+            z_plasma = np.ravel(xyz_plasma[:, :, 2])
+            phi_inds = np.isclose(phi_plasma, phis[i] * np.ones(len(phi_plasma)))
+            axs[row, col].scatter(r_plasma[phi_inds], z_plasma[phi_inds], linewidths=0, c='k', s=4)
+    
     #plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()
