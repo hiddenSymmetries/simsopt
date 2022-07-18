@@ -27,7 +27,7 @@ class NormalField(Optimizable):
 
     Args:
         nfp: The number of field period
-        stellsym: Whether (=True) or not (=False) stellarator symmetry is enforced. 
+        stellsym: Whether (=True) or not (=False) stellarator symmetry is enforced.
         mpol: Poloidal Fourier resolution
         ntor: Toroidal Fourier resolution
         vns: Odd fourier modes of :math: `\mathbf{B}\cdot\mathbf{\hat{n}}`. 2D array of size
@@ -45,23 +45,24 @@ class NormalField(Optimizable):
         self.ntor = ntor
 
         if vns is None:
-            self.vns = np.zeros((self.mpol+1, 2*self.ntor+1))
+            self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         else:
-            self.vns = vns[0:self.mpol+1][-self.ntor:self.ntor]
-
+            self.vns = vns[0:self.mpol + 1][-self.ntor:self.ntor]
 
         if self.stellsym:
-            self.ndof = self.ntor+self.mpol*(2*self.ntor+1)
+            self.ndof = self.ntor + self.mpol * (2 * self.ntor + 1)
             self.vnc = np.array(())
         else:
-            self.ndof = 2*(self.ntor+self.mpol*(2*self.ntor+1)) + 1
+            self.ndof = 2 * (self.ntor + self.mpol * (2 * self.ntor + 1)) + 1
             if vnc is None:
-                self.vnc = np.zeros((self.mpol+1, 2*self.ntor+1))
+                self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
             else:
-                self.vnc = vnc[0:self.mpol+1][-self.ntor:self.ntor]
+                self.vnc = vnc[0:self.mpol + 1][-self.ntor:self.ntor]
 
-
-        Optimizable.__init__(self, x0=self.get_dofs(), names=self._make_names())
+        Optimizable.__init__(
+            self,
+            x0=self.get_dofs(),
+            names=self._make_names())
 
     def init_from_spec(self, filename):
         """
@@ -74,53 +75,57 @@ class NormalField(Optimizable):
                 "Initialization from Spec requires py_spec to be installed.")
 
         # Read Namelist
-        nm = py_spec.SPECNamelist( filename )
+        nm = py_spec.SPECNamelist(filename)
         ph = nm['physicslist']
-        
+
         self.nfp = ph['nfp']
         self.stellsym = ph['istellsym']
         self.mpol = ph['mpol']
         self.ntor = ph['ntor']
 
-        if self.stellsym==1:
-            self.ndof =    self.ntor+self.mpol*(2*self.ntor+1) # Only Vns - odd series
+        if self.stellsym == 1:
+            self.ndof = self.ntor + self.mpol * \
+                (2 * self.ntor + 1)  # Only Vns - odd series
         else:
-            self.ndof = 2*(self.ntor+self.mpol*(2*self.ntor+1)) + 1 # Vns and Vnc
+            self.ndof = 2 * (self.ntor + self.mpol *
+                             (2 * self.ntor + 1)) + 1  # Vns and Vnc
 
-        self.vns = np.zeros((self.mpol+1, 2*self.ntor+1))
+        self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
         vns = np.asarray(ph['vns'])
-        if self.stellsym==0:
+        if self.stellsym == 0:
             vnc = np.asarray(ph['vnc'])
-            self.vnc = np.zeros((self.mpol+1, 2*self.ntor+1))
+            self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
-        mntor= int((vns.shape[1]-1) / 2.0)
-        
+        mntor = int((vns.shape[1] - 1) / 2.0)
 
-        for mm in range(0, self.mpol+1):
-            for nn in range(-self.ntor, self.ntor+1):
-                if mm==0 and nn<0: continue
-                self.set_vns( mm, nn, vns[mm][mntor+nn] )
-        
-                if self.stellsym==0:
-                    self.set_vnc( mm, nn, vnc[mm][mntor+nn] )
+        for mm in range(0, self.mpol + 1):
+            for nn in range(-self.ntor, self.ntor + 1):
+                if mm == 0 and nn < 0:
+                    continue
+                self.set_vns(mm, nn, vns[mm][mntor + nn])
+
+                if self.stellsym == 0:
+                    self.set_vnc(mm, nn, vnc[mm][mntor + nn])
 
     def get_dofs(self):
         """
         Return the dofs associated to this normal field as an array.
         """
         dofs = np.zeros((self.ndof,))
-        idof=0
-        for mm in range(0,self.mpol+1):
-            for nn in range(-self.ntor,self.ntor+1):
-                if mm==0 and nn<=0: continue
+        idof = 0
+        for mm in range(0, self.mpol + 1):
+            for nn in range(-self.ntor, self.ntor + 1):
+                if mm == 0 and nn <= 0:
+                    continue
                 dofs[idof] = self.vns[mm][nn]
-                idof = idof+1
+                idof = idof + 1
 
         if not self.stellsym:
-            for mm in range(0,self.mpol+1):
-                for nn in range(-self.ntor,self.ntor+1):
-                    if mm==0 and nn<0: continue
+            for mm in range(0, self.mpol + 1):
+                for nn in range(-self.ntor, self.ntor + 1):
+                    if mm == 0 and nn < 0:
+                        continue
                     dofs[idof] = self.vnc[mm][nn]
                     idof = idof + 1
 
@@ -133,70 +138,73 @@ class NormalField(Optimizable):
         if not dofs.size == self.ndof:
             raise ValueError('Invalid number of dofs')
 
-        idof=0
-        for mm in range(0,self.mpol+1):
-            for nn in range(-self.ntor,self.ntor+1):
-                if mm==0 and nn<=0: continue
+        idof = 0
+        for mm in range(0, self.mpol + 1):
+            for nn in range(-self.ntor, self.ntor + 1):
+                if mm == 0 and nn <= 0:
+                    continue
                 self.vns[mm][nn] = dofs[idof]
-                idof = idof+1
+                idof = idof + 1
 
         if not self.stellsym:
-            for mm in range(0,self.mpol+1):
-                for nn in range(-self.ntor,self.ntor+1):
-                    if mm==0 and nn<0: continue
+            for mm in range(0, self.mpol + 1):
+                for nn in range(-self.ntor, self.ntor + 1):
+                    if mm == 0 and nn < 0:
+                        continue
                     self.vnc[mm][nn] = dofs[idof]
                     idof = idof + 1
 
-    def get_index_in_dofs( self, m, n, even=False ):
+    def get_index_in_dofs(self, m, n, even=False):
         """
         Returns position of mode (m,n) in dofs array
         """
 
-        self.check_mn(m,n)
+        self.check_mn(m, n)
 
         ii = -1
 
-        if m==0:
-            ii = m-1
+        if m == 0:
+            ii = m - 1
         else:
-            ii = self.ntor+1 + (2*self.ntor+1)*(m-1)   + n + self.ntor + 1 - 1
+            ii = self.ntor + 1 + (2 * self.ntor + 1) * \
+                (m - 1) + n + self.ntor + 1 - 1
 
-        nvns = self.ntor + self.mpol * (self.ntor*2 + 1)
-        if not even: #Vns
-            ii = ii-1 # remove (0,0) element
-        else: #Vnc
+        nvns = self.ntor + self.mpol * (self.ntor * 2 + 1)
+        if not even:  # Vns
+            ii = ii - 1  # remove (0,0) element
+        else:  # Vnc
             ii = ii + nvns
 
         return ii
 
-    def get_vns(self, m, n ):
-        self.check_mn(m,n)
+    def get_vns(self, m, n):
+        self.check_mn(m, n)
         return self.vns[m][n]
 
     def set_vns(self, m, n, value):
-        self.check_mn(m,n)
+        self.check_mn(m, n)
         self.vns[m][n] = value
 
     def get_vnc(self, m, n):
-        self.check_mn(m,n)
+        self.check_mn(m, n)
         if self.stellsym:
             return 0.0
         else:
             return self.vnc[m][n]
 
     def set_vnc(self, m, n, value):
-        self.check_mn(m,n)
+        self.check_mn(m, n)
         if self.stellsym:
             raise ValueError('Stellarator symmetric has no vnc')
         else:
             self.vnc[m][n] = value
 
     def check_mn(self, m, n):
-        if m<0 or m>self.mpol:
+        if m < 0 or m > self.mpol:
             raise ValueError('m out of bound')
-        if n<-self.ntor or n>self.ntor:
+        if n < -self.ntor or n > self.ntor:
             raise ValueError('n out of bound')
-        if m==0 and n<0:
+        if m == 0 and n < 0:
             raise ValueError('n has to be positive if m==0')
 
     def _make_names(self):
@@ -220,9 +228,11 @@ class NormalField(Optimizable):
         else:
             names = []
 
-        names += [prefix + '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
+        names += [prefix +
+                  '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
         for m in range(1, self.mpol + 1):
-            names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
+            names += [prefix + '(' + str(m) + ',' + str(n) +
+                      ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
 
     def change_resolution(self, mpol, ntor):
@@ -243,15 +253,17 @@ class NormalField(Optimizable):
         self.ntor = ntor
 
         # Set new number of dofs
-        if self.stellsym==1:
-            self.ndof =    self.ntor+self.mpol*(2*self.ntor+1) # Only Vns - odd series
+        if self.stellsym == 1:
+            self.ndof = self.ntor + self.mpol * \
+                (2 * self.ntor + 1)  # Only Vns - odd series
         else:
-            self.ndof = 2*(self.ntor+self.mpol*(2*self.ntor+1)) + 1 # Vns and Vnc
+            self.ndof = 2 * (self.ntor + self.mpol *
+                             (2 * self.ntor + 1)) + 1  # Vns and Vnc
 
         # Erase vns, vnc and fill with zeros
-        self.vns = np.zeros((self.mpol+1, 2*self.ntor+1))
+        self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         if not self.stellsym:
-            self.vnc = np.zeros((self.mpol+1, 2*self.ntor+1))
+            self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
         # Fill relevant modes
         min_mpol = np.min((mpol, old_mpol))
@@ -265,7 +277,8 @@ class NormalField(Optimizable):
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
 
-        # The following methods of graph Optimizable framework need to be called
+        # The following methods of graph Optimizable framework need to be
+        # called
         Optimizable._update_free_dof_size_indices(self)
         Optimizable._update_full_dof_size_indices(self)
         Optimizable._set_new_x(self)

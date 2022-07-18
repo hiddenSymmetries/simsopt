@@ -6,6 +6,11 @@
 This module provides a class that handles the SPEC equilibrium code.
 """
 
+import copy
+from .normal_field import NormalField
+from ..geo.surfacerzfourier import SurfaceRZFourier
+from .._core.util import ObjectiveFailure
+from .._core.optimizable import Optimizable
 import logging
 from typing import Union
 import os.path
@@ -18,7 +23,7 @@ logger = logging.getLogger(__name__)
 try:
     from mpi4py import MPI
 except ImportError as e:
-    MPI = None 
+    MPI = None
     logger.debug(str(e))
 
 try:
@@ -39,17 +44,11 @@ except ImportError as e:
     pyoculus = None
     logger.debug(str(e))
 
-from .._core.optimizable import Optimizable
-from .._core.util import ObjectiveFailure
-from ..geo.surfacerzfourier import SurfaceRZFourier
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
 
-from .normal_field import NormalField
-
-import copy
 
 __all__ = ['Spec', 'Residue']
 
@@ -81,7 +80,7 @@ class Spec(Optimizable):
           each MPI process will run SPEC independently.
         verbose: Whether to print SPEC output to stdout.
         keep_all_files: If ``False``, all output files will be deleted
-          except for the first and most recent ones from worker group 0. If 
+          except for the first and most recent ones from worker group 0. If
           ``True``, all output files will be kept.
     """
 
@@ -130,13 +129,14 @@ class Spec(Optimizable):
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'defaults.sp')
-            logger.info(f"Initializing a SPEC object from defaults in {filename}")
+            logger.info(
+                f"Initializing a SPEC object from defaults in {filename}")
         else:
             if not filename.endswith('.sp'):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
 
-        self.initial_guess = initial_guess # File to read initial guess from
+        self.initial_guess = initial_guess  # File to read initial guess from
         self.init(filename)
         self.extension = filename[:-3]
         self.keep_all_files = keep_all_files
@@ -155,11 +155,19 @@ class Spec(Optimizable):
         # surface object:
         for m in range(si.mpol + 1):
             for n in range(-si.ntor, si.ntor + 1):
-                self._boundary.rc[m, n + si.ntor] = si.rbc[n + si.mntor, m + si.mmpol]
-                self._boundary.zs[m, n + si.ntor] = si.zbs[n + si.mntor, m + si.mmpol]
+                self._boundary.rc[m,
+                                  n + si.ntor] = si.rbc[n + si.mntor,
+                                                        m + si.mmpol]
+                self._boundary.zs[m,
+                                  n + si.ntor] = si.zbs[n + si.mntor,
+                                                        m + si.mmpol]
                 if not stellsym:
-                    self._boundary.rs[m, n + si.ntor] = si.rbs[n + si.mntor, m + si.mmpol]
-                    self._boundary.zc[m, n + si.ntor] = si.zbc[n + si.mntor, m + si.mmpol]
+                    self._boundary.rs[m,
+                                      n + si.ntor] = si.rbs[n + si.mntor,
+                                                            m + si.mmpol]
+                    self._boundary.zc[m,
+                                      n + si.ntor] = si.zbc[n + si.mntor,
+                                                            m + si.mmpol]
         self._boundary.local_full_x = self._boundary.get_dofs()
 
         # self.depends_on = ["boundary"]
@@ -182,31 +190,27 @@ class Spec(Optimizable):
         else:
             # self.normal_field = NormalField( nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor )
             # mmpol=si.mmpol
-            # mntor=si.mntor    
+            # mntor=si.mntor
             # for mm in range(0, si.mpol+1):
             #     for nn in range(-si.ntor, si.ntor+1):
             #         if mm==0 and nn<0: continue
             #         self.normal_field.set_vns( mm, nn, si.vns[mntor+nn][mmpol+mm] )
-            
+
             #         if not si.istellsym:
             #             self.normal_field.set_vnc( mm, nn, si.vnc[mntor+nn][mmpol:mmpol+mm] )
 
             self.normal_field = NormalField()
-            self.normal_field.init_from_spec( filename )
+            self.normal_field.init_from_spec(filename)
 
-        
-    
-
-            
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['phiedge', 'curtor']
-        if si.lfreebound==0:
-            depends_on=[self._boundary]
+        if si.lfreebound == 0:
+            depends_on = [self._boundary]
         else:
-            depends_on=[self.normal_field]
+            depends_on = [self.normal_field]
 
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=depends_on,
@@ -216,14 +220,13 @@ class Spec(Optimizable):
     def boundary(self):
         return self._boundary
 
-
     @property
     def pressure_profile(self):
         return self._pressure_profile
 
     @pressure_profile.setter
     def pressure_profile(self, pressure_profile):
-        if not pressure_profile is self._pressure_profile:
+        if pressure_profile is not self._pressure_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._pressure_profile is not None:
                 self.remove_parent(self._pressure_profile)
@@ -232,19 +235,17 @@ class Spec(Optimizable):
                 self.append_parent(pressure_profile)
                 self.need_to_run_code = True
 
-
-
     @property
     def volume_current_profile(self):
         return self._volume_current_profile
 
     @volume_current_profile.setter
     def volume_current_profile(self, volume_current_profile):
-        
+
         # Volume current is a cumulative property
         volume_current_profile.cumulative = True
 
-        if not volume_current_profile is self._volume_current_profile:
+        if volume_current_profile is not self._volume_current_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._volume_current_profile is not None:
                 self.remove_parent(self._volume_current_profile)
@@ -253,14 +254,13 @@ class Spec(Optimizable):
                 self.append_parent(volume_current_profile)
                 self.need_to_run_code = True
 
-
     @property
     def interface_current_profile(self):
         return self._interface_current_profile
 
     @interface_current_profile.setter
     def interface_current_profile(self, interface_current_profile):
-        if not interface_current_profile is self._interface_current_profile:
+        if interface_current_profile is not self._interface_current_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._interface_current_profile is not None:
                 self.remove_parent(self._interface_current_profile)
@@ -275,7 +275,7 @@ class Spec(Optimizable):
 
     @iota_profile.setter
     def iota_profile(self, iota_profile):
-        if not iota_profile is self._iota_profile:
+        if iota_profile is not self._iota_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._iota_profile is not None:
                 self.remove_parent(self._iota_profile)
@@ -290,7 +290,7 @@ class Spec(Optimizable):
 
     @oita_profile.setter
     def oita_profile(self, oita_profile):
-        if not oita_profile is self._oita_profile:
+        if oita_profile is not self._oita_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._oita_profile is not None:
                 self.remove_parent(self._oita_profile)
@@ -305,7 +305,7 @@ class Spec(Optimizable):
 
     @mu_profile.setter
     def mu_profile(self, mu_profile):
-        if not mu_profile is self._mu_profile:
+        if mu_profile is not self._mu_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._mu_profile is not None:
                 self.remove_parent(self._mu_profile)
@@ -324,7 +324,7 @@ class Spec(Optimizable):
         # pflux is a cumulative property
         pflux_profile.cumulative = True
 
-        if not pflux_profile is self._pflux_profile:
+        if pflux_profile is not self._pflux_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._pflux_profile is not None:
                 self.remove_parent(self._pflux_profile)
@@ -346,22 +346,21 @@ class Spec(Optimizable):
 
         # define nvol, mvol
         nvol = self.inputlist.nvol
-        if self.inputlist.lfreebound==0:
-            mvol=nvol
+        if self.inputlist.lfreebound == 0:
+            mvol = nvol
         else:
-            mvol=nvol+1
-        
+            mvol = nvol + 1
 
         if profile.cumulative:
             old_value = profile.f(lvol)
 
-            profile.set(lvol, value) 
-            for ivol in range(lvol+1, mvol):
-                profile.set(ivol, profile.f(ivol)-old_value+value)
+            profile.set(lvol, value)
+            for ivol in range(lvol + 1, mvol):
+                profile.set(ivol, profile.f(ivol) - old_value + value)
         else:
             profile.set(lvol, value)
 
-    def get_profile(self, longname, lvol ):
+    def get_profile(self, longname, lvol):
         """
         This function is used to get the pressure, currents, iota, oita,
         mu and/or pflux profiles.
@@ -375,9 +374,6 @@ class Spec(Optimizable):
 
         return profile.f(lvol)
 
-
-        
-    
     @boundary.setter
     def boundary(self, boundary):
         if self._boundary is not boundary:
@@ -429,18 +425,18 @@ class Spec(Optimizable):
             return
         logger.info("Preparing to run SPEC.")
         self.counter += 1
-            
-            
+
         si = self.inputlist  # Shorthand
 
         # define nvol, mvol
         nvol = si.nvol
-        if si.lfreebound==0:
-            mvol=nvol
+        if si.lfreebound == 0:
+            mvol = nvol
         else:
-            mvol=nvol+1
+            mvol = nvol + 1
 
-        # nfp must be consistent between the surface and SPEC. The surface's value trumps.
+        # nfp must be consistent between the surface and SPEC. The surface's
+        # value trumps.
         si.nfp = self.boundary.nfp
         si.istellsym = int(self.boundary.stellsym)
 
@@ -458,11 +454,15 @@ class Spec(Optimizable):
         print("In run, si.istellsym=", si.istellsym, " stellsym=", stellsym)
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
-                si.rbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rc(m, n)
-                si.zbs[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_zs(m, n)
+                si.rbc[n + si.mntor, m +
+                       si.mmpol] = boundary_RZFourier.get_rc(m, n)
+                si.zbs[n + si.mntor, m +
+                       si.mmpol] = boundary_RZFourier.get_zs(m, n)
                 if not stellsym:
-                    si.rbs[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rs(m, n)
-                    si.zbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_zc(m, n)
+                    si.rbs[n + si.mntor, m +
+                           si.mmpol] = boundary_RZFourier.get_rs(m, n)
+                    si.zbc[n + si.mntor, m +
+                           si.mmpol] = boundary_RZFourier.get_zc(m, n)
 
         # Set the coordinate axis using the lrzaxis=2 feature:
         si.lrzaxis = 2
@@ -493,12 +493,11 @@ class Spec(Optimizable):
         #         if si.istellsym==0:
         #             spec.allglobal.allrzrz[2,0:nvol,imn] = self.initial_guess['rbs'][1:nvol+1,imn]
         #             spec.allglobal.allrzrz[3,0:nvol,imn] = self.initial_guess['zbc'][1:nvol+1,imn]
-            
-
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
-            si.pressure[0:si.nvol] = self.pressure_profile.get(np.arange(0,si.nvol))
+            si.pressure[0:si.nvol] = self.pressure_profile.get(
+                np.arange(0, si.nvol))
             if si.lfreebound == 1:
                 si.pressure[si.nvol] = 0
 
@@ -507,53 +506,57 @@ class Spec(Optimizable):
             # when a dofs is changed in order to keep fixed dofs fixed!
             old_ivolume = copy.copy(si.ivolume)
             for lvol in range(0, mvol):
-                if self.volume_current_profile.is_fixed( lvol ):
-                    if lvol!=0:
-                        si.ivolume[lvol] = si.ivolume[lvol] - old_ivolume[lvol-1] + si.ivolume[lvol-1]
-                        self.set_profile( 'volume_current', lvol=lvol, value=si.ivolume[lvol])
+                if self.volume_current_profile.is_fixed(lvol):
+                    if lvol != 0:
+                        si.ivolume[lvol] = si.ivolume[lvol] - \
+                            old_ivolume[lvol - 1] + si.ivolume[lvol - 1]
+                        self.set_profile(
+                            'volume_current', lvol=lvol, value=si.ivolume[lvol])
                 else:
-                    si.ivolume[lvol] = self.get_profile( 'volume_current', lvol )
-
+                    si.ivolume[lvol] = self.get_profile('volume_current', lvol)
 
             if si.lfreebound == 1:
-                si.ivolume[si.nvol] = si.ivolume[si.nvol-1]
-                self.volume_current_profile.set(key=mvol-1, new_val=si.ivolume[nvol-1])
-
+                si.ivolume[si.nvol] = si.ivolume[si.nvol - 1]
+                self.volume_current_profile.set(
+                    key=mvol - 1, new_val=si.ivolume[nvol - 1])
 
         if self.interface_current_profile is not None:
-            si.isurf[0:nvol-1] = self.interface_current_profile.get(np.arange(0,nvol))
+            si.isurf[0:nvol -
+                     1] = self.interface_current_profile.get(np.arange(0, nvol))
             if si.lfreebound == 1:
-                si.ivolume[mvol-1] = si.ivolume[nvol-1]
+                si.ivolume[mvol - 1] = si.ivolume[nvol - 1]
 
-        # Update total plasma toroidal current in case of freeboundary calculation
-        if ((self.volume_current_profile is not None) or \
+        # Update total plasma toroidal current in case of freeboundary
+        # calculation
+        if ((self.volume_current_profile is not None) or
             (self.interface_current_profile is not None)) and \
-                si.lfreebound==1:
-            si.curtor = si.ivolume[nvol-1] + np.sum(si.isurf)
+                si.lfreebound == 1:
+            si.curtor = si.ivolume[nvol - 1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
-            si.iota[0:nvol] = self.iota_profile.get(np.arange(0,nvol))
+            si.iota[0:nvol] = self.iota_profile.get(np.arange(0, nvol))
 
         if self.oita_profile is not None:
-            si.oita[0:nvol] = self.oita_profile.get(np.arange(0,nvol))
+            si.oita[0:nvol] = self.oita_profile.get(np.arange(0, nvol))
 
         if self.mu_profile is not None:
-            si.mu[0:nvol-1] = self.mu_profile.get(np.arange(0,nvol))
+            si.mu[0:nvol - 1] = self.mu_profile.get(np.arange(0, nvol))
             if si.lfreebound == 1:
-                si.mu[mvol] = 0   
+                si.mu[mvol] = 0
 
         if self.pflux_profile is not None:
             # Pflux is a cumulative profile; special care is required
             # when a dofs is changed in order to keep fixed dofs fixed!
             old_pflux = copy.copy(si.pflux)
             for lvol in range(0, mvol):
-                if self.pflux_profile.is_fixed( lvol ):
-                    if lvol!=0:
-                        si.pflux[lvol] = si.pflux[lvol] - old_pflux[lvol-1] + si.pflux[lvol-1]
-                        self.pflux_profile.set(key=lvol, new_val=si.pflux[lvol])
+                if self.pflux_profile.is_fixed(lvol):
+                    if lvol != 0:
+                        si.pflux[lvol] = si.pflux[lvol] - \
+                            old_pflux[lvol - 1] + si.pflux[lvol - 1]
+                        self.pflux_profile.set(
+                            key=lvol, new_val=si.pflux[lvol])
                 else:
-                    si.pflux[lvol] = self.pflux_profile.get( lvol )  
-
+                    si.pflux[lvol] = self.pflux_profile.get(lvol)
 
         # Another possible way to initialize the coordinate axis: use
         # the m=0 modes of the boundary.
@@ -561,7 +564,8 @@ class Spec(Optimizable):
         # for n in range(2):
         #     si.rac[n] = si.rbc[n + si.mntor, m + si.mmpol]
         #     si.zas[n] = si.zbs[n + si.mntor, m + si.mmpol]
-        filename = self.extension + '_{:03}_{:06}'.format(self.mpi.group, self.counter)
+        filename = self.extension + \
+            '_{:03}_{:06}'.format(self.mpi.group, self.counter)
         logger.info("Running SPEC using filename " + filename)
         self.allglobal.ext = filename
         try:
@@ -598,38 +602,43 @@ class Spec(Optimizable):
             logger.debug('About to call ending')
             spec.ending()
 
-        except:
+        except BaseException:
             if self.verbose:
                 traceback.print_exc()
             raise ObjectiveFailure("SPEC did not run successfully.")
 
         logger.info("SPEC run complete.")
-        # Barrier so workers do not try to read the .h5 file before it is finished:
+        # Barrier so workers do not try to read the .h5 file before it is
+        # finished:
         self.mpi.comm_groups.Barrier()
 
         try:
             self.results = py_spec.SPECout(filename + '.sp.h5')
-        except:
+        except BaseException:
             if self.verbose:
                 traceback.print_exc()
-            raise ObjectiveFailure("Unable to read results following SPEC execution")
+            raise ObjectiveFailure(
+                "Unable to read results following SPEC execution")
 
         logger.info("Successfully loaded SPEC results.")
         self.need_to_run_code = False
 
-        # Set filename for initial guess
-        if self.results.output.ForceErr < 1e-12:
-            initial_guess = {}
-            initial_guess['rbc'] = self.results.output.Rbc
-            initial_guess['zbs'] = self.results.output.Zbs
-            initial_guess['mm'] = self.results.output.im
-            initial_guess['nn'] = self.results.output.in_ / si.nfp
+        try:
+            # Set filename for initial guess
+            if self.results.output.ForceErr < 1e-12:
+                initial_guess = {}
+                initial_guess['rbc'] = self.results.output.Rbc
+                initial_guess['zbs'] = self.results.output.Zbs
+                initial_guess['mm'] = self.results.output.im
+                initial_guess['nn'] = self.results.output.in_ / si.nfp
 
-            if si.istellsym==0:
-                initial_guess['rbs'] = self.results.output.Rbs
-                initial_guess['zbc'] = self.results.output.Zbc
+                if si.istellsym == 0:
+                    initial_guess['rbs'] = self.results.output.Rbs
+                    initial_guess['zbc'] = self.results.output.Zbc
 
-            self.initial_guess = initial_guess
+                self.initial_guess = initial_guess
+        except:
+            logger.info("Failed to set initial guess.")
 
 
         # Group leaders handle deletion of files:
@@ -647,7 +656,8 @@ class Spec(Optimizable):
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:
-            if (self.mpi.group == 0) and (self.counter > 0) and (not self.keep_all_files):
+            if (self.mpi.group == 0) and (
+                    self.counter > 0) and (not self.keep_all_files):
                 self.files_to_delete.append(filename + '.sp.h5')
                 self.files_to_delete.append(filename + '.sp.end')
 
@@ -722,7 +732,8 @@ class Residue(Optimizable):
         Run Spec if needed, find the periodic field line, and return the residue
         """
         if not self.mpi.proc0_groups:
-            logger.info("This proc is skipping Residue.J() since it is not a group leader.")
+            logger.info(
+                "This proc is skipping Residue.J() since it is not a group leader.")
             return
 
         if self.need_to_run_code:
@@ -731,8 +742,10 @@ class Residue(Optimizable):
             # Set nrestart=0 because otherwise the random guesses in
             # pyoculus can cause examples/tests to be
             # non-reproducible.
-            fp = pyoculus.solvers.FixedPoint(specb, {'theta': self.theta, 'nrestart': 0},
-                                             integrator_params={'rtol': self.rtol})
+            fp = pyoculus.solvers.FixedPoint(
+                specb, {
+                    'theta': self.theta, 'nrestart': 0}, integrator_params={
+                    'rtol': self.rtol})
             self.fixed_point = fp.compute(self.s_guess,
                                           sbegin=self.s_min,
                                           send=self.s_max,
@@ -743,4 +756,3 @@ class Residue(Optimizable):
             raise ObjectiveFailure("Residue calculation failed")
 
         return self.fixed_point.GreenesResidue
-
