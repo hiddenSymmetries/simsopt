@@ -826,7 +826,10 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
+        if i != len(phis) - 1:
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
+        else:
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='right', y=0.0)
         if row == nrowcol - 1:
             axs[row, col].set_xlabel("$r$")
         if col == 0:
@@ -862,8 +865,11 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             phi_plasma = np.ravel(np.arctan2(xyz_plasma[:, :, 1], xyz_plasma[:, :, 0]))
             z_plasma = np.ravel(xyz_plasma[:, :, 2])
             phi_inds = np.isclose(phi_plasma, phis[i] * np.ones(len(phi_plasma)))
-            axs[row, col].scatter(r_plasma[phi_inds], z_plasma[phi_inds], linewidths=0, c='k', s=4)
-    
+            r_interp = np.append(r_plasma[phi_inds], (r_plasma[phi_inds])[0])
+            z_interp = np.append(z_plasma[phi_inds], (z_plasma[phi_inds])[0])
+            axs[row, col].plot(r_interp, z_interp, linewidth=1, c='k')
+            #axs[row, col].scatter(r_plasma[phi_inds], z_plasma[phi_inds], linewidths=0, c='k', s=4)
+
     #plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()
