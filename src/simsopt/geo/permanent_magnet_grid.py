@@ -4,6 +4,8 @@ import simsoptpp as sopp
 import time
 import warnings
 
+__all__ = ['PermanentMagnetGrid']
+
 
 class PermanentMagnetGrid:
     r"""
@@ -205,21 +207,19 @@ class PermanentMagnetGrid:
             for i in reversed(range(1, len(self.inds))):
                 for j in range(0, i):
                     self.inds[i] += self.inds[j]
-            print(self.inds)
             self.ndipoles = self.inds[-1]
             final_grid = []
             for i in range(self.final_RZ_grid.shape[0]):
                 if not np.allclose(self.final_RZ_grid[i, :], 0.0):
                     final_grid.append(self.final_RZ_grid[i, :])
             self.final_RZ_grid = np.array(final_grid)
-            print(self.final_RZ_grid.shape)
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             ox, oy, oz, Ic = np.loadtxt(
                 '../../tests/test_files/' + self.famus_filename,
                 skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
-                )
+            )
 
             # remove any dipoles where the diagnostic ports should be
             nonzero_inds = (Ic == 1.0)
@@ -240,7 +240,6 @@ class PermanentMagnetGrid:
             for i in reversed(range(1, self.pm_nphi)):
                 for j in range(0, i):
                     self.inds[i] += self.inds[j]
-            print(self.inds)
             self.final_RZ_grid = np.zeros((self.ndipoles, 3))
             self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
             self.final_RZ_grid[:, 1] = self.pm_phi
@@ -264,7 +263,7 @@ class PermanentMagnetGrid:
         print("C++ geometric setup, t = ", t2 - t1, " s")
 
         # Set initial condition for the dipoles to default IC
-        pm_opt.m0 = np.zeros(self.ndipoles * 3)
+        self.m0 = np.zeros(self.ndipoles * 3)
 
         # Print initial f_B metric using the initial guess
         total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
@@ -341,7 +340,7 @@ class PermanentMagnetGrid:
         dipole_grid_phi = np.zeros(self.ndipoles)
         dipole_grid_z = np.zeros(self.ndipoles)
         running_tally = 0
-        if famus_filename is not None:
+        if self.famus_filename is not None:
             nphi = self.pm_nphi
         else:
             nphi = self.nphi

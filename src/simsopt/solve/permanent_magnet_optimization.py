@@ -1,6 +1,8 @@
 import numpy as np
 import simsoptpp as sopp
 
+__all__ = ['relax_and_split']
+
 
 def prox_l0(m, mmax, reg_l0, nu):
     """
@@ -132,7 +134,7 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
 
     # change to row-major order for the C++ code
     A_obj = np.ascontiguousarray(pm_opt.A_obj)
-    ATb = np.ascontiguousarray(np.reshape(ATb, (pm_opt.ndipoles, 3)))
+    ATb = np.ascontiguousarray(np.reshape(pm_opt.ATb, (pm_opt.ndipoles, 3)))
 
     # print initial errors and values before optimization
     pm_opt._print_initial_opt()
@@ -156,60 +158,73 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
         )
 
     # set the nonconvex step in the algorithm
-    if (not np.isclose(reg_l0, 0.0)) and (not np.isclose(reg_l1, 0.0)):
+    reg_rs = 0.0
+    nu = kwargs["nu"]
+    reg_l0 = kwargs["reg_l0"]
+    reg_l1 = kwargs["reg_l1"]
+    if (not np.isclose(reg_l0, 0.0, atol=1e-16)) and (not np.isclose(reg_l1, 0.0, atol=1e-16)):
         raise ValueError(' L0 and L1 loss terms cannot be used concurrently.')
-    elif not np.isclose(reg_l0, 0.0):
+    elif not np.isclose(reg_l0, 0.0, atol=1e-16):
         prox = prox_l0
-    elif not np.isclose(reg_l1, 0.0):
+        reg_rs = reg_l0
+    elif not np.isclose(reg_l1, 0.0, atol=1e-16):
         prox = prox_l1
-    # Auxiliary variable in relax-and-split is initialized
+        reg_rs = reg_l1
+
+    # Auxiliary variable in relax-and-split can be initialized
     # to prox(m0), where m0 is the initial guess for m.
     if m0 is not None:
         setup_initial_condition(pm_opt, m0)
     m0 = pm_opt.m0
     m_proxy = pm_opt.m0
     mmax = pm_opt.m_maxima
-    m_proxy = prox(m_proxy, mmax, reg_l0, nu)
+    if reg_rs > 0.0:
+        m_proxy = prox(m_proxy, mmax, reg_rs, nu)
     kwargs['alpha'] = alpha_max
 
+    kwargs_convex = {}
+    for key in kwargs.keys():
+        if 'RS' not in key: 
+            kwargs_convex[key] = kwargs[key]
+
     # Begin optimization
-    if reg_l0 > 0.0 or reg_l1 > 0.0:
+    if reg_rs > 0.0:
         # Relax-and-split algorithm
         m = pm_opt.m0
-        for i in range(max_iter_RS):
+        for i in range(kwargs['max_iter_RS']):
             # update m with the CONVEX part of the algorithm
             algorithm_history, _, _, m = convex_step(
-                    A_obj=pm_opt.A_obj,
-                    b_obj=pm_opt.b_obj,
-                    ATb=ATb,
-                    m_proxy=np.ascontiguousarray(m_proxy.reshape(pm_opt.ndipoles, 3)),
-                    m0=np.ascontiguousarray(m.reshape(pm_opt.ndipoles, 3)),  # note updated m is new guess
-                    m_maxima=mmax,
-                    **kwargs
-                )
+                A_obj=pm_opt.A_obj,
+                b_obj=pm_opt.b_obj,
+                ATb=ATb,
+                m_proxy=np.ascontiguousarray(m_proxy.reshape(pm_opt.ndipoles, 3)),
+                m0=np.ascontiguousarray(m.reshape(pm_opt.ndipoles, 3)),  # note updated m is new guess
+                m_maxima=mmax,
+                **kwargs_convex
+            )
             m_history.append(m)
             m = np.ravel(m)
             algorithm_history = algorithm_history[algorithm_history != 0]
             errors.append(algorithm_history[-1])
 
             # Solve the nonconvex optimization -- i.e. take a prox
-            m_proxy = prox(m, reg_l0, nu)
+            m_proxy = prox(m, mmax, reg_rs, nu)
             m_proxy_history.append(m_proxy)
-            if np.linalg.norm(m - m_proxy) < epsilon:
+            if np.linalg.norm(m - m_proxy) < kwargs['epsilon_RS']:
                 print('Relax-and-split finished early, at iteration ', i)
     else:
         m0 = np.ascontiguousarray(m0.reshape(pm_opt.ndipoles, 3))
         # no nonconvex terms being used, so just need one round of the
         # convex algorithm called MwPGP
         algorithm_history, _, m_history, m = convex_step(
-                A_obj=pm_opt.A_obj,
-                b_obj=pm_opt.b_obj,
-                ATb=ATb,
-                m_proxy=m0,
-                m0=m0,
-                m_maxima=mmax,
-                **kwargs
-            )
+            A_obj=pm_opt.A_obj,
+            b_obj=pm_opt.b_obj,
+            ATb=ATb,
+            m_proxy=m0,
+            m0=m0,
+            m_maxima=mmax,
+            **kwargs_convex
+        )
         m = np.ravel(m)
         m_proxy = m
 

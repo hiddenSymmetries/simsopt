@@ -28,7 +28,8 @@ from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
+from simsopt.geo import PermanentMagnetGrid
+from simsopt.solve import relax_and_split 
 from simsopt._core import Optimizable
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
@@ -37,7 +38,7 @@ t_start = time.time()
 
 # Read in all the required parameters
 comm = None
-config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag = read_input()
+config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, reg_l1, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag = read_input()
 
 # Add cori scratch path
 class_filename = "PM_optimizer_" + config_flag
@@ -137,10 +138,10 @@ if run_type == 'initialization':
 
     # Finally, initialize the permanent magnet class
     t1 = time.time()
-    pm_opt = PermanentMagnetOptimizer(
+    pm_opt = PermanentMagnetGrid(
         s, coil_offset=coff,
         dr=dr, plasma_offset=poff, Bn=Bnormal,
-        filename=surface_filename, surface_flag=surface_flag, out_dir=OUT_DIR,
+        filename=surface_filename, surface_flag=surface_flag, 
         coordinate_flag=coordinate_flag, famus_filename=famus_filename,
     )
     t2 = time.time()
@@ -218,31 +219,43 @@ elif run_type == 'optimization':
     #m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
     #m0 = np.zeros(pm_opt.m0.shape)
 
+    # Rescale the hyperparameters and then add contributions to ATA and ATb
+    reg_l0, _, _, nu = rescale_for_opt(
+        pm_opt, reg_l0, 0.0, 0.0, nu
+    )
+
+    # Set some hyperparameters for the optimization
+    kwargs = initialize_default_kwargs()
+    kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
+    kwargs['max_iter'] = max_iter_MwPGP  # Number of iterations to take in a convex step
+    kwargs['max_iter_RS'] = max_iter_RS  # Number of total iterations of the relax-and-split algorithm
+    kwargs['reg_l0'] = reg_l0
+
     # Optimize the permanent magnets, increasing L0 threshold as converging
     total_m_history = []
     total_mproxy_history = []
     total_RS_history = []
-    num_i = 1
-    skip = 5.0
-    if not np.isclose(reg_l0, 0.0) or not np.isclose(reg_l1, 0.0):
+    num_i = 20
+    skip = 10.0
+    if not np.isclose(reg_l0, 0.0, atol=1e-16) or not np.isclose(reg_l1, 0.0, atol=1e-16):
         for i in range(num_i):
             reg_l0_scaled = reg_l0 * (1 + i / skip)
             reg_l1_scaled = reg_l1 * (1 + i / skip)
             print(i, reg_l0_scaled)
-            RS_history, m_history, m_proxy_history = pm_opt._optimize(
-                max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-                reg_l2=reg_l2, reg_l0=reg_l0_scaled, reg_l1=reg_l1_scaled, nu=nu, max_iter_RS=max_iter_RS,
-                m0=m0
+            RS_history, m_history, m_proxy_history = relax_and_split(
+                pm_opt,
+                m0=m0,
+                **kwargs
             )
             total_RS_history.append(RS_history)
             total_m_history.append(m_history)
             total_mproxy_history.append(m_proxy_history)
             m0 = pm_opt.m
     else:
-        RS_history, m_history, m_proxy_history = pm_opt._optimize(
-            max_iter_MwPGP=max_iter_MwPGP, epsilon=epsilon, min_fb=min_fb,
-            reg_l2=reg_l2, reg_l0=reg_l0, reg_l1=reg_l1, nu=nu, max_iter_RS=max_iter_RS,
-            m0=m0
+        RS_history, m_history, m_proxy_history = relax_and_split( 
+            pm_opt,
+            m0=m0,
+            **kwargs
         )
         total_RS_history.append(RS_history)
         total_m_history.append(m_history)
@@ -262,7 +275,7 @@ elif run_type == 'optimization':
 
     np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
     np.savetxt(OUT_DIR + class_filename + "_proxy.txt", pm_opt.m_proxy)
-    
+
     # write solution to FAMUS-type file
     write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
@@ -376,7 +389,7 @@ elif run_type == 'optimization':
         total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
         total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
         print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
-        
+
         pm_opt.m = pm_opt.m_proxy
         b_dipole = DipoleField(pm_opt)
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -385,7 +398,7 @@ elif run_type == 'optimization':
         dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
         num_nonzero_sparse = np.count_nonzero(dipoles[:, 0] ** 2 + dipoles[:, 1] ** 2 + dipoles[:, 2] ** 2) / pm_opt.ndipoles * 100
         np.savetxt(OUT_DIR + 'final_stats.txt', [f_B_sf, f_B_sp, num_nonzero, num_nonzero_sparse, total_volume, total_volume_sparse])
- 
+
     # Save optimized permanent magnet class object
     file_out = open(OUT_DIR + class_filename + "_optimized.pickle", "wb")
 
@@ -409,17 +422,18 @@ elif run_type == 'post-processing':
     IN_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
 
     # Read in the correct subdirectory with the optimization output
-    OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_nu{2:.2e}/".format(reg_l2, reg_l0, nu)
+    OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
     #OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
     os.makedirs(OUT_DIR, exist_ok=True)
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     print('m = ', pm_opt.m)
 
-    #m_loadtxt, _ = get_FAMUS_dipoles(pms_name)
-    m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
-    mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
-    #mproxy_loadtxt = np.copy(m_loadtxt)
+    pms_name = 'zot80.focus'
+    m_loadtxt, _ = get_FAMUS_dipoles(pms_name)
+    #m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
+    #mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
+    mproxy_loadtxt = np.copy(m_loadtxt)
     print('m = ', m_loadtxt)
     pm_opt.m = m_loadtxt
     pm_opt.m_proxy = mproxy_loadtxt
@@ -504,10 +518,10 @@ elif run_type == 'post-processing':
 
     # Make the QFM surfaces
     t1 = time.time()
-    qfm_surf = make_qfm(s_plot, Bfield, Bfield_tf)
+    qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
     #qfm_surf.plot()
-    #qfm_surf_mproxy = make_qfm(s, Bfield_mproxy, Bfield_tf_mproxy)
+    #qfm_surf_mproxy = make_qfm(s, Bfield_mproxy)
     #qfm_surf_mproxy = qfm_surf_mproxy.surface
     #qfm_surf_mproxy.plot()
     #qfm_surf_mproxy = qfm_surf
@@ -526,9 +540,9 @@ elif run_type == 'post-processing':
     #    equil._boundary = qfm_surf
     #    equil.need_to_run_code = True
     equil.run()
-   
+
     exit()
-    
+
     ### Always use the QH VMEC file and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
     equil = Vmec(vmec_input, mpi)

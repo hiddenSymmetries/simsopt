@@ -142,7 +142,7 @@ void print_MwPGP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_proxy, Array&
 // See Bouchala, Jiří, et al.On the solution of convex QPQC
 // problems with elliptic and other separable constraints with
 // strong curvature. Applied Mathematics and Computation 247 (2014): 848-864.
-std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double delta, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, double min_fb, bool verbose)
+std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, double min_fb, bool verbose)
 {
     // Needs ATb in shape (N, 3)
     int ngrid = A_obj.shape(0);
@@ -224,7 +224,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         alpha_cg = gp / pATAp;
 
         // based on these norms, decide what kind of a descent step to take
-        if (2 * delta * norm_g_alpha_p <= norm_phi_temp) {
+        if (norm_g_alpha_p <= norm_phi_temp) {
             if (alpha_cg < alpha_f) {
                 // Take a conjugate gradient step
 #pragma omp parallel for
