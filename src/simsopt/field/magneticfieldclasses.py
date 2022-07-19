@@ -559,10 +559,10 @@ class DipoleField(MagneticField):
         dipole_grid = pm_opt.dipole_grid_xyz
         ndipoles = pm_opt.ndipoles
         if stellsym:
-            stell_num = 2
+            stell_list = [1, -1]
             nsym = nfp * 2
         else:
-            stell_num = 1
+            stell_list = [1]
             nsym = nfp
         m = pm_opt.m.reshape(ndipoles, 3)
 
@@ -604,7 +604,7 @@ class DipoleField(MagneticField):
             mmz = mmz_temp
 
         # Loop over stellarator and field-period symmetry contributions
-        for stell in [1, -1]:
+        for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
 

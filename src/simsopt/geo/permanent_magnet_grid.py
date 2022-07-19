@@ -423,6 +423,11 @@ class PermanentMagnetGrid:
         self.b_obj = self.b_obj * np.sqrt(Nnorms / Ngrid)
         self.ATb = self.A_obj.T @ self.b_obj
 
+        # Compute singular values of A, use this to determine optimal step size
+        # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
+        S = np.linalg.svd(self.A_obj, full_matrices=False, compute_uv=False)
+        self.ATA_scale = S[0] ** 2
+
     def _set_inner_rz_surface(self):
         """
             If the inner toroidal surface was not specified, this function

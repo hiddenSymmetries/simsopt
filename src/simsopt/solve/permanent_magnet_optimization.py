@@ -159,9 +159,18 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
-    nu = kwargs["nu"]
-    reg_l0 = kwargs["reg_l0"]
-    reg_l1 = kwargs["reg_l1"]
+    if "nu" in kwargs.keys():
+        nu = kwargs["nu"]
+    else:
+        nu = 1e100
+    if "reg_l0" in kwargs.keys():
+        reg_l0 = kwargs["reg_l0"]
+    else:
+        reg_l0 = 0.0
+    if "reg_l1" in kwargs.keys():
+        reg_l1 = kwargs["reg_l1"]
+    else:
+        reg_l1 = 0.0
     if (not np.isclose(reg_l0, 0.0, atol=1e-16)) and (not np.isclose(reg_l1, 0.0, atol=1e-16)):
         raise ValueError(' L0 and L1 loss terms cannot be used concurrently.')
     elif not np.isclose(reg_l0, 0.0, atol=1e-16):

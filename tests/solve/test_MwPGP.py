@@ -33,7 +33,6 @@ class Testing(unittest.TestCase):
             reg_l0=0.0,
             reg_l1=0.0,
             reg_l2=0.0,
-            reg_l2_shifted=0.0
         )
 
         t2 = time.time()

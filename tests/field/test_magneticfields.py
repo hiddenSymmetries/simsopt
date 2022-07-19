@@ -20,7 +20,9 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
-from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
+from simsopt.util.permanent_magnet_helper_functions import * 
+from simsopt.geo import PermanentMagnetGrid
+from simsopt.solve import relax_and_split
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.configs.zoo import get_ncsx_data
 
@@ -470,15 +472,17 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetOptimizer(
-            s, dr=0.2, 
+        pm_opt = PermanentMagnetGrid(
+            s, dr=0.1, 
             Bn=Bn,
             filename=filename
         )
-        pm_opt.dipole_grid = m_loc
+        pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
+        pm_opt.m_maxima = pm_opt.m_maxima[0]
+        pm_opt.plasma_boundary.stellsym = False
+        pm_opt.plasma_boundary.nfp = 1 
         pm_opt.ndipoles = m.shape[0] // 3
-        pm_opt.test_flag = True
         Bfield = DipoleField(pm_opt)
         Bfield.set_points(field_loc)
         gradB = np.array(Bfield.dB_by_dX())
@@ -509,15 +513,17 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetOptimizer(
-            s, dr=0.2, 
+        pm_opt = PermanentMagnetGrid(
+            s, dr=0.1, 
             Bn=Bn,
             filename=filename
         )
-        pm_opt.dipole_grid = m_loc
+        pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
+        pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
+        pm_opt.plasma_boundary.stellsym = False
+        pm_opt.plasma_boundary.nfp = 1 
         pm_opt.ndipoles = m.shape[0] // 3
-        pm_opt.test_flag = True
         Bfield = DipoleField(pm_opt)
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
@@ -553,17 +559,18 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetOptimizer(
-            s, dr=0.2, 
+        pm_opt = PermanentMagnetGrid(
+            s, dr=0.1, 
             Bn=Bn,
             filename=filename
         )
-        pm_opt.dipole_grid = m_loc
+        pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
+        pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
         pm_opt.ndipoles = m.shape[0] // 3
-        pm_opt.stellsym = False
+        pm_opt.plasma_boundary.stellsym = False
+        pm_opt.plasma_boundary.nfp = 1 
         pm_opt.nfp = 1
-        pm_opt.test_flag = True
         Bfield = DipoleField(pm_opt)
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
@@ -615,8 +622,8 @@ class Testing(unittest.TestCase):
             bs = BiotSavart(coils)
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-            pm_opt = PermanentMagnetOptimizer(
-                s, dr=0.2, 
+            pm_opt = PermanentMagnetGrid(
+                s, dr=0.1, 
                 Bn=Bn, 
                 surface_flag=surface_flag,
                 filename=sfilename
