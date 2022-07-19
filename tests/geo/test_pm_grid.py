@@ -1,10 +1,10 @@
-from simsopt.util.permanent_magnet_optimizer import PermanentMagnetOptimizer
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.field.magneticfieldclasses import InterpolatedField, DipoleField
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.field import InterpolatedField, DipoleField
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt.solve import relax_and_split
 import simsoptpp as sopp
 import numpy as np
 import unittest
@@ -23,79 +23,69 @@ class Testing(unittest.TestCase):
         ntheta = 32
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, coil_offset=0.1, dr=-0.05, plasma_offset=0.1,
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, coil_offset=-0.1, dr=0.05, plasma_offset=0.1,
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, coil_offset=0.1, dr=0.05, plasma_offset=0.0,
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 10,
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_inner_surface=10
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_outer_surface=10
             )
         inner = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta-2)
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_inner_surface=inner, rz_outer_surface=outer 
             )
         outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta+2)
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_inner_surface=inner, rz_outer_surface=outer 
             )
         outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi-2, ntheta=ntheta)
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_inner_surface=inner, rz_outer_surface=outer 
             )
         outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi+2, ntheta=ntheta)
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, rz_inner_surface=inner, rz_outer_surface=outer 
             )
 
         with self.assertRaises(FileNotFoundError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, filename='nonsense'
             )
 
         with self.assertRaises(TypeError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, surface_flag='wout', filename=filename
             )
 
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
-                s, is_premade_famus_grid=True 
-            )
-
-        with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, Bn=0.0 
             )
 
         with self.assertRaises(ValueError):
-            PermanentMagnetOptimizer(
+            PermanentMagnetGrid(
                 s, Bn=np.zeros((nphi, ntheta // 2))
-            )
-
-        with self.assertRaises(OSError):
-            PermanentMagnetOptimizer(
-                s, is_premade_famus_grid=True, pms_name='nonsense' 
             )
 
     def test_optimize_bad_parameters(self):
@@ -114,23 +104,23 @@ class Testing(unittest.TestCase):
         bs.set_points(s.gamma().reshape((-1, 3)))
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetOptimizer(s, filename=filename, dr=0.15, Bn=Bn)
+        pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
 
         # Note that the rest of the optimization parameters are checked
         # interactively when python permanent_magnet_optimization.py True 
         # is used on the command line. 
         with self.assertRaises(ValueError):
-            _, _, _, _, = pm_opt._optimize()
+            _, _, _, _, = relax_and_split(pm_opt)
 
         with self.assertRaises(ValueError):
-            _, _, _, = pm_opt._optimize(m0=np.zeros(pm_opt.ndipoles * 3 // 2))
+            _, _, _, = relax_and_split(pm_opt, m0=np.zeros(pm_opt.ndipoles * 3 // 2))
 
         with self.assertRaises(ValueError):
-            _, _, _, = pm_opt._optimize(m0=np.zeros((pm_opt.ndipoles, 3)))
+            _, _, _, = relax_and_split(pm_opt, m0=np.zeros((pm_opt.ndipoles, 3)))
 
         with self.assertRaises(ValueError):
             mmax = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T)
-            _, _, _, = pm_opt._optimize(m0=np.ones((pm_opt.ndipoles * 3)) * mmax)
+            _, _, _, = relax_and_split(pm_opt, m0=np.ones((pm_opt.ndipoles * 3)) * mmax)
 
     def test_projected_normal(self):
         """
@@ -170,8 +160,8 @@ class Testing(unittest.TestCase):
         bs.set_points(s.gamma().reshape((-1, 3)))
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetOptimizer(s, filename=filename, dr=0.15, Bn=Bn)
-        _, _, _, = pm_opt._optimize()
+        pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
+        _, _, _, = relax_and_split(pm_opt)
         b_dipole = DipoleField(pm_opt)
         b_dipole.set_points(s.gamma().reshape(-1, 3))
 

@@ -928,10 +928,6 @@ def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu):
             'dipole maximum values, so reg_l0 = 1 should basically '
             'truncate all the dipoles to zero. '
         )
-    # Compute singular values of A, use this to determine optimal step size
-    # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
-    S = np.linalg.svd(pm_opt.A_obj, full_matrices=False, compute_uv=False)
-    pm_opt.ATA_scale = S[0] ** 2
 
     # Rescale L0 and L1 so that the values used for thresholding
     # are only parametrized by the values of reg_l0 and reg_l1
