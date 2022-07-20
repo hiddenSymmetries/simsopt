@@ -255,13 +255,15 @@ class Boozer(Optimizable):
                 raise RuntimeError(
                     "Using Spec requires py_spec to be installed.")
 
-            d = py_spec.SPECout(self.equil.extension + '.sp.h5')
-
+            d = self.equil.results
             # Seek on which surface the boozer coordinate is required
             compute_surfs = []
             for ss in s:
                 compute_surfs.append(ss * 2)  # inner side of interface
-                compute_surfs.append(ss * 2 + 1)  # outer side of interface
+
+                if ss!=d.output.Mvol-1:
+                    compute_surfs.append(ss * 2 + 1)  # outer side of interface
+
 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
@@ -308,31 +310,41 @@ class Boozer(Optimizable):
 
             lambdamn = np.zeros((ns_in, d.output.lmns))
             index = 0
-            for lvol in range(0, d.output.Mvol):
+            for ind_surf in range(1, d.output.Mvol+1):
                 for innout in range(0, 2):
 
-                    if lvol == 0 and innout == 0:
-                        continue  # No data on axis
+                    # Translate interface indices into volume indices
+                    if innout==0:
+                        ind_vol = ind_surf-1
+                        innout_vol = 1
+                    else:
+                        ind_vol = ind_surf
+                        innout_vol = -1
+                    
+                    if ind_vol>=d.output.Mvol: continue
+                    if ind_vol<0 : continue
+                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
 
-                    rmnc[index] = np.array([list(d.output.Rbc[lvol, :])])
-                    rmns[index] = np.array([list(d.output.Rbs[lvol, :])])
-                    zmnc[index] = np.array([list(d.output.Zbc[lvol, :])])
-                    zmns[index] = np.array([list(d.output.Zbs[lvol, :])])
+                    rmnc[index] = np.array([list(d.output.Rbc[ind_surf, :])])
+                    rmns[index] = np.array([list(d.output.Rbs[ind_surf, :])])
+                    zmnc[index] = np.array([list(d.output.Zbc[ind_surf, :])])
+                    zmns[index] = np.array([list(d.output.Zbs[ind_surf, :])])
+
 
                     subumnc[index] = np.array(
-                        [list(d.output.Btemn[lvol, innout, :])])
+                        [list(d.output.Btemn[ind_vol, innout_vol, :])])
                     subvmnc[index] = np.array(
-                        [list(d.output.Bzemn[lvol, innout, :])])
+                        [list(d.output.Bzemn[ind_vol, innout_vol, :])])
                     subumns[index] = np.array(
-                        [list(d.output.Btomn[lvol, innout, :])])
+                        [list(d.output.Btomn[ind_vol, innout_vol, :])])
                     subvmns[index] = np.array(
-                        [list(d.output.Bzomn[lvol, innout, :])])
+                        [list(d.output.Bzomn[ind_vol, innout_vol, :])])
 
                     lambdamn[index] = np.array(
-                        [list(d.output.lambdamn[innout][lvol][:])])
+                        [list(d.output.lambdamn[innout_vol][ind_vol][:])])
 
-                    iota[index] = d.output.lambdamn[innout][lvol][0]
-                    s_in[index] = d.output.tflux[lvol]
+                    iota[index] = d.output.lambdamn[innout_vol][ind_vol][0]
+                    s_in[index] = d.output.tflux[ind_surf-1]
 
                     index = index + 1
 
@@ -358,11 +370,20 @@ class Boozer(Optimizable):
             mns = d.output.mns
 
             index = 0
-            for lvol in range(0, d.output.Mvol):
+            for ind_surf in range(1, d.output.Mvol+1):
                 for innout in range(0, 2):
 
-                    if lvol == 0 and innout == 0:
-                        continue  # No data on axis
+                    # Translate interface indices into volume indices
+                    if innout==0:
+                        ind_vol = ind_surf-1
+                        innout_vol = 1
+                    else:
+                        ind_vol = ind_surf
+                        innout_vol = -1
+                    
+                    if ind_vol>=d.output.Mvol: continue
+                    if ind_vol<0 : continue
+                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
 
                     for ii in range(0, mns):
                         mm = xms[ii]
@@ -393,20 +414,27 @@ class Boozer(Optimizable):
             Bmnc = np.zeros((mnmax, ns_in))
 
             index = 0
-            for lvol in range(0, d.output.Mvol):
+            for ind_surf in range(1, d.output.Mvol+1):
                 for innout in range(0, 2):
-                    if lvol == 0 and innout == 0:
-                        continue
 
-                    if innout == 0:
-                        sarr = np.asarray([-1])
-                    else:
+                    # Translate interface indices into volume indices
+                    if innout==0:
+                        ind_vol = ind_surf-1
+                        innout_vol = 1
                         sarr = np.asarray([1])
+                    else:
+                        ind_vol = ind_surf
+                        innout_vol = -1
+                        sarr = np.asarray([-1])
+                    
+                    if ind_vol>=d.output.Mvol: continue
+                    if ind_vol<0 : continue
+                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
 
                     Bcontrav = d.get_B(
-                        lvol=lvol, sarr=sarr, tarr=tarr, zarr=zarr)
+                        lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)
                     g = d.get_grid_and_jacobian_and_metric(
-                        lvol=lvol, sarr=sarr, tarr=tarr, zarr=zarr)[3]
+                        lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)[3]
 
                     modB = d.get_modB(Bcontrav, g)[0]
                     modBcos = np.zeros(np.shape(modB))

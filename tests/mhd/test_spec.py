@@ -229,6 +229,9 @@ class SpecTests(unittest.TestCase):
             equil.inputlist.nptrj[0] = 0
             equil.inputlist.lrad[0] = 2
 
+            # remove GMRES solver
+            equil.inputlist.lmatsolver = 1
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
             desired_volume = 0.15
@@ -290,7 +293,6 @@ class SpecTests(unittest.TestCase):
         prob = LeastSquaresProblem.from_tuples([(s.iota, desired_iota, 1)])
 
         # Solve
-        s.keep_all_files = True
         least_squares_serial_solve(prob, grad=False)
 
         # Check result
@@ -349,6 +351,9 @@ class SpecTests(unittest.TestCase):
             # Use low resolution, for speed:
             equil.inputlist.lrad[0] = 4
             equil.inputlist.nppts = 100
+
+            # remove GMRES
+            equil.inputlist.lmatsolver = 1
 
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function

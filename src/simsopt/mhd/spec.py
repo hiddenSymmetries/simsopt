@@ -136,14 +136,80 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
 
-        self.initial_guess = initial_guess  # File to read initial guess from
         self.init(filename)
+        si = spec.inputlist  # Shorthand
+        
+        # Store initial guess data
+        nmodes = self.allglobal.num_modes
+        if nmodes>0:
+            # Save inner boundaries geometry
+            self.initial_guess = {}
+            self.initial_guess['mm'] = copy.copy(self.allglobal.mmrzrz[0:nmodes])
+            self.initial_guess['nn'] = copy.copy(self.allglobal.nnrzrz[0:nmodes])
+
+            if not (si.lfreebound==1 and si.nvol==1) :
+                self.initial_guess['rbc'] = copy.copy(self.allglobal.allrzrz[0,:,0:nmodes])
+                self.initial_guess['zbs'] = copy.copy(self.allglobal.allrzrz[1,:,0:nmodes])
+
+                if si.istellsym==0:
+                    self.initial_guess['rbs'] = copy.copy(self.allglobal.allrzrz[2,:,0:nmodes])
+                    self.initial_guess['zbc'] = copy.copy(self.allglobal.allrzrz[3,:,0:nmodes])
+
+            # # Save Plasma Boundary in case of free-boundary calculation
+            # if si.lfreebound==1:
+            #     rbc = np.zeros((1,nmodes))
+            #     zbs = np.zeros((1,nmodes))
+
+            #     if si.istellsym==0:
+            #         rbs = np.zeros((1,nmodes))
+            #         zbc = np.zeros((1,nmodes))
+                
+            #     for imn in range(0,nmodes):
+            #         mm = self.initial_guess['mm'][imn]
+            #         nn = self.initial_guess['nn'][imn]
+            #         if mm>si.mpol: continue
+            #         if abs(nn)>si.ntor: continue
+
+            #         rbc[0,imn] = self.inputlist.rbc[nn+si.mntor , mm+si.mmpol]
+            #         zbs[0,imn] = self.inputlist.zbs[nn+si.mntor , mm+si.mmpol]
+
+            #         if si.istellsym==0:
+            #             rbs[0,imn] = self.inputlist.rbs[nn+si.mntor , mm+si.mmpol]
+            #             zbc[0,imn] = self.inputlist.zbc[nn+si.mntor , mm+si.mmpol]
+
+            #     if si.nvol==1:
+            #         self.initial_guess['rbc'] = rbc
+            #         self.initial_guess['zbs'] = zbs
+
+            #         if si.istellsym==0:
+            #             self.initial_guess['rbs'] = rbs
+            #             self.initial_guess['zbc'] = zbc
+
+            #     else:
+            #         self.initial_guess['rbc'] = np.vstack( (self.initial_guess['rbc'], rbc) )
+            #         self.initial_guess['zbs'] = np.vstack( (self.initial_guess['rbc'], zbs) )
+
+            #         if si.istellsym==0:
+            #             self.initial_guess['rbs'] = np.vstack( (self.initial_guess['rbc'], rbs) )
+            #             self.initial_guess['zbc'] = np.vstack( (self.initial_guess['rbc'], zbc) )
+
+        else:
+            self.initial_guess = None
+
+        # Store axis data
+        self.axis = {}
+        self.axis['rac'] = copy.copy(si.rac[0:si.ntor+1])
+        self.axis['zas'] = copy.copy(si.zas[0:si.ntor+1])
+        if si.istellsym==0:
+            self.axis['ras'] = copy.copy(si.ras[0:si.ntor+1])
+            self.axis['zac'] = copy.copy(si.zac[0:si.ntor+1])
+
+
         self.extension = filename[:-3]
         self.keep_all_files = keep_all_files
         self.files_to_delete = []
 
         # Create a surface object for the boundary:
-        si = spec.inputlist  # Shorthand
         stellsym = bool(si.istellsym)
         print(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
         self._boundary = SurfaceRZFourier(nfp=si.nfp,
@@ -188,17 +254,6 @@ class Spec(Optimizable):
         if not si.lfreebound:
             self.normal_field = None
         else:
-            # self.normal_field = NormalField( nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor )
-            # mmpol=si.mmpol
-            # mntor=si.mntor
-            # for mm in range(0, si.mpol+1):
-            #     for nn in range(-si.ntor, si.ntor+1):
-            #         if mm==0 and nn<0: continue
-            #         self.normal_field.set_vns( mm, nn, si.vns[mntor+nn][mmpol+mm] )
-
-            #         if not si.istellsym:
-            #             self.normal_field.set_vnc( mm, nn, si.vnc[mntor+nn][mmpol:mmpol+mm] )
-
             self.normal_field = NormalField()
             self.normal_field.init_from_spec(filename)
 
@@ -466,33 +521,58 @@ class Spec(Optimizable):
 
         # Set the coordinate axis using the lrzaxis=2 feature:
         si.lrzaxis = 2
-        # lrzaxis=2 only seems to work if the axis is not already set
-        #si.ras[:] = 0.0
-        #si.rac[:] = 0.0
-        #si.zas[:] = 0.0
-        #si.zac[:] = 0.0
+        
+        # Set axis from latest converged state
+        mn = self.axis['rac'].size
+        si.rac[0:mn] = self.axis['rac']
+        si.zas[0:mn] = self.axis['zas']
+        if si.istellsym==0:
+            si.ras[0:mn] = self.axis['ras']
+            si.zac[0:mn] = self.axis['zac']
 
-        # # Set initial guess
-        # if not self.initial_guess is None:
-        #     si.linitialize = 0
 
-        #     mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
+        # Set initial guess
+        mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
+        if not self.initial_guess is None:
 
-        #     spec.allglobal.mmrzrz = np.zeros((mn,))
-        #     spec.allglobal.nnrzrz = np.zeros((mn,))
-        #     spec.allglobal.allrzrz = np.zeros((4,mvol,mn))
+            # Set all modes to zero
+            spec.allglobal.mmrzrz[:] = 0
+            spec.allglobal.nnrzrz[:] = 0
+            spec.allglobal.allrzrz[:] = 0
 
-        #     for imn in range(0,mn):
+            if si.lfreebound==1:
+                si.rbc[:] = 0
+                si.zbs[:] = 0
 
-        #         spec.allglobal.mmrzrz[imn] = self.initial_guess['mm'][imn]
-        #         spec.allglobal.nnrzrz[imn] = self.initial_guess['nn'][imn]
+                if si.istellsym==0:
+                    si.rbs[:] = 0
+                    si.zbc[:] = 0
 
-        #         spec.allglobal.allrzrz[0,0:nvol,imn] = self.initial_guess['rbc'][1:nvol+1,imn]
-        #         spec.allglobal.allrzrz[1,0:nvol,imn] = self.initial_guess['zbs'][1:nvol+1,imn]
+            # Populate initial guess of inner boundaries
+            for imn, mm in enumerate(self.initial_guess['mm']):
+                
+                nn = self.initial_guess['nn'][imn]
+                if mm>si.mpol or np.abs(nn)>si.ntor: continue
 
-        #         if si.istellsym==0:
-        #             spec.allglobal.allrzrz[2,0:nvol,imn] = self.initial_guess['rbs'][1:nvol+1,imn]
-        #             spec.allglobal.allrzrz[3,0:nvol,imn] = self.initial_guess['zbc'][1:nvol+1,imn]
+                if not (si.lfreebound==1 and si.nvol==1):
+                    spec.allglobal.mmrzrz[imn] = mm
+                    spec.allglobal.nnrzrz[imn] = self.initial_guess['nn'][imn]
+
+                    spec.allglobal.allrzrz[0,0:nvol-1,imn] = self.initial_guess['rbc'][0:nvol-1,imn]
+                    spec.allglobal.allrzrz[1,0:nvol-1,imn] = self.initial_guess['zbs'][0:nvol-1,imn]
+
+                    if si.istellsym==0:
+                        spec.allglobal.allrzrz[2,0:nvol-1,imn] = self.initial_guess['rbs'][0:nvol-1,imn]
+                        spec.allglobal.allrzrz[3,0:nvol-1,imn] = self.initial_guess['zbc'][0:nvol-1,imn]
+
+                if si.lfreebound==1:
+                    x = self.initial_guess['rbc'][nvol-1,imn]
+                    si.rbc[si.mntor+nn,si.mmpol+mm] = x
+                    si.zbs[si.mntor+nn,si.mmpol+mm] = self.initial_guess['zbs'][nvol-1,imn]
+
+                    if si.istellsym==0:
+                        si.rbs[si.mntor+nn,si.mmpol+mm] = self.initial_guess['rbs'][nvol-1,imn]
+                        si.zbc[si.mntor+nn,si.mmpol+mm] = self.initial_guess['zbc'][nvol-1,imn]
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
@@ -624,21 +704,29 @@ class Spec(Optimizable):
         self.need_to_run_code = False
 
         try:
-            # Set filename for initial guess
-            if self.results.output.ForceErr < 1e-12:
+            # Save geometry as initial guess for next iterations
+            if self.results.output.ForceErr < 1e-12 and self.results.output.Mvol>1:
                 initial_guess = {}
-                initial_guess['rbc'] = self.results.output.Rbc
-                initial_guess['zbs'] = self.results.output.Zbs
+                initial_guess['rbc'] = self.results.output.Rbc[1:mvol,:]
+                initial_guess['zbs'] = self.results.output.Zbs[1:mvol,:]
                 initial_guess['mm'] = self.results.output.im
-                initial_guess['nn'] = self.results.output.in_ / si.nfp
+                initial_guess['nn'] = (self.results.output.in_ / si.nfp).astype('int')
+
+                axis = {}
+                axis['rac'] = self.results.output.Rbc[0,0:si.ntor+1]
+                axis['zas'] = self.results.output.Zbs[0,0:si.ntor+1]
 
                 if si.istellsym == 0:
-                    initial_guess['rbs'] = self.results.output.Rbs
-                    initial_guess['zbc'] = self.results.output.Zbc
+                    initial_guess['rbs'] = self.results.output.Rbs[1:mvol,:]
+                    initial_guess['zbc'] = self.results.output.Zbc[1:mvol,:]
 
-                self.initial_guess = initial_guess
+                    axis['ras'] = self.results.output.Rbs[0,0:si.ntor+1]
+                    axis['zac'] = self.results.output.Zbc[0,0:si.ntor+1]
+
+                self.initial_guess = copy.copy(initial_guess)
+                self.axis = copy.copy(axis)
         except:
-            logger.info("Failed to set initial guess.")
+            logger.info("Failed to read initial guess.")
 
 
         # Group leaders handle deletion of files:
