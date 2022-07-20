@@ -6,6 +6,8 @@ from scipy.interpolate import interp1d
 import f90nml
 from monty.json import MSONable
 
+logger = logging.getLogger(__name__)
+
 try:
     import py_spec
 except ImportError as e:
@@ -15,7 +17,6 @@ except ImportError as e:
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
 
-logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
 

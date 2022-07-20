@@ -340,6 +340,10 @@ class SpecTests(unittest.TestCase):
             # boundary to the Garabedian representation:
             surf = SurfaceGarabedian.from_RZFourier(equil.boundary)
             equil.boundary = surf
+            
+            # Need to set axis to zero
+            equil.axis['rac'][:] = 0
+            equil.axis['zas'][:] = 0
 
             # SPEC parameters are all fixed by default, while surface
             # parameters are all non-fixed by default. You can choose
@@ -351,9 +355,6 @@ class SpecTests(unittest.TestCase):
             # Use low resolution, for speed:
             equil.inputlist.lrad[0] = 4
             equil.inputlist.nppts = 100
-
-            # remove GMRES
-            equil.inputlist.lmatsolver = 1
 
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
@@ -448,6 +449,11 @@ class SpecTests(unittest.TestCase):
 
         # Initialize SPEC from an input file
         spec = Spec(filename)
+
+        # set axis to zero
+        spec.axis['rac'][:] = 0
+        spec.axis['zas'][:] = 0 
+
         # The main resonant surface is iota = p / q:
         p = -8
         q = 7
