@@ -87,3 +87,9 @@ Here is a list of publications in which simsopt results appear:
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
    |
+
+#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
+     "Permanent magnet optimization for stellarators as sparse regression",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
+   |
