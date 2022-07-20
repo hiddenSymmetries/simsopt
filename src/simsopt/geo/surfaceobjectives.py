@@ -8,7 +8,26 @@ from .._core.optimizable import Optimizable
 from simsopt.geo.surface import Surface
 from simsopt._core.derivative import Derivative, derivative_dec
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.util.zoo import forward_backward 
+import scipy
+
+__all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
+           'QfmResidual', 'boozer_surface_residual']
+
+
+def forward_backward(P, L, U, rhs):
+    """
+    Solve a linear system of the form (PLU)^T*adj = rhs for adj
+    """
+    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
+    z = scipy.linalg.solve_triangular(L.T, y, lower=False)
+    adj = P@z
+
+    #  iterative refinement
+    yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
+    zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
+    adj += P@zp
+
+    return adj
 
 
 class Area(Optimizable):
@@ -431,6 +450,11 @@ class MajorRadius(Optimizable):
     r"""
     This wrapper objective computes the major radius of a toroidal Boozer surface and supplies
     its derivative with respect to coils
+
+    Args:
+        boozer_surface: The surface to use for the computation
+        sDIM: dimensions for the tensor product grid of quadrature points used to evaluate the integrals in the major radius formula
+
     """
     def __init__(self, boozer_surface, sDIM=15):
         Optimizable.__init__(self, depends_on=[boozer_surface])
@@ -725,7 +749,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
         booz_surf: boozer surface,
         iota: rotational transform on the boozer surface,
         G: constant on boozer surface,
-        biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
+        biotsavart: biotsavart object, the same as the one used on the Boozer surface. 
     """
     surface = booz_surf.surface
     user_provided_G = G is not None

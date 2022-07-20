@@ -2,6 +2,11 @@
 
 """
 This example demonstrates how to use SIMSOPT to compute Poincare plots.
+
+This script uses the NCSX coil shapes available in
+``simsopt.util.zoo.get_ncsx_data()``. For an example in which coils
+optimized from a simsopt stage-2 optimization are used, see the
+example tracing_fieldlines_QA.py.
 """
 
 import time
@@ -15,17 +20,17 @@ try:
 except ImportError:
     comm = None
 
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
-from simsopt.geo.surfacexyztensorfourier import SurfaceRZFourier
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.tracing import SurfaceClassifier, \
+from simsopt.field import BiotSavart
+from simsopt.field import InterpolatedField
+from simsopt.geo import SurfaceRZFourier
+from simsopt.field import coils_via_symmetries
+from simsopt.field import SurfaceClassifier, \
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
-from simsopt.geo.curve import curves_to_vtk
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.geo import curves_to_vtk
+from simsopt.configs import get_ncsx_data
 
-print("Running 1_Simple/tracing_fieldline.py")
-print("=====================================")
+print("Running 1_Simple/tracing_fieldlines_NCSX.py")
+print("===========================================")
 
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
@@ -111,15 +116,20 @@ def skip(rs, phis, zs):
     return skip
 
 
+print('Initializing InterpolatedField')
 bsh = InterpolatedField(
     bs, degree, rrange, phirange, zrange, True, nfp=nfp, stellsym=True, skip=skip
 )
+print('Done initializing InterpolatedField')
 
 bsh.set_points(ma.gamma().reshape((-1, 3)))
 bs.set_points(ma.gamma().reshape((-1, 3)))
 Bh = bsh.B()
 B = bs.B()
 print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
+
+print('Beginning field line tracing')
 trace_fieldlines(bsh, 'bsh')
-print("End of 1_Simple/tracing_fieldline.py")
-print("=====================================")
+
+print("End of 1_Simple/tracing_fieldlines_NCSX.py")
+print("==========================================")

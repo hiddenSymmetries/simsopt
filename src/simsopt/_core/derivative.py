@@ -2,6 +2,8 @@ import numpy as np
 import numbers
 import collections
 
+__all__ = ['Derivative']
+
 
 class OptimizableDefaultDict(collections.defaultdict):
     """

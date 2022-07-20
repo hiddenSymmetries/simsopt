@@ -28,7 +28,7 @@ rotational transform and aspect ratio do not stray too far from the value in the
 There is also a penalty on the total coil length as a regularizer to prevent the coils from becoming
 too complex.  The BFGS optimizer is used, and quasisymmetry is improved substantially on the surface.
 
-More details on this work can be found in arxiv:2203.03753.
+More details on this work can be found at doi:10.1017/S0022377822000563 or arxiv:2203.03753.
 """
 
 # Directory for output

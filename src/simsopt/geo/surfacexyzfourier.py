@@ -3,6 +3,8 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
+__all__ = ['SurfaceXYZFourier']
+
 
 class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     r"""`SurfaceXYZFourier` is a surface that is represented in Cartesian
@@ -110,6 +112,22 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
             gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
 
         surf.least_squares_fit(gamma)
+        return surf
+
+    def as_dict(self) -> dict:
+        d = super().as_dict()
+        d["mpol"] = self.mpol
+        d["ntor"] = self.ntor
+        d["stellsym"] = self.stellsym
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
+                   mpol=d["mpol"], ntor=d["ntor"],
+                   quadpoints_phi=d["quadpoints_phi"],
+                   quadpoints_theta=d["quadpoints_theta"])
+        surf.set_dofs(d["x0"])
         return surf
 
     return_fn_map = {'area': sopp.SurfaceXYZFourier.area,

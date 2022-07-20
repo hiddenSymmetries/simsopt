@@ -1,6 +1,8 @@
 import unittest
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
@@ -45,6 +47,10 @@ class UtilityObjectiveTesting(unittest.TestCase):
             print("err_new %s" % (err_new))
             assert err_new < 0.6 * err or err_new < 1e-13
             err = err_new
+
+        J_str = json.dumps(J, cls=MontyEncoder)
+        J_regen = json.loads(J_str, cls=MontyDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_quadratic_penalty(self):
         curve = self.create_curve()
