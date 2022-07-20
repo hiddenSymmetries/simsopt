@@ -519,37 +519,6 @@ Array Surface<Array>::dnormal_by_dcoeff_vjp(Array& v) {
     return dgammadash1_by_dcoeff_vjp(res_dgammadash1) + dgammadash2_by_dcoeff_vjp(res_dgammadash2);
 }
 
-template<class Array>
-void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
-    data *= 0.;
-    double norm, dnorm_dcoeffn;
-    auto nor = this->normal();
-    auto dnor_dc = this->dnormal_by_dcoeff();
-    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
-    int ndofs = num_dofs();
-    for (int i = 0; i < numquadpoints_phi; ++i) {
-        for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m) {
-                for (int n = 0; n < ndofs; ++n) {
-                    norm = sqrt(nor(i,j,0)*nor(i,j,0)
-                            + nor(i,j,1)*nor(i,j,1)
-                            + nor(i,j,2)*nor(i,j,2));
-                    dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0)
-                            + dnor_dc(i,j,1,n)*nor(i,j,1)
-                            + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
-                    data(m,n) +=  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
-                        + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
-                        + dnor_dc(i,j,2,m) * (dnor_dc(i,j,2,n) * norm - dnorm_dcoeffn * nor(i,j,2)) / (norm*norm)
-                        + d2nor_dcdc(i,j,0,m,n) * nor(i,j,0) / norm
-                        + d2nor_dcdc(i,j,1,m,n) * nor(i,j,1) / norm
-                        + d2nor_dcdc(i,j,2,m,n) * nor(i,j,2) / norm;
-                }
-            }
-        }
-    }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
-}
-
 
 template<class Array>
 double Surface<Array>::volume() {
@@ -603,31 +572,230 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
         data(m) = temp(m);
     }
 }
+
+
+
+#include "xsimd/xsimd.hpp"
+#include "simdhelpers.h"
+
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
+    constexpr int simd_size = xsimd::simd_type<double>::size;
     data *= 0.;
     auto nor = this->normal();
-    auto dnor_dc = this->dnormal_by_dcoeff();
-    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
     auto xyz = this->gamma();
     auto dxyz_dc = this->dgamma_by_dcoeff();
+    auto dnor_dc = this->dnormal_by_dcoeff();
+    auto dg1_dc = this->dgammadash1_by_dcoeff();
+    auto dg2_dc = this->dgammadash2_by_dcoeff();
     int ndofs = num_dofs();
+    
+    auto dg1x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dg2x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dnorx_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnory_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnorz_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dxyzx_dc = AlignedPaddedVec(ndofs, 0);
+    auto dxyzy_dc = AlignedPaddedVec(ndofs, 0);
+    auto dxyzz_dc = AlignedPaddedVec(ndofs, 0);
+
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m){
-                for (int n = 0; n < ndofs; ++n){
-                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
-                            +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
-                            +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
-                    data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
-                            +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
-                            +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+            simd_t xyzij0(xyz(i,j,0));
+            simd_t xyzij1(xyz(i,j,1));
+            simd_t xyzij2(xyz(i,j,2));
+
+            for (int n = 0; n < ndofs; ++n) {
+                dg1x_dc[n] = dg1_dc(i, j, 0, n);
+                dg1y_dc[n] = dg1_dc(i, j, 1, n);
+                dg1z_dc[n] = dg1_dc(i, j, 2, n);
+
+                dg2x_dc[n] = dg2_dc(i, j, 0, n);
+                dg2y_dc[n] = dg2_dc(i, j, 1, n);
+                dg2z_dc[n] = dg2_dc(i, j, 2, n);
+
+                dnorx_dc[n] = dnor_dc(i, j, 0, n);
+                dnory_dc[n] = dnor_dc(i, j, 1, n);
+                dnorz_dc[n] = dnor_dc(i, j, 2, n);
+ 
+                dxyzx_dc[n] = dxyz_dc(i, j, 0, n);
+                dxyzy_dc[n] = dxyz_dc(i, j, 1, n);
+                dxyzz_dc[n] = dxyz_dc(i, j, 2, n);
+            }
+
+            for (int m = 0; m < ndofs; ++m){ 
+                simd_t dg1_dc_ij0m(dg1_dc(i, j, 0, m));
+                simd_t dg1_dc_ij1m(dg1_dc(i, j, 1, m));
+                simd_t dg1_dc_ij2m(dg1_dc(i, j, 2, m));
+                
+                simd_t dg2_dc_ij0m(dg2_dc(i, j, 0, m));
+                simd_t dg2_dc_ij1m(dg2_dc(i, j, 1, m));
+                simd_t dg2_dc_ij2m(dg2_dc(i, j, 2, m));
+                
+                simd_t dxyz_dc_ij0m(dxyz_dc(i, j, 0, m));
+                simd_t dxyz_dc_ij1m(dxyz_dc(i, j, 1, m));
+                simd_t dxyz_dc_ij2m(dxyz_dc(i, j, 2, m));
+                
+                simd_t dnor_dc_ij0m(dnor_dc(i, j, 0, m));
+                simd_t dnor_dc_ij1m(dnor_dc(i, j, 1, m));
+                simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
+
+                for (int n = 0; n < ndofs; n+=simd_size){ 
+                    simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
+                    simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
+                    simd_t dg1_dc_ij2n = xs::load_aligned(&dg1z_dc[n]);
+                    
+                    simd_t dg2_dc_ij0n = xs::load_aligned(&dg2x_dc[n]);
+                    simd_t dg2_dc_ij1n = xs::load_aligned(&dg2y_dc[n]);
+                    simd_t dg2_dc_ij2n = xs::load_aligned(&dg2z_dc[n]);
+                    
+                    simd_t dnor_dc_ij0n = xs::load_aligned(&dnorx_dc[n]);
+                    simd_t dnor_dc_ij1n = xs::load_aligned(&dnory_dc[n]);
+                    simd_t dnor_dc_ij2n = xs::load_aligned(&dnorz_dc[n]);
+
+                    simd_t dxyz_dc_ij0n = xs::load_aligned(&dxyzx_dc[n]);
+                    simd_t dxyz_dc_ij1n = xs::load_aligned(&dxyzy_dc[n]);
+                    simd_t dxyz_dc_ij2n = xs::load_aligned(&dxyzz_dc[n]);
+
+                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
+                         d2nor_dcdc_ij0mn += xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
+                         d2nor_dcdc_ij1mn += xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m,  dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
+                         d2nor_dcdc_ij2mn += xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
+                    
+                    auto temp = xsimd::fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
+                    auto data1  = (1./3) * xsimd::fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
+                    auto data2  = (1./3) * (xsimd::fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
+                                           +xsimd::fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
+                                           +xsimd::fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
+
+                    int jjlimit = std::min(simd_size, ndofs-n);
+                    for(int jj=0; jj<jjlimit; jj++){
+                        data(m, n+jj) += data1[jj]+data2[jj];
+                    }
                 }
             }
         }
     }
     data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
+
+template<class Array>
+void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
+    data *= 0.;
+    auto nor = this->normal();
+    auto dnor_dc = this->dnormal_by_dcoeff();
+    auto dg1 = this->gammadash1();
+    auto dg2 = this->gammadash2();
+    auto dg1_dc = this->dgammadash1_by_dcoeff();
+    auto dg2_dc = this->dgammadash2_by_dcoeff();
+    int ndofs = num_dofs();
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+
+    auto dg1x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dg2x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dnorx_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnory_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnorz_dc = AlignedPaddedVec(ndofs, 0);
+
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            
+            double val_norm2 =  nor(i,j,0)*nor(i,j,0)+ nor(i,j,1)*nor(i,j,1) + nor(i,j,2)*nor(i,j,2);
+            double val_norm = sqrt(val_norm2);
+            
+            simd_t norm2(val_norm2);
+            simd_t norm(val_norm);
+            
+            simd_t rnorm2(1./val_norm2);
+            simd_t rnorm(1./val_norm);
+
+            for (int n = 0; n < ndofs; ++n) {
+                dg1x_dc[n] = dg1_dc(i, j, 0, n);
+                dg1y_dc[n] = dg1_dc(i, j, 1, n);
+                dg1z_dc[n] = dg1_dc(i, j, 2, n);
+
+                dg2x_dc[n] = dg2_dc(i, j, 0, n);
+                dg2y_dc[n] = dg2_dc(i, j, 1, n);
+                dg2z_dc[n] = dg2_dc(i, j, 2, n);
+
+                dnorx_dc[n] = dnor_dc(i, j, 0, n);
+                dnory_dc[n] = dnor_dc(i, j, 1, n);
+                dnorz_dc[n] = dnor_dc(i, j, 2, n);
+            }
+            
+            simd_t nor_ij0(nor(i,j,0));
+            simd_t nor_ij1(nor(i,j,1));
+            simd_t nor_ij2(nor(i,j,2));
+
+            for (int m = 0; m < ndofs; ++m) {
+                simd_t dg1_dc_ij0m(dg1_dc(i,j,0,m));
+                simd_t dg1_dc_ij1m(dg1_dc(i,j,1,m));
+                simd_t dg1_dc_ij2m(dg1_dc(i,j,2,m));
+
+                simd_t dg2_dc_ij0m(dg2_dc(i,j,0,m));
+                simd_t dg2_dc_ij1m(dg2_dc(i,j,1,m));
+                simd_t dg2_dc_ij2m(dg2_dc(i,j,2,m));
+
+                simd_t dnor_dc_ij0m(dnor_dc(i, j, 0, m));
+                simd_t dnor_dc_ij1m(dnor_dc(i, j, 1, m));
+                simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
+
+                for (int n = 0; n < ndofs; n+=simd_size) {
+                    simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
+                    simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
+                    simd_t dg1_dc_ij2n = xs::load_aligned(&dg1z_dc[n]);
+                    
+                    simd_t dg2_dc_ij0n = xs::load_aligned(&dg2x_dc[n]);
+                    simd_t dg2_dc_ij1n = xs::load_aligned(&dg2y_dc[n]);
+                    simd_t dg2_dc_ij2n = xs::load_aligned(&dg2z_dc[n]);
+                    
+                    simd_t dnor_dc_ij0n = xs::load_aligned(&dnorx_dc[n]);
+                    simd_t dnor_dc_ij1n = xs::load_aligned(&dnory_dc[n]);
+                    simd_t dnor_dc_ij2n = xs::load_aligned(&dnorz_dc[n]);
+
+                    auto dnorm_dcoeffn = (dnor_dc_ij0n*nor_ij0 + dnor_dc_ij1n*nor_ij1 + dnor_dc_ij2n*nor_ij2) * rnorm;
+                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n, dg1_dc_ij2m*dg2_dc_ij1n);
+                    d2nor_dcdc_ij0mn     +=  xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m, dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n, dg1_dc_ij0m*dg2_dc_ij2n);
+                    d2nor_dcdc_ij1mn     +=  xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m, dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n, dg1_dc_ij1m*dg2_dc_ij0n);
+                    d2nor_dcdc_ij2mn     +=  xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m, dg1_dc_ij1n*dg2_dc_ij0m);
+
+                    auto batch =  dnor_dc_ij0m * (xsimd::fms(dnor_dc_ij0n , norm , dnorm_dcoeffn * nor_ij0)) * rnorm2
+                                + dnor_dc_ij1m * (xsimd::fms(dnor_dc_ij1n , norm , dnorm_dcoeffn * nor_ij1)) * rnorm2
+                                + dnor_dc_ij2m * (xsimd::fms(dnor_dc_ij2n , norm , dnorm_dcoeffn * nor_ij2)) * rnorm2
+                                + d2nor_dcdc_ij0mn * nor_ij0 * rnorm
+                                + d2nor_dcdc_ij1mn * nor_ij1 * rnorm
+                                + d2nor_dcdc_ij2mn * nor_ij2 * rnorm;
+
+                    int jjlimit = std::min(simd_size, ndofs-n);
+                    for(int jj=0; jj<jjlimit; jj++){
+                        data(m, n+jj) += batch[jj];
+                    }
+
+                }
+            }
+        }
+    }
+    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+}
+
+
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
