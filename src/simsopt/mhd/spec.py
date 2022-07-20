@@ -140,97 +140,109 @@ class Spec(Optimizable):
         si = spec.inputlist  # Shorthand
 
         nvol = si.nvol
-        if si.lfreebound==0:
+        if si.lfreebound == 0:
             mvol = nvol
         else:
             mvol = nvol + 1
-        
+
         # Store initial guess data
         nmodes = self.allglobal.num_modes
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
-        if nmodes>0:
+        if nmodes > 0:
             # Save inner boundaries geometry
             self.initial_guess = {}
             self.initial_guess['mm'] = np.zeros((mn,), dtype='int')
             self.initial_guess['nn'] = np.zeros((mn,), dtype='int')
-            self.initial_guess['rbc'] = np.zeros((mvol-1,mn))
-            self.initial_guess['zbs'] = np.zeros((mvol-1,mn))
-            if si.istellsym==0:
-                self.initial_guess['rbs'] = np.zeros((1,mn))
-                self.initial_guess['zbc'] = np.zeros((1,mn))
+            self.initial_guess['rbc'] = np.zeros((mvol-1, mn))
+            self.initial_guess['zbs'] = np.zeros((mvol-1, mn))
+            if si.istellsym == 0:
+                self.initial_guess['rbs'] = np.zeros((1, mn))
+                self.initial_guess['zbc'] = np.zeros((1, mn))
 
             ii = 0
-            for mm in range(0,si.mpol+1):
-                for nn in range(-si.ntor,si.ntor+1):
-                    if mm==0 and nn<0: continue
+            for mm in range(0, si.mpol+1):
+                for nn in range(-si.ntor, si.ntor+1):
+                    if mm == 0 and nn < 0:
+                        continue
 
                     self.initial_guess['mm'][ii] = mm
                     self.initial_guess['nn'][ii] = nn
 
-                    indm = np.where(self.allglobal.mmrzrz[0:nmodes]==mm)
-                    indn = np.where(self.allglobal.nnrzrz[0:nmodes]==nn)
-                    ind = np.intersect1d( indm, indn )
+                    indm = np.where(self.allglobal.mmrzrz[0:nmodes] == mm)
+                    indn = np.where(self.allglobal.nnrzrz[0:nmodes] == nn)
+                    ind = np.intersect1d(indm, indn)
 
-                    if ind.size==1:
-                        self.initial_guess['rbc'] [:,ii] = copy.copy(self.allglobal.allrzrz[0,0:mvol-1,ind])
-                        self.initial_guess['zbs'] [:,ii] = copy.copy(self.allglobal.allrzrz[1,0:mvol-1,ind])
+                    if ind.size == 1:
+                        self.initial_guess['rbc'][:, ii] = copy.copy(
+                            self.allglobal.allrzrz[0, 0:mvol-1, ind])
+                        self.initial_guess['zbs'][:, ii] = copy.copy(
+                            self.allglobal.allrzrz[1, 0:mvol-1, ind])
 
-                        if si.istellsym==0:
-                            self.initial_guess['rbs'] [:,ii] = copy.copy(self.allglobal.allrzrz[2,0:mvol-1,ind])
-                            self.initial_guess['zbc'] [:,ii] = copy.copy(self.allglobal.allrzrz[3,0:mvol-1,ind])
-                    
+                        if si.istellsym == 0:
+                            self.initial_guess['rbs'][:, ii] = copy.copy(
+                                self.allglobal.allrzrz[2, 0:mvol-1, ind])
+                            self.initial_guess['zbc'][:, ii] = copy.copy(
+                                self.allglobal.allrzrz[3, 0:mvol-1, ind])
+
                     ii = ii + 1
 
         else:
             self.initial_guess = None
 
         # Store plasma boundary
-        if si.lfreebound==1:
+        if si.lfreebound == 1:
             plasma_boundary = {}
             plasma_boundary['mm'] = np.zeros((mn,))
             plasma_boundary['nn'] = np.zeros((mn,))
-            plasma_boundary['rbc'] = np.zeros((1,mn))
-            plasma_boundary['zbs'] = np.zeros((1,mn))
-            if si.istellsym==0:
-                plasma_boundary['rbs'] = np.zeros((1,mn))
-                plasma_boundary['zbc'] = np.zeros((1,mn))
+            plasma_boundary['rbc'] = np.zeros((1, mn))
+            plasma_boundary['zbs'] = np.zeros((1, mn))
+            if si.istellsym == 0:
+                plasma_boundary['rbs'] = np.zeros((1, mn))
+                plasma_boundary['zbc'] = np.zeros((1, mn))
 
             ii = 0
-            for mm in range(0,si.mpol+1):
-                for nn in range(-si.ntor,si.ntor+1):
-                    if mm==0 and nn<0: continue
+            for mm in range(0, si.mpol+1):
+                for nn in range(-si.ntor, si.ntor+1):
+                    if mm == 0 and nn < 0:
+                        continue
 
                     plasma_boundary['mm'][ii] = mm
                     plasma_boundary['nn'][ii] = nn
 
-                    plasma_boundary['rbc'][0,ii] = si.rbc[si.mntor+nn,si.mmpol+mm]
-                    plasma_boundary['zbs'][0,ii] = si.zbs[si.mntor+nn,si.mmpol+mm]
+                    plasma_boundary['rbc'][0,
+                                           ii] = si.rbc[si.mntor+nn, si.mmpol+mm]
+                    plasma_boundary['zbs'][0,
+                                           ii] = si.zbs[si.mntor+nn, si.mmpol+mm]
 
-                    if si.istellsym==0:
-                        plasma_boundary['rbs'][0,ii] = si.rbs[si.mntor+nn,si.mmpol+mm]
-                        plasma_boundary['zbc'][0,ii] = si.zbc[si.mntor+nn,si.mmpol+mm]
+                    if si.istellsym == 0:
+                        plasma_boundary['rbs'][0,
+                                               ii] = si.rbs[si.mntor+nn, si.mmpol+mm]
+                        plasma_boundary['zbc'][0,
+                                               ii] = si.zbc[si.mntor+nn, si.mmpol+mm]
 
                     ii = ii + 1
-            
+
             if self.initial_guess is None:
                 self.initial_guess = plasma_boundary
             else:
-                self.initial_guess['rbc'][nvol-1] = plasma_boundary['rbc'][0,:]
-                self.initial_guess['zbs'][nvol-1] = plasma_boundary['zbs'][0,:]
+                self.initial_guess['rbc'][nvol -
+                                          1] = plasma_boundary['rbc'][0, :]
+                self.initial_guess['zbs'][nvol -
+                                          1] = plasma_boundary['zbs'][0, :]
 
-                if si.istellsym==0:
-                    self.initial_guess['rbs'][nvol-1] = plasma_boundary['rbs'][0,:]
-                    self.initial_guess['zbc'][nvol-1] = plasma_boundary['zbc'][0,:]
-
+                if si.istellsym == 0:
+                    self.initial_guess['rbs'][nvol -
+                                              1] = plasma_boundary['rbs'][0, :]
+                    self.initial_guess['zbc'][nvol -
+                                              1] = plasma_boundary['zbc'][0, :]
 
         # Store axis data
         self.axis = {}
         self.axis['rac'] = copy.copy(si.rac[0:si.ntor+1])
         self.axis['zas'] = copy.copy(si.zas[0:si.ntor+1])
-        if si.istellsym==0:
+        if si.istellsym == 0:
             self.axis['ras'] = copy.copy(si.ras[0:si.ntor+1])
             self.axis['zac'] = copy.copy(si.zac[0:si.ntor+1])
-
 
         self.extension = filename[:-3]
         self.keep_all_files = keep_all_files
@@ -548,15 +560,14 @@ class Spec(Optimizable):
 
         # Set the coordinate axis using the lrzaxis=2 feature:
         si.lrzaxis = 2
-        
+
         # Set axis from latest converged state
         mn = self.axis['rac'].size
         si.rac[0:mn] = self.axis['rac']
         si.zas[0:mn] = self.axis['zas']
-        if si.istellsym==0:
+        if si.istellsym == 0:
             si.ras[0:mn] = self.axis['ras']
             si.zac[0:mn] = self.axis['zac']
-
 
         # Set initial guess
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
@@ -567,39 +578,47 @@ class Spec(Optimizable):
             spec.allglobal.nnrzrz[:] = 0
             spec.allglobal.allrzrz[:] = 0
 
-            if si.lfreebound==1:
+            if si.lfreebound == 1:
                 si.rbc[:] = 0
                 si.zbs[:] = 0
 
-                if si.istellsym==0:
+                if si.istellsym == 0:
                     si.rbs[:] = 0
                     si.zbc[:] = 0
 
             # Populate initial guess of inner boundaries
             for imn, mm in enumerate(self.initial_guess['mm']):
-                
-                nn = self.initial_guess['nn'][imn]
-                if mm>si.mpol or np.abs(nn)>si.ntor: continue
 
-                if not (si.lfreebound==1 and si.nvol==1):
+                nn = self.initial_guess['nn'][imn]
+                if mm > si.mpol or np.abs(nn) > si.ntor:
+                    continue
+
+                if not (si.lfreebound == 1 and si.nvol == 1):
                     spec.allglobal.mmrzrz[imn] = mm
                     spec.allglobal.nnrzrz[imn] = self.initial_guess['nn'][imn]
 
-                    spec.allglobal.allrzrz[0,0:nvol-1,imn] = self.initial_guess['rbc'][0:nvol-1,imn]
-                    spec.allglobal.allrzrz[1,0:nvol-1,imn] = self.initial_guess['zbs'][0:nvol-1,imn]
+                    spec.allglobal.allrzrz[0, 0:nvol-1,
+                                           imn] = self.initial_guess['rbc'][0:nvol-1, imn]
+                    spec.allglobal.allrzrz[1, 0:nvol-1,
+                                           imn] = self.initial_guess['zbs'][0:nvol-1, imn]
 
-                    if si.istellsym==0:
-                        spec.allglobal.allrzrz[2,0:nvol-1,imn] = self.initial_guess['rbs'][0:nvol-1,imn]
-                        spec.allglobal.allrzrz[3,0:nvol-1,imn] = self.initial_guess['zbc'][0:nvol-1,imn]
+                    if si.istellsym == 0:
+                        spec.allglobal.allrzrz[2, 0:nvol-1,
+                                               imn] = self.initial_guess['rbs'][0:nvol-1, imn]
+                        spec.allglobal.allrzrz[3, 0:nvol-1,
+                                               imn] = self.initial_guess['zbc'][0:nvol-1, imn]
 
-                if si.lfreebound==1:
-                    x = self.initial_guess['rbc'][nvol-1,imn]
-                    si.rbc[si.mntor+nn,si.mmpol+mm] = x
-                    si.zbs[si.mntor+nn,si.mmpol+mm] = self.initial_guess['zbs'][nvol-1,imn]
+                if si.lfreebound == 1:
+                    x = self.initial_guess['rbc'][nvol-1, imn]
+                    si.rbc[si.mntor+nn, si.mmpol+mm] = x
+                    si.zbs[si.mntor+nn, si.mmpol +
+                           mm] = self.initial_guess['zbs'][nvol-1, imn]
 
-                    if si.istellsym==0:
-                        si.rbs[si.mntor+nn,si.mmpol+mm] = self.initial_guess['rbs'][nvol-1,imn]
-                        si.zbc[si.mntor+nn,si.mmpol+mm] = self.initial_guess['zbc'][nvol-1,imn]
+                    if si.istellsym == 0:
+                        si.rbs[si.mntor+nn, si.mmpol +
+                               mm] = self.initial_guess['rbs'][nvol-1, imn]
+                        si.zbc[si.mntor+nn, si.mmpol +
+                               mm] = self.initial_guess['zbc'][nvol-1, imn]
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
@@ -732,23 +751,24 @@ class Spec(Optimizable):
 
         try:
             # Save geometry as initial guess for next iterations
-            if self.results.output.ForceErr < 1e-12 and self.results.output.Mvol>1:
+            if self.results.output.ForceErr < 1e-12 and self.results.output.Mvol > 1:
                 initial_guess = {}
-                initial_guess['rbc'] = self.results.output.Rbc[1:mvol+1,:]
-                initial_guess['zbs'] = self.results.output.Zbs[1:mvol+1,:]
+                initial_guess['rbc'] = self.results.output.Rbc[1:mvol+1, :]
+                initial_guess['zbs'] = self.results.output.Zbs[1:mvol+1, :]
                 initial_guess['mm'] = self.results.output.im
-                initial_guess['nn'] = (self.results.output.in_ / si.nfp).astype('int')
+                initial_guess['nn'] = (
+                    self.results.output.in_ / si.nfp).astype('int')
 
                 axis = {}
-                axis['rac'] = self.results.output.Rbc[0,0:si.ntor+1]
-                axis['zas'] = self.results.output.Zbs[0,0:si.ntor+1]
+                axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
+                axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
 
                 if si.istellsym == 0:
-                    initial_guess['rbs'] = self.results.output.Rbs[1:mvol+1,:]
-                    initial_guess['zbc'] = self.results.output.Zbc[1:mvol+1,:]
+                    initial_guess['rbs'] = self.results.output.Rbs[1:mvol+1, :]
+                    initial_guess['zbc'] = self.results.output.Zbc[1:mvol+1, :]
 
-                    axis['ras'] = self.results.output.Rbs[0,0:si.ntor+1]
-                    axis['zac'] = self.results.output.Zbc[0,0:si.ntor+1]
+                    axis['ras'] = self.results.output.Rbs[0, 0:si.ntor+1]
+                    axis['zac'] = self.results.output.Zbc[0, 0:si.ntor+1]
 
                 self.initial_guess = copy.copy(initial_guess)
                 self.axis = copy.copy(axis)
@@ -756,7 +776,6 @@ class Spec(Optimizable):
                 self.inputlist.linitialize = 0
         except:
             logger.info("Failed to read initial guess.")
-
 
         # Group leaders handle deletion of files:
         if self.mpi.proc0_groups:

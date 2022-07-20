@@ -1,3 +1,5 @@
+from .._core.util import nested_lists_to_array
+from .._core.optimizable import DOFs, Optimizable
 import logging
 
 import numpy as np
@@ -13,9 +15,6 @@ try:
 except ImportError as e:
     py_spec = None
     logger.debug(str(e))
-
-from .._core.optimizable import DOFs, Optimizable
-from .._core.util import nested_lists_to_array
 
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
