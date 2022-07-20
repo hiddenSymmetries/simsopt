@@ -340,7 +340,7 @@ class SpecTests(unittest.TestCase):
             # boundary to the Garabedian representation:
             surf = SurfaceGarabedian.from_RZFourier(equil.boundary)
             equil.boundary = surf
-            
+
             # Need to set axis to zero
             equil.axis['rac'][:] = 0
             equil.axis['zas'][:] = 0
@@ -452,7 +452,7 @@ class SpecTests(unittest.TestCase):
 
         # set axis to zero
         spec.axis['rac'][:] = 0
-        spec.axis['zas'][:] = 0 
+        spec.axis['zas'][:] = 0
 
         # The main resonant surface is iota = p / q:
         p = -8

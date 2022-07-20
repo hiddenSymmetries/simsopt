@@ -261,9 +261,8 @@ class Boozer(Optimizable):
             for ss in s:
                 compute_surfs.append(ss * 2)  # inner side of interface
 
-                if ss!=d.output.Mvol-1:
+                if ss != d.output.Mvol-1:
                     compute_surfs.append(ss * 2 + 1)  # outer side of interface
-
 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
@@ -314,22 +313,24 @@ class Boozer(Optimizable):
                 for innout in range(0, 2):
 
                     # Translate interface indices into volume indices
-                    if innout==0:
+                    if innout == 0:
                         ind_vol = ind_surf-1
                         innout_vol = 1
                     else:
                         ind_vol = ind_surf
                         innout_vol = -1
-                    
-                    if ind_vol>=d.output.Mvol: continue
-                    if ind_vol<0 : continue
-                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
+
+                    if ind_vol >= d.output.Mvol:
+                        continue
+                    if ind_vol < 0:
+                        continue
+                    if ind_vol == 0 and innout_vol == 0:
+                        continue  # No data on outer side of last interface
 
                     rmnc[index] = np.array([list(d.output.Rbc[ind_surf, :])])
                     rmns[index] = np.array([list(d.output.Rbs[ind_surf, :])])
                     zmnc[index] = np.array([list(d.output.Zbc[ind_surf, :])])
                     zmns[index] = np.array([list(d.output.Zbs[ind_surf, :])])
-
 
                     subumnc[index] = np.array(
                         [list(d.output.Btemn[ind_vol, innout_vol, :])])
@@ -374,16 +375,19 @@ class Boozer(Optimizable):
                 for innout in range(0, 2):
 
                     # Translate interface indices into volume indices
-                    if innout==0:
+                    if innout == 0:
                         ind_vol = ind_surf-1
                         innout_vol = 1
                     else:
                         ind_vol = ind_surf
                         innout_vol = -1
-                    
-                    if ind_vol>=d.output.Mvol: continue
-                    if ind_vol<0 : continue
-                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
+
+                    if ind_vol >= d.output.Mvol:
+                        continue
+                    if ind_vol < 0:
+                        continue
+                    if ind_vol == 0 and innout_vol == 0:
+                        continue  # No data on outer side of last interface
 
                     for ii in range(0, mns):
                         mm = xms[ii]
@@ -418,7 +422,7 @@ class Boozer(Optimizable):
                 for innout in range(0, 2):
 
                     # Translate interface indices into volume indices
-                    if innout==0:
+                    if innout == 0:
                         ind_vol = ind_surf-1
                         innout_vol = 1
                         sarr = np.asarray([1])
@@ -426,10 +430,13 @@ class Boozer(Optimizable):
                         ind_vol = ind_surf
                         innout_vol = -1
                         sarr = np.asarray([-1])
-                    
-                    if ind_vol>=d.output.Mvol: continue
-                    if ind_vol<0 : continue
-                    if ind_vol == 0 and innout_vol == 0: continue  # No data on outer side of last interface
+
+                    if ind_vol >= d.output.Mvol:
+                        continue
+                    if ind_vol < 0:
+                        continue
+                    if ind_vol == 0 and innout_vol == 0:
+                        continue  # No data on outer side of last interface
 
                     Bcontrav = d.get_B(
                         lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)
@@ -448,10 +455,12 @@ class Boozer(Optimizable):
                             for line in range(0, Nt):
                                 for column in range(0, Nz):
                                     modBcos[line, column] = modB[line][column] * \
-                                        np.cos(m * tarr[line] - n * self.bx.nfp * zarr[column])
+                                        np.cos(
+                                            m * tarr[line] - n * self.bx.nfp * zarr[column])
 
                             Bmn_[m, n + ntor] = 1 / K * \
-                                np.trapz(np.trapz(modBcos, x=tarr, axis=0), x=zarr)
+                                np.trapz(
+                                    np.trapz(modBcos, x=tarr, axis=0), x=zarr)
 
                     Bmn_[0, ntor] = 1 / 2 * Bmn_[0, ntor]
 

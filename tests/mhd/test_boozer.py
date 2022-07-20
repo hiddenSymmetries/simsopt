@@ -6,14 +6,14 @@ from scipy.io import netcdf
 try:
     import booz_xform
 except ImportError as e:
-    booz_xform = None 
+    booz_xform = None
 
 try:
     import vmec
 except ImportError as e:
-    vmec = None 
+    vmec = None
 
-try: 
+try:
     from simsopt.mhd.spec import Spec
 except ImportError as e:
     Spec = None
@@ -30,7 +30,7 @@ if MPI is not None:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class MockBoozXform():
@@ -95,26 +95,34 @@ class QuasisymmetryTests(unittest.TestCase):
         # bmnc:  [100 21 31 41 51 61 71 81 91 101 111 121 131 141 151 161 171 181]]
 
         # QA
-        s = 0; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
-        s = 1; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
-        s = (0, 1); q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        s = 0
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
+        s = 1
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        np.testing.assert_allclose(
+            q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
+        s = (0, 1)
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18,
                                            .21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
 
         # QP
         s = 0
         q = Quasisymmetry(b, s, 0, 1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
 
         # QH
         q = Quasisymmetry(b, s, 1, 1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18])
 
         # QH, opposite "chirality"
         q = Quasisymmetry(b, s, 1, -1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
 
     @unittest.skipIf(booz_xform is None, "booz_xform python package not found")
     def test_boozer_register(self):
@@ -165,7 +173,7 @@ class QuasisymmetryTests(unittest.TestCase):
         self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1})
         # Evaluating qs1 again should not cause booz_xform to run:
         residuals1 = qs1.J()
-        self.assertEqual(b._calls, 2)        
+        self.assertEqual(b._calls, 2)
         self.assertEqual(len(residuals1), 0)
         # All the modes except m=0 should contribute to the qs2 residuals:
         bmnc = b.bx.bmnc_b
@@ -230,26 +238,24 @@ class QuasisymmetryTests(unittest.TestCase):
     @unittest.skipIf((booz_xform is None) or (Spec is None),
                      "spec or booz_xform python package not found")
     def test_boozer_spec(self):
-        
+
         # Create a SPEC object
-        os.chdir( TEST_DIR )
-        s = Spec( filename = 'QA_Nvol2.sp')
-        s.inputlist.linitialize=0
+        os.chdir(TEST_DIR)
+        s = Spec(filename='QA_Nvol2.sp')
+        s.inputlist.linitialize = 0
 
         # Create boozer object
-        b = Boozer( equil=s, mpol=s.inputlist.mpol, ntor=s.inputlist.ntor )
+        b = Boozer(equil=s, mpol=s.inputlist.mpol, ntor=s.inputlist.ntor)
 
         # Boozer transform on surfaces 1 and 2.
-        b.register({0,1})
+        b.register({0, 1})
 
         # Run boozer
         b.run()
 
         # Check output
-        self.assertAlmostEqual( b.bx.rmnc_b[8,1], 0.009073887493710998  )
-        self.assertAlmostEqual( b.bx.bmnc_b[2,2], 2.9117065043659206e-05)
-
-
+        self.assertAlmostEqual(b.bx.rmnc_b[8, 1], 0.009073887493710998)
+        self.assertAlmostEqual(b.bx.bmnc_b[2, 2], 2.9117065043659206e-05)
 
 
 if __name__ == "__main__":
