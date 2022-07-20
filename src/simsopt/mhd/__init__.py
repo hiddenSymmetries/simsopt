@@ -2,26 +2,13 @@
 # Copyright (c) HiddenSymmetries Development Team.
 # Distributed under the terms of the LGPL License
 
-# Import MHD classes can fail if any of the required
-# dependencies are not installed
-import logging
+from .vmec import *
+from .virtual_casing import *
+from .vmec_diagnostics import *
+from .profiles import *
+from .bootstrap import *
+from .boozer import *
+from .spec import *
 
-logger = logging.getLogger(__name__)
-
-try:
-    from mpi4py import MPI
-except ImportError as e:
-    MPI = None 
-    logger.debug(str(e))
-
-if MPI is not None:
-    from .vmec import Vmec
-    from .spec import Spec, Residue
-    from .boozer import Boozer, Quasisymmetry
-else:
-    Vmec = None
-    Spec = None
-    Residue = None
-    Boozer = None
-    Quasisymmetry = None
-    logger.debug("mpi4py not installed. Not loading Vmec, Spec and other MHD modules.")
+__all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
+           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)

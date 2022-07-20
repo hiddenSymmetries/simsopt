@@ -4,6 +4,8 @@ from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt._core.optimizable import Optimizable
 
+__all__ = ['BoozerSurface']
+
 
 class BoozerSurface(Optimizable):
     r"""

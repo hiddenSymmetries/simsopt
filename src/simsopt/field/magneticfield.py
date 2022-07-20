@@ -1,8 +1,11 @@
 import numpy as np
+from monty.json import MontyDecoder, MSONable
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
+
+__all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 
 
 class MagneticField(sopp.MagneticField, Optimizable):
@@ -123,6 +126,20 @@ class MagneticFieldMultiply(MagneticField):
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        Bfield = decoder.process_decoded(d["Bfield"])
+        field = cls(d["scalar"], Bfield)
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
+
 
 class MagneticFieldSum(MagneticField):
     """
@@ -160,3 +177,22 @@ class MagneticFieldSum(MagneticField):
 
     def B_vjp(self, v):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
+
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        Bfields = []
+        for field in d["Bfields"]:
+            Bfields.append(decoder.process_decoded(field))
+        field_sum = cls(Bfields)
+        xyz = decoder.process_decoded(d["points"])
+        field_sum.set_points_cart(xyz)
+        return field_sum
+
+
+

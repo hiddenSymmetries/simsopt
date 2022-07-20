@@ -2,15 +2,17 @@ import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
-import scipy
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
+
+__all__ = ['get_ncsx_data']
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     """
     Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included).
+
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
@@ -47,17 +49,4 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     return (curves, currents, ma)
 
 
-def forward_backward(P, L, U, rhs):
-    """
-    Solve a linear system of the form PLU*adj = rhs
-    """
-    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
-    z = scipy.linalg.solve_triangular(L.T, y, lower=False)
-    adj = P@z
 
-    #  iterative refinement
-    yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
-    zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
-    adj += P@zp
-
-    return adj

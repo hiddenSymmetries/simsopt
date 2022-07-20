@@ -14,13 +14,15 @@ import logging
 from typing import Union
 import numpy as np
 
-from .dev import SimsoptRequires
+from .._core.dev import SimsoptRequires
 try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
 
 STOP = 0
+
+__all__ = ['log', 'MpiPartition']
 
 
 def log(level: int = logging.INFO):

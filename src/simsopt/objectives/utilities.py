@@ -1,7 +1,10 @@
 import numpy as np
+from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
+
+__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
 
 
 def sum_across_comm(derivative, comm):
@@ -63,7 +66,7 @@ class MPIObjective(Optimizable):
 
 class QuadraticPenalty(Optimizable):
 
-    def __init__(self, obj, cons=0., f='min'):
+    def __init__(self, obj, cons=0., f="min"):
         r"""
         A quadratic penalty function of the form :math:`0.5*f(obj.J() - \text{cons}, 0)^2` for an underlying objective ``obj``
         and wrapping function `f`. This can be used to implement a barrier penalty function for (in)equality
@@ -104,5 +107,34 @@ class QuadraticPenalty(Optimizable):
         elif self.f == 'identity':
             return diff*dval
 
+    def as_dict(self) -> dict:
+        d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
+        d["obj"] = self.obj
+        d["cons"] = self.cons
+        d["f"] = self.f
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        obj = decoder.process_decoded(d["obj"])
+        cons = decoder.process_decoded(d["cons"])
+        f = decoder.process_decoded(d["f"])
+        return cls(obj, cons=cons, f=f)
+
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
+class Weight(object):
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __imul__(self, alpha):
+        self.value *= alpha
+        return self

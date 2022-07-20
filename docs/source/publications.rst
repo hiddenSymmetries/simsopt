@@ -65,7 +65,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
      "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
-     *Submitted*, (2022).
+     *Journal of Plasma Physics*, **88**, 905880401 (2022).
+     `[journal version] <https://doi.org/10.1017/S0022377822000563>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
    |
 
@@ -85,4 +86,10 @@ Here is a list of publications in which simsopt results appear:
      "A single-field-period quasi-isodynamic stellarator",
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
+   |
+
+#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
+     "Permanent magnet optimization for stellarators as sparse regression",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
    |

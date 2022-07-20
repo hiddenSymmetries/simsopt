@@ -67,6 +67,10 @@ def get_exact_surface():
 
 
 def get_boozer_surface():
+    r"""
+    Compute a BoozerExact surface in the NCSX-lite configuration for unit tests.
+    """
+
     from simsopt.util.zoo import get_ncsx_data
     from simsopt.field.coil import coils_via_symmetries
     from simsopt.field.biotsavart import BiotSavart

@@ -1,6 +1,11 @@
+import json
 import numpy as np
+from monty.json import MSONable, MontyDecoder, MontyEncoder
+
 import simsoptpp as sopp
 from .magneticfield import MagneticField
+
+__all__ = ['BiotSavart']
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
@@ -19,14 +24,14 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     """
 
     def __init__(self, coils):
-        self.__coils = coils
+        self._coils = coils
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
@@ -36,7 +41,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
@@ -46,7 +51,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
@@ -62,7 +67,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{grad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \mathbf{B}_i \}_k.
         """
 
-        coils = self.__coils
+        coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
@@ -100,7 +105,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         """
 
-        coils = self.__coils
+        coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
@@ -117,7 +122,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'A_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
@@ -127,7 +132,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d2A_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'dA_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
@@ -137,7 +142,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
     def d3A_by_dXdXdcoilcurrents(self, compute_derivatives=2):
         points = self.get_points_cart_ref()
         npoints = len(points)
-        ncoils = len(self.__coils)
+        ncoils = len(self._coils)
         if any([not self.fieldcache_get_status(f'ddA_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
@@ -153,7 +158,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{A}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{grad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \mathbf{A}_i \}_k.
         """
 
-        coils = self.__coils
+        coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
@@ -191,7 +196,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         """
 
-        coils = self.__coils
+        coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
@@ -204,3 +209,17 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         dA_by_dcoilcurrents = self.dA_by_dcoilcurrents()
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        coils = decoder.process_decoded(d["coils"])
+        bs = cls(coils)
+        xyz = decoder.process_decoded(d["points"])
+        bs.set_points_cart(xyz)
+        return bs
