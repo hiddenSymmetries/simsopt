@@ -13,6 +13,11 @@ try:
 except ImportError as e:
     vmec = None 
 
+try: 
+    from simsopt.mhd.spec import Spec
+except ImportError as e:
+    Spec = None
+
 try:
     from mpi4py import MPI
 except ImportError as e:
@@ -221,6 +226,30 @@ class QuasisymmetryTests(unittest.TestCase):
                                    atol=atol, rtol=rtol)
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
+
+    @unittest.skipIf((booz_xform is None) or (Spec is None),
+                     "spec or booz_xform python package not found")
+    def test_boozer_spec(self):
+        
+        # Create a SPEC object
+        os.chdir( TEST_DIR )
+        s = Spec( filename = 'QA_Nvol2.sp')
+        s.inputlist.linitialize=0
+
+        # Create boozer object
+        b = Boozer( equil=s, mpol=s.inputlist.mpol, ntor=s.inputlist.ntor )
+
+        # Boozer transform on surfaces 1 and 2.
+        b.register({0,1})
+
+        # Run boozer
+        b.run()
+
+        # Check output
+        self.assertAlmostEqual( b.bx.rmnc_b[8,1], 0.009073887493710998  )
+        self.assertAlmostEqual( b.bx.bmnc_b[2,2], 2.9117065043659206e-05)
+
+
 
 
 if __name__ == "__main__":
