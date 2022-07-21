@@ -96,7 +96,6 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
-    # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
@@ -105,9 +104,6 @@ jobs:
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
-        # token: ${{ secrets.SPEC_CHECKOUT }}
-        # ref: python_hdf5
-        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
@@ -121,11 +117,10 @@ jobs:
         ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    #- name: Install py_spec
-    #  run: |
-    #    pip install -e SPEC/Utilities/pythontools
-    #    python -c "import py_spec; print('success')"
-
+    - name: Install py_spec
+      run: |
+        pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
