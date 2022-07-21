@@ -1,7 +1,7 @@
 import numpy as np
 import simsoptpp as sopp
 
-__all__ = ['relax_and_split']
+__all__ = ['relax_and_split', 'BMP']
 
 
 def prox_l0(m, mmax, reg_l0, nu):
@@ -243,15 +243,15 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
     return errors, m_history, m_proxy_history
 
 
-def BMP_wrapper(pm_opt, **kwargs):
+def BMP(pm_opt, **kwargs):
     """
         Binary matching pursuit is a greedy algorithm, derived
-        from the orthorgonal matching pursuit algorithm, and
+        from the orthogonal matching pursuit algorithm, and
         is an alternative to
         the relax-and-split algorithm for solving the permanent
         magnet optimization problem. Full-strength magnets are placed
         one-by-one according to minimize a submodular objective function
-        such as the determinant of ATA.
+        such as the mutual coherence of ATA. 
     Args:
         K:  The number of magnets to place one-by-one.
         reg_l2: Regularization value for any convex
@@ -268,16 +268,17 @@ def BMP_wrapper(pm_opt, **kwargs):
     # || A * m - b||^2 = || ( A * mmax) * m / mmax - b||^2
     mmax = pm_opt.m_maxima
     mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
-    A_obj = pm_opt.A_obj / mmax_vec
+    A_obj = pm_opt.A_obj * mmax_vec
+    ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
 
     # If have L2 regularization, this just rescales reg_l2,
     # since reg_l2 * ||m||^2 = reg_l2 * ||mmax||^2 * ||m / mmax||^2
-    mmax_norm2 = np.linal.norm(mmax_vec, ord=2) ** 2
-    reg_l2 = reg_l2 * mmax_norm2
+    mmax_norm2 = np.linalg.norm(mmax_vec, ord=2) ** 2
+    kwargs["reg_l2"] = kwargs["reg_l2"] * mmax_norm2
 
     algorithm_history, _, m_history, m = sopp.BMP_algorithm(
-        A_obj=A_obj,
-        b_obj=pm_opt.b_obj,
+        A_obj=np.ascontiguousarray(A_obj),
+        b_obj=np.ascontiguousarray(pm_opt.b_obj),
         ATb=ATb,
         **kwargs
     )
@@ -286,15 +287,16 @@ def BMP_wrapper(pm_opt, **kwargs):
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
 
     # check that algorithm worked correctly to generate K binary dipoles
-    print('Number of binary dipoles to use in BMP algorithm = ', K)
+    print('Number of binary dipoles to use in BMP algorithm = ', kwargs["K"])
     print(np.count_nonzero(m))
     print(
         'Number of binary dipoles returned by BMP algorithm = ',
         np.count_nonzero(np.sum(m.reshape(pm_opt.ndipoles, 3), axis=-1))
     )
+    print(m)
 
-    for i in range(len(m_history)):
-        m_history[i] = m_history[i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
+    #for i in range(len(m_history)):
+    #    m_history[i] = m_history[i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
 
     # note m = m_proxy for BMP because this is not using relax-and-split

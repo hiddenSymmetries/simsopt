@@ -531,7 +531,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QA.nc'
-        total_current = Vmec(vmec_file).external_current() / (2 * s.nfp) / 8
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
@@ -946,17 +946,20 @@ def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu):
     return reg_l0, reg_l1, reg_l2, nu
 
 
-def initialize_default_kwargs():
+def initialize_default_kwargs(algorithm='RS'):
     kwargs = {}
-    kwargs['nu'] = 1e100  # Strength of the "relaxation" part of relax-and-split
-    kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
     kwargs['verbose'] = True   # print out errors every few iterations
-    kwargs['reg_l0'] = 0.0
-    kwargs['reg_l1'] = 0.0
     kwargs['reg_l2'] = 0.0
-    kwargs['alpha'] = 0.0
-    kwargs['min_fb'] = 0.0
-    kwargs['epsilon'] = 1e-3
-    kwargs['epsilon_RS'] = 1e-3
-    kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
+    if algorithm == 'RS':
+        kwargs['nu'] = 1e100  # Strength of the "relaxation" part of relax-and-split
+        kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
+        kwargs['reg_l0'] = 0.0
+        kwargs['reg_l1'] = 0.0
+        kwargs['alpha'] = 0.0
+        kwargs['min_fb'] = 0.0
+        kwargs['epsilon'] = 1e-3
+        kwargs['epsilon_RS'] = 1e-3
+        kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
+    elif algorithm == 'BMP':
+        kwargs['K'] = 200
     return kwargs

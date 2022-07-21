@@ -1,5 +1,6 @@
 #include "permanent_magnet_optimization.h"
 #include <Eigen/Dense>
+#include <iostream>
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -327,10 +328,10 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
     Array R2_temp = xt::zeros<double>({ngrid});
 #pragma omp parallel for reduction(+: L2)
     for(int i = 0; i < N; ++i) {
-	      for(int ii = 0; ii < 3; ++ii) {
-	           m_history(i, ii, print_iter) = x_k1(i, ii);
-	           L2 += x_k1(i, ii) * x_k1(i, ii);
-	      }
+        for(int ii = 0; ii < 3; ++ii) {
+	    m_history(i, ii, print_iter) = x_k1(i, ii);
+	    L2 += x_k1(i, ii) * x_k1(i, ii);
+        }
     }
 
     // Computation of R2 takes more work than the other loss terms... need to compute
@@ -341,7 +342,7 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
     eigen_res = eigen_mat*eigen_v;
 #pragma omp parallel for reduction(+: R2)
     for(int i = 0; i < ngrid; ++i) {
-	       R2 += (R2_temp(i) - b_obj(i)) * (R2_temp(i) - b_obj(i));
+        R2 += (R2_temp(i) - b_obj(i)) * (R2_temp(i) - b_obj(i));
     }
 
     // rescale loss terms by the hyperparameters
@@ -359,8 +360,8 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 // Run the binary matching pursuit algorithm for solving the convex part of
 // the permanent magnet optimization problem. This algorithm has
 // many optional parameters for additional loss terms.
-// See "Binary sparse signal recovery with binary matching pursuit"
-// A, b and ATb should be rescaled by m_maxima since we are assuming all ones
+// See -- Binary sparse signal recovery with binary matching pursuit -- 
+// A and ATb should be rescaled by m_maxima since we are assuming all ones
 // in m.
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
@@ -374,23 +375,24 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     int skj, skjj;
     std::vector<double>::iterator max_result;
 
-    Array x = xt::zeros<int>({N, 3});
+    Array x = xt::zeros<double>({N, 3});
 
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, 21});
     Array objective_history = xt::zeros<double>({21});
     Array R2_history = xt::zeros<double>({21});
-    Array ATA_matrix = xt::zeros<double>({N, N});
+    Array ATA_matrix = xt::zeros<double>({3 * N, 3 * N});
 
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_b(const_cast<double*>(b_obj.data()), ngrid, 1);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATA_matrix.data()), 3*N, 3*N);
 
-    // A^TA + contributions from L2 and relax-and-split terms
+    // A^TA + contributions from L2
     eigen_res = eigen_mat.transpose()*eigen_mat;  // add these in later!  + 2 * (reg_l2);
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ...   a|m|^2 ...  b|m-1|^2 ...  |m|_0 ... Total Error:\n");
+        printf("Iteration ... |Am - b|^2 ...   a|m|^2 ...  Total Error:\n");
 
     // initialize u0
     Array uk = ATb;
@@ -401,35 +403,65 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
 
-        // Compute argmax(uk) over the complement of Gamma
-        vector<double> abs_uk(3 * N);
-#pragma omp parallel for
+        
+        // See which index reduces the MSE most
+	//Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_x(const_cast<double*>(x.data()), 3*N, 1);
+	//eigen_res = eigen_mat*eigen_x - eigen_b;
+	//eigen_R2 = eigen_res.transpose()*eigen_res;
+        
+	// Compute argmax(uk) over the complement of Gamma
+        //vector<double> abs_uk(3 * N);
+        vector<double> R2s(3 * N);
+//#pragma omp parallel for
         for (int j = 0; j < N; ++j) {
             for (int jj = 0; jj < 3; ++jj) {
                 if (Gamma_complement(j, jj)) {
-                    abs_uk[j + N * jj] = abs(uk(j, jj));
+                    Array x_copy = x;
+		    x_copy(j, jj) = 1.0; 
+                    //Array Ax_matrix = xt::zeros<double>({ngrid});
+                    //Array R2 = xt::zeros<double>({1});
+	            //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_x(const_cast<double*>(x_copy.data()), 3*N, 1);
+                    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(Ax_matrix.data()), ngrid, 1);
+                    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_R2(const_cast<double*>(R2.data()), 1, 1);
+		    //eigen_res = eigen_mat*eigen_x - eigen_b;
+	            //eigen_R2 = eigen_res.transpose()*eigen_res;
+		    //R2s[3 * j + jj] = eigen_R2(0, 0);
+		    double R2 = 0.0;
+		    for(int i = 0; i < ngrid; ++i) {
+		        for(int ii = 0; ii < 3 * N; ++ii) {
+                            R2 += (A_obj(i, ii) * x_copy(int(ii / 3), ii % 3) - b_obj(i)) * (A_obj(i, ii) * x_copy(int(ii / 3), ii % 3) - b_obj(i));
+	                }
+		    }
+		    R2s[3 * j + jj] = R2;
+		    //abs_uk[j + N * jj] = abs(uk(j, jj));
+                    //abs_uk[3 * j + jj] = abs(uk(j, jj));
+                    //abs_uk[3 * j + jj] = abs(uk(j, jj));
                 }
             }
         }
 
-        max_result = std::max_element(abs_uk.begin(), abs_uk.end());
-        skj = std::distance(abs_uk.begin(), max_result); 
+        max_result = std::min_element(R2s.begin(), R2s.end());
+        //max_result = std::max_element(abs_uk.begin(), abs_uk.end());
+        //skj = std::distance(abs_uk.begin(), max_result); 
+        skj = std::distance(R2s.begin(), max_result); 
+        skjj = (int(skj) % 3); 
 	skj = int(skj / 3.0);
-        skjj = (skj % 3); 
-
+        //std::cout << skj << ' ' << skjj << ' ' << *max_element(abs_uk.begin(), abs_uk.end()) << ' ' << abs_uk[3 * skj + skjj] << std::endl;
         // Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
         x(skj, skjj) = 1.0;
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj, j) = false;
         }
+	//Gamma_complement(skj, skjj) = false;
 
         // update u_k -> u_{k+1}
 #pragma omp parallel for
         for (int j = 0; j < N; ++j) {
             for (int jj = 0; jj < 3; ++jj) {
                 if (Gamma_complement(j, jj)) {
-                    uk(j, jj) = uk(j, jj) - ATA_matrix(j, jj, skj, skjj);
+                    //uk(j, jj) = uk(j, jj) - ATA_matrix(j + N * jj, skj + N * skjj);
+                    uk(j, jj) = uk(j, jj) - ATA_matrix(3 * j + jj, 3 * skj + skjj);
                 }
 	    }
         }
