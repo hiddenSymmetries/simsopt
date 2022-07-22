@@ -366,13 +366,14 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose)
+std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose, bool grid_aligned)
 {
     // Needs ATb in shape (N, 3)
     int ngrid = A_obj.shape(0);
     int N = int(A_obj.shape(1) / 3);
     int print_iter = 0;
     int skj, skjj;
+    double R2 = 0.0;
     std::vector<double>::iterator max_result;
 
     Array x = xt::zeros<double>({N, 3});
@@ -381,90 +382,60 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
     Array m_history = xt::zeros<double>({N, 3, 21});
     Array objective_history = xt::zeros<double>({21});
     Array R2_history = xt::zeros<double>({21});
-    Array ATA_matrix = xt::zeros<double>({3 * N, 3 * N});
-
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_b(const_cast<double*>(b_obj.data()), ngrid, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATA_matrix.data()), 3*N, 3*N);
-
-    // A^TA + contributions from L2
-    eigen_res = eigen_mat.transpose()*eigen_mat;  // add these in later!  + 2 * (reg_l2);
 
     // print out the names of the error columns
     if (verbose)
         printf("Iteration ... |Am - b|^2 ...   a|m|^2 ...  Total Error:\n");
 
     // initialize u0
-    Array uk = ATb;
+    //Array uk = ATb;
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
+	
+    // initialize running matrix-vector product
+    //Array Aij_mj_sum = -b_obj;
+    Array Aij_mj_sum = xt::zeros<double>({ngrid});
+    
+    // initialize least-square values to large numbers    
+    vector<double> R2s(3 * N, 1e20);
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
 
-        
         // See which index reduces the MSE most
-	//Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_x(const_cast<double*>(x.data()), 3*N, 1);
-	//eigen_res = eigen_mat*eigen_x - eigen_b;
-	//eigen_R2 = eigen_res.transpose()*eigen_res;
-        
-	// Compute argmax(uk) over the complement of Gamma
-        //vector<double> abs_uk(3 * N);
-        vector<double> R2s(3 * N);
-//#pragma omp parallel for
-        for (int j = 0; j < N; ++j) {
-            for (int jj = 0; jj < 3; ++jj) {
-                if (Gamma_complement(j, jj)) {
-                    Array x_copy = x;
-		    x_copy(j, jj) = 1.0; 
-                    //Array Ax_matrix = xt::zeros<double>({ngrid});
-                    //Array R2 = xt::zeros<double>({1});
-	            //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_x(const_cast<double*>(x_copy.data()), 3*N, 1);
-                    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(Ax_matrix.data()), ngrid, 1);
-                    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_R2(const_cast<double*>(R2.data()), 1, 1);
-		    //eigen_res = eigen_mat*eigen_x - eigen_b;
-	            //eigen_R2 = eigen_res.transpose()*eigen_res;
-		    //R2s[3 * j + jj] = eigen_R2(0, 0);
-		    double R2 = 0.0;
-		    for(int i = 0; i < ngrid; ++i) {
-		        for(int ii = 0; ii < 3 * N; ++ii) {
-                            R2 += (A_obj(i, ii) * x_copy(int(ii / 3), ii % 3) - b_obj(i)) * (A_obj(i, ii) * x_copy(int(ii / 3), ii % 3) - b_obj(i));
-	                }
-		    }
-		    R2s[3 * j + jj] = R2;
-		    //abs_uk[j + N * jj] = abs(uk(j, jj));
-                    //abs_uk[3 * j + jj] = abs(uk(j, jj));
-                    //abs_uk[3 * j + jj] = abs(uk(j, jj));
-                }
+#pragma omp parallel for
+        for (int j = 0; j < 3 * N; ++j) {
+            if (Gamma_complement(int(j / 3), j % 3)) {
+	        R2 = 0.0;
+	        for(int i = 0; i < ngrid; ++i) {
+		    R2 += (Aij_mj_sum(i) + A_obj(i, j) - b_obj(i)) * (Aij_mj_sum(i) + A_obj(i, j)- b_obj(i));
+	        }
+	        R2s[j] = 0.5 * R2;
             }
-        }
+	}
 
         max_result = std::min_element(R2s.begin(), R2s.end());
-        //max_result = std::max_element(abs_uk.begin(), abs_uk.end());
-        //skj = std::distance(abs_uk.begin(), max_result); 
-        skj = std::distance(R2s.begin(), max_result); 
-        skjj = (int(skj) % 3); 
+        skj = int(std::distance(R2s.begin(), max_result));
+	skjj = (skj % 3); 
 	skj = int(skj / 3.0);
-        //std::cout << skj << ' ' << skjj << ' ' << *max_element(abs_uk.begin(), abs_uk.end()) << ' ' << abs_uk[3 * skj + skjj] << std::endl;
-        // Add binary magnet and get rid of the magnet (all three components)
+        
+	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
         x(skj, skjj) = 1.0;
-        for (int j = 0; j < 3; ++j) {
-            Gamma_complement(skj, j) = false;
-        }
-	//Gamma_complement(skj, skjj) = false;
-
-        // update u_k -> u_{k+1}
+	R2s[3 * skj + skjj] = 1e20;
 #pragma omp parallel for
-        for (int j = 0; j < N; ++j) {
-            for (int jj = 0; jj < 3; ++jj) {
-                if (Gamma_complement(j, jj)) {
-                    //uk(j, jj) = uk(j, jj) - ATA_matrix(j + N * jj, skj + N * skjj);
-                    uk(j, jj) = uk(j, jj) - ATA_matrix(3 * j + jj, 3 * skj + skjj);
-                }
-	    }
+	for(int i = 0; i < ngrid; ++i) {
+            Aij_mj_sum(i) += A_obj(i, 3 * skj + skjj);
         }
+	if (grid_aligned) {
+            for (int j = 0; j < 3; ++j) {
+                Gamma_complement(skj, j) = false;
+            }
+	}
+	else {
+	    Gamma_complement(skj, skjj) = false;
+	}
 
       	// fairly convoluted way to print every ~ K / 20 iterations
         if (verbose && ((k % (int(K / 20.0)) == 0) || k == 0 || k == K - 1)) {

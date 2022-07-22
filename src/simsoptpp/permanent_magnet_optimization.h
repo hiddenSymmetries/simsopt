@@ -40,4 +40,4 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
 void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double reg_l2);
 
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
-std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose);
+std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose, bool grid_aligned);
