@@ -47,13 +47,13 @@ jobs:
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
+          conda build --token ${{ secrets.ANACONDA_TOKEN }} --no-test conda.recipe
 
       - name: Build and upload to test
         if: github.event_name == 'push' && github.ref == 'refs/heads/mbk/conda_package'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} conda.recipe
+          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} --no-test conda.recipe
 
       - name: Build 
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
