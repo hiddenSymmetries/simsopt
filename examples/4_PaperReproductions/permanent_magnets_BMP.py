@@ -44,10 +44,10 @@ OUT_DIR = 'permanent_magnet_BMP_output/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # initialize the coils
-#base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
+base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
 
 # Set up BiotSavart fields
-#bs = BiotSavart(coils)
+bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
 #calculate_on_axis_B(bs, s)
@@ -73,8 +73,8 @@ s_plot = SurfaceRZFourier.from_focus(
 #calculate_on_axis_B(bs, s)
 
 # Set up correct Bnormal from TF coils 
-#bs.set_points(s.gamma().reshape((-1, 3)))
-#Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 #pm_opt = PermanentMagnetGrid(
@@ -85,6 +85,8 @@ s_plot = SurfaceRZFourier.from_focus(
 #    famus_filename='zot80.focus'
 #)
 # Make a subdirectory for the optimization output
+
+#
 IN_DIR = "/global/cscratch1/sd/akaptano/muse_famus_toroidal_nphi" + str(nphi) + "_ntheta" + str(ntheta) + "_dr1.00e-02_coff1.00e-01_poff2.00e-02/"
 pickle_name = IN_DIR + "PM_optimizer_muse_famus.pickle"
 pm_opt = pickle.load(open(pickle_name, "rb", -1))
@@ -92,7 +94,8 @@ pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
 pm_opt.m = np.zeros(pm_opt.ndipoles * 3)
 pm_opt.m_proxy = np.zeros(pm_opt.ndipoles * 3)
 pm_opt.plasma_boundary = s
-bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
+#pm_opt.Bn = Bnormal
+#bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the relax-and-split optimization
@@ -103,16 +106,22 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 200  # Must be multiple of 20 for now because I am lazy
+kwargs['K'] = 2000  # Must be multiple of nhistory - 1 for now because I am lazy
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
 RS_history, m_history, m_proxy_history = BMP(pm_opt, **kwargs)
 t2 = time.time()
 print('BMP took t = ', t2 - t1, ' s')
-iterations = np.linspace(0, kwargs['K'], 20, endpoint=False)
+iterations = np.linspace(0, kwargs['K'], kwargs['nhistory'], endpoint=False)
 plt.figure()
-plt.semilogy(iterations, RS_history[:-1])
+plt.semilogy(iterations, RS_history)
+plt.grid(True)
+plt.savefig('BMP_MSE_history.png')
+#print(np.shape(m_history), np.shape(m_history[0]))
+min_ind = np.argmin(RS_history)
+pm_opt.m = np.ravel(m_history[:, :, min_ind])
+pm_opt.m_proxy = np.ravel(m_history[:, :, min_ind])
 
 RS_history = np.ravel(np.array(RS_history))
 print('Done optimizing the permanent magnet object')

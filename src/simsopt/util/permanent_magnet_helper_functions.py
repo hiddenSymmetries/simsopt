@@ -949,7 +949,6 @@ def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu):
 def initialize_default_kwargs(algorithm='RS'):
     kwargs = {}
     kwargs['verbose'] = True   # print out errors every few iterations
-    kwargs['reg_l2'] = 0.0
     if algorithm == 'RS':
         kwargs['nu'] = 1e100  # Strength of the "relaxation" part of relax-and-split
         kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
@@ -960,6 +959,9 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['epsilon'] = 1e-3
         kwargs['epsilon_RS'] = 1e-3
         kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
+        kwargs['reg_l2'] = 0.0
     elif algorithm == 'BMP':
-        kwargs['K'] = 200
+        kwargs['K'] = 400
+        kwargs['nhistory'] = 201
+        kwargs['grid_aligned'] = True
     return kwargs
