@@ -269,17 +269,12 @@ def BMP(pm_opt, **kwargs):
     mmax = pm_opt.m_maxima
     mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
     A_obj = pm_opt.A_obj * mmax_vec
-    ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
+    #ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
 
-    # If have L2 regularization, this just rescales reg_l2,
-    # since reg_l2 * ||m||^2 = reg_l2 * ||mmax||^2 * ||m / mmax||^2
-    mmax_norm2 = np.linalg.norm(mmax_vec, ord=2) ** 2
-    kwargs["reg_l2"] = kwargs["reg_l2"] * mmax_norm2
-
-    algorithm_history, _, m_history, m = sopp.BMP_algorithm(
+    algorithm_history, m_history, m = sopp.BMP_MSE(
         A_obj=np.ascontiguousarray(A_obj),
         b_obj=np.ascontiguousarray(pm_opt.b_obj),
-        ATb=ATb,
+        #ATb=ATb,
         **kwargs
     )
 
@@ -291,12 +286,16 @@ def BMP(pm_opt, **kwargs):
     print(np.count_nonzero(m))
     print(
         'Number of binary dipoles returned by BMP algorithm = ',
-        np.count_nonzero(np.sum(m.reshape(pm_opt.ndipoles, 3), axis=-1))
+        np.count_nonzero(np.sum(m, axis=-1))
     )
-    print(m)
+    sum_i = 0
+    for i in range(m.shape[0]):
+        if not np.all(np.isclose(m[i, :], 0.0)):
+            sum_i += 1
+    print(sum_i)
 
-    #for i in range(len(m_history)):
-    #    m_history[i] = m_history[i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
+    for i in range(m_history.shape[-1]):
+        m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
 
     # note m = m_proxy for BMP because this is not using relax-and-split

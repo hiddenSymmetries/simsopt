@@ -318,21 +318,12 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 }
 
 // print out the relevant loss terms for the BMP algorithm
-void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, Array& R2_history, int print_iter, int k, double reg_l2)
+void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, int print_iter, int k)
 {
     int ngrid = A_obj.shape(0);
     int N = int(A_obj.shape(1) / 3);
     double R2 = 0.0;
-    double L2 = 0.0;
-    double cost = 0.0;
     Array R2_temp = xt::zeros<double>({ngrid});
-#pragma omp parallel for reduction(+: L2)
-    for(int i = 0; i < N; ++i) {
-        for(int ii = 0; ii < 3; ++ii) {
-	    m_history(i, ii, print_iter) = x_k1(i, ii);
-	    L2 += x_k1(i, ii) * x_k1(i, ii);
-        }
-    }
 
     // Computation of R2 takes more work than the other loss terms... need to compute
     // the linear least-squares term.
@@ -347,58 +338,53 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 
     // rescale loss terms by the hyperparameters
     R2 = 0.5 * R2;
-    L2 = reg_l2 * L2;
 
     // L1, L0, and other nonconvex loss terms are not addressed by this algorithm
     // so they will just be constant and we can omit them from the total cost.
-    cost = R2 + L2;
-    objective_history(print_iter) = cost;
-    R2_history(print_iter) = R2;
-    printf("%d ... %.2e ... %.2e ... %.2e \n", k, R2, L2, cost);
+    objective_history(print_iter) = R2;
+#pragma omp parallel for 
+    for (int i = 0; i < N; ++i) {
+        for (int ii = 0; ii < 3; ++ii) {
+            m_history(i, ii, print_iter) = x_k1(i, ii);
+	}
+    }
+    printf("%d ... %.2e \n", k, R2);
 }
 
 // Run the binary matching pursuit algorithm for solving the convex part of
-// the permanent magnet optimization problem. This algorithm has
-// many optional parameters for additional loss terms.
+// the permanent magnet optimization problem.
 // See -- Binary sparse signal recovery with binary matching pursuit -- 
-// A and ATb should be rescaled by m_maxima since we are assuming all ones
-// in m.
+// A should be rescaled by m_maxima since we are assuming all ones in m.
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj, Array& ATb, int K, double reg_l2, bool verbose, bool grid_aligned)
+std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory)
 {
     // Needs ATb in shape (N, 3)
     int ngrid = A_obj.shape(0);
     int N = int(A_obj.shape(1) / 3);
     int print_iter = 0;
     int skj, skjj;
-    double R2 = 0.0;
-    std::vector<double>::iterator max_result;
 
     Array x = xt::zeros<double>({N, 3});
 
     // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 21});
-    Array objective_history = xt::zeros<double>({21});
-    Array R2_history = xt::zeros<double>({21});
+    Array m_history = xt::zeros<double>({N, 3, nhistory});
+    Array objective_history = xt::zeros<double>({nhistory});
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ...   a|m|^2 ...  Total Error:\n");
-
-    // initialize u0
-    //Array uk = ATb;
+        printf("Iteration ... |Am - b|^2\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
 	
     // initialize running matrix-vector product
-    //Array Aij_mj_sum = -b_obj;
-    Array Aij_mj_sum = xt::zeros<double>({ngrid});
+    //Array Aij_mj_sum = xt::zeros<double>({ngrid});
+    Array Aij_mj_sum = -b_obj;
     
     // initialize least-square values to large numbers    
-    vector<double> R2s(3 * N, 1e20);
+    vector<double> R2s(3 * N, 1e50);
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
@@ -407,23 +393,21 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 #pragma omp parallel for
         for (int j = 0; j < 3 * N; ++j) {
             if (Gamma_complement(int(j / 3), j % 3)) {
-	        R2 = 0.0;
+	        double R2 = 0.0;
 	        for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_sum(i) + A_obj(i, j) - b_obj(i)) * (Aij_mj_sum(i) + A_obj(i, j)- b_obj(i));
+		    R2 += (Aij_mj_sum(i) + A_obj(i, j)) * (Aij_mj_sum(i) + A_obj(i, j));
 	        }
-	        R2s[j] = 0.5 * R2;
+	        R2s[j] = R2;
             }
 	}
 
-        max_result = std::min_element(R2s.begin(), R2s.end());
-        skj = int(std::distance(R2s.begin(), max_result));
+        skj = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
 	skjj = (skj % 3); 
 	skj = int(skj / 3.0);
-        
+       
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
         x(skj, skjj) = 1.0;
-	R2s[3 * skj + skjj] = 1e20;
 #pragma omp parallel for
 	for(int i = 0; i < ngrid; ++i) {
             Aij_mj_sum(i) += A_obj(i, 3 * skj + skjj);
@@ -431,19 +415,21 @@ std::tuple<Array, Array, Array, Array> BMP_algorithm(Array& A_obj, Array& b_obj,
 	if (grid_aligned) {
             for (int j = 0; j < 3; ++j) {
                 Gamma_complement(skj, j) = false;
+	        R2s[3 * skj + j] = 1e50;
             }
 	}
 	else {
 	    Gamma_complement(skj, skjj) = false;
+	    R2s[3 * skj + skjj] = 1e50;
 	}
 
-      	// fairly convoluted way to print every ~ K / 20 iterations
-        if (verbose && ((k % (int(K / 20.0)) == 0) || k == 0 || k == K - 1)) {
-      	    print_BMP(A_obj, b_obj, x, m_history, objective_history, R2_history, print_iter, k, reg_l2);
+      	// fairly convoluted way to print every ~ K / nhistory iterations
+        if (verbose && ((k % (int(K / (nhistory - 1))) == 0) || k == 0 || k == K - 1)) {
+      	    print_BMP(A_obj, b_obj, x, m_history, objective_history, print_iter, k);
             print_iter += 1;
       	}
     }
-    return std::make_tuple(objective_history, R2_history, m_history, x);
+    return std::make_tuple(objective_history, m_history, x);
 }
 
 // Projected quasi-newton (L-BFGS) method used for convex or nonnconvex problems
