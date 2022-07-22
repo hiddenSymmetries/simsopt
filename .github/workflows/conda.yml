@@ -42,21 +42,26 @@ jobs:
 
       - name: Prepare
         run: conda install -y conda-build conda-verify setuptools_scm anaconda-client
+     
+      - name: Try mamba
+        run: |
+           conda install mamba boa -n base -c conda-forge 
+           # mamba install "conda-build>=3.20" colorama pip ruamel ruamel.yaml rich mamba jsonschema -c conda-forge
 
       - name: Build and upload
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.ANACONDA_TOKEN }} --no-test conda.recipe
+          conda mambabuild --token ${{ secrets.ANACONDA_TOKEN }} --no-test conda.recipe
 
       - name: Build and upload to test
         if: github.event_name == 'push' && github.ref == 'refs/heads/conda_package'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} --no-test conda.recipe
+          conda mambabuild --token ${{ secrets.MBK_ANACONDA_TOKEN }} --no-test conda.recipe
 
       - name: Build 
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
-          conda build --no-test conda.recipe
+          conda mambabuild --no-test conda.recipe
 
