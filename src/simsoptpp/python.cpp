@@ -61,7 +61,7 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
-    m.def("BMP_algorithm", &BMP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("reg_l2") = 0.0, py::arg("verbose") = false);
+    m.def("BMP_algorithm", &BMP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("reg_l2") = 0.0, py::arg("verbose") = false, py::arg("grid_aligned") = true);
     m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
     m.def("SPG", &SPG, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha_min") = 1e-10, py::arg("alpha_max") = 1e10, py::arg("alpha_bb_prev") = 1, py::arg("h") = 100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l2") = 0.0, py::arg("nu") = 1.0e100, py::arg("max_iter") = 500, py::arg("nu_SPG") = 1.0e-4, py::arg("verbose") = false);
     // Need to get SPG and MwPGP in same format, ideally using kwargs for the nonmatching arguments
