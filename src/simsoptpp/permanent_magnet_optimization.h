@@ -41,3 +41,5 @@ void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array&
 
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
 std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory);
+
+std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, int K, bool verbose, bool grid_aligned, int nhistory);
