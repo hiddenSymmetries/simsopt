@@ -44,10 +44,12 @@ OUT_DIR = 'permanent_magnet_BMP_output/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
+#base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
 
 # Set up BiotSavart fields
-bs = BiotSavart(coils)
+#bs = BiotSavart(coils)
+IN_DIR = "/global/cscratch1/sd/akaptano/muse_famus_toroidal_nphi" + str(nphi) + "_ntheta" + str(ntheta) + "_dr1.00e-02_coff1.00e-01_poff2.00e-02/"
+bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
 
 # Calculate average, approximate on-axis B field strength
 #calculate_on_axis_B(bs, s)
@@ -87,7 +89,6 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 # Make a subdirectory for the optimization output
 
 #
-IN_DIR = "/global/cscratch1/sd/akaptano/muse_famus_toroidal_nphi" + str(nphi) + "_ntheta" + str(ntheta) + "_dr1.00e-02_coff1.00e-01_poff2.00e-02/"
 pickle_name = IN_DIR + "PM_optimizer_muse_famus.pickle"
 pm_opt = pickle.load(open(pickle_name, "rb", -1))
 pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
@@ -95,7 +96,7 @@ pm_opt.m = np.zeros(pm_opt.ndipoles * 3)
 pm_opt.m_proxy = np.zeros(pm_opt.ndipoles * 3)
 pm_opt.plasma_boundary = s
 #pm_opt.Bn = Bnormal
-#bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
+
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the relax-and-split optimization
@@ -106,18 +107,23 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 2000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['K'] = 20000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['nhistory'] = 501
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
 RS_history, m_history, m_proxy_history = BMP(pm_opt, **kwargs)
 t2 = time.time()
 print('BMP took t = ', t2 - t1, ' s')
+np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory']))
 iterations = np.linspace(0, kwargs['K'], kwargs['nhistory'], endpoint=False)
 plt.figure()
 plt.semilogy(iterations, RS_history)
 plt.grid(True)
-plt.savefig('BMP_MSE_history.png')
+plt.savefig(OUT_DIR + 'BMP_MSE_history.png')
+#plt.show()
+#exit()
+
 #print(np.shape(m_history), np.shape(m_history[0]))
 min_ind = np.argmin(RS_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
@@ -241,4 +247,4 @@ if vmec_flag:
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-plt.show()
+#plt.show()
