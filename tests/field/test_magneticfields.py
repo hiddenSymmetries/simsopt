@@ -1,3 +1,14 @@
+import unittest
+import json
+
+import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
+
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
     Reiman, sympy_found, InterpolatedField, PoloidalField
@@ -7,16 +18,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
-from simsopt.util.zoo import get_ncsx_data
-
-import numpy as np
-import unittest
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
+from simsopt.configs.zoo import get_ncsx_data
 
 
 class Testing(unittest.TestCase):
@@ -33,6 +35,12 @@ class Testing(unittest.TestCase):
         Bfield = ToroidalField(R0test, B0test)
         Bfield.set_points(points)
         B1 = Bfield.B()
+
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        B1_regen = Bfield_regen.B()
+        self.assertTrue(np.allclose(B1, B1_regen))
+
         dB1_by_dX = Bfield.dB_by_dX()
         # Bfield analytical
         B2 = np.array([(B0test*R0test/(point[0]**2+point[1]**2))*np.array([-point[1], point[0], 0.]) for point in points])
@@ -91,8 +99,17 @@ class Testing(unittest.TestCase):
         Btotal1.set_points(points)
         Btotal2.set_points(points)
         Btotal3.set_points(points)
+
+        B1 = Btotal1.B()
+        B2 = Btotal2.B()
+
+        # Verify serialization works
+        field_json_str = json.dumps(Btotal2, cls=MontyEncoder)
+        Btotal_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B2, Btotal_regen.B()))
+
         # Verify
-        assert np.allclose(Btotal1.B(), Btotal2.B())
+        assert np.allclose(B1, B2)
         assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(), Btotal1.B())
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
@@ -116,6 +133,11 @@ class Testing(unittest.TestCase):
         Bscalar.set_points(points)
         B1 = np.array(Bscalar.B())
         dB1_by_dX = np.array(Bscalar.dB_by_dX())
+
+        # Verify serialization works
+        field_json_str = json.dumps(Bscalar, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B1, np.array(Bfield_regen.B())))
 
         # Analytical Formula for B
         rphiz = [[np.sqrt(np.power(point[0], 2) + np.power(point[1], 2)), np.arctan2(point[1], point[0]), point[2]] for point in points]
@@ -185,6 +207,12 @@ class Testing(unittest.TestCase):
         points = np.array([[1e-10, 0, 0.]])
         Bfield.set_points(points)
         assert np.allclose(Bfield.B(), [[0, 0, current/1e7*2*np.pi/radius]])
+
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
+
         # Verify that divergence is zero
         dB1_by_dX = Bfield.dB_by_dX()
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
@@ -400,18 +428,29 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bhelical.B(), field)
         assert np.allclose(Bhelical.dB_by_dX(), derivative)
 
+        # Verify serialization works
+        field_json_str = json.dumps(Bhelical, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B()))
+
     def test_Dommaschk(self):
         mn = [[10, 2], [15, 3]]
         coeffs = [[-2.18, -2.18], [25.8, -25.8]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        Bfield.set_points(np.asarray([[0.9231, 0.8423, -0.1123]]))
+        point = np.asarray([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify B
-        assert np.allclose(Bfield.B(), [[-1.72696, 3.26173, -2.22013]])
+        B = Bfield.B()
+        assert np.allclose(B, [[-1.72696, 3.26173, -2.22013]])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[-59.9602, 8.96793, -24.8844], [8.96793, 49.0327, -18.4131], [-24.8844, -18.4131, 10.9275]]))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_BifieldMultiply(self):
         scalar = 1.2345
@@ -445,6 +484,10 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
         assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
         assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield2, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bfield2.B(), Bfield_regen.B()))
 
     def test_Reiman(self):
         iota0 = 0.15
@@ -463,6 +506,10 @@ class Testing(unittest.TestCase):
         # Check that div(B)=0
         dB1 = Bfield.dB_by_dX()
         assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B1, Bfield_regen.B()))
         # Bfield analytical
         x = points[:, 0]
         y = points[:, 1]
@@ -601,7 +648,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(B, Bh, rtol=1e-2)
         assert np.allclose(dB, dBh, rtol=1e-2)
         assert np.allclose(Bc, Bhc, rtol=1e-2)
-        assert np.allclose(dBc, dBhc, rtol=1e-2)
+        assert np.allclose(dBc, dBhc, rtol=1e-2, atol=1e-5)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-from simsopt.mhd.virtual_casing import VirtualCasing
+from simsopt.mhd import VirtualCasing
 
 """
 This example illustrates the virtual casing calculation, in which

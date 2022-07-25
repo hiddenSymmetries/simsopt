@@ -1,7 +1,14 @@
+import unittest
+import logging
+
+logging.basicConfig()
+
+import numpy as np
+
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
     IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
@@ -13,10 +20,8 @@ from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpo
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.geo.curverzfourier import CurveRZFourier
 import simsoptpp as sopp
-import numpy as np
-import unittest
-import logging
-logging.basicConfig()
+
+
 try:
     import pyevtk
     with_evtk = True

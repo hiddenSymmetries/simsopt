@@ -4,10 +4,9 @@ import os
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
-from simsopt.field.tracing import trace_particles_boozer, MinToroidalFluxStoppingCriterion, \
+from simsopt.field import BoozerRadialInterpolant, InterpolatedBoozerField
+from simsopt.field import trace_particles_boozer, MinToroidalFluxStoppingCriterion, \
     MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
-    IterationStoppingCriterion, compute_poloidal_transits, compute_toroidal_transits, \
     compute_resonances
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.mhd import Vmec

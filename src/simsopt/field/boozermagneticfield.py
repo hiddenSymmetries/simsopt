@@ -20,6 +20,9 @@ if MPI is not None:
         Boozer = None
         logger.debug(str(e))
 
+__all__ = ['BoozerMagneticField', 'BoozerAnalytic', 'BoozerRadialInterpolant',
+           'InterpolatedBoozerField']
+
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""

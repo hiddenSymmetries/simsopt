@@ -25,14 +25,14 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt._core.optimizable import Weight
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.geo.curve import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Current, coils_via_symmetries
-from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance, \
+from simsopt.objectives import Weight
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.objectives import QuadraticPenalty
+from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.field import BiotSavart
+from simsopt.field import Current, coils_via_symmetries
+from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
@@ -184,3 +184,6 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXIT
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
+
+# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+bs.save(OUT_DIR + "biot_savart_opt.json")

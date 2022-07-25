@@ -1,9 +1,13 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
+from monty.json import MontyDecoder, MSONable
+
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 
+__all__ = ['BoozerSurface']
 
-class BoozerSurface():
+
+class BoozerSurface(MSONable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -36,7 +40,7 @@ class BoozerSurface():
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
-        self.bs = biotsavart
+        self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
@@ -75,11 +79,11 @@ class BoozerSurface():
 
         nsurfdofs = sdofs.size
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
 
         s.set_dofs(sdofs)
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives)
 
         r = boozer[0]
 
@@ -160,11 +164,11 @@ class BoozerSurface():
             G = None
         lm = xl[-2:]
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
         s.set_dofs(sdofs)
         nsurfdofs = sdofs.size
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives+1)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives+1)
         r, J = boozer[0:2]
 
         dl = np.zeros((xl.shape[0]-2,))
@@ -498,10 +502,10 @@ class BoozerSurface():
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abs(self.bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
-        r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+        r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
         norm = 1e6
         while i < maxiter:
             if s.stellsym:
@@ -529,9 +533,15 @@ class BoozerSurface():
             iota = x[-2]
             G = x[-1]
             i += 1
-            r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+            r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
-        res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
-        }
+        res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
+               "G": G, "s": s, "iota": iota}
         return res
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        bs = decoder.process_decoded(d["biotsavart"])
+        surf = decoder.process_decoded(d["surface"])
+        return cls(bs, surf, d["label"], d["targetlabel"])

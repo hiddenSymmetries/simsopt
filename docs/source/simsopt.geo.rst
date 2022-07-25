@@ -84,10 +84,10 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.plot module
------------------------
+simsopt.geo.plotting module
+---------------------------
 
-.. automodule:: simsopt.geo.plot
+.. automodule:: simsopt.geo.plotting
    :members:
    :undoc-members:
    :show-inheritance:
@@ -156,10 +156,3 @@ simsopt.geo.surfacexyztensorfourier module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.geo
-   :members:
-   :undoc-members:
-   :show-inheritance:

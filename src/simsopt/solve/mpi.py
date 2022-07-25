@@ -23,8 +23,6 @@ except ImportError as err:
 
 from .._core.optimizable import Optimizable
 from ..util.mpi import MpiPartition
-from ..util.types import RealArray
-from .._core.util import finite_difference_steps
 from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.least_squares import LeastSquaresProblem
 
@@ -34,6 +32,8 @@ logger = logging.getLogger(__name__)
 CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
+
+__all__ = ['least_squares_mpi_solve']
 
 
 def _mpi_workers_task(mpi: MpiPartition,

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 import os
 
 """
