@@ -140,6 +140,40 @@ class ToroidalFlux(Optimizable):
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
 
+def residual(surface, iota, G, biotsavart, derivatives=0):
+    user_provided_G = G is not None
+    if not user_provided_G:
+        G = 2. * np.pi * np.sum([np.abs(c.current.x) for c in biotsavart.coils]) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+    
+    x = surface.gamma()
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    nphi = x.shape[0]
+    ntheta = x.shape[1]
+    
+
+    xsemiflat = x.reshape((x.size//3, 3)).copy()
+    biotsavart.set_points(xsemiflat)
+    biotsavart.compute(derivatives)
+    B = biotsavart.B().reshape((nphi, ntheta, 3))
+    
+    if derivatives == 0:
+        val = sopp.boozer_residual(G, iota, xphi, xtheta, B) 
+        return val,
+
+    dx_dc = surface.dgamma_by_dcoeff()
+    dxphi_dc = surface.dgammadash1_by_dcoeff()
+    dxtheta_dc = surface.dgammadash2_by_dcoeff()
+    dB_dx = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+
+    if derivatives == 1:
+        val, dval = sopp.boozer_residual_ds(G, iota, B, dB_dx, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc)
+        return val, dval
+    
+    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
+    val, dval, d2val = sopp.boozer_residual_ds2(G, iota, B, dB_dx, d2B_by_dXdX, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc)
+    return val, dval, d2val
+
 
 def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives=0, weighting=None):
     user_provided_G = G is not None
@@ -246,7 +280,6 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
         J = np.concatenate((drtil_dc_flattened, drtil_diota_flattened), axis=1)
     
     dval = np.sum(r[:, None]*J, axis=0)
-    
 
 
 
@@ -266,7 +299,7 @@ def boozer_surface_residual_accumulate(surface, iota, G, biotsavart, derivatives
         #d2B2_dcdc = 2*(term1 + term2)
         
         d2B2_dcdc = 2*(np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)+np.einsum('ijkpl,ijpn,ijkm,ijl->ijmn', d2B_by_dXdX, dx_dc, dx_dc, B, optimize=True))
-        d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc -dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])/(4*B2[:, :, None, None]**1.5)
+        d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc -dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])*(1/(4*B2[:, :, None, None]**1.5))
         d2w_dc2 = (2*dmodB_dc[:, :, :, None] * dmodB_dc[:, :, None, :] - modB[:, :, None, None] * d2modB_dc2)/modB[:, :, None, None]**3.
         
     elif weighting =='dS/B':

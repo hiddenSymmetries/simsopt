@@ -87,6 +87,7 @@ set(XTENSOR_USE_TBB 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/boozerresidual.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp
     src/simsoptpp/biot_savart_py.cpp src/simsoptpp/biot_savart_vjp_py.cpp
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
