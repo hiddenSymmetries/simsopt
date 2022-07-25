@@ -3,6 +3,8 @@ import numpy as np
 import simsoptpp as sopp
 from .curve import Curve
 
+__all__ = ['CurveRZFourier']
+
 
 class CurveRZFourier(sopp.CurveRZFourier, Curve):
     r"""
@@ -10,7 +12,7 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
     coordinates using the following Fourier series:
 
     .. math::
-       r(\phi) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} x_{s,m}\sin(n_{\text{fp}} m \phi) \\
+       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(n_{\text{fp}} m \phi) \\
        z(\phi) &= \sum_{m=0}^{\text{order}} z_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} z_{s,m}\sin(n_{\text{fp}} m \phi)
 
     If ``stellsym = True``, then the :math:`\sin` terms for :math:`r` and the :math:`\cos` terms for :math:`z` are zero.
@@ -47,3 +49,23 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["quadpoints"] = list(self.quadpoints)
+        d["order"] = self.order
+        d["nfp"] = self.nfp
+        d["stellsym"] = self.stellsym
+        d["x0"] = list(self.local_full_x)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        curve = cls(d["quadpoints"],
+                    d["order"],
+                    d["nfp"],
+                    d["stellsym"])
+        curve.local_full_x = d["x0"]
+        return curve

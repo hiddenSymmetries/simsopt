@@ -23,6 +23,8 @@ from .._core.finite_difference import FiniteDifference
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['least_squares_serial_solve', 'serial_solve']
+
 
 def least_squares_serial_solve(prob: LeastSquaresProblem,
                                grad: bool = None,
