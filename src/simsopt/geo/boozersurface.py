@@ -460,8 +460,8 @@ class BoozerSurface(Optimizable):
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
 
-        fun = lambda x: self.boozer_penalty_constraints(
-            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+        fun = lambda x: self.boozer_penalty(
+            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
         res = minimize(
             fun, x, jac=True, method='BFGS',
             options={'maxiter': maxiter, 'gtol': tol})
@@ -484,8 +484,8 @@ class BoozerSurface(Optimizable):
         resdict['iota'] = iota
 
         if hessian:
-            val, dval, d2val = self.boozer_penalty_constraints_accumulate(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+            val, dval, d2val = self.boozer_penalty(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             P, L, U = lu(d2val)
             resdict["PLU"] = (P, L, U)
         self.res = resdict
@@ -511,8 +511,8 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
 
-        val, dval, d2val = self.boozer_penalty_constraints_accumulate(
-            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+        val, dval, d2val = self.boozer_penalty(
+            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval, ord=np.inf)
         print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
         
@@ -522,15 +522,13 @@ class BoozerSurface(Optimizable):
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
             x = x - dx
-            val, dval, d2val = self.boozer_penalty_constraints_accumulate(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+            val, dval, d2val = self.boozer_penalty(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval, ord=np.inf)
             print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
             i = i+1
 
         P, L, U = lu(d2val)
-        r = self.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None, weighting=weighting)
         if G is None:
             s.set_dofs(x[:-1])
             iota = x[-1]
