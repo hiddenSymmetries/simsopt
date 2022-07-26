@@ -69,8 +69,9 @@ vol_target = vol.J()
 ## compute the surface
 boozer_surface = BoozerSurface(bs, s, vol, vol_target)
 res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
-print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 
+out_res = boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)[0]
+print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(out_res):.3e}")
 ## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
 bs_nonQS = BiotSavart(coils)
 mr = MajorRadius(boozer_surface)
