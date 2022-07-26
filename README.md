@@ -55,7 +55,7 @@ can be started using
     docker run -it --rm hiddensymmetries/simsopt
 
 More [installation
-options](https://simsopt.readthedocs.io/en/latest/getting_started.html#),
+options](https://simsopt.readthedocs.io/en/latest/installation.html),
 [instructions for the Docker
 container](https://simsopt.readthedocs.io/en/latest/containers.html), and
 other information can be found in the [main simsopt documentation
