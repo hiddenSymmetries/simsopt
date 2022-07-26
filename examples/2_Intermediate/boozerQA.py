@@ -6,7 +6,7 @@ from simsopt.geo.curve import curves_to_vtk
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, ToroidalFlux, Volume, MajorRadius
 from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricRatio, Iotas
 from simsopt.objectives.utilities import QuadraticPenalty
 from scipy.optimize import minimize
