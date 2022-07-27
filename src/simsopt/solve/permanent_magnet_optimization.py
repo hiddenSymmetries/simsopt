@@ -253,16 +253,11 @@ def BMP(pm_opt, **kwargs):
         one-by-one according to minimize a submodular objective function
         such as the mutual coherence of ATA. 
     Args:
-        K:  The number of magnets to place one-by-one.
-        reg_l2: Regularization value for any convex
-            regularizers in the optimization problem,
-            such as the often-used L2 norm.
-        verbose: Prints out all the loss term errors separately.
+        kwargs: Keyword argument dictionary for the BMP algorithm.
     """
     # Begin the various algorithms
     errors = []
     m_history = []
-    m_proxy_history = []
 
     # Need to normalize the m here, so have
     # || A * m - b||^2 = || ( A * mmax) * m / mmax - b||^2
@@ -274,7 +269,6 @@ def BMP(pm_opt, **kwargs):
     algorithm_history, m_history, m = sopp.BMP_MSE(
         A_obj=np.ascontiguousarray(A_obj.T),
         b_obj=np.ascontiguousarray(pm_opt.b_obj),
-        #ATb=ATb,
         **kwargs
     )
 
@@ -301,4 +295,5 @@ def BMP(pm_opt, **kwargs):
     # note m = m_proxy for BMP because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
     pm_opt.m_proxy = pm_opt.m
-    return errors, m_history, m_proxy_history
+    return errors, m_history
+

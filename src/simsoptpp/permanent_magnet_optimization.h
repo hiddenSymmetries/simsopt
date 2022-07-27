@@ -36,10 +36,9 @@ std::tuple<Array, double> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_p
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
 std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, bool verbose);
 
-// helper functions for nonconvex, binary matching pursuit algorithm (no relax-and-split here)
-void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, int print_iter, int k);
-
 // the hyperparameters all have default values if they are left unspecified -- see python.cpp
-std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory);
+std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, int alpha, Array& dipole_grid_xyz);
 
 std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, int K, bool verbose, bool grid_aligned, int nhistory);
+
+Array connectivity_matrix_j(Array& dipole_grid_xyz, int j);
