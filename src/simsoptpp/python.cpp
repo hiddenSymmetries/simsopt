@@ -93,6 +93,7 @@ PYBIND11_MODULE(simsoptpp, m) {
         py::arg("field"),
         py::arg("s"),
         py::arg("theta0"),
+        py::arg("zeta0"),
         py::arg("lam"),
         py::arg("nfp"),
         py::arg("option"),

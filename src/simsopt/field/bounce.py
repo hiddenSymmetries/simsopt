@@ -16,7 +16,7 @@ warnings.catch_warnings()
 logger = logging.getLogger(__name__)
 
 
-def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
+def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, zeta0 = 0, root_tol=1e-8,
                          tol=1e-8, nzeta=1000, step_size=1e-3):
     """
     Computes the parallel adiabatic invariant (divided by v)
@@ -48,7 +48,7 @@ def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, root_tol=1e-8,
         If this parameter is too large, the right bounce may be stepped over.
     """
     # Compute bounce points
-    bouncel_try = sopp.find_bounce_points(field, s, alpha0, lam, nfp, 0, nmax, root_tol=root_tol, nzeta=nzeta)
+    bouncel_try = sopp.find_bounce_points(field, s, alpha0, zeta0, lam, nfp, 0, nmax, root_tol=root_tol, nzeta=nzeta)
     bouncel_try = np.asarray(bouncel_try)
     if (len(bouncel_try) > 0):
         bouncer_try = bouncel_try + 2*np.pi*nmax/nfp
