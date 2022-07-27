@@ -272,7 +272,7 @@ def BMP(pm_opt, **kwargs):
     #ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
 
     algorithm_history, m_history, m = sopp.BMP_MSE(
-        A_obj=np.ascontiguousarray(A_obj),
+        A_obj=np.ascontiguousarray(A_obj.T),
         b_obj=np.ascontiguousarray(pm_opt.b_obj),
         #ATb=ATb,
         **kwargs

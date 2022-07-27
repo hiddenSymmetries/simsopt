@@ -2,6 +2,7 @@
 #include <Eigen/Dense>
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
+#include "xtensor/xsort.hpp"
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -473,11 +474,13 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
 std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory)
 {
     // Needs ATb in shape (N, 3)
-    int ngrid = A_obj.shape(0);
-    int N = int(A_obj.shape(1) / 3);
+    int ngrid = A_obj.shape(1);
+    //int ngrid = A_obj.shape(0);
+    int N = int(A_obj.shape(0) / 3);
+    //int N = int(A_obj.shape(1) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
-    int skj, skjj;
+    int skj, skjj, skj_minus;
     double sign_fac;
 
     Array x = xt::zeros<double>({N, 3});
@@ -495,51 +498,75 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	
     // initialize least-square values to large numbers    
     vector<double> R2s(6 * N, 1e50);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    //constexpr int simd_size = xsimd::simd_type<double>::size;
+    
+    double* R2s_ptr = &(R2s[0]);
+    double* Aij_ptr = &(A_obj(0, 0));
+    //double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* Gamma_ptr = &(Gamma_complement(0, 0));
+    //Array R2s_temp = xt::zeros<double>({ngrid, N3});
+    //Array R2s = 1e20 * xt::ones<double>({N3});
+    //Array R2s_minus = 1e20 * xt::ones<double>({N3});
     
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
-
-    double* R2s_ptr = &(R2s[0]);
-    double* Aij_ptr = &(A_obj(0, 0));
+    //Array Aij_mj_sum = xt::zeros<double>({ngrid, N3});
+//#pragma omp parallel for schedule(static)
+//    for (int j = 0; j < N3; ++j) {
+//        for (int i = 0; i < ngrid; ++i) {
+//            Aij_mj_sum(i, j) = -b_obj(i);	
+//	}
+//    }
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    //double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    double* Gamma_ptr = &(Gamma_complement(0, 0));
+    //double* Aij_mj_ptr = &(Aij_mj_sum(0, 0));
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-
+        //Array R2_term = (Aij_mj_sum + A_obj);
+        //Array R2_minus_term = (Aij_mj_sum - A_obj);
         // See which index reduces the MSE most
 #pragma omp parallel for schedule(static)
         for (int j = 0; j < N3; ++j) {
 
             if (Gamma_ptr[j]) {
 	        double R2 = 0.0;
-	        //simd_t R2 = 0.0;
+	    //    R2 = xt::zeros<double>({1});
+	    //    R2minus = xt::zeros<double>({1});
+		//simd_t R2 = 0.0;
 	        double R2minus = 0.0;
+                int nj = ngrid * j;
+        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(R2_term.data()), ngrid, N3);
+        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat_minus(const_cast<double*>(R2_minus_term.data()), ngrid, N3);
+        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res_temp_r2(const_cast<double*>(R2s_temp.data()), ngrid, N3);
+	//eigen_res_temp_r2 = eigen_mat.cwiseProduct(eigen_mat);
+	//R2s = xt::sum(R2s_temp, 0);
+	//eigen_res_temp_r2 = eigen_mat_minus.cwiseProduct(eigen_mat_minus);
+	//R2s_minus = xt::sum(R2s_temp, 0);
 	        //simd_t R2minus = 0.0;
 	        //int ilimit = std::min(simd_size, ngrid - i);
 	        //for(int i = 0; i < ngrid; i += simd_size) {
 	        for(int i = 0; i < ngrid; ++i) {
-		    //R2 += (Aij_mj_sum(i) + A_obj(i, j)) * (Aij_mj_sum(i) + A_obj(i, j)); 
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]); 
-		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]); 
-		    //R2minus += (Aij_mj_sum(i) - A_obj(i, j)) * (Aij_mj_sum(i) - A_obj(i, j)); 
-	        }
+		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		    //R2 += (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]); 
+		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		    //R2minus += (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]); 
+		}
 	        R2s_ptr[j] = R2;
 	        R2s_ptr[j + N3] = R2minus;
             }
 	}
 
+	//skj = xt::argmin(R2s, xt::evaluation_strategy::immediate);
+	//skj_minus = xt::argmin(R2s_minus, xt::evaluation_strategy::immediate);
         skj = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+	//if (R2s[skj] >= R2s_minus[skj_minus]) {
 	if (skj >= N3) {
-	    skj = skj - N3;
+	    skj -= N3;
 	    sign_fac = -1.0;
 	}
 	else {
             sign_fac = 1.0;
 	}
-
 	skjj = (skj % 3); 
 	skj = int(skj / 3.0);
         x(skj, skjj) = sign_fac;
@@ -547,10 +574,13 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
 #pragma omp parallel for schedule(static)
+        //for (int j = 0; j < N3; ++j) {
 	for(int i = 0; i < ngrid; ++i) {
-            //Aij_mj_sum(i) += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
-            Aij_mj_ptr[i] += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
-        }
+        //        Aij_mj_sum(i, j) += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
+            Aij_mj_ptr[i] += sign_fac * Aij_ptr[i + (3 * skj + skjj) * ngrid];
+            //Aij_mj_ptr[i] += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
+	//    }
+	}
 	if (grid_aligned) {
             for (int j = 0; j < 3; ++j) {
                 Gamma_complement(skj, j) = false;

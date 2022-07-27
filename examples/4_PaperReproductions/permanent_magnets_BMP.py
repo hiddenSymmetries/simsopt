@@ -27,8 +27,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 64
-ntheta = 64
+nphi = 8
+ntheta = 8
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -107,8 +107,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 20000  # Must be multiple of nhistory - 1 for now because I am lazy
-kwargs['nhistory'] = 501
+kwargs['K'] = 400  # Must be multiple of nhistory - 1 for now because I am lazy
+# kwargs['nhistory'] = 501
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
