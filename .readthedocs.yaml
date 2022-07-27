@@ -15,10 +15,6 @@ formats:
 python:
    version: 3.8
    install:
-   #- method: pip
-   #  path: numpy scipy
-   #- method: setuptools
-   #  path: pyoculus
    - requirements: docs/requirements.txt
    - requirements: requirements.txt
    - method: pip
