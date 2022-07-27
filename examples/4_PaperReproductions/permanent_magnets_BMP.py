@@ -27,8 +27,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 8
-ntheta = 8
+nphi = 64
+ntheta = 64
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -103,66 +103,54 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 #kwargs = initialize_default_kwargs()
 
 # Optimize the permanent magnets with relax-and-split for comparison
-#RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, **kwargs)
+#R2_history, m_history, m_proxy_history = relax_and_split(pm_opt, **kwargs)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 400  # Must be multiple of nhistory - 1 for now because I am lazy
-# kwargs['nhistory'] = 501
+kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['nhistory'] = 101
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
-RS_history, m_history, m_proxy_history = BMP(pm_opt, **kwargs)
+R2_history, m_history = BMP(pm_opt, **kwargs)
 t2 = time.time()
 print('BMP took t = ', t2 - t1, ' s')
 np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory']))
+np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
 iterations = np.linspace(0, kwargs['K'], kwargs['nhistory'], endpoint=False)
 plt.figure()
-plt.semilogy(iterations, RS_history)
+plt.semilogy(iterations, R2_history)
 plt.grid(True)
 plt.savefig(OUT_DIR + 'BMP_MSE_history.png')
-#plt.show()
-#exit()
 
-#print(np.shape(m_history), np.shape(m_history[0]))
-min_ind = np.argmin(RS_history)
+min_ind = np.argmin(R2_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
-pm_opt.m_proxy = np.ravel(m_history[:, :, min_ind])
 
-RS_history = np.ravel(np.array(RS_history))
+R2_history = np.ravel(np.array(R2_history))
 print('Done optimizing the permanent magnet object')
-#make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
 
 # Print effective permanent magnet volume
 M_max = 1.465 / (4 * np.pi * 1e-7)
-dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
+dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-# Plot the sparse and less sparse solutions from SIMSOPT
-m_copy = np.copy(pm_opt.m)
-pm_opt.m = pm_opt.m_proxy
-b_dipole_proxy = DipoleField(pm_opt)
-b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole_proxy._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
-pm_opt.m = m_copy
-b_dipole = DipoleField(pm_opt)
-b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
+# Plot the SIMSOPT GBPMO solution 
+for k in range(0, kwargs["nhistory"], 4):
+    pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+    b_dipole = DipoleField(pm_opt)
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
 
 # Print optimized metrics
 print("Total fB = ",
       0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
-print("Total fB (sparse) = ",
-      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m_proxy - pm_opt.b_obj) ** 2))
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
-Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_total_proxy = Bnormal + Bnormal_dipoles_proxy
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
@@ -173,11 +161,8 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 # For plotting Bn on the full torus surface at the end with just the dipole fields
 # Do optimization on pre-made grid of dipoles
 make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized")
-make_Bnormal_plots(b_dipole_proxy, s_plot, OUT_DIR, "only_m_proxy_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "m_optimized", extra_data=pointData)
-pointData = {"B_N": Bnormal_total_proxy[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "m_proxy_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
@@ -185,24 +170,10 @@ print('f_B = ', f_B_sf)
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
-pm_opt.m = pm_opt.m_proxy
-b_dipole = DipoleField(pm_opt)
-b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
-print('f_B_sparse = ', f_B_sp)
-dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
-num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.ndipoles * 100
+print('Total volume = ', total_volume)
 
 # write solution to FAMUS-type file
 write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-
-# write sparse solution to FAMUS-type file
-# m_copy = np.copy(pm_opt.m)
-# pm_opt.m = pm_opt.m_proxy
-# write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-# pm_opt.m  = m_copy
 
 # Optionally make a QFM and pass it to VMEC
 # This is probably worthless unless plasma
@@ -218,17 +189,11 @@ if vmec_flag:
     # Make the QFM surfaces
     t1 = time.time()
     Bfield = bs + b_dipole
-    Bfield_proxy = bs + b_dipole_proxy
     Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bfield_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
-    qfm_surf_proxy = make_qfm(s, Bfield_proxy)
-    qfm_surf_proxy = qfm_surf_proxy.surface
-    qfm_surf_proxy.plot()
-    qfm_surf_proxy = qfm_surf
     t2 = time.time()
-    print("Making the two QFM surfaces took ", t2 - t1, " s")
+    print("Making the QFM surface took ", t2 - t1, " s")
 
     # Run VMEC with new QFM surface
     t1 = time.time()
@@ -237,12 +202,6 @@ if vmec_flag:
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
-    equil.run()
-
-    ### Always use the QH VMEC file and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
-    equil = Vmec(vmec_input, mpi)
-    equil.boundary = qfm_surf_proxy
     equil.run()
 
 t_end = time.time()

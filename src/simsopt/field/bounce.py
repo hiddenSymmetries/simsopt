@@ -16,7 +16,7 @@ warnings.catch_warnings()
 logger = logging.getLogger(__name__)
 
 
-def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, zeta0 = 0, root_tol=1e-8,
+def bounce_averaged_jpar(field, s, lam, nfp, nmax, alpha0, zeta0=0, root_tol=1e-8,
                          tol=1e-8, nzeta=1000, step_size=1e-3):
     """
     Computes the parallel adiabatic invariant (divided by v)

@@ -319,40 +319,6 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     return std::make_tuple(objective_history, R2_history, m_history, x_k1);
 }
 
-// print out the relevant loss terms for the BMP algorithm
-void print_BMP(Array& A_obj, Array& b_obj, Array& x_k1, Array& m_history, Array& objective_history, int print_iter, int k)
-{
-    int ngrid = A_obj.shape(0);
-    int N = int(A_obj.shape(1) / 3);
-    double R2 = 0.0;
-    Array R2_temp = xt::zeros<double>({ngrid});
-
-    // Computation of R2 takes more work than the other loss terms... need to compute
-    // the linear least-squares term.
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(x_k1.data()), 3*N, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(R2_temp.data()), ngrid, 1);
-    eigen_res = eigen_mat*eigen_v;
-#pragma omp parallel for reduction(+: R2)
-    for(int i = 0; i < ngrid; ++i) {
-        R2 += (R2_temp(i) - b_obj(i)) * (R2_temp(i) - b_obj(i));
-    }
-
-    // rescale loss terms by the hyperparameters
-    R2 = 0.5 * R2;
-
-    // L1, L0, and other nonconvex loss terms are not addressed by this algorithm
-    // so they will just be constant and we can omit them from the total cost.
-    objective_history(print_iter) = R2;
-#pragma omp parallel for 
-    for (int i = 0; i < N; ++i) {
-        for (int ii = 0; ii < 3; ++ii) {
-            m_history(i, ii, print_iter) = x_k1(i, ii);
-	}
-    }
-    printf("%d ... %.2e \n", k, R2);
-}
-
 // run the binary matching pursuit algorithm for solving the convex part of
 // the permanent magnet optimization problem, using the mutual coherence
 // as the metric to maximize
@@ -464,6 +430,23 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
 }
 
 
+Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
+{
+    int Ndipole = dipole_grid_xyz.shape(0);
+    double Rthreshold = 0.005;
+    int q = 0;
+    Array connectivity_inds = xt::zeros<int>({20});
+#pragma omp parallel for
+    for (int i = 0; i < Ndipole; ++i) {
+        double dist_ij = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
+        if (dist_ij < Rthreshold) {
+	    connectivity_inds(q) = i;
+	    q += 1;
+	}
+   }
+   return connectivity_inds;
+}
+
 // Run the binary matching pursuit algorithm for solving the convex part of
 // the permanent magnet optimization problem.
 // See -- Binary sparse signal recovery with binary matching pursuit -- 
@@ -471,17 +454,13 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory)
+std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, int alpha, Array& dipole_grid_xyz)
 {
-    // Needs ATb in shape (N, 3)
     int ngrid = A_obj.shape(1);
-    //int ngrid = A_obj.shape(0);
     int N = int(A_obj.shape(0) / 3);
-    //int N = int(A_obj.shape(1) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
-    int skj, skjj, skj_minus;
-    double sign_fac;
+    int skj_ind;
 
     Array x = xt::zeros<double>({N, 3});
 
@@ -498,100 +477,93 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	
     // initialize least-square values to large numbers    
     vector<double> R2s(6 * N, 1e50);
-    //constexpr int simd_size = xsimd::simd_type<double>::size;
+    vector<int> skj(K);
+    vector<int> skjj(K);
+    vector<double> sign_fac(K);
     
     double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
-    //double* Aij_mj_ptr = &(Aij_mj_sum(0));
     double* Gamma_ptr = &(Gamma_complement(0, 0));
-    //Array R2s_temp = xt::zeros<double>({ngrid, N3});
-    //Array R2s = 1e20 * xt::ones<double>({N3});
-    //Array R2s_minus = 1e20 * xt::ones<double>({N3});
     
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
-    //Array Aij_mj_sum = xt::zeros<double>({ngrid, N3});
-//#pragma omp parallel for schedule(static)
-//    for (int j = 0; j < N3; ++j) {
-//        for (int i = 0; i < ngrid; ++i) {
-//            Aij_mj_sum(i, j) = -b_obj(i);	
-//	}
-//    }
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    //double* Aij_mj_ptr = &(Aij_mj_sum(0, 0));
+    bool backtracking_flag = (backtracking > 0);
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-        //Array R2_term = (Aij_mj_sum + A_obj);
-        //Array R2_minus_term = (Aij_mj_sum - A_obj);
         // See which index reduces the MSE most
 #pragma omp parallel for schedule(static)
         for (int j = 0; j < N3; ++j) {
 
             if (Gamma_ptr[j]) {
 	        double R2 = 0.0;
-	    //    R2 = xt::zeros<double>({1});
-	    //    R2minus = xt::zeros<double>({1});
-		//simd_t R2 = 0.0;
 	        double R2minus = 0.0;
                 int nj = ngrid * j;
-        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(R2_term.data()), ngrid, N3);
-        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat_minus(const_cast<double*>(R2_minus_term.data()), ngrid, N3);
-        //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res_temp_r2(const_cast<double*>(R2s_temp.data()), ngrid, N3);
-	//eigen_res_temp_r2 = eigen_mat.cwiseProduct(eigen_mat);
-	//R2s = xt::sum(R2s_temp, 0);
-	//eigen_res_temp_r2 = eigen_mat_minus.cwiseProduct(eigen_mat_minus);
-	//R2s_minus = xt::sum(R2s_temp, 0);
-	        //simd_t R2minus = 0.0;
-	        //int ilimit = std::min(simd_size, ngrid - i);
-	        //for(int i = 0; i < ngrid; i += simd_size) {
 	        for(int i = 0; i < ngrid; ++i) {
 		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
-		    //R2 += (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] + Aij_ptr[N3 * i + j]); 
 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
-		    //R2minus += (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]) * (Aij_mj_ptr[i] - Aij_ptr[N3 * i + j]); 
 		}
 	        R2s_ptr[j] = R2;
 	        R2s_ptr[j + N3] = R2minus;
             }
 	}
 
-	//skj = xt::argmin(R2s, xt::evaluation_strategy::immediate);
-	//skj_minus = xt::argmin(R2s_minus, xt::evaluation_strategy::immediate);
-        skj = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
-	//if (R2s[skj] >= R2s_minus[skj_minus]) {
-	if (skj >= N3) {
-	    skj -= N3;
-	    sign_fac = -1.0;
+	// find the dipole that most minimizes the least-squares term
+        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+	if (skj[k] >= N3) {
+	    skj[k] -= N3;
+	    sign_fac[k] = -1.0;
 	}
 	else {
-            sign_fac = 1.0;
+            sign_fac[k] = 1.0;
 	}
-	skjj = (skj % 3); 
-	skj = int(skj / 3.0);
-        x(skj, skjj) = sign_fac;
-       
+	skjj[k] = (skj[k] % 3); 
+	skj[k] = int(skj[k] / 3.0);
+        x(skj[k], skjj[k]) = sign_fac[k];
+
+	if (backtracking_flag and (k > 0) and (k % backtracking == 0)) {
+	    // Loop over all dipoles placed so far
+#pragma omp parallel for
+	    for (int j = 0; j < k; j++) {
+                Array cj = connectivity_matrix_j(dipole_grid_xyz, j);
+	        // Loop over adjacent dipoles and check if have equal and opposite one
+	        for(int jj = 0; jj < cj.shape(0); ++jj) {
+                    if (cj(jj) == 0) break;
+
+                    // if wyrm exists, remove those dipoles
+		    // and allow for future placement
+		    if (sign_fac[j] == (-1) * sign_fac[cj(jj)]) {
+	                 x(skj[j], skjj[j]) = 0.0; 
+	                 x(skj[cj(jj)], skjj[cj(jj)]) = 0.0; 
+                         for (int jjj = 0; jjj < 3; ++jjj) {
+			     Gamma_complement(skj[j], jjj) = true;
+			     Gamma_complement(skj[cj(jj)], jjj) = true;
+		         }
+			 break;
+		    }
+	        }
+	    }
+        }
+
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
+	skj_ind = (3 * skj[k] + skjj[k]) * ngrid;
 #pragma omp parallel for schedule(static)
-        //for (int j = 0; j < N3; ++j) {
 	for(int i = 0; i < ngrid; ++i) {
-        //        Aij_mj_sum(i, j) += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
-            Aij_mj_ptr[i] += sign_fac * Aij_ptr[i + (3 * skj + skjj) * ngrid];
-            //Aij_mj_ptr[i] += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
-	//    }
+            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_ind];
 	}
 	if (grid_aligned) {
             for (int j = 0; j < 3; ++j) {
-                Gamma_complement(skj, j) = false;
-	        R2s[3 * skj + j] = 1e50;
-	        R2s[N3 + 3 * skj + j] = 1e50;
+                Gamma_complement(skj[k], j) = false;
+	        R2s[3 * skj[k] + j] = 1e50;
+	        R2s[N3 + 3 * skj[k] + j] = 1e50;
             }
 	}
 	else {
-	    Gamma_complement(skj, skjj) = false;
-	    R2s[3 * skj + skjj] = 1e50;
-	    R2s[N3 + 3 * skj + skjj] = 1e50;
+	    Gamma_complement(skj[k], skjj[k]) = false;
+	    R2s[3 * skj[k] + skjj[k]] = 1e50;
+	    R2s[N3 + 3 * skj[k] + skjj[k]] = 1e50;
 	}
 
       	// fairly convoluted way to print every ~ K / nhistory iterations
@@ -610,7 +582,6 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	        }
             }
             printf("%d ... %.2e \n", k, R2);
-	    //print_BMP(A_obj, b_obj, x, m_history, objective_history, print_iter, k);
             print_iter += 1;
       	}
     }
