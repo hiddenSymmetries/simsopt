@@ -469,7 +469,6 @@ class MajorRadius(Optimizable):
         self.boozer_surface = boozer_surface
         self.in_surface = in_surface
         self.surface = s
-        self.biotsavart = boozer_surface.bs
         self.recompute_bell()
     
     def J(self):
@@ -496,7 +495,6 @@ class MajorRadius(Optimizable):
         surface = self.surface
         self._J = surface.major_radius()
         
-        bs = self.biotsavart
         booz_surf = self.boozer_surface
         iota = booz_surf.res['iota']
         G = booz_surf.res['G']
@@ -509,7 +507,7 @@ class MajorRadius(Optimizable):
         dJ_ds[:dj_ds.size] = dj_ds
         adj = forward_backward(P, L, U, dJ_ds)
         
-        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, bs)
+        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = -1 * adj_times_dg_dcoil
 
 
@@ -610,7 +608,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0., 0.]))
         adj = forward_backward(P, L, U, dJ_ds)
         
-        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, booz_surf.bs)
+        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = dJ_by_dcoils-adj_times_dg_dcoil
 
     def dJ_by_dB(self):
@@ -727,11 +725,11 @@ class Iotas(Optimizable):
         dJ_ds[-2] = 1.
         adj = forward_backward(P, L, U, dJ_ds)
 
-        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G, booz_surf.bs)
+        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = -1.*adj_times_dg_dcoil
 
 
-def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, biotsavart):
+def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     r"""
     For a given surface with points :math:`x` on it, this function computes the
     vector-Jacobian product of:
@@ -749,9 +747,9 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G, b
         booz_surf: boozer surface,
         iota: rotational transform on the boozer surface,
         G: constant on boozer surface,
-        biotsavart: biotsavart object, the same as the one used on the Boozer surface. 
     """
     surface = booz_surf.surface
+    biotsavart = booz_surf.bs
     user_provided_G = G is not None
     if not user_provided_G:
         G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
