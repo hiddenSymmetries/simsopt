@@ -112,7 +112,7 @@ class QuadraticPenalty(Optimizable):
         d["@class"] = self.__class__.__name__
         d["@module"] = self.__class__.__module__
         d["obj"] = self.obj
-        d["cons"] = self.cons
+        d["cons"] = np.array([self.cons])
         d["f"] = self.f
         return d
 
