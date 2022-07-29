@@ -429,13 +429,20 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
     return std::make_tuple(objective_history, m_history, x);
 }
 
-
+// compute which dipoles are directly adjacent to dipole j
 Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
 {
     int Ndipole = dipole_grid_xyz.shape(0);
-    double Rthreshold = 0.005;
+
+    // approximate threshold for saying dipole is adjacent on the MUSE grid
+    double Rthreshold = 0.0074; 
     int q = 0;
+    
+    // Initialize to size 20, but this array should never be larger than 7 or 8 
+    // and should on average be 6.
     Array connectivity_inds = xt::zeros<int>({20});
+    
+    // Compute distances between dipole j and all other dipoles
 #pragma omp parallel for
     for (int i = 0; i < Ndipole; ++i) {
         double dist_ij = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
@@ -496,10 +503,13 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 #pragma omp parallel for schedule(static)
         for (int j = 0; j < N3; ++j) {
 
+	    // Check all the allowed dipole positions
             if (Gamma_ptr[j]) {
 	        double R2 = 0.0;
 	        double R2minus = 0.0;
                 int nj = ngrid * j;
+
+		// Compute contribution of jth dipole component, either with +- orientation
 	        for(int i = 0; i < ngrid; ++i) {
 		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
@@ -522,30 +532,6 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	skj[k] = int(skj[k] / 3.0);
         x(skj[k], skjj[k]) = sign_fac[k];
 
-	if (backtracking_flag and (k > 0) and (k % backtracking == 0)) {
-	    // Loop over all dipoles placed so far
-#pragma omp parallel for
-	    for (int j = 0; j < k; j++) {
-                Array cj = connectivity_matrix_j(dipole_grid_xyz, j);
-	        // Loop over adjacent dipoles and check if have equal and opposite one
-	        for(int jj = 0; jj < cj.shape(0); ++jj) {
-                    if (cj(jj) == 0) break;
-
-                    // if wyrm exists, remove those dipoles
-		    // and allow for future placement
-		    if (sign_fac[j] == (-1) * sign_fac[cj(jj)]) {
-	                 x(skj[j], skjj[j]) = 0.0; 
-	                 x(skj[cj(jj)], skjj[cj(jj)]) = 0.0; 
-                         for (int jjj = 0; jjj < 3; ++jjj) {
-			     Gamma_complement(skj[j], jjj) = true;
-			     Gamma_complement(skj[cj(jj)], jjj) = true;
-		         }
-			 break;
-		    }
-	        }
-	    }
-        }
-
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
 	skj_ind = (3 * skj[k] + skjj[k]) * ngrid;
@@ -565,6 +551,48 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	    R2s[3 * skj[k] + skjj[k]] = 1e50;
 	    R2s[N3 + 3 * skj[k] + skjj[k]] = 1e50;
 	}
+
+	// backtrack by removing adjacent dipoles that are equal and opposite
+	if (backtracking_flag and (k > 0) and (k % backtracking == 0)) {
+	    // Loop over all dipoles placed so far
+            int wyrm_sum = 0;
+	    for (int j = 0; j < k; j++) {
+                // get indices of the dipoles that are adjacent to dipole j
+		Array cj = connectivity_matrix_j(dipole_grid_xyz, j);
+	        
+		// Loop over adjacent dipoles and check if have equal and opposite one
+	        for(int jj = 0; jj < cj.shape(0); ++jj) {
+		    if (cj(jj) == 0) break;
+
+                    // if wyrm exists, remove those dipoles
+		    // and allow for future placement
+		    if ((sign_fac[j] != 0.0) && (sign_fac[j] == (- sign_fac[cj(jj)]))) {
+		         if (skjj[j] == skjj[cj(jj)]) { 
+			     x(skj[j], skjj[j]) = 0.0; 
+	                     x(skj[cj(jj)], skjj[cj(jj)]) = 0.0; 
+                             for (int jjj = 0; jjj < 3; ++jjj) {
+			         Gamma_complement(skj[j], jjj) = true;
+			         Gamma_complement(skj[cj(jj)], jjj) = true;
+		             }
+
+	                     int skj_ind1 = (3 * skj[j] + skjj[j]) * ngrid;
+	                     int skj_ind2 = (3 * skj[cj(jj)] + skjj[cj(jj)]) * ngrid;
+#pragma omp parallel for schedule(static)
+			     for(int i = 0; i < ngrid; ++i) {
+				Aij_mj_ptr[i] -= sign_fac[j] * Aij_ptr[i + skj_ind1] + sign_fac[cj(jj)] * Aij_ptr[i + skj_ind2];
+			     }
+			     // set sign_fac = 0 so that these magnets do not keep getting dewyrmed
+			     sign_fac[j] = 0.0;
+			     sign_fac[cj(jj)] = 0.0;
+                             //printf("Wyrm removed: %d %d %f\n", j, jj, cj(jj));
+			     wyrm_sum += 1;
+			     break;
+			 }
+		    }
+	        }
+	    }
+	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, k);
+        }
 
       	// fairly convoluted way to print every ~ K / nhistory iterations
         if (verbose && ((k % (int(K / (nhistory - 1))) == 0) || k == 0 || k == K - 1)) {
