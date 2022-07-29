@@ -39,10 +39,6 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
-# Make the output directory
-OUT_DIR = 'permanent_magnet_BMP_output/'
-os.makedirs(OUT_DIR, exist_ok=True)
-
 # initialize the coils
 #base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
 
@@ -107,8 +103,17 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am lazy
-kwargs['nhistory'] = 101
+kwargs['K'] = 80000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['nhistory'] = 501
+kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
+kwargs['backtracking'] = 200
+
+# Make the output directory
+if 'backtracking' in kwargs.keys():
+    OUT_DIR = 'permanent_magnet_BMP_backtracking' + str(kwargs['backtracking']) + '_output/'
+else:
+    OUT_DIR = 'permanent_magnet_BMP_output/'
+os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
@@ -136,7 +141,8 @@ print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, a
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"], 4):
+for k in range(0, kwargs["nhistory"], 50):
+    #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))

@@ -266,6 +266,9 @@ def BMP(pm_opt, **kwargs):
     A_obj = pm_opt.A_obj * mmax_vec
     #ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
 
+    #if 'backtracking' in kwargs.keys() and kwargs['dipole_grid_xyz'] == None:
+    #    raise ValueError('Backtracking requires dipole_grid_xyz to be defined.')
+
     algorithm_history, m_history, m = sopp.BMP_MSE(
         A_obj=np.ascontiguousarray(A_obj.T),
         b_obj=np.ascontiguousarray(pm_opt.b_obj),
