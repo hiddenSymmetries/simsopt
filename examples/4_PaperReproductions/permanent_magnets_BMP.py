@@ -103,16 +103,17 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 80000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am lazy
 kwargs['nhistory'] = 501
-kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['backtracking'] = 200
+kwargs['single_direction'] = 0
+#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
+#kwargs['backtracking'] = 200
 
 # Make the output directory
 if 'backtracking' in kwargs.keys():
-    OUT_DIR = 'permanent_magnet_BMP_backtracking' + str(kwargs['backtracking']) + '_output/'
+    OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_backtracking' + str(kwargs['backtracking']) + '_K' + str(kwargs['K']) + '_output/'
 else:
-    OUT_DIR = 'permanent_magnet_BMP_output/'
+    OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP' + '_K' + str(kwargs['K']) + '_output/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
@@ -140,35 +141,35 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"], 50):
+for k in range(0, kwargs["nhistory"], 5):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
 
-# Print optimized metrics
-print("Total fB = ",
-      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+    # Print optimized metrics
+    print("Total fB = ",
+          0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
 
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
-Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_total = Bnormal + Bnormal_dipoles
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    Bnormal_total = Bnormal + Bnormal_dipoles
+
+    # For plotting Bn on the full torus surface at the end with just the dipole fields
+    # Do optimization on pre-made grid of dipoles
+    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
+    pointData = {"B_N": Bnormal_total[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)), extra_data=pointData)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 num_nonzero = np.count_nonzero(np.sum(dipoles_m ** 2, axis=-1)) / pm_opt.ndipoles * 100
 print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
-
-# For plotting Bn on the full torus surface at the end with just the dipole fields
-# Do optimization on pre-made grid of dipoles
-make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized")
-pointData = {"B_N": Bnormal_total[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
