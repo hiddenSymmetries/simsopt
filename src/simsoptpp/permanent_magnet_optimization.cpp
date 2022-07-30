@@ -435,12 +435,13 @@ Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
     int Ndipole = dipole_grid_xyz.shape(0);
 
     // approximate threshold for saying dipole is adjacent on the MUSE grid
-    double Rthreshold = 0.0074; 
+    double Rthreshold = 0.008; 
+    //double Rthreshold = 0.0074; 
     int q = 0;
     
-    // Initialize to size 20, but this array should never be larger than 7 or 8 
+    // Initialize to size 100, but this array should never be larger than 7 or 8 
     // and should on average be 6.
-    Array connectivity_inds = xt::zeros<int>({20});
+    Array connectivity_inds = xt::zeros<int>({100});
     
     // Compute distances between dipole j and all other dipoles
 #pragma omp parallel for
@@ -461,7 +462,7 @@ Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, int alpha, Array& dipole_grid_xyz)
+std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, int alpha, Array& dipole_grid_xyz, int single_direction)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -499,24 +500,80 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-        // See which index reduces the MSE most
-#pragma omp parallel for schedule(static)
-        for (int j = 0; j < N3; ++j) {
+	// if continuous = True and first dipole is determined,
+	// only consider placing dipoles next to existing dipoles
+	if (continuous and (k > 0)) {
+	    for (int j = 0; j < k; j++) {
+		// get indices for dipoles that are adjacent to dipole j
+	        Array cj = connectivity_matrix_j(dipole_grid_xyz, skj[j]);
+	        
+		// Compute contribution of adjacent dipole component, either with +- orientation
+	        for(int jj = 0; jj < cj.shape(0); ++jj) {
+		    if (cj(jj) == 0) break;
+	            for(int jjj = 0; jjj < 3; ++jjj) {
+		        int j_ind = (3 * cj(jj) + jjj);	
+		        int nj = ngrid * j_ind; 
+	                // Check all the allowed dipole positions
+                        if (Gamma_ptr[j_ind]) {
+	                    double R2 = 0.0;
+	                    double R2minus = 0.0;
+                            //int nj = ngrid * cj(jj);
 
-	    // Check all the allowed dipole positions
-            if (Gamma_ptr[j]) {
-	        double R2 = 0.0;
-	        double R2minus = 0.0;
-                int nj = ngrid * j;
-
-		// Compute contribution of jth dipole component, either with +- orientation
-	        for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
-		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		            // Compute contribution of jth dipole component, either with +- orientation
+#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
+			    for(int i = 0; i < ngrid; ++i) {
+		                R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		                R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		            }
+	                    R2s_ptr[j_ind] = R2;
+	                    R2s_ptr[j_ind + N3] = R2minus;
+			}
+		    }
 		}
-	        R2s_ptr[j] = R2;
-	        R2s_ptr[j + N3] = R2minus;
-            }
+	    }
+	}
+        // See which index reduces the MSE most
+	else {
+	    if (single_direction >= 0) { 
+#pragma omp parallel for schedule(static)
+                for (int j = std::max(0, single_direction); j < N3; j += 3) {
+
+	            // Check all the allowed dipole positions
+                    if (Gamma_ptr[j]) {
+	                double R2 = 0.0;
+	                double R2minus = 0.0;
+                        int nj = ngrid * j;
+
+		        // Compute contribution of jth dipole component, either with +- orientation
+	                for(int i = 0; i < ngrid; ++i) {
+		            R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		            R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		        }
+	                R2s_ptr[j] = R2;
+	                R2s_ptr[j + N3] = R2minus;
+                    }
+ 	        }
+	    }
+	    else {
+#pragma omp parallel for schedule(static)
+                for (int j = 0; j < N3; ++j) {
+
+	            // Check all the allowed dipole positions
+                    if (Gamma_ptr[j]) {
+	                double R2 = 0.0;
+	                double R2minus = 0.0;
+                        int nj = ngrid * j;
+
+		        // Compute contribution of jth dipole component, either with +- orientation
+	                for(int i = 0; i < ngrid; ++i) {
+		            R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		            R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		        }
+	                R2s_ptr[j] = R2;
+	                R2s_ptr[j + N3] = R2minus;
+                    }
+ 	        }
+	    }
 	}
 
 	// find the dipole that most minimizes the least-squares term
@@ -553,7 +610,7 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	}
 
 	// backtrack by removing adjacent dipoles that are equal and opposite
-	if (backtracking_flag and (k > 0) and (k % backtracking == 0)) {
+	if (backtracking_flag and (k > 0) and ((k + 1) % backtracking == 0)) {
 	    // Loop over all dipoles placed so far
             int wyrm_sum = 0;
 	    for (int j = 0; j < k; j++) {
@@ -584,7 +641,6 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 			     // set sign_fac = 0 so that these magnets do not keep getting dewyrmed
 			     sign_fac[j] = 0.0;
 			     sign_fac[cj(jj)] = 0.0;
-                             //printf("Wyrm removed: %d %d %f\n", j, jj, cj(jj));
 			     wyrm_sum += 1;
 			     break;
 			 }
