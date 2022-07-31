@@ -5,6 +5,7 @@ from simsopt.geo.surface import Surface
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
+
 class CurrentPotential(Optimizable):
 
     def set_points(self, points):
@@ -13,11 +14,12 @@ class CurrentPotential(Optimizable):
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
 
+
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
     def __init__(self, winding_surface, nfp=1, stellsym=True, mpol=1, ntor=0, nphi=None,
-                    ntheta=None, range="full torus",
-                    quadpoints_phi=None, quadpoints_theta=None):
+                 ntheta=None, range="full torus",
+                 quadpoints_phi=None, quadpoints_theta=None):
 
         quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
                                                                   nphi=nphi, ntheta=ntheta, range=range,
@@ -25,10 +27,10 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                                                   quadpoints_theta=quadpoints_theta)
 
         sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
-                                       quadpoints_phi, quadpoints_theta)
+                                              quadpoints_phi, quadpoints_theta)
         CurrentPotential.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
-                         names=self._make_names())
+                                  external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
+                                  names=self._make_names())
         self._make_mn()
 
     def _make_names(self):
@@ -36,7 +38,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             names = self._make_names_helper('Phis', False)
         else:
             names = self._make_names_helper('Phis', False) \
-                  + self._make_names_helper('Phic', True)
+                + self._make_names_helper('Phic', True)
         return names
 
     def _make_names_helper(self, prefix, include0):

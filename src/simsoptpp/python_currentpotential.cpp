@@ -48,9 +48,9 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
 
 template <typename T, typename S> void register_common_currentpotential_methods(S &s) {
     s.def("Phi", &T::Phi)
-     .def("Phi_impl", &T::Phi_impl)
-     .def("Phidash1_impl", &T::Phidash1_impl)
-     .def("Phidash2_impl", &T::Phidash2_impl)
+     .def("Phi", &T::Phi_impl)
+     .def("Phidash1", &T::Phidash1)
+     .def("Phidash2", &T::Phidash2)
      .def("invalidate_cache", &T::invalidate_cache)
      .def("set_dofs", &T::set_dofs)
      .def("set_dofs_impl", &T::set_dofs_impl)
