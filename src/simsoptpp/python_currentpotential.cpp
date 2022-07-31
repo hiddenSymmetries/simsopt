@@ -62,9 +62,11 @@ template <typename T, typename S> void register_common_currentpotential_methods(
 void init_currentpotential(py::module_ &m){
     auto pycurrentpotential = py::class_<PyCurrentPotential, shared_ptr<PyCurrentPotential>, PyCurrentPotentialTrampoline<PyCurrentPotential>>(m, "CurrentPotential")
         .def(py::init<shared_ptr<PySurface>,vector<double>,vector<double>>());
+        // .def(py::init<vector<double>,vector<double>>());
     register_common_currentpotential_methods<PyCurrentPotential>(pycurrentpotential);
 
     auto pycurrentpotentialfourier = py::class_<PyCurrentPotentialFourier, shared_ptr<PyCurrentPotentialFourier>, PyCurrentPotentialFourierTrampoline<PyCurrentPotentialFourier>>(m, "CurrentPotentialFourier")
+        // .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def(py::init<shared_ptr<PySurface>, int, int, int, bool, vector<double>, vector<double>>())
         .def_readwrite("phic", &PyCurrentPotentialFourier::phic)
         .def_readwrite("phis", &PyCurrentPotentialFourier::phis)

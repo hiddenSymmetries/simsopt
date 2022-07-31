@@ -46,7 +46,8 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
 
         int num_dofs() override {
             if(stellsym)
-                return (mpol+1)*(2*ntor+1) - (ntor + 1);
+                return mpol*(2*ntor + 1) + (ntor + 1) - 1;
+                // return (mpol+1)*(2*ntor+1) - (ntor + 1);
             else
                 return 2*(mpol+1)*(2*ntor+1) - ntor - (ntor + 1);
         }
