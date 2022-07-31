@@ -6,7 +6,7 @@ from .surfacerzfourier import SurfaceRZFourier
 __all__ = ['SurfaceXYZFourier']
 
 
-class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
+class SurfaceXYZFourier(sopp.SurfaceXYZFourier, sopp.Surface, Surface):
     r"""`SurfaceXYZFourier` is a surface that is represented in Cartesian
     coordinates using the following Fourier series:
 
@@ -72,6 +72,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
                                                                   quadpoints_theta=quadpoints_theta)
         sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                         quadpoints_phi, quadpoints_theta)
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
@@ -99,12 +100,12 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         surface.
         """
         ntor = self.ntor
-        mpol = self.mpol 
-        surf = SurfaceRZFourier(nfp=self.nfp, 
-                                stellsym=self.stellsym, 
-                                mpol=mpol, 
-                                ntor=ntor, 
-                                quadpoints_phi=self.quadpoints_phi, 
+        mpol = self.mpol
+        surf = SurfaceRZFourier(nfp=self.nfp,
+                                stellsym=self.stellsym,
+                                mpol=mpol,
+                                ntor=ntor,
+                                quadpoints_phi=self.quadpoints_phi,
                                 quadpoints_theta=self.quadpoints_theta)
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
