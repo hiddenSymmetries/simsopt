@@ -124,6 +124,19 @@ set_target_properties(profiling
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt)
 
+add_executable(profiling_br EXCLUDE_FROM_ALL src/profiling/profiling_boozer.cpp src/simsoptpp/boozerresidual_c.cpp)
+set_target_properties(profiling_br
+    PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON)
+target_include_directories(profiling_br PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+target_link_libraries(profiling_br PRIVATE fmt::fmt)
+
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(profiling_br PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 
 
 #get_cmake_property(_variableNames VARIABLES)
