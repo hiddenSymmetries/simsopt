@@ -44,7 +44,6 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
             PySurfaceRZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
         }
 
-
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceRZFourierBase::fit_to_curve(curve, radius);
         }
@@ -110,15 +109,17 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
 };
 
 template <typename T, typename S> void register_common_surface_methods(S &s) {
-    s.def("gamma", &T::gamma)
+    s.def("gamma", pybind11::overload_cast<>(&T::gamma))
      .def("gamma_impl", &T::gamma_impl)
      .def("gamma_lin", &T::gamma_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
      .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
-     .def("gammadash1", &T::gammadash1)
+     .def("gammadash1", pybind11::overload_cast<>(&T::gammadash1))
+     // .def("gammadash1_impl",  &T::gammadash1_impl)
      .def("dgammadash1_by_dcoeff", &T::dgammadash1_by_dcoeff)
      .def("dgammadash1_by_dcoeff_vjp", &T::dgammadash1_by_dcoeff_vjp)
-     .def("gammadash2", &T::gammadash2)
+     .def("gammadash2", pybind11::overload_cast<>(&T::gammadash2))
+     // .def("gammadash2_impl",  &T::gammadash2_impl)
      .def("dgammadash2_by_dcoeff", &T::dgammadash2_by_dcoeff)
      .def("gammadash1dash1", &T::gammadash1dash1, "Returns a `(n_phi, n_theta, 3)` array containing partial^2_{phi,phi} Gamma(phi_i, theta_j) for i in {1, ..., n_phi}, j in{1, ..., n_theta}")
      .def("gammadash1dash2", &T::gammadash1dash2, "Returns a `(n_phi, n_theta, 3)` array containing partial^2_{phi,theta} Gamma(phi_i, theta_j) for i in {1, ..., n_phi}, j in{1, ..., n_theta}")

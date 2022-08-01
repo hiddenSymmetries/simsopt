@@ -57,7 +57,8 @@ class CurrentPotential {
 
     public:
 
-        CurrentPotential(shared_ptr<Surface<Array>> winding_surface, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta) {
+        CurrentPotential(shared_ptr<Surface<Array>> winding_surface, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+            : winding_surface(winding_surface) {
             numquadpoints_phi = _quadpoints_phi.size();
             numquadpoints_theta = _quadpoints_theta.size();
 
@@ -91,17 +92,10 @@ class CurrentPotential {
         virtual void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void Phidash1_impl(Array& data)  { throw logic_error("Phidash1_impl was not implemented"); };
         virtual void Phidash2_impl(Array& data)  { throw logic_error("Phidash2_impl was not implemented"); };
-        // virtual void Phidash1dash1_impl(Array& data)  { throw logic_error("Phidash1Phidash1_impl was not implemented"); };
-        // virtual void Phidash1dash2_impl(Array& data)  { throw logic_error("Phidash1Phidash2_impl was not implemented"); };
-        // virtual void Phidash2dash2_impl(Array& data)  { throw logic_error("Phidash2Phidash2_impl was not implemented"); };
-        //
-        // virtual void dPhi_by_dcoeff_impl(Array& data) { throw logic_error("dPhi_by_dcoeff_impl was not implemented"); };
-        // virtual void dPhidash1_by_dcoeff_impl(Array& data) { throw logic_error("dPhidash1_by_dcoeff_impl was not implemented"); };
-        // virtual void dPhidash2_by_dcoeff_impl(Array& data) { throw logic_error("dPhidash2_by_dcoeff_impl was not implemented"); };
-        // virtual void dPhidash2dash2_by_dcoeff_impl(Array& data) { throw logic_error("dPhidash2dash2_by_dcoeff_impl was not implemented"); };
-        // virtual void dPhidash1dash2_by_dcoeff_impl(Array& data) { throw logic_error("dPhidash1dash2_by_dcoeff_impl was not implemented"); };
-        // virtual void dPhidash1dash1_by_dcoeff_impl(Array& data) { throw logic_error("dPhidash1dash1_by_dcoeff_impl was not implemented"); };
 
+        Array& K() {
+            return check_the_cache("K", {numquadpoints_phi, numquadpoints_theta, 3}, [this](Array& A) { return K_impl(A);});
+        }
         Array& Phi() {
             return check_the_cache("Phi", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phi_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
@@ -111,33 +105,6 @@ class CurrentPotential {
         Array& Phidash2() {
             return check_the_cache("Phidash2", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phidash2_impl(A);});
         }
-        // Array& Phidash1dash1() {
-        //     return check_the_cache("Phidash1dash1", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phidash1dash1_impl(A);});
-        // }
-        // Array& Phidash1dash2() {
-        //     return check_the_cache("Phidash1dash2", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phidash1dash2_impl(A);});
-        // }
-        // Array& Phidash2dash2() {
-        //     return check_the_cache("Phidash2dash2", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phidash2dash2_impl(A);});
-        // }
-        // Array& dPhidash1dash1_by_dcoeff() {
-        //     return check_the_cache("dPhidash1dash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash1dash1_by_dcoeff_impl(A);});
-        // }
-        // Array& dPhidash1dash2_by_dcoeff() {
-        //     return check_the_cache("dPhidash1dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash1dash2_by_dcoeff_impl(A);});
-        // }
-        // Array& dPhidash2dash2_by_dcoeff() {
-        //     return check_the_cache("dPhidash2dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash2dash2_by_dcoeff_impl(A);});
-        // }
-        // Array& dPhi_by_dcoeff() {
-        //     return check_the_persistent_cache("dPhi_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhi_by_dcoeff_impl(A);});
-        // }
-        // Array& dPhidash1_by_dcoeff() {
-        //     return check_the_persistent_cache("dPhidash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash1_by_dcoeff_impl(A);});
-        // }
-        // Array& dPhidash2_by_dcoeff() {
-        //     return check_the_persistent_cache("dPhidash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash2_by_dcoeff_impl(A);});
-        // }
 
         virtual ~CurrentPotential() = default;
 };
