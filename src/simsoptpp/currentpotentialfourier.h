@@ -33,8 +33,13 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         int mpol;
         int ntor;
         bool stellsym;
+        double net_poloidal_current_amperes;
+        double net_toroidal_current_amperes;
 
-        CurrentPotentialFourier(shared_ptr<Surface<Array>> _winding_surface, int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+        CurrentPotentialFourier(shared_ptr<Surface<Array>> _winding_surface,
+                int _mpol, int _ntor, int _nfp, bool _stellsym,
+                vector<double> _quadpoints_phi, vector<double> _quadpoints_theta,
+                double net_poloidal_current_amperes, double net_toroidal_current_amperes)
             : CurrentPotential<Array>(_winding_surface, _quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 this->allocate();
             }
@@ -47,7 +52,6 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         int num_dofs() override {
             if(stellsym)
                 return mpol*(2*ntor + 1) + (ntor + 1) - 1;
-                // return (mpol+1)*(2*ntor+1) - (ntor + 1);
             else
                 return 2*(mpol+1)*(2*ntor+1) - ntor - (ntor + 1);
         }
@@ -85,14 +89,4 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void Phidash1_impl(Array& data) override;
         void Phidash2_impl(Array& data) override;
-        // virtual void Phidash1dash1_impl(Array& data) override;
-        // virtual void Phidash2dash2_impl(Array& data) override;
-        // virtual void Phidash1dash2_impl(Array& data) override;
-        //
-        // virtual void dPhi_by_dcoeff_impl(Array& data) override;
-        // virtual void dPhidash1_by_dcoeff_impl(Array& data) override;
-        // virtual void dPhidash2_by_dcoeff_impl(Array& data) override;
-        // virtual void dPhidash1dash1_by_dcoeff_impl(Array& data) override;
-        // virtual void dPhidash1dash2_by_dcoeff_impl(Array& data) override;
-        // virtual void dPhidash2dash2_by_dcoeff_impl(Array& data) override;
 };

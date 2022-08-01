@@ -21,4 +21,8 @@ void CurrentPotential<Array>::K_impl(Array& data) {
           data(i, j, 2) = (- dg1(i,j,2) * dphid2(i,j) + dg2(i,j,2) * dphid1(i,j))/normn;
       }
   }
-};
+}
+
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+typedef xt::pyarray<double> Array;
+template class CurrentPotential<Array>;

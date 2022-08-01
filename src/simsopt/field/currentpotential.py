@@ -15,10 +15,11 @@ class CurrentPotential(Optimizable):
         Optimizable.__init__(self, **kwargs)
 
 
-class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
+class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):
 
     def __init__(self, winding_surface, nfp=1, stellsym=True, mpol=1, ntor=0, nphi=None,
-                 ntheta=None, range="full torus",
+                 ntheta=None, range="full torus", net_poloidal_current_amperes=1,
+                 net_toroidal_current_amperes=0,
                  quadpoints_phi=None, quadpoints_theta=None):
 
         quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
@@ -27,7 +28,11 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                                                   quadpoints_theta=quadpoints_theta)
 
         sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
-                                              quadpoints_phi, quadpoints_theta)
+                                              quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
+                                              net_toroidal_current_amperes)
+
+        sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta)
+        
         CurrentPotential.__init__(self, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
                                   names=self._make_names())
