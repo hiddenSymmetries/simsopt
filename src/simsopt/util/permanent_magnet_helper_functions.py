@@ -965,4 +965,5 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['nhistory'] = 201
         kwargs['grid_aligned'] = True
         kwargs['dipole_grid_xyz'] = None
+        kwargs['single_direction'] = -1
     return kwargs

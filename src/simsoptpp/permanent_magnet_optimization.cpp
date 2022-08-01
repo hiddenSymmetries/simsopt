@@ -3,6 +3,9 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include "xtensor/xsort.hpp"
+#include "xtensor/xview.hpp"
+#include <functional>
+#include <vector>
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -222,7 +225,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         }
 
         // compute step sizes for different descent step types
-	      auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end());
+	auto max_i = std::min_element(alpha_fs.begin(), alpha_fs.end());
         alpha_f = *max_i;
         alpha_cg = gp / pATAp;
 
@@ -429,30 +432,39 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
     return std::make_tuple(objective_history, m_history, x);
 }
 
-// compute which dipoles are directly adjacent to dipole j
-Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
+// compute which dipoles are directly adjacent to every dipole
+Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 {
     int Ndipole = dipole_grid_xyz.shape(0);
 
     // approximate threshold for saying dipole is adjacent on the MUSE grid
-    double Rthreshold = 0.008; 
+    //double Rthreshold = 0.008; 
     //double Rthreshold = 0.0074; 
-    int q = 0;
-    
-    // Initialize to size 100, but this array should never be larger than 7 or 8 
+    //int q = 0;
+
+    // Initialize to size Nadjacent, but this array should never be larger than 7 or 8 
     // and should on average be 6.
-    Array connectivity_inds = xt::zeros<int>({100});
-    
+    Array connectivity_inds = xt::zeros<int>({Ndipole, Nadjacent});
+
     // Compute distances between dipole j and all other dipoles
-#pragma omp parallel for
-    for (int i = 0; i < Ndipole; ++i) {
-        double dist_ij = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
-        if (dist_ij < Rthreshold) {
-	    connectivity_inds(q) = i;
-	    q += 1;
+#pragma omp parallel for schedule(static)
+    for (int j = 0; j < Ndipole; ++j) {
+        vector<double> dist_ij(Ndipole, 1e10);
+        for (int i = 0; i < Ndipole; ++i) {
+	    if (i != j) {	
+                dist_ij[i] = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
+	    }
 	}
-   }
-   return connectivity_inds;
+	//std::nth_element(dist_ij.begin(), dist_ij.begin() + Nadjacent - 1, dist_ij.end(), std::less<double>{});	    
+        for (int k = 0; k < Nadjacent; ++k) {
+	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
+            int dist_ind = std::distance(dist_ij.begin(), result);
+	    connectivity_inds(j, k) = dist_ind;
+	    //printf("%d %d %d %f %d\n", j, k, Nadjacent, dist_ij[dist_ind], dist_ind);
+	    //dist_ij[dist_ind] = 1e10;
+        }
+    }
+    return connectivity_inds;
 }
 
 // Run the binary matching pursuit algorithm for solving the convex part of
@@ -462,7 +474,7 @@ Array connectivity_matrix_j(Array& dipole_grid_xyz, int j)
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, int alpha, Array& dipole_grid_xyz, int single_direction)
+std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool verbose, bool grid_aligned, int nhistory, int backtracking, bool continuous, Array& dipole_grid_xyz, int single_direction, bool last_dipole, int Nadjacent, bool multi_magnets_per_iteration)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -497,19 +509,103 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
     Array Aij_mj_sum = -b_obj;
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
     bool backtracking_flag = (backtracking > 0);
+    Array Connect = xt::zeros<int>({N, Nadjacent});
+
+    // get indices for dipoles that are adjacent to dipole j
+    if (continuous || last_dipole || single_direction >= 0 || backtracking_flag) { 
+	Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
+    }
+    if (multi_magnets_per_iteration) {
+        Array x = xt::view(dipole_grid_xyz, xt::all(), 0);
+        Array y = xt::view(dipole_grid_xyz, xt::all(), 1);
+	Array phis = xt::atan2(y, x);
+	Array phis_unique = xt::unique(phis);
+	int Nsets = phis_unique.shape(0);
+	printf("# of unique phis = %d\n", Nsets);
+    }	
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
 	// if continuous = True and first dipole is determined,
 	// only consider placing dipoles next to existing dipoles
 	if (continuous and (k > 0)) {
-	    for (int j = 0; j < k; j++) {
-		// get indices for dipoles that are adjacent to dipole j
-	        Array cj = connectivity_matrix_j(dipole_grid_xyz, skj[j]);
+//#pragma omp parallel for
+ 	    for (int j = 0; j < k; j++) {
+	        Array cj = xt::view(Connect, j, xt::all());
 	        
 		// Compute contribution of adjacent dipole component, either with +- orientation
 	        for(int jj = 0; jj < cj.shape(0); ++jj) {
 		    if (cj(jj) == 0) break;
+		    if (single_direction >= 0) {
+		        int jjj = single_direction;
+		        int j_ind = (3 * cj(jj) + jjj);	
+		        int nj = ngrid * j_ind; 
+	                // Check all the allowed dipole positions
+                        if (Gamma_ptr[j_ind]) {
+	                    double R2 = 0.0;
+	                    double R2minus = 0.0;
+
+		            // Compute contribution of jth dipole component, either with +- orientation
+#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
+			    for(int i = 0; i < ngrid; ++i) {
+		                R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		                R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		            }
+	                    R2s_ptr[j_ind] = R2;
+	                    R2s_ptr[j_ind + N3] = R2minus;
+			}
+		    }
+		    else {
+	                for(int jjj = 0; jjj < 3; ++jjj) {
+		            int j_ind = (3 * cj(jj) + jjj);	
+		            int nj = ngrid * j_ind; 
+	                    // Check all the allowed dipole positions
+                            if (Gamma_ptr[j_ind]) {
+	                        double R2 = 0.0;
+	                        double R2minus = 0.0;
+
+		                // Compute contribution of jth dipole component, either with +- orientation
+#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
+			        for(int i = 0; i < ngrid; ++i) {
+		                    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		                    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		                }
+	                        R2s_ptr[j_ind] = R2;
+	                        R2s_ptr[j_ind + N3] = R2minus;
+		 	    }
+			}
+		    }
+		}
+	    }
+	}
+	else if (last_dipole and (k > 0)) {
+	    // if last_dipole = True, always places next dipole directly
+	    // adjacent to the dipole the was placed in the previous iteration 
+	    
+	    // get indices for dipoles that are adjacent to dipole k - 1
+	    Array cj = xt::view(Connect, k - 1, xt::all());
+	        
+	    // Compute contribution of adjacent dipole component, either with +- orientation    
+	    for(int jj = 0; jj < cj.shape(0); ++jj) {
+		if (cj(jj) == 0) break;
+		if (single_direction >= 0) {
+	            int jjj = single_direction; 
+		    int j_ind = (3 * cj(jj) + jjj);	
+		    int nj = ngrid * j_ind; 
+	            // Check all the allowed dipole positions
+                    if (Gamma_ptr[j_ind]) {
+	                double R2 = 0.0;
+	                double R2minus = 0.0;
+#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
+			for(int i = 0; i < ngrid; ++i) {
+		            R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		            R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		        }
+	                R2s_ptr[j_ind] = R2;
+	                R2s_ptr[j_ind + N3] = R2minus;
+		    }
+		}
+		else {
 	            for(int jjj = 0; jjj < 3; ++jjj) {
 		        int j_ind = (3 * cj(jj) + jjj);	
 		        int nj = ngrid * j_ind; 
@@ -517,7 +613,6 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
                         if (Gamma_ptr[j_ind]) {
 	                    double R2 = 0.0;
 	                    double R2minus = 0.0;
-                            //int nj = ngrid * cj(jj);
 
 		            // Compute contribution of jth dipole component, either with +- orientation
 #pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
@@ -531,7 +626,10 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 		    }
 		}
 	    }
-	}
+        }
+	// use toroidal rings
+	//else if (multi_magnets_per_iteration) {
+	//}	
         // See which index reduces the MSE most
 	else {
 	    if (single_direction >= 0) { 
@@ -610,15 +708,15 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	}
 
 	// backtrack by removing adjacent dipoles that are equal and opposite
-	if (backtracking_flag and (k > 0) and ((k + 1) % backtracking == 0)) {
+	if (backtracking_flag and (k > 0) and ((k % (int(K / backtracking))) == 0)) {
 	    // Loop over all dipoles placed so far
             int wyrm_sum = 0;
+//#pragma omp parallel for
 	    for (int j = 0; j < k; j++) {
-                // get indices of the dipoles that are adjacent to dipole j
-		Array cj = connectivity_matrix_j(dipole_grid_xyz, j);
-	        
+	        Array cj = xt::view(Connect, j, xt::all());
 		// Loop over adjacent dipoles and check if have equal and opposite one
 	        for(int jj = 0; jj < cj.shape(0); ++jj) {
+		    //printf("%d %d %f\n", j, jj, cj(jj));
 		    if (cj(jj) == 0) break;
 
                     // if wyrm exists, remove those dipoles

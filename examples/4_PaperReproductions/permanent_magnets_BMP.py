@@ -103,15 +103,25 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['K'] = 20000  # Must be multiple of nhistory - 1 for now because I am lazy
 kwargs['nhistory'] = 501
-kwargs['single_direction'] = 0
-#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-#kwargs['backtracking'] = 200
+#kwargs['single_direction'] = 0
+kwargs['continuous'] = True
+#kwargs['last_dipole'] = True
+kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
+#kwargs['backtracking'] = 500
+kwargs['Nadjacent'] = 20
 
 # Make the output directory
 if 'backtracking' in kwargs.keys():
     OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_backtracking' + str(kwargs['backtracking']) + '_K' + str(kwargs['K']) + '_output/'
+elif kwargs['single_direction'] >= 0:
+    if 'last_dipole' in kwargs.keys():
+        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_singleDirection' + str(kwargs['single_direction']) + '_LastDipole_K' + str(kwargs['K']) + '_output/'
+    elif 'continuous' in kwargs.keys():
+        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_singleDirection' + str(kwargs['single_direction']) + '_continuous_K' + str(kwargs['K']) + '_output/'
+    else:
+        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_singleDirection' + str(kwargs['single_direction']) + '_K' + str(kwargs['K']) + '_output/'
 else:
     OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP' + '_K' + str(kwargs['K']) + '_output/'
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -145,7 +155,7 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"], 5):
+for k in range(0, kwargs["nhistory"], 50):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
