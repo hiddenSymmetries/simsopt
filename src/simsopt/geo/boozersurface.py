@@ -469,7 +469,8 @@ class BoozerSurface(Optimizable):
 
         resdict = {
                 "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type':'ls', 'solver':'BFGS',
-                "firstorderop":res.jac, "weighting":weighting, "constraint_weight":constraint_weight, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
+                "firstorderop":res.jac, "weighting":weighting, "constraint_weight":constraint_weight, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel),
+                "reg": self.reg.J() if self.reg is not None else 0.
         }
         
         if G is None:
@@ -491,7 +492,7 @@ class BoozerSurface(Optimizable):
         self.res = resdict
         self.need_to_run_code = False
         
-        #print(f"BFGS - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
+        print(f"BFGS - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
         return resdict
 
 
@@ -514,7 +515,7 @@ class BoozerSurface(Optimizable):
         val, dval, d2val = self.boozer_penalty(
             x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval, ord=np.inf)
-        print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
+        #print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
         
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
@@ -525,7 +526,11 @@ class BoozerSurface(Optimizable):
             val, dval, d2val = self.boozer_penalty(
                 x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval, ord=np.inf)
-            print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
+            #print(np.linalg.norm(dval, ord=np.inf), np.linalg.cond(d2val), flush=True)
+
+            if norm > 1e2:
+                break
+
             i = i+1
 
         P, L, U = lu(d2val)
@@ -539,7 +544,8 @@ class BoozerSurface(Optimizable):
         res = {
             "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None, "type": "ls",
             "PLU":(P,L,U), "firstorderop":dval, "weighting":weighting, "constraint_weight":constraint_weight, "iota":iota, "G":G,
-            "type":'ls', "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
+            "type":'ls', "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel), "cond":np.linalg.cond(d2val), 
+            "reg": self.reg.J() if self.reg is not None else 0.
         }
 
         
