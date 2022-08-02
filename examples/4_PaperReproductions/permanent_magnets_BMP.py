@@ -103,14 +103,14 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('BMP')
-kwargs['K'] = 20000  # Must be multiple of nhistory - 1 for now because I am lazy
+kwargs['K'] = 10000  # Must be multiple of nhistory - 1 for now because I am lazy
 kwargs['nhistory'] = 501
-#kwargs['single_direction'] = 0
-kwargs['continuous'] = True
+kwargs['single_direction'] = -1
+#kwargs['continuous'] = True
 #kwargs['last_dipole'] = True
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-#kwargs['backtracking'] = 500
-kwargs['Nadjacent'] = 20
+kwargs['backtracking'] = 500
+kwargs['Nadjacent'] = 2000
 
 # Make the output directory
 if 'backtracking' in kwargs.keys():

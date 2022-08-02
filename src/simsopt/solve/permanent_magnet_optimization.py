@@ -269,11 +269,22 @@ def BMP(pm_opt, **kwargs):
     #if 'backtracking' in kwargs.keys() and kwargs['dipole_grid_xyz'] == None:
     #    raise ValueError('Backtracking requires dipole_grid_xyz to be defined.')
 
-    algorithm_history, m_history, m = sopp.BMP_MSE(
-        A_obj=np.ascontiguousarray(A_obj.T),
-        b_obj=np.ascontiguousarray(pm_opt.b_obj),
-        **kwargs
-    )
+    if kwargs['mutual_coherence']:
+        kwargs.pop('mutual_coherence')
+        ATb = A_obj.T @ pm_opt.b_obj
+        algorithm_history, m_history, m = sopp.BMP_MC(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            ATb=np.ascontiguousarray(ATb),
+            **kwargs
+        )
+    else:
+        kwargs.pop('mutual_coherence')
+        algorithm_history, m_history, m = sopp.BMP_MSE(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            **kwargs
+        )
 
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
