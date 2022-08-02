@@ -332,13 +332,11 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
 std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, int K, bool verbose, bool grid_aligned, int nhistory)
 {
-    // Needs ATb in shape (N, 3)
-    int ngrid = A_obj.shape(0);
-    int N = int(A_obj.shape(1) / 3);
+    int ngrid = A_obj.shape(1);
+    int N = int(A_obj.shape(0) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
-    int skj, skjj;
-    double sign_fac;
+    int skj_ind;
 
     Array x = xt::zeros<double>({N, 3});
 
@@ -354,12 +352,13 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
     Array Gamma_complement = xt::ones<bool>({N, 3});
 	
     // initialize least-square values to large numbers    
-    vector<double> R2s(6 * N, 1e50);
+    vector<int> skj(K);
+    vector<int> skjj(K);
+    vector<double> sign_fac(K);
     
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
 
-    double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
     double* Gamma_ptr = &(Gamma_complement(0, 0));
@@ -377,37 +376,53 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
             }
 	}
 
-        skj = int(std::distance(abs_uk.begin(), std::max_element(abs_uk.begin(), abs_uk.end())));
-	// unclear what to do about the sign of xk
-	if (skj >= N3) {
-	    skj = skj - N3;
-	    sign_fac = -1.0;
+        skj[k] = int(std::distance(abs_uk.begin(), std::max_element(abs_uk.begin(), abs_uk.end())));
+
+        double R2 = 0.0;
+        double R2minus = 0.0;	
+	int nj = ngrid * skj[k];
+	for(int i = 0; i < ngrid; ++i) {
+	    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+	    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+	}
+	if (R2minus > R2) {
+            skj[k] -= N3;
+	    sign_fac[k] = -1.0;
 	}
 	else {
-            sign_fac = 1.0;
+            sign_fac[k] = 1.0;
 	}
 
-	skjj = (skj % 3); 
-	skj = int(skj / 3.0);
-        x(skj, skjj) = sign_fac;
+	skjj[k] = (skj[k] % 3); 
+	skj[k] = int(skj[k] / 3.0);
+        x(skj[k], skjj[k]) = sign_fac[k];
        
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
+	skj_ind = (3 * skj[k] + skjj[k]) * ngrid;
 #pragma omp parallel for schedule(static)
 	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac * Aij_ptr[N3 * i + 3 * skj + skjj];
+            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_ind];
         }
 	if (grid_aligned) {
             for (int j = 0; j < 3; ++j) {
-                Gamma_complement(skj, j) = false;
-	        R2s[3 * skj + j] = 1e50;
-	        R2s[N3 + 3 * skj + j] = 1e50;
+                Gamma_complement(skj[k], j) = false;
             }
 	}
 	else {
-	    Gamma_complement(skj, skjj) = false;
-	    R2s[3 * skj + skjj] = 1e50;
-	    R2s[N3 + 3 * skj + skjj] = 1e50;
+	    Gamma_complement(skj[k], skjj[k]) = false;
+	}
+
+        Array A_view = xt::view(A_obj, xt::all(), 3 * skj[k] + skjj[k]);
+#pragma omp parallel for schedule(static)
+        for (int i = 0; i < N3; ++i) {
+            double ATAij = 0.0;
+            if (Gamma_ptr[i]) {
+	        for (int j = 0; j < N3; ++j) {
+		    ATAij += A_obj(i, j) * A_view(j);
+		}
+            }
+	    uk[i] -= ATAij;
 	}
 
       	// fairly convoluted way to print every ~ K / nhistory iterations
@@ -480,7 +495,7 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
     int N = int(A_obj.shape(0) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
-    int skj_ind;
+    int skj_inds;
 
     Array x = xt::zeros<double>({N, 3});
 
@@ -499,7 +514,10 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
     vector<double> R2s(6 * N, 1e50);
     vector<int> skj(K);
     vector<int> skjj(K);
+    vector<int> skj_ind(K);
+    vector<int> skjj_ind(K);
     vector<double> sign_fac(K);
+    vector<double> sk_sign_fac(K);
     
     double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
@@ -512,17 +530,9 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
     Array Connect = xt::zeros<int>({N, Nadjacent});
 
     // get indices for dipoles that are adjacent to dipole j
-    if (continuous || last_dipole || single_direction >= 0 || backtracking_flag) { 
+    if (continuous || last_dipole || single_direction >= 0 || backtracking_flag || multi_magnets_per_iteration) { 
 	Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
     }
-    if (multi_magnets_per_iteration) {
-        Array x = xt::view(dipole_grid_xyz, xt::all(), 0);
-        Array y = xt::view(dipole_grid_xyz, xt::all(), 1);
-	Array phis = xt::atan2(y, x);
-	Array phis_unique = xt::unique(phis);
-	int Nsets = phis_unique.shape(0);
-	printf("# of unique phis = %d\n", Nsets);
-    }	
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
@@ -531,7 +541,8 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	if (continuous and (k > 0)) {
 //#pragma omp parallel for
  	    for (int j = 0; j < k; j++) {
-	        Array cj = xt::view(Connect, j, xt::all());
+		// need to find index of the dipoles that have been placed
+	        Array cj = xt::view(Connect, skj[j], xt::all());
 	        
 		// Compute contribution of adjacent dipole component, either with +- orientation
 	        for(int jj = 0; jj < cj.shape(0); ++jj) {
@@ -546,7 +557,7 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	                    double R2minus = 0.0;
 
 		            // Compute contribution of jth dipole component, either with +- orientation
-#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
+//#pragma omp parallel for schedule(static) reduction(+: R2, R2minus)
 			    for(int i = 0; i < ngrid; ++i) {
 		                R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
 		                R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
@@ -583,7 +594,7 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	    // adjacent to the dipole the was placed in the previous iteration 
 	    
 	    // get indices for dipoles that are adjacent to dipole k - 1
-	    Array cj = xt::view(Connect, k - 1, xt::all());
+	    Array cj = xt::view(Connect, skj[k - 1], xt::all());
 	        
 	    // Compute contribution of adjacent dipole component, either with +- orientation    
 	    for(int jj = 0; jj < cj.shape(0); ++jj) {
@@ -628,8 +639,29 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	    }
         }
 	// use toroidal rings
-	//else if (multi_magnets_per_iteration) {
-	//}	
+// 	else if (multi_magnets_per_iteration) {
+// #pragma omp parallel for schedule(static)
+//            for (int j = 0; j < N; ++j) {
+// 	        Array cj = xt::view(Connect, j, xt::all());
+//                 for (int jj = 0; jj < cj.shape(0); ++jj) {
+// 	            if (Gamma_ptr[3 * cj(jj)] || Gamma_ptr[3 * cj(jj) + 1] || Gamma_ptr[3 * cj(jj) + 2]) break; 
+// 
+//                 for (int jj = 0; jj < 3; ++jj) {
+// 	            int j_ind = 3 * j + jj;
+//                     if (Gamma_ptr[j_ind]) {
+// 	                double R2 = 0.0;
+// 	                double R2minus = 0.0;
+//                         int nj = ngrid * j;
+// 	                for(int i = 0; i < ngrid; ++i) {
+// 		            R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+// 		            R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+// 		        }
+// 	                R2s_ptr[j] = R2;
+// 	                R2s_ptr[j + N3] = R2minus;
+//  	            }
+// 		}
+// 	    }
+// 	}	
         // See which index reduces the MSE most
 	else {
 	    if (single_direction >= 0) { 
@@ -679,20 +711,26 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 	if (skj[k] >= N3) {
 	    skj[k] -= N3;
 	    sign_fac[k] = -1.0;
+	    skjj[k] = (skj[k] % 3); 
+	    skj[k] = int(skj[k] / 3.0);
+	    sk_sign_fac[skj[k]] = -1.0;
 	}
 	else {
             sign_fac[k] = 1.0;
+	    skjj[k] = (skj[k] % 3); 
+	    skj[k] = int(skj[k] / 3.0);
+	    sk_sign_fac[skj[k]] = 1.0;
 	}
-	skjj[k] = (skj[k] % 3); 
-	skj[k] = int(skj[k] / 3.0);
+	skjj_ind[skj[k]] = skjj[k]; 
+	skj_ind[skj[k]] = skj[k]; 
         x(skj[k], skjj[k]) = sign_fac[k];
 
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
-	skj_ind = (3 * skj[k] + skjj[k]) * ngrid;
+	skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
 #pragma omp parallel for schedule(static)
 	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_ind];
+            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
 	}
 	if (grid_aligned) {
             for (int j = 0; j < 3; ++j) {
@@ -713,7 +751,8 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
             int wyrm_sum = 0;
 //#pragma omp parallel for
 	    for (int j = 0; j < k; j++) {
-	        Array cj = xt::view(Connect, j, xt::all());
+		// find adjacent dipoles to dipole at skj[j]
+	        Array cj = xt::view(Connect, skj[j], xt::all());
 		// Loop over adjacent dipoles and check if have equal and opposite one
 	        for(int jj = 0; jj < cj.shape(0); ++jj) {
 		    //printf("%d %d %f\n", j, jj, cj(jj));
@@ -721,24 +760,28 @@ std::tuple<Array, Array, Array> BMP_MSE(Array& A_obj, Array& b_obj, int K, bool 
 
                     // if wyrm exists, remove those dipoles
 		    // and allow for future placement
-		    if ((sign_fac[j] != 0.0) && (sign_fac[j] == (- sign_fac[cj(jj)]))) {
-		         if (skjj[j] == skjj[cj(jj)]) { 
-			     x(skj[j], skjj[j]) = 0.0; 
-	                     x(skj[cj(jj)], skjj[cj(jj)]) = 0.0; 
+		    // Check for nonzero dipole at skj[j] and has adjacent dipole that is oppositely oriented
+		    if ((sk_sign_fac[skj[j]] != 0.0) && (sk_sign_fac[skj[j]] == (- sk_sign_fac[cj(jj)]))) {
+		         if (skjj_ind[skj[j]] == skjj_ind[cj(jj)]) {
+		             // kill off this pair 
+			     x(skj_ind[skj[j]], skjj_ind[skj[j]]) = 0.0; 
+	                     x(skj_ind[cj(jj)], skjj_ind[cj(jj)]) = 0.0; 
+			     
+			     // Make the pair + components viable options for future optimization
                              for (int jjj = 0; jjj < 3; ++jjj) {
-			         Gamma_complement(skj[j], jjj) = true;
-			         Gamma_complement(skj[cj(jj)], jjj) = true;
+			         Gamma_complement(skj_ind[skj[j]], jjj) = true;
+			         Gamma_complement(skj_ind[cj(jj)], jjj) = true;
 		             }
 
-	                     int skj_ind1 = (3 * skj[j] + skjj[j]) * ngrid;
-	                     int skj_ind2 = (3 * skj[cj(jj)] + skjj[cj(jj)]) * ngrid;
+	                     int skj_ind1 = (3 * skj_ind[skj[j]] + skjj_ind[skj[j]]) * ngrid;
+	                     int skj_ind2 = (3 * skj_ind[cj(jj)] + skjj_ind[cj(jj)]) * ngrid;
 #pragma omp parallel for schedule(static)
 			     for(int i = 0; i < ngrid; ++i) {
-				Aij_mj_ptr[i] -= sign_fac[j] * Aij_ptr[i + skj_ind1] + sign_fac[cj(jj)] * Aij_ptr[i + skj_ind2];
+				Aij_mj_ptr[i] -= sk_sign_fac[skj[j]] * Aij_ptr[i + skj_ind1] + sk_sign_fac[cj(jj)] * Aij_ptr[i + skj_ind2];
 			     }
 			     // set sign_fac = 0 so that these magnets do not keep getting dewyrmed
-			     sign_fac[j] = 0.0;
-			     sign_fac[cj(jj)] = 0.0;
+			     sk_sign_fac[skj[j]] = 0.0;
+			     sk_sign_fac[cj(jj)] = 0.0;
 			     wyrm_sum += 1;
 			     break;
 			 }

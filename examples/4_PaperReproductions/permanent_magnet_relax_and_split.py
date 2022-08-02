@@ -157,10 +157,6 @@ if run_type == 'initialization':
         t2 = time.time()
         print('Saving FAMUS solution took ', t2 - t1, ' s')
 
-        # Plot the REGCOIL_PM solution for the NCSX example
-        if config_flag == 'ncsx':
-            read_regcoil_pm('../../tests/test_files/regcoil_pm_ncsx.nc', surface_filename, OUT_DIR)
-
     t1 = time.time()
     # Save PM class object to file for optimization
     file_out = open(OUT_DIR + class_filename + ".pickle", "wb")
