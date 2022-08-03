@@ -960,9 +960,7 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['epsilon_RS'] = 1e-3
         kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
         kwargs['reg_l2'] = 0.0
-    elif algorithm == 'BMP':
+    elif algorithm == 'GPMO':
         kwargs['K'] = 400
         kwargs['nhistory'] = 201
-        kwargs['grid_aligned'] = True
-        kwargs['mutual_coherence'] = False
     return kwargs
