@@ -363,7 +363,16 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
     double* Gamma_ptr = &(Gamma_complement(0, 0));
     double* uk = &(ATb(0));
-    
+   
+    // compute l2_norm(A(:, j)) for each column j 
+    vector<double> Aij_l2(N3);
+#pragma omp parallel for schedule(static) 
+    for(int j = 0; j < N3; ++j) {
+	for(int i = 0; i < ngrid; ++i) {
+	    Aij_l2[j] += sqrt(A_obj(i, j) * A_obj(i, j));
+	}
+    }
+
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
 
@@ -386,7 +395,6 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
 	    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 	}
 	if (R2minus > R2) {
-            skj[k] -= N3;
 	    sign_fac[k] = -1.0;
 	}
 	else {
@@ -413,16 +421,18 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
 	    Gamma_complement(skj[k], skjj[k]) = false;
 	}
 
-        Array A_view = xt::view(A_obj, xt::all(), 3 * skj[k] + skjj[k]);
+	//double* A_view = &(Aij_ptr[skj_ind]);
+       // Array A_view = xt::view(A_obj, xt::all(), 3 * skj[k] + skjj[k]);
 #pragma omp parallel for schedule(static)
-        for (int i = 0; i < N3; ++i) {
+        for (int j = 0; j < N3; ++j) {
             double ATAij = 0.0;
-            if (Gamma_ptr[i]) {
-	        for (int j = 0; j < N3; ++j) {
-		    ATAij += A_obj(i, j) * A_view(j);
+	    int nj = ngrid * j;
+            if (Gamma_ptr[j]) {
+	        for (int i = 0; i < ngrid; ++i) {
+		    ATAij += Aij_ptr[i + nj] * Aij_ptr[i + skj_ind];
 		}
             }
-	    uk[i] -= ATAij;
+	    uk[j] -= ATAij;
 	}
 
       	// fairly convoluted way to print every ~ K / nhistory iterations
@@ -440,7 +450,14 @@ std::tuple<Array, Array, Array> BMP_MC(Array& A_obj, Array& b_obj, Array& ATb, i
                     m_history(i, ii, print_iter) = x(i, ii);
 	        }
             }
-            printf("%d ... %.2e \n", k, R2);
+	    double mu = 0.0;
+#pragma omp parallel for schedule(static) reduction(max: mu)
+	    for(int j = 0; j < N3; ++j) {
+	        for(int i = 0; i < N3; ++i) {
+	            mu = Aij_ptr[i] * Aij_ptr[i] / Aij_l2[i] / Aij_l2[j];
+	        }
+	    }
+            printf("%d ... %.2e \n", k, R2, mu);
             print_iter += 1;
       	}
     }
