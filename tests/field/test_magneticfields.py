@@ -18,9 +18,10 @@ from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field.biotsavart import BiotSavart
+from simsopt.field import BiotSavart, CurrentPotential
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
+from scipy.special import ellipk, ellipe
 
 
 class Testing(unittest.TestCase):
@@ -754,36 +755,51 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 
-    def test_winding_surface_analytic(self):
-        mmax = 20
-        km0s = 1
-        km0c = 0
-        nphi = 8
-        ntheta = nphi
+    def test_windingsurface_calculation(self):
+        # Make a circular cross section, high-aspect ratio current loop in the Z = 0 plane
+        # Following approximate analytic solution in Jackson problem 5.32
         filename = '../test_files/input.circular_tokamak_aspect_100'
-        s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-        theta = s.quadpoints_theta
-        surface_current = np.zeros((nphi * ntheta, mmax))
-        Br = np.zeros((nphi * ntheta, mmax))
-        gamma = s.gamma().reshape((-1, 3))
-        r = np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)
-        for i in range(nphi):
-            for j in range(ntheta):
-                for m in range(mmax):
-                    surface_current[i + nphi * j, m] = km0s * np.sin(m * theta[j]) + km0c * np.cos(m * theta[j])
+        nphi = 16
+        ntheta = 16
+        winding_surface = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
-                    Br[i + nphi * j, m] = - 0.5 * m * r[i + nphi * j] ** (m - 1) / s.a_scale ** m * surface_current[i + nphi * j, m]
-        Br_analytic = np.sum(Br, axis=-1)
-        K = np.sum(surface_current, axis=-1)
-        ws_points = s.gamma().reshape((-1, 3))
-        ws_normal = s.normal().reshape((-1, 3))
-        Bfield = WindingSurfaceField(ws_points, ws_normal, K)
+        # Make CurrentPotential class from this winding surface with 1 amp toroidal current
+        current_potential = CurrentPotential(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=1)
+
+        # compute the Bfield from this current loop at some nearby random points
+        Bfield = WindingSurfaceField(current_potential)
+        gamma = winding_surface.gamma.reshape((-1, 3))
+        # find the edge of the plasma
+        rho = np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)) * np.ones(100)
+        phi = np.linspace(0, 2 * np.pi, 32)
+        # approximation error ~ sqrt(eps ** 2 + eps_z ** 2) / Rmajor
+        eps = 0.01
+        eps_z = 0.01
+        x = np.zeros(3200)
+        y = np.zeros(3200)
+        for i in range(100):
+            for j in range(32):
+                x = (rho[i] + eps) * np.cos(phi[j])
+                y = (rho[i] + eps) * np.sin(phi[j])
+        z = eps_z * (np.random.rand(3200) - 0.5) * 2
+        # Now have bunch of points that are right outside the plasma surface
+        points = np.array([x, y, z]).T 
         Bfield.set_points(points)
-        B1 = Bfield.B()
-        phi = s.quadpoint_phi
-        Br = B1 * np.cos(phi) + B1 * np.sin(phi)
-        print(Br, Br_analytic)
-        assert np.allclose(Br, Br_analytic)
+        B_predict = Bfield.B()
+        A_predict = Bfield.A()
+
+        # calculate the Bfield analytically in spherical coordinates
+        # See Jackson 5.37 for the vector potential in terms of the elliptic integrals
+        mu_fac = 2e-7
+        r = np.sqrt(eps_z ** 2 + eps ** 2)
+        Aphi = mu_fac * (np.log(8 * winding_surface.get_rc(0, 0) / r) - 2)
+        #r = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2 + points[:, 2] ** 2)
+        #theta = np.atan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
+        #k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
+        #Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k) - 2 * ellipe(k) / k ** 2)
+        A_analytic = np.array([np.zeros(len(Aphi)), np.zeros(len(Aphi)), Aphi]).T
+        print(A_predict, A_analytic, A_predict.shape, A_analytic.shape)
+        assert np.allclose(A_predict, A_analytic)
 
 
 if __name__ == "__main__":

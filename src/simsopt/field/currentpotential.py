@@ -32,7 +32,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotentia
                                               net_toroidal_current_amperes)
 
         sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta)
-        
+
         CurrentPotential.__init__(self, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
                                   names=self._make_names())

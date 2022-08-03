@@ -67,7 +67,6 @@ class SurfaceRZFourier(sopp.Surface, sopp.SurfaceRZFourier, Surface):
                  nphi=None, ntheta=None, range="full torus",
                  quadpoints_phi=None, quadpoints_theta=None):
 
-
         quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
                                                                   nphi=nphi, ntheta=ntheta, range=range,
                                                                   quadpoints_phi=quadpoints_phi,

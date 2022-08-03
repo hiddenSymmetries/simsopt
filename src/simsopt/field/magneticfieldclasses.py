@@ -508,15 +508,15 @@ class WindingSurfaceField(MagneticField):
 
     Args:
         current_potential: CurrentPotential class object containing
-            the winding surface and the values needed for computing
-            the magnetic field and related quantities.
+            the winding surface and the surface current needed for
+            fast computation of the magnetic field and vector potential.
     """
 
-    def __init__(self, ws_points, ws_normal, K):
+    def __init__(self, current_potential):
         MagneticField.__init__(self)
-        self.K = K 
-        self.ws_points = ws_points 
-        self.ws_normal = ws_normal
+        self.K = current_potential.K() 
+        self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
+        self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
