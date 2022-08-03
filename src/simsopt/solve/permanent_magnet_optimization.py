@@ -1,7 +1,7 @@
 import numpy as np
 import simsoptpp as sopp
 
-__all__ = ['relax_and_split', 'BMP']
+__all__ = ['relax_and_split', 'GPMO']
 
 
 def prox_l0(m, mmax, reg_l0, nu):
@@ -243,57 +243,72 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
     return errors, m_history, m_proxy_history
 
 
-def BMP(pm_opt, **kwargs):
+def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     """
-        Binary matching pursuit is a greedy algorithm, derived
-        from the orthogonal matching pursuit algorithm, and
-        is an alternative to
+        GPMO is a greedy algorithm alternative to
         the relax-and-split algorithm for solving the permanent
         magnet optimization problem. Full-strength magnets are placed
         one-by-one according to minimize a submodular objective function
-        such as the mutual coherence of ATA. 
+        such as the mutual coherence of ATA. Actually defaults to minimizing
+        the MSE (fB) that is the usual objective for permanent magnet
+        optimization. Allows for a number of keyword arguments that 
+        facilitate some basic backtracking (error correction) and 
+        placing magnets together so no isolated magnets occur. 
     Args:
-        kwargs: Keyword argument dictionary for the BMP algorithm.
+        algorithm_kwargs: Keyword argument dictionary for the GPMO algorithm.
     """
     # Begin the various algorithms
     errors = []
     m_history = []
 
-    # Need to normalize the m here, so have
+    # Need to normalize the m, so have
     # || A * m - b||^2 = || ( A * mmax) * m / mmax - b||^2
     mmax = pm_opt.m_maxima
     mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
     A_obj = pm_opt.A_obj * mmax_vec
-    #ATb = np.ascontiguousarray((A_obj.T @ pm_opt.b_obj).reshape(pm_opt.ndipoles, 3))
 
-    #if 'backtracking' in kwargs.keys() and kwargs['dipole_grid_xyz'] == None:
-    #    raise ValueError('Backtracking requires dipole_grid_xyz to be defined.')
+    if algorithm != 'baseline' and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
+        raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
-    if kwargs['mutual_coherence']:
-        kwargs.pop('mutual_coherence')
+    if algorithm == 'baseline':
+        algorithm_history, m_history, m = sopp.GPMO_baseline(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            **algorithm_kwargs
+        )
+    elif algorithm == 'backtracking':
+        algorithm_history, m_history, m = sopp.GPMO_backtracking(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            **algorithm_kwargs
+        )
+    elif algorithm == 'multi':
+        algorithm_history, m_history, m = sopp.GPMO_multi(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            **algorithm_kwargs
+        )
+    elif algorithm == 'mutual_coherence': 
         ATb = A_obj.T @ pm_opt.b_obj
-        algorithm_history, m_history, m = sopp.BMP_MC(
+        algorithm_history, m_history, m = sopp.GPMO_MC(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             ATb=np.ascontiguousarray(ATb),
-            **kwargs
+            **algorithm_kwargs
         )
     else:
-        kwargs.pop('mutual_coherence')
-        algorithm_history, m_history, m = sopp.BMP_MSE(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
-            **kwargs
+        raise NotImplementedError(
+            'Requested algorithm variant is incorrect or not yet implemented'
         )
 
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
 
     # check that algorithm worked correctly to generate K binary dipoles
-    print('Number of binary dipoles to use in BMP algorithm = ', kwargs["K"])
+    print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
     print(np.count_nonzero(m))
     print(
-        'Number of binary dipoles returned by BMP algorithm = ',
+        'Number of binary dipoles returned by GPMO algorithm = ',
         np.count_nonzero(np.sum(m, axis=-1))
     )
     sum_i = 0
@@ -302,11 +317,12 @@ def BMP(pm_opt, **kwargs):
             sum_i += 1
     print(sum_i)
 
+    # rescale the m that have been saved every Nhistory iterations
     for i in range(m_history.shape[-1]):
         m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
 
-    # note m = m_proxy for BMP because this is not using relax-and-split
+    # note m = m_proxy for GPMO because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
     pm_opt.m_proxy = pm_opt.m
     return errors, m_history
