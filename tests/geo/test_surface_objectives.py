@@ -160,14 +160,14 @@ class PrincipalCurvatureTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
 
         pc = PrincipalCurvature(s, kappamax1=1, kappamax2=2.2, weight1=1, weight2=2.)
-        coeffs = s.x
+        coeffs = s.get_dofs()
 
         def f(dofs):
-            s.x = dofs
+            s.set_dofs(dofs)
             return pc.J()
 
         def df(dofs):
-            s.x = dofs
+            s.set_dofs(dofs)
             return pc.dJ()
 
         taylor_test1(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(13, 22))))
@@ -212,15 +212,15 @@ class QfmTests(unittest.TestCase):
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         s = get_surface(surfacetype, stellsym)
-        coeffs = s.x
+        coeffs = s.get_dofs()
         qfm = QfmResidual(s, bs)
 
         def f(dofs):
-            s.x = dofs
+            s.set_dofs(dofs)
             return qfm.J()
 
         def df(dofs):
-            s.x = dofs
+            s.set_dofs(dofs)
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))

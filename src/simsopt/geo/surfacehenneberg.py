@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['SurfaceHenneberg']
 
 
-class SurfaceHenneberg(sopp.Surface, Surface):
+class SurfaceHenneberg(Surface):
     r"""
     This class represents a toroidal surface using the
     parameterization in Henneberg, Helander, and Drevlak, Journal of
@@ -123,15 +123,15 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                                                                   nphi=nphi, ntheta=ntheta, range=range,
                                                                   quadpoints_phi=quadpoints_phi,
                                                                   quadpoints_theta=quadpoints_theta)
-        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+
+        Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(), names=self._make_names(),
+                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
-
-        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
-                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
     def __repr__(self):
         return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \
@@ -757,4 +757,3 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                    quadpoints_theta=d["quadpoints_theta"])
         surf.local_full_x = d["x0"]
         return surf
-

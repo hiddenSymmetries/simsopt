@@ -7,7 +7,7 @@ from .surfacerzfourier import SurfaceRZFourier
 __all__ = ['SurfaceXYZTensorFourier']
 
 
-class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, sopp.Surface, Surface):
+class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     r"""
     `SurfaceXYZTensorFourier` is a surface that is represented in cartesian
@@ -75,11 +75,11 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, sopp.Surface, Surfac
         sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                               clamped_dims, quadpoints_phi,
                                               quadpoints_theta)
-        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         self.xcs[0, 0] = 1.0
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
-        Surface.__init__(self, x0=self.get_dofs(),
+        Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(),
                          external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
     def get_dofs(self):

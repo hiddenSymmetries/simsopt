@@ -16,7 +16,7 @@ from .plotting import fix_matplotlib_3d
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
 
-class Surface(Optimizable):
+class Surface(sopp.Surface, Optimizable):
     r"""
     ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
@@ -31,8 +31,9 @@ class Surface(Optimizable):
     RANGE_FIELD_PERIOD = "field period"
     RANGE_HALF_PERIOD = "half period"
 
-    def __init__(self, **kwargs):
+    def __init__(self, quadpoints_phi, quadpoints_theta, **kwargs):
         Optimizable.__init__(self, **kwargs)
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
 
     def get_quadpoints(quadpoints_phi=None,
                        quadpoints_theta=None,
@@ -103,7 +104,7 @@ class Surface(Optimizable):
     def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
-        Plot the surface in 3D using matplotlib/mayavi/plotly. 
+        Plot the surface in 3D using matplotlib/mayavi/plotly.
 
         Args:
             engine: Selects the graphics engine. Currently supported options are ``"matplotlib"`` (default),
@@ -630,7 +631,7 @@ class SurfaceClassifier():
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
 
 
-class SurfaceScaled(Optimizable):
+class SurfaceScaled(Surface):
     """
     Allows you to take any Surface class and scale the dofs. This is
     useful for stage-1 optimization.
@@ -639,10 +640,20 @@ class SurfaceScaled(Optimizable):
     def __init__(self, surf, scale_factors):
         self.surf = surf
         self.scale_factors = scale_factors
-        super().__init__(x0=surf.x / scale_factors, names=surf.local_dof_names)
+        Surface.__init__(self, surf.quadpoints_phi, surf.quadpoints_theta, x0=surf.get_dofs() / scale_factors,
+                         external_dof_setter=surf.set_dofs_impl, names=surf.local_dof_names)
+
+    def get_dofs(self):
+        return self.surf.get_dofs() / self.scale_factors
+
+    def get_dofs_impl(self, dofs):
+        dofs = self.surf.get_dofs() / self.scale_factors
+
+    def set_dofs(self, dofs):
+        self.surf.set_dofs(dofs * self.scale_factors)
 
     def recompute_bell(self, parent=None):
-        self.surf.local_full_x = self.local_full_x * self.scale_factors
+        self.surf.local_full_x = self.local_full_x
 
     def to_RZFourier(self):
         return self.surf.to_RZFourier()
@@ -691,4 +702,3 @@ def best_nphi_over_ntheta(surf):
     gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
     ratio = gammadash1 / gammadash2
     return np.sqrt(np.max(ratio) / np.max(1 / ratio))
-

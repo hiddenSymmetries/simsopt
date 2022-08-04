@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
 
-
-class SurfaceRZFourier(sopp.Surface, sopp.SurfaceRZFourier, Surface):
+class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
+# class SurfaceRZFourier(sopp.Surface, sopp.SurfaceRZFourier, Surface):
     r"""
     ``SurfaceRZFourier`` is a surface that is represented in
     cylindrical coordinates using the following Fourier series:
@@ -71,10 +71,11 @@ class SurfaceRZFourier(sopp.Surface, sopp.SurfaceRZFourier, Surface):
                                                                   nphi=nphi, ntheta=ntheta, range=range,
                                                                   quadpoints_phi=quadpoints_phi,
                                                                   quadpoints_theta=quadpoints_theta)
-        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                        quadpoints_phi, quadpoints_theta)
-        Surface.__init__(self, x0=self.get_dofs(),
+                                       
+        Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
         self.rc[0, ntor] = 1.0

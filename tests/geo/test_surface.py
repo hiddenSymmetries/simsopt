@@ -255,15 +255,15 @@ class SurfaceScaledTests(unittest.TestCase):
         nfp = 4
         surf1 = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp)
         ndofs = surf1.dof_size
-        surf1.x = np.random.rand(ndofs)
+        surf1.set_dofs(np.random.rand(ndofs))
 
         scale_factors = 0.1 ** np.sqrt(surf1.m ** 2 + surf1.n ** 2)
         surf_scaled = SurfaceScaled(surf1, scale_factors)
 
-        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+        np.testing.assert_allclose(surf1.get_dofs(), surf_scaled.get_dofs() * scale_factors)
 
-        surf_scaled.x = np.random.rand(ndofs)
-        np.testing.assert_allclose(surf1.x, surf_scaled.x * scale_factors)
+        surf_scaled.set_dofs(np.random.rand(ndofs))
+        np.testing.assert_allclose(surf1.get_dofs(), surf_scaled.get_dofs() * scale_factors)
 
         self.assertEqual(surf_scaled.to_RZFourier(), surf1)
 
@@ -273,7 +273,7 @@ class SurfaceScaledTests(unittest.TestCase):
         original surface.
         """
         surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
-        scale_factors = np.random.rand(len(surf1.x))
+        scale_factors = np.random.rand(len(surf1.get_dofs()))
         surf_scaled = SurfaceScaled(surf1, scale_factors)
         self.assertEqual(surf1.local_full_dof_names, surf_scaled.local_full_dof_names)
 
@@ -283,7 +283,7 @@ class SurfaceScaledTests(unittest.TestCase):
         matched to the original surface.
         """
         surf1 = SurfaceRZFourier(mpol=2, ntor=3, nfp=2)
-        scale_factors = np.random.rand(len(surf1.x))
+        scale_factors = np.random.rand(len(surf1.get_dofs()))
         surf_scaled = SurfaceScaled(surf1, scale_factors)
         surf1.local_fix_all()
         surf1.fixed_range(mmin=0, mmax=1,
@@ -299,7 +299,7 @@ class SurfaceScaledTests(unittest.TestCase):
             for stellsym in [True, False]:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym, full=True)
-                    dof_size = len(s.x)
+                    dof_size = len(s.get_dofs())
                     scale_factors = np.random.random_sample(dof_size)
                     scaled_s = SurfaceScaled(s, scale_factors)
                     scaled_s_str = json.dumps(scaled_s, cls=MontyEncoder)

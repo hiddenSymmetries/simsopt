@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['SurfaceGarabedian']
 
 
-class SurfaceGarabedian(sopp.Surface, Surface):
+class SurfaceGarabedian(Surface):
     r"""
     ``SurfaceGarabedian`` represents a toroidal surface for which the
     shape is parameterized using Garabedian's :math:`\Delta_{m,n}`
@@ -82,8 +82,8 @@ class SurfaceGarabedian(sopp.Surface, Surface):
                                                                   nphi=nphi, ntheta=ntheta, range=range,
                                                                   quadpoints_phi=quadpoints_phi,
                                                                   quadpoints_theta=quadpoints_theta)
-        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
-        Surface.__init__(self, x0=Delta.ravel(),
+        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+        Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=Delta.ravel(),
                          names=self._make_dof_names())
 
         # Initialize to an axisymmetric torus with major radius 1m and
@@ -163,7 +163,7 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         """
         Return a SurfaceRZFourier object with the identical shape.
 
-        For a derivation of the transformation here, see 
+        For a derivation of the transformation here, see
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         mpol = int(np.max((1, self.mmax - 1, 1 - self.mmin)))
