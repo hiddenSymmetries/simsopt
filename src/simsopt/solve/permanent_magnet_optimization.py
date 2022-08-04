@@ -270,6 +270,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     if algorithm != 'baseline' and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
+    # Run one of the greedy algorithm (GPMO) variants
     if algorithm == 'baseline':
         algorithm_history, m_history, m = sopp.GPMO_baseline(
             A_obj=np.ascontiguousarray(A_obj.T),
