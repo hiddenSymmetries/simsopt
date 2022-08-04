@@ -98,17 +98,18 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 algorithm = 'multi'
 #algorithm = 'baseline'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2  # Must be multiple of nhistory for now because I am lazy
-kwargs['nhistory'] = 1
+kwargs['K'] = 2000  # Must be multiple of nhistory for now because I am lazy
+kwargs['nhistory'] = 100
 #kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-#kwargs['Nadjacent'] = 1
+#kwargs['Nadjacent'] = 40
 
 # Make the output directory
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_' + algorithm
 for key in kwargs.keys():
     if key != 'verbose' and key != 'dipole_grid_xyz':
         OUT_DIR += '_' + key + str(kwargs[key])
+OUT_DIR = OUT_DIR + '/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
@@ -140,7 +141,7 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"] + 1, 50):
+for k in range(0, kwargs["nhistory"] + 1, 5):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
