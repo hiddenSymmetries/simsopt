@@ -488,21 +488,41 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 {
     int Ndipole = dipole_grid_xyz.shape(0);
     Array connectivity_inds = xt::zeros<int>({Ndipole, Nadjacent});
-
+    double pi = 2 * acos(0.0);
+    
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
 #pragma omp parallel for schedule(static)
     for (int j = 0; j < Ndipole; ++j) {
-        vector<double> dist_ij(Ndipole, 1e10);
+	// Need to tell the dipoles that there are more nearby
+	// dipoles with -z coordinate from the stellarator symmetry 
+        double phij = atan2(dipole_grid_xyz(j, 1), dipole_grid_xyz(j, 0));
+	double dist_left = 0.0;
+	double dist_right = 0.0;
+	vector<double> dist_ij(Ndipole, 1e10);
         for (int i = 0; i < Ndipole; ++i) {
-            dist_ij[i] = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
+	     dist_left = sqrt((dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) * (dipole_grid_xyz(i, 0) - dipole_grid_xyz(j, 0)) + (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) * (dipole_grid_xyz(i, 1) - dipole_grid_xyz(j, 1)) + (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)) * (dipole_grid_xyz(i, 2) - dipole_grid_xyz(j, 2)));
+             double phii = atan2(dipole_grid_xyz(i, 1), dipole_grid_xyz(i, 0));
+	     if (phii > pi / 4.0) {
+                 phii -= pi / 2.0;
+             }
+	     else {
+                 phii += pi / 2.0;
+             }
+	     double r = sqrt(dipole_grid_xyz(i, 0) * dipole_grid_xyz(i, 0) + dipole_grid_xyz(i, 1) * dipole_grid_xyz(i, 1));
+	     double xi_new = r * cos(phii);
+	     double yi_new = r * sin(phii);
+	     double zi_new = -dipole_grid_xyz(i, 2);
+	     dist_right = sqrt((xi_new - dipole_grid_xyz(j, 0)) * (xi_new - dipole_grid_xyz(j, 0)) + (yi_new - dipole_grid_xyz(j, 1)) * (yi_new - dipole_grid_xyz(j, 1)) + (zi_new - dipole_grid_xyz(j, 2)) * (zi_new - dipole_grid_xyz(j, 2)));
+	     dist_ij[i] = std::min(dist_left, dist_right);
 	}
         for (int k = 0; k < Nadjacent; ++k) {
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
             int dist_ind = std::distance(dist_ij.begin(), result);
 	    connectivity_inds(j, k) = dist_ind;
 	    //printf("%d %d %d %f %d\n", j, k, Nadjacent, dist_ij[dist_ind], dist_ind);
-        }
+            dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
+	}
     }
     return connectivity_inds;
 }
@@ -707,23 +727,24 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
     for (int k = 0; k < K; ++k) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
-	    //Array cj = xt::view(Connect, int(j / 3), xt::all());
-            //printf("%d %d %f\n", j, cj.shape(0), cj(0));
 	    // Check all the allowed dipole positions
 	    if (Gamma_ptr[j]) {
 		int j_ind = int(j / 3);
 		double R2 = 0.0;
 		double R2minus = 0.0;
 
-		// Compute contribution of jth dipole component, either with +- orientation
-		// as well as contributions of all the adjacent dipoles, assuming
-		// the same orientation
+		// Compute contribution of jth dipole component, with +- orientation
+		// as well as contributions of all the AVAILABLE
+		// adjacent dipoles, assuming the same orientation
 		for (int jj = 0; jj < Nadjacent; ++jj) {
 		    int cj = Connect(j_ind, jj); 
-		    int nj = ngrid * (3 * cj + (j % 3)); // index j and all its neighbors
-		    for(int i = 0; i < ngrid; ++i) {
-			R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
-			R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		    int cj_ind = 3 * cj + (j % 3);
+	            if (Gamma_ptr[cj_ind]) {
+		        int nj = ngrid * cj_ind; // index j and all its neighbors
+		        for(int i = 0; i < ngrid; ++i) {
+			    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+			    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		        }
 		    }
 		}
 		R2s_ptr[j] = R2;
@@ -744,22 +765,25 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 	skj[k] = int(skj[k] / 3.0);
 
 	// Add binary magnets and get rid of the neighboring
-	// magnets (all three components)
-        // from the complement of Gamma 
-	//Array cj = xt::view(Connect, skj[k], xt::all());
+	// magnets (all three components) from Gamma_complement
 #pragma omp parallel for schedule(static)
 	for (int jj = 0; jj < Nadjacent; ++jj) {
-            int cj = Connect(skj[k], jj); 
-	    int skj_inds = (3 * cj + skjj[k]) * ngrid;
-            x(cj, skjj[k]) = sign_fac[k];	
-	    for(int i = 0; i < ngrid; ++i) {
-                Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+	    int cj = Connect(skj[k], jj); 
+	    int cj_ind = 3 * cj + skjj[k];
+            // pitfall here is that dipole J is chosen twice by 
+	    // being a neighboring dipole to two different placements
+	    if (Gamma_ptr[cj_ind]) {
+	        x(cj, skjj[k]) = sign_fac[k];	
+	        int skj_inds = cj_ind * ngrid;
+	        for(int i = 0; i < ngrid; ++i) {
+                    Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+	        }
+                for (int j = 0; j < 3; ++j) {
+                    Gamma_complement(cj, j) = false;
+	            R2s[3 * cj + j] = 1e50;
+	            R2s[N3 + 3 * cj + j] = 1e50;
+                }
 	    }
-            for (int j = 0; j < 3; ++j) {
-                Gamma_complement(cj, j) = false;
-	        R2s[3 * cj + j] = 1e50;
-	        R2s[N3 + 3 * cj + j] = 1e50;
-            }
 	}
 	if (verbose) {
             print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
