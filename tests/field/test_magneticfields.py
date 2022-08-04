@@ -18,7 +18,7 @@ from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotential
+from simsopt.field import BiotSavart, CurrentPotentialFourier
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
 from scipy.special import ellipk, ellipe
@@ -758,13 +758,13 @@ class Testing(unittest.TestCase):
     def test_windingsurface_calculation(self):
         # Make a circular cross section, high-aspect ratio current loop in the Z = 0 plane
         # Following approximate analytic solution in Jackson problem 5.32
-        filename = '../test_files/input.circular_tokamak_aspect_100'
+        filename = 'test_files/input.circular_tokamak_aspect_100'
         nphi = 16
         ntheta = 16
         winding_surface = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
         # Make CurrentPotential class from this winding surface with 1 amp toroidal current
-        current_potential = CurrentPotential(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=1)
+        current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=1)
 
         # compute the Bfield from this current loop at some nearby random points
         Bfield = WindingSurfaceField(current_potential)
@@ -783,7 +783,7 @@ class Testing(unittest.TestCase):
                 y = (rho[i] + eps) * np.sin(phi[j])
         z = eps_z * (np.random.rand(3200) - 0.5) * 2
         # Now have bunch of points that are right outside the plasma surface
-        points = np.array([x, y, z]).T 
+        points = np.array([x, y, z]).T
         Bfield.set_points(points)
         B_predict = Bfield.B()
         A_predict = Bfield.A()
