@@ -98,11 +98,11 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 algorithm = 'multi'
 #algorithm = 'baseline'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 200  # Must be multiple of nhistory for now because I am lazy
-kwargs['nhistory'] = 100
-# kwargs['single_direction'] = -1
+kwargs['K'] = 2  # Must be multiple of nhistory for now because I am lazy
+kwargs['nhistory'] = 1
+#kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['Nadjacent'] = 1
+#kwargs['Nadjacent'] = 1
 
 # Make the output directory
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_' + algorithm
@@ -145,7 +145,7 @@ for k in range(0, kwargs["nhistory"] + 1, 50):
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
+    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
 
     # Print optimized metrics
     print("Total fB = ",

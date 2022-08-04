@@ -387,6 +387,7 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 
         skj[k] = int(std::distance(abs_uk.begin(), std::max_element(abs_uk.begin(), abs_uk.end())));
 
+	// choose the +- sign of the dipole by choosing one that reduces MSE more
         double R2 = 0.0;
         double R2minus = 0.0;	
 	int nj = ngrid * skj[k];
@@ -394,7 +395,7 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 	    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
 	    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 	}
-	if (R2minus > R2) {
+	if (R2minus < R2) {
 	    sign_fac[k] = -1.0;
 	}
 	else {
@@ -459,7 +460,7 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 
 
 // fairly convoluted way to print every ~ K / nhistory iterations
-void print_GPMO(int k, int K, int ngrid, int nhistory, int print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history) 
+void print_GPMO(int k, int K, int ngrid, int nhistory, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history) 
 {	
     int N = x.shape(0);
     if (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
@@ -477,7 +478,9 @@ void print_GPMO(int k, int K, int ngrid, int nhistory, int print_iter, Array& x,
     	    }
         }
         printf("%d ... %.2e \n", k, R2);
+        print_iter += 1;
     }
+    return;
 }
 
 // compute which dipoles are directly adjacent to every dipole
@@ -652,7 +655,6 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 
 	if (verbose) {
             print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
-            print_iter += 1;
 	}
     }
     return std::make_tuple(objective_history, m_history, x);
@@ -761,7 +763,6 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 	}
 	if (verbose) {
             print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
-            print_iter += 1;
 	}
     }
     return std::make_tuple(objective_history, m_history, x);
@@ -857,7 +858,6 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
 
 	if (verbose) {
             print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
-            print_iter += 1;
 	}
     }
     return std::make_tuple(objective_history, m_history, x);

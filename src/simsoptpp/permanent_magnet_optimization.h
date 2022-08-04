@@ -43,5 +43,5 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
 std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, int K, bool verbose, int nhistory);
 
 // helper functions for GPMO algorithm
-void print_GPMO(int k, int K, int ngrid, int nhistory, int print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history); 
+void print_GPMO(int k, int K, int ngrid, int nhistory, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history); 
 Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent);
