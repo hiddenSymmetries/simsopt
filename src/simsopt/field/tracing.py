@@ -835,7 +835,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0, c=color)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.4, linewidths=0, c=color)
     plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()
