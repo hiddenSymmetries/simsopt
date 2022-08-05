@@ -107,6 +107,8 @@ class QuadraticPenalty(Optimizable):
             return np.minimum(diff, 0)*dval
         elif self.f == 'identity':
             return diff*dval
+        else:
+            raise Exception('incorrect wrapping function f provided')
 
     def as_dict(self) -> dict:
         d = {}
