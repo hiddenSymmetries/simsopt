@@ -95,14 +95,15 @@ pm_opt.plasma_boundary = s
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'multi'
+algorithm = 'backtracking'
+#algorithm = 'multi'
 #algorithm = 'baseline'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000  # Must be multiple of nhistory for now because I am lazy
-kwargs['nhistory'] = 100
+kwargs['K'] = 10000  # Must be multiple of nhistory for now because I am lazy
+kwargs['nhistory'] = 500
 #kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-#kwargs['Nadjacent'] = 40
+kwargs['Nadjacent'] = 40
 
 # Make the output directory
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_' + algorithm
@@ -141,7 +142,7 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"] + 1, 5):
+for k in range(0, kwargs["nhistory"] + 1, 50):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
