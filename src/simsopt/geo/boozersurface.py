@@ -3,6 +3,7 @@ import numpy as np
 from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 from simsopt._core.optimizable import Optimizable
+from monty.json import MontyDecoder
 
 __all__ = ['BoozerSurface']
 
@@ -562,3 +563,10 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
+    
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        bs = decoder.process_decoded(d["biotsavart"])
+        surf = decoder.process_decoded(d["surface"])
+        return cls(bs, surf, d["label"], d["targetlabel"])

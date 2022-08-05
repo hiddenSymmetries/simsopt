@@ -1,10 +1,9 @@
 from pathlib import Path
 
 import numpy as np
-
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.configs import get_ncsx_data
+from simsopt.field import coils_via_symmetries, BiotSavart
+from simsopt.geo import Volume, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -70,16 +69,13 @@ def get_exact_surface():
     return s
 
 
-def get_boozer_surface():
+def get_boozer_surface(label="Volume"):
     """
     Returns a boozer surface that will be used in unit tests.
     """
-
-    from simsopt.configs.zoo import get_ncsx_data
-    from simsopt.field.coil import coils_via_symmetries
-    from simsopt.field.biotsavart import BiotSavart
-    from simsopt.geo.surfaceobjectives import Volume
     
+    assert label == "Volume" or label == "ToroidalFlux"
+
     base_curves, base_currents, ma = get_ncsx_data()
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
     bs = BiotSavart(coils)
@@ -91,9 +87,6 @@ def get_boozer_surface():
     ntor = 6  
     stellsym = True
     nfp = 3
-    
-    from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-    from simsopt.geo.boozersurface import BoozerSurface
 
     phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
     thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -102,11 +95,16 @@ def get_boozer_surface():
     s.fit_to_curve(ma, 0.1, flip_theta=True)
     iota = -0.406
     
-    vol = Volume(s)
-    vol_target = vol.J()
-    
+    if label == "Volume":
+        lab = Volume(s)
+        lab_target = lab.J()
+    elif label == "ToroidalFlux":
+        bs_tf = BiotSavart(coils)
+        lab = ToroidalFlux(s, bs_tf)
+        lab_target = lab.J()
+
     ## COMPUTE THE SURFACE
-    boozer_surface = BoozerSurface(bs, s, vol, vol_target)
+    boozer_surface = BoozerSurface(bs, s, lab, lab_target)
     res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
     print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}")
     

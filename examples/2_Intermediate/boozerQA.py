@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.geo.boozersurface import BoozerSurface
-from simsopt.geo.curve import curves_to_vtk
-from simsopt.geo.surfaceobjectives import boozer_surface_residual, ToroidalFlux, Volume, MajorRadius
-from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.configs.zoo import get_ncsx_data
-from simsopt.geo.surfaceobjectives import NonQuasiAxisymmetricRatio, Iotas
-from simsopt.objectives.utilities import QuadraticPenalty
+from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
+    ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiAxisymmetricRatio, Iotas
+from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.configs import get_ncsx_data
+from simsopt.objectives import QuadraticPenalty
 from scipy.optimize import minimize
 import numpy as np
 import os

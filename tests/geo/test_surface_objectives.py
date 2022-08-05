@@ -84,7 +84,7 @@ class ToroidalFluxTests(unittest.TestCase):
 
     def test_toroidal_flux_first_derivative(self):
         """
-        Taylor test for gradient of toroidal flux
+        Taylor test for partial derivatives of toroidal flux with respect to surface coefficients
         """
 
         for surfacetype in surfacetypes_list:
@@ -94,13 +94,23 @@ class ToroidalFluxTests(unittest.TestCase):
 
     def test_toroidal_flux_second_derivative(self):
         """
-        Taylor test for Hessian of toroidal flux
+        Taylor test for Hessian of toroidal flux with respect to surface coefficients
         """
 
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     self.subtest_toroidal_flux2(surfacetype, stellsym)
+
+    def test_toroidal_flux_partial_derivatives_wrt_coils(self):
+        """
+        Taylor test for partial derivative of toroidal flux with respect to surface coefficients
+        """
+        
+        for surfacetype in surfacetypes_list:
+            for stellsym in stellsym_list:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    self.subtest_toroidal_flux3(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
         curves, currents, ma = get_ncsx_data()
@@ -144,6 +154,25 @@ class ToroidalFluxTests(unittest.TestCase):
             return tf.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         taylor_test2(f, df, d2f, coeffs)
+
+    def subtest_toroidal_flux3(self, surfacetype, stellsym):
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs_tf = BiotSavart(coils)
+        s = get_surface(surfacetype, stellsym)
+
+        tf = ToroidalFlux(s, bs_tf)
+        coeffs = bs_tf.x
+
+        def f(dofs):
+            bs_tf.x = dofs
+            return tf.J()
+
+        def df(dofs):
+            bs_tf.x = dofs
+            return tf.dJ_by_dcoils()(bs_tf)
+        taylor_test1(f, df, coeffs)
 
 
 class PrincipalCurvatureTests(unittest.TestCase):
@@ -227,12 +256,17 @@ class QfmTests(unittest.TestCase):
 
 
 class MajorRadiusTests(unittest.TestCase):
-    def test_major_radius_surface_derivative(self):
+    def test_major_radius_derivative(self):
         """
         Taylor test for derivative of surface major radius wrt coil parameters
         """
-        
-        bs, boozer_surface = get_boozer_surface()
+
+        for label in ["Volume", "ToroidalFlux"]:
+            with self.subTest(label=label):
+                self.subtest_major_radius_surface_derivative(label)
+
+    def subtest_major_radius_surface_derivative(self, label):
+        bs, boozer_surface = get_boozer_surface(label=label)
         coeffs = bs.x
         mr = MajorRadius(boozer_surface)
 
@@ -253,7 +287,16 @@ class IotasTests(unittest.TestCase):
         Taylor test for derivative of surface rotational transform wrt coil parameters
         """
 
-        bs, boozer_surface = get_boozer_surface()
+        for label in ["Volume", "ToroidalFlux"]:
+            with self.subTest(label=label):
+                self.subtest_iotas_derivative(label)
+
+    def subtest_iotas_derivative(self, label):
+        """
+        Taylor test for derivative of surface rotational transform wrt coil parameters
+        """
+
+        bs, boozer_surface = get_boozer_surface(label=label)
         coeffs = bs.x
         io = Iotas(boozer_surface)
 
@@ -274,8 +317,12 @@ class NonQSRatioTests(unittest.TestCase):
         """
         Taylor test for derivative of surface non QS ratio wrt coil parameters
         """
+        for label in ["Volume", "ToroidalFlux"]:
+            with self.subTest(label=label):
+                self.subtest_nonQSratio_derivative(label)
 
-        bs, boozer_surface = get_boozer_surface()
+    def subtest_nonQSratio_derivative(self, label):
+        bs, boozer_surface = get_boozer_surface(label=label)
         coeffs = bs.x
         io = NonQuasiAxisymmetricRatio(boozer_surface, bs)
 
