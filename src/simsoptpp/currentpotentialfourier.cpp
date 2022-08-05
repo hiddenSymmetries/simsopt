@@ -1,21 +1,6 @@
 #include "currentpotentialfourier.h"
 #include "simdhelpers.h"
 
-#include <vector>
-using std::vector;
-
-#include <string>
-using std::string;
-
-#include <map>
-using std::map;
-#include <stdexcept>
-using std::logic_error;
-
-#include "xtensor/xarray.hpp"
-#include "cachedarray.h"
-#include <Eigen/Dense>
-
 #define ANGLE_RECOMPUTE 5
 
 template<class Array>

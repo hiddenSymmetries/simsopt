@@ -12,24 +12,24 @@ template <class CurrentPotentialBase = PyCurrentPotential> class PyCurrentPotent
         using CurrentPotentialBase::CurrentPotentialBase;
 
         virtual int num_dofs() override {
-            PYBIND11_OVERLOAD_PURE(int, CurrentPotentialBase, num_dofs);
+            PYBIND11_OVERLOAD(int, CurrentPotentialBase, num_dofs);
         }
         virtual void set_dofs_impl(const vector<double>& _dofs) override {
-            PYBIND11_OVERLOAD_PURE(void, CurrentPotentialBase, set_dofs_impl, _dofs);
+            PYBIND11_OVERLOAD(void, CurrentPotentialBase, set_dofs_impl, _dofs);
         }
         virtual void set_dofs(const vector<double>& _dofs) override {
-            PYBIND11_OVERLOAD_PURE(void, CurrentPotentialBase, set_dofs, _dofs);
+            PYBIND11_OVERLOAD(void, CurrentPotentialBase, set_dofs, _dofs);
         }
         virtual vector<double> get_dofs() override {
-            PYBIND11_OVERLOAD_PURE(vector<double>, CurrentPotentialBase, get_dofs);
+            PYBIND11_OVERLOAD(vector<double>, CurrentPotentialBase, get_dofs);
         }
         virtual void Phi_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PYBIND11_OVERLOAD_PURE(void, CurrentPotentialBase, Phi_impl, data, quadpoints_phi, quadpoints_theta);
+            PYBIND11_OVERLOAD(void, CurrentPotentialBase, Phi_impl, data, quadpoints_phi, quadpoints_theta);
         }
         virtual void Phidash1_impl(PyArray& data) override {
-            PYBIND11_OVERLOAD_PURE(void, CurrentPotentialBase, Phidash1_impl, data);
+            PYBIND11_OVERLOAD(void, CurrentPotentialBase, Phidash1_impl, data);
         }
         virtual void Phidash2_impl(PyArray& data) override {
-            PYBIND11_OVERLOAD_PURE(void, CurrentPotentialBase, Phidash2_impl, data);
+            PYBIND11_OVERLOAD(void, CurrentPotentialBase, Phidash2_impl, data);
         }
 };

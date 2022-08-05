@@ -1,21 +1,5 @@
 #pragma once
 
-#pragma once
-#include <vector>
-using std::vector;
-
-#include <string>
-using std::string;
-
-#include <map>
-using std::map;
-#include <stdexcept>
-using std::logic_error;
-
-#include "xtensor/xarray.hpp"
-#include "cachedarray.h"
-#include <Eigen/Dense>
-
 #include "currentpotential.h"
 
 template<class Array>

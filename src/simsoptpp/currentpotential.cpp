@@ -1,4 +1,3 @@
-#include "surface.h"
 #include "currentpotential.h"
 #include <Eigen/Dense>
 

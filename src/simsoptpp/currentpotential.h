@@ -85,11 +85,11 @@ class CurrentPotential {
 
         void K_impl(Array& data);
 
-        virtual int num_dofs() = 0;
-        virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
-        virtual vector<double> get_dofs() = 0;
+        virtual int num_dofs() { throw logic_error("num_dofs was not implemented"); };
+        virtual void set_dofs_impl(const vector<double>& _dofs) { throw logic_error("set_dofs_impl was not implemented"); };
+        virtual vector<double> get_dofs() { throw logic_error("get_dofs was not implemented"); };
 
-        virtual void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("Phi_impl was not implemented"); };
         virtual void Phidash1_impl(Array& data)  { throw logic_error("Phidash1_impl was not implemented"); };
         virtual void Phidash2_impl(Array& data)  { throw logic_error("Phidash2_impl was not implemented"); };
 
