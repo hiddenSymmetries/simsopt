@@ -99,11 +99,12 @@ algorithm = 'backtracking'
 #algorithm = 'multi'
 #algorithm = 'baseline'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 10000  # Must be multiple of nhistory for now because I am lazy
-kwargs['nhistory'] = 500
-#kwargs['single_direction'] = 0
+kwargs['K'] = 5000  # Must be multiple of nhistory for now because I am lazy
+kwargs['nhistory'] = 100
+kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['Nadjacent'] = 40
+kwargs['Nadjacent'] = 50
+kwargs['backtracking'] = 10000
 
 # Make the output directory
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_' + algorithm
