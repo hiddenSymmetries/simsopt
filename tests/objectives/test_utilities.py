@@ -58,6 +58,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
         for f in ['min', 'max', 'identity']:
             self.subtest_quadratic_penalty(curve, J.J()+0.1, f)
             self.subtest_quadratic_penalty(curve, J.J()-0.1, f)
+        with self.assertRaises(Exception):
+            self.subtest_quadratic_penalty(curve, J.J()+0.1, 'NotInList')
 
     def test_mpi_objective(self):
         if MPI is None:
