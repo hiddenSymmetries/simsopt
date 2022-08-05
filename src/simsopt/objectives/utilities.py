@@ -78,7 +78,6 @@ class QuadraticPenalty(Optimizable):
             f: the function that wraps the difference `obj-\text{cons}`.  The options are 'min', 'max', or 'identity'
             which respectively return 'min(obj-\text{cons}, 0)', 'max(obj-\text{cons}, 0)', and 'obj-\text{cons}'.
         """
-        assert (f == 'min') or (f == 'max') or (f == 'identity')
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj
         self.cons = cons
@@ -94,6 +93,8 @@ class QuadraticPenalty(Optimizable):
             return 0.5*np.minimum(diff, 0)**2
         elif self.f == 'identity':
             return 0.5*diff**2
+        else:
+            raise Exception('incorrect wrapping function f provided')
 
     @derivative_dec
     def dJ(self):
