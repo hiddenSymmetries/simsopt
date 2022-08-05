@@ -115,8 +115,7 @@ class DOFs:
         else:
             upper_bounds = np.asarray(upper_bounds, np.double)
 
-        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds) \
-               == len(names))
+        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds) == len(names))
         self._x = x
         self._free = free
         self._lb = lower_bounds

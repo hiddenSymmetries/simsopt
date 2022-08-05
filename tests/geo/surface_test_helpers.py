@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from simsopt.configs import get_ncsx_data
 from simsopt.field import coils_via_symmetries, BiotSavart
-from simsopt.geo import Volume, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
+from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -74,7 +74,7 @@ def get_boozer_surface(label="Volume"):
     Returns a boozer surface that will be used in unit tests.
     """
     
-    assert label == "Volume" or label == "ToroidalFlux"
+    assert label == "Volume" or label == "ToroidalFlux" or label == "Area"
 
     base_curves, base_currents, ma = get_ncsx_data()
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
@@ -101,6 +101,9 @@ def get_boozer_surface(label="Volume"):
     elif label == "ToroidalFlux":
         bs_tf = BiotSavart(coils)
         lab = ToroidalFlux(s, bs_tf)
+        lab_target = lab.J()
+    elif label == "Area":
+        lab = Area(s)
         lab_target = lab.J()
 
     ## COMPUTE THE SURFACE

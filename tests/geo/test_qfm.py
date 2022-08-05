@@ -41,7 +41,7 @@ class QfmSurfaceTests(unittest.TestCase):
         x = s.get_dofs()
         r0 = qfm_surface.qfm_penalty_constraints(x, derivatives=0,
                                                  constraint_weight=weight)
-        assert(r0 < 1e-10)
+        assert (r0 < 1e-10)
 
     def test_qfm_objective_gradient(self):
         """

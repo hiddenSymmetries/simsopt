@@ -1,11 +1,12 @@
 import unittest
+import json
+
 import numpy as np
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.boozersurface import BoozerSurface
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
-from simsopt.configs.zoo import get_ncsx_data
-from .surface_test_helpers import get_surface, get_exact_surface
+from monty.json import MontyDecoder, MontyEncoder
+from simsopt.field import coils_via_symmetries, BiotSavart
+from simsopt.geo import BoozerSurface, ToroidalFlux, Area
+from simsopt.configs import get_ncsx_data
+from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -312,6 +313,35 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert np.abs(ar_target - ar.J()) < 1e-9
         else:
             assert np.abs(ar_target - ar.J()) < 1e-4
+
+    def test_boozer_serialization(self):
+        """
+        Test to verify the serialization capability of a BoozerSurface.
+        """
+        for label in ['Volume', 'Area', 'ToroidalFlux']:
+            with self.subTest(label=label):
+                self.subtest_boozer_serialization(label)
+
+    def subtest_boozer_serialization(self, label):
+        if label == "NotInList":
+            with self.assertRaises(Exception):
+                bs, boozer_surface = get_boozer_surface(label="Volume")
+                boozer_surface.label = None
+                bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
+        else:
+            bs, boozer_surface = get_boozer_surface(label=label)
+            
+            # test serialization of BoozerSurface here too
+            bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
+            bs_regen = json.loads(bs_str, cls=MontyDecoder)
+            
+            diff = boozer_surface.surface.x - bs_regen.surface.x
+            self.assertAlmostEqual(np.linalg.norm(diff.ravel()), 0)
+            self.assertAlmostEqual(boozer_surface.label.J(), bs_regen.label.J())
+            self.assertAlmostEqual(boozer_surface.targetlabel, bs_regen.targetlabel)
+            
+            # check that BoozerSurface.surface and label.surface are the same surfaces
+            assert bs_regen.label.surface is bs_regen.surface
 
 
 if __name__ == "__main__":
