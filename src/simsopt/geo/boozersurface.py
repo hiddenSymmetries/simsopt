@@ -1,7 +1,8 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
 from scipy.linalg import lu
-from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from simsopt.geo.surfaceobjectives import boozer_surface_residual, Area, Volume, ToroidalFlux
+from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.optimizable import Optimizable
 from monty.json import MontyDecoder
 
@@ -563,10 +564,45 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
+   
+    def as_dict(self) -> dict:
+        d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
+        d["bs"] = self.bs
+        d["surface"] = self.surface
+        
+        # this needs to be rewritten so that labels are MSONable.  The problem
+        # is that both BoozerSurface and BoozerSurface.label depend on the *same*
+        # surface object.  So a naive implementation of as_dict and from_dict would
+        # generate a label and BoozerSurface that depend on *separate* surface objects.
+
+        if isinstance(self.label, Volume):
+            d["label"] = "Volume"
+        elif isinstance(self.label, Area):
+            d["label"] = "Area"
+        elif isinstance(self.label, ToroidalFlux):
+            d["label"] = "ToroidalFlux"
+        else:
+            raise Exception("label not serializable yet")
+        d["targetlabel"] = self.targetlabel
+        return d
     
     @classmethod
     def from_dict(cls, d):
         decoder = MontyDecoder()
-        bs = decoder.process_decoded(d["biotsavart"])
+        bs = decoder.process_decoded(d["bs"])
         surf = decoder.process_decoded(d["surface"])
-        return cls(bs, surf, d["label"], d["targetlabel"])
+        label = decoder.process_decoded(d["label"])
+        if label == "Volume":
+            label = Volume(surf)
+        elif label == "Area":
+            label = Area(surf)
+        elif label == "ToroidalFlux":
+            bs_tf = BiotSavart(bs.coils)
+            label = ToroidalFlux(surf, bs_tf)
+        else:
+            raise Exception("label not serializable yet")
+
+        targetlabel = decoder.process_decoded(d["targetlabel"])
+        return cls(bs, surf, label, targetlabel)
