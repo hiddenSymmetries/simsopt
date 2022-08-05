@@ -75,7 +75,8 @@ class QuadraticPenalty(Optimizable):
         Args:
             obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
             cons: constant
-            f: the function that wraps the difference `obj-\text{cons}`
+            f: the function that wraps the difference `obj-\text{cons}`.  The options are 'min', 'max', or 'identity'
+            which respectively return 'min(obj-\text{cons}, 0)', 'max(obj-\text{cons}, 0)', and 'obj-\text{cons}'.
         """
         assert (f == 'min') or (f == 'max') or (f == 'identity')
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])

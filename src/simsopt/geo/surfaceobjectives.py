@@ -11,7 +11,8 @@ from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 import scipy
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
-           'QfmResidual', 'boozer_surface_residual']
+           'QfmResidual', 'boozer_surface_residual', 'Iotas', 
+           'MajorRadius', 'NonQuasiAxisymmetricRatio']
 
 
 def forward_backward(P, L, U, rhs):
@@ -47,15 +48,21 @@ class Area(Optimizable):
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients.
+        Calculate the partial derivatives with respect to the surface coefficients.
         """
         return self.surface.darea_by_dcoeff()
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
-        Calculate the second derivatives with respect to the surface coefficients.
+        Calculate the second partial derivatives with respect to the surface coefficients.
         """
         return self.surface.d2area_by_dcoeffdcoeff()
+
+    def dJ_by_dcoils(self):
+        """
+        Calculate the partial derivatives with respect to the coil coefficients.
+        """
+        return Derivative()
 
 
 class Volume(Optimizable):
@@ -86,6 +93,9 @@ class Volume(Optimizable):
         return self.surface.d2volume_by_dcoeffdcoeff()
     
     def dJ_by_dcoils(self):
+        """
+        Calculate the partial derivatives with respect to the coil coefficients.
+        """
         return Derivative()
 
 
@@ -128,7 +138,7 @@ class ToroidalFlux(Optimizable):
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients.
+        Calculate the partial derivatives with respect to the surface coefficients.
         """
         ntheta = self.surface.gamma().shape[1]
         dA_by_dX = self.biotsavart.dA_by_dX()
@@ -146,7 +156,7 @@ class ToroidalFlux(Optimizable):
 
     def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
         """
-        Calculate the second derivatives with respect to the surface coefficients.
+        Calculate the second partial derivatives with respect to the surface coefficients.
         """
         ntheta = self.surface.gamma().shape[1]
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
@@ -164,6 +174,16 @@ class ToroidalFlux(Optimizable):
 
         out = (1/ntheta) * np.sum(term1+term2+term3, axis=0)
         return out
+
+    def dJ_by_dcoils(self):
+        """
+        Calculate the partial derivatives with respect to the coil coefficients.
+        """
+        xtheta = self.surface.gammadash2()[self.idx]
+        ntheta = self.surface.gamma().shape[1]
+        dJ_by_dA = xtheta/ntheta
+        dJ_by_dcoils = self.biotsavart.A_vjp(dJ_by_dA)
+        return dJ_by_dcoils
 
 
 class PrincipalCurvature(Optimizable):
