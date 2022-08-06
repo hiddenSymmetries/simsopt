@@ -225,7 +225,6 @@ class PrincipalCurvature(Optimizable):
         return np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
             np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
 
-
     @derivative_dec
     def dJ(self):
         curvature = self.surface.surface_curvatures()
@@ -482,6 +481,7 @@ class MajorRadius(Optimizable):
         sDIM: dimensions for the tensor product grid of quadrature points used to evaluate the integrals in the major radius formula
 
     """
+
     def __init__(self, boozer_surface, sDIM=15):
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
@@ -491,12 +491,12 @@ class MajorRadius(Optimizable):
         thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
-        
+
         self.boozer_surface = boozer_surface
         self.in_surface = in_surface
         self.surface = s
         self.recompute_bell()
-    
+
     def J(self):
         if self._J is None:
             self.compute()
@@ -520,19 +520,19 @@ class MajorRadius(Optimizable):
         self.surface.set_dofs(self.in_surface.get_dofs())
         surface = self.surface
         self._J = surface.major_radius()
-        
+
         booz_surf = self.boozer_surface
         iota = booz_surf.res['iota']
         G = booz_surf.res['G']
         P, L, U = booz_surf.res['PLU']
         dconstraint_dcoils_vjp = boozer_surface_dexactresidual_dcoils_dcurrents_vjp
-        
+
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.zeros(L.shape[0])
         dj_ds = surface.dmajor_radius_by_dcoeff()
         dJ_ds[:dj_ds.size] = dj_ds
         adj = forward_backward(P, L, U, dJ_ds)
-        
+
         adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = -1 * adj_times_dg_dcoil
 
@@ -541,27 +541,28 @@ class NonQuasiAxisymmetricRatio(Optimizable):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasiaxisymmetric and
     non-quasiaxisymmetric components, 
-   
+
     .. math::
         B_{\text{QA}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \|\mathbf n\| ~d\varphi} \\
         B_{\text{non-QA}} &= B - B_{\text{QA}}
-    
+
     where :math:`B = \| \mathbf B(\varphi,\theta) \|_2`.  The objective computed by this penalty is
 
     .. math::
         J &= \frac{\int_{\Gamma_{s}} B_{\text{non-QS}}^2~dS}{\int_{\Gamma_{s}} B_{\text{QS}}^2~dS} \\
-    
+
     When :math:`J` is zero, then there is perfect QA on the given boozer surface. The ratio of the QA and non-QA components
     of the field is returned to avoid dependence on the magnitude of the field strength.  Note that this penalty is computed
     on an auxilliary surface with quadrature points that different from those on the input Boozer surface.  This is to allow
     for a spectrally accurate evaluation of the above integrals.
-    
+
     Args:
         boozer_surface: input boozer surface on which the penalty term is evaluated,
         biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
         sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
 
     """
+
     def __init__(self, boozer_surface, bs, sDIM=15):
         # only BoozerExact surfaces work for now
         assert boozer_surface.res['type'] == 'exact'
@@ -571,7 +572,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
         self.boozer_surface = boozer_surface
-        
+
         phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
         thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
@@ -590,7 +591,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         if self._J is None:
             self.compute()
         return self._J
-    
+
     @derivative_dec
     def dJ(self):
         if self._dJ is None:
@@ -604,16 +605,16 @@ class NonQuasiAxisymmetricRatio(Optimizable):
 
         self.surface.set_dofs(self.in_surface.get_dofs())
         self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
-        
+
         # compute J
         surface = self.surface
         nphi = surface.quadpoints_phi.size
         ntheta = surface.quadpoints_theta.size
-        
+
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-        
+
         nor = surface.normal()
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
@@ -633,7 +634,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0., 0.]))
         adj = forward_backward(P, L, U, dJ_ds)
-        
+
         adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = dJ_by_dcoils-adj_times_dg_dcoil
 
@@ -647,7 +648,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
 
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
-        
+
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         nor = surface.normal()
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
@@ -655,14 +656,14 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         denom = np.mean(dS, axis=0)
         B_QS = np.mean(modB * dS, axis=0) / denom
         B_nonQS = modB - B_QS[None, :]
-        
+
         dmodB_dB = B / modB[..., None]
         dnum_by_dB = B_nonQS[..., None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)  # d J_nonQS / dB_ijk
         ddenom_by_dB = B_QS[None, :, None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)  # dJ_QS/dB_ijk
         num = 0.5*np.mean(dS * B_nonQS**2)
         denom = 0.5*np.mean(dS * B_QS**2)
         return (denom * dnum_by_dB - num * ddenom_by_dB) / denom**2 
-    
+
     def dJ_by_dsurfacecoefficients(self):
         """
         Return the partial derivative of the objective with respect to the surface coefficients
@@ -674,7 +675,7 @@ class NonQuasiAxisymmetricRatio(Optimizable):
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-        
+
         nor = surface.normal()
         dnor_dc = surface.dnormal_by_dcoeff()
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
@@ -682,21 +683,21 @@ class NonQuasiAxisymmetricRatio(Optimizable):
 
         B_QS = np.mean(modB * dS, axis=0) / np.mean(dS, axis=0)
         B_nonQS = modB - B_QS[None, :]
-        
+
         dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
         dx_dc = surface.dgamma_by_dcoeff()
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
-        
+
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
-        
+
         num = np.mean(modB * dS, axis=0)
         denom = np.mean(dS, axis=0)
         dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=0) 
         ddenom_dc = np.mean(dS_dc, axis=0)
         B_QS_dc = (dnum_dc * denom[:, None] - ddenom_dc * num[:, None])/denom[:, None]**2
         B_nonQS_dc = dmodB_dc - B_QS_dc[None, :]
-        
+
         num = 0.5*np.mean(dS * B_nonQS**2)
         denom = 0.5*np.mean(dS * B_QS**2)
         dnum_by_dc = np.mean(0.5*dS_dc * B_nonQS[..., None]**2 + dS[..., None] * B_nonQS[..., None] * B_nonQS_dc, axis=(0, 1)) 
@@ -721,7 +722,7 @@ class Iotas(Optimizable):
         if self._J is None:
             self.compute()
         return self._J
-    
+
     @derivative_dec
     def dJ(self):
         if self._dJ is None:
@@ -732,14 +733,14 @@ class Iotas(Optimizable):
         self._J = None
         self._dJ_by_dcoefficients = None
         self._dJ_by_dcoilcurrents = None
-    
+
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
             res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
         self._J = self.boozer_surface.res['iota']
-        
+
         booz_surf = self.boozer_surface
         iota = booz_surf.res['iota']
         G = booz_surf.res['G']
@@ -759,11 +760,11 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     r"""
     For a given surface with points :math:`x` on it, this function computes the
     vector-Jacobian product of:
-    
+
     .. math::
         \lambda^T \frac{d\mathbf{r}}{d\text{coils   }} &= [G\lambda - 2\lambda\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{coils}} \\ 
         \lambda^T \frac{d\mathbf{r}}{d\text{currents}} &= [G\lambda - 2\lambda\|\mathbf B(\mathbf x)\| (\mathbf{x}_\varphi + \iota \mathbf{x}_\theta) ]^T \frac{d\mathbf B}{d\text{currents}}
-    
+
     where :math:`\mathbf{r}` is the Boozer residual.
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
@@ -787,7 +788,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     lmask = np.zeros(booz_surf.res["mask"].shape)
     lmask[booz_surf.res["mask"]] = lm[:-1]
     lm_cons = lmask.reshape((-1, 3))
-   
+
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
     lm_times_dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
     lm_times_dlabel_dcoils = lm_label*booz_surf.label.dJ(partials=True)(biotsavart, as_derivative=True)
@@ -798,10 +799,10 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart):
     r"""
     For a given surface with points x on it, this function computes the
     differentiated residual
-    
+
     .. math::
         \frac{d}{dB_{i,j,k}}[ G B_{i,j,k} - \|\mathbf{B}_{i,j}\|^2  (\mathbf{x}_{\varphi} + \iota  \mathbf{x}_{\theta}) ]
-    
+
     where :math:`B_{i,j,k}` is the kth component of the magnetic field :math:`\mathbf B_{i,j}` at quadrature point :math:`(i,j)` 
     as well as the derivatives of this residual with respect to surface dofs,
     :math:`\iota`, and :math:`G`. :math:`G` is known for exact boozer surfaces, so if 
@@ -834,6 +835,6 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart):
     dresidual_dB_flattened = dresidual_dB.reshape((nphi*ntheta*3, 3))
     r = residual_flattened
     dr_dB = dresidual_dB_flattened
-    
+
     return r, dr_dB
 

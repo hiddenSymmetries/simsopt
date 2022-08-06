@@ -330,16 +330,16 @@ class BoozerSurfaceTests(unittest.TestCase):
                 bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
         else:
             bs, boozer_surface = get_boozer_surface(label=label)
-            
+
             # test serialization of BoozerSurface here too
             bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
             bs_regen = json.loads(bs_str, cls=MontyDecoder)
-            
+
             diff = boozer_surface.surface.x - bs_regen.surface.x
             self.assertAlmostEqual(np.linalg.norm(diff.ravel()), 0)
             self.assertAlmostEqual(boozer_surface.label.J(), bs_regen.label.J())
             self.assertAlmostEqual(boozer_surface.targetlabel, bs_regen.targetlabel)
-            
+
             # check that BoozerSurface.surface and label.surface are the same surfaces
             assert bs_regen.label.surface is bs_regen.surface
 

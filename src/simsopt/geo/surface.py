@@ -383,7 +383,7 @@ class Surface(Optimizable):
         R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
         AR = R_major/R_minor
         return AR
-    
+
     def daspect_ratio_by_dcoeff(self):
         """
         Return the derivative of the aspect ratio with respect to the surface coefficients
@@ -397,7 +397,7 @@ class Surface(Optimizable):
     def minor_radius(self):
         r"""
         Return the minor radius of the surface using the formula
-        
+
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi }
 
@@ -411,21 +411,21 @@ class Surface(Optimizable):
     def dminor_radius_by_dcoeff(self):
         """
         Return the derivative of the minor radius wrt surface coefficients
-        
+
         """
-        
+
         return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi)
 
     def major_radius(self):
         r"""
         Return the major radius of the surface using the formula
-        
+
         .. math::
             R_{\text{major}} = \frac{V}{2 \pi^2  R_{\text{minor}}^2}
-        
+
         where :math:`\overline{A}` is the average cross sectional area,
         and :math:`R_{\text{minor}}` is the minor radius of the surface.
-        
+
         """
 
         R_minor = self.minor_radius()
@@ -436,7 +436,7 @@ class Surface(Optimizable):
         """
         Return the derivative of the major radius wrt surface coefficients
         """
-        
+
         mean_area = self.mean_cross_sectional_area()
         dmean_area_ds = self.dmean_cross_sectional_area_by_dcoeff()
 
@@ -517,7 +517,7 @@ class Surface(Optimizable):
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
         mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
         return mean_cross_sectional_area
-    
+
     def dmean_cross_sectional_area_by_dcoeff(self):
         """
         Return the derivative of the mean cross sectional area wrt surface coefficients
@@ -526,36 +526,36 @@ class Surface(Optimizable):
         g = self.gamma()
         g1 = self.gammadash1()
         g2 = self.gammadash2()
-    
+
         dg_ds = self.dgamma_by_dcoeff()
         dg1_ds = self.dgammadash1_by_dcoeff()
         dg2_ds = self.dgammadash2_by_dcoeff()
-    
+
         x = g[:, :, 0, None]
         y = g[:, :, 1, None]
-    
+
         dx_ds = dg_ds[:, :, 0, :]
         dy_ds = dg_ds[:, :, 1, :]
-    
+
         r = np.sqrt(x**2+y**2)
         dr_ds = (x*dx_ds+y*dy_ds)/r
-    
+
         xvarphi = g1[:, :, 0, None]
         yvarphi = g1[:, :, 1, None]
         zvarphi = g1[:, :, 2, None]
-    
+
         xtheta = g2[:, :, 0, None]
         ytheta = g2[:, :, 1, None]
         ztheta = g2[:, :, 2, None]
-    
+
         dxvarphi_ds = dg1_ds[:, :, 0, :]
         dyvarphi_ds = dg1_ds[:, :, 1, :]
         dzvarphi_ds = dg1_ds[:, :, 2, :]
-    
+
         dxtheta_ds = dg2_ds[:, :, 0, :]
         dytheta_ds = dg2_ds[:, :, 1, :]
         dztheta_ds = dg2_ds[:, :, 2, :]
-        
+
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
         dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
         return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
