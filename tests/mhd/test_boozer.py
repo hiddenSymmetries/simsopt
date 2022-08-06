@@ -189,7 +189,7 @@ class QuasisymmetryTests(unittest.TestCase):
 
         # Compare to reference boozmn*.nc file
         f = netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
-                               mmap=False)
+                        mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         atol = 1e-12
         rtol = 1e-12
@@ -212,7 +212,7 @@ class QuasisymmetryTests(unittest.TestCase):
         # Compare to a reference boozmn*.nc file created by standalone
         # booz_xform:
         f = netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
-                               mmap=False)
+                        mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         f.close()
         atol = 1e-12
