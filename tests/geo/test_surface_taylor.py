@@ -185,7 +185,7 @@ class SurfaceTaylorTests(unittest.TestCase):
             s.x = dofs
             return s.daspect_ratio_by_dcoeff()
         taylor_test(f, df, coeffs)
-        
+
         def f(dofs):
             s.x = dofs
             return s.major_radius()
@@ -203,7 +203,7 @@ class SurfaceTaylorTests(unittest.TestCase):
             s.x = dofs
             return s.dminor_radius_by_dcoeff()
         taylor_test(f, df, coeffs)
-        
+
         def f(dofs):
             s.x = dofs
             return s.mean_cross_sectional_area()

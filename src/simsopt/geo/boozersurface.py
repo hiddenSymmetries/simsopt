@@ -563,14 +563,14 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
-   
+
     def as_dict(self) -> dict:
         d = {}
         d["@class"] = self.__class__.__name__
         d["@module"] = self.__class__.__module__
         d["bs"] = self.bs
         d["surface"] = self.surface
-        
+
         # this needs to be rewritten so that labels are MSONable.  The problem
         # is that both BoozerSurface and BoozerSurface.label depend on the *same*
         # surface object.  So a naive implementation of as_dict and from_dict would
@@ -586,7 +586,7 @@ class BoozerSurface(Optimizable):
             raise Exception("label not serializable yet")
         d["targetlabel"] = self.targetlabel
         return d
-    
+
     @classmethod
     def from_dict(cls, d):
         decoder = MontyDecoder()
