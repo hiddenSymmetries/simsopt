@@ -46,6 +46,10 @@ class Area(Optimizable):
         """
         return self.surface.area()
 
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self.surface: self.dJ_by_dsurfacecoefficients()})
+
     def dJ_by_dsurfacecoefficients(self):
         """
         Calculate the partial derivatives with respect to the surface coefficients.
@@ -57,12 +61,6 @@ class Area(Optimizable):
         Calculate the second partial derivatives with respect to the surface coefficients.
         """
         return self.surface.d2area_by_dcoeffdcoeff()
-
-    def dJ_by_dcoils(self):
-        """
-        Calculate the partial derivatives with respect to the coil coefficients.
-        """
-        return Derivative()
 
 
 class Volume(Optimizable):
@@ -80,6 +78,10 @@ class Volume(Optimizable):
         """
         return self.surface.volume()
 
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self.surface: self.dJ_by_dsurfacecoefficients()})
+
     def dJ_by_dsurfacecoefficients(self):
         """
         Calculate the derivatives with respect to the surface coefficients.
@@ -91,12 +93,6 @@ class Volume(Optimizable):
         Calculate the second derivatives with respect to the surface coefficients.
         """
         return self.surface.d2volume_by_dcoeffdcoeff()
-    
-    def dJ_by_dcoils(self):
-        """
-        Calculate the partial derivatives with respect to the coil coefficients.
-        """
-        return Derivative()
 
 
 class ToroidalFlux(Optimizable):
@@ -135,6 +131,13 @@ class ToroidalFlux(Optimizable):
         A = self.biotsavart.A()
         tf = np.sum(A * xtheta)/ntheta
         return tf
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({
+            self.surface: self.dJ_by_dsurfacecoefficients(),
+            self.biotsavart: self.dJ_by_dcoils()
+        })
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -222,6 +225,8 @@ class PrincipalCurvature(Optimizable):
         return np.sum(norm_normal * np.exp(-(k1 - self.kappamax1)/self.weight1)) + \
             np.sum(norm_normal * np.exp(-(-k2 - self.kappamax2)/self.weight2))
 
+
+    @derivative_dec
     def dJ(self):
         curvature = self.surface.surface_curvatures()
         k1 = curvature[:, :, 2]  # larger
@@ -235,10 +240,11 @@ class PrincipalCurvature(Optimizable):
         dnorm_normal_dc = normal[:, :, 0, None]*dnormal_dc[:, :, 0, :]/norm_normal[:, :, None] + \
             normal[:, :, 1, None]*dnormal_dc[:, :, 1, :]/norm_normal[:, :, None] + \
             normal[:, :, 2, None]*dnormal_dc[:, :, 2, :]/norm_normal[:, :, None]
-        return np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
+        deriv = np.sum(dnorm_normal_dc * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1), axis=(0, 1)) + \
             np.sum(norm_normal[:, :, None] * np.exp(-(k1[:, :, None] - self.kappamax1)/self.weight1) * (- dk1_dc/self.weight1), axis=(0, 1)) + \
             np.sum(dnorm_normal_dc * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2), axis=(0, 1)) + \
             np.sum(norm_normal[:, :, None] * np.exp(-(-k2[:, :, None] - self.kappamax2)/self.weight2) * (dk2_dc/self.weight2), axis=(0, 1))
+        return Derivative({self.surface: deriv})
 
 
 def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0):
@@ -784,7 +790,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
    
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
     lm_times_dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
-    lm_times_dlabel_dcoils = lm_label*booz_surf.label.dJ_by_dcoils()
+    lm_times_dlabel_dcoils = lm_label*booz_surf.label.dJ(partials=True)(biotsavart, as_derivative=True)
     return lm_times_dres_dcoils+lm_times_dlabel_dcoils
 
 
