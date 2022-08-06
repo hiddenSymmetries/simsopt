@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import os
 import logging
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 try:
     import booz_xform
 except ImportError as e:
@@ -188,7 +188,7 @@ class QuasisymmetryTests(unittest.TestCase):
         self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
 
         # Compare to reference boozmn*.nc file
-        f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
+        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
                                mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         atol = 1e-12
@@ -211,7 +211,7 @@ class QuasisymmetryTests(unittest.TestCase):
 
         # Compare to a reference boozmn*.nc file created by standalone
         # booz_xform:
-        f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
+        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
                                mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         f.close()
