@@ -18,6 +18,7 @@ using std::logic_error;
 #include <Eigen/Dense>
 using std::shared_ptr;
 
+// template<template<class T> class Surface, class Array>
 template<class Array>
 class CurrentPotential {
     private:

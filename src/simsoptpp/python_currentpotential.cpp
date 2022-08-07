@@ -12,7 +12,7 @@ using std::vector;
 #include "surface.h"
 #include "currentpotentialfourier.h"
 typedef CurrentPotentialFourier<PyArray> PyCurrentPotentialFourier;
-typedef CurrentPotential<PyArray> PyCurrentPotential;
+// typedef CurrentPotential<PyArray> PyCurrentPotential;
 
 template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class PyCurrentPotentialFourierTrampoline : public PyCurrentPotentialTrampoline<PyCurrentPotentialFourierBase> {
     public:
@@ -38,13 +38,13 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
             PyCurrentPotentialFourierBase::Phi_impl(data, quadpoints_phi, quadpoints_theta);
         }
 
-        void Phidash1_impl(PyArray& data) override {
-            PyCurrentPotentialFourierBase::Phidash1_impl(data);
-        }
-
-        void Phidash2_impl(PyArray& data) override {
-            PyCurrentPotentialFourierBase::Phidash2_impl(data);
-        }
+        // void Phidash1_impl(PyArray& data) override {
+        //     PyCurrentPotentialFourierBase::Phidash1_impl(data);
+        // }
+        //
+        // void Phidash2_impl(PyArray& data) override {
+        //     PyCurrentPotentialFourierBase::Phidash2_impl(data);
+        // }
 
 };
 

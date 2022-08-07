@@ -71,13 +71,18 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                                                                   nphi=nphi, ntheta=ntheta, range=range,
                                                                   quadpoints_phi=quadpoints_phi,
                                                                   quadpoints_theta=quadpoints_theta)
-        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+
+
         sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                        quadpoints_phi, quadpoints_theta)
-                                       
+
         Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(),
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
+        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+
+
+
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1

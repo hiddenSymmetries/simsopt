@@ -5,7 +5,6 @@ from simsopt.geo.surface import Surface
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
-
 class CurrentPotential(sopp.CurrentPotential, Optimizable):
 
     def set_points(self, points):
@@ -16,7 +15,7 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
         Optimizable.__init__(self, **kwargs)
         sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta)
 
-class CurrentPotentialFourier(CurrentPotential,sopp.CurrentPotentialFourier):
+class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):
 
     def __init__(self, winding_surface, nfp=1, stellsym=True, mpol=1, ntor=0, nphi=None,

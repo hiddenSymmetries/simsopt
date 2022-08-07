@@ -3,6 +3,7 @@
 
 #define ANGLE_RECOMPUTE 5
 
+// template<template<class Array> class Surface, class Array>
 template<class Array>
 void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints_phi = quadpoints_phi.size();
@@ -50,6 +51,7 @@ void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi
     }
 }
 
+// template<template<class Array> class T, class Array>
 template<class Array>
 void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -95,6 +97,8 @@ void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
     }
 }
 
+// template<template<class Array> class Surface, class Array>
+// template<template<class Array> class T>
 template<class Array>
 void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -144,3 +148,5 @@ void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
 template class CurrentPotentialFourier<Array>;
+// template<template<class Array> class T>
+// template<template<class Array> class Surface, class Array>

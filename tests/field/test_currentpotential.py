@@ -36,11 +36,12 @@ class CurrentPotentialTests(unittest.TestCase):
         s.set_rc(1, 0, 4.0)
         s.set_zs(1, 0, 4.0)
 
-
+        # s = SurfaceHenneberg()
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
             ntor=ntor_potential, nphi=nphi, ntheta=ntheta,
             net_poloidal_current_amperes=1.0e6, net_toroidal_current_amperes=0.0)
 
+        cp.Phidash1()
         filename = TEST_DIR / 'regcoil_out.axisymmetry.nc'
         f = netcdf_file(filename, 'r')
         K2_regcoil = f.variables['K2']

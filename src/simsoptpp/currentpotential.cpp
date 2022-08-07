@@ -1,13 +1,15 @@
 #include "currentpotential.h"
 #include <Eigen/Dense>
 
+
+// template<template<class Array> class Surface, class Array>
 template<class Array>
 void CurrentPotential<Array>::K_impl(Array& data) {
   auto dphid1 = this->Phidash1();
   auto dphid2 = this->Phidash2();
-  auto normal = this->winding_surface->normal();
   auto dg1 = this->winding_surface->gammadash1();
   auto dg2 = this->winding_surface->gammadash2();
+  auto normal = this->winding_surface->normal();
   // K = n \times Phi
   // N \times \nabla \theta = - dr/dzeta
   // N \times \nabla \zeta = dr/dtheta

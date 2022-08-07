@@ -6,7 +6,6 @@ typedef xt::pyarray<double> PyArray;
 
 typedef CurrentPotential<PyArray> PyCurrentPotential;
 
-
 template <class CurrentPotentialBase = PyCurrentPotential> class PyCurrentPotentialTrampoline : public CurrentPotentialBase {
     public:
         using CurrentPotentialBase::CurrentPotentialBase;
