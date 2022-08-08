@@ -98,7 +98,7 @@ class DOFs:
 
         if names is None:
             names = [f"x{i}" for i in range(len(x))]
-        assert(len(np.unique(names)) == len(names))  # DOF names should be unique
+        assert (len(np.unique(names)) == len(names))  # DOF names should be unique
 
         if free is None:
             free = np.full(len(x), True)
@@ -557,7 +557,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         # Assign self as child to parents
         funcs_in = list(funcs_in) if funcs_in is not None else []
         depends_on = list(depends_on) if depends_on is not None else []
-        assert(not ((len(funcs_in) > 0) and (len(depends_on) > 0)))
+        assert (not ((len(funcs_in) > 0) and (len(depends_on) > 0)))
 
         def binder(fn, inst):
             def func(*args, **kwargs):
