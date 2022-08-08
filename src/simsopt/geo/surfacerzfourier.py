@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
 import f90nml
 from monty.json import MSONable
@@ -159,7 +159,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if s < 0 or s > 1:
             raise ValueError('s must lie in the interval [0, 1]')
 
-        f = netcdf.netcdf_file(filename, mmap=False)
+        f = netcdf_file(filename, mmap=False)
         nfp = f.variables['nfp'][()]
         ns = f.variables['ns'][()]
         xm = f.variables['xm'][()]
