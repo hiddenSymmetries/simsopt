@@ -2,7 +2,6 @@ from scipy.optimize import minimize, least_squares
 import numpy as np
 from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, Area, Volume, ToroidalFlux
-from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.optimizable import Optimizable
 from monty.json import MontyDecoder
 
