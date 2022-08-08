@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 r"""
-This example script uses the binary orthogonal pursuit (BMP)
+This example script uses the binary orthogonal pursuit (GPMO)
 greedy algorithm for solving the permanent magnet optimization.
 
 The script should be run as:
-    mpirun -n 1 python permanent_magnet_BMP_NCSX.py
+    mpirun -n 1 python permanent_magnet_GPMO_NCSX.py
 
 """
 
@@ -17,7 +17,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import PermanentMagnetGrid
-from simsopt.solve import relax_and_split, BMP 
+from simsopt.solve import relax_and_split, GPMO 
 from simsopt._core import Optimizable
 import pickle
 import time
@@ -108,42 +108,35 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 #R2_history, m_history, m_proxy_history = relax_and_split(pm_opt, **kwargs)
 
 # Set some hyperparameters for the optimization
-kwargs = initialize_default_kwargs('BMP')
+algorithm = 'backtracking'
+kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am lazy
-kwargs['nhistory'] = 501
+kwargs['nhistory'] = 500
 #kwargs['single_direction'] = 0
-#kwargs['continuous'] = True
-#kwargs['last_dipole'] = True
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['backtracking'] = 500
-kwargs['Nadjacent'] = 6000
+kwargs['backtracking'] = 200
+kwargs['Nadjacent'] = 500
 
 # Make the output directory
-if 'backtracking' in kwargs.keys():
-    OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_NCSX_backtracking' + str(kwargs['backtracking']) + '_K' + str(kwargs['K']) + '_output/'
-elif kwargs['single_direction'] >= 0:
-    if 'last_dipole' in kwargs.keys():
-        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_NCSX_singleDirection' + str(kwargs['single_direction']) + '_LastDipole_K' + str(kwargs['K']) + '_output/'
-    elif 'continuous' in kwargs.keys():
-        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_NCSX_singleDirection' + str(kwargs['single_direction']) + '_continuous_K' + str(kwargs['K']) + '_output/'
-    else:
-        OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_NCSX_singleDirection' + str(kwargs['single_direction']) + '_K' + str(kwargs['K']) + '_output/'
-else:
-    OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_BMP_NCSX' + '_K' + str(kwargs['K']) + '_output/'
+OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_NCSX_' + algorithm
+for key in kwargs.keys():
+    if key != 'verbose' and key != 'dipole_grid_xyz':
+        OUT_DIR += '_' + key + str(kwargs[key])
+OUT_DIR = OUT_DIR + '/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
-R2_history, m_history = BMP(pm_opt, **kwargs)
+R2_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 t2 = time.time()
-print('BMP took t = ', t2 - t1, ' s')
-np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory']))
+print('GPMO took t = ', t2 - t1, ' s')
+np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
 np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
-iterations = np.linspace(0, kwargs['K'], kwargs['nhistory'], endpoint=False)
+iterations = np.linspace(0, 4 * kwargs['K'], kwargs['nhistory'] + 1, endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history)
 plt.grid(True)
-plt.savefig(OUT_DIR + 'BMP_MSE_history.png')
+plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
 mu0 = 4 * np.pi * 1e-7
 Bmax = 1.465
@@ -152,7 +145,7 @@ print(vol_eff)
 plt.figure()
 plt.semilogy(vol_eff, R2_history)
 plt.grid(True)
-plt.savefig(OUT_DIR + 'BMP_Volume_MSE_history.png')
+plt.savefig(OUT_DIR + 'GPMO_Volume_MSE_history.png')
 
 min_ind = np.argmin(R2_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
@@ -170,12 +163,12 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"], 50):
+for k in range(0, kwargs["nhistory"] + 1, 20):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
+    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
 
     # Print optimized metrics
     print("Total fB = ",
@@ -186,9 +179,9 @@ for k in range(0, kwargs["nhistory"], 50):
 
     # For plotting Bn on the full torus surface at the end with just the dipole fields
     # Do optimization on pre-made grid of dipoles
-    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)))
+    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
     pointData = {"B_N": Bnormal_total[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory'] - 1) * k)), extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)), extra_data=pointData)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)

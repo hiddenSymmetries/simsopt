@@ -460,26 +460,24 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 
 
 // fairly convoluted way to print every ~ K / nhistory iterations
-void print_GPMO(int k, int K, int ngrid, int nhistory, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history) 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history) 
 {	
     int N = x.shape(0);
-    if (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-        double R2 = 0.0;
+    double R2 = 0.0;
 #pragma omp parallel for schedule(static) reduction(+: R2)
-        for(int i = 0; i < ngrid; ++i) {
-	    R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
-        }
-        R2 = 0.5 * R2;
-        objective_history(print_iter) = R2;
-#pragma omp parallel for schedule(static) 
-        for (int i = 0; i < N; ++i) {
-	    for (int ii = 0; ii < 3; ++ii) {
-	        m_history(i, ii, print_iter) = x(i, ii);
-    	    }
-        }
-        printf("%d ... %.2e \n", k, R2);
-        print_iter += 1;
+    for(int i = 0; i < ngrid; ++i) {
+	R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
     }
+    R2 = 0.5 * R2;
+    objective_history(print_iter) = R2;
+#pragma omp parallel for schedule(static) 
+    for (int i = 0; i < N; ++i) {
+	for (int ii = 0; ii < 3; ++ii) {
+	    m_history(i, ii, print_iter) = x(i, ii);
+    	}
+    }
+    printf("%d ... %.2e \n", k, R2);
+    print_iter += 1;
     return;
 }
 
@@ -533,11 +531,11 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 
     // initialize least-square values to large numbers
     vector<double> R2s(6 * N, 1e50);
-    vector<int> skj(K);
-    vector<int> skjj(K);
-    vector<int> skjj_ind(K);
-    vector<double> sign_fac(K);
-    vector<double> sk_sign_fac(K);
+    vector<int> skj(4 * K);
+    vector<int> skjj(4 * K);
+    vector<int> skjj_ind(N);
+    vector<double> sign_fac(4 * K);
+    vector<double> sk_sign_fac(N);
 
     double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
@@ -553,9 +551,12 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
-    
+    int num_nonzero = 0;
+    int k = 0;
+
     // Main loop over the optimization iterations
-    for (int k = 0; k < K; ++k) {
+    while (k < 4 * K and num_nonzero < K) {
+    //for (int k = 0; k < K; ++k) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
@@ -620,7 +621,7 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 		    // Check for nonzero dipole at skj[j] and 
 		    // has adjacent dipole that is oppositely oriented
 		    if ((sk_sign_fac[jk] != 0.0) && (sk_sign_fac[jk] == (- sk_sign_fac[cj])) && (skjj_ind[jk] == skjj_ind[cj])) {
-		         // kill off this pair
+			 // kill off this pair
 			 x(jk, skjj_ind[jk]) = 0.0;
 	                 x(cj, skjj_ind[cj]) = 0.0;
 
@@ -633,6 +634,7 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 	                 // Subtract off this pair's contribution to Aij * mj
 			 int skj_ind1 = (3 * jk + skjj_ind[jk]) * ngrid;
 	                 int skj_ind2 = (3 * cj + skjj_ind[cj]) * ngrid;
+#pragma omp parallel for schedule(static)
 			 for(int i = 0; i < ngrid; ++i) {
 		             Aij_mj_ptr[i] -= sk_sign_fac[jk] * Aij_ptr[i + skj_ind1] + sk_sign_fac[cj] * Aij_ptr[i + skj_ind2];
 			 }
@@ -647,9 +649,23 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	if (verbose) {
-            print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+	if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+	    printf("%d %d\n", k, num_nonzero);
 	}
+
+	// check range here
+	num_nonzero = 0;
+#pragma omp parallel for schedule(static) reduction(+: num_nonzero)
+	for (int j = 0; j < N; ++j) { 
+	    for (int jj = 0; jj < 3; ++jj) { 
+		if (not Gamma_complement(j, jj)) {
+                    num_nonzero += 1; 
+		    break; // avoid counting multiple components by breaking inner loop
+		} 
+	    }            
+	}
+	k += 1;
     }
     return std::make_tuple(objective_history, m_history, x);
 }
@@ -768,8 +784,8 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 	        R2s[N3 + 3 * cj + j] = 1e50;
 	    }
 	}
-	if (verbose) {
-            print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
 	}
     }
     return std::make_tuple(objective_history, m_history, x);
@@ -863,8 +879,8 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
         }
 
-	if (verbose) {
-            print_GPMO(k, K, ngrid, nhistory, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
 	}
     }
     return std::make_tuple(objective_history, m_history, x);
