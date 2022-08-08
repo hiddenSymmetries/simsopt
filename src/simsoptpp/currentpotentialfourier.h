@@ -25,7 +25,7 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
                 int _mpol, int _ntor, int _nfp, bool _stellsym,
                 vector<double> _quadpoints_phi, vector<double> _quadpoints_theta,
                 double net_poloidal_current_amperes, double net_toroidal_current_amperes)
-            : CurrentPotential<Array>(_winding_surface, _quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+            : CurrentPotential<Array>(_winding_surface, _quadpoints_phi, _quadpoints_theta, net_poloidal_current_amperes, net_toroidal_current_amperes), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 this->allocate();
             }
 

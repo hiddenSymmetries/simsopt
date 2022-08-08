@@ -10,10 +10,20 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
     def set_points(self, points):
         return self.set_points(points)
 
-    def __init__(self, winding_surface, quadpoints_phi, quadpoints_theta, **kwargs):
-
+    def __init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
+        net_poloidal_current_amperes, net_toroidal_current_amperes, **kwargs):
+        self.winding_surface = winding_surface
         Optimizable.__init__(self, **kwargs)
-        sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta)
+        sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi,
+            quadpoints_theta, net_poloidal_current_amperes, net_toroidal_current_amperes)
+
+    def K(self):
+        data = np.zeros((len(self.quadpoints_phi),len(self.quadpoints_theta),3))
+        dg1 = self.winding_surface.gammadash1()
+        dg2 = self.winding_surface.gammadash2()
+        normal = self.winding_surface.normal()
+        self.K_impl_helper(data,dg1,dg2,normal)
+        return data
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):
@@ -32,11 +42,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
                                               net_toroidal_current_amperes)
 
-        CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(),
+        CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
+                                  net_poloidal_current_amperes,
+                                  net_toroidal_current_amperes, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
                                   names=self._make_names())
 
         self._make_mn()
+        # gd1 = winding_surface.gammadash1_impl()
 
     def _make_names(self):
         if self.stellsym:

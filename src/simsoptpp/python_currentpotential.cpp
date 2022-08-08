@@ -50,8 +50,8 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
 
 template <typename T, typename S> void register_common_currentpotential_methods(S &s) {
     s.def("Phi", pybind11::overload_cast<>(&T::Phi))
-     // .def("K_impl", &T::K_impl)
-     .def("K", pybind11::overload_cast<>(&T::K))
+     .def("K_impl_helper", &T::K_impl_helper)
+     // .def("K", pybind11::overload_cast<>(&T::K))
      .def("set_dofs_impl", &T::set_dofs_impl)
      // .def("Phi_impl", &T::Phi_impl)
      .def("Phidash1", pybind11::overload_cast<>(&T::Phidash1))
@@ -67,7 +67,7 @@ template <typename T, typename S> void register_common_currentpotential_methods(
 
 void init_currentpotential(pybind11::module_ &m){
     auto pycurrentpotential = pybind11::class_<PyCurrentPotential, shared_ptr<PyCurrentPotential>, PyCurrentPotentialTrampoline<PyCurrentPotential>>(m, "CurrentPotential")
-        .def(pybind11::init<shared_ptr<PySurface>,vector<double>,vector<double>>());
+        .def(pybind11::init<shared_ptr<PySurface>,vector<double>,vector<double>, double, double>());
     register_common_currentpotential_methods<PyCurrentPotential>(pycurrentpotential);
 
     auto pycurrentpotentialfourier = pybind11::class_<PyCurrentPotentialFourier, shared_ptr<PyCurrentPotentialFourier>, PyCurrentPotentialFourierTrampoline<PyCurrentPotentialFourier>>(m, "CurrentPotentialFourier")

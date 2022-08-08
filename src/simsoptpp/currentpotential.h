@@ -55,13 +55,19 @@ class CurrentPotential {
         Array quadpoints_phi;
         Array quadpoints_theta;
         const shared_ptr<Surface<Array>> winding_surface;
+        double net_poloidal_current_amperes;
+        double net_toroidal_current_amperes;
 
     public:
 
-        CurrentPotential(shared_ptr<Surface<Array>> winding_surface, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+        CurrentPotential(shared_ptr<Surface<Array>> winding_surface,
+                vector<double> _quadpoints_phi, vector<double> _quadpoints_theta,
+                double _net_poloidal_current_amperes, double _net_toroidal_current_amperes)
             : winding_surface(winding_surface) {
             numquadpoints_phi = _quadpoints_phi.size();
             numquadpoints_theta = _quadpoints_theta.size();
+            net_poloidal_current_amperes = _net_poloidal_current_amperes;
+            net_toroidal_current_amperes = _net_toroidal_current_amperes;
 
             quadpoints_phi = xt::zeros<double>({numquadpoints_phi});
             for (int i = 0; i < numquadpoints_phi; ++i) {
@@ -84,7 +90,7 @@ class CurrentPotential {
             this->invalidate_cache();
         }
 
-        void K_impl(Array& data);
+        void K_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
 
         virtual int num_dofs() { throw logic_error("num_dofs was not implemented"); };
         virtual void set_dofs_impl(const vector<double>& _dofs) { throw logic_error("set_dofs_impl was not implemented"); };
@@ -94,9 +100,9 @@ class CurrentPotential {
         virtual void Phidash1_impl(Array& data)  { throw logic_error("Phidash1_impl was not implemented"); };
         virtual void Phidash2_impl(Array& data)  { throw logic_error("Phidash2_impl was not implemented"); };
 
-        Array& K() {
-            return check_the_cache("K", {numquadpoints_phi, numquadpoints_theta, 3}, [this](Array& A) { return K_impl(A);});
-        }
+        // Array& K() {
+        //     return check_the_cache("K", {numquadpoints_phi, numquadpoints_theta, 3}, [this](Array& A) { return K_impl(A);});
+        // }
         Array& Phi() {
             return check_the_cache("Phi", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phi_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }

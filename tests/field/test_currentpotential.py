@@ -21,6 +21,7 @@ except ImportError:
 
 class CurrentPotentialTests(unittest.TestCase):
     def test_compare_K_with_regcoil(self):
+        # This is an axisymmetric case with no Phimns
         nfp = 1
         stellsym = True
         mpol = 1
@@ -36,17 +37,58 @@ class CurrentPotentialTests(unittest.TestCase):
         s.set_rc(1, 0, 4.0)
         s.set_zs(1, 0, 4.0)
 
-        # s = SurfaceHenneberg()
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
             ntor=ntor_potential, nphi=nphi, ntheta=ntheta,
             net_poloidal_current_amperes=1.0e6, net_toroidal_current_amperes=0.0)
 
-        cp.Phidash1()
         filename = TEST_DIR / 'regcoil_out.axisymmetry.nc'
         f = netcdf_file(filename, 'r')
-        K2_regcoil = f.variables['K2']
+        K2_regcoil = f.variables['K2'][()][-1,:,:]
         K = cp.K()
         K2 = np.sum(K*K,axis=2)
+        K2_average = np.mean(K2,axis=(0,1))
+        assert np.allclose(K2/K2_average, K2_regcoil/K2_average)
+
+        # Now a non-axisymmetric test
+        filename = TEST_DIR / 'regcoil_out.w7x.nc'
+        f = netcdf_file(filename, 'r')
+        rmnc_coil = f.variables['rmnc_coil'][()]
+        zmns_coil = f.variables['zmns_coil'][()]
+        xm_coil = f.variables['xm_coil'][()]
+        xn_coil = f.variables['xn_coil'][()]
+        nfp = f.variables['nfp'][()]
+        ntheta = f.variables['ntheta_coil'][()]
+        nzeta = f.variables['nzeta_coil'][()]
+        mpol_potential = f.variables['mpol_potential'][()]
+        ntor_potential = f.variables['ntor_potential'][()]
+        net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
+        net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
+        xm_potential = f.variables['xm_potential'][()]
+        xn_potential = f.variables['xn_potential'][()]
+        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1,:]
+        mpol = int(np.max(xm_coil))
+        ntor = int(np.max(xn_coil)/nfp)
+
+        s = SurfaceRZFourier(nfp=nfp, ntheta=ntheta, nphi=nzeta,
+                mpol=mpol, ntor=ntor, stellsym=stellsym,range="field period")
+        s.set_dofs(0*s.get_dofs())
+        for im in range(len(xm_coil)):
+            s.set_rc(xm_coil[im],int(xn_coil[im]/nfp),rmnc_coil[im])
+            s.set_zs(xm_coil[im],int(xn_coil[im]/nfp),zmns_coil[im])
+
+        cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
+            ntor=ntor_potential, nphi=nzeta, ntheta=ntheta,
+            net_poloidal_current_amperes=net_poloidal_current_amperes,
+            net_toroidal_current_amperes=net_toroidal_current_amperes,range="field period")
+        for im in range(len(xm_potential)):
+            cp.set_phis(xm_potential[im],int(xn_potential[im]/nfp),single_valued_current_potential_mn[im])
+
+        K2_regcoil = f.variables['K2'][()][-1,:,:]
+        K = cp.K()
+        K2 = np.sum(K*K,axis=2)
+        K2_average = np.mean(K2,axis=(0,1))
+
+        assert np.allclose(K2/K2_average, K2_regcoil/K2_average)
 
 def get_currentpotential(cptype, stellsym, phis=None, thetas=None):
     np.random.seed(2)
