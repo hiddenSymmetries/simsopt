@@ -51,7 +51,7 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
 
 def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
     """
-    Get a configuration that corresponds to the modular coils of the HSX experiment (circular coils are not included).
+    Get a configuration that corresponds to the modular coils of the HSX experiment.
 
     Args:
         Nt_coils: order of the curves representing the coils.
