@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data, get_hsx_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -49,13 +49,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_objective_gradient(surfacetype, stellsym)
+                for config in [get_ncsx_data, get_hsx_data]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
+                        self.subtest_qfm_objective_gradient(surfacetype, stellsym, config)
 
-    def subtest_qfm_objective_gradient(self, surfacetype, stellsym):
+    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, get_data):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        curves, currents, ma = get_data()
+        nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -76,7 +77,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        epsilons = np.power(2., -np.asarray(range(13, 20)))
         print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_objective(
@@ -139,13 +140,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym)
+                for get_data in [get_ncsx_data, get_hsx_data]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, get_data=get_data):
+                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, get_data)
 
-    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym):
+    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, get_data):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        curves, currents, ma = get_data()
+        nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -168,7 +170,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(9, 17)))
+        epsilons = np.power(2., -np.asarray(range(12, 17)))
         print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_penalty_constraints(
