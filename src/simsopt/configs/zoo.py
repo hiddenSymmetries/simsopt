@@ -6,7 +6,7 @@ from simsopt.field.coil import Current
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ['get_ncsx_data']
+__all__ = ['get_ncsx_data', 'get_hsx_data']
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
@@ -47,3 +47,43 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     ma.zs[:] = sZ[0:Nt_ma]
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
+
+
+def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
+    """
+    Get a configuration that corresponds to the modular coils of the HSX experiment (circular coils are not included).
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    filename = THIS_DIR / 'HSX.dat'
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+    nfp = 4
+    currents = [Current(c) for c in [-1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05]]
+    cR = [1.221168734647426701e+00, 2.069298947130969735e-01, 1.819037041932574511e-02, 4.787659822787012774e-05,
+          -3.394778038757981920e-05, 4.051690884402789139e-05, 1.066865447680375597e-05, -1.418831703321225589e-05, 
+          2.041664078576817539e-05, 2.407340923216046553e-05, -1.281275289727263035e-05, -2.712941403326357315e-05, 
+          1.828622086757983125e-06, 1.945955315401206440e-05, 1.409134021563425399e-05, 4.572199318143535127e-06, 
+          3.136573559452139703e-07, -3.918158977823491866e-07, -2.204187636324686728e-07, -4.532041599796651056e-08, 
+          2.878479243210971143e-08, 2.102768080992785704e-08, -1.267816940685333911e-08, -2.268541399245120326e-08, 
+          -8.015316098897114283e-09, 6.401201778979550964e-09]
+    sZ = [1.670393448410154857e-01, 1.638250511845155272e-02, 1.656424673977177490e-04, -1.506417857585283353e-04, 
+          8.367238367133577161e-05, -1.386982370447437845e-05, -7.536154112897463947e-06, -1.533108076767641072e-05, 
+          -9.966838351213697000e-06, 2.561158318745738406e-05, -1.212668371257951164e-06, -1.476513099369021112e-05, 
+          -3.716380502156798402e-06, 3.381104573944970371e-06, 2.605458694352088474e-06, 5.701177408478323677e-07, 
+          -1.056254779440627595e-07, -1.112799365280694501e-07, -5.381768314066269919e-08, -1.484193645281248712e-08, 
+          1.160936870766209295e-08, 1.466392841646290274e-08, 1.531935984912975004e-09, -6.857347022910395347e-09, 
+          -4.082678667917087128e-09]
+
+    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
+    ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
+    ma.rc[:] = cR[0:(Nt_ma+1)]
+    ma.zs[:] = sZ[0:Nt_ma]
+    ma.x = ma.get_dofs()
+    return (curves, currents, ma)
+
+
