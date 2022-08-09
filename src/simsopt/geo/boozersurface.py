@@ -598,6 +598,7 @@ class BoozerSurface(Optimizable):
         elif label == "Area":
             label = Area(surf)
         elif label == "ToroidalFlux":
+            from simsopt.field import BiotSavart
             bs_tf = BiotSavart(bs.coils)
             label = ToroidalFlux(surf, bs_tf)
         else:
