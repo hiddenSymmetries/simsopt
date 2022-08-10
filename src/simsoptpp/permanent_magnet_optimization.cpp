@@ -551,6 +551,7 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
+    vector<int> num_nonzeros(nhistory + 1);
     int num_nonzero = 0;
     int k = 0;
 
@@ -652,6 +653,8 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 	if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
 	    printf("%d %d\n", k, num_nonzero);
+	    num_nonzeros[print_iter] = num_nonzero;
+	    if (print_iter > 10 && num_nonzeros[print_iter] == num_nonzeros[print_iter - 1] && num_nonzeros[print_iter] == num_nonzeros[print_iter - 2]) break;
 	}
 
 	// check range here
