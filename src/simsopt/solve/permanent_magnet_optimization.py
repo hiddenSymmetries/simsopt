@@ -267,7 +267,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if algorithm != 'baseline' and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence') and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Run one of the greedy algorithm (GPMO) variants
