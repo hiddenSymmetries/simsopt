@@ -114,7 +114,7 @@ kwargs['K'] = 50000  # Must be multiple of nhistory - 1 for now because I am laz
 kwargs['nhistory'] = 500
 #kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['backtracking'] = 200
+kwargs['backtracking'] = 100
 kwargs['Nadjacent'] = 500
 
 # Make the output directory

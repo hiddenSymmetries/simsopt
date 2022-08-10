@@ -38,6 +38,27 @@ class Testing(unittest.TestCase):
         t2 = time.time()
         print(t2 - t1) 
 
+    def test_GPMO(self):
+        ndipoles = 100
+        nquad = 1024
+        max_iter = 1000
+        m_maxima = np.random.rand(ndipoles) * 10
+        m0 = np.zeros((ndipoles, 3))
+        b = np.random.rand(nquad)
+        A = np.random.rand(nquad, ndipoles, 3)
+        ATb = np.tensordot(A, b, axes=([0, 0]))
+        t1 = time.time()
+        _, m_hist = sopp.GPMO_algorithm(
+            A_obj=A,
+            b_obj=b,
+            ATb=ATb,
+            m_maxima=m_maxima,
+            K=max_iter,
+            verbose=True,
+        )
+        t2 = time.time()
+        print(t2 - t1) 
+
 
 if __name__ == "__main__":
     unittest.main()

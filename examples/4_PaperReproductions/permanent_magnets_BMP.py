@@ -99,11 +99,11 @@ algorithm = 'backtracking'
 #algorithm = 'multi'
 #algorithm = 'baseline'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 50000  # Must be multiple of nhistory for now because I am lazy
+kwargs['K'] = 20000  # Must be multiple of nhistory for now because I am lazy
 kwargs['nhistory'] = 500
 #kwargs['single_direction'] = 0
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-kwargs['Nadjacent'] = 1000
+kwargs['Nadjacent'] = 5000
 kwargs['backtracking'] = 100
 
 # Make the output directory
@@ -121,7 +121,8 @@ t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
 np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
-iterations = np.linspace(0, 4 * kwargs['K'], kwargs['nhistory'] + 1, endpoint=False)
+iterations = np.linspace(0, 4 * kwargs['K'], len(R2_history), endpoint=False)
+#iterations = np.linspace(0, 4 * kwargs['K'], kwargs['nhistory'] + 1, endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history)
 plt.grid(True)
@@ -143,7 +144,7 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 # Plot the SIMSOPT GBPMO solution 
-for k in range(0, kwargs["nhistory"] + 1, 10):
+for k in range(0, kwargs["nhistory"] + 1, 20):
     #k = kwargs["nhistory"] - 1
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
