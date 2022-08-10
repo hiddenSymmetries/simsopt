@@ -369,7 +369,7 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 #pragma omp parallel for schedule(static) 
     for(int j = 0; j < N3; ++j) {
 	for(int i = 0; i < ngrid; ++i) {
-	    Aij_l2[j] += sqrt(A_obj(i, j) * A_obj(i, j));
+	    Aij_l2[j] += sqrt(A_obj(j, i) * A_obj(j, i));
 	}
     }
 
@@ -430,7 +430,7 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 	}
 
       	// fairly convoluted way to print every ~ K / nhistory iterations
-        if (verbose && ((k % (int(K / (nhistory - 1))) == 0) || k == 0 || k == K - 1)) {
+        if (verbose && ((k % (int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
 	    double R2 = 0.0;
 #pragma omp parallel for schedule(static) reduction(+: R2)
 	    for(int i = 0; i < ngrid; ++i) {
@@ -444,14 +444,40 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
                     m_history(i, ii, print_iter) = x(i, ii);
 	        }
             }
-	    double mu = 0.0;
-#pragma omp parallel for schedule(static) reduction(max: mu)
+            printf("%d ... %.2e \n", k, R2);
+	}
+	else if (not verbose) {
+	    double R2 = 0.0;
+#pragma omp parallel for schedule(static) reduction(+: R2)
+	    for(int i = 0; i < ngrid; ++i) {
+      	        R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
+	    }
+            R2 = 0.5 * R2;
+            objective_history(print_iter) = R2;
+#pragma omp parallel for schedule(static) 
+            for (int i = 0; i < N; ++i) {
+                for (int ii = 0; ii < 3; ++ii) {
+                    m_history(i, ii, print_iter) = x(i, ii);
+	        }
+            }
+	    //vector<double> mu = xt::zeros<double>({N3, N3});
+	    //Array mu = xt::zeros<double>({N3, N3});
+	    vector<double> mu(N3);
+	    vector<double> mu_max(N3);
+#pragma omp parallel for schedule(static) 
 	    for(int j = 0; j < N3; ++j) {
 	        for(int i = 0; i < N3; ++i) {
-	            mu = Aij_ptr[i] * Aij_ptr[i] / Aij_l2[i] / Aij_l2[j];
-	        }
+	            mu[j] = 0.0;
+		    for(int ii = 0; ii < ngrid; ++ii) {
+	                mu[j] += abs(A_obj(ii, i) * A_obj(ii, j)) / Aij_l2[i] / Aij_l2[j];
+	            }
+		    if (mu[j] > mu_max[j]) mu_max[j] = mu[j];
+		}
 	    }
-            printf("%d ... %.2e ... %.2e \n", k, R2, mu);
+	    auto mu_result = std::max_element(mu_max.begin(), mu_max.end());
+            int mu_ind = std::distance(mu_max.begin(), mu_result);
+	    double max_mu = mu_max[mu_ind];
+            printf("%d ... %.2e ... %.2e \n", k, R2, max_mu);
             print_iter += 1;
       	}
     }
