@@ -620,7 +620,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
                 number of poloidal transits of the orbit.
     """
     if not flux:
-        assert(ma is not None)
+        assert (ma is not None)
     nparticles = len(res_tys)
     ntransits = np.zeros((nparticles,))
     gamma = np.zeros((1, 3))

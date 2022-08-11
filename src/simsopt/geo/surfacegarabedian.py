@@ -109,7 +109,7 @@ class SurfaceGarabedian(sopp.Surface, Surface):
 
     @Delta.setter
     def Delta(self, Delta):
-        assert(self.shape == Delta.shape)
+        assert (self.shape == Delta.shape)
         self.local_full_x = Delta.flatten()
 
     def get_Delta(self, m, n):

@@ -78,7 +78,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | M Landreman, S Buller, and M Drevlak,
      "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
-     *Submitted* (2022).
+     *Physics of Plasmas*, **29**, 082501 (2022).
+     `[journal version] <https://doi.org/10.1063/5.0098166>`__
      `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |
 
@@ -92,4 +93,10 @@ Here is a list of publications in which simsopt results appear:
      "Permanent magnet optimization for stellarators as sparse regression",
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
+   |
+
+#. | E J Paul, A Bhattacharjee, M Landreman, D Alex, J L Velasco, and R Nies
+     "Energetic particle loss mechanisms in reactor-scale equilibria close to quasisymmetry",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
    |
