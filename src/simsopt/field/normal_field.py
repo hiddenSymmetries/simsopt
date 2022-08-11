@@ -59,7 +59,8 @@ class NormalField(Optimizable):
             x0=self.get_dofs(),
             names=self._make_names())
 
-    def init_from_spec(self, filename):
+    @classmethod
+    def init_from_spec(cls, filename):
         """
         Initialize using the harmonics in SPEC input file
         """
@@ -73,35 +74,34 @@ class NormalField(Optimizable):
         nm = py_spec.SPECNamelist(filename)
         ph = nm['physicslist']
 
-        self.nfp = ph['nfp']
-        self.stellsym = ph['istellsym']
-        self.mpol = ph['mpol']
-        self.ntor = ph['ntor']
+        nf = cls(nfp=ph['nfp'], stellsym=ph['istellsym'], mpol=ph['Mpol'], ntor=ph['Ntor'])
 
-        if self.stellsym:
-            self.ndof = self.ntor + self.mpol * \
-                (2 * self.ntor + 1)  # Only Vns - odd series
+        if nf.stellsym:
+            nf.ndof = nf.ntor + nf.mpol * \
+                (2 * nf.ntor + 1)  # Only Vns - odd series
         else:
-            self.ndof = 2 * (self.ntor + self.mpol *
-                             (2 * self.ntor + 1)) + 1  # Vns and Vnc
+            nf.ndof = 2 * (nf.ntor + nf.mpol *
+                             (2 * nf.ntor + 1)) + 1  # Vns and Vnc
 
-        self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+        nf.vns = np.zeros((nf.mpol + 1, 2 * nf.ntor + 1))
 
         vns = np.asarray(ph['vns'])
-        if not self.stellsym:
+        if not nf.stellsym:
             vnc = np.asarray(ph['vnc'])
-            self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+            nf.vnc = np.zeros((nf.mpol + 1, 2 * nf.ntor + 1))
 
         mntor = int((vns.shape[1] - 1) / 2.0)
 
-        for mm in range(0, self.mpol + 1):
-            for nn in range(-self.ntor, self.ntor + 1):
+        for mm in range(0, nf.mpol + 1):
+            for nn in range(-nf.ntor, nf.ntor + 1):
                 if mm == 0 and nn < 0:
                     continue
-                self.set_vns(mm, nn, vns[mm,mntor + nn])
+                nf.set_vns(mm, nn, vns[mm,mntor + nn])
 
-                if not self.stellsym:
-                    self.set_vnc(mm, nn, vnc[mm,mntor + nn])
+                if not nf.stellsym:
+                    nf.set_vnc(mm, nn, vnc[mm,mntor + nn])
+
+        return nf
 
     def get_dofs(self):
         """
