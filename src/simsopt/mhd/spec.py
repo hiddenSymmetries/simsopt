@@ -7,7 +7,7 @@ This module provides a class that handles the SPEC equilibrium code.
 """
 
 import copy
-from .normal_field import NormalField
+from ..field.normal_field import NormalField
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from .._core.util import ObjectiveFailure
 from .._core.optimizable import Optimizable

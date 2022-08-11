@@ -288,8 +288,8 @@ class Boozer(Optimizable):
             self.bx.xm = d.output.im
             self.bx.xm_nyq = d.output.im
 
-            self.bx.mboz = np.max(self.bx.xm)
-            self.bx.nboz = int(np.max(self.bx.xn) / self.bx.nfp)
+            self.bx.mboz = self.mpol
+            self.bx.nboz = self.ntor
 
             ns_in = int(2 * d.output.Mvol - 1)
             self.bx.ns_in = ns_in
@@ -309,16 +309,31 @@ class Boozer(Optimizable):
 
             lambdamn = np.zeros((ns_in, d.output.lmns))
             index = 0
-            for ind_surf in range(1, d.output.Mvol+1):
-                for innout in range(0, 2):
 
+            def surf_to_vol_indices( ):
+                if innout == 0:
+                    ind_vol = ind_surf-1
+                    innout_vol = 1
+                else:
+                    ind_vol = ind_surf
+                    innout_vol = -1
+                return ind_vol, innout_vol
+
+            def index_is_valid():
+                if ind_vol>=d.output.Mvol: return False
+                elif ind_vol<0: return False
+                elif ind_vol==0 and innout_vol==0: return False
+                else: return True
+
+            # Surfaces are numbered from 0 to Mvol; 0 is the magnetic axis, 
+            # and Mvol is the plasma / computational boundary
+            for ind_surf in range(1, d.output.Mvol+1):
+                # innout=0 means the inner side of an interface, =1 means the 
+                # outer side.
+                for innout in range(0, 2):
                     # Translate interface indices into volume indices
-                    if innout == 0:
-                        ind_vol = ind_surf-1
-                        innout_vol = 1
-                    else:
-                        ind_vol = ind_surf
-                        innout_vol = -1
+                    ind_vol, innout_vol = surf_to_vol_indices()
+                    if not index_is_valid(): continue
 
                     if ind_vol >= d.output.Mvol:
                         continue
@@ -373,21 +388,9 @@ class Boozer(Optimizable):
             index = 0
             for ind_surf in range(1, d.output.Mvol+1):
                 for innout in range(0, 2):
-
                     # Translate interface indices into volume indices
-                    if innout == 0:
-                        ind_vol = ind_surf-1
-                        innout_vol = 1
-                    else:
-                        ind_vol = ind_surf
-                        innout_vol = -1
-
-                    if ind_vol >= d.output.Mvol:
-                        continue
-                    if ind_vol < 0:
-                        continue
-                    if ind_vol == 0 and innout_vol == 0:
-                        continue  # No data on outer side of last interface
+                    ind_vol, innout_vol = surf_to_vol_indices()
+                    if not index_is_valid(): continue
 
                     for ii in range(0, mns):
                         mm = xms[ii]
@@ -420,23 +423,10 @@ class Boozer(Optimizable):
             index = 0
             for ind_surf in range(1, d.output.Mvol+1):
                 for innout in range(0, 2):
-
                     # Translate interface indices into volume indices
-                    if innout == 0:
-                        ind_vol = ind_surf-1
-                        innout_vol = 1
-                        sarr = np.asarray([1])
-                    else:
-                        ind_vol = ind_surf
-                        innout_vol = -1
-                        sarr = np.asarray([-1])
-
-                    if ind_vol >= d.output.Mvol:
-                        continue
-                    if ind_vol < 0:
-                        continue
-                    if ind_vol == 0 and innout_vol == 0:
-                        continue  # No data on outer side of last interface
+                    ind_vol, innout_vol = surf_to_vol_indices()
+                    if not index_is_valid(): continue
+                    sarr = np.asarray([innout_vol])
 
                     Bcontrav = d.get_B(
                         lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)
