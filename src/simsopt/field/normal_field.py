@@ -78,7 +78,7 @@ class NormalField(Optimizable):
         self.mpol = ph['mpol']
         self.ntor = ph['ntor']
 
-        if self.stellsym == 1:
+        if self.stellsym:
             self.ndof = self.ntor + self.mpol * \
                 (2 * self.ntor + 1)  # Only Vns - odd series
         else:
@@ -88,7 +88,7 @@ class NormalField(Optimizable):
         self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
         vns = np.asarray(ph['vns'])
-        if self.stellsym == 0:
+        if not self.stellsym:
             vnc = np.asarray(ph['vnc'])
             self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
@@ -100,7 +100,7 @@ class NormalField(Optimizable):
                     continue
                 self.set_vns(mm, nn, vns[mm][mntor + nn])
 
-                if self.stellsym == 0:
+                if not self.stellsym:
                     self.set_vnc(mm, nn, vnc[mm][mntor + nn])
 
     def get_dofs(self):
@@ -248,7 +248,7 @@ class NormalField(Optimizable):
         self.ntor = ntor
 
         # Set new number of dofs
-        if self.stellsym == 1:
+        if self.stellsym:
             self.ndof = self.ntor + self.mpol * \
                 (2 * self.ntor + 1)  # Only Vns - odd series
         else:
