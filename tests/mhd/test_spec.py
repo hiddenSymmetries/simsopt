@@ -25,10 +25,7 @@ try:
 except BaseException:
     MPI = None
 
-try:
-    from simsopt.mhd.profiles import SpecProfile
-except BaseException:
-    SpecProfile = None
+from simsopt.mhd.profiles import SpecProfile
 
 if (MPI is not None) and spec_found:
     from simsopt.mhd.spec import Spec, Residue
@@ -270,9 +267,6 @@ class SpecTests(unittest.TestCase):
         We target a rotational transform on axis of 0.55, and the target function is
         defined as (iota - iota_target)^2
         """
-
-        # Check that SpecProfile could be imported
-        self.assertFalse(SpecProfile is None)
 
         # Create Spec object
         os.chdir(TEST_DIR)
