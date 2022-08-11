@@ -1,7 +1,7 @@
 import unittest
 import logging
 import numpy as np
-from simsopt.mhd.normal_field import NormalField
+from simsopt.field.normal_field import NormalField
 import os
 
 from . import TEST_DIR
