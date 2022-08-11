@@ -17,8 +17,7 @@ class NormalFieldTests(unittest.TestCase):
 
         filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
 
-        normal_field = NormalField()
-        normal_field.init_from_spec(filename)
+        normal_field = NormalField.init_from_spec(filename)
 
         self.assertAlmostEqual(normal_field.get_vns(m=3, n=-1), 1.71466651E-03)
         self.assertAlmostEqual(normal_field.get_vns(m=5, n=1), -3.56991494E-05)
@@ -31,8 +30,7 @@ class NormalFieldTests(unittest.TestCase):
 
         # Init from SPEC input file
         filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
-        normal_field = NormalField()
-        normal_field.init_from_spec(filename)
+        normal_field = NormalField.init_from_spec(filename)
 
         # Get dofs
         dofs = normal_field.get_dofs()
@@ -118,8 +116,7 @@ class NormalFieldTests(unittest.TestCase):
 
         # Init from SPEC input file
         filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
-        normal_field = NormalField()
-        normal_field.init_from_spec(filename)
+        normal_field = NormalField.init_from_spec(filename)
 
         # Make names
         names = normal_field._make_names()
@@ -146,8 +143,7 @@ class NormalFieldTests(unittest.TestCase):
 
         # 1. Init from SPEC input file
         filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
-        normal_field = NormalField()
-        normal_field.init_from_spec(filename)
+        normal_field = NormalField.init_from_spec(filename)
 
         # 2. Save some selected non-zero harmonics
         val1 = normal_field.get_vns(m=3, n=-1)
