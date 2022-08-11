@@ -63,7 +63,7 @@ class SpecProfile(Profile):
     Args:
         data: 1D numpy array containing the profile value in each volume
         cumulative: Set to True if the profile is cumulative, i.e. if the value 
-        in volume lvol is the integrated quantify from the axis to volume lvol.
+        in volume lvol is the integrated quantity from the axis to volume lvol.
         Only the toroidal flux, poloidal flux and the volume currents are 
         cumulative quantities in SPEC input file. False by default.
     """
@@ -230,6 +230,6 @@ class ProfilePressure(Profile):
         """ Return the d/ds derivative of the profile at specified points in s. """
         total = 0
         for j in range(int(len(self.parents) / 2)):
-            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(
-                s) + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
+            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s)\
+                 + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
         return total
