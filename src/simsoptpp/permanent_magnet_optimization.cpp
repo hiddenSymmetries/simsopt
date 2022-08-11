@@ -534,7 +534,7 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 
 // GPMO algorithm with backtracking to fix wyrms -- close cancellations between
 // two nearby, oppositely oriented magnets. 
-std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
+std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -557,6 +557,9 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 
     // initialize least-square values to large numbers
     vector<double> R2s(6 * N, 1e50);
+
+    // Size is 4 * K here because backtracking needs more iterations
+    // to put down a lot of magnets. 
     vector<int> skj(4 * K);
     vector<int> skjj(4 * K);
     vector<int> skjj_ind(N);
@@ -577,7 +580,7 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
-    vector<int> num_nonzeros(nhistory + 1);
+    Array num_nonzeros = xt::zeros<int>({nhistory + 1});
     int num_nonzero = 0;
     int k = 0;
 
@@ -678,9 +681,11 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 
 	if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
-	    printf("%d %d\n", k, num_nonzero);
-	    num_nonzeros[print_iter] = num_nonzero;
-	    if (print_iter > 10 && num_nonzeros[print_iter] == num_nonzeros[print_iter - 1] && num_nonzeros[print_iter] == num_nonzeros[print_iter - 2]) break;
+	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
+
+	    // if get stuck at some number of dipoles, break out of the loop
+	    num_nonzeros(print_iter) = num_nonzero;
+	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
 	}
 
 	// check range here
@@ -696,7 +701,7 @@ std::tuple<Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, in
 	}
 	k += 1;
     }
-    return std::make_tuple(objective_history, m_history, x);
+    return std::make_tuple(objective_history, m_history, num_nonzeros, x);
 }
 
 // Run the GPMO algorithm, placing a dipole and all of the closest Nadjacent dipoles down

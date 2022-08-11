@@ -5,7 +5,7 @@ permanent magnet configurations for the Landreman/Paul QA design with
 basic cylindrical brick magnets.
 
 For realistic designs, please see the full script in src/simsopt/util,
-which can generate all of the results in our recent relax-and-split
+which can generate all of the results in the recent relax-and-split
 permanent magnet optimization paper.
 
 The script should be run as:
@@ -30,7 +30,7 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 16
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 16
 dr = 0.02  # cylindrical bricks with radial extent 2 cm
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
@@ -84,10 +84,9 @@ pm_opt = PermanentMagnetGrid(
     s, coil_offset=coff, dr=dr, plasma_offset=poff,
     Bn=Bnormal,
     filename=surface_filename,
-    coordinate_flag='cylindrical'
 )
 
-reg_l0 = 0.05  # Threshold off magnets with 10% or less strength
+reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
 
 # Rescale the hyperparameters and then add contributions to ATA and ATb
@@ -104,14 +103,15 @@ kwargs['reg_l0'] = reg_l0
 
 # Optimize the permanent magnets. This actually solves
 # 20 full relax-and-split problems, and uses the result of each
-# problem to initialize the next, increasing L0 threshold each time.
-#m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
+# problem to initialize the next, increasing L0 threshold each time,
+# until thresholding over all magnets with strengths < 50% the max.
 m0 = np.zeros(pm_opt.ndipoles * 3) 
 total_m_history = []
 total_mproxy_history = []
 total_RS_history = []
-for i in range(10):
-    reg_l0_scaled = reg_l0 * (1 + i)
+for i in range(20):
+    print('Relax-and-split iteration ', i, ', L0 threshold = ', reg_l0)
+    reg_l0_scaled = reg_l0 * (i + 1) / 2.0
     kwargs['reg_l0'] = reg_l0_scaled
     RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
     total_RS_history.append(RS_history)
@@ -195,9 +195,9 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 # pm_opt.m  = m_copy
 
 # Optionally make a QFM and pass it to VMEC
-# This is probably worthless unless plasma
+# This is worthless unless plasma
 # surface is 64 x 64 resolution.
-vmec_flag = True
+vmec_flag = False
 if vmec_flag:
     from mpi4py import MPI
     from simsopt.util.mpi import MpiPartition

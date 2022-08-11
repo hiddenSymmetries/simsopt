@@ -23,20 +23,20 @@ def read_input():
             "the configuration flag, resolution flag, and the run type flag. "
         )
         exit(1)
-    config_flag = str(sys.argv[2])
+    config_flag = str(sys.argv[1])
     if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx']:
         raise ValueError(
             "Error! The configuration flag must specify one of "
             "the pre-set plasma equilibria: qa, qa_nonplanar, "
             "QH, qh, qh_nonplanar, muse, muse_famus, or ncsx. "
         )
-    res_flag = str(sys.argv[3])
+    res_flag = str(sys.argv[2])
     if res_flag not in ['low', 'medium', 'high']:
         raise ValueError(
             "Error! The resolution flag must specify one of "
             "low or high."
         )
-    run_type = str(sys.argv[4])
+    run_type = str(sys.argv[3])
     if run_type not in ['initialization', 'optimization', 'post-processing']:
         raise ValueError(
             "Error! The initialization flag must specify one of "
@@ -45,57 +45,57 @@ def read_input():
     if run_type == 'optimization':
 
         # L2 regularization
-        if len(sys.argv) >= 6:
-            reg_l2 = float(sys.argv[5])
+        if len(sys.argv) >= 5:
+            reg_l2 = float(sys.argv[4])
         else:
             reg_l2 = 1e-12
 
         # Error tolerance for declaring convex problem finished
-        if len(sys.argv) >= 7:
-            epsilon = float(sys.argv[6])
+        if len(sys.argv) >= 6:
+            epsilon = float(sys.argv[5])
         else:
             epsilon = 1e-2
 
         # Maximum iterations for solving the convex problem
-        if len(sys.argv) >= 8:
-            max_iter_MwPGP = int(sys.argv[7])
+        if len(sys.argv) >= 7:
+            max_iter_MwPGP = int(sys.argv[6])
         else:
             max_iter_MwPGP = 100
 
         # Error tolerance for declaring nonconvex problem finished
-        if len(sys.argv) >= 9:
-            min_fb = float(sys.argv[8])
+        if len(sys.argv) >= 8:
+            min_fb = float(sys.argv[7])
         else:
             min_fb = 1e-20
 
         # L0 regularization
-        if len(sys.argv) >= 10:
-            reg_l0 = float(sys.argv[9])
+        if len(sys.argv) >= 9:
+            reg_l0 = float(sys.argv[8])
         else:
             reg_l0 = 0.0  # default is no L0 norm
 
         # L0 regularization
-        if len(sys.argv) >= 11:
-            reg_l1 = float(sys.argv[10])
+        if len(sys.argv) >= 10:
+            reg_l1 = float(sys.argv[9])
         else:
             reg_l1 = 0.0  # default is no L1 norm
 
         # nu (relax-and-split hyperparameter)
-        if len(sys.argv) >= 12:
-            nu = float(sys.argv[11])
+        if len(sys.argv) >= 11:
+            nu = float(sys.argv[10])
 
         # Set to huge value if reg_l0 is zero so it is ignored
         if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
             nu = 1e100
 
         # Maximum iterations for solving the nonconvex problem
-        if len(sys.argv) >= 13:
-            max_iter_RS = int(sys.argv[12])
+        if len(sys.argv) >= 12:
+            max_iter_RS = int(sys.argv[11])
         else:
             max_iter_RS = 100
 
-        if len(sys.argv) >= 14:
-            coordinate_flag = str(sys.argv[13])
+        if len(sys.argv) >= 13:
+            coordinate_flag = str(sys.argv[12])
             if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                 raise ValueError(
                     "Error! The coordinate flag must specify one of "
@@ -104,8 +104,8 @@ def read_input():
         else:
             coordinate_flag = 'cartesian' 
     elif run_type == 'initialization':
-        if len(sys.argv) >= 6:
-            coordinate_flag = str(sys.argv[5])
+        if len(sys.argv) >= 5:
+            coordinate_flag = str(sys.argv[4])
             if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                 raise ValueError(
                     "Error! The coordinate flag must specify one of "
@@ -115,33 +115,33 @@ def read_input():
             coordinate_flag = 'cartesian' 
     elif run_type == 'post-processing':
         # L2 regularization
-        if len(sys.argv) >= 6:
-            reg_l2 = float(sys.argv[5])
+        if len(sys.argv) >= 5:
+            reg_l2 = float(sys.argv[4])
         else:
             reg_l2 = 1e-12
 
         # L0 regularization
-        if len(sys.argv) >= 7:
-            reg_l0 = float(sys.argv[6])
+        if len(sys.argv) >= 6:
+            reg_l0 = float(sys.argv[5])
         else:
             reg_l0 = 0.0  # default is no L0 norm
 
         # L1 regularization
-        if len(sys.argv) >= 8:
-            reg_l1 = float(sys.argv[7])
+        if len(sys.argv) >= 7:
+            reg_l1 = float(sys.argv[6])
         else:
             reg_l1 = 0.0  # default is no L1 norm
 
         # nu (relax-and-split hyperparameter)
-        if len(sys.argv) >= 9:
-            nu = float(sys.argv[8])
+        if len(sys.argv) >= 8:
+            nu = float(sys.argv[7])
 
         # Set to huge value if reg_l0 is zero so it is ignored
         if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
             nu = 1e100
 
-        if len(sys.argv) >= 10:
-            coordinate_flag = str(sys.argv[9])
+        if len(sys.argv) >= 9:
+            coordinate_flag = str(sys.argv[8])
             if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
                 raise ValueError(
                     "Error! The coordinate flag must specify one of "
@@ -153,6 +153,8 @@ def read_input():
     # Set the remaining parameters
     surface_flag = 'vmec'
     famus_filename = None
+    # high resolution is required for accurate
+    # QFM, VMEC, and other post-processing
     if res_flag == 'high':
         nphi = 64
         ntheta = 64
@@ -193,7 +195,7 @@ def read_input():
     elif config_flag == 'ncsx':
         dr = 0.02
         coff = 0.02
-        poff = 0.1  # 0.2
+        poff = 0.1
         surface_flag = 'wout'
         input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
         famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
@@ -239,6 +241,7 @@ def read_focus_coils(filename):
     ys = np.zeros((ncoils, order + 1))
     zc = np.zeros((ncoils, order + 1))
     zs = np.zeros((ncoils, order + 1))
+    # load in coil currents and fourier representations of (x, y, z)
     for i in range(ncoils):
         coilcurrents[i] = np.loadtxt(filename, skiprows=6 + 14 * i, max_rows=1, usecols=1)
         xc[i, :] = np.loadtxt(filename, skiprows=10 + 14 * i, max_rows=1, usecols=range(order + 1))
@@ -280,7 +283,7 @@ def read_focus_coils(filename):
 
 def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     """
-        Optimize the coils for the QA or QH configurations.
+        Optimize the coils for the QA, QH, or other configurations.
     """
 
     from simsopt.geo import CurveLength, CurveCurveDistance, \
@@ -442,7 +445,6 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        # particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
         plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
 
 
@@ -475,7 +477,6 @@ def make_qfm(s, Bfield):
     res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=2000,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-
     return qfm_surface
 
 
@@ -941,12 +942,18 @@ def rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu):
     reg_l2 = reg_l2
 
     # Update algorithm step size if we have extra smooth, convex loss terms
-    pm_opt.ATA_scale = S[0] ** 2 + 2 * reg_l2 + 1.0 / nu
+    pm_opt.ATA_scale += 2 * reg_l2 + 1.0 / nu
 
     return reg_l0, reg_l1, reg_l2, nu
 
 
 def initialize_default_kwargs(algorithm='RS'):
+    """
+        Keywords to the permanent magnet optimizers are now passed
+        by the kwargs dictionary. Default dictionaries are initialized
+        here.
+    """
+
     kwargs = {}
     kwargs['verbose'] = True   # print out errors every few iterations
     if algorithm == 'RS':
@@ -962,5 +969,5 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['reg_l2'] = 0.0
     elif algorithm == 'GPMO':
         kwargs['K'] = 400
-        kwargs['nhistory'] = 201
+        kwargs['nhistory'] = 200  # K > nhistory and nhistory must be divisor of K
     return kwargs

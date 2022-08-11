@@ -5,17 +5,22 @@ permanent magnet configurations for several stage-1 optimized
 plasma boundaries, including the Landreman/Paul QA/QH designs,
 the MUSE stellarator, the NCSX stellarator, and variations.
 
-The script should be run as
-    srun -n 1 python permanent_magnet_optimization.py my_config my_resolution ...
-where the command line parameters must be specified as is detailed
-in permanent_magnet_helpers.py.
+The script can be run in initialization, optimization, or post-processing mode: 
+   srun -n 1 python permanent_magnet_relax_and_split.py muse_famus low initialization toroidal
+   (i.e. configuration, resolution, run type, and coordinate system)
+   srun -n 1 python permanent_magnet_relax_and_split.py muse_famus low optimization 0.0 1e-5 40 1e-20 0.40 0.0 1e6 20 toroidal
+   (i.e. configuration, resolution, run type, l2_regularization, 
+         error tolerance for the convex part of relax-and-split, # of iterations for the convex part,
+         fB tolerance below which the algorithm will quit, l0-regularization,
+         l1_regularization, nu, # of iterations for the overall relax-and-split, coordinate system 
+   )
+   srun -n 1 python permanent_magnet_relax_and_split.py muse_famus low post-processing 0.0 0.40 0.0 1e6 toroidal
+   (i.e. configuration, resolution, run type, l2_regularization, 
+         l0-regularization, l1_regularization, nu, coordinate system 
+   )
 
-Note that if the run_type flag is set to post-processing, the script will generate
-Poincare plots, QFMS, and VMEC files, so the script should then be run as:
-    srun python permanent_magnet_optimization.py True
-or the equivalent command for a slurm script. This is also true for initializing
-the Landreman/Paul QA/QH surfaces, since these designs need some mpi
-functionality to get them properly scaled to a particular on-axis magnetic field.
+Additional details regarding the command line parameters
+and their defaults can be found in /src/simsopt/util/permanent_magnet_helper_functions.py.
 
 """
 
@@ -62,8 +67,6 @@ if run_type == 'initialization':
     OUT_DIR = scratch_path + config_flag + "_" + coordinate_flag + "_nphi{0:d}_ntheta{1:d}_dr{2:.2e}_coff{3:.2e}_poff{4:.2e}/".format(nphi, ntheta, dr, coff, poff)
     print("Output directory = ", OUT_DIR)
     os.makedirs(OUT_DIR, exist_ok=True)
-
-    t1 = time.time()
 
     # Don't have NCSX TF coils, just the Bn field on the surface
     # so have to treat the NCSX example separately.
@@ -152,7 +155,6 @@ if run_type == 'initialization':
     # locations, save the FAMUS grid and FAMUS solution.
     if famus_filename is not None:
         t1 = time.time()
-        #read_FAMUS_grid('SIMSOPT_dipole_solution.focus', pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, '/global/cscratch1/sd/akaptano/muse_famus_cartesian_nphi64_ntheta64_dr1.00e-02_coff1.00e-01_poff2.00e-02/output_regl20.00e+00_regl00.00e+00_nu1.00e+100/')
         read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR)
         t2 = time.time()
         print('Saving FAMUS solution took ', t2 - t1, ' s')
@@ -208,12 +210,8 @@ elif run_type == 'optimization':
     # Set some hyperparameters for the optimization
     t1 = time.time()
 
-    # Set an initial condition
-    #m0 = np.ravel(np.array([pm_opt.m_maxima, np.zeros(pm_opt.ndipoles), np.zeros(pm_opt.ndipoles)]).T)
-    #m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(4)
+    # Set an initial condition as all max
     m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
-    #m0 = np.ravel((np.random.rand(pm_opt.ndipoles, 3) - 0.5) * 2 * np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T / np.sqrt(12))
-    #m0 = np.zeros(pm_opt.m0.shape)
 
     # Rescale the hyperparameters and then add contributions to ATA and ATb
     reg_l0, _, _, nu = rescale_for_opt(
@@ -235,9 +233,9 @@ elif run_type == 'optimization':
     skip = 10.0
     if not np.isclose(reg_l0, 0.0, atol=1e-16) or not np.isclose(reg_l1, 0.0, atol=1e-16):
         for i in range(num_i):
-            reg_l0_scaled = reg_l0 * (1 + i / skip)
-            reg_l1_scaled = reg_l1 * (1 + i / skip)
-            print(i, reg_l0_scaled)
+            kwargs['reg_l0'] = reg_l0 * (1 + i / skip)
+            kwargs['reg_l1'] = reg_l1 * (1 + i / skip)
+            print('Relax-and-split iteration ', i, ', L0 threshold = ', kwargs['reg_l0'])
             RS_history, m_history, m_proxy_history = relax_and_split(
                 pm_opt,
                 m0=m0,
@@ -269,6 +267,7 @@ elif run_type == 'optimization':
     print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
     print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
+    # Save m and m_proxy solutions to txt files
     np.savetxt(OUT_DIR + class_filename + ".txt", pm_opt.m)
     np.savetxt(OUT_DIR + class_filename + "_proxy.txt", pm_opt.m_proxy)
 
@@ -325,7 +324,7 @@ elif run_type == 'optimization':
     dipoles = np.ravel(dipoles)
     print('Dipole field setup done')
 
-    #make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
+    make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
     t2 = time.time()
     print("Done printing and plotting, ", t2 - t1, " s")
 
@@ -419,18 +418,18 @@ elif run_type == 'post-processing':
 
     # Read in the correct subdirectory with the optimization output
     OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
-    #OUT_DIR = IN_DIR + "output_regl2{0:.2e}_regl0{1:.2e}_regl1{2:.2e}_nu{3:.2e}/".format(reg_l2, reg_l0, reg_l1, nu)
     os.makedirs(OUT_DIR, exist_ok=True)
     pickle_name = IN_DIR + class_filename + ".pickle"
     pm_opt = pickle.load(open(pickle_name, "rb", -1))
     print('m = ', pm_opt.m)
 
-    pms_name = 'zot80.focus'
-    m_loadtxt, _ = get_FAMUS_dipoles(pms_name)
-    #m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
-    #mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
-    mproxy_loadtxt = np.copy(m_loadtxt)
-    print('m = ', m_loadtxt)
+    m_loadtxt = np.loadtxt(OUT_DIR + class_filename + ".txt")
+    mproxy_loadtxt = np.loadtxt(OUT_DIR + class_filename + "_proxy.txt")
+
+    # Optional code below for running the FAMUS solution through the post-processing routines
+    # pms_name = 'zot80.focus'
+    # m_loadtxt, _ = get_FAMUS_dipoles(pms_name)
+    # mproxy_loadtxt = np.copy(m_loadtxt)
     pm_opt.m = m_loadtxt
     pm_opt.m_proxy = mproxy_loadtxt
     pm_opt.plasma_boundary = s
@@ -443,10 +442,8 @@ elif run_type == 'post-processing':
     t1 = time.time()
 
     # Make higher resolution surface
-    quadpoints_phi = np.linspace(0, 1, nphi, endpoint=False)
-    #quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
+    quadpoints_phi = np.linspace(0, 1, 2 * nphi, endpoint=True)
     qphi = len(quadpoints_phi)
-    #quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
     if surface_flag == 'focus':
         s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus", quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
@@ -475,13 +472,11 @@ elif run_type == 'post-processing':
         Bfield_mproxy.set_points(s.gamma().reshape((-1, 3)))
         pm_opt.m = m_copy
     else:
-
         # Set up the contribution to Bnormal from a purely toroidal field.
         # Ampere's law for a purely toroidal field: 2 pi R B0 = mu0 I
         net_poloidal_current_Amperes = 3.7713e+6
         mu0 = 4 * np.pi * (1e-7)
         RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
-        print('B0 of toroidal field = ', RB)
         bs = ToroidalField(R0=1, B0=RB)
 
         # Calculate Bnormal
@@ -510,42 +505,28 @@ elif run_type == 'post-processing':
     pm_opt.m = m_copy
     t2 = time.time()
     print('Done with Poincare plots with the permanent magnets, t = ', t2 - t1)
-    exit()
 
     # Make the QFM surfaces
     t1 = time.time()
     qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
-    #qfm_surf.plot()
-    #qfm_surf_mproxy = make_qfm(s, Bfield_mproxy)
-    #qfm_surf_mproxy = qfm_surf_mproxy.surface
-    #qfm_surf_mproxy.plot()
-    #qfm_surf_mproxy = qfm_surf
+    qfm_surf_mproxy = make_qfm(s, Bfield_mproxy)
+    qfm_surf_mproxy = qfm_surf_mproxy.surface
     t2 = time.time()
     print("Making the two QFM surfaces took ", t2 - t1, " s")
-    #exit()
 
-    # Run VMEC with new QFM surface
-    t1 = time.time()
-    #try:
     ### Always use the QA VMEC file and just change the boundary
+    t1 = time.time()
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
-    #equil.boundary(qfm_surf)
     equil.boundary = qfm_surf
-    #    equil._boundary = qfm_surf
-    #    equil.need_to_run_code = True
     equil.run()
-
-    exit()
 
     ### Always use the QH VMEC file and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf_mproxy
     equil.run()
-    #except RuntimeError:
-    #    print('VMEC cannot be initialized from a wout file for some reason.')
 
     t2 = time.time()
     print("VMEC took ", t2 - t1, " s")

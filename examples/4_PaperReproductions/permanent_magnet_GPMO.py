@@ -77,9 +77,6 @@ pm_opt = PermanentMagnetGrid(
     famus_filename='zot80.focus'
 )
 
-pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
-pm_opt.m = np.zeros(pm_opt.ndipoles * 3)
-pm_opt.m_proxy = np.zeros(pm_opt.ndipoles * 3)
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
@@ -101,6 +98,8 @@ iterations = np.linspace(0, kwargs['K'], len(R2_history), endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history)
 plt.grid(True)
+plt.xlabel('K')
+plt.ylabel('$f_B$')
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
 # Set final m to the minimum achieved during the optimization
