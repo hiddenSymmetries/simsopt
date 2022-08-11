@@ -11,18 +11,18 @@ import shutil
 try:
     import spec
     spec_found = True
-except BaseException:
+except ImportError:
     spec_found = False
 
 try:
     import pyoculus
     pyoculus_found = True
-except BaseException:
+except ImportError:
     pyoculus_found = False
 
 try:
     from mpi4py import MPI
-except BaseException:
+except ImportError:
     MPI = None
 
 from simsopt.mhd.profiles import SpecProfile
