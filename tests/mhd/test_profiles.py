@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 try:
     import matplotlib
     matplotlib_found = True
-except BaseException:
+except ImportError:
     matplotlib_found = False
 
 
