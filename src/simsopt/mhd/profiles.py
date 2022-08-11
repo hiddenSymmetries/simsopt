@@ -58,7 +58,14 @@ class Profile(Optimizable):
 
 class SpecProfile(Profile):
     """
-    A profile described by a an array of size Nvol
+    A profile described by an array of size Nvol
+
+    Args:
+        data: 1D numpy array containing the profile value in each volume
+        cumulative: Set to True if the profile is cumulative, i.e. if the value 
+        in volume lvol is the integrated quantify from the axis to volume lvol.
+        Only the toroidal flux, poloidal flux and the volume currents are 
+        cumulative quantities in SPEC input file. False by default.
     """
 
     def __init__(self, data, cumulative=False):
