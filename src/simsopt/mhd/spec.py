@@ -140,10 +140,10 @@ class Spec(Optimizable):
         si = spec.inputlist  # Shorthand
 
         nvol = si.nvol
-        if si.lfreebound == 0:
-            mvol = nvol
-        else:
+        if si.lfreebound:
             mvol = nvol + 1
+        else:
+            mvol = nvol
 
         # Store initial guess data
         nmodes = self.allglobal.num_modes
@@ -190,7 +190,7 @@ class Spec(Optimizable):
             self.initial_guess = None
 
         # Store plasma boundary
-        if si.lfreebound == 1:
+        if si.lfreebound:
             plasma_boundary = {}
             plasma_boundary['mm'] = np.zeros((mn,))
             plasma_boundary['nn'] = np.zeros((mn,))
@@ -290,21 +290,21 @@ class Spec(Optimizable):
         self._pflux_profile = None
 
         # Define normal field
-        if not si.lfreebound:
-            self.normal_field = None
-        else:
+        if si.lfreebound:
             self.normal_field = NormalField()
             self.normal_field.init_from_spec(filename)
+        else:
+            self.normal_field = None
 
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['phiedge', 'curtor']
-        if si.lfreebound == 0:
-            depends_on = [self._boundary]
-        else:
+        if si.lfreebound:
             depends_on = [self.normal_field]
+        else:
+            depends_on = [self._boundary]
 
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=depends_on,
@@ -440,10 +440,10 @@ class Spec(Optimizable):
 
         # define nvol, mvol
         nvol = self.inputlist.nvol
-        if self.inputlist.lfreebound == 0:
-            mvol = nvol
-        else:
+        if self.inputlist.lfreebound:
             mvol = nvol + 1
+        else:
+            mvol = nvol
 
         if profile.cumulative:
             old_value = profile.f(lvol)
@@ -524,10 +524,10 @@ class Spec(Optimizable):
 
         # define nvol, mvol
         nvol = si.nvol
-        if si.lfreebound == 0:
-            mvol = nvol
-        else:
+        if si.lfreebound:
             mvol = nvol + 1
+        else:
+            mvol = nvol
 
         # nfp must be consistent between the surface and SPEC. The surface's
         # value trumps.
@@ -578,7 +578,7 @@ class Spec(Optimizable):
             spec.allglobal.nnrzrz[:] = 0
             spec.allglobal.allrzrz[:] = 0
 
-            if si.lfreebound == 1:
+            if si.lfreebound:
                 si.rbc[:] = 0
                 si.zbs[:] = 0
 
@@ -593,7 +593,7 @@ class Spec(Optimizable):
                 if mm > si.mpol or np.abs(nn) > si.ntor:
                     continue
 
-                if not (si.lfreebound == 1 and si.nvol == 1):
+                if not (si.lfreebound and si.nvol == 1):
                     spec.allglobal.mmrzrz[imn] = mm
                     spec.allglobal.nnrzrz[imn] = self.initial_guess['nn'][imn]
 
@@ -608,7 +608,7 @@ class Spec(Optimizable):
                         spec.allglobal.allrzrz[3, 0:nvol-1,
                                                imn] = self.initial_guess['zbc'][0:nvol-1, imn]
 
-                if si.lfreebound == 1:
+                if si.lfreebound:
                     x = self.initial_guess['rbc'][nvol-1, imn]
                     si.rbc[si.mntor+nn, si.mmpol+mm] = x
                     si.zbs[si.mntor+nn, si.mmpol +
@@ -624,7 +624,7 @@ class Spec(Optimizable):
         if self.pressure_profile is not None:
             si.pressure[0:si.nvol] = self.pressure_profile.get(
                 np.arange(0, si.nvol))
-            if si.lfreebound == 1:
+            if si.lfreebound:
                 si.pressure[si.nvol] = 0
 
         if self.volume_current_profile is not None:
@@ -641,7 +641,7 @@ class Spec(Optimizable):
                 else:
                     si.ivolume[lvol] = self.get_profile('volume_current', lvol)
 
-            if si.lfreebound == 1:
+            if si.lfreebound:
                 si.ivolume[si.nvol] = si.ivolume[si.nvol - 1]
                 self.volume_current_profile.set(
                     key=mvol - 1, new_val=si.ivolume[nvol - 1])
@@ -649,14 +649,14 @@ class Spec(Optimizable):
         if self.interface_current_profile is not None:
             si.isurf[0:nvol -
                      1] = self.interface_current_profile.get(np.arange(0, nvol))
-            if si.lfreebound == 1:
+            if si.lfreebound:
                 si.ivolume[mvol - 1] = si.ivolume[nvol - 1]
 
         # Update total plasma toroidal current in case of freeboundary
         # calculation
         if ((self.volume_current_profile is not None) or
             (self.interface_current_profile is not None)) and \
-                si.lfreebound == 1:
+                si.lfreebound:
             si.curtor = si.ivolume[nvol - 1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
@@ -667,7 +667,7 @@ class Spec(Optimizable):
 
         if self.mu_profile is not None:
             si.mu[0:nvol - 1] = self.mu_profile.get(np.arange(0, nvol))
-            if si.lfreebound == 1:
+            if si.lfreebound:
                 si.mu[mvol] = 0
 
         if self.pflux_profile is not None:
