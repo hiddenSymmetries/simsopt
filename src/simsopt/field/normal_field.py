@@ -2,10 +2,6 @@ from .._core.optimizable import DOFs, Optimizable
 import logging
 
 import numpy as np
-from scipy.io import netcdf
-from scipy.interpolate import interp1d
-import f90nml
-from monty.json import MSONable
 
 logger = logging.getLogger(__name__)
 
