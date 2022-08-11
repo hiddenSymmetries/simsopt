@@ -271,25 +271,26 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Run one of the greedy algorithm (GPMO) variants
-    if algorithm == 'baseline':
+    if algorithm == 'baseline':  # GPMO
         algorithm_history, m_history, m = sopp.GPMO_baseline(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             **algorithm_kwargs
         )
-    elif algorithm == 'backtracking':
-        algorithm_history, m_history, m = sopp.GPMO_backtracking(
+    elif algorithm == 'backtracking':  # GPMOb
+        algorithm_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             **algorithm_kwargs
         )
-    elif algorithm == 'multi':
+        pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
+    elif algorithm == 'multi':  # GPMOm
         algorithm_history, m_history, m = sopp.GPMO_multi(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             **algorithm_kwargs
         )
-    elif algorithm == 'mutual_coherence': 
+    elif algorithm == 'mutual_coherence':  # GPMO using mutual coherence instead of MSE 
         ATb = A_obj.T @ pm_opt.b_obj
         algorithm_history, m_history, m = sopp.GPMO_MC(
             A_obj=np.ascontiguousarray(A_obj.T),

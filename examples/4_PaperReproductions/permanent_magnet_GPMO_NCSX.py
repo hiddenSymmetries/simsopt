@@ -73,11 +73,11 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 # Set some hyperparameters for the optimization
 algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 55000
+kwargs['K'] = 2000  # Number of magnets to place... 50000 for a full run perhaps
 kwargs['nhistory'] = 500  # frequency with which to record the solution
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-kwargs['backtracking'] = 200  # frequency with which to backtrack
-kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
+kwargs['backtracking'] = 500  # frequency with which to backtrack
+kwargs['Nadjacent'] = 10  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
 OUT_DIR = 'output_permanent_magnet_GPMO_NCSX_' + algorithm
@@ -91,22 +91,24 @@ print('GPMO took t = ', t2 - t1, ' s')
 np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
 np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
 
-# Note backtracking uses 4 * K iterations since many magnets get removed
-iterations = np.linspace(0, 4 * kwargs['K'], kwargs['nhistory'] + 1, endpoint=False)
+# Note backtracking uses num_nonzeros since many magnets get removed 
 plt.figure()
-plt.semilogy(iterations, R2_history)
+plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
 plt.grid(True)
+plt.xlabel('K')
+plt.ylabel('$f_B$')
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
 mu0 = 4 * np.pi * 1e-7
 Bmax = 1.465
 vol_eff = np.sum(np.sqrt(np.sum(m_history ** 2, axis=1)), axis=0) * mu0 * 2 * s.nfp / Bmax
-print(vol_eff)
 
 # Plot the MSE history versus the effective magnet volume
 plt.figure()
-plt.semilogy(vol_eff, R2_history)
+plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
 plt.grid(True)
+plt.xlabel('$V_{eff}$')
+plt.ylabel('$f_B$')
 plt.savefig(OUT_DIR + 'GPMO_Volume_MSE_history.png')
 
 # Solution is the m vector that minimized the fb
