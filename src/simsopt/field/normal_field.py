@@ -107,22 +107,16 @@ class NormalField(Optimizable):
         """
         Return the dofs associated to this normal field as an array.
         """
-        dofs = np.zeros((self.ndof,))
-        idof = 0
-        for mm in range(0, self.mpol + 1):
-            for nn in range(-self.ntor, self.ntor + 1):
-                if mm == 0 and nn <= 0:
-                    continue
-                dofs[idof] = self.vns[mm][nn+self.ntor]
-                idof = idof + 1
+        
+        nvn = self.vns.size
+        dofs = np.reshape( self.vns, nvn )
+        dofs = dofs[self.ntor+1:] # remove m=0, n<=0 harmonics
 
         if not self.stellsym:
-            for mm in range(0, self.mpol + 1):
-                for nn in range(-self.ntor, self.ntor + 1):
-                    if mm == 0 and nn < 0:
-                        continue
-                    dofs[idof] = self.vnc[mm][nn+self.ntor]
-                    idof = idof + 1
+            dofs_vnc = np.reshape( self.vnc, nvn )
+            dofs_vnc = dofs_vnc[self.ntor:] # remove m=0, n<0 harmonics
+
+            dofs = np.append(dofs, dofs_vnc)
 
         return dofs
 
@@ -133,21 +127,16 @@ class NormalField(Optimizable):
         if not dofs.size == self.ndof:
             raise ValueError('Invalid number of dofs')
 
-        idof = 0
-        for mm in range(0, self.mpol + 1):
-            for nn in range(-self.ntor, self.ntor + 1):
-                if mm == 0 and nn <= 0:
-                    continue
-                self.vns[mm][nn+self.ntor] = dofs[idof]
-                idof = idof + 1
+        nvns = self.ntor + self.mpol * (self.ntor * 2 + 1)
+        vns_dofs = np.append( np.zeros(self.ntor+1), dofs[:nvns]) 
+        self.vns = np.reshape( vns_dofs, (self.mpol+1,2*self.ntor+1) )
 
         if not self.stellsym:
-            for mm in range(0, self.mpol + 1):
-                for nn in range(-self.ntor, self.ntor + 1):
-                    if mm == 0 and nn < 0:
-                        continue
-                    self.vnc[mm][nn+self.ntor] = dofs[idof]
-                    idof = idof + 1
+            vnc_dofs = np.append( np.zeros(self.ntor) , dofs[nvns:] )
+            self.vnc = np.reshape(vnc_dofs, (self.mpol+1, 2*self.ntor+1) )
+
+        
+
 
     def get_index_in_dofs(self, m, n, even=False):
         """
