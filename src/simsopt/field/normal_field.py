@@ -1,4 +1,3 @@
-from .._core.util import nested_lists_to_array
 from .._core.optimizable import DOFs, Optimizable
 import logging
 
