@@ -17,7 +17,7 @@ except ImportError as e:
     logger.debug(str(e))
 
 
-__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
+__all__ = ['NormalField']
 
 
 class NormalField(Optimizable):
