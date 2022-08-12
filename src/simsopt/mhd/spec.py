@@ -291,8 +291,7 @@ class Spec(Optimizable):
 
         # Define normal field
         if si.lfreebound:
-            self.normal_field = NormalField()
-            self.normal_field.init_from_spec(filename)
+            self.normal_field = NormalField.init_from_spec(filename)
         else:
             self.normal_field = None
 
