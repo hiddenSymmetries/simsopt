@@ -180,7 +180,7 @@ class BoozerSurface(Optimizable):
         dl = np.zeros((xl.shape[0]-2,))
 
         l = self.label.J()
-        dl[:nsurfdofs] = self.label.dJ(partials=True)(surface)
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz = np.zeros((xl.shape[0]-2,))
         g = [l-self.targetlabel]
         rz = (s.gamma()[0, 0, 2] - 0.)
