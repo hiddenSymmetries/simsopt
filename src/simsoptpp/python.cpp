@@ -64,7 +64,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     // variants of GPMO algorithm
     m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 20, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
     m.def("GPMO_multi", &GPMO_multi, py::arg("A_obj"), py::arg("b_obj"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 20, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
-    m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 20, py::arg("single_direction") = -1);
+    m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 20, py::arg("single_direction") = -1);
     m.def("GPMO_MC", &GPMO_MC, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 20);
     //
     m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);

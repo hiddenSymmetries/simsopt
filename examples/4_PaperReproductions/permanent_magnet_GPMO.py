@@ -81,7 +81,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 20000
+kwargs['K'] = 2000
+#kwargs['reg_l2'] = 1
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -112,23 +113,25 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-# Plot the SIMSOPT GPMO solution 
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
-for k in range(0, kwargs["nhistory"] + 1, 20):
-    pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
-    b_dipole = DipoleField(pm_opt)
-    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
-    print("Total fB = ",
-          0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
-    Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-    Bnormal_total = Bnormal + Bnormal_dipoles
-    # For plotting Bn on the full torus surface at the end with just the dipole fields
-    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
-    pointData = {"B_N": Bnormal_total[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)), extra_data=pointData)
+# Plot the SIMSOPT GPMO solution
+make_plots = True
+if make_plots:
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
+    for k in range(0, kwargs["nhistory"] + 1, 50):
+        pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+        b_dipole = DipoleField(pm_opt)
+        b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+        b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
+        print("Total fB = ",
+              0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+        Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+        Bnormal_total = Bnormal + Bnormal_dipoles
+        # For plotting Bn on the full torus surface at the end with just the dipole fields
+        make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
+        pointData = {"B_N": Bnormal_total[:, :, None]}
+        s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)), extra_data=pointData)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
