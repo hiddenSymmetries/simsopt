@@ -211,6 +211,7 @@ elif run_type == 'optimization':
     t1 = time.time()
 
     # Set an initial condition as all max
+    #m0 = np.zeros(pm_opt.ndipoles * 3)
     m0 = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T) / np.sqrt(3)
 
     # Rescale the hyperparameters and then add contributions to ATA and ATb
@@ -223,13 +224,14 @@ elif run_type == 'optimization':
     kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
     kwargs['max_iter'] = max_iter_MwPGP  # Number of iterations to take in a convex step
     kwargs['max_iter_RS'] = max_iter_RS  # Number of total iterations of the relax-and-split algorithm
-    kwargs['reg_l0'] = reg_l0
+    kwargs['reg_l2'] = reg_l2
 
     # Optimize the permanent magnets, increasing L0 threshold as converging
     total_m_history = []
     total_mproxy_history = []
     total_RS_history = []
-    num_i = 20
+    num_i = 1
+    #num_i = 20
     skip = 10.0
     if not np.isclose(reg_l0, 0.0, atol=1e-16) or not np.isclose(reg_l1, 0.0, atol=1e-16):
         for i in range(num_i):

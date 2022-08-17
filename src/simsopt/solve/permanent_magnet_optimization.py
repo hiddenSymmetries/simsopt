@@ -271,10 +271,13 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Run one of the greedy algorithm (GPMO) variants
+    reg_l2 = algorithm_kwargs["reg_l2"]
+    algorithm_kwargs.pop("reg_l2")
     if algorithm == 'baseline':  # GPMO
         algorithm_history, m_history, m = sopp.GPMO_baseline(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            mmax=np.sqrt(reg_l2)*mmax_vec,
             **algorithm_kwargs
         )
     elif algorithm == 'backtracking':  # GPMOb

@@ -300,7 +300,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
         }
 
 	// fairly convoluted way to print every ~ max_iter / 20 iterations
-        if (verbose && ((k % (int(max_iter / 20.0)) == 0) || k == 0 || k == max_iter - 1)) {
+        if (verbose && ((k % (int(max_iter / 5.0)) == 0) || k == 0 || k == max_iter - 1)) {
 	    print_MwPGP(A_obj, b_obj, x_k1, m_proxy, m_maxima, m_history, objective_history, R2_history, print_iter, k, nu, reg_l0, reg_l1, reg_l2);
 	    if (R2_history(print_iter) < min_fb) break;
             print_iter += 1;
@@ -486,10 +486,11 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 
 
 // fairly convoluted way to print every ~ K / nhistory iterations
-void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history) 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history, double mmax_sum) 
 {	
     int N = x.shape(0);
     double R2 = 0.0;
+    double L2 = mmax_sum;
 #pragma omp parallel for schedule(static) reduction(+: R2)
     for(int i = 0; i < ngrid; ++i) {
 	R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
@@ -502,7 +503,7 @@ void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr,
 	    m_history(i, ii, print_iter) = x(i, ii);
     	}
     }
-    printf("%d ... %.2e \n", k, R2);
+    printf("%d ... %.2e ... %.2e \n", k, R2, L2);
     print_iter += 1;
     return;
 }
@@ -550,7 +551,7 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -680,7 +681,7 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
         }
 
 	if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, 0.0);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
 	    // if get stuck at some number of dipoles, break out of the loop
@@ -721,7 +722,7 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -819,7 +820,7 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 	    }
 	}
 	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, 0.0);
 	}
     }
     return std::make_tuple(objective_history, m_history, x);
@@ -828,7 +829,7 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int single_direction)
+std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, int K, bool verbose, int nhistory, int single_direction)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -843,7 +844,7 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -860,7 +861,9 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
     
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
+    double mmax_sum = 0.0;
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* mmax_ptr = &(mmax(0));
 
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
@@ -879,11 +882,11 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
 
 		// Compute contribution of jth dipole component, either with +- orientation
 		for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
+		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 		}
-		R2s_ptr[j] = R2;
-		R2s_ptr[j + N3] = R2minus;
+		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
+		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
 	    }
 	}
 
@@ -897,6 +900,7 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
             sign_fac[k] = 1.0;
 	}
 	skjj[k] = (skj[k] % 3); 
+	mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
 	skj[k] = int(skj[k] / 3.0);
         x(skj[k], skjj[k]) = sign_fac[k];
 
@@ -914,7 +918,7 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K,
         }
 
 	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, mmax_sum);
 	}
     }
     return std::make_tuple(objective_history, m_history, x);

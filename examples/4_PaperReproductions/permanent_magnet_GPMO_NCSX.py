@@ -28,8 +28,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 8  # need to set this to 64 for a real run
-ntheta = 8  # same as above
+nphi = 64  # need to set this to 64 for a real run
+ntheta = 64  # same as above
 dr = 0.02
 coff = 0.02
 poff = 0.1
@@ -71,16 +71,20 @@ pm_opt = PermanentMagnetGrid(
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'backtracking'
+algorithm = 'baseline'
+#algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000  # Number of magnets to place... 50000 for a full run perhaps
-kwargs['nhistory'] = 500  # frequency with which to record the solution
-kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-kwargs['backtracking'] = 500  # frequency with which to backtrack
-kwargs['Nadjacent'] = 10  # Number of neighbor dipoles to consider as adjacent
+kwargs['K'] = 50000  # Number of magnets to place... 50000 for a full run perhaps
+kwargs['reg_l2'] = 1e-10 
+#kwargs['nhistory'] = 500  # frequency with which to record the solution
+#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
+#kwargs['backtracking'] = 500  # frequency with which to backtrack
+#kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
-OUT_DIR = 'output_permanent_magnet_GPMO_NCSX_' + algorithm
+
+scratch_path = '/global/cscratch1/sd/akaptano/'
+OUT_DIR = scratch_path + 'output_permanent_magnet_GPMO_NCSX_' + algorithm
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Optimize the permanent magnets greedily
@@ -88,12 +92,15 @@ t1 = time.time()
 R2_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
-np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
-np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
+
+# optionally save the whole solution history
+# np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
+# np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
 
 # Note backtracking uses num_nonzeros since many magnets get removed 
 plt.figure()
-plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
+plt.semilogy(K, R2_history)
+#plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
 plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('$f_B$')
@@ -105,7 +112,8 @@ vol_eff = np.sum(np.sqrt(np.sum(m_history ** 2, axis=1)), axis=0) * mu0 * 2 * s.
 
 # Plot the MSE history versus the effective magnet volume
 plt.figure()
-plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
+plt.semilogy(vol_eff, R2_history)
+#plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
 plt.grid(True)
 plt.xlabel('$V_{eff}$')
 plt.ylabel('$f_B$')
@@ -125,7 +133,7 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
-for k in range(0, kwargs["nhistory"] + 1, 20):
+for k in range(0, kwargs["nhistory"] + 1, 50):
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))

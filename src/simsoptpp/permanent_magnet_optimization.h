@@ -39,9 +39,9 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
 // variants of the GPMO algorithm
 std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
 std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
-std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int single_direction);
+std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&mmax, int K, bool verbose, int nhistory, int single_direction);
 std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, int K, bool verbose, int nhistory);
 
 // helper functions for GPMO algorithm
-void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history); 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history, double mmax_sum); 
 Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent);

@@ -763,8 +763,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     if len(RS_history) != 0:
 
         m_history = np.array(m_history)
-        m_history = m_history.reshape(m_history.shape[0] * m_history.shape[1], pm_opt.ndipoles, 3)
-        print(m_history.shape)
+        #m_history = m_history.reshape(m_history.shape[0] * m_history.shape[1], pm_opt.ndipoles, 3)
         m_proxy_history = np.array(m_proxy_history).reshape(m_history.shape[0], pm_opt.ndipoles, 3)
 
         for i, datum in enumerate([m_history, m_proxy_history]):
@@ -969,5 +968,6 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['reg_l2'] = 0.0
     elif algorithm == 'GPMO':
         kwargs['K'] = 400
+        kwargs["reg_l2"] = 0.0 
         kwargs['nhistory'] = 200  # K > nhistory and nhistory must be divisor of K
     return kwargs
