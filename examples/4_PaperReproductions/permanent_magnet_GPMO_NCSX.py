@@ -28,8 +28,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 64  # need to set this to 64 for a real run
-ntheta = 64  # same as above
+nphi = 8  # need to set this to 64 for a real run
+ntheta = 8  # same as above
 dr = 0.02
 coff = 0.02
 poff = 0.1
@@ -71,20 +71,15 @@ pm_opt = PermanentMagnetGrid(
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'baseline'
-#algorithm = 'backtracking'
+algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 50000  # Number of magnets to place... 50000 for a full run perhaps
-kwargs['reg_l2'] = 1e-12
-#kwargs['nhistory'] = 500  # frequency with which to record the solution
-#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-#kwargs['backtracking'] = 500  # frequency with which to backtrack
-#kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
+kwargs['K'] = 2000  # Number of magnets to place... 50000 for a full run perhaps
+kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
+kwargs['backtracking'] = 500  # frequency with which to backtrack
+kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
-
-scratch_path = '/global/cscratch1/sd/akaptano/'
-OUT_DIR = scratch_path + 'output_permanent_magnet_GPMO_NCSX_' + algorithm
+OUT_DIR = 'output_permanent_magnet_GPMO_NCSX_' + algorithm + '/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Optimize the permanent magnets greedily
@@ -95,7 +90,7 @@ print('GPMO took t = ', t2 - t1, ' s')
 
 # optionally save the whole solution history
 # np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
-# np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
+np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
 
 # Note backtracking uses num_nonzeros since many magnets get removed 
 plt.figure()
@@ -109,6 +104,7 @@ plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 mu0 = 4 * np.pi * 1e-7
 Bmax = 1.465
 vol_eff = np.sum(np.sqrt(np.sum(m_history ** 2, axis=1)), axis=0) * mu0 * 2 * s.nfp / Bmax
+np.savetxt(OUT_DIR + 'eff_vol_history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', vol_eff)
 
 # Plot the MSE history versus the effective magnet volume
 plt.figure()
