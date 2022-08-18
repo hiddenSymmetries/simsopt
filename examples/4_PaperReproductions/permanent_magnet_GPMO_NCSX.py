@@ -75,7 +75,7 @@ algorithm = 'baseline'
 #algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = 50000  # Number of magnets to place... 50000 for a full run perhaps
-kwargs['reg_l2'] = 1e-10 
+kwargs['reg_l2'] = 1e-12
 #kwargs['nhistory'] = 500  # frequency with which to record the solution
 #kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
 #kwargs['backtracking'] = 500  # frequency with which to backtrack
@@ -99,7 +99,7 @@ print('GPMO took t = ', t2 - t1, ' s')
 
 # Note backtracking uses num_nonzeros since many magnets get removed 
 plt.figure()
-plt.semilogy(K, R2_history)
+plt.semilogy(R2_history)
 #plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
 plt.grid(True)
 plt.xlabel('K')
