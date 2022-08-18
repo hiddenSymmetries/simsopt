@@ -4,7 +4,7 @@ from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
-from simsopt.configs.zoo import get_ncsx_data, get_hsx_data
+from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_giuliani_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 
@@ -229,7 +229,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             ("SurfaceXYZFourier", True, False, 'ls'),  # noqa
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
-            for get_data in [get_ncsx_data, get_hsx_data]:
+            for get_data in [get_giuliani_data]:
                 with self.subTest(
                     surfacetype=surfacetype, stellsym=stellsym,
                         optimize_G=optimize_G, second_stage=second_stage, get_data=get_data):
@@ -264,6 +264,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         s.fit_to_curve(ma, 0.1)
         if get_data is get_ncsx_data:
             iota = -0.3
+        elif get_data is get_giuliani_data:
+            iota = 0.4
         elif get_data is get_hsx_data:
             iota = 1.
         else:
@@ -277,7 +279,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         else:
             G = None
-
+        
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
@@ -289,17 +291,18 @@ class BoozerSurfaceTests(unittest.TestCase):
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-9, maxiter=10, constraint_weight=100.,
+                tol=1e-9, maxiter=15, constraint_weight=100.,
                 iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
-                tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
+                tol=1e-9, maxiter=15, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
             res = boozer_surface.solve_residual_equation_exactly_newton(
-                tol=1e-12, maxiter=10, iota=res['iota'], G=res['G'])
+                tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
+        
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
         gammazero = s.gamma()[0, 0, :]

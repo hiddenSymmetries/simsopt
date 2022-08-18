@@ -87,3 +87,35 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
     return (curves, currents, ma)
 
 
+def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
+    """
+
+    This example simply loads the coils after the nine stage optimization runs discussed in
+   
+       A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon, Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry. Journal of Plasma Physics.
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    assert length in [18, 20, 22, 24]
+    assert nsurfaces in [5, 9]
+
+    filename = THIS_DIR / f'GIULIANI_data/GIULIANI_length={length}_nsurfaces={nsurfaces}'
+    curves = CurveXYZFourier.load_curves_from_file(filename.with_suffix('.curves'), order=Nt_coils, ppp=ppp)
+    currents = [Current(c) for c in np.loadtxt(filename.with_suffix('.currents'))]
+    ma_dofs = np.loadtxt(filename.with_suffix('.ma'))
+    cR = ma_dofs[:26]
+    sZ = ma_dofs[26:]
+    nfp = 2
+    
+    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
+    ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
+    ma.rc[:] = cR[:(Nt_ma+1)]
+    ma.zs[:] = sZ[:Nt_ma]
+    ma.x = ma.get_dofs()
+    return (curves, currents, ma)
+
