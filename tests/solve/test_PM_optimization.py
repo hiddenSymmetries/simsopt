@@ -48,11 +48,35 @@ class Testing(unittest.TestCase):
         A = np.random.rand(nquad, ndipoles, 3)
         ATb = np.tensordot(A, b, axes=([0, 0]))
         t1 = time.time()
-        _, m_hist = sopp.GPMO_algorithm(
+        _, m_hist = sopp.GPMO_baseline(
+            A_obj=A,
+            b_obj=b,
+            mmax=m_maxima,
+            K=max_iter,
+            verbose=True,
+        )
+        _, m_hist_multi = sopp.GPMO_multi(
+            A_obj=A,
+            b_obj=b,
+            K=max_iter,
+            verbose=True,
+            Nadjacent=1,
+            dipole_grid_xyz=np.random.rand(ndipoles, 3)
+        )
+        _, m_hist_backtracking = sopp.GPMO_backtracking(
+            A_obj=A,
+            b_obj=b,
+            K=max_iter,
+            verbose=True,
+            Nadjacent=1
+            dipole_grid_xyz=np.random.rand(ndipoles, 3)
+        )
+        assert m_hist == m_hist_multi
+        assert m_hist == m_hist_backtracking
+        _, m_hist_backtracking = sopp.GPMO_backtracking(
             A_obj=A,
             b_obj=b,
             ATb=ATb,
-            m_maxima=m_maxima,
             K=max_iter,
             verbose=True,
         )

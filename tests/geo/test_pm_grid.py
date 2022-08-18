@@ -4,7 +4,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.solve import relax_and_split
+from simsopt.solve import relax_and_split, GPMO
 import simsoptpp as sopp
 import numpy as np
 import unittest
@@ -121,6 +121,17 @@ class Testing(unittest.TestCase):
         with self.assertRaises(ValueError):
             mmax = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T)
             _, _, _, = relax_and_split(pm_opt, m0=np.ones((pm_opt.ndipoles * 3)) * mmax)
+
+        with self.assertRaises(ValueError):
+            GPMO(pm_opt, algorithm='baseline', kwargs={}):
+
+        from simsopt.util.permanent_magnet_helper_functions import *
+        kwargs = initialize_default_kwargs('GPMO')
+        with self.assertRaises(ValueError):
+            GPMO(pm_opt, algorithm='backtracking', kwargs):
+
+        with self.assertRaises(ValueError):
+            GPMO(pm_opt, algorithm='multi', kwargs):
 
     def test_projected_normal(self):
         """

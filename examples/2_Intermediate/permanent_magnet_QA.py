@@ -30,8 +30,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
 dr = 0.02  # cylindrical bricks with radial extent 2 cm
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
@@ -205,14 +205,16 @@ if vmec_flag:
     mpi = MpiPartition(ngroups=4)
     comm = MPI.COMM_WORLD
 
-    # Make the QFM surfaces
+    # Make the QFM surface
     t1 = time.time()
     Bfield = bs + b_dipole
-    Bfield_proxy = bs + b_dipole_proxy
     Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
     Bfield_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
+
+    # repeat QFM calculation for the proxy solution
+    Bfield_proxy = bs + b_dipole_proxy
     qfm_surf_proxy = make_qfm(s, Bfield_proxy)
     qfm_surf_proxy = qfm_surf_proxy.surface
     qfm_surf_proxy.plot()
@@ -229,7 +231,7 @@ if vmec_flag:
     equil.boundary = qfm_surf
     equil.run()
 
-    ### Always use the QH VMEC file and just change the boundary
+    ### Always use the QH VMEC file for the proxy solution and just change the boundary
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf_proxy
