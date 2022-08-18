@@ -439,8 +439,9 @@ class VmecFieldlinesTests(unittest.TestCase):
         fl = vmec_fieldlines(vmec, s, alpha, theta1d=theta)
         for js in range(fl.ns):
             for jalpha in range(fl.nalpha):
-                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :], theta)
-                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha[jalpha])
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :], theta, atol=1e-15)
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha[jalpha],
+                                           atol=1e-15)
 
         # Try a case in which phi is specified:
         s = 1
