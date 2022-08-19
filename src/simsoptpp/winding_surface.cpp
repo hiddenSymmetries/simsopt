@@ -198,7 +198,6 @@ Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& 
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
             simd_t nmag = sqrt(normsq(n_j));
-            Vec3dSimd Kcrossr = cross(K_j, r);
             A_i.x += nmag * K_j.x * rmag_inv;
             A_i.y += nmag * K_j.y * rmag_inv;
             A_i.z += nmag * K_j.z * rmag_inv;

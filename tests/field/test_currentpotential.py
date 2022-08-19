@@ -19,6 +19,7 @@ try:
 except ImportError:
     pyevtk_found = False
 
+
 class CurrentPotentialTests(unittest.TestCase):
     def test_compare_K_with_regcoil(self):
         # This is an axisymmetric case with no Phimns
@@ -26,27 +27,27 @@ class CurrentPotentialTests(unittest.TestCase):
         stellsym = True
         mpol = 1
         ntor = 0
-        mpol_potential=6
-        ntor_potential=7
+        mpol_potential = 6
+        ntor_potential = 7
         ntheta = 32
         nphi = 32
-        s = SurfaceRZFourier(nfp=nfp, ntheta = nphi, nphi = nphi,
-                mpol=mpol, ntor=ntor, stellsym=stellsym)
+        s = SurfaceRZFourier(nfp=nfp, ntheta=nphi, nphi=nphi,
+                             mpol=mpol, ntor=ntor, stellsym=stellsym)
         s.set_dofs(0*s.get_dofs())
         s.set_rc(0, 0, 6.5)
         s.set_rc(1, 0, 4.0)
         s.set_zs(1, 0, 4.0)
 
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
-            ntor=ntor_potential, nphi=nphi, ntheta=ntheta,
-            net_poloidal_current_amperes=1.0e6, net_toroidal_current_amperes=0.0)
+                                     ntor=ntor_potential, nphi=nphi, ntheta=ntheta,
+                                     net_poloidal_current_amperes=1.0e6, net_toroidal_current_amperes=0.0)
 
         filename = TEST_DIR / 'regcoil_out.axisymmetry.nc'
         f = netcdf_file(filename, 'r')
-        K2_regcoil = f.variables['K2'][()][-1,:,:]
+        K2_regcoil = f.variables['K2'][()][-1, :, :]
         K = cp.K()
-        K2 = np.sum(K*K,axis=2)
-        K2_average = np.mean(K2,axis=(0,1))
+        K2 = np.sum(K*K, axis=2)
+        K2_average = np.mean(K2, axis=(0, 1))
         assert np.allclose(K2/K2_average, K2_regcoil/K2_average)
 
         # Now a non-axisymmetric test
@@ -65,30 +66,31 @@ class CurrentPotentialTests(unittest.TestCase):
         net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
         xm_potential = f.variables['xm_potential'][()]
         xn_potential = f.variables['xn_potential'][()]
-        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1,:]
+        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
         mpol = int(np.max(xm_coil))
         ntor = int(np.max(xn_coil)/nfp)
 
         s = SurfaceRZFourier(nfp=nfp, ntheta=ntheta, nphi=nzeta,
-                mpol=mpol, ntor=ntor, stellsym=stellsym,range="field period")
+                             mpol=mpol, ntor=ntor, stellsym=stellsym, range="field period")
         s.set_dofs(0*s.get_dofs())
         for im in range(len(xm_coil)):
-            s.set_rc(xm_coil[im],int(xn_coil[im]/nfp),rmnc_coil[im])
-            s.set_zs(xm_coil[im],int(xn_coil[im]/nfp),zmns_coil[im])
+            s.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
+            s.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
 
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
-            ntor=ntor_potential, nphi=nzeta, ntheta=ntheta,
-            net_poloidal_current_amperes=net_poloidal_current_amperes,
-            net_toroidal_current_amperes=net_toroidal_current_amperes,range="field period")
+                                     ntor=ntor_potential, nphi=nzeta, ntheta=ntheta,
+                                     net_poloidal_current_amperes=net_poloidal_current_amperes,
+                                     net_toroidal_current_amperes=net_toroidal_current_amperes, range="field period")
         for im in range(len(xm_potential)):
-            cp.set_phis(xm_potential[im],int(xn_potential[im]/nfp),single_valued_current_potential_mn[im])
+            cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 
-        K2_regcoil = f.variables['K2'][()][-1,:,:]
+        K2_regcoil = f.variables['K2'][()][-1, :, :]
         K = cp.K()
-        K2 = np.sum(K*K,axis=2)
-        K2_average = np.mean(K2,axis=(0,1))
+        K2 = np.sum(K*K, axis=2)
+        K2_average = np.mean(K2, axis=(0, 1))
 
         assert np.allclose(K2/K2_average, K2_regcoil/K2_average)
+
 
 def get_currentpotential(cptype, stellsym, phis=None, thetas=None):
     np.random.seed(2)
@@ -112,6 +114,7 @@ def get_currentpotential(cptype, stellsym, phis=None, thetas=None):
     rand_scale = 0.01
     cp.x = dofs + rand_scale * np.random.rand(len(dofs))  # .reshape(dofs.shape)
     return cp
+
 
 class CurrentPotentialFourierTests(unittest.TestCase):
 

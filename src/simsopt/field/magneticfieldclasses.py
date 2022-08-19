@@ -514,25 +514,27 @@ class WindingSurfaceField(MagneticField):
 
     def __init__(self, current_potential):
         MagneticField.__init__(self)
-        self.K = current_potential.K() 
         self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
         self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
+        self.K = current_potential.K().reshape((self.ws_points.shape[0], 3))
+        self.nphi = len(current_potential.winding_surface.quadpoints_phi)
+        self.ntheta = len(current_potential.winding_surface.quadpoints_theta)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sopp.WindingSurfaceB(points, self.ws_points, self.ws_normal, self.K)
+        B[:] = sopp.WindingSurfaceB(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        A[:] = sopp.WindingSurfaceA(points, self.ws_points, self.ws_normal, self.K)
+        A[:] = sopp.WindingSurfaceA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = sopp.WindingSurfacedB(points, self.ws_points, self.ws_normal, self.K)
+        dB[:] = sopp.WindingSurfacedB(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K)
+        dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
     def as_dict(self) -> dict:
         d = {}

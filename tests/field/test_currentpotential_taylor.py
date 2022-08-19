@@ -3,6 +3,7 @@ from simsopt.field.currentpotential import CurrentPotential, CurrentPotentialFou
 from simsopt.geo import SurfaceRZFourier
 import numpy as np
 
+
 class CurrentPotentialTaylorTests(unittest.TestCase):
     cptypes = ["CurrentPotentialFourier"]
 

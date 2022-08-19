@@ -18,10 +18,11 @@ from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotentialFourier
+from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
 from scipy.special import ellipk, ellipe
+np.random.seed(100)
 
 
 class Testing(unittest.TestCase):
@@ -739,7 +740,6 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         B1 = Bfield.B()
         dB1 = Bfield.dB_by_dX()
-        print(dB1)
         B1_analytical = [
             [-3.48663e-7, 0.000221744, -0.211538],
             [-0.0000841262, -0.00164856, 0.85704]
@@ -757,48 +757,159 @@ class Testing(unittest.TestCase):
 
     def test_windingsurface_calculation(self):
         # Make a circular cross section, high-aspect ratio current loop in the Z = 0 plane
-        # Following approximate analytic solution in Jackson problem 5.32
+        # Following approximate analytic solution in Jackson problem 5.32 for a circular
+        # cross section wire with major radius a, minor radius b, a >> b. 
         filename = 'test_files/input.circular_tokamak_aspect_100'
-        nphi = 16
+        nphi = 32
         ntheta = 16
         winding_surface = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
         # Make CurrentPotential class from this winding surface with 1 amp toroidal current
-        current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=1)
+        ### Note, it appears we must pass the same quadpoints for now
+        current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=-1, nfp=winding_surface.nfp, quadpoints_phi=winding_surface.quadpoints_phi, quadpoints_theta=winding_surface.quadpoints_theta)
 
         # compute the Bfield from this current loop at some nearby random points
         Bfield = WindingSurfaceField(current_potential)
-        gamma = winding_surface.gamma.reshape((-1, 3))
+        gamma = winding_surface.gamma().reshape((-1, 3))
+        nx = 100
+        ny = 32
+        N = nx * ny
+
         # find the edge of the plasma
-        rho = np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)) * np.ones(100)
-        phi = np.linspace(0, 2 * np.pi, 32)
-        # approximation error ~ sqrt(eps ** 2 + eps_z ** 2) / Rmajor
-        eps = 0.01
-        eps_z = 0.01
-        x = np.zeros(3200)
-        y = np.zeros(3200)
-        for i in range(100):
-            for j in range(32):
-                x = (rho[i] + eps) * np.cos(phi[j])
-                y = (rho[i] + eps) * np.sin(phi[j])
-        z = eps_z * (np.random.rand(3200) - 0.5) * 2
+        b = np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 2] ** 2)) * np.ones(nx)
+        phi = winding_surface.quadpoints_phi
+
+        # approximation error ~ sqrt(eps ** 2) / a ~ 1e-10
+        eps = 1e-18
+        x = np.zeros(N)
+        y = np.zeros(N)
+        for i in range(nx):
+            for j in range(ny):
+                x[i * ny + j] = (b[i] + eps) * np.cos(phi[j])
+                y[i * ny + j] = (b[i] + eps) * np.sin(phi[j])
+        z = np.zeros(N)
+
         # Now have bunch of points that are right outside the plasma surface
         points = np.array([x, y, z]).T
-        Bfield.set_points(points)
+        Bfield.set_points(np.ascontiguousarray(points))
         B_predict = Bfield.B()
         A_predict = Bfield.A()
 
         # calculate the Bfield analytically in spherical coordinates
-        # See Jackson 5.37 for the vector potential in terms of the elliptic integrals
         mu_fac = 2e-7
-        r = np.sqrt(eps_z ** 2 + eps ** 2)
-        Aphi = mu_fac * (np.log(8 * winding_surface.get_rc(0, 0) / r) - 2)
-        #r = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2 + points[:, 2] ** 2)
-        #theta = np.atan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
-        #k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
-        #Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k) - 2 * ellipe(k) / k ** 2)
-        A_analytic = np.array([np.zeros(len(Aphi)), np.zeros(len(Aphi)), Aphi]).T
+        r = np.sqrt(z ** 2 + x ** 2 + y ** 2)
+        Aphi = mu_fac * (np.log(8 * 200 / r) - 2)
+
+        # convert A_analytic to Cartesian
+        Ax = np.zeros(len(Aphi))
+        Ay = np.zeros(len(Aphi))
+        phi_points = np.arctan2(points[:, 1], points[:, 0])
+        for i in range(N):
+            Ax[i] = - np.sin(phi_points[i]) * Aphi[i]
+            Ay[i] = np.cos(phi_points[i]) * Aphi[i]
+        A_analytic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
+
         print(A_predict, A_analytic, A_predict.shape, A_analytic.shape)
+        assert np.allclose(A_predict, A_analytic)
+
+    def test_windingsurface_exact(self):
+        # Make an infinitesimally thin current loop in the Z = 0 plane
+        # Following approximate analytic solution in Jackson 5.37 
+        nphi = 128
+        ntheta = 8
+
+        # Make winding surface with major radius = 1, no minor radius
+        winding_surface = SurfaceRZFourier(nphi=nphi, ntheta=ntheta)
+        for i in range(winding_surface.mpol + 1):
+            for j in range(-winding_surface.ntor, winding_surface.ntor + 1):
+                winding_surface.set_rc(i, j, 0.0)
+                winding_surface.set_zs(i, j, 0.0)
+        winding_surface.set_rc(0, 0, 1.0)
+        winding_surface.set_rc(1, 0, 1e-8)  # current loop must have finite width for simsopt
+        winding_surface.set_zs(1, 0, 1e-8)  # current loop must have finite width for simsopt
+
+        # Make CurrentPotential class from this winding surface with 1 amp toroidal current
+        ### Note, it appears we must pass the same quadpoints for now
+        current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=-1, quadpoints_phi=winding_surface.quadpoints_phi, quadpoints_theta=winding_surface.quadpoints_theta)
+
+        # compute the Bfield from this current loop at some points 
+        Bfield = WindingSurfaceField(current_potential)
+        N = 1000
+        phi = winding_surface.quadpoints_phi
+
+        # Check that the full expression is correct 
+        points = (np.random.rand(N, 3) - 0.5) * 10
+        Bfield.set_points(np.ascontiguousarray(points))
+        B_predict = Bfield.B()
+        A_predict = Bfield.A()
+
+        # calculate the Bfield analytically in spherical coordinates
+        mu_fac = 1e-7
+
+        # See Jackson 5.37 for the vector potential in terms of the elliptic integrals
+        r = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2 + points[:, 2] ** 2)
+        theta = np.arctan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
+        k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
+
+        # Note scipy is very annoying... scipy function ellipk(k^2) 
+        # is equivalent to what Jackson calls ellipk(k) so call it with k^2
+        Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k ** 2) - 2 * ellipe(k ** 2)) / k ** 2
+
+        # convert A_analytic to Cartesian
+        Ax = np.zeros(len(Aphi))
+        Ay = np.zeros(len(Aphi))
+        phi_points = np.arctan2(points[:, 1], points[:, 0])
+        for i in range(N):
+            Ax[i] = - np.sin(phi_points[i]) * Aphi[i]
+            Ay[i] = np.cos(phi_points[i]) * Aphi[i]
+        A_analytic_elliptic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
+
+        assert np.allclose(A_predict, A_analytic_elliptic)
+
+        # Now check that the far-field looks like a dipole
+        points = (np.random.rand(N, 3) + 1) * 1000
+        gamma = winding_surface.gamma().reshape((-1, 3))
+        print(np.min(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)), np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
+        print(winding_surface.area(), winding_surface.volume())
+
+        Bfield.set_points(np.ascontiguousarray(points))
+        B_predict = Bfield.B()
+        A_predict = Bfield.A()
+
+        # calculate the Bfield analytically in spherical coordinates
+        mu_fac = 1e-7
+
+        # See Jackson 5.37 for the vector potential in terms of the elliptic integrals
+        r = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2 + points[:, 2] ** 2)
+        theta = np.arctan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
+        k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
+
+        # Note scipy is very annoying... scipy function ellipk(k^2) 
+        # is equivalent to what Jackson calls ellipk(k) so call it with k^2
+        Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k ** 2) - 2 * ellipe(k ** 2)) / k ** 2
+
+        # convert A_analytic to Cartesian
+        Ax = np.zeros(len(Aphi))
+        Ay = np.zeros(len(Aphi))
+        phi_points = np.arctan2(points[:, 1], points[:, 0])
+        for i in range(N):
+            Ax[i] = - np.sin(phi_points[i]) * Aphi[i]
+            Ay[i] = np.cos(phi_points[i]) * Aphi[i]
+        A_analytic_elliptic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
+
+        assert np.allclose(A_predict, A_analytic_elliptic)
+
+        # double check with vector potential of a dipole
+        Aphi = np.pi * mu_fac * np.sin(theta) / r ** 2
+
+        # convert A_analytic to Cartesian
+        Ax = np.zeros(len(Aphi))
+        Ay = np.zeros(len(Aphi))
+        for i in range(N):
+            Ax[i] = - np.sin(phi_points[i]) * Aphi[i]
+            Ay[i] = np.cos(phi_points[i]) * Aphi[i]
+        A_analytic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
+
         assert np.allclose(A_predict, A_analytic)
 
 
