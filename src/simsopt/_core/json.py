@@ -120,7 +120,7 @@ class GSONable:
     REDIRECT = _load_redirect(
         os.path.join(os.path.expanduser("~"), ".simsopt.yaml"))
 
-    def as_dict(self, serial_objs_dict=None):
+    def as_dict(self, serial_objs_dict):
         """
         A JSON serializable dict representation of an object.
         """
@@ -136,8 +136,8 @@ class GSONable:
         except (AttributeError, ImportError):
             d["@version"] = None  # type: ignore
 
-        if serial_objs_dict is None:
-            serial_objs_dict = {}
+        # if serial_objs_dict is None:
+        #     serial_objs_dict = {}
 
         spec = getfullargspec(self.__class__.__init__)
         args = spec.args
@@ -149,7 +149,7 @@ class GSONable:
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
             if hasattr(obj, "as_dict"):
                 if obj.name not in serial_objs_dict:  # Add the path
-                    serial_obj, _ = obj.as_dict(serial_objs_dict)  # serial_objs is modified in place
+                    serial_obj = obj.as_dict(serial_objs_dict)  # serial_objs is modified in place
                     serial_objs_dict[obj.name] = serial_obj
                 return {"$type": "ref", "value": obj.name}
             return obj
@@ -162,6 +162,7 @@ class GSONable:
                     try:
                         a = getattr(self, "_" + c)
                     except AttributeError:
+                        print(f"Missing attribute is {c}")
                         raise NotImplementedError(
                             "Unable to automatically determine as_dict "
                             "format from class. GSONAble requires all "
@@ -182,7 +183,7 @@ class GSONable:
             d.update(**getattr(self, "_kwargs"))  # pylint: disable=E1101
         if isinstance(self, Enum):
             d.update({"value": self.value})  # pylint: disable=E1101
-        return d, serial_objs_dict
+        return d # , serial_objs_dict
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
@@ -299,7 +300,7 @@ class SIMSONable:
     def __init__(self, simsopt_objs):
         self.simsopt_objs = simsopt_objs
 
-    def as_dict(self):
+    def as_dict(self, serial_objs_dict=None):
         """
         A JSON serializable dict representation of an object.
         """
@@ -324,7 +325,7 @@ class SIMSONable:
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
             if hasattr(obj, "as_dict"):
                 if obj.name not in serial_objs_dict:  # Add the path
-                    serial_obj, _ = obj.as_dict(
+                    serial_obj = obj.as_dict(
                         serial_objs_dict)  # serial_objs is modified in place
                     serial_objs_dict[obj.name] = serial_obj
                 return {"$type": "ref", "value": obj.name}
@@ -418,7 +419,7 @@ class GSONEncoder(json.JSONEncoder):
                 d = o.dict()
             else:
                 d = o.as_dict()
-                if hasattr(o, "name"):
+                if hasattr(o, "name") and "@name" not in d:
                     d["@name"] = o.name
 
             if "@module" not in d:
