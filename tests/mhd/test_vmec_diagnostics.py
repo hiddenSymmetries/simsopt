@@ -604,7 +604,7 @@ class VmecFieldlinesTests(unittest.TestCase):
             np.testing.assert_allclose(fl.gds22[0, j, :], np.fromstring(lines[24 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(-1 * fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gbdrift0[0, j, :], np.fromstring(lines[32 + j], sep=' '), atol=1e-4)
-            np.testing.assert_allclose(-1 * fl.cvdrift[0, j, :],  np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.cvdrift0[0, j, :], np.fromstring(lines[40 + j], sep=' '), atol=1e-4)
 
     def test_axisymm(self):
