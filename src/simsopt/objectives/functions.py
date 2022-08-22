@@ -8,7 +8,7 @@ representing a function. These functions are mostly used for testing.
 """
 
 import logging
-from numbers import Real
+from numbers import Real, Number
 from typing import Sequence
 
 import numpy as np
@@ -57,18 +57,22 @@ class Identity(Optimizable):
 
     return_fn_map = {'f': f}
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        del d["x0"]
-        del d["names"]
-        del d["fixed"]
+    def as_dict(self, serial_objs_dict: dict = None) -> dict:
+        # d = super().as_dict(serial_objs_dict)
+        d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
+        d["@name"] = self.name
+        # del d["x0"]
+        # del d["names"]
+        # del d["fixed"]
         d["x"] = self.local_full_x[0]
         d["dof_name"] = self.local_full_dof_names[0]
         d["dof_fixed"] = np.logical_not(self.local_dofs_free_status)[0]
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         return cls(d["x"], d["dof_name"], d["dof_fixed"])
 
 
@@ -109,15 +113,15 @@ class Adder(Optimizable):
         """
         return self.dJ()
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["n"] = self.n
-        return d
+    # def as_dict(self, serial_objs_dict: dict = None) -> dict:
+    #     d = super(serial_objs_dict).as_dict()
+    #     d["n"] = self.n
+    #     return d
 
-    @classmethod
-    def from_dict(cls, d):
-        n = d.pop("n")
-        return cls(n=n, **d)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     n = d.pop("n")
+    #     return cls(n=n, **d)
 
     return_fn_map = {'sum': sum}
 
@@ -135,13 +139,14 @@ class Rosenbrock(Optimizable):
 
     Args:
         b: The *b* parameter of Rosenbrock function
-        x: *x* coordinate
-        y: *y* coordinate
+        x0: *x, y* coordinates
     """
 
-    def __init__(self, b=100.0, x=0.0, y=0.0):
+    def __init__(self, b=100.0, x0=[0.0, 0.0], **kwargs):
         self._sqrtb = np.sqrt(b)
-        super().__init__([x, y], names=['x', 'y'])
+        if "names" not in kwargs:
+            kwargs["names"] = ["x", "y"]
+        super().__init__(x0=x0, **kwargs)
 
     @property
     def term1(self):
@@ -200,16 +205,20 @@ class Rosenbrock(Optimizable):
         return np.array([[1.0, 0.0],
                          [2 * self.local_full_x['x'] / self._sqrtb, -1.0 / self._sqrtb]])
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["b"] = self._sqrtb * self._sqrtb
-        d["x"] = self.get("x")
-        d["y"] = self.get("y")
-        return d
+    @property
+    def b(self):
+        return self._sqrtb * self._sqrtb
 
-    @classmethod
-    def from_dict(cls, d):
-        return cls(d["b"], d["x"], d["y"])
+    # def as_dict(self, serial_objs_dict = None) -> dict:
+    #     d = super().as_dict(serial_objs_dict)
+    #     d["b"] = self._sqrtb * self._sqrtb
+    #     d["x"] = self.get("x")
+    #     d["y"] = self.get("y")
+    #     return d
+
+    # @classmethod
+    # def from_dict(cls, d):
+    #     return cls(d["b"], d["x"], d["y"])
 
 
 class TestObject1(Optimizable):
@@ -225,11 +234,15 @@ class TestObject1(Optimizable):
               added as parents
     """
 
-    def __init__(self, val: Real, depends_on: Sequence[Optimizable] = None,
+    def __init__(self, x0: Real, depends_on: Sequence[Optimizable] = None,
                  **kwargs):
         if depends_on is None:
             depends_on = [Adder(3), Adder(2)]
-        super().__init__(x0=[val], names=['val'], depends_on=depends_on,
+        if isinstance(x0, Number):
+            x0 = [x0]
+        if "names" not in kwargs:
+            kwargs["names"] = ["val"]
+        super().__init__(x0=x0, depends_on=depends_on,
                          **kwargs)
 
     def f(self):
@@ -253,13 +266,16 @@ class TestObject1(Optimizable):
              np.full(self.parents[0].n, 2.0 / (10.0 + a2)),
              np.full(self.parents[1].n, -(v + 2 * a1) / ((10.0 + a2) ** 2))))
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["val"] = self.local_full_x[0]
-        d["depends_on"] = []
-        for opt in self.parents:
-            d["depends_on"].append(opt.as_dict())
-        return d
+    @property
+    def depends_on(self):
+        return self.parents
+    # def as_dict(self) -> dict:
+    #     d = {}
+    #     d["val"] = self.local_full_x[0]
+    #     d["depends_on"] = []
+    #     for opt in self.parents:
+    #         d["depends_on"].append(opt.as_dict())
+    #     return d
 
 
 class TestObject2(Optimizable):
