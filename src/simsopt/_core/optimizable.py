@@ -21,7 +21,6 @@ from pathlib import Path
 from fnmatch import fnmatch
 
 import numpy as np
-from monty.json import MSONable, MontyDecoder, MontyEncoder
 from monty.io import zopen
 
 from .dev import SimsoptRequires
@@ -29,6 +28,7 @@ from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
+from .json import GSONable, SIMSONable, GSONDecoder, GSONEncoder
 
 try:
     import networkx as nx
@@ -427,7 +427,7 @@ class DOFs:
         return self._names
 
 
-class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
+class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
     """
     Experimental callable ABC that provides lego-like optimizable objects
     that can be used to partition the optimization problem into a graph.
@@ -973,6 +973,13 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         """
         return self._dofs.full_x
 
+    @property
+    def x0(self):
+        """
+        To satisfy the attribute
+        """
+        return self.local_full_x
+
     @local_full_x.setter
     def local_full_x(self, x: RealArray) -> None:
         """
@@ -1299,10 +1306,13 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         return G, pos
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
+    def as_dict(self, serial_objs_dict=None) -> dict:
+        # d = {}
+        # d["@module"] = self.__class__.__module__
+        # d["@class"] = self.__class__.__name__
+        # d["@name"] = self.name
+        d = super().as_dict(serial_objs_dict)
+        print(f"d from GSONable.as_dict is {d}")
         if len(self.local_full_x):
             d["x0"] = list(self.local_full_x)
             d["names"] = self.local_full_dof_names
@@ -1310,27 +1320,27 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             d["lower_bounds"] = list(self.local_full_lower_bounds)
             d["upper_bounds"] = list(self.local_full_upper_bounds)
         # d["external_dof_setter"] = self.local_dof_setter
-        if self.parents:
-            d["depends_on"] = []
-            for parent in self.parents:
-                d["depends_on"].append(parent.as_dict())
+        # if self.parents:
+        #     d["depends_on"] = []
+        #     for parent in self.parents:
+        #         d["depends_on"].append(parent.as_dict())
 
         return d
 
-    @staticmethod
-    def _decode(d):
-        parents_dict = d.pop("depends_on") if "depends_on" in d else None
-        if parents_dict:
-            parents = []
-            decoder = MontyDecoder()
-            for pdict in parents_dict:
-                parents.append(decoder.process_decoded(pdict))
-            return parents
+   # @staticmethod
+   # def _decode(d):
+   #     parents_dict = d.pop("depends_on") if "depends_on" in d else None
+   #     if parents_dict:
+   #         parents = []
+   #         decoder = MontyDecoder()
+   #         for pdict in parents_dict:
+   #             parents.append(decoder.process_decoded(pdict))
+   #         return parents
 
-    @classmethod
-    def from_dict(cls, d):
-        parents = Optimizable._decode(d)
-        return cls(depends_on=parents, **d)
+   # @classmethod
+   # def from_dict(cls, d):
+   #     parents = Optimizable._decode(d)
+   #     return cls(depends_on=parents, **d)
 
     def save(self, filename=None, fmt=None, **kwargs):
         filename = filename or ""
@@ -1339,10 +1349,11 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         if fmt == "json" or fnmatch(fname.lower(), "*.json"):
             if "cls" not in kwargs:
-                kwargs["cls"] = MontyEncoder
+                kwargs["cls"] = GSONEncoder
             if "indent" not in kwargs:
                 kwargs["indent"] = 2
-            s = json.dumps(self.as_dict(), **kwargs)
+            simson = SIMSONable(self)
+            s = json.dumps(simson, **kwargs)
             if filename:
                 with zopen(filename, "wt") as f:
                     f.write(s)
@@ -1354,7 +1365,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
     def from_str(cls, input_str: str, fmt="json"):
         fmt_low = fmt.lower()
         if fmt_low == "json":
-            return json.loads(input_str, cls=MontyDecoder)
+            return json.loads(input_str, cls=GSONDecoder)
         else:
             raise ValueError(f"Invalid format: `{str(fmt)}`")
 
@@ -1384,7 +1395,7 @@ def load(filename, *args, **kwargs):
 
     with zopen(filename, "rt") as fp:
         if "cls" not in kwargs:
-            kwargs["cls"] = MontyDecoder
+            kwargs["cls"] = GSONDecoder
         return json.load(fp, *args, **kwargs)
 
 
@@ -1395,10 +1406,11 @@ def save(simsopt_objects, filename, *args, **kwargs):
 
     with zopen(filename, "wt") as fp:
         if "cls" not in kwargs:
-            kwargs["cls"] = MontyEncoder
+            kwargs["cls"] = GSONEncoder
         if "indent" not in kwargs:
             kwargs["indent"] = 2
-        return json.dump(simsopt_objects, fp, *args, **kwargs)
+        simson = SIMSONable(simsopt_objects)
+        return json.dump(simson, fp, *args, **kwargs)
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
@@ -1556,18 +1568,18 @@ class ScaledOptimizable(Optimizable):
         # Next line uses __rmul__ function for the Derivative class
         return float(self.factor) * self.opt.dJ(partials=True)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["factor"] = self.factor
-        d["opt"] = self.opt.as_dict()
-        return d
+    # def as_dict(self, serial_objs_dict=None) -> dict:
+    #     d = {}
+    #     d["@module"] = self.__class__.__module__
+    #     d["@class"] = self.__class__.__name__
+    #     d["factor"] = self.factor
+    #     d["opt"] = self.opt.as_dict()
+    #     return d
 
-    @classmethod
-    def from_dict(cls, d):
-        opt = MontyDecoder().process_decoded(d["opt"])
-        return cls(d["factor"], opt)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     opt = GSONDecoder().process_decoded(d["opt"])
+    #     return cls(d["factor"], opt)
 
 
 class OptimizableSum(Optimizable):
@@ -1595,20 +1607,20 @@ class OptimizableSum(Optimizable):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["opts"] = []
-        for opt in self.opts:
-            d["opts"].append(opt.as_dict())
-        return d
+    # def as_dict(self) -> dict:
+    #    d = {}
+    #    d["@module"] = self.__class__.__module__
+    #    d["@class"] = self.__class__.__name__
+    #    d["opts"] = []
+    #    for opt in self.opts:
+    #        d["opts"].append(opt.as_dict())
+    #    return d
 
-    @classmethod
-    def from_dict(cls, d):
-        opts = []
-        decoder = MontyDecoder()
-        for odict in d["opts"]:
-            opts.append(decoder.process_decoded(odict))
-        return cls(opts)
+    #@classmethod
+    #def from_dict(cls, d):
+    #    opts = []
+    #    decoder = GSONDecoder()
+    #    for odict in d["opts"]:
+    #        opts.append(decoder.process_decoded(odict))
+    #    return cls(opts)
 
