@@ -52,6 +52,7 @@ except ImportError:
 
 __version__ = "3.0.0"
 
+
 def _load_redirect(redirect_file):
     try:
         with open(redirect_file) as f:
@@ -77,6 +78,7 @@ def _load_redirect(redirect_file):
         }
 
     return dict(redirect_dict)
+
 
 class GSONable:
     """
@@ -118,7 +120,7 @@ class GSONable:
     REDIRECT = _load_redirect(
         os.path.join(os.path.expanduser("~"), ".simsopt.yaml"))
 
-    def as_dict(self, serial_objs=None):
+    def as_dict(self, serial_objs_dict=None):
         """
         A JSON serializable dict representation of an object.
         """
@@ -127,15 +129,15 @@ class GSONable:
 
         try:
             parent_module = \
-            self.__class__.__module__.split(".", maxsplit=1)[0]
+                self.__class__.__module__.split(".", maxsplit=1)[0]
             module_version = import_module(
                 parent_module).__version__  # type: ignore
             d["@version"] = str(module_version)
         except (AttributeError, ImportError):
             d["@version"] = None  # type: ignore
 
-        if serial_objs is None:
-            serial_objs = {}
+        if serial_objs_dict is None:
+            serial_objs_dict = {}
 
         spec = getfullargspec(self.__class__.__init__)
         args = spec.args
@@ -146,9 +148,9 @@ class GSONable:
             if isinstance(obj, dict):
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
             if hasattr(obj, "as_dict"):
-                if obj.name not in serial_objs: # Add the path
-                    serial_obj, _ = obj.as_dict(serial_objs) # serial_objs is modified in place
-                    serial_objs[obj.name] = serial_obj
+                if obj.name not in serial_objs_dict:  # Add the path
+                    serial_obj, _ = obj.as_dict(serial_objs_dict)  # serial_objs is modified in place
+                    serial_objs_dict[obj.name] = serial_obj
                 return {"$type": "ref", "value": obj.name}
             return obj
 
@@ -180,15 +182,15 @@ class GSONable:
             d.update(**getattr(self, "_kwargs"))  # pylint: disable=E1101
         if isinstance(self, Enum):
             d.update({"value": self.value})  # pylint: disable=E1101
-        return d, serial_objs
+        return d, serial_objs_dict
 
     @classmethod
-    def from_dict(cls, d, serial_objs):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         """
         :param d: Dict representation.
         :return: GSONable class.
         """
-        decoded = {k: GSONDecoder().process_decoded(v, serial_objs) for k, v in
+        decoded = {k: GSONDecoder().process_decoded(v, serial_objs_dict, recon_objs) for k, v in
                    d.items() if not k.startswith("@")}
         return cls(**decoded)
 
@@ -266,6 +268,7 @@ class GSONable:
             }
         )
 
+
 class SIMSONable:
     """
     This is a wrapper class providing a scaffolding for serializing the graph
@@ -292,6 +295,7 @@ class SIMSONable:
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
     """
+
     def __init__(self, simsopt_objs):
         self.simsopt_objs = simsopt_objs
 
@@ -311,7 +315,7 @@ class SIMSONable:
         except (AttributeError, ImportError):
             d["@version"] = None  # type: ignore
 
-        serial_objs = {}
+        serial_objs_dict = {}
 
         def recursive_as_dict(obj):
             if isinstance(obj, (list, tuple)):
@@ -319,16 +323,25 @@ class SIMSONable:
             if isinstance(obj, dict):
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
             if hasattr(obj, "as_dict"):
-                if obj.name not in serial_objs:  # Add the path
+                if obj.name not in serial_objs_dict:  # Add the path
                     serial_obj, _ = obj.as_dict(
-                        serial_objs)  # serial_objs is modified in place
-                    serial_objs[obj.name] = serial_obj
+                        serial_objs_dict)  # serial_objs is modified in place
+                    serial_objs_dict[obj.name] = serial_obj
                 return {"$type": "ref", "value": obj.name}
             return obj
 
         d["graph"] = recursive_as_dict(self.simsopt_objs)
-        d["simsopt_objs"] = serial_objs
+        d["simsopt_objs"] = serial_objs_dict
         return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict=None, recon_objs=None):
+        graph_subdict = d["graph"]
+        serial_objs_dict = d["simsopt_objs"]
+        gson_decoder = GSONDecoder()
+        recon_objs = {}
+        return gson_decoder.process_decoded(
+            graph_subdict, serial_objs_dict, recon_objs)
 
 
 class GSONEncoder(json.JSONEncoder):
@@ -405,6 +418,8 @@ class GSONEncoder(json.JSONEncoder):
                 d = o.dict()
             else:
                 d = o.as_dict()
+                if hasattr(o, "name"):
+                    d["@name"] = o.name
 
             if "@module" not in d:
                 d["@module"] = str(o.__class__.__module__)
@@ -436,15 +451,21 @@ class GSONDecoder(json.JSONDecoder):
         json.loads(json_string, cls=GSONDecoder)
     """
 
-    def process_decoded(self, d, serial_objs=None):
+    def process_decoded(self, d, serial_objs_dict=None, recon_objs=None):
         """
         Recursive method to support decoding dicts and lists containing
         GSONable objects.
         """
         if isinstance(d, dict):
-            if "$type" in d.keys:
+            if "$type" in d.keys():
                 if d["$type"] == "ref":
-                    return serial_objs[d["value"]]
+                    if d["value"] in recon_objs:
+                        return recon_objs[d["value"]]
+                    sub_dict = serial_objs_dict[d["value"]]
+                    recon_obj = self.process_decoded(sub_dict,
+                                                     serial_objs_dict, recon_objs)
+                    recon_objs[d["value"]] = recon_obj
+                    return recon_obj
             if "@module" in d and "@class" in d:
                 modname = d["@module"]
                 classname = d["@class"]
@@ -461,7 +482,7 @@ class GSONDecoder(json.JSONDecoder):
                     # if the function is bound to an instance or class, first
                     # deserialize the bound object and then remove the object name
                     # from the function name.
-                    obj = self.process_decoded(d["@bound"])
+                    obj = self.process_decoded(d["@bound"], serial_objs_dict)
                     objname = objname.split(".")[1:]
                 else:
                     # if the function is not bound to an object, import the
@@ -506,7 +527,10 @@ class GSONDecoder(json.JSONDecoder):
                         data = {k: v for k, v in d.items() if
                                 not k.startswith("@")}
                         if hasattr(cls_, "from_dict"):
-                            return cls_.from_dict(data)
+                            obj = cls_.from_dict(data, serial_objs_dict, recon_objs)
+                            if "@name" in d:
+                                recon_objs[d["@name"]] = obj
+                            return obj
                         if pydantic is not None and issubclass(cls_,
                                                                pydantic.BaseModel):  # pylint: disable=E1101
                             return cls_(**data)
@@ -529,11 +553,11 @@ class GSONDecoder(json.JSONDecoder):
                         bson is not None) and modname == "bson.objectid" and classname == "ObjectId":
                     return bson.objectid.ObjectId(d["oid"])
 
-            return {self.process_decoded(k): self.process_decoded(v) for
+            return {self.process_decoded(k, serial_objs_dict, recon_objs): self.process_decoded(v, serial_objs_dict, recon_objs) for
                     k, v in d.items()}
 
         if isinstance(d, list):
-            return [self.process_decoded(x) for x in d]
+            return [self.process_decoded(x, serial_objs_dict, recon_objs) for x in d]
 
         return d
 
