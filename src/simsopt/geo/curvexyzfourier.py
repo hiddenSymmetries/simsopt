@@ -99,17 +99,18 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coils[ic].local_x = np.concatenate(dofs)
         return coils
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@class"] = self.__class__.__name__
-        d["@module"] = self.__class__.__module__
-        d["quadpoints"] = list(self.quadpoints)
-        d["order"] = self.order
+    def as_dict(self, serial_objs_dict) -> dict:
+        # d = {}
+        # d["@class"] = self.__class__.__name__
+        # d["@module"] = self.__class__.__module__
+        # d["quadpoints"] = list(self.quadpoints)
+        # d["order"] = self.order
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["x0"] = list(self.local_full_x)
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         curve = cls(d["quadpoints"], d["order"])
         curve.local_full_x = d["x0"]
         return curve
@@ -172,12 +173,13 @@ class JaxCurveXYZFourier(JaxCurve):
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["quadpoints"] = list(self.quadpoints)
-        d["order"] = self.order
+    def as_dict(self, serial_objs_dict) -> dict:
+        # d = {}
+        # d["@module"] = self.__class__.__module__
+        # d["@class"] = self.__class__.__name__
+        # d["quadpoints"] = list(self.quadpoints)
+        # d["order"] = self.order
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["x0"] = list(self.local_full_x)
         return d
 

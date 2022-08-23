@@ -4,12 +4,13 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
 import f90nml
-from monty.json import MSONable
+# from monty.json import MSONable
 
 import simsoptpp as sopp
 from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
+from .._core.json import GSONable
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +65,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 nphi=None, ntheta=None, range="full torus",
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
         sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                        quadpoints_phi, quadpoints_theta)
         self.rc[0, ntor] = 1.0
@@ -80,6 +76,17 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                          external_dof_setter=SurfaceRZFourier.set_dofs_impl,
                          names=self._make_names())
         self._make_mn()
+
+    @classmethod
+    def with_gridpoint_num(cls, nphi, ntheta, nfp=1, stellsym=True, mpol=1,
+                           ntor=0, range="full torus"):
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                  nphi=nphi,
+                                                                  ntheta=ntheta,
+                                                                  range=range)
+        return cls(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
 
     def get_dofs(self):
         """
@@ -582,20 +589,22 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["stellsym"] = self.stellsym
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
+    def as_dict(self, serial_objs_dict) -> dict:
+        # d = GSONable.as_dict(self, serial_objs_dict=serial_objs_dict)
+        d = super().as_dict(serial_objs_dict)
+        # d["stellsym"] = self.stellsym
+        # d["mpol"] = self.mpol
+        # d["ntor"] = self.ntor
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recons_objs):
         surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
                    quadpoints_phi=d["quadpoints_phi"],
                    quadpoints_theta=d["quadpoints_theta"])
         surf.local_full_x = d["x0"]
+        recons_objs[d["@name"]] = surf
         return surf
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
