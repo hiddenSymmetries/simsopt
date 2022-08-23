@@ -183,7 +183,7 @@ class GSONable:
             d.update(**getattr(self, "_kwargs"))  # pylint: disable=E1101
         if isinstance(self, Enum):
             d.update({"value": self.value})  # pylint: disable=E1101
-        return d # , serial_objs_dict
+        return d  # , serial_objs_dict
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
