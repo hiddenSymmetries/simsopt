@@ -143,7 +143,7 @@ class QuadpointsTests(unittest.TestCase):
             for nphi_base in [200, 400, 800]:
                 nphi = int(nphi_fac * nphi_base)
                 s = SurfaceRZFourier.with_grid_range(range=range_str, nfp=nfp,
-                                     mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
+                                                     mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
                 s.set_rc(0, 0, 2.5)
                 s.set_rc(1, 0, 0.4)
                 s.set_zs(1, 0, 0.6)

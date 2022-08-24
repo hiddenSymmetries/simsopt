@@ -16,10 +16,12 @@ from .plotting import fix_matplotlib_3d
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
+
 class Range(Enum):
     FULL_TORUS = 1
     FIELD_PERIOD = 2
     HALF_PERIOD = 3
+
 
 class Surface(Optimizable):
     r"""
