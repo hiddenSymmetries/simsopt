@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
+from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
@@ -88,7 +88,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, quadpt_phi, quadpt_theta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)

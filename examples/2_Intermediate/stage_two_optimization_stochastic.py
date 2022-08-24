@@ -27,7 +27,7 @@ the latter is independent for each coil.
 import os
 from pathlib import Path
 import numpy as np
-from simsopt.geo import SurfaceRZFourier
+from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
 from simsopt.field import BiotSavart
@@ -111,7 +111,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface; errors break symmetries, so consider the full torus
 nphi = 64
 ntheta = 16
-s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="full torus", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, quadpt_phi, quadpt_theta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)

@@ -49,7 +49,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 # Note that the range must be "full torus"!
-surf = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="full torus")
+quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nphi=200, ntheta=30, range="full torus")
+surf = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi, quadpoints_theta)
 nfp = surf.nfp
 
 # Load in the optimized coils from stage_two_optimization.py:
