@@ -7,6 +7,7 @@ import numpy as np
 
 from monty.json import MontyDecoder, MontyEncoder
 
+from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
@@ -141,7 +142,7 @@ class QuadpointsTests(unittest.TestCase):
         for range_str, nphi_fac in [("full torus", 1), ("field period", 1.0 / nfp), ("half period", 0.5 / nfp)]:
             for nphi_base in [200, 400, 800]:
                 nphi = int(nphi_fac * nphi_base)
-                s = SurfaceRZFourier(range=range_str, nfp=nfp,
+                s = SurfaceRZFourier.with_grid_range(range=range_str, nfp=nfp,
                                      mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
                 s.set_rc(0, 0, 2.5)
                 s.set_rc(1, 0, 0.4)
@@ -340,7 +341,11 @@ class BestNphiOverNthetaTests(unittest.TestCase):
                     else:
                         nphis = [25, 44]
                     for nphi in nphis:
-                        surf = SurfaceRZFourier.from_wout(filename, range=phi_range, nphi=nphi, ntheta=ntheta)
+                        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+                            range=phi_range, nphi=nphi, ntheta=ntheta)
+                        surf = SurfaceRZFourier.from_wout(
+                            filename, quadpoints_theta=quadpoints_theta,
+                            quadpoints_phi=quadpoints_phi)
                         ratio = best_nphi_over_ntheta(surf)
                         logger.info(f'range: {phi_range}, nphi: {nphi}, ntheta: {ntheta}, best nphi / ntheta: {ratio}')
                         np.testing.assert_allclose(ratio, correct, rtol=0.01)
