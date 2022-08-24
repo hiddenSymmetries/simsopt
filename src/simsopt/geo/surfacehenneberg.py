@@ -103,11 +103,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  alpha_fac: int = 1,
                  mmax: int = 1,
                  nmax: int = 0,
-                 nphi: int = None,
-                 ntheta: int = None,
-                 range: str = "full torus",
                  quadpoints_phi: RealArray = None,
-                 quadpoints_theta: RealArray = None):
+                 quadpoints_theta: RealArray = None
+                 ):
 
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
@@ -119,10 +117,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
+        if quadpoints_theta is None or quadpoints_phi is None:
+            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp)
+
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
