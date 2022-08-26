@@ -24,7 +24,7 @@ except ImportError:
 
 import simsopt
 from simsopt.field import InterpolatedField
-from simsopt.geo import SurfaceRZFourier
+from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field import SurfaceClassifier, \
     particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
 
