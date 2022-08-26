@@ -195,7 +195,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         range = kwargs.pop("range", None)
 
         if ntheta is not None or nphi is not None:
-            kwargs["quad_pts_nphi"], kwargs["quad_pts_ntheta"] = Surface.get_quadpoints(
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
                 ntheta=ntheta, nphi=nphi, nfp=nfp, range=range)
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
