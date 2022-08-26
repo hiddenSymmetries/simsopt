@@ -17,12 +17,6 @@ from .plotting import fix_matplotlib_3d
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
 
-class Range(Enum):
-    FULL_TORUS = 1
-    FIELD_PERIOD = 2
-    HALF_PERIOD = 3
-
-
 class Surface(Optimizable):
     r"""
     ``Surface`` is a base class for various representations of toroidal
@@ -34,11 +28,9 @@ class Surface(Optimizable):
     """
 
     # Options for the 'range' parameter for setting quadpoints_phi:
-    valid_ranges = {
-        Range.FULL_TORUS: "full torus",
-        Range.FIELD_PERIOD: "field period",
-        Range.HALF_PERIOD: "half period"
-    }
+    RANGE_FULL_TORUS = "full torus"
+    RANGE_FIELD_PERIOD = "field period"
+    RANGE_HALF_PERIOD = "half period"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -53,7 +45,7 @@ class Surface(Optimizable):
 
     def get_quadpoints(nphi=61,
                        ntheta=62,
-                       range=valid_ranges[Range.FULL_TORUS],
+                       range=RANGE_FULL_TORUS,
                        nfp=1):
         r"""
         This function is used to set the theta and phi grid points for Surface subclasses.
@@ -86,12 +78,13 @@ class Surface(Optimizable):
         # Handle theta:
         quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
 
-        assert range in Surface.valid_ranges.values()
-        if range == Surface.valid_ranges[Range.FULL_TORUS]:
+        assert range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_HALF_PERIOD,
+                         Surface.RANGE_FIELD_PERIOD)
+        if range == Surface.RANGE_FULL_TORUS:
             div = 1
         else:
             div = nfp
-        if range == Surface.valid_ranges[Range.HALF_PERIOD]:
+        if range == Surface.RANGE_HALF_PERIOD:
             end_val = 0.5
         else:
             end_val = 1.0
