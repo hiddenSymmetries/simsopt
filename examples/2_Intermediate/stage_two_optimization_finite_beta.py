@@ -90,7 +90,7 @@ else:
 
 # Initialize the boundary magnetic surface:
 quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="half period", nphi=nphi, ntheta=ntheta)
-s = SurfaceRZFourier.from_wout(vmec_file, quadpt_phi, quadpt_theta )
+s = SurfaceRZFourier.from_wout(vmec_file, quadpt_phi, quadpt_theta)
 total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
 
 # Create the initial coils:
