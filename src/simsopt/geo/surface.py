@@ -78,7 +78,8 @@ class Surface(Optimizable):
         # Handle theta:
         quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
 
-        assert range in Surface.valid_ranges.values()
+        assert range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_HALF_PERIOD,
+                         Surface.RANGE_FIELD_PERIOD)
         if range == RANGE_FULL_TORUS:
             div = 1
         else:
