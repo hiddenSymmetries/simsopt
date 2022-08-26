@@ -43,9 +43,9 @@ class Surface(Optimizable):
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
 
-    def get_quadpoints(nphi=61,
-                       ntheta=62,
-                       range=RANGE_FULL_TORUS,
+    def get_quadpoints(nphi=None,
+                       ntheta=None,
+                       range=None,
                        nfp=1):
         r"""
         This function is used to set the theta and phi grid points for Surface subclasses.
@@ -76,10 +76,14 @@ class Surface(Optimizable):
             - **quadpoints_theta**: List of grid points :math:`\theta_j`.
         """
         # Handle theta:
+        if ntheta is None:
+            ntheta = 62
         quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
 
-        assert range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_HALF_PERIOD,
-                         Surface.RANGE_FIELD_PERIOD)
+        if range is None:
+            range = RANGE_FULL_TORUS
+        assert range in (RANGE_FULL_TORUS, RANGE_HALF_PERIOD,
+                         RANGE_FIELD_PERIOD)
         if range == RANGE_FULL_TORUS:
             div = 1
         else:
@@ -89,6 +93,8 @@ class Surface(Optimizable):
         else:
             end_val = 1.0
 
+        if nphi is None:
+            nphi = 61
         quadpoints_phi = np.linspace(0.0, end_val / div, nphi, endpoint=False)
         # Shift by half of the grid spacing:
         dphi = quadpoints_phi[1] - quadpoints_phi[0]

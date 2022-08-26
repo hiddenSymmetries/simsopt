@@ -190,6 +190,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(xm))
         ntor = int(np.max(np.abs(xn)) / nfp)
 
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        range = kwargs.pop("range", None)
+
+        if ntheta is not None or nphi is not None:
+            kwargs["quad_pts_nphi"], kwargs["quad_pts_ntheta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=nfpi, range=range)
+
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                    **kwargs)
 
