@@ -330,8 +330,7 @@ def B_cartesian(vmec,
         theta1D_1 = vmec.boundary.quadpoints_theta
         phi1D_1 = vmec.boundary.quadpoints_phi
     else:
-        phi1D_1, theta1D_1 = Surface.get_quadpoints(quadpoints_phi, quadpoints_theta,
-                                                    range, nphi, ntheta, vmec.wout.nfp)
+        phi1D_1, theta1D_1 = Surface.get_quadpoints(range=range, nphi=nphi, ntheta=ntheta, nfp=vmec.wout.nfp)
 
     theta1D = np.array(theta1D_1) * 2 * np.pi
     phi1D = np.array(phi1D_1) * 2 * np.pi
