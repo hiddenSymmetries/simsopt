@@ -89,8 +89,7 @@ else:
     vc = VirtualCasing.from_vmec(vmec_file, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
 
 # Initialize the boundary magnetic surface:
-quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="half period", nphi=nphi, ntheta=ntheta)
-s = SurfaceRZFourier.from_wout(vmec_file, quadpt_phi, quadpt_theta)
+s = SurfaceRZFourier.from_wout(vmec_file, range="half period", nphi=nphi, ntheta=ntheta)
 total_current = Vmec(vmec_file).external_current() / (2 * s.nfp)
 
 # Create the initial coils:
