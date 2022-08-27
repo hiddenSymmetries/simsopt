@@ -884,7 +884,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
         vs = vmec_splines(vs)
-    
+
     # Make sure s is an array:
     try:
         ns = len(s)
@@ -892,7 +892,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         s = [s]
     s = np.array(s)
     ns = len(s)
-    
+
     # Make sure alpha is an array
     try:
         nalpha = len(alpha)
@@ -900,7 +900,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         alpha = [alpha]
     alpha = np.array(alpha)
     nalpha = len(alpha)
-    
+
     if (theta1d is not None) and (phi1d is not None):
         raise ValueError('You cannot specify both theta and phi')
     if (theta1d is None) and (phi1d is None):
@@ -909,7 +909,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         nl = len(phi1d)
     else:
         nl = len(theta1d)
-    
+
     # Shorthand:
     mnmax = vs.mnmax
     xm = vs.xm
@@ -917,7 +917,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     mnmax_nyq = vs.mnmax_nyq
     xm_nyq = vs.xm_nyq
     xn_nyq = vs.xn_nyq
-    
+
     # Now that we have an s grid, evaluate everything on that grid:
     d_pressure_d_s = vs.d_pressure_d_s(s)
     iota = vs.iota(s)
@@ -925,21 +925,21 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     # shat = (r/q)(dq/dr) where r = a sqrt(s)
     #      = - (r/iota) (d iota / d r) = -2 (s/iota) (d iota / d s)
     shat = (-2 * s / iota) * d_iota_d_s
-    
+
     rmnc = np.zeros((ns, mnmax))
     zmns = np.zeros((ns, mnmax))
     lmns = np.zeros((ns, mnmax))
     d_rmnc_d_s = np.zeros((ns, mnmax))
     d_zmns_d_s = np.zeros((ns, mnmax))
     d_lmns_d_s = np.zeros((ns, mnmax))
-    
+
     ######## CAREFUL!!###########################################################
     # Everything here and in vmec_splines is designed for up-down symmetric eqlbia
     # When we start optimizing equilibria with lasym = "True"
     # we should edit this as well as vmec_splines 
     lmnc = np.zeros((ns, mnmax))
     lasym = False
-    
+
     for jmn in range(mnmax):
         rmnc[:, jmn] = vs.rmnc[jmn](s)
         zmns[:, jmn] = vs.zmns[jmn](s)
@@ -947,7 +947,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         d_rmnc_d_s[:, jmn] = vs.d_rmnc_d_s[jmn](s)
         d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
         d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
-    
+
     gmnc = np.zeros((ns, mnmax_nyq))
     bmnc = np.zeros((ns, mnmax_nyq))
     d_bmnc_d_s = np.zeros((ns, mnmax_nyq))
@@ -965,10 +965,10 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         bsubsmns[:, jmn] = vs.bsubsmns[jmn](s)
         bsubumnc[:, jmn] = vs.bsubumnc[jmn](s)
         bsubvmnc[:, jmn] = vs.bsubvmnc[jmn](s)
-    
+
     theta_pest = np.zeros((ns, nalpha, nl))
     phi = np.zeros((ns, nalpha, nl))
-    
+
     if theta1d is None:
         # We are given phi. Compute theta_pest:
         for js in range(ns):
@@ -982,18 +982,23 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     def residual(theta_v, phi0, theta_p_target, jradius):
         """
-        This function is used for computing the an array of values of theta_vmec that
+        This function is used for computing an array of values of theta_vmec that
         give a desired theta_pest array.
         """
         return theta_p_target - (theta_v + np.sum(lmns[js, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
-    
+
     theta_vmec = np.zeros((ns, nalpha, nl))
     for js in range(ns):
         for jalpha in range(nalpha):
             theta_guess = theta_pest[js, jalpha, :]
-            solution = newton(residual, x0=theta_guess - 1.0, args=(phi[js, jalpha, :], theta_pest[js, jalpha, :], js), x1=theta_guess + 1.0)
+            solution = newton(
+                residual,
+                x0=theta_guess,
+                x1=theta_guess + 0.1,
+                args=(phi[js, jalpha, :], theta_pest[js, jalpha, :], js),
+            )
             theta_vmec[js, jalpha, :] = solution
-    
+
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
     cosangle = np.cos(angle)
@@ -1008,16 +1013,16 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
     d_R_d_theta_vmec = -np.einsum('ij,jikl->ikl', rmnc, msinangle)
     d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle)
-    
+
     Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
     d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
     d_Z_d_phi = -np.einsum('ij,jikl->ikl', zmns, ncosangle)
-    
+
     d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
     d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
     d_lambda_d_phi = -np.einsum('ij,jikl->ikl', lmns, ncosangle)
-    
+
     # Now handle the Nyquist quantities:
     angle = xm_nyq[:, None, None, None] * theta_vmec[None, :, :, :] - xn_nyq[:, None, None, None] * phi[None, :, :, :]
     cosangle = np.cos(angle)
@@ -1026,25 +1031,25 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     ncosangle = xn_nyq[:, None, None, None] * cosangle
     msinangle = xm_nyq[:, None, None, None] * sinangle
     nsinangle = xn_nyq[:, None, None, None] * sinangle
-    
+
     sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle)
     modB = np.einsum('ij,jikl->ikl', bmnc, cosangle)
     d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle)
     d_B_d_theta_vmec = -np.einsum('ij,jikl->ikl', bmnc, msinangle)
     d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle)
-    
+
     B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle)
     B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle)
     B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle)
     B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle)
     B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle)
     B_sup_theta_pest = iota[:, None, None] * B_sup_phi
-    
+
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
-    
+
     # Note the minus sign. psi in the straight-field-line relation seems to have opposite sign to vmec's phi array.
     edge_toroidal_flux_over_2pi = -vs.phiedge / (2 * np.pi)
-    
+
     # *********************************************************************
     # Using R(theta,phi) and Z(theta,phi), compute the Cartesian
     # components of the gradient basis vectors using the dual relations:
@@ -1059,56 +1064,56 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     d_Y_d_theta_vmec = d_R_d_theta_vmec * sinphi
     d_Y_d_phi = d_R_d_phi * sinphi + R * cosphi
     d_Y_d_s = d_R_d_s * sinphi
-    
+
     # Now use the dual relations to get the Cartesian components of grad s, grad theta_vmec, and grad phi:
     grad_s_X = (d_Y_d_theta_vmec * d_Z_d_phi - d_Z_d_theta_vmec * d_Y_d_phi) / sqrt_g_vmec
     grad_s_Y = (d_Z_d_theta_vmec * d_X_d_phi - d_X_d_theta_vmec * d_Z_d_phi) / sqrt_g_vmec
     grad_s_Z = (d_X_d_theta_vmec * d_Y_d_phi - d_Y_d_theta_vmec * d_X_d_phi) / sqrt_g_vmec
-    
+
     grad_theta_vmec_X = (d_Y_d_phi * d_Z_d_s - d_Z_d_phi * d_Y_d_s) / sqrt_g_vmec
     grad_theta_vmec_Y = (d_Z_d_phi * d_X_d_s - d_X_d_phi * d_Z_d_s) / sqrt_g_vmec
     grad_theta_vmec_Z = (d_X_d_phi * d_Y_d_s - d_Y_d_phi * d_X_d_s) / sqrt_g_vmec
-    
+
     grad_phi_X = (d_Y_d_s * d_Z_d_theta_vmec - d_Z_d_s * d_Y_d_theta_vmec) / sqrt_g_vmec
     grad_phi_Y = (d_Z_d_s * d_X_d_theta_vmec - d_X_d_s * d_Z_d_theta_vmec) / sqrt_g_vmec
     grad_phi_Z = (d_X_d_s * d_Y_d_theta_vmec - d_Y_d_s * d_X_d_theta_vmec) / sqrt_g_vmec
     # End of dual relations.
-    
+
     # *********************************************************************
     # Compute the Cartesian components of other quantities we need:
     # *********************************************************************
-    
+
     grad_psi_X = grad_s_X * edge_toroidal_flux_over_2pi
     grad_psi_Y = grad_s_Y * edge_toroidal_flux_over_2pi
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
-    
+
     # Form grad alpha = grad (theta_vmec + lambda - iota * phi)
     grad_alpha_X = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_X
     grad_alpha_Y = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_Y
     grad_alpha_Z = (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) * grad_s_Z
-    
+
     grad_alpha_X += (1 + d_lambda_d_theta_vmec) * grad_theta_vmec_X + (-iota[:, None, None] + d_lambda_d_phi) * grad_phi_X
     grad_alpha_Y += (1 + d_lambda_d_theta_vmec) * grad_theta_vmec_Y + (-iota[:, None, None] + d_lambda_d_phi) * grad_phi_Y
     grad_alpha_Z += (1 + d_lambda_d_theta_vmec) * grad_theta_vmec_Z + (-iota[:, None, None] + d_lambda_d_phi) * grad_phi_Z
-    
+
     grad_B_X = d_B_d_s * grad_s_X + d_B_d_theta_vmec * grad_theta_vmec_X + d_B_d_phi * grad_phi_X
     grad_B_Y = d_B_d_s * grad_s_Y + d_B_d_theta_vmec * grad_theta_vmec_Y + d_B_d_phi * grad_phi_Y
     grad_B_Z = d_B_d_s * grad_s_Z + d_B_d_theta_vmec * grad_theta_vmec_Z + d_B_d_phi * grad_phi_Z
-    
+
     B_X = edge_toroidal_flux_over_2pi * ((1 + d_lambda_d_theta_vmec) * d_X_d_phi + (iota[:, None, None] - d_lambda_d_phi) * d_X_d_theta_vmec) / sqrt_g_vmec
     B_Y = edge_toroidal_flux_over_2pi * ((1 + d_lambda_d_theta_vmec) * d_Y_d_phi + (iota[:, None, None] - d_lambda_d_phi) * d_Y_d_theta_vmec) / sqrt_g_vmec
     B_Z = edge_toroidal_flux_over_2pi * ((1 + d_lambda_d_theta_vmec) * d_Z_d_phi + (iota[:, None, None] - d_lambda_d_phi) * d_Z_d_theta_vmec) / sqrt_g_vmec
-    
+
     # *********************************************************************
     # For gbdrift, we need \vect{B} cross grad |B| dot grad alpha.
     # For cvdrift, we also need \vect{B} cross grad s dot grad alpha.
     # Let us compute both of these quantities 2 ways, and make sure the two
     # approaches give the same answer (within some tolerance).
     # *********************************************************************
-    
+
     B_cross_grad_s_dot_grad_alpha = (B_sub_phi * (1 + d_lambda_d_theta_vmec) \
                                      - B_sub_theta_vmec * (d_lambda_d_phi - iota[:, None, None])) / sqrt_g_vmec
-    
+
     B_cross_grad_s_dot_grad_alpha_alternate = 0 \
         + B_X * grad_s_Y * grad_alpha_Z \
         + B_Y * grad_s_Z * grad_alpha_X \
@@ -1116,7 +1121,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         - B_Z * grad_s_Y * grad_alpha_X \
         - B_X * grad_s_Z * grad_alpha_Y \
         - B_Y * grad_s_X * grad_alpha_Z
-    
+
     B_cross_grad_B_dot_grad_alpha = 0 \
         + (B_sub_s * d_B_d_theta_vmec * (d_lambda_d_phi - iota[:, None, None]) \
            + B_sub_theta_vmec * d_B_d_phi * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
@@ -1124,7 +1129,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
            - B_sub_phi * d_B_d_theta_vmec * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
            - B_sub_theta_vmec * d_B_d_s * (d_lambda_d_phi - iota[:, None, None]) \
            - B_sub_s * d_B_d_phi * (1 + d_lambda_d_theta_vmec)) / sqrt_g_vmec
-    
+
     B_cross_grad_B_dot_grad_alpha_alternate = 0 \
         + B_X * grad_B_Y * grad_alpha_Z \
         + B_Y * grad_B_Z * grad_alpha_X \
@@ -1132,49 +1137,49 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         - B_Z * grad_B_Y * grad_alpha_X \
         - B_X * grad_B_Z * grad_alpha_Y \
         - B_Y * grad_B_X * grad_alpha_Z
-    
+
     grad_alpha_dot_grad_alpha = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
-    
+
     grad_alpha_dot_grad_psi = grad_alpha_X * grad_psi_X + grad_alpha_Y * grad_psi_Y + grad_alpha_Z * grad_psi_Z
-    
+
     grad_psi_dot_grad_psi = grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z
-    
+
     B_cross_grad_B_dot_grad_psi = (B_sub_theta_vmec * d_B_d_phi - B_sub_phi * d_B_d_theta_vmec) / sqrt_g_vmec * edge_toroidal_flux_over_2pi
-    
+
     B_cross_kappa_dot_grad_psi = B_cross_grad_B_dot_grad_psi / modB
-    
+
     mu_0 = 4 * np.pi * (1.0e-7)
     B_cross_kappa_dot_grad_alpha = B_cross_grad_B_dot_grad_alpha / modB + mu_0 * d_pressure_d_s[:, None, None] / edge_toroidal_flux_over_2pi
-    
+
     # stella / gs2 / gx quantities:
-    
+
     L_reference = vs.Aminor_p
     B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (L_reference * L_reference)
     toroidal_flux_sign = np.sign(edge_toroidal_flux_over_2pi)
     sqrt_s = np.sqrt(s)
-    
+
     bmag = modB / B_reference
-    
+
     gradpar_theta_pest = L_reference * B_sup_theta_pest / modB
-    
+
     gradpar_phi = L_reference * B_sup_phi / modB
-    
+
     gds2 = grad_alpha_dot_grad_alpha * L_reference * L_reference * s[:, None, None]
-    
+
     gds21 = grad_alpha_dot_grad_psi * shat[:, None, None] / B_reference
-    
+
     gds22 = grad_psi_dot_grad_psi * shat[:, None, None] * shat[:, None, None] / (L_reference * L_reference * B_reference * B_reference * s[:, None, None])
-    
+
     # temporary fix. Please see issue #238 and the discussion therein
     gbdrift = -1 * 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha / (modB * modB * modB) * toroidal_flux_sign
-    
+
     gbdrift0 = B_cross_grad_B_dot_grad_psi * 2 * shat[:, None, None] / (modB * modB * modB * sqrt_s[:, None, None]) * toroidal_flux_sign
-    
+
     # temporary fix. Please see issue #238 and the discussion therein
     cvdrift = gbdrift - 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
 
     cvdrift0 = gbdrift0
-    
+
     # Package results into a structure to return:
     results = Struct()
     variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
@@ -1194,7 +1199,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
                  'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
                  'L_reference', 'B_reference', 'toroidal_flux_sign',
                  'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
-    
+
     if plot:
         import matplotlib.pyplot as plt
         plt.figure(figsize=(13, 7))
@@ -1209,13 +1214,13 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
             plt.plot(phi[0, 0, :], eval(variable + '[0, 0, :]'))
             plt.xlabel('Standard toroidal angle $\phi$')
             plt.title(variable)
-    
+
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')
         plt.tight_layout()
         if show:
             plt.show()
-    
+
     for v in variables:
         results.__setattr__(v, eval(v))
-    
+
     return results
