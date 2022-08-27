@@ -814,8 +814,6 @@ class SurfaceRZPseudospectral(Optimizable):
         # shorthand:
         mpol = self.mpol
         ntor = self.ntor
-        ntheta = 2 * mpol + 1
-        nphi = 2 * ntor + 1
 
         r, z = self._complete_grid()
         # What follows is a Fourier transform. We could use an FFT,
@@ -833,6 +831,8 @@ class SurfaceRZPseudospectral(Optimizable):
 
         surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=self.nfp, **kwargs)
         surf.set_rc(0, 0, np.mean(r))
+        ntheta = 2 * mpol + 1
+        nphi = 2 * ntor + 1
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
         phi1d = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
         phi, theta = np.meshgrid(phi1d, theta1d)
