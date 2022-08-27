@@ -78,7 +78,6 @@ class Surface(Optimizable):
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
 
-
     def get_theta_quadpoints(ntheta=None):
         # Handle theta:
         if ntheta is None:
