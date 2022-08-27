@@ -97,8 +97,9 @@ class Surface(Optimizable):
             nphi = 61
         quadpoints_phi = np.linspace(0.0, end_val / div, nphi, endpoint=False)
         # Shift by half of the grid spacing:
-        dphi = quadpoints_phi[1] - quadpoints_phi[0]
-        quadpoints_phi += 0.5 * dphi
+        if range == Surface.RANGE_HALF_PERIOD:
+            dphi = quadpoints_phi[1] - quadpoints_phi[0]
+            quadpoints_phi += 0.5 * dphi
 
         return list(quadpoints_phi), list(quadpoints_theta)
 
