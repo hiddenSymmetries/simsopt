@@ -67,8 +67,10 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
                  clamped_dims=[False, False, False],
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        if quadpoints_theta is None or quadpoints_phi is None:
-            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
 
         sopp.SurfaceXYZTensorFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                               clamped_dims, quadpoints_phi,

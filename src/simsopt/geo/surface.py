@@ -75,10 +75,17 @@ class Surface(Optimizable):
             - **quadpoints_phi**: List of grid points :math:`\phi_j`.
             - **quadpoints_theta**: List of grid points :math:`\theta_j`.
         """
+        return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
+                Surface.get_theta_quadpoints(ntheta=ntheta))
+
+
+    def get_theta_quadpoints(ntheta=None):
         # Handle theta:
         if ntheta is None:
             ntheta = 62
-        quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+        return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
+
+    def get_phi_quadpoints(nphi=None, range=None, nfp=1):
 
         if range is None:
             range = Surface.RANGE_FULL_TORUS
@@ -101,7 +108,7 @@ class Surface(Optimizable):
             dphi = quadpoints_phi[1] - quadpoints_phi[0]
             quadpoints_phi += 0.5 * dphi
 
-        return list(quadpoints_phi), list(quadpoints_theta)
+        return list(quadpoints_phi)
 
     def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
