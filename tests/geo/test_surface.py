@@ -48,7 +48,7 @@ class QuadpointsTests(unittest.TestCase):
                                        np.linspace(0.0, 1.0, 62, endpoint=False))
 
             # Try specifying ntheta:
-            s = eval(surface_type + "(ntheta=17)")
+            s = eval(surface_type + "with_grid_range(ntheta=17)")
             np.testing.assert_allclose(s.quadpoints_theta,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
 
@@ -60,10 +60,6 @@ class QuadpointsTests(unittest.TestCase):
             # Try specifying quadpoints_theta as a list:
             s = eval(surface_type + "(quadpoints_theta=[0.2, 0.7, 0.3])")
             np.testing.assert_allclose(s.quadpoints_theta, [0.2, 0.7, 0.3])
-
-            # Specifying both ntheta and quadpoints_theta should cause an error:
-            with self.assertRaises(ValueError):
-                s = eval(surface_type + "(ntheta=5, quadpoints_theta=np.linspace(0.0, 1.0, 5, endpoint=False))")
 
     def test_phi(self):
         """

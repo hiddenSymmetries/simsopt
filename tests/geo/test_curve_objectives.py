@@ -319,7 +319,7 @@ class Testing(unittest.TestCase):
         base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         ntor = 0
-        surface = SurfaceRZFourier(nfp=3, nphi=32, ntheta=32, ntor=ntor)
+        surface = SurfaceRZFourier.with_grid_range(nfp=3, nphi=32, ntheta=32, ntor=ntor)
         surface.set(f'rc(0,{ntor})', 1.6)
         surface.set(f'rc(1,{ntor})', 0.2)
         surface.set(f'zs(1,{ntor})', 0.2)

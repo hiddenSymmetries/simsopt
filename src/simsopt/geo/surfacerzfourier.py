@@ -291,6 +291,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         logger.debug('Input file has ntor_boundary={} mpol_boundary={}' \
                      .format(ntor_boundary, mpol_boundary))
 
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+
+        if ntheta is not None or nphi is not None:
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=nfp, range=grid_range)
+
         surf = cls(mpol=mpol_boundary, ntor=ntor_boundary, nfp=nfp, stellsym=stellsym,
                    **kwargs)
 
@@ -722,9 +730,9 @@ class SurfaceRZPseudospectral(Optimizable):
         nphi = 2 * ntor + 1
 
         # Make a copy of surff with the desired theta and phi points.
-        surf_copy = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=surff.nfp,
-                                     range='field period',
-                                     ntheta=ntheta, nphi=nphi)
+        surf_copy = SurfaceRZFourier.with_grid_range(
+            mpol=mpol, ntor=ntor, nfp=surff.nfp,
+            range='field period', ntheta=ntheta, nphi=nphi)
         surf_copy.x = surff.local_full_x
 
         surf_new = cls(mpol=mpol, ntor=ntor, nfp=surff.nfp, **kwargs)
@@ -814,6 +822,15 @@ class SurfaceRZPseudospectral(Optimizable):
         # but since speed is not a concern here for now, the Fourier
         # transform is just done "by hand" so there is no uncertainty
         # about normalizations etc.
+
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+
+        if ntheta is not None or nphi is not None:
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=self.nfp, range=grid_range)
+
         surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=self.nfp, **kwargs)
         surf.set_rc(0, 0, np.mean(r))
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
