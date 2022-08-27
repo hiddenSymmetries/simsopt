@@ -65,8 +65,10 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        if quadpoints_theta is None or quadpoints_phi is None:
-            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
 
         sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                         quadpoints_phi, quadpoints_theta)

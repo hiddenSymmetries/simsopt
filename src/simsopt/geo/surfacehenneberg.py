@@ -117,8 +117,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
-        if quadpoints_theta is None or quadpoints_phi is None:
-            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
 
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         # Initialize to an axisymmetric torus with major radius 1m and
