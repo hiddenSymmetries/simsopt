@@ -48,7 +48,7 @@ class QuadpointsTests(unittest.TestCase):
                                        np.linspace(0.0, 1.0, 62, endpoint=False))
 
             # Try specifying ntheta:
-            s = eval(surface_type + "with_grid_range(ntheta=17)")
+            s = eval(surface_type + ".with_grid_range(ntheta=17)")
             np.testing.assert_allclose(s.quadpoints_theta,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
 
