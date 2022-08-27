@@ -87,8 +87,7 @@ config_str = f"rot_order_{rot_order}_nfn_{numfilaments_n}_nfb_{numfilaments_b}"
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="half period", nphi=nphi, ntheta=ntheta)
-s = SurfaceRZFourier.from_vmec_input(filename, quadpt_phi, quadpt_theta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 nfil = numfilaments_n * numfilaments_b
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
