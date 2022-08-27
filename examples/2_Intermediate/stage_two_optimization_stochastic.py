@@ -111,8 +111,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface; errors break symmetries, so consider the full torus
 nphi = 64
 ntheta = 16
-quadpt_phi, quadpt_theta = Surface.get_quadpoints(range="full torus", nphi=nphi, ntheta=ntheta)
-s = SurfaceRZFourier.from_vmec_input(filename, quadpt_phi, quadpt_theta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
