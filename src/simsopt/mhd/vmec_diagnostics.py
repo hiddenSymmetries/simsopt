@@ -343,8 +343,6 @@ def B_cartesian(vmec,
     theta1D = np.array(theta1D_1) * 2 * np.pi
     phi1D = np.array(phi1D_1) * 2 * np.pi
 
-    nphi = len(phi1D)
-    ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
     # Get the tangent vectors using the gammadash1/2 functions from SurfaceRZFourier:
