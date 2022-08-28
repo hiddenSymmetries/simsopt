@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.mhd import Vmec
-from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
