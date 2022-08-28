@@ -240,7 +240,6 @@ class BCartesianTests(unittest.TestCase):
                     phi1D = quadpoints_phi * 2 * np.pi
 
                 B2 = Bx*Bx + By*By + Bz*Bz
-                print(f'B2 shape is {B2.shape}')
 
                 nphi = len(phi1D)
                 ntheta = len(theta1D)
@@ -252,7 +251,6 @@ class BCartesianTests(unittest.TestCase):
                 angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
                     - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
                 B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
-                print(f"B.shape is {B.shape}")
                 logger.info(f'Max difference in B2: {np.max(np.abs(B**2 - B2))}')
                 np.testing.assert_allclose(B**2, B2, atol=1e-4, rtol=1e-4)
 
