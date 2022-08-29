@@ -1307,40 +1307,15 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return G, pos
 
     def as_dict(self, serial_objs_dict=None) -> dict:
-        # d = {}
-        # d["@module"] = self.__class__.__module__
-        # d["@class"] = self.__class__.__name__
-        # d["@name"] = self.name
         d = super().as_dict(serial_objs_dict)
-        print(f"d from GSONable.as_dict is {d}")
         if len(self.local_full_x):
             d["x0"] = list(self.local_full_x)
             d["names"] = self.local_full_dof_names
             d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
             d["lower_bounds"] = list(self.local_full_lower_bounds)
             d["upper_bounds"] = list(self.local_full_upper_bounds)
-        # d["external_dof_setter"] = self.local_dof_setter
-        # if self.parents:
-        #     d["depends_on"] = []
-        #     for parent in self.parents:
-        #         d["depends_on"].append(parent.as_dict())
 
         return d
-
-   # @staticmethod
-   # def _decode(d):
-   #     parents_dict = d.pop("depends_on") if "depends_on" in d else None
-   #     if parents_dict:
-   #         parents = []
-   #         decoder = MontyDecoder()
-   #         for pdict in parents_dict:
-   #             parents.append(decoder.process_decoded(pdict))
-   #         return parents
-
-   # @classmethod
-   # def from_dict(cls, d):
-   #     parents = Optimizable._decode(d)
-   #     return cls(depends_on=parents, **d)
 
     def save(self, filename=None, fmt=None, **kwargs):
         filename = filename or ""
