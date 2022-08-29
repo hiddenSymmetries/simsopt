@@ -1,6 +1,5 @@
 import numpy as np
 from sympy import Symbol, lambdify, exp
-from monty.json import MSONable, MontyDecoder
 from .._core.json import GSONable, GSONDecoder
 
 import simsoptpp as sopp

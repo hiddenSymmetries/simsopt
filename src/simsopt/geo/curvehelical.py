@@ -68,7 +68,7 @@ class CurveHelical(JaxCurve):
         for i in range(2):
             self.coefficients[i] = dofs[i*order:(i+1)*order]
 
-    def as_dict(self, serial_objs_dict) -> dict:
+    # def as_dict(self, serial_objs_dict) -> dict:
         # d = {}
         # d["@module"] = self.__class__.__module__
         # d["@class"] = self.__class__.__name__
@@ -78,9 +78,9 @@ class CurveHelical(JaxCurve):
         # d["l0"] = self.l0
         # d["R0"] = self.R0
         # d["r0"] = self.r0
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["x0"] = list(self.local_full_x)
-        return d
+    #     d = super().as_dict(serial_objs_dict=serial_objs_dict)
+    #     d["x0"] = list(self.local_full_x)
+    #    return d
 
     # @classmethod
     # def from_dict(cls, d):
