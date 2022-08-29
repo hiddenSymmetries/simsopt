@@ -53,7 +53,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
     """
 
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None,
-                 nphi=None, ntheta=None, range="full torus",
                  quadpoints_phi=None, quadpoints_theta=None):
         if nmin is None:
             nmin = -nmax
@@ -77,11 +76,12 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         self.ndim = self.nmax - self.nmin + 1
         self.shape = (self.mdim, self.ndim)
 
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
+
         Delta = np.zeros(self.shape)
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         Surface.__init__(self, x0=Delta.ravel(),
                          names=self._make_dof_names())

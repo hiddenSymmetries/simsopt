@@ -326,18 +326,23 @@ def B_cartesian(vmec,
     if vmec.wout.lasym:
         raise RuntimeError('B_cartesian presently only works for stellarator symmetry')
 
-    if (nphi is None) and (quadpoints_phi is None) and (ntheta is None) and (quadpoints_theta is None):
-        theta1D_1 = vmec.boundary.quadpoints_theta
+    if nphi is None and quadpoints_phi is None:
         phi1D_1 = vmec.boundary.quadpoints_phi
+    elif quadpoints_phi is None:
+        phi1D_1 = Surface.get_phi_quadpoints(range=range, nphi=nphi, nfp=vmec.wout.nfp)
     else:
-        phi1D_1, theta1D_1 = Surface.get_quadpoints(quadpoints_phi, quadpoints_theta,
-                                                    range, nphi, ntheta, vmec.wout.nfp)
+        phi1D_1 = quadpoints_phi
+
+    if ntheta is None and quadpoints_theta is None:
+        theta1D_1 = vmec.boundary.quadpoints_theta
+    elif quadpoints_theta is None:
+        theta1D_1 = Surface.get_theta_quadpoints(ntheta=ntheta)
+    else:
+        theta1D_1 = quadpoints_theta
 
     theta1D = np.array(theta1D_1) * 2 * np.pi
     phi1D = np.array(phi1D_1) * 2 * np.pi
 
-    nphi = len(phi1D)
-    ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
     # Get the tangent vectors using the gammadash1/2 functions from SurfaceRZFourier:
