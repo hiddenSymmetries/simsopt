@@ -1,4 +1,5 @@
 import abc
+from enum import Enum
 
 import numpy as np
 
@@ -32,17 +33,23 @@ class Surface(Optimizable):
     RANGE_HALF_PERIOD = "half period"
 
     def __init__(self, **kwargs):
-        Optimizable.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
-    def get_quadpoints(quadpoints_phi=None,
-                       quadpoints_theta=None,
-                       range=RANGE_FULL_TORUS,
-                       nphi=None,
+    @classmethod
+    def with_grid_range(cls, nphi=61, ntheta=62, range="full torus", nfp=1,
+                        **kwargs):
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+            nphi, ntheta, nfp=nfp, range=range)
+        return cls(quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
+
+    def get_quadpoints(nphi=None,
                        ntheta=None,
+                       range=None,
                        nfp=1):
         r"""
         This function is used to set the theta and phi grid points for Surface subclasses.
-        It is typically called in the constructor of each Surface subclass.
+        It is typically called in when constructing Surface subclasses.
 
         For more information about the arguments ``nphi``, ``ntheta``,
         ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
@@ -61,8 +68,6 @@ class Surface(Optimizable):
               to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
               of the grid spacing in order to provide spectral convergence of integrals.
               If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
-            quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
-            quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
 
         Returns:
             Tuple containing
@@ -70,41 +75,44 @@ class Surface(Optimizable):
             - **quadpoints_phi**: List of grid points :math:`\phi_j`.
             - **quadpoints_theta**: List of grid points :math:`\theta_j`.
         """
+        return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
+                Surface.get_theta_quadpoints(ntheta=ntheta))
+
+    def get_theta_quadpoints(ntheta=None):
         # Handle theta:
-        if (quadpoints_theta is not None) and (ntheta is not None):
-            raise ValueError("quadpoints_theta and ntheta cannot both be specified")
-        if (quadpoints_theta is None) and (ntheta is None):
-            # Neither is specified, so use a default:
+        if ntheta is None:
             ntheta = 62
-        if quadpoints_theta is None:
-            quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+        return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
 
-        # Handle phi:
-        if (quadpoints_phi is not None) and (nphi is not None):
-            raise ValueError("quadpoints_phi and nphi cannot both be specified")
-        if (quadpoints_phi is None) and (nphi is None):
-            # Neither is specified, so use a default:
+    def get_phi_quadpoints(nphi=None, range=None, nfp=1):
+
+        if range is None:
+            range = Surface.RANGE_FULL_TORUS
+        assert range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_HALF_PERIOD,
+                         Surface.RANGE_FIELD_PERIOD)
+        if range == Surface.RANGE_FULL_TORUS:
+            div = 1
+        else:
+            div = nfp
+        if range == Surface.RANGE_HALF_PERIOD:
+            end_val = 0.5
+        else:
+            end_val = 1.0
+
+        if nphi is None:
             nphi = 61
-        if quadpoints_phi is None:
-            if range == Surface.RANGE_FULL_TORUS:
-                quadpoints_phi = np.linspace(0.0, 1.0, nphi, endpoint=False)
-            elif range == Surface.RANGE_FIELD_PERIOD:
-                quadpoints_phi = np.linspace(0.0, 1.0 / nfp, nphi, endpoint=False)
-            elif range == Surface.RANGE_HALF_PERIOD:
-                quadpoints_phi = np.linspace(0.0, 0.5 / nfp, nphi, endpoint=False)
-                # Shift by half of the grid spacing:
-                dphi = quadpoints_phi[1] - quadpoints_phi[0]
-                quadpoints_phi += 0.5 * dphi
-            else:
-                raise ValueError("Invalid setting for range")
+        quadpoints_phi = np.linspace(0.0, end_val / div, nphi, endpoint=False)
+        # Shift by half of the grid spacing:
+        if range == Surface.RANGE_HALF_PERIOD:
+            dphi = quadpoints_phi[1] - quadpoints_phi[0]
+            quadpoints_phi += 0.5 * dphi
 
-        return list(quadpoints_phi), list(quadpoints_theta)
+        return list(quadpoints_phi)
 
     def plot(self, engine="matplotlib", ax=None, show=True, close=False, axis_equal=True,
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
-        Plot the surface in 3D using matplotlib/mayavi/plotly. 
-
+        Plot the surface in 3D using matplotlib/mayavi/plotly.
         Args:
             engine: Selects the graphics engine. Currently supported options are ``"matplotlib"`` (default),
               ``"mayavi"``, and ``"plotly"``.
@@ -119,15 +127,11 @@ class Surface(Optimizable):
             plot_derivative: Whether to plot the surface derivatives. Only implemented for mayavi.
             wireframe: Whether to plot the wireframe in Mayavi.
             kwargs: Any additional arguments to pass to the plotting function, like ``color='r'``.
-
         Note: the ``ax`` and ``show`` parameters can be used to plot more than one surface:
-
         .. code-block::
-
             ax = surface1.plot(show=False)
             ax = surface2.plot(ax=ax, show=False)
             surface3.plot(ax=ax, show=True)
-
         Returns:
             An axis which could be passed to a further call to the graphics engine
             so multiple objects are shown together.
@@ -182,13 +186,15 @@ class Surface(Optimizable):
 
             mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], **kwargs)
             if wireframe:
-                mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0), opacity=0.5)
+                mlab.mesh(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], representation='wireframe', color=(0, 0, 0),
+                          opacity=0.5)
 
             if plot_derivative:
                 mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg1[:, :, 0], dg1[:, :, 1], dg1[:, :, 2])
                 mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], dg2[:, :, 0], dg2[:, :, 1], dg2[:, :, 2])
             if plot_normal:
-                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], normal[:, :, 0], normal[:, :, 1], normal[:, :, 2])
+                mlab.quiver3d(gamma[:, :, 0], gamma[:, :, 1], gamma[:, :, 2], normal[:, :, 0], normal[:, :, 1],
+                              normal[:, :, 2])
             if show:
                 mlab.show()
 
@@ -217,7 +223,6 @@ class Surface(Optimizable):
         Export the surface to a VTK format file, which can be read with
         Paraview. This function requires the ``pyevtk`` python
         package, which can be installed using ``pip install pyevtk``.
-
         Args:
             filename: Name of the file to write
             extra_data: An optional data field on the surface, which can be associated with a colormap in Paraview.
@@ -259,14 +264,13 @@ class Surface(Optimizable):
         This function takes in a cylindrical angle :math:`\phi` and returns
         the cross section of the surface in that plane evaluated at `thetas`.
         This is done using the method of bisection.
-
         This function assumes that the surface intersection with the plane is a
         single curve.
         """
 
         # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
         # we shift it by multiples of 2pi until it does
-        phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
+        phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2 * np.pi)) * (2. * np.pi)
         if phi > np.pi:
             phi = phi - 2. * np.pi
         if phi < -np.pi:
@@ -305,13 +309,15 @@ class Surface(Optimizable):
         # In case the target cylindrical angle "phi" lies above the first row or below the last row,
         # we must concatenate the lower row above the top row and the top row below the lower row.
         # This is allowable since the data in the matrices are periodic
-        cyl_phi = np.concatenate((cyl_phi[-1, :][None, :]-2.*np.pi, cyl_phi, cyl_phi[0, :][None, :]+2.*np.pi), axis=0)
-        varphigrid = np.concatenate((varphigrid[-1, :][None, :]-1., varphigrid, varphigrid[0, :][None, :]+1.), axis=0)
+        cyl_phi = np.concatenate((cyl_phi[-1, :][None, :] - 2. * np.pi, cyl_phi, cyl_phi[0, :][None, :] + 2. * np.pi),
+                                 axis=0)
+        varphigrid = np.concatenate((varphigrid[-1, :][None, :] - 1., varphigrid, varphigrid[0, :][None, :] + 1.),
+                                    axis=0)
 
         # ensure that varphi does not have massive jumps.
-        diff = varphigrid[1:]-varphigrid[:-1]
-        pinc = np.abs(diff+1) < np.abs(diff)
-        minc = np.abs(diff-1) < np.abs(diff)
+        diff = varphigrid[1:] - varphigrid[:-1]
+        pinc = np.abs(diff + 1) < np.abs(diff)
+        minc = np.abs(diff - 1) < np.abs(diff)
         inc = pinc.astype(int) - minc.astype(int)
         prefix_sum = np.cumsum(inc, axis=0)
         varphigrid[1:] = varphigrid[1:] + prefix_sum
@@ -320,7 +326,7 @@ class Surface(Optimizable):
         # if idx_right == 0, then the subinterval must be idx_left = 0 and idx_right = 1
         idx_right = np.argmax(phi <= cyl_phi, axis=0)
         idx_right = np.where(idx_right == 0, 1, idx_right)
-        idx_left = idx_right-1
+        idx_left = idx_right - 1
 
         varphi_left = varphigrid[idx_left, np.arange(idx_left.size)]
         varphi_right = varphigrid[idx_right, np.arange(idx_right.size)]
@@ -335,13 +341,13 @@ class Surface(Optimizable):
             phi = np.arctan2(gamma[:, 1], gamma[:, 0])
             pinc = (phi < left_bound).astype(int)
             minc = (phi > right_bound).astype(int)
-            phi = phi + 2.*np.pi * (pinc - minc)
+            phi = phi + 2. * np.pi * (pinc - minc)
             return phi
 
         def bisection(phia, a, phic, c):
             err = 1.
             while err > 1e-13:
-                b = (a + c)/2.
+                b = (a + c) / 2.
                 phib = varphi2phi(b, phia, phic)
 
                 flag = (phib - phi) * (phic - phi) > 0
@@ -351,9 +357,10 @@ class Surface(Optimizable):
                 phic = np.where(flag, phib, phic)
                 a = np.where(flag, a, b)
                 c = np.where(flag, b, c)
-                err = np.max(np.abs(a-c))
-            b = (a + c)/2.
+                err = np.max(np.abs(a - c))
+            b = (a + c) / 2.
             return b
+
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
         cross_section = np.zeros((sol.size, 3))
@@ -367,80 +374,62 @@ class Surface(Optimizable):
         surface are :math:`(\varphi, \theta) \in [0,1)^2`
         For a given surface, this function computes its aspect ratio using
         the VMEC definition:
-
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
-
         where
-
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
             R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
-
         and :math:`V` is the volume enclosed by the surface, and
         :math:`\overline{A}` is the average cross sectional area.
         The main difficult part of this calculation is the mean cross
         sectional area.  This is given by the integral
-
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
-
         where :math:`S_\phi` is the cross section of the surface at the
         cylindrical angle :math:`\phi`.
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
-
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\
             &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
-
         where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]`
         is the outward pointing normal.
-
         Consider the surface in cylindrical coordinates terms of its angles
         :math:`[R(\varphi,\theta), \phi(\varphi,\theta), Z(\varphi,\theta)]`.
         The boundary of the cross section :math:`\partial S_\phi` is given
         by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
         Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`. The cross
         sectional area of :math:`S_\phi` becomes
-
         .. math::
             \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
             \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
-
         Now, substituting this into the formula for the mean cross sectional
         area, we have
-
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
                 \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
-
         Instead of integrating over cylindrical :math:`\phi`, let's complete
         the change of variables and integrate over :math:`\varphi` using the
         mapping:
-
         .. math::
             [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
-
         After the change of variables, the integral becomes:
-
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi}
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
-
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
-
         """
 
         xyz = self.gamma()
-        x2y2 = xyz[:, :, 0]**2 + xyz[:, :, 1]**2
+        x2y2 = xyz[:, :, 0] ** 2 + xyz[:, :, 1] ** 2
         dgamma1 = self.gammadash1()
         dgamma2 = self.gammadash2()
 
         # compute the average cross sectional area
         J = np.zeros((xyz.shape[0], xyz.shape[1], 2, 2))
-        J[:, :, 0, 0] = (xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0])/x2y2
-        J[:, :, 0, 1] = (xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0])/x2y2
+        J[:, :, 0, 0] = (xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0]) / x2y2
+        J[:, :, 0, 1] = (xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0]) / x2y2
         J[:, :, 1, 0] = 0.
         J[:, :, 1, 1] = 1.
 
@@ -448,12 +437,12 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ)) / (2 * np.pi)
 
         R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
-        R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
+        R_major = np.abs(self.volume()) / (2. * np.pi ** 2 * R_minor ** 2)
 
-        AR = R_major/R_minor
+        AR = R_major / R_minor
         return AR
 
     def arclength_poloidal_angle(self):
@@ -461,7 +450,6 @@ class Surface(Optimizable):
         Computes poloidal angle based on arclenth along magnetic surface at
         constant phi. The resulting angle is in the range [0,1]. This is required
         for evaluating the adjoint shape gradient for free-boundary calculations.
-
         Returns:
             2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
             containing the arclength poloidal angle
@@ -470,21 +458,21 @@ class Surface(Optimizable):
         X = gamma[:, :, 0]
         Y = gamma[:, :, 1]
         Z = gamma[:, :, 2]
-        R = np.sqrt(X**2 + Y**2)
+        R = np.sqrt(X ** 2 + Y ** 2)
 
         theta_arclength = np.zeros_like(gamma[:, :, 0])
         nphi = len(theta_arclength[:, 0])
         ntheta = len(theta_arclength[0, :])
         for iphi in range(nphi):
             for itheta in range(1, ntheta):
-                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta-1])**2
-                             + (Z[iphi, itheta] - Z[iphi, itheta-1])**2)
+                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta - 1]) ** 2
+                             + (Z[iphi, itheta] - Z[iphi, itheta - 1]) ** 2)
                 theta_arclength[iphi, itheta] = \
-                    theta_arclength[iphi, itheta-1] + dr
-            dr = np.sqrt((R[iphi, 0] - R[iphi, -1])**2
-                         + (Z[iphi, 0] - Z[iphi, -1])**2)
+                    theta_arclength[iphi, itheta - 1] + dr
+            dr = np.sqrt((R[iphi, 0] - R[iphi, -1]) ** 2
+                         + (Z[iphi, 0] - Z[iphi, -1]) ** 2)
             L = theta_arclength[iphi, -1] + dr
-            theta_arclength[iphi, :] = theta_arclength[iphi, :]/L
+            theta_arclength[iphi, :] = theta_arclength[iphi, :] / L
         return theta_arclength
 
     def interpolate_on_arclength_grid(self, function, theta_evaluate):
@@ -492,7 +480,6 @@ class Surface(Optimizable):
         Interpolate function onto the theta_evaluate grid in the arclength
         poloidal angle. This is required for evaluating the adjoint shape gradient
         for free-boundary calculations.
-
         Returns:
             function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
                 defining interpolated function on arclength angle along curve
