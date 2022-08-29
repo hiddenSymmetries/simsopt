@@ -3,7 +3,6 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
-from monty.json import MontyDecoder
 
 from .curve import Curve, JaxCurve
 import simsoptpp as sopp
@@ -99,21 +98,24 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coils[ic].local_x = np.concatenate(dofs)
         return coils
 
-    def as_dict(self, serial_objs_dict) -> dict:
+    # def as_dict(self, serial_objs_dict) -> dict:
         # d = {}
         # d["@class"] = self.__class__.__name__
         # d["@module"] = self.__class__.__module__
         # d["quadpoints"] = list(self.quadpoints)
         # d["order"] = self.order
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["x0"] = list(self.local_full_x)
-        return d
+    #     d = super().as_dict(serial_objs_dict=serial_objs_dict)
+    #     d["x0"] = list(self.local_full_x)
+    #     return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        curve = cls(d["quadpoints"], d["order"])
-        curve.local_full_x = d["x0"]
-        return curve
+        if d["@name"] in recon_objs:
+            curve = cls(d["quadpoints"], d["order"])
+            curve.local_full_x = d["x0"]
+            recon_objs[d["@name"]] = curve
+
+        return recon_objs[d["@name"]]
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
@@ -173,18 +175,20 @@ class JaxCurveXYZFourier(JaxCurve):
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
 
-    def as_dict(self, serial_objs_dict) -> dict:
+    # def as_dict(self, serial_objs_dict) -> dict:
         # d = {}
         # d["@module"] = self.__class__.__module__
         # d["@class"] = self.__class__.__name__
         # d["quadpoints"] = list(self.quadpoints)
         # d["order"] = self.order
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["x0"] = list(self.local_full_x)
-        return d
+    #    d = super().as_dict(serial_objs_dict=serial_objs_dict)
+    #    d["x0"] = list(self.local_full_x)
+    #    return d
 
     @classmethod
-    def from_dict(cls, d):
-        curve = cls(d["quadpoints"], d["order"])
-        curve.local_full_x = d["x0"]
-        return curve
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        if d["@name"] not in recon_objs:
+            curve = cls(d["quadpoints"], d["order"])
+            curve.local_full_x = d["x0"]
+            recon_objs[d["@name"]] = curve
+        return recon_objs[d["@name"]]

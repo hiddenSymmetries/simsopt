@@ -3,7 +3,7 @@ from deprecated import deprecated
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-from monty.json import MontyDecoder, MSONable
+# from monty.json import MontyDecoder, MSONable
 
 from .jit import jit
 from .._core.optimizable import Optimizable
@@ -52,13 +52,13 @@ class CurveLength(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curve = MontyDecoder().process_decoded(d["curve"])
+    #     return cls(curve)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -107,13 +107,13 @@ class LpCurveCurvature(Optimizable):
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["p"], d["threshold"])
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curve = MontyDecoder().process_decoded(d["curve"])
+    #     return cls(curve, d["p"], d["threshold"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -161,13 +161,13 @@ class LpCurveTorsion(Optimizable):
         grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
         return self.curve.dtorsion_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["p"], d["threshold"])
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curve = MontyDecoder().process_decoded(d["curve"])
+    #     return cls(curve, d["p"], d["threshold"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -274,13 +274,13 @@ class CurveCurveDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curves = MontyDecoder().process_decoded(d["curves"])
-        return cls(curves, d["minimum_distance"], d["num_basecurves"])
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curves = MontyDecoder().process_decoded(d["curves"])
+    #     return cls(curves, d["minimum_distance"], d["num_basecurves"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -385,15 +385,15 @@ class CurveSurfaceDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        curves = decoder.process_decoded(d["curves"])
-        surf = decoder.process_decoded(d["surface"])
-        return cls(curves, surf, d["minimum_distance"])
+    # @classmethod
+    # def from_dict(cls, d):
+    #     decoder = MontyDecoder()
+    #     curves = decoder.process_decoded(d["curves"])
+    #     surf = decoder.process_decoded(d["surface"])
+    #     return cls(curves, surf, d["minimum_distance"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -473,13 +473,13 @@ class ArclengthVariation(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["nintervals"])
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curve = MontyDecoder().process_decoded(d["curve"])
+    #     return cls(curve, d["nintervals"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -522,13 +522,13 @@ class MeanSquaredCurvature(Optimizable):
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return MSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     curve = MontyDecoder().process_decoded(d["curve"])
+    #     return cls(curve)
 
 
 @deprecated("`MinimumDistance` has been deprecated and will be removed. Please use `CurveCurveDistance` instead.")
