@@ -51,8 +51,8 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
 
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+    # def as_dict(self, serial_objs_dict) -> dict:
+    #    d = super().as_dict(serial_objs_dict=serial_objs_dict)
         # d = {}
         # d["@module"] = self.__class__.__module__
         # d["@class"] = self.__class__.__name__
@@ -60,8 +60,8 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         # d["order"] = self.order
         # d["nfp"] = self.nfp
         # d["stellsym"] = self.stellsym
-        d["x0"] = list(self.local_full_x)
-        return d
+    #    d["x0"] = list(self.local_full_x)
+    #    return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
