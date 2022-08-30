@@ -605,9 +605,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict)
-        return d
+    # def as_dict(self, serial_objs_dict) -> dict:
+    #     d = super().as_dict(serial_objs_dict)
+    #     return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recons_objs):
@@ -616,7 +616,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                    quadpoints_phi=d["quadpoints_phi"],
                    quadpoints_theta=d["quadpoints_theta"])
         surf.local_full_x = d["x0"]
-        recons_objs[d["@name"]] = surf
+        # recons_objs[d["@name"]] = surf
         return surf
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
