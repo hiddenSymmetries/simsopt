@@ -1,6 +1,7 @@
 import numpy as np
 
 import simsoptpp as sopp
+from .._core.json import GSONDecoder
 from .curve import Curve
 
 __all__ = ['CurveRZFourier']
@@ -64,11 +65,10 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        if d["@name"] not in recon_objs:
-            curve = cls(d["quadpoints"],
-                        d["order"],
-                        d["nfp"],
-                        d["stellsym"])
-            curve.local_full_x = d["x0"]
-            recon_objs[d["@name"]] = curve
-        return recon_objs[d["@name"]]
+        quadpoints = GSONDecoder().process_decoded(d['quadpoints'], serial_objs_dict, recon_objs)
+        curve = cls(quadpoints,
+                    d["order"],
+                    d["nfp"],
+                    d["stellsym"])
+        curve.local_full_x = d["x0"]
+        return curve
