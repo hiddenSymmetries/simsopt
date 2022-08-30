@@ -5,6 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .curve import Curve, JaxCurve
+from .._core.json import GSONDecoder
 import simsoptpp as sopp
 
 __all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
@@ -110,12 +111,11 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        if d["@name"] in recon_objs:
-            curve = cls(d["quadpoints"], d["order"])
-            curve.local_full_x = d["x0"]
-            recon_objs[d["@name"]] = curve
-
-        return recon_objs[d["@name"]]
+        quadpoints = GSONDecoder().process_decoded(d['quadpoints'],
+                                                   serial_objs_dict, recon_objs)
+        curve = cls(quadpoints, d["order"])
+        curve.local_full_x = d["x0"]
+        return curve
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
@@ -187,8 +187,8 @@ class JaxCurveXYZFourier(JaxCurve):
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        if d["@name"] not in recon_objs:
-            curve = cls(d["quadpoints"], d["order"])
-            curve.local_full_x = d["x0"]
-            recon_objs[d["@name"]] = curve
-        return recon_objs[d["@name"]]
+        quadpoints = GSONDecoder().process_decoded(d['quadpoints'],
+                                                   serial_objs_dict, recon_objs)
+        curve = cls(quadpoints, d["order"])
+        curve.local_full_x = d["x0"]
+        return curve
