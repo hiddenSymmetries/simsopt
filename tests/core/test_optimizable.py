@@ -3,7 +3,7 @@ import re
 import json
 
 import numpy as np
-from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSONable
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable, \
@@ -1194,7 +1194,7 @@ class TestOptimizableSerialize(unittest.TestCase):
     def test_adder_serialize(self):
         adder_orig = FAdder(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
                             fixed=[True, False, True])
-        s = json.dumps(SIMSONable(adder_orig), cls=GSONEncoder)
+        s = json.dumps(SIMSON(adder_orig), cls=GSONEncoder)
         adder = json.loads(s, cls=GSONDecoder)
         self.assertEqual(adder.n, adder_orig.n)
         self.assertTrue(np.allclose(adder.full_x, adder_orig.full_x))
@@ -1205,7 +1205,7 @@ class TestOptimizableSerialize(unittest.TestCase):
 
     def test_identity_serialize(self):
         iden_orig = Identity(x=10.0, dof_name="x", dof_fixed=False)
-        s = json.dumps(SIMSONable(iden_orig), cls=GSONEncoder)
+        s = json.dumps(SIMSON(iden_orig), cls=GSONEncoder)
         iden = json.loads(s, cls=GSONDecoder)
         self.assertAlmostEqual(iden.x[0], iden_orig.x[0])
         self.assertEqual(iden.local_full_dof_names[0],
@@ -1215,7 +1215,7 @@ class TestOptimizableSerialize(unittest.TestCase):
 
     def test_rosenbrock_serialize(self):
         r_orig = Rosenbrock(b=100.0, x=10.0, y=20.0)
-        s = json.dumps(SIMSONable(r_orig), cls=GSONEncoder)
+        s = json.dumps(SIMSON(r_orig), cls=GSONEncoder)
         r = json.loads(s, cls=GSONDecoder)
         self.assertAlmostEqual(r.term1, r_orig.term1)
         self.assertAlmostEqual(r.term2, r_orig.term2)
@@ -1225,14 +1225,14 @@ class TestOptimizableSerialize(unittest.TestCase):
                         fixed=[True, False, True])
         adder2 = FAdder(n=2, x0=[10, 11], names=["a", "b"], fixed=[True, False])
         test_opt_orig = TestObject1(100.0, depends_on=[adder1, adder2])
-        s = json.dumps(SIMSONable(test_opt_orig), cls=GSONEncoder)
+        s = json.dumps(SIMSON(test_opt_orig), cls=GSONEncoder)
         test_opt = json.loads(s, cls=GSONDecoder)
         self.assertAlmostEqual(test_opt.f(), test_opt_orig.f())
 
     def test_scaled_optimizer_serialize(self):
         beale = Beale(x0=[2.2, 3.3])
         scaled_beale = ScaledOptimizable(2.0, beale)
-        s = json.dumps(SIMSONable(scaled_beale), cls=GSONEncoder)
+        s = json.dumps(SIMSON(scaled_beale), cls=GSONEncoder)
         scaled_beale_regen = json.loads(s, cls=GSONDecoder)
         self.assertTrue(np.allclose(scaled_beale_regen.J(), 2*beale.J()))
 
@@ -1241,7 +1241,7 @@ class TestOptimizableSerialize(unittest.TestCase):
                         fixed=[True, False, True])
         adder2 = FAdder(n=2, x0=[10, 11], names=["a", "b"], fixed=[True, False])
         opt_sum = OptimizableSum(opts=[adder1, adder2])
-        s = json.dumps(SIMSONable(opt_sum), cls=GSONEncoder)
+        s = json.dumps(SIMSON(opt_sum), cls=GSONEncoder)
         opt_sum_regen = json.loads(s, cls=GSONDecoder)
         self.assertAlmostEqual(opt_sum_regen.J(), adder1.J() + adder2.J())
 

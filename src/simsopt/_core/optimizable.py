@@ -28,7 +28,7 @@ from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
-from .json import GSONable, SIMSONable, GSONDecoder, GSONEncoder
+from .json import GSONable, SIMSON, GSONDecoder, GSONEncoder
 
 try:
     import networkx as nx
@@ -1308,6 +1308,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
 
     def as_dict(self, serial_objs_dict=None) -> dict:
         d = super().as_dict(serial_objs_dict)
+        # d["@name"] = self.name
         if len(self.local_full_x):
             d["x0"] = list(self.local_full_x)
             d["names"] = self.local_full_dof_names
@@ -1327,7 +1328,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
                 kwargs["cls"] = GSONEncoder
             if "indent" not in kwargs:
                 kwargs["indent"] = 2
-            simson = SIMSONable(self)
+            simson = SIMSON(self)
             s = json.dumps(simson, **kwargs)
             if filename:
                 with zopen(filename, "wt") as f:
@@ -1384,7 +1385,7 @@ def save(simsopt_objects, filename, *args, **kwargs):
             kwargs["cls"] = GSONEncoder
         if "indent" not in kwargs:
             kwargs["indent"] = 2
-        simson = SIMSONable(simsopt_objects)
+        simson = SIMSON(simsopt_objects)
         return json.dump(simson, fp, *args, **kwargs)
 
 
