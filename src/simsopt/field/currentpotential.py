@@ -30,15 +30,29 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):
 
-    def __init__(self, winding_surface, nfp=1, stellsym=True, mpol=1, ntor=0, nphi=None,
-                 ntheta=None, range="full torus", net_poloidal_current_amperes=1,
-                 net_toroidal_current_amperes=0,
+    def __init__(self, winding_surface, net_poloidal_current_amperes=1,
+                 net_toroidal_current_amperes=0, nfp=None, stellsym=None,
+                 mpol=None, ntor=None, nphi=None, ntheta=None, range="full torus",
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
+        if nfp is None:
+            nfp = winding_surface.nfp
+        if stellsym is None:
+            stellsym = winding_surface.stellsym
+        if mpol is None:
+            mpol = winding_surface.mpol
+        if ntor is None:
+            ntor = winding_surface.ntor
+
+        if ((ntheta is not None) or (nphi is not None) and ((quadpoints_phi is None) or (quadpoints_theta is None))):
+            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
+                                                                      nphi=nphi, ntheta=ntheta, range=range,
+                                                                      quadpoints_phi=quadpoints_phi,
+                                                                      quadpoints_theta=quadpoints_theta)
+        if (quadpoints_phi is None):
+            quadpoints_phi = winding_surface.quadpoints_phi
+        if (quadpoints_theta is None):
+            quadpoints_theta = winding_surface.quadpoints_theta
 
         sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
                                               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,

@@ -11,6 +11,7 @@ class CurrentPotentialTaylorTests(unittest.TestCase):
         epss = [0.5**i for i in range(10, 15)]
         phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
         cp = get_currentpotential(cptype, stellsym, phis=phis)
+
         f0 = cp.Phi()[0, 0]
         deriv = cp.Phidash1()[0, 0]
         err_old = 1e6
