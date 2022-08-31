@@ -67,7 +67,7 @@ gx_in = GX_Runner(gx_input)
 gx_in.load_slurm( slurm_sample )
 
 # fixed
-gx_in.inputs['Diagnostics']['all_non_zonal'] = 'true'
+gx_in.inputs['Diagnostics']['all_non_zonal'] = 'false'
 
 slurm_list = []
 
@@ -120,4 +120,10 @@ for line in vals:
 ##    f_slurm = f"{group}_{i:02d}.sh"
 ##    gx_in.batch_slurm_close( f_slurm )
 
-[ print(f) for f in slurm_list]
+import subprocess
+#[ print(f) for f in slurm_list]
+for f in slurm_list:
+
+    cmd = ["sbatch", f]
+    subprocess.run(cmd)
+    print("ran:", cmd)

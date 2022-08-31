@@ -207,12 +207,29 @@ class GX_Output():
 
         try:
             f = Dataset(fname, mode='r')
+            self.data = f
             #f = nc.netcdf_file(fname, 'r') 
         except: 
             print('  read_GX_output: could not read', fname)
+            return
+
     
+        self.get_qflux() 
     
-        qflux = f.groups['Fluxes'].variables['qflux'][:,0]
+        self.time  = f.variables['time'][:]
+
+        self.tprim  = f.groups['Inputs']['Species']['T0_prime'][:]
+        self.fprim  = f.groups['Inputs']['Species']['n0_prime'][:]
+
+
+    def get_qflux(self):
+
+        try:
+
+            qflux = self.data.groups['Fluxes'].variables['qflux'][:,0]
+        except:
+            print("no qflux found")
+            return
     
         # check for NANs
         if ( np.isnan(qflux).any() ):
@@ -220,12 +237,17 @@ class GX_Output():
              qflux = np.nan_to_num(qflux)
 
         self.qflux = qflux
-        self.time  = f.variables['time'][:]
 
-        self.tprim  = f.groups['Inputs']['Species']['T0_prime'][:]
-        self.fprim  = f.groups['Inputs']['Species']['n0_prime'][:]
+    # can extend this to select modes
+    def get_gamma(self):
 
-        self.data = f
+        data = self.data.groups['Special']['omega_v_time'][:]
+
+        # get all times, first ky mode, kx=0, gamma = Im(omega)
+        gamma = data[:,1,0,1]  # t, ky, kx, ri
+
+        self.gamma = gamma
+
 
     def median_estimator(self):
 

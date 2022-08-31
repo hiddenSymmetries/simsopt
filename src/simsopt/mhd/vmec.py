@@ -809,6 +809,21 @@ class Vmec(Optimizable):
         self.run()
         return self.wout.volume
 
+    def test_obj(self):
+        """
+            Set zs(0,1) to target
+
+        """
+
+        zbs = self.x[0]  # assume zs(0,1) is the first [and perhaps only] dof
+        print("  self.x[0]:", zbs)
+        #self.need_to_run_code = True ## set to true anytime .x is changed. run() will do nothing if this is false
+        #self.run()
+
+#        return (zbs - target)**2
+        return zbs 
+
+
     def gx_qflux(self, first_restart=False):
         """
             get wout, 
