@@ -1,12 +1,12 @@
 from math import pi
 import numpy as np
-# from monty.json import MontyDecoder, MSONable
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
+
 
 __all__ = ['Coil', 'Current', 'coils_via_symmetries',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves']
@@ -38,16 +38,6 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
-
-    # def as_dict(self) -> dict:
-    #     return MSONable.as_dict(self)
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     decoder = MontyDecoder()
-    #     current = decoder.process_decoded(d["current"])
-    #     curve = decoder.process_decoded(d["curve"])
-    #     return cls(curve, current)
 
 
 class CurrentBase(Optimizable):
@@ -128,15 +118,6 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
 
-    # def as_dict(self) -> dict:
-    #     return MSONable.as_dict(self)
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     decoder = MontyDecoder()
-    #     current = decoder.process_decoded(d["current_to_scale"])
-    #     return cls(current, d["scale"])
-
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
@@ -154,16 +135,6 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
 
     def get_value(self):
         return self.current_a.get_value() + self.current_b.get_value()
-
-    # def as_dict(self) -> dict:
-    #     return MSONable.as_dict(self)
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     decoder = MontyDecoder()
-    #     current_a = decoder.process_decoded(d["current_a"])
-    #     current_b = decoder.process_decoded(d["current_b"])
-    #     return cls(current_a, current_b)
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
