@@ -1308,7 +1308,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
 
     def as_dict(self, serial_objs_dict=None) -> dict:
         d = super().as_dict(serial_objs_dict)
-        # d["@name"] = self.name
         if len(self.local_full_x):
             d["x0"] = list(self.local_full_x)
             d["names"] = self.local_full_dof_names
