@@ -10,6 +10,7 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
@@ -750,10 +751,17 @@ class SurfaceHenneberg(sopp.Surface, Surface):
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        quadpoints_phi = decoder.process_decoded(d["quadpoints_phi"],
+                                                 serial_objs_dict=serial_objs_dict,
+                                                 recon_objs=recon_objs)
+        quadpoints_theta = decoder.process_decoded(d["quadpoints_theta"],
+                                                   serial_objs_dict=serial_objs_dict,
+                                                   recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], alpha_fac=d["alpha_fac"],
                    mmax=d["mmax"], nmax=d["nmax"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.local_full_x = d["x0"]
         return surf
 

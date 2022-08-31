@@ -9,7 +9,7 @@ import simsoptpp as sopp
 from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
-from .._core.json import GSONable
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
@@ -610,11 +610,18 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     #     return d
 
     @classmethod
-    def from_dict(cls, d, serial_objs_dict, recons_objs):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        dec = GSONDecoder()
+        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
+                                             serial_objs_dict=serial_objs_dict,
+                                             recon_objs=recon_objs)
+        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
+                                               serial_objs_dict=serial_objs_dict,
+                                               recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.local_full_x = d["x0"]
         # recons_objs[d["@name"]] = surf
         return surf
@@ -701,7 +708,7 @@ class SurfaceRZPseudospectral(Optimizable):
         self.a_scale = a_scale
         if "x0" not in kwargs:
             ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
-            kwargs["x0"] = np.zeross(ndofs)
+            kwargs["x0"] = np.zeros(ndofs)
         if "names" not in kwargs:
             kwargs["names"] = self._make_names()
         super().__init__(**kwargs)
