@@ -86,7 +86,6 @@ class Spec(Optimizable):
 
     def __init__(self,
                  filename: Union[str, None] = None,
-                 initial_guess: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  verbose: bool = True,
                  keep_all_files: bool = False):
