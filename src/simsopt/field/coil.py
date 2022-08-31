@@ -104,9 +104,9 @@ class Current(sopp.Current, CurrentBase):
         return self.get_value()
 
     def as_dict(self, serial_objs_dict) -> dict:
-         d = super().as_dict(serial_objs_dict=serial_objs_dict)
-         del d["x0"]
-         return d
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        del d["x0"]
+        return d
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
