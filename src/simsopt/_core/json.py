@@ -20,10 +20,17 @@ from importlib import import_module
 from inspect import getfullargspec
 from uuid import UUID
 
+
 try:
     import numpy as np
 except ImportError:
     np = None  # type: ignore
+
+try:
+    import jax
+    import jaxlib.xla_extension
+except ImportError:
+    jax = None
 
 try:
     import pandas as pd
@@ -375,6 +382,10 @@ class GSONEncoder(json.JSONEncoder):
                     "string": str(o)}
         if isinstance(o, UUID):
             return {"@module": "uuid", "@class": "UUID", "string": str(o)}
+
+        if jax is not None and np is not None:
+            if isinstance(o, jaxlib.xla_extension.DeviceArray):
+                o = np.asarray(o)
 
         if np is not None:
             if isinstance(o, np.ndarray):
