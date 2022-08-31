@@ -125,9 +125,10 @@ class GSONable:
         """
         A JSON serializable dict representation of an object.
         """
+        name = getattr(self, "name", str(id(self)))
         d = {"@module": self.__class__.__module__,
              "@class": self.__class__.__name__,
-             "@name": self.name}
+             "@name": name}
 
         try:
             parent_module = \
@@ -150,10 +151,11 @@ class GSONable:
             if isinstance(obj, dict):
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
             if hasattr(obj, "as_dict"):
-                if obj.name not in serial_objs_dict:  # Add the path
+                name = getattr(obj, "name", str(id(obj)))
+                if name not in serial_objs_dict:  # Add the path
                     serial_obj = obj.as_dict(serial_objs_dict)  # serial_objs is modified in place
-                    serial_objs_dict[obj.name] = serial_obj
-                return {"$type": "ref", "value": obj.name}
+                    serial_objs_dict[name] = serial_obj
+                return {"$type": "ref", "value": name}
             return obj
 
         for c in args:
