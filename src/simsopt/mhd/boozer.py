@@ -348,18 +348,18 @@ class Boozer(Optimizable):
                     zmns[index] = np.array([list(d.output.Zbs[ind_surf, :])])
 
                     subumnc[index] = np.array(
-                        [list(d.output.Btemn[ind_vol, innout_vol, :])])
+                        [list(d.output.Btemn[ind_vol, innout_vol])])
                     subvmnc[index] = np.array(
-                        [list(d.output.Bzemn[ind_vol, innout_vol, :])])
+                        [list(d.output.Bzemn[ind_vol, innout_vol])])
                     subumns[index] = np.array(
-                        [list(d.output.Btomn[ind_vol, innout_vol, :])])
+                        [list(d.output.Btomn[ind_vol, innout_vol])])
                     subvmns[index] = np.array(
-                        [list(d.output.Bzomn[ind_vol, innout_vol, :])])
+                        [list(d.output.Bzomn[ind_vol, innout_vol])])
 
                     lambdamn[index] = np.array(
-                        [list(d.output.lambdamn[innout_vol][ind_vol][:])])
+                        [list(d.output.lambdamn[innout_vol, ind_vol])] )
 
-                    iota[index] = d.output.lambdamn[innout_vol][ind_vol][0]
+                    iota[index] = d.output.lambdamn[innout_vol, ind_vol, 0]
                     s_in[index] = d.output.tflux[ind_surf-1]
 
                     index = index + 1
