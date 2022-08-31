@@ -1,9 +1,10 @@
 import numpy as np
-from monty.json import MSONable, MontyDecoder, MontyEncoder
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
+from .._core.json import GSONable, GSONDecoder, GSONEncoder
+
 
 __all__ = ['SquaredFlux']
 
@@ -57,13 +58,13 @@ class SquaredFlux(Optimizable):
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
+    # def as_dict(self) -> dict:
+    #     return GSONable.as_dict(self)
 
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        surface = decoder.process_decoded(d["surface"])
-        field = decoder.process_decoded(d["field"])
-        target = decoder.process_decoded(d["target"])
-        return cls(surface, field, target)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     decoder = GSONDecoder()
+    #     surface = decoder.process_decoded(d["surface"])
+    #     field = decoder.process_decoded(d["field"])
+    #     target = decoder.process_decoded(d["target"])
+    #     return cls(surface, field, target)

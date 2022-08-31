@@ -57,7 +57,7 @@ class Identity(Optimizable):
 
     return_fn_map = {'f': f}
 
-    def as_dict(self, serial_objs_dict: dict = None) -> dict:
+    def as_dict(self, serial_objs_dict: dict) -> dict:
         # d = super().as_dict(serial_objs_dict)
         d = {}
         d["@class"] = self.__class__.__name__
@@ -269,6 +269,7 @@ class TestObject1(Optimizable):
     @property
     def depends_on(self):
         return self.parents
+
     # def as_dict(self) -> dict:
     #     d = {}
     #     d["val"] = self.local_full_x[0]
