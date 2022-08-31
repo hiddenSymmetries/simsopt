@@ -2,7 +2,6 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyEncoder, MontyDecoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -10,6 +9,7 @@ from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
 from simsopt.field.biotsavart import BiotSavart
+from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
@@ -58,8 +58,8 @@ class TestCoil(unittest.TestCase):
 
         for current in (Current(1e4), ScaledCurrent(Current(1e4), 4)):
             coil = Coil(curve, current)
-            coil_str = json.dumps(coil, cls=MontyEncoder)
-            coil_regen = json.loads(coil_str, cls=MontyDecoder)
+            coil_str = json.dumps(SIMSON(coil), cls=GSONEncoder)
+            coil_regen = json.loads(coil_str, cls=GSONDecoder)
 
             points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
             B1 = BiotSavart([coil]).set_points(points).B()
@@ -76,15 +76,15 @@ class TestCoil(unittest.TestCase):
 class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
         current = Current(1e4)
-        current_str = json.dumps(current, cls=MontyEncoder)
-        current_regen = json.loads(current_str, cls=MontyDecoder)
+        current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
+        current_regen = json.loads(current_str, cls=GSONDecoder)
         self.assertAlmostEqual(current.get_value(), current_regen.get_value())
 
     def test_scaled_current_serialization(self):
         current = Current(1e4)
         scaled_current = ScaledCurrent(current, 3)
-        current_str = json.dumps(scaled_current, cls=MontyEncoder)
-        current_regen = json.loads(current_str, cls=MontyDecoder)
+        current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
+        current_regen = json.loads(current_str, cls=GSONDecoder)
         self.assertAlmostEqual(scaled_current.get_value(),
                                current_regen.get_value())
 
@@ -92,8 +92,8 @@ class TestCurrentSerialization(unittest.TestCase):
         current_a = Current(1e4)
         current_b = Current(1.5e4)
         current = CurrentSum(current_a, current_b)
-        current_str = json.dumps(current, cls=MontyEncoder)
-        current_regen = json.loads(current_str, cls=MontyDecoder)
+        current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
+        current_regen = json.loads(current_str, cls=GSONDecoder)
         self.assertAlmostEqual(current.get_value(),
                                current_regen.get_value())
 
