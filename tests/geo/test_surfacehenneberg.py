@@ -5,8 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from monty.json import MontyEncoder, MontyDecoder
-
+from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 
 #logging.basicConfig(level=logging.DEBUG)
@@ -283,8 +282,8 @@ class SurfaceHennebergTests(unittest.TestCase):
                         surfH.bn[0] = a
                         surfH.set_rhomn(1, 0, a)
                         surfH.local_full_x = surfH.get_dofs()
-                        surf_str = json.dumps(surfH, cls=MontyEncoder)
-                        surfH_regen = json.loads(surf_str, cls=MontyDecoder)
+                        surf_str = json.dumps(SIMSON(surfH), cls=GSONEncoder)
+                        surfH_regen = json.loads(surf_str, cls=GSONDecoder)
                         self.assertAlmostEqual(surfH.area(), surfH_regen.area(),
                                                places=4)
                         self.assertAlmostEqual(surfH.volume(), surfH_regen.volume(),
