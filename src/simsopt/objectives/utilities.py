@@ -1,5 +1,5 @@
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+# from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
@@ -87,20 +87,20 @@ class QuadraticPenalty(Optimizable):
         dval = self.obj.dJ(partials=True)
         return np.maximum(val-self.threshold, 0)*dval
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@class"] = self.__class__.__name__
-        d["@module"] = self.__class__.__module__
-        d["obj"] = self.obj
-        d["threshold"] = np.array(self.threshold)
-        return d
+    # def as_dict(self) -> dict:
+    #     d = {}
+    #     d["@class"] = self.__class__.__name__
+    #     d["@module"] = self.__class__.__module__
+    #     d["obj"] = self.obj
+    #     d["threshold"] = np.array(self.threshold)
+    #     return d
 
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        obj = decoder.process_decoded(d["obj"])
-        threshold = decoder.process_decoded(d["threshold"])
-        return cls(obj, threshold)
+    # @classmethod
+    # def from_dict(cls, d):
+    #     decoder = MontyDecoder()
+    #     obj = decoder.process_decoded(d["obj"])
+    #     threshold = decoder.process_decoded(d["threshold"])
+    #     return cls(obj, threshold)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
