@@ -22,8 +22,12 @@ from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
 from scipy.special import ellipk, ellipe
+from pathlib import Path
+from scipy.io import netcdf_file
+import matplotlib.pyplot as plt
 np.random.seed(100)
 
+TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 class Testing(unittest.TestCase):
 
@@ -758,7 +762,7 @@ class Testing(unittest.TestCase):
     def test_windingsurface_calculation(self):
         # Make a circular cross section, high-aspect ratio current loop in the Z = 0 plane
         # Following approximate analytic solution in Jackson problem 5.32 for a circular
-        # cross section wire with major radius a, minor radius b, a >> b. 
+        # cross section wire with major radius a, minor radius b, a >> b.
         filename = 'test_files/input.circular_tokamak_aspect_100'
         nphi = 32
         ntheta = 16
@@ -814,7 +818,7 @@ class Testing(unittest.TestCase):
 
     def test_windingsurface_exact(self):
         # Make an infinitesimally thin current loop in the Z = 0 plane
-        # Following approximate analytic solution in Jackson 5.37 
+        # Following approximate analytic solution in Jackson 5.37
         nphi = 128
         ntheta = 8
 
@@ -832,12 +836,12 @@ class Testing(unittest.TestCase):
         ### Note, it appears we must pass the same quadpoints for now
         current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=-1, quadpoints_phi=winding_surface.quadpoints_phi, quadpoints_theta=winding_surface.quadpoints_theta)
 
-        # compute the Bfield from this current loop at some points 
+        # compute the Bfield from this current loop at some points
         Bfield = WindingSurfaceField(current_potential)
         N = 1000
         phi = winding_surface.quadpoints_phi
 
-        # Check that the full expression is correct 
+        # Check that the full expression is correct
         points = (np.random.rand(N, 3) - 0.5) * 10
         Bfield.set_points(np.ascontiguousarray(points))
         B_predict = Bfield.B()
@@ -851,7 +855,7 @@ class Testing(unittest.TestCase):
         theta = np.arctan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
         k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
 
-        # Note scipy is very annoying... scipy function ellipk(k^2) 
+        # Note scipy is very annoying... scipy function ellipk(k^2)
         # is equivalent to what Jackson calls ellipk(k) so call it with k^2
         Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k ** 2) - 2 * ellipe(k ** 2)) / k ** 2
 
@@ -884,7 +888,7 @@ class Testing(unittest.TestCase):
         theta = np.arctan2(np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2), points[:, 2])
         k = np.sqrt(4 * r * np.sin(theta) / (1 + r ** 2 + 2 * r * np.sin(theta)))
 
-        # Note scipy is very annoying... scipy function ellipk(k^2) 
+        # Note scipy is very annoying... scipy function ellipk(k^2)
         # is equivalent to what Jackson calls ellipk(k) so call it with k^2
         Aphi = mu_fac * (4 / np.sqrt(1 + r ** 2 + 2 * r * np.sin(theta))) * ((2 - k ** 2) * ellipk(k ** 2) - 2 * ellipe(k ** 2)) / k ** 2
 
@@ -912,6 +916,82 @@ class Testing(unittest.TestCase):
 
         assert np.allclose(A_predict, A_analytic)
 
+    def test_winding_surface_regcoil(self):
+        # This compares the normal field from regcoil with that computed from
+        # WindingSurface for a W7-X configuration 
+
+        stellsym = True
+        filename = TEST_DIR / 'regcoil_out.w7x.nc'
+        f = netcdf_file(filename, 'r')
+        Bnormal_regcoil = f.variables['Bnormal_total'][()][-1, :, :]
+
+        r_plasma = f.variables['r_plasma'][()]
+        r_coil = f.variables['r_coil'][()]
+        rmnc_plasma  = f.variables['rmnc_plasma'][()]
+        zmns_plasma  = f.variables['zmns_plasma'][()]
+        xm_plasma = f.variables['xm_plasma'][()]
+        xn_plasma = f.variables['xn_plasma'][()]
+        nfp = f.variables['nfp'][()]
+        ntheta_plasma = f.variables['ntheta_plasma'][()]
+        nzeta_plasma = f.variables['nzeta_plasma'][()]
+        mpol_potential = f.variables['mpol_potential'][()]
+        ntor_potential = f.variables['ntor_potential'][()]
+        net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
+        net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
+        xm_potential = f.variables['xm_potential'][()]
+        xn_potential = f.variables['xn_potential'][()]
+        mpol_plasma = int(np.max(xm_plasma))
+        ntor_plasma = int(np.max(xn_plasma)/nfp)
+
+        rmnc_coil = f.variables['rmnc_coil'][()]
+        zmns_coil = f.variables['zmns_coil'][()]
+        xm_coil = f.variables['xm_coil'][()]
+        xn_coil = f.variables['xn_coil'][()]
+        ntheta_coil = f.variables['ntheta_coil'][()]
+        nzeta_coil = f.variables['nzeta_coil'][()]
+        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
+        mpol_coil = int(np.max(xm_coil))
+        ntor_coil = int(np.max(xn_coil)/nfp)
+
+        s_plasma = SurfaceRZFourier(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
+                             mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym, range="field period")
+        s_plasma.set_dofs(0*s_plasma.get_dofs())
+        for im in range(len(xm_plasma)):
+            s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
+            s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
+
+        assert np.allclose(r_plasma[0:nzeta_plasma,:,:],s_plasma.gamma())
+
+        s_coil = SurfaceRZFourier(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
+                             mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym, range="full torus")
+        s_coil.set_dofs(0*s_coil.get_dofs())
+        for im in range(len(xm_coil)):
+            s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
+            s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
+
+        assert np.allclose(r_coil,s_coil.gamma())
+
+        cp = CurrentPotentialFourier(s_coil, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
+                                     ntor=ntor_potential, nphi=nfp*nzeta_coil, ntheta=ntheta_coil,
+                                     net_poloidal_current_amperes=net_poloidal_current_amperes,
+                                     net_toroidal_current_amperes=net_toroidal_current_amperes, range="full torus")
+        for im in range(len(xm_potential)):
+            cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+
+        Bfield = WindingSurfaceField(cp)
+        points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3),3))
+
+        Bfield.set_points(points)
+        B = Bfield.B()
+
+        normal = s_plasma.unitnormal().reshape((int(len(s_plasma.gamma().flatten())/3),3))
+        Bnormal = np.sum(B*normal,axis=1).reshape(np.shape(s_plasma.gamma()[:,:,0]))
+
+        Bnormal_average = np.mean(np.abs(Bnormal))
+
+        print(np.max(np.abs(Bnormal.flatten()/Bnormal_average- Bnormal_regcoil.flatten()/Bnormal_average)))
+
+        assert np.allclose(Bnormal.flatten()/Bnormal_average, Bnormal_regcoil.flatten()/Bnormal_average)
 
 if __name__ == "__main__":
     unittest.main()
