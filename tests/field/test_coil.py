@@ -3,7 +3,6 @@ import json
 
 import numpy as np
 
-from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
