@@ -139,7 +139,7 @@ void Surface<Array>::extend_via_normal(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::normal_impl(Array& data)  { 
+void Surface<Array>::normal_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     for (int i = 0; i < numquadpoints_phi; ++i) {
@@ -151,7 +151,7 @@ void Surface<Array>::normal_impl(Array& data)  {
     }
 };
 template<class Array>
-void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  { 
+void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     auto dg1_dc = this->dgammadash1_by_dcoeff();
@@ -184,7 +184,7 @@ void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     }
 };
 template<class Array>
-void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  { 
+void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
     auto dg1_dc = this->dgammadash1_by_dcoeff();
@@ -207,7 +207,7 @@ void Surface<Array>::d2normal_by_dcoeffdcoeff_impl(Array& data)  {
 };
 
 template<class Array>
-void Surface<Array>::unitnormal_impl(Array& data)  { 
+void Surface<Array>::unitnormal_impl(Array& data)  {
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
@@ -306,10 +306,10 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
             for (int m = 0; m < ndofs; ++m) {
                 for (int n = 0; n < ndofs; ++n) {
                     norm = sqrt(nor(i,j,0)*nor(i,j,0)
-                            + nor(i,j,1)*nor(i,j,1) 
+                            + nor(i,j,1)*nor(i,j,1)
                             + nor(i,j,2)*nor(i,j,2));
-                    dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0) 
-                            + dnor_dc(i,j,1,n)*nor(i,j,1) 
+                    dnorm_dcoeffn = (dnor_dc(i,j,0,n)*nor(i,j,0)
+                            + dnor_dc(i,j,1,n)*nor(i,j,1)
                             + dnor_dc(i,j,2,n)*nor(i,j,2)) / norm;
                     data(m,n) +=  dnor_dc(i,j,0,m) * (dnor_dc(i,j,0,n) * norm - dnorm_dcoeffn * nor(i,j,0)) / (norm*norm)
                         + dnor_dc(i,j,1,m) * (dnor_dc(i,j,1,n) * norm - dnorm_dcoeffn * nor(i,j,1)) / (norm*norm)
@@ -388,8 +388,8 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            for (int m = 0; m < ndofs; ++m){ 
-                for (int n = 0; n < ndofs; ++n){ 
+            for (int m = 0; m < ndofs; ++m){
+                for (int n = 0; n < ndofs; ++n){
                     data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
                             +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
                             +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));

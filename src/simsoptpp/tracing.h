@@ -11,14 +11,31 @@ using std::tuple;
 
 double get_phi(double x, double y, double phi_near);
 
+
+template<class Array>
 class StoppingCriterion {
     public:
         // Should return true if the Criterion is satisfied.
-        virtual bool operator()(int iter, double t, double x, double y, double z) = 0;
+        virtual bool operator()(int iter, Array& y) = 0;
+        // virtual bool operator()(int iter, double t, double x, double y, double z) = 0;
         virtual ~StoppingCriterion() {}
 };
 
-class ToroidalTransitStoppingCriterion : public StoppingCriterion {
+template<class Array>
+class VparStoppingCriterion : public StoppingCriterion<Array> {
+    private:
+        double vpar_crit;
+    public:
+        VparStoppingCriterion(double vpar_crit) : vpar_crit(vpar_crit) {
+        };
+        bool operator()(int iter, Array& y) override {
+        // bool operator()(int iter, double t, double x, double y, double z) override {
+            return std::abs(y[3])<=vpar_crit;
+        };
+};
+
+template<class Array>
+class ToroidalTransitStoppingCriterion : public StoppingCriterion<Array> {
     private:
         int max_transits;
         double phi_last;
@@ -27,13 +44,16 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
     public:
         ToroidalTransitStoppingCriterion(int max_transits, bool flux) : max_transits(max_transits), flux(flux) {
         };
-        bool operator()(int iter, double t, double x, double y, double z) override {
+        bool operator()(int iter, Array& y) override {
+        // bool operator()(int iter, double t, double x, double y, double z) override {
             if (iter == 1) {
               phi_last = M_PI;
             }
-            double phi = z;
+            double phi = y[2];
+            // double phi = z;
             if (!flux) {
-              phi = get_phi(x, y, phi_last);
+                phi = get_phi(y[0], y[1], phi_last);
+              // phi = get_phi(x, y, phi_last);
             }
             if (iter == 1) {
               phi_init = phi;
@@ -44,75 +64,87 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
         };
 };
 
-class MaxToroidalFluxStoppingCriterion : public StoppingCriterion{
+template<class Array>
+class MaxToroidalFluxStoppingCriterion : public StoppingCriterion<Array> {
     private:
         double max_s;
     public:
         MaxToroidalFluxStoppingCriterion(double max_s) : max_s(max_s) {};
-        bool operator()(int iter, double t, double s, double theta, double zeta) override {
-            return s>=max_s;
-        };
-};
-
-class MinToroidalFluxStoppingCriterion : public StoppingCriterion{
-    private:
-        double min_s;
-    public:
-        MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
-        bool operator()(int iter, double t, double s, double theta, double zeta) override {
-            return s<=min_s;
-        };
-};
-
-class IterationStoppingCriterion : public StoppingCriterion{
-    private:
-        int max_iter;
-    public:
-        IterationStoppingCriterion(int max_iter) : max_iter(max_iter) {};
-        bool operator()(int iter, double t, double x, double y, double z) override {
-            return iter>max_iter;
+        bool operator()(int iter, Array& y) override {
+        // bool operator()(int iter, double t, double s, double theta, double zeta) override {
+            // return s>=max_s;
+            return y[0]>=max_s;
         };
 };
 
 template<class Array>
-class LevelsetStoppingCriterion : public StoppingCriterion{
+class MinToroidalFluxStoppingCriterion : public StoppingCriterion<Array> {
+    private:
+        double min_s;
+    public:
+        MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
+        bool operator()(int iter, Array& y) override {
+        // bool operator()(int iter, double t, double s, double theta, double zeta) override {
+            // return s<=min_s;
+            return y[0]<=min_s;
+        };
+};
+
+template<class Array>
+class IterationStoppingCriterion : public StoppingCriterion<Array> {
+    private:
+        int max_iter;
+    public:
+        IterationStoppingCriterion(int max_iter) : max_iter(max_iter) {};
+        // bool operator()(int iter, double t, double x, double y, double z) override {
+        bool operator()(int iter, Array& y) override {
+            return iter>max_iter;
+        };
+};
+
+template<class Array, class Array2>
+class LevelsetStoppingCriterion : public StoppingCriterion<Array2> {
     private:
         shared_ptr<RegularGridInterpolant3D<Array>> levelset;
     public:
         LevelsetStoppingCriterion(shared_ptr<RegularGridInterpolant3D<Array>> levelset) : levelset(levelset) { };
-        bool operator()(int iter, double t, double x, double y, double z) override {
-            double r = std::sqrt(x*x + y*y);
-            double phi = std::atan2(y, x);
+        bool operator()(int iter, Array2& y) override {
+        // bool operator()(int iter, double t, double x, double y, double z) override {
+            // double r = std::sqrt(x*x + y*y);
+            double r = std::sqrt(y[0]*y[0] + y[1]*y[1]);
+            // double phi = std::atan2(y, x);
+            double phi = std::atan2(y[1],y[0]);
             if(phi < 0)
                 phi += 2*M_PI;
-            double f = levelset->evaluate(r, phi, z)[0];
+            // double f = levelset->evaluate(r, phi, z)[0];
+            double f = levelset->evaluate(r, phi, y[2])[0];
             //fmt::print("Levelset at xyz=({}, {}, {}), rphiz=({}, {}, {}), f={}\n", x, y, z, r, phi, z, f);
             return f<0;
         };
 };
 
-template<template<class, std::size_t, xt::layout_type> class T>
+template<template<class, std::size_t, xt::layout_type> class T, class Array>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion<Array>>> stopping_criteria);
 
-template<template<class, std::size_t, xt::layout_type> class T>
+template<template<class, std::size_t, xt::layout_type> class T, class Array>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
-        vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        vector<double> phis, vector<shared_ptr<StoppingCriterion<Array>>> stopping_criteria);
 
-template<template<class, std::size_t, xt::layout_type> class T>
+template<template<class, std::size_t, xt::layout_type> class T, class Array>
 tuple<vector<array<double, 7>>, vector<array<double, 8>>>
 particle_fullorbit_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init, array<double, 3> v_init,
-        double m, double q, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double m, double q, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion<Array>>> stopping_criteria);
 
-template<template<class, std::size_t, xt::layout_type> class T>
+template<template<class, std::size_t, xt::layout_type> class T, class Array>
 tuple<vector<array<double, 4>>, vector<array<double, 5>>>
 fieldline_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion<Array>>> stopping_criteria);
