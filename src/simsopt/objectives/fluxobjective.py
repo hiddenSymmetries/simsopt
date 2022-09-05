@@ -38,6 +38,10 @@ class SquaredFlux(Optimizable):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
+        # n = self.surface.normal()
+        # Bcoil = self.field.B().reshape(n.shape)
+        # Btarget = self.target if self.target is not None else []
+        # return sopp.integral_BdotN(Bcoil, Btarget, n)
         xyz = self.surface.gamma()
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
@@ -56,6 +60,18 @@ class SquaredFlux(Optimizable):
 
     @derivative_dec
     def dJ(self):
+        # n = self.surface.normal()
+        # absn = np.linalg.norm(n, axis=2)
+        # unitn = n * (1./absn)[:, :, None]
+        # Bcoil = self.field.B().reshape(n.shape)
+        # Bcoil_n = np.sum(Bcoil*unitn, axis=2)
+        # if self.target is not None:
+        #     B_n = (Bcoil_n - self.target)
+        # else:
+        #     B_n = Bcoil_n
+        # dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
+        # dJdB = dJdB.reshape((-1, 3))
+        # return self.field.B_vjp(dJdB)
         n = self.surface.normal()
         absn = np.linalg.norm(n, axis=2)
         unitn = n * (1./absn)[:, :, None]
