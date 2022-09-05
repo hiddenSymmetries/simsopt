@@ -37,9 +37,8 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         \hat y(\theta, \phi) &= \sum_{i=0}^{m_\text{pol}} \sum_{j=n_\text{tor}+1}^{2n_\text{tor}} y_{ij} w_i(\theta)v_j(\phi) + \sum_{i=m_\text{pol}+1}^{2m_\text{pol}} \sum_{j=0}^{n_\text{tor}} y_{ij} w_i(\theta)v_j(\phi)\\\\
         z(\theta, \phi) &= \sum_{i=0}^{m_\text{pol}} \sum_{j=n_\text{tor}+1}^{2n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi) + \sum_{i=m_\text{pol}+1}^{2m_\text{pol}} \sum_{j=0}^{n_\text{tor}} z_{ij} w_i(\theta)v_j(\phi)
 
-    For more information about the arguments ``nphi``, ``ntheta``,
-    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
-    general documentation on :ref:`surfaces`.
+    For more information about the arguments ``quadpoints_phi``, and
+    ``quadpoints_theta``, see the general documentation on :ref:`surfaces`.
 
     Args:
         nfp: The number of field periods.
@@ -48,17 +47,6 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         mpol: Maximum poloidal mode number included.
         ntor: Maximum toroidal mode number included, divided by ``nfp``.
         clamped_dims: ???
-        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
-        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
-        range: Toroidal extent of the :math:`\phi` grid.
-          Set to ``"full torus"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_FULL_TORUS``)
-          to generate points up to 1 (with no point at 1).
-          Set to ``"field period"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_FIELD_PERIOD``)
-          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
-          Set to ``"half period"`` (or equivalently ``SurfaceXYZTensorFourier.RANGE_HALF_PERIOD``)
-          to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
-          of the grid spacing in order to provide spectral convergence of integrals.
-          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
