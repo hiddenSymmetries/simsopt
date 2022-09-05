@@ -798,6 +798,17 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+class VparStoppingCriterion(sopp.VparStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of iterations is reached.
+    """
+    pass
+
+class ZetaStoppingCriterion(sopp.ZetaStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of iterations is reached.
+    """
+    pass
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
     """
