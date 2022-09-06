@@ -39,6 +39,10 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     For more information about the arguments ``quadpoints_phi``, and
     ``quadpoints_theta``, see the general documentation on :ref:`surfaces`.
+    Instead of supplying the quadrature point arrays along :math:`\phi` and
+    :math:`\theta` directions, one could also specify the number of
+    quadrature points for :math:`\phi` and :math:`\theta` using the
+    class method :py:meth:`simsopt.geo.surface.Surface.from_nphi_ntheta`.
 
     Args:
         nfp: The number of field periods.
