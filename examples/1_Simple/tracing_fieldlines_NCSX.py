@@ -61,8 +61,8 @@ mpol = 5
 ntor = 5
 stellsym = True
 
-s = SurfaceRZFourier.with_grid_range(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
-                                     range="full torus", nphi=64, ntheta=24)
+s = SurfaceRZFourier.from_nphi_ntheta(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
+                                      range="full torus", nphi=64, ntheta=24)
 s.fit_to_curve(ma, 0.70, flip_theta=False)
 
 s.to_vtk(OUT_DIR + 'surface')
