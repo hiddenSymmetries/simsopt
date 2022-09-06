@@ -38,7 +38,7 @@ class Surface(Optimizable):
     def from_nphi_ntheta(cls, nphi=61, ntheta=62, range="full torus", nfp=1,
                          **kwargs):
         """
-        Initializes surface classes by specifying the number of grid
+        Initializes surface classes from the specified number of grid
         points along toroidal, :math:`\phi`, and poloidal, :math:`\theta`,
         directions. Additional parameters required for surface initialization
         could be supplied as keyword arguments.
