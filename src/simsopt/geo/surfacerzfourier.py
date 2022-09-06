@@ -720,7 +720,7 @@ class SurfaceRZPseudospectral(Optimizable):
         nphi = 2 * ntor + 1
 
         # Make a copy of surff with the desired theta and phi points.
-        surf_copy = SurfaceRZFourier.with_grid_range(
+        surf_copy = SurfaceRZFourier.from_nphi_ntheta(
             mpol=mpol, ntor=ntor, nfp=surff.nfp,
             range='field period', ntheta=ntheta, nphi=nphi)
         surf_copy.x = surff.local_full_x

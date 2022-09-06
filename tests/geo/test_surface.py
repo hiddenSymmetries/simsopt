@@ -48,7 +48,7 @@ class QuadpointsTests(unittest.TestCase):
                                        np.linspace(0.0, 1.0, 62, endpoint=False))
 
             # Try specifying ntheta:
-            s = eval(surface_type + ".with_grid_range(ntheta=17)")
+            s = eval(surface_type + ".from_nphi_ntheta(ntheta=17)")
             np.testing.assert_allclose(s.quadpoints_theta,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
 
@@ -73,42 +73,42 @@ class QuadpointsTests(unittest.TestCase):
                                        np.linspace(0.0, 1.0, 61, endpoint=False))
 
             # Try specifying nphi but not range:
-            s = eval(surface_type + ".with_grid_range(nphi=17)")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17)")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
 
             # Try specifying nphi plus range as a string, without nfp:
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='full torus')")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='full torus')")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='field period')")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='field period')")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='half period')")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='half period')")
             grid = np.linspace(0.0, 0.5, 17, endpoint=False)
             grid += 0.5 * (grid[1] - grid[0])
             np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a string, with nfp:
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='full torus', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='full torus', nfp=3)")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='field period', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='field period', nfp=3)")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 3.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nphi=17, range='half period', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(nphi=17, range='half period', nfp=3)")
             grid = np.linspace(0.0, 0.5 / 3.0, 17, endpoint=False)
             grid += 0.5 * (grid[1] - grid[0])
             np.testing.assert_allclose(s.quadpoints_phi, grid)
 
             # Try specifying nphi plus range as a constant, with nfp:
-            s = eval(surface_type + ".with_grid_range(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FULL_TORUS)")
+            s = eval(surface_type + ".from_nphi_ntheta(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FULL_TORUS)")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FIELD_PERIOD)")
+            s = eval(surface_type + ".from_nphi_ntheta(nfp=4, nphi=17, range=" + surface_type + ".RANGE_FIELD_PERIOD)")
             np.testing.assert_allclose(s.quadpoints_phi,
                                        np.linspace(0.0, 1.0 / 4.0, 17, endpoint=False))
-            s = eval(surface_type + ".with_grid_range(nfp=4, nphi=17, range=" + surface_type + ".RANGE_HALF_PERIOD)")
+            s = eval(surface_type + ".from_nphi_ntheta(nfp=4, nphi=17, range=" + surface_type + ".RANGE_HALF_PERIOD)")
             grid = np.linspace(0.0, 0.5 / 4.0, 17, endpoint=False)
             grid += 0.5 * (grid[1] - grid[0])
             np.testing.assert_allclose(s.quadpoints_phi, grid)
@@ -138,8 +138,8 @@ class QuadpointsTests(unittest.TestCase):
         for range_str, nphi_fac in [("full torus", 1), ("field period", 1.0 / nfp), ("half period", 0.5 / nfp)]:
             for nphi_base in [200, 400, 800]:
                 nphi = int(nphi_fac * nphi_base)
-                s = SurfaceRZFourier.with_grid_range(range=range_str, nfp=nfp,
-                                                     mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
+                s = SurfaceRZFourier.from_nphi_ntheta(range=range_str, nfp=nfp,
+                                                      mpol=1, ntor=1, ntheta=ntheta, nphi=nphi)
                 s.set_rc(0, 0, 2.5)
                 s.set_rc(1, 0, 0.4)
                 s.set_zs(1, 0, 0.6)
