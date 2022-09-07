@@ -32,7 +32,7 @@ class CurvePerturbationTesting(unittest.TestCase):
 
             print("np.mean(err)", np.mean(err))
             if idx == 0:
-                assert np.mean(err) < 1e-4
+                assert np.mean(err) < 3e-4
             else:
                 assert np.mean(err) < 1e-3
 
