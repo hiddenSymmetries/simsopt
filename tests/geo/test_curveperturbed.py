@@ -34,7 +34,7 @@ class CurvePerturbationTesting(unittest.TestCase):
             if idx == 0:
                 assert np.mean(err) < 3e-4
             else:
-                assert np.mean(err) < 1e-3
+                assert np.mean(err) < 2e-3
 
     def test_perturbed_periodic(self):
         sigma = 1
