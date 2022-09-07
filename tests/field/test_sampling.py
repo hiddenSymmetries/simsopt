@@ -43,7 +43,9 @@ class SamplingTesting(unittest.TestCase):
     def test_surface_sampling(self):
         np.random.seed(1)
         nquadpoints = int(4e2)
-        surface = SurfaceRZFourier(nfp=1, stellsym=True, mpol=1, ntor=0, nphi=nquadpoints, ntheta=nquadpoints)
+        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=1, stellsym=True, mpol=1,
+                                                    ntor=0, nphi=nquadpoints,
+                                                    ntheta=nquadpoints)
         dofs = surface.get_dofs()
         dofs[0] = 1
         dofs[1] = 0.8
