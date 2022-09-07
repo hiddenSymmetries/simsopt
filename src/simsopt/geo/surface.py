@@ -1,5 +1,4 @@
 import abc
-from enum import Enum
 
 import numpy as np
 
@@ -36,8 +35,33 @@ class Surface(Optimizable):
         super().__init__(**kwargs)
 
     @classmethod
-    def with_grid_range(cls, nphi=61, ntheta=62, range="full torus", nfp=1,
-                        **kwargs):
+    def from_nphi_ntheta(cls, nphi=61, ntheta=62, range="full torus", nfp=1,
+                         **kwargs):
+        """
+        Initializes surface classes from the specified number of grid
+        points along toroidal, :math:`\phi`, and poloidal, :math:`\theta`,
+        directions. Additional parameters required for surface initialization
+        could be supplied as keyword arguments.
+
+        Args:
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle
+              :math:`\phi`.
+            ntheta: Number of grid points :math:`\theta_i` in the poloidal angle
+              :math:`\theta`.
+            range: Toroidal extent of the :math:`\phi` grid.
+              Set to ``"full torus"`` (or equivalently ``SurfaceRZFourier.RANGE_FULL_TORUS``)
+              to generate quadrature points up to 1 (with no point at 1).
+              Set to ``"field period"`` (or equivalently ``SurfaceRZFourier.RANGE_FIELD_PERIOD``)
+              to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+              Set to ``"half period"`` (or equivalently ``SurfaceRZFourier.RANGE_HALF_PERIOD``)
+              to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
+              of the grid spacing in order to provide spectral convergence of integrals.
+              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+            nfp: The number of field periods.
+            kwargs: Additional arguments to initialize the surface classes. Look
+              at the docstrings of the specific class you are interested in.
+
+        """
         quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
@@ -48,7 +72,7 @@ class Surface(Optimizable):
                        range=None,
                        nfp=1):
         r"""
-        This function is used to set the theta and phi grid points for Surface subclasses.
+        Sets the theta and phi grid points for Surface subclasses.
         It is typically called in when constructing Surface subclasses.
 
         For more information about the arguments ``nphi``, ``ntheta``,
@@ -79,12 +103,40 @@ class Surface(Optimizable):
                 Surface.get_theta_quadpoints(ntheta=ntheta))
 
     def get_theta_quadpoints(ntheta=None):
+        r"""
+        Sets the theta grid points for Surface subclasses.
+
+        Args:
+            ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
+
+        Returns:
+            **quadpoints_theta**: List of grid points :math:`\theta_j`.
+        """
         # Handle theta:
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
 
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
+        r"""
+        Sets the phi grid points for Surface subclasses.
+
+        Args:
+            nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
+            range: Toroidal extent of the :math:`\phi` grid.
+              Set to ``"full torus"`` (or equivalently ``Surface.RANGE_FULL_TORUS``)
+              to generate points up to 1 (with no point at 1).
+              Set to ``"field period"`` (or equivalently ``Surface.RANGE_FIELD_PERIOD``)
+              to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
+              Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
+              to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
+              of the grid spacing in order to provide spectral convergence of integrals.
+              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
+            nfp: The number of field periods.
+
+        Returns:
+            **quadpoints_phi**: List of grid points :math:`\phi_j`.
+        """
 
         if range is None:
             range = Surface.RANGE_FULL_TORUS
@@ -113,6 +165,7 @@ class Surface(Optimizable):
              plot_normal=False, plot_derivative=False, wireframe=True, **kwargs):
         """
         Plot the surface in 3D using matplotlib/mayavi/plotly.
+
         Args:
             engine: Selects the graphics engine. Currently supported options are ``"matplotlib"`` (default),
               ``"mayavi"``, and ``"plotly"``.
@@ -128,10 +181,13 @@ class Surface(Optimizable):
             wireframe: Whether to plot the wireframe in Mayavi.
             kwargs: Any additional arguments to pass to the plotting function, like ``color='r'``.
         Note: the ``ax`` and ``show`` parameters can be used to plot more than one surface:
-        .. code-block::
+
+        .. code-block:: python
+
             ax = surface1.plot(show=False)
             ax = surface2.plot(ax=ax, show=False)
             surface3.plot(ax=ax, show=True)
+
         Returns:
             An axis which could be passed to a further call to the graphics engine
             so multiple objects are shown together.
@@ -223,6 +279,7 @@ class Surface(Optimizable):
         Export the surface to a VTK format file, which can be read with
         Paraview. This function requires the ``pyevtk`` python
         package, which can be installed using ``pip install pyevtk``.
+
         Args:
             filename: Name of the file to write
             extra_data: An optional data field on the surface, which can be associated with a colormap in Paraview.
@@ -374,25 +431,33 @@ class Surface(Optimizable):
         surface are :math:`(\varphi, \theta) \in [0,1)^2`
         For a given surface, this function computes its aspect ratio using
         the VMEC definition:
+
         .. math::
             AR = R_{\text{major}} / R_{\text{minor}}
+
         where
+
         .. math::
             R_{\text{minor}} &= \sqrt{ \overline{A} / \pi } \\
             R_{\text{major}} &= \frac{V}{2 \pi^2  R_{\text{minor}}^2}
+
         and :math:`V` is the volume enclosed by the surface, and
         :math:`\overline{A}` is the average cross sectional area.
         The main difficult part of this calculation is the mean cross
         sectional area.  This is given by the integral
+
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
+
         where :math:`S_\phi` is the cross section of the surface at the
         cylindrical angle :math:`\phi`.
         Note that :math:`\int_{S_\phi} ~dS` can be rewritten as a line integral
+
         .. math::
             \int_{S_\phi}~dS &= \int_{S_\phi} ~dR dZ \\
             &= \int_{\partial S_\phi}  [R,0] \cdot \mathbf n/\|\mathbf n\| ~dl \\
             &= \int^1_{0} R \frac{\partial Z}{\partial \theta}~d\theta
+
         where :math:`\mathbf n = [n_R, n_Z] = [\partial Z/\partial \theta, -\partial R/\partial \theta]`
         is the outward pointing normal.
         Consider the surface in cylindrical coordinates terms of its angles
@@ -401,23 +466,31 @@ class Surface(Optimizable):
         by the points :math:`\theta\rightarrow[R(\varphi(\phi,\theta),\theta),\phi,
         Z(\varphi(\phi,\theta),\theta)]` for fixed :math:`\phi`. The cross
         sectional area of :math:`S_\phi` becomes
+
         .. math::
             \int^{1}_{0} R(\varphi(\phi,\theta),\theta)
             \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta
+
         Now, substituting this into the formula for the mean cross sectional
         area, we have
+
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{\pi}_{-\pi}\int^{1}_{0} R(\varphi(\phi,\theta),\theta)
                 \frac{\partial}{\partial \theta}[Z(\varphi(\phi,\theta),\theta)] ~d\theta ~d\phi
+
         Instead of integrating over cylindrical :math:`\phi`, let's complete
         the change of variables and integrate over :math:`\varphi` using the
         mapping:
+
         .. math::
             [\phi,\theta] \leftarrow [\text{atan2}(y(\varphi,\theta), x(\varphi,\theta)), \theta]
+
         After the change of variables, the integral becomes:
+
         .. math::
             \overline{A} = \frac{1}{2\pi}\int^{1}_{0}\int^{1}_{0} R(\varphi,\theta) \left[\frac{\partial Z}{\partial \varphi}
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
+
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
         """
 
@@ -450,6 +523,7 @@ class Surface(Optimizable):
         Computes poloidal angle based on arclenth along magnetic surface at
         constant phi. The resulting angle is in the range [0,1]. This is required
         for evaluating the adjoint shape gradient for free-boundary calculations.
+
         Returns:
             2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
             containing the arclength poloidal angle
@@ -480,6 +554,7 @@ class Surface(Optimizable):
         Interpolate function onto the theta_evaluate grid in the arclength
         poloidal angle. This is required for evaluating the adjoint shape gradient
         for free-boundary calculations.
+
         Returns:
             function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
                 defining interpolated function on arclength angle along curve
