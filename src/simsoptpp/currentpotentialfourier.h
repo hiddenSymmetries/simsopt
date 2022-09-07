@@ -74,4 +74,7 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void Phidash1_impl(Array& data) override;
         void Phidash2_impl(Array& data) override;
+        void dPhidash1_by_dcoeff_impl(Array& data) override;
+        void dPhidash2_by_dcoeff_impl(Array& data) override;
+
 };

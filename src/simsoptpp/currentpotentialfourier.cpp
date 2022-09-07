@@ -144,6 +144,61 @@ void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
     }
 }
 
+template<class Array>
+void CurrentPotentialFourier<Array>::dPhidash2_by_dcoeff_impl(Array& data) {
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+            double theta  = 2*M_PI*quadpoints_theta[k2];
+            int counter = 0;
+            for (int m = 0; m <= mpol; ++m) {
+                for (int n = -ntor; n <= ntor; ++n) {
+                    if(m==0 && n<=0) continue;
+                    data(k1, k2, counter) = 2*M_PI*m * cos(m*theta-n*nfp*phi);
+                    counter++;
+                }
+            }
+            if (!stellsym) {
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        if(m==0 && n<0) continue;
+                        data(k1, k2, counter) = 2*M_PI*(-m) * sin(m*theta-n*nfp*phi);
+                        counter++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+template<class Array>
+void CurrentPotentialFourier<Array>::dPhidash1_by_dcoeff_impl(Array& data) {
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
+            double theta  = 2*M_PI*quadpoints_theta[k2];
+            int counter = 0;
+            for (int m = 0; m <= mpol; ++m) {
+                for (int n = -ntor; n <= ntor; ++n) {
+                    if(m==0 && n<=0) continue;
+                    data(k1, k2, counter) = 2*M_PI*(-n*nfp) * cos(m*theta-n*nfp*phi);
+                    counter++;
+                }
+            }
+            if (!stellsym) {
+                for (int m = 0; m <= mpol; ++m) {
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        if(m==0 && n<0) continue;
+                        data(k1, k2, counter) = 2*M_PI*(n*nfp) * sin(m*theta-n*nfp*phi);
+                        counter++;
+                    }
+                }
+            }
+        }
+    }
+}
 
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;

@@ -26,6 +26,14 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
         self.K_impl_helper(data, dg1, dg2, normal)
         return data
 
+    def K_matrix(self):
+        data = np.zeros((len(self.num_dofs), len(self.num_dofs)))
+        dg1 = self.winding_surface.gammadash1()
+        dg2 = self.winding_surface.gammadash2()
+        normal = self.winding_surface.normal()
+        self.K_matrix_impl_helper(data, dg1, dg2, normal)
+        return data
+
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):

@@ -91,6 +91,7 @@ class CurrentPotential {
         }
 
         void K_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
+        void K_matrix_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
 
         virtual int num_dofs() { throw logic_error("num_dofs was not implemented"); };
         virtual void set_dofs_impl(const vector<double>& _dofs) { throw logic_error("set_dofs_impl was not implemented"); };
@@ -99,6 +100,8 @@ class CurrentPotential {
         virtual void Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("Phi_impl was not implemented"); };
         virtual void Phidash1_impl(Array& data)  { throw logic_error("Phidash1_impl was not implemented"); };
         virtual void Phidash2_impl(Array& data)  { throw logic_error("Phidash2_impl was not implemented"); };
+        virtual void dPhidash1_by_dcoeff_impl(Array& data)  { throw logic_error("dPhidash1_by_dcoeff_impl was not implemented"); };
+        virtual void dPhidash2_by_dcoeff_impl(Array& data)  { throw logic_error("dPhidash2_by_dcoeff_impl was not implemented"); };
 
         // Array& K() {
         //     return check_the_cache("K", {numquadpoints_phi, numquadpoints_theta, 3}, [this](Array& A) { return K_impl(A);});
@@ -111,6 +114,12 @@ class CurrentPotential {
         }
         Array& Phidash2() {
             return check_the_cache("Phidash2", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phidash2_impl(A);});
+        }
+        Array& dPhidash1_by_dcoeff() {
+            return check_the_persistent_cache("dPhidash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash1_by_dcoeff_impl(A);});
+        }
+        Array& dPhidash2_by_dcoeff() {
+            return check_the_persistent_cache("dPhidash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,num_dofs()}, [this](Array& A) { return dPhidash2_by_dcoeff_impl(A);});
         }
 
         virtual ~CurrentPotential() = default;

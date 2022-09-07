@@ -514,6 +514,7 @@ class WindingSurfaceField(MagneticField):
 
     def __init__(self, current_potential):
         MagneticField.__init__(self)
+        self.current_potential = current_potential
         self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
         self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
         self.K = current_potential.K().reshape((self.ws_points.shape[0], 3))

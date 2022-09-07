@@ -51,6 +51,7 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
 template <typename T, typename S> void register_common_currentpotential_methods(S &s) {
     s.def("Phi", pybind11::overload_cast<>(&T::Phi))
      .def("K_impl_helper", &T::K_impl_helper)
+     .def("K_matrix_impl_helper", &T::K_impl_helper)
      // .def("K", pybind11::overload_cast<>(&T::K))
      .def("set_dofs_impl", &T::set_dofs_impl)
      // .def("Phi_impl", &T::Phi_impl)
