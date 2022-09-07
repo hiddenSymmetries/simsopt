@@ -37,7 +37,7 @@ class Surface(Optimizable):
     @classmethod
     def from_nphi_ntheta(cls, nphi=61, ntheta=62, range="full torus", nfp=1,
                          **kwargs):
-        """
+        r"""
         Initializes surface classes from the specified number of grid
         points along toroidal, :math:`\phi`, and poloidal, :math:`\theta`,
         directions. Additional parameters required for surface initialization
@@ -56,7 +56,6 @@ class Surface(Optimizable):
               Set to ``"half period"`` (or equivalently ``SurfaceRZFourier.RANGE_HALF_PERIOD``)
               to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
               of the grid spacing in order to provide spectral convergence of integrals.
-              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             nfp: The number of field periods.
             kwargs: Additional arguments to initialize the surface classes. Look
               at the docstrings of the specific class you are interested in.
@@ -91,7 +90,6 @@ class Surface(Optimizable):
               Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
               to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
               of the grid spacing in order to provide spectral convergence of integrals.
-              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
 
         Returns:
             Tuple containing
@@ -110,7 +108,7 @@ class Surface(Optimizable):
             ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
 
         Returns:
-            **quadpoints_theta**: List of grid points :math:`\theta_j`.
+            List of grid points :math:`\theta_j`.
         """
         # Handle theta:
         if ntheta is None:
@@ -131,11 +129,10 @@ class Surface(Optimizable):
               Set to ``"half period"`` (or equivalently ``Surface.RANGE_HALF_PERIOD``)
               to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
               of the grid spacing in order to provide spectral convergence of integrals.
-              If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
             nfp: The number of field periods.
 
         Returns:
-            **quadpoints_phi**: List of grid points :math:`\phi_j`.
+            List of grid points :math:`\phi_j`.
         """
 
         if range is None:
