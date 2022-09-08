@@ -749,7 +749,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         if other not in self.parents:
             self.parents.insert(index, other)
             other._add_child(self)
-            # self.ancestors = self._get_ancestors()
             self._update_full_dof_size_indices()  # Updates ancestors as well
             self._update_free_dof_size_indices()
             self._set_new_x()
@@ -764,15 +763,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             other: New parent Optimizable object
         """
         self.add_parent(len(self.parents), other)
-        # if other not in self.parents:
-        #     self.parents.append(other)
-        #     other._add_child(self)
-        #     self.ancestors = self._get_ancestors()
-        #     self._update_free_dof_size_indices()
-        #     self._update_full_dof_size_indices()
-        #     self._set_new_x()
-        # else:
-        #     log.debug("The given Optimizable object is already a parent")
 
     def pop_parent(self, index: int = -1) -> Optimizable:
         """
@@ -786,7 +776,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
-        # self.ancestors = self._get_ancestors()
         self._update_full_dof_size_indices()  # Updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
@@ -802,7 +791,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         self.parents.remove(other)
         other._remove_child(self)
-        # self.ancestors = self._get_ancestors()
         self._update_full_dof_size_indices()  # updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
@@ -1543,19 +1531,6 @@ class ScaledOptimizable(Optimizable):
         # Next line uses __rmul__ function for the Derivative class
         return float(self.factor) * self.opt.dJ(partials=True)
 
-    # def as_dict(self, serial_objs_dict=None) -> dict:
-    #     d = {}
-    #     d["@module"] = self.__class__.__module__
-    #     d["@class"] = self.__class__.__name__
-    #     d["factor"] = self.factor
-    #     d["opt"] = self.opt.as_dict()
-    #     return d
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     opt = GSONDecoder().process_decoded(d["opt"])
-    #     return cls(d["factor"], opt)
-
 
 class OptimizableSum(Optimizable):
     """
@@ -1581,21 +1556,4 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
-
-    # def as_dict(self) -> dict:
-    #    d = {}
-    #    d["@module"] = self.__class__.__module__
-    #    d["@class"] = self.__class__.__name__
-    #    d["opts"] = []
-    #    for opt in self.opts:
-    #        d["opts"].append(opt.as_dict())
-    #    return d
-
-    #@classmethod
-    #def from_dict(cls, d):
-    #    opts = []
-    #    decoder = GSONDecoder()
-    #    for odict in d["opts"]:
-    #        opts.append(decoder.process_decoded(odict))
-    #    return cls(opts)
 

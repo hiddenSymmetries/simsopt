@@ -572,13 +572,6 @@ class Surface(Optimizable):
 
         return function_interpolated
 
-    # def as_dict(self) -> dict:
-    #     d = super().as_dict()
-    #     d["nfp"] = self.nfp
-    #     d["quadpoints_phi"] = list(self.quadpoints_phi)
-    #     d["quadpoints_theta"] = list(self.quadpoints_theta)
-    #     return d
-
 
 def signed_distance_from_surface(xyz, surface):
     """
@@ -722,14 +715,7 @@ class SurfaceScaled(Optimizable):
     def as_dict(self, serial_objs_dict) -> dict:
         return GSONable.as_dict(self, serial_objs_dict=serial_objs_dict)
 
-    # @classmethod
-    # def from_dict(cls, d, serial_objs_dict, recon_objs):
-    #     decoder = MontyDecoder()
-    #     surf = decoder.process_decoded(d["surf"])
-    #     scale_factors = decoder.process_decoded(d["scale_factors"])
-    #     return cls(surf, scale_factors)
-
-
+    
 def best_nphi_over_ntheta(surf):
     """
     Given a surface, estimate the ratio of ``nphi / ntheta`` that

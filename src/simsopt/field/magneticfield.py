@@ -187,8 +187,6 @@ class MagneticFieldSum(MagneticField):
     def from_dict(cls, d, serial_objs_dict, recon_objs):
         decoder = GSONDecoder()
         Bfields = decoder.process_decoded(d["Bfields"], serial_objs_dict, recon_objs)
-        # for field in d["Bfields"]:
-        #     Bfields.append()
         field_sum = cls(Bfields)
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field_sum.set_points_cart(xyz)
