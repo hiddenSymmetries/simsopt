@@ -196,17 +196,3 @@ class CurvePerturbed(sopp.Curve, Curve):
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
-    # def as_dict(self) -> dict:
-    #     d = {}
-    #     d["@module"] = self.__class__.__module__
-    #     d["@class"] = self.__class__.__name__
-    #     d["curve"] = self.curve.as_dict()
-    #     d["sample"] = self.sample.as_dict()
-    #     return d
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     decoder = MontyDecoder()
-    #     curve = decoder.process_decoded(d["curve"])
-    #     sample = decoder.process_decoded(d["sample"])
-    #     return cls(curve, sample)

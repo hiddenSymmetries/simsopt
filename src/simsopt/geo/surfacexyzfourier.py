@@ -108,13 +108,6 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         surf.least_squares_fit(gamma)
         return surf
 
-    # def as_dict(self) -> dict:
-    #     d = super().as_dict()
-    #     d["mpol"] = self.mpol
-    #     d["ntor"] = self.ntor
-    #     d["stellsym"] = self.stellsym
-    #     return d
-
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
         dec = GSONDecoder()

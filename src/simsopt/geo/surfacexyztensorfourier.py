@@ -156,13 +156,6 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
             mask[0, mpol+1:] = False
         return mask
 
-    # def as_dict(self) -> dict:
-    #     d = super().as_dict()
-    #    d["stellsym"] = self.stellsym
-    #    d["mpol"] = self.mpol
-    #    d["ntor"] = self.ntor
-    #    d["clamped_dims"] = list(self.clamped_dims)
-    #    return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):

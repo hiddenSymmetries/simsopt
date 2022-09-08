@@ -58,14 +58,10 @@ class Identity(Optimizable):
     return_fn_map = {'f': f}
 
     def as_dict(self, serial_objs_dict: dict) -> dict:
-        # d = super().as_dict(serial_objs_dict)
         d = {}
         d["@class"] = self.__class__.__name__
         d["@module"] = self.__class__.__module__
         d["@name"] = self.name
-        # del d["x0"]
-        # del d["names"]
-        # del d["fixed"]
         d["x"] = self.local_full_x[0]
         d["dof_name"] = self.local_full_dof_names[0]
         d["dof_fixed"] = np.logical_not(self.local_dofs_free_status)[0]
@@ -113,16 +109,6 @@ class Adder(Optimizable):
         """
         return self.dJ()
 
-    # def as_dict(self, serial_objs_dict: dict = None) -> dict:
-    #     d = super(serial_objs_dict).as_dict()
-    #     d["n"] = self.n
-    #     return d
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     n = d.pop("n")
-    #     return cls(n=n, **d)
-
     return_fn_map = {'sum': sum}
 
 
@@ -153,7 +139,6 @@ class Rosenbrock(Optimizable):
         """
         Returns the first of the two quantities that is squared and summed.
         """
-        #return self._x - 1
         return self.local_full_x[0] - 1
 
     @property
@@ -209,17 +194,6 @@ class Rosenbrock(Optimizable):
     def b(self):
         return self._sqrtb * self._sqrtb
 
-    # def as_dict(self, serial_objs_dict = None) -> dict:
-    #     d = super().as_dict(serial_objs_dict)
-    #     d["b"] = self._sqrtb * self._sqrtb
-    #     d["x"] = self.get("x")
-    #     d["y"] = self.get("y")
-    #     return d
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     return cls(d["b"], d["x"], d["y"])
-
 
 class TestObject1(Optimizable):
     """
@@ -269,14 +243,6 @@ class TestObject1(Optimizable):
     @property
     def depends_on(self):
         return self.parents
-
-    # def as_dict(self) -> dict:
-    #     d = {}
-    #     d["val"] = self.local_full_x[0]
-    #     d["depends_on"] = []
-    #     for opt in self.parents:
-    #         d["depends_on"].append(opt.as_dict())
-    #     return d
 
 
 class TestObject2(Optimizable):

@@ -58,13 +58,3 @@ class SquaredFlux(Optimizable):
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
-    # def as_dict(self) -> dict:
-    #     return GSONable.as_dict(self)
-
-    # @classmethod
-    # def from_dict(cls, d):
-    #     decoder = GSONDecoder()
-    #     surface = decoder.process_decoded(d["surface"])
-    #     field = decoder.process_decoded(d["field"])
-    #     target = decoder.process_decoded(d["target"])
-    #     return cls(surface, field, target)

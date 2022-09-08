@@ -597,10 +597,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    # def as_dict(self, serial_objs_dict) -> dict:
-    #     d = super().as_dict(serial_objs_dict)
-    #     return d
-
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
         dec = GSONDecoder()
@@ -615,7 +611,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                    quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta)
         surf.local_full_x = d["x0"]
-        # recons_objs[d["@name"]] = surf
         return surf
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
@@ -879,12 +874,3 @@ class SurfaceRZPseudospectral(Optimizable):
                                                        a_scale=self.a_scale)
         return surf3
 
-    # def as_dict(self, serial_objs_dict) -> dict:
-    #     d = super().as_dict(self, serial_objs_dict)
-    #     d["x0"] = list(self.local_full_x)
-
-    # @classmethod
-    # def from_dict(cls, d, serial_objs_dict, recon_objs):
-    #     surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
-    #     surf.local_full_x = d["x0"]
-    #     return surf

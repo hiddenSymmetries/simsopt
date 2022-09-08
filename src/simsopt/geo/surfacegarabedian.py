@@ -232,14 +232,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         self.area_volume()
         return self._volume
 
-    # def as_dict(self) -> dict:
-    #     d = super().as_dict()
-    #     d["mmax"] = self.mmax
-    #     d["mmin"] = self.mmin
-    #     d["nmax"] = self.nmax
-    #     d["nmin"] = self.nmin
-    #     return d
-
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
         surf = cls(nfp=d["nfp"], mmax=d["mmax"], mmin=d["mmin"],
