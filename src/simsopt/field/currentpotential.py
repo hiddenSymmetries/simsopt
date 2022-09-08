@@ -34,6 +34,9 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
         self.K_matrix_impl_helper(data, dg1, dg2, normal)
         return data
 
+    def num_dofs(self):
+        return len(self.get_dofs())
+
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):

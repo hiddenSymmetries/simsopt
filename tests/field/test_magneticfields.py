@@ -18,7 +18,7 @@ from simsopt.field.magneticfield import MagneticFieldSum
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier
+from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier, CurrentPotentialSolveTikhonov
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
 from scipy.special import ellipk, ellipe
@@ -986,6 +986,10 @@ class Testing(unittest.TestCase):
             assert np.allclose(K2[0:nzeta_plasma,:]/K2_average, K2_regcoil/K2_average)
 
             Bfield = WindingSurfaceField(cp)
+
+            cpst = CurrentPotentialSolveTikhonov(Bfield)
+            print(cpst.solve())
+
             points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3),3))
 
             Bfield.set_points(points)

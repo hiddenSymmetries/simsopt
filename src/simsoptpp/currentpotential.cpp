@@ -23,6 +23,38 @@ void CurrentPotential<Array>::K_impl_helper(Array& data, Array& dg1, Array& dg2,
 }
 
 template<class Array>
+void CurrentPotential<Array>::K_rhs_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal) {
+  auto dphid1_dcoeff = this->dPhidash1_by_dcoeff();
+  auto dphid2_dcoeff = this->dPhidash2_by_dcoeff();
+
+  // bk_i = fi cdot d / N
+  // f_j =  dPhidtheta_dPhi_j dr/dzeta - dPhidzeta_dPhi_j dr/dtheta
+  // d = IT dr/dtheta - IP drdzeta
+  // f_j cdot d =  dPhidtheta_dPhi_j (IT gtz - IP gzz) + dPhidzeta_dPhi_j (IP gtz - IT gtt)
+
+  int ndofs = num_dofs();
+  for (int i = 0; i < numquadpoints_phi; ++i) {
+      for (int j = 0; j < numquadpoints_theta; ++j) {
+
+          double* dphid1_dcoeff_ptr = &(dphid1_dcoeff(i, j, 0));
+          double* dphid2_dcoeff_ptr = &(dphid2_dcoeff(i, j, 0));
+
+          double gzz = dg1(i,j,0)*dg1(i,j,0) + dg1(i,j,1)*dg1(i,j,1) + dg1(i,j,2)*dg1(i,j,2);
+          double gtt = dg2(i,j,0)*dg2(i,j,0) + dg2(i,j,1)*dg2(i,j,1) + dg2(i,j,2)*dg2(i,j,2);
+          double gtz = dg1(i,j,0)*dg2(i,j,0) + dg1(i,j,1)*dg2(i,j,1) + dg1(i,j,2)*dg2(i,j,2);
+
+          // std::cout << "gzz: " << gzz << std::endl;
+          for (int m = 0; m < ndofs; ++m ) {
+              // std::cout << "dphid2_dcoeff[m]: " << dphid2_dcoeff[m] << std::endl;
+              // std::cout << "normal(i,j): " << normal(i,j) << std::endl;
+              data(m) += (  dphid2_dcoeff[m]*(this->net_toroidal_current_amperes*gtz - this->net_poloidal_current_amperes*gzz) + \
+                          + dphid1_dcoeff[m]*(this->net_poloidal_current_amperes*gtz - this->net_toroidal_current_amperes*gtt))/normal(i,j);
+          }
+      }
+  }
+};
+
+template<class Array>
 void CurrentPotential<Array>::K_matrix_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal) {
   auto dphid1_dcoeff = this->dPhidash1_by_dcoeff();
   auto dphid2_dcoeff = this->dPhidash2_by_dcoeff();
@@ -45,8 +77,8 @@ void CurrentPotential<Array>::K_matrix_impl_helper(Array& data, Array& dg1, Arra
           for (int m = 0; m < ndofs; ++m ) {
               for (int n = 0; n < ndofs; ++ n ) {
                   data(m,n) += (dphid1_dcoeff[m]*dphid1_dcoeff[n]*gzz + \
-                             + dphid1_dcoeff[m]*dphid2_dcoeff[n]*gtz + \
-                             + dphid2_dcoeff[m]*dphid2_dcoeff[n]*gtt)/normal(i,j);
+                              + dphid1_dcoeff[m]*dphid2_dcoeff[n]*gtz + \
+                              + dphid2_dcoeff[m]*dphid2_dcoeff[n]*gtt)/normal(i,j);
               }
           }
       }

@@ -92,6 +92,7 @@ class CurrentPotential {
 
         void K_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
         void K_matrix_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
+        void K_rhs_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
 
         virtual int num_dofs() { throw logic_error("num_dofs was not implemented"); };
         virtual void set_dofs_impl(const vector<double>& _dofs) { throw logic_error("set_dofs_impl was not implemented"); };

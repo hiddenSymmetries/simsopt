@@ -5,6 +5,7 @@ from .magneticfieldclasses import *
 from .boozermagneticfield import *
 from .tracing import *
 from .currentpotential import *
+from .currentpotentialsolve import *
 
 __all__ = (biotsavart.__all__ + coil.__all__ + magneticfield.__all__ + magneticfieldclasses.__all__ +
-           boozermagneticfield.__all__ + tracing.__all__ + currentpotential.__all__)
+           boozermagneticfield.__all__ + tracing.__all__ + currentpotential.__all__ + currentpotentialsolve.__all__)
