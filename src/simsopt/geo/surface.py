@@ -715,7 +715,7 @@ class SurfaceScaled(Optimizable):
     def as_dict(self, serial_objs_dict) -> dict:
         return GSONable.as_dict(self, serial_objs_dict=serial_objs_dict)
 
-    
+
 def best_nphi_over_ntheta(surf):
     """
     Given a surface, estimate the ratio of ``nphi / ntheta`` that
