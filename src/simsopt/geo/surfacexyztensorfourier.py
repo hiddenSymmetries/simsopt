@@ -156,7 +156,6 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
             mask[0, mpol+1:] = False
         return mask
 
-
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
         dec = GSONDecoder()
