@@ -37,9 +37,12 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
 
     terms to zero.
 
-    For more information about the arguments ``nphi``, ``ntheta``,
-    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
-    general documentation on :ref:`surfaces`.
+    For more information about the arguments `quadpoints_phi``, and
+    ``quadpoints_theta``, see the general documentation on :ref:`surfaces`.
+    Instead of supplying the quadrature point arrays along :math:`\phi` and
+    :math:`\theta` directions, one could also specify the number of
+    quadrature points for :math:`\phi` and :math:`\theta` using the
+    class method :py:meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`.
 
     Args:
         nfp: The number of field periods.
@@ -47,29 +50,18 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
           symmetry under rotation by :math:`\pi` about the x-axis.
         mpol: Maximum poloidal mode number included.
         ntor: Maximum toroidal mode number included, divided by ``nfp``.
-        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
-        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
-        range: Toroidal extent of the :math:`\phi` grid.
-          Set to ``"full torus"`` (or equivalently ``SurfaceXYZFourier.RANGE_FULL_TORUS``)
-          to generate points up to 1 (with no point at 1).
-          Set to ``"field period"`` (or equivalently ``SurfaceXYZFourier.RANGE_FIELD_PERIOD``)
-          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
-          Set to ``"half period"`` (or equivalently ``SurfaceXYZFourier.RANGE_HALF_PERIOD``)
-          to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
-          of the grid spacing in order to provide spectral convergence of integrals.
-          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 nphi=None, ntheta=None, range="full torus",
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
+
         sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                         quadpoints_phi, quadpoints_theta)
         # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)

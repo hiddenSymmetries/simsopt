@@ -11,7 +11,7 @@ from typing import Union
 
 import numpy as np
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
-from scipy.optimize import root_scalar
+from scipy.optimize import newton
 
 from .vmec import Vmec
 from .._core.util import Struct
@@ -326,18 +326,23 @@ def B_cartesian(vmec,
     if vmec.wout.lasym:
         raise RuntimeError('B_cartesian presently only works for stellarator symmetry')
 
-    if (nphi is None) and (quadpoints_phi is None) and (ntheta is None) and (quadpoints_theta is None):
-        theta1D_1 = vmec.boundary.quadpoints_theta
+    if nphi is None and quadpoints_phi is None:
         phi1D_1 = vmec.boundary.quadpoints_phi
+    elif quadpoints_phi is None:
+        phi1D_1 = Surface.get_phi_quadpoints(range=range, nphi=nphi, nfp=vmec.wout.nfp)
     else:
-        phi1D_1, theta1D_1 = Surface.get_quadpoints(quadpoints_phi, quadpoints_theta,
-                                                    range, nphi, ntheta, vmec.wout.nfp)
+        phi1D_1 = quadpoints_phi
+
+    if ntheta is None and quadpoints_theta is None:
+        theta1D_1 = vmec.boundary.quadpoints_theta
+    elif quadpoints_theta is None:
+        theta1D_1 = Surface.get_theta_quadpoints(ntheta=ntheta)
+    else:
+        theta1D_1 = quadpoints_theta
 
     theta1D = np.array(theta1D_1) * 2 * np.pi
     phi1D = np.array(phi1D_1) * 2 * np.pi
 
-    nphi = len(phi1D)
-    ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
     # Get the tangent vectors using the gammadash1/2 functions from SurfaceRZFourier:
@@ -932,6 +937,14 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     d_rmnc_d_s = np.zeros((ns, mnmax))
     d_zmns_d_s = np.zeros((ns, mnmax))
     d_lmns_d_s = np.zeros((ns, mnmax))
+
+    ######## CAREFUL!!###########################################################
+    # Everything here and in vmec_splines is designed for up-down symmetric eqlbia
+    # When we start optimizing equilibria with lasym = "True"
+    # we should edit this as well as vmec_splines 
+    lmnc = np.zeros((ns, mnmax))
+    lasym = False
+
     for jmn in range(mnmax):
         rmnc[:, jmn] = vs.rmnc[jmn](s)
         zmns[:, jmn] = vs.zmns[jmn](s)
@@ -974,29 +987,22 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     def residual(theta_v, phi0, theta_p_target, jradius):
         """
-        This function is used for computing the value of theta_vmec that
-        gives a desired theta_pest.
+        This function is used for computing an array of values of theta_vmec that
+        give a desired theta_pest array.
         """
+        return theta_p_target - (theta_v + np.sum(lmns[js, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
 
-        """
-        theta_p = theta_v
-        for jmn in range(len(xn)):
-            angle = xm[jmn] * theta_v - xn[jmn] * phi0
-            theta_p += lmns[jradius, jmn] * np.sin(angle)
-        return theta_p_target - theta_p
-        """
-        return theta_p_target - (theta_v + np.sum(lmns[jradius, :] * np.sin(xm * theta_v - xn * phi0)))
-
-    # Solve for theta_vmec corresponding to theta_pest:
     theta_vmec = np.zeros((ns, nalpha, nl))
     for js in range(ns):
         for jalpha in range(nalpha):
-            for jl in range(nl):
-                theta_guess = theta_pest[js, jalpha, jl]
-                solution = root_scalar(residual,
-                                       args=(phi[js, jalpha, jl], theta_pest[js, jalpha, jl], js),
-                                       bracket=(theta_guess - 1.0, theta_guess + 1.0))
-                theta_vmec[js, jalpha, jl] = solution.root
+            theta_guess = theta_pest[js, jalpha, :]
+            solution = newton(
+                residual,
+                x0=theta_guess,
+                x1=theta_guess + 0.1,
+                args=(phi[js, jalpha, :], theta_pest[js, jalpha, :], js),
+            )
+            theta_vmec[js, jalpha, :] = solution
 
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
@@ -1169,13 +1175,13 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     gds22 = grad_psi_dot_grad_psi * shat[:, None, None] * shat[:, None, None] / (L_reference * L_reference * B_reference * B_reference * s[:, None, None])
 
-    gbdrift = 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha \
-        / (modB * modB * modB) * toroidal_flux_sign
+    # temporary fix. Please see issue #238 and the discussion therein
+    gbdrift = -1 * 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha / (modB * modB * modB) * toroidal_flux_sign
 
     gbdrift0 = B_cross_grad_B_dot_grad_psi * 2 * shat[:, None, None] / (modB * modB * modB * sqrt_s[:, None, None]) * toroidal_flux_sign
 
-    cvdrift = gbdrift + 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] \
-        * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
+    # temporary fix. Please see issue #238 and the discussion therein
+    cvdrift = gbdrift - 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
 
     cvdrift0 = gbdrift0
 
