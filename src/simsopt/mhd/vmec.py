@@ -419,7 +419,7 @@ class Vmec(Optimizable):
         if not boundary_half is self._boundary_half:
             logging.debug('Replacing surface in boundary setter')
             self.remove_parent(self._boundary_half)
-            self._boundary = boundary_half
+            self._boundary_half = boundary_half
             self.append_parent(boundary_half)
             self.need_to_run_code = True
 
