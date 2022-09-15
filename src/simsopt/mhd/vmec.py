@@ -374,7 +374,7 @@ class Vmec(Optimizable):
                         self._boundary_half.rs = self._boundary.rs
                         self._boundary_half.zc = self._boundary.zc
             self._boundary.local_full_x = self._boundary.get_dofs()
-            self._boundary_half.local_full_x = self._boundary_half.get_dofs()
+            self._boundary_half.local_full_x = self._boundary.local_full_x
 
             self.need_to_run_code = True
         else:
@@ -389,7 +389,7 @@ class Vmec(Optimizable):
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=[self._boundary,self._boundary_half],
+                         depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
 
         if not self.runnable:
