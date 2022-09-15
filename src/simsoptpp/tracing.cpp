@@ -446,211 +446,26 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 }
 
 /*
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine f_sympl_euler1(si, f, n, x, fvec, iflag)
-!
-  type(SymplecticIntegrator), intent(inout) :: si
-  type(FieldCan), intent(inout) :: f
-  integer, intent(in) :: n
-  double precision, intent(in) :: x(n)
-  double precision, intent(out) :: fvec(n)
-  integer, intent(in) :: iflag
-
-  call eval_field(f, x(1), si%z(2), si%z(3), 2)
-  call get_derivatives2(f, x(2))
-
-  fvec(1) = f%dpth(1)*(f%pth - si%pthold) + si%dt*(f%dH(2)*f%dpth(1) - f%dH(1)*f%dpth(2))
-  fvec(2) = f%dpth(1)*(x(2) - si%z(4))  + si%dt*(f%dH(3)*f%dpth(1) - f%dH(1)*f%dpth(3))
-
-end subroutine f_sympl_euler1
-
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine jac_sympl_euler1(si, f, x, jac)
-!
-  type(SymplecticIntegrator), intent(in) :: si
-  type(FieldCan), intent(inout) :: f
-
-  double precision, intent(in)  :: x(2)
-  double precision, intent(out) :: jac(2, 2)
-
-  jac(1,1) = f%d2pth(1)*(f%pth - si%pthold) + f%dpth(1)**2 &
-    + si%dt*(f%d2H(2)*f%dpth(1) + f%dH(2)*f%d2pth(1) - f%d2H(1)*f%dpth(2) - f%dH(1)*f%d2pth(2))
-  jac(1,2) = f%d2pth(7)*(f%pth - si%pthold) + f%dpth(1)*f%dpth(4) &
-    + si%dt*(f%d2H(8)*f%dpth(1) + f%dH(2)*f%d2pth(7) - f%d2H(7)*f%dpth(2) - f%dH(1)*f%d2pth(8))
-  jac(2,1) = f%d2pth(1)*(x(2) - si%z(4)) &
-    + si%dt*(f%d2H(3)*f%dpth(1) + f%dH(3)*f%d2pth(1) - f%d2H(1)*f%dpth(3) - f%dH(1)*f%d2pth(3))
-  jac(2,2) = f%d2pth(7)*(x(2) - si%z(4)) + f%dpth(1) &
-    + si%dt*(f%d2H(9)*f%dpth(1) + f%dH(3)*f%d2pth(7) - f%d2H(7)*f%dpth(3) - f%dH(1)*f%d2pth(9))
-
-end subroutine jac_sympl_euler1
-
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine newton1(si, f, x, maxit, xlast)
-!
-  type(SymplecticIntegrator), intent(inout) :: si
-  type(FieldCan), intent(inout) :: f
-  integer, parameter :: n = 2
-
-  double precision, intent(inout) :: x(n)
-  integer, intent(in) :: maxit
-  double precision, intent(out) :: xlast(n)
-
-  double precision :: fvec(n), fjac(n,n), ijac(n,n)
-  double precision :: tolref(n)
-  integer :: kit
-
-  tolref(1) = 1d0
-  tolref(2) = dabs(x(2))
-
-  do kit = 1, maxit
-    if(x(1) > 1d0) return
-    if(x(1) < 0d0) x(1) = 0.01d0
-
-    call f_sympl_euler1(si, f, n, x, fvec, 1)
-    call jac_sympl_euler1(si, f, x, fjac)
-    ijac(1,1) = 1d0/(fjac(1,1) - fjac(1,2)*fjac(2,1)/fjac(2,2))
-    ijac(1,2) = -1d0/(fjac(1,1)*fjac(2,2)/fjac(1,2) - fjac(2,1))
-    ijac(2,1) = -1d0/(fjac(1,1)*fjac(2,2)/fjac(2,1) - fjac(1,2))
-    ijac(2,2) = 1d0/(fjac(2,2) - fjac(1,2)*fjac(2,1)/fjac(1,1))
-    xlast = x
-    x = x - matmul(ijac, fvec)
-
-    ! Don't take too small values in pphi as tolerance reference
-    tolref(2) = max(dabs(x(2)), tolref(2))
-    tolref(2) = max(dabs(x(2)), tolref(2))
-
-    if (all(dabs(fvec) < si%atol)) return
-    if (all(dabs(x-xlast) < si%rtol*tolref)) return
-  enddo
-  print *, 'newton1: maximum iterations reached: ', maxit
-  write(6601,*) x(1), x(2)
-  write(6601,*) x-xlast
-  write(6601,*) fvec
-  write(6601,*) ''
-  write(6601,*) fjac(1,1), fjac(1,2)
-  write(6601,*) fjac(2,1), fjac(2,2)
-  write(6601,*) ''
-  write(6601,*) ijac(1,1), ijac(1,2)
-  write(6601,*) ijac(2,1), ijac(2,2)
-  write(6601,*) ''
-  write(6601,*) si%z(2), si%z(3)
-  write(6601,*) ''
-  write(6601,*) ''
-end subroutine
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine get_val(f, pphi)
-!
-! computes values of H, pth and vpar at z=(r, th, ph, pphi)
-!
-!
-  type(FieldCan), intent(inout) :: f
-  double precision, intent(in) :: pphi
-
-  f%vpar = (pphi - f%Aph/f%ro0)/f%hph
-  f%H = f%vpar**2/2d0 + f%mu*f%Bmod
-  f%pth = f%hth*f%vpar + f%Ath/f%ro0
-
-end subroutine get_val
-
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine get_derivatives(f, pphi)
-!
-! computes H, pth and vpar at z=(r, th, ph, pphi) and their derivatives
-!
-!
-  type(FieldCan), intent(inout) :: f
-  double precision, intent(in) :: pphi
-
-  call get_val(f, pphi)
-
-  f%dvpar(1:3) = -(f%dAph/f%ro0 + f%dhph*f%vpar)/f%hph
-  f%dvpar(4)   = 1d0/f%hph
-
-  f%dH(1:3) = f%vpar*f%dvpar(1:3) + f%mu*f%dBmod
-  f%dH(4)   = f%vpar/f%hph
-
-  f%dpth(1:3) = f%dvpar(1:3)*f%hth + f%vpar*f%dhth + f%dAth/f%ro0
-
-  f%dpth(4) = f%hth/f%hph
-
-end subroutine get_derivatives
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine get_derivatives2(f, pphi)
-!
-! computes H, pth and vpar at z=(r, th, ph, pphi) up to 2nd derivatives
-! order of second derivatives:
-! d2dr2, d2drdth, d2drph, d2dth2, d2dthdph, d2dph2,
-! d2dpphdr, d2dpphdth, d2dpphdph, d2dpph2
-!
-  type(FieldCan), intent(inout) :: f
-  double precision, intent(in) :: pphi
-
-  call get_derivatives(f, pphi)
-
-  f%d2vpar(1:6) = -f%d2Aph/f%ro0 - f%d2hph*f%vpar
-  f%d2vpar(1) = f%d2vpar(1) - 2d0*f%dhph(1)*f%dvpar(1)
-  f%d2vpar(2) = f%d2vpar(2) - (f%dhph(1)*f%dvpar(2) + f%dhph(2)*f%dvpar(1))
-  f%d2vpar(3) = f%d2vpar(3) - (f%dhph(1)*f%dvpar(3) + f%dhph(3)*f%dvpar(1))
-  f%d2vpar(4) = f%d2vpar(4) - 2d0*f%dhph(2)*f%dvpar(2)
-  f%d2vpar(5) = f%d2vpar(5) - (f%dhph(2)*f%dvpar(3) + f%dhph(3)*f%dvpar(2))
-  f%d2vpar(6) = f%d2vpar(6) - 2d0*f%dhph(3)*f%dvpar(3)
-  f%d2vpar(1:6) = f%d2vpar(1:6)/f%hph
-
-  f%d2H(1:6) = f%vpar*f%d2vpar(1:6) + f%mu*f%d2Bmod ! + qi*d2Phie
-  f%d2H(1) = f%d2H(1) + f%dvpar(1)**2
-  f%d2H(2) = f%d2H(2) + f%dvpar(1)*f%dvpar(2)
-  f%d2H(3) = f%d2H(3) + f%dvpar(1)*f%dvpar(3)
-  f%d2H(4) = f%d2H(4) + f%dvpar(2)**2
-  f%d2H(5) = f%d2H(5) + f%dvpar(2)*f%dvpar(3)
-  f%d2H(6) = f%d2H(6) + f%dvpar(3)**2
-
-  f%d2pth(1:6) = f%d2vpar(1:6)*f%hth + f%vpar*f%d2hth + f%d2Ath/f%ro0
-  f%d2pth(1) = f%d2pth(1) + 2d0*f%dvpar(1)*f%dhth(1)
-  f%d2pth(2) = f%d2pth(2) + f%dvpar(1)*f%dhth(2) + f%dvpar(2)*f%dhth(1)
-  f%d2pth(3) = f%d2pth(3) + f%dvpar(1)*f%dhth(3) + f%dvpar(3)*f%dhth(1)
-  f%d2pth(4) = f%d2pth(4) + 2d0*f%dvpar(2)*f%dhth(2)
-  f%d2pth(5) = f%d2pth(5) + f%dvpar(2)*f%dhth(3) + f%dvpar(3)*f%dhth(2)
-  f%d2pth(6) = f%d2pth(6) + 2d0*f%dvpar(3)*f%dhth(3)
-
-  f%d2vpar(7:9) = -f%dhph/f%hph**2
-  f%d2H(7:9) = f%dvpar(1:3)/f%hph + f%vpar*f%d2vpar(7:9)
-  f%d2pth(7:9) = f%dhth/f%hph + f%hth*f%d2vpar(7:9)
-
-end subroutine get_derivatives2
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-subroutine orbit_timestep_sympl_euler1(si, f, ierr)
-!
-  type(SymplecticIntegrator), intent(inout) :: si
-  type(FieldCan), intent(inout) :: f
+subroutine timestep_euler1_quasi(ierr)
+  !
   integer, intent(out) :: ierr
 
   integer, parameter :: n = 2
-  integer, parameter :: maxit = 32
+  integer, parameter :: maxit = 16
 
-  double precision, dimension(n) :: x, xlast
-  integer :: k, ktau
+  double precision, dimension(n) :: x
+  double precision :: fvec(n)
+  integer :: ktau, info
 
   ierr = 0
   ktau = 0
   do while(ktau .lt. si%ntau)
     si%pthold = f%pth
+
     x(1)=si%z(1)
     x(2)=si%z(4)
 
-    call newton1(si, f, x, maxit, xlast)
+    call hybrd1(f_euler1_quasi, n, x, fvec, si%rtol, info)
 
     if (x(1) > 1.0) then
       ierr = 1
@@ -675,22 +490,172 @@ subroutine orbit_timestep_sympl_euler1(si, f, ierr)
     ktau = ktau+1
   enddo
 
-end subroutine orbit_timestep_sympl_euler1
-
-
-
+end subroutine timestep_euler1_quasi
 */
 
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class SymplField
+{
+    double  Ath, Aph;
+    double  hth, hph;
+    double  Bmod;
+
+    double dAth[3], dAph[3];
+    double dhth[3], dhph[3];
+    double dBmod[3];
+
+    double H, pth, vpar;
+    double dvpar[4], dH[4], dpth[4];
+
+    double mu, ro0;
+
+    shared_ptr<BoozerMagneticField<T>> field;
+    typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
+
+    SymplField(shared_ptr<MagneticField<T>> field, double mu, double ro0) :
+        field(field), mu(mu), ro0(ro0) {
+            // TODO: can set ro0 = 1 probably (SI)
+            // and mu to magnetic moment of guiding-center
+            // TODO: add mass and charge everywhere
+            // A* = A*_here/m
+    }
+
+    //
+    // Evaluates magnetic field in Boozer canonical coordinates (r, th_c, ph_c)
+    // and stores results in the SymplField object
+    // Works for A_th linear in r (toroidal flux as radial variable)
+    //
+    void eval_field(double r, double th_c, double ph_c)
+    {
+        double Bth, Bph, dBth, dBph, Bmod2;
+
+        for (int i=0; i<3; i++)
+        {
+            dAth[i] = 0.0;
+            dAph[i] = 0.0;
+        }
+
+        stz[0, 0] = r; stz[0, 1] = th_c; stz[0, 2] = ph_c;
+        field->set_points(stz);
+
+        // TODO: Get vector potential components Ath, Aph, dAth, dAph via fluxes
+
+        Bmod = field->modB()(0);
+        dBmod[0] = field->dmodBds()(0);
+        dBmod[1] = field->dmodBdtheta()(0);
+        dBmod[2] = field->dmodBdzeta()(0);
+
+        Bth = field->I()(0);
+        Bph = field->G()(0);
+        dBth = field->dIds()(0);
+        dBph = field->dGds()(0);
+
+        Bmod2 = pow(Bmod, 2);
+
+        hth = Bth/Bmod;
+        hph = Bph/Bmod;
+        dhth[0] = dBth/Bmod - Bth*dBmod[0]/Bmod2;
+        dhph[0] = dBph/Bmod - Bph*dBmod[0]/Bmod2;
+
+        for (int i=1; i<3; i++)
+        {
+            dhth[i] = -Bth*dBmod[i]/Bmod2;
+            dhph[i] = -Bph*dBmod[i]/Bmod2;
+        }
+
+    }
+    // eval_field_booz
+
+    // computes values of H, pth and vpar at z=(r, th, ph, pphi)
+    void get_val(double pphi)
+    {
+        vpar = (pphi - Aph/ro0)/hph;
+        H = pow(vpar,2)/2.0 + mu*Bmod;
+        pth = hth*vpar + Ath/ro0;
+    }
+
+    // computes H, pth and vpar at z=(r, th, ph, pphi) and their derivatives
+    void get_derivatives(double pphi)
+    {
+        get_val(pphi);
+
+        for (int i=0; i<3; i++)
+            dvpar[i] = -(dAph[i]/ro0 + dhph[i]*vpar)/hph;
+
+        dvpar[3]   = 1.0/hph;
+
+        for (int i=0; i<3; i++)
+            dH[i] = vpar*dvpar[i] + mu*dBmod[i];
+        dH[3]   = vpar/hph;
+
+
+        for (int i=0; i<3; i++)
+            dpth[i] = dvpar[i]*hth + vpar*dhth[i] + dAth[i]/ro0;
+
+        dpth[3] = hth/hph;
+    }
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
+    double dt, double pthold)
+{
+  // Unknowns in 2D nonlinear equation are x[0] = s and x[1] = pphi
+  // Used to solve fvec = 0 with (quasi-)Newton in these two variables
+
+  f.eval_field(x[0], y[1], y[2]);
+  f.get_derivatives(x[1]);
+
+  fvec[0] = f.dpth[0]*(f.pth - pthold)
+      + dt*(f.dH[1]*f.dpth[0] - f.dH[0]*f.dpth[1]);
+  fvec[1] = f.dpth[0]*(x[1] - y[3])
+      + dt*(f.dH[2]*f.dpth[0] - f.dH[0]*f.dpth[2]);
+}
+
+// see https://github.com/itpplasma/SIMPLE/blob/master/SRC/
+//         orbit_symplectic_quasi.f90:timestep_euler1_quasi
+template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
-    double t = 0;
+    double t = 0.0;
+    double pth_old = 0.0;
+    double pphi;
     bool stop = false;
 
+    double x[2]; // unknowns (s, pphi) for optimizer
+    double z[4]; // s, th, ph, pphi
+
+    SymplField<T> f;
+
+    // TODO: Initialize f and pphi with vpar and field components
+    // pphi = m*vpar*Bph/B + e/c*Aph
+
     do {
+        // TODO: Translate y to z
+
         res.push_back(join<1, 4>({t}, y));
+        pth_old = f.pth;
+
+        x[0] = z[0];  // s
+        x[1] = z[3];  // pphi
+        // TODO: Solve implicit part of time-step with some quasi-Newton
+        //  applied to f_euler1_quasi
+        z[0] = x[0];  // s
+        z[3] = x[1];  // pphi
+
+        // TODO: Evaluate explicit part of time-step
+        f.eval_field(z[0], z[1], z[2]);
+        f.get_derivatives(z[3]);
+
+        z[1] = z[1] + dt*f.dH[0]/f.dpth[0];
+        z[2] = z[2] + dt*(f.vpar - f.dH[0]/f.dpth[0]*f.hth)/f.hph;
+
+        // TODO: Translate z back to y
+
         t += dt;
     } while(t < tmax && !stop);
     if(!stop){
