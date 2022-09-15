@@ -389,7 +389,7 @@ class Vmec(Optimizable):
         fixed = np.full(len(x0), True)
         names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
         super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=[self._boundary],
+                         depends_on=[self._boundary,self._boundary_half],
                          external_dof_setter=Vmec.set_dofs)
 
         if not self.runnable:
