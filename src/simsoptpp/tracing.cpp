@@ -681,11 +681,22 @@ end subroutine orbit_timestep_sympl_euler1
 
 */
 
-vector<array<double, 5>>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
-    // TODO
-    return {};
+    vector<array<double, 5>> res = {};
+    vector<array<double, 6>> res_phi_hits = {};
+    double t = 0;
+    bool stop = false;
+
+    do {
+        res.push_back(join<1, 4>({t}, y));
+        t += dt;
+    } while(t < tmax && !stop);
+    if(!stop){
+        res.push_back(join<1, 4>({tmax}, y));
+    }
+    return std::make_tuple(res, res_phi_hits);
 }
 
 template<template<class, std::size_t, xt::layout_type> class T>
