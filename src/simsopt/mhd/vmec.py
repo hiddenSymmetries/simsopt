@@ -352,6 +352,13 @@ class Vmec(Optimizable):
                                               ntor=vi.ntor,
                                               quadpoints_theta=quadpoints_theta,
                                               quadpoints_phi=quadpoints_phi)
+            self._boundary_half = SurfaceRZFourier(nfp=vi.nfp,
+                                              stellsym=not vi.lasym,
+                                              mpol=vi.mpol,
+                                              ntor=vi.ntor,
+                                              quadpoints_theta=quadpoints_theta,
+                                              quadpoints_phi=quadpoints_phi,
+                                              range="half period")
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
@@ -359,15 +366,21 @@ class Vmec(Optimizable):
                 for n in range(-vi.ntor, vi.ntor + 1):
                     self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
                     self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+                    self._boundary_half.rc = self._boundary.rc
+                    self._boundary_half.zs = self._boundary.zs
                     if vi.lasym:
                         self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
                         self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+                        self._boundary_half.rs = self._boundary.rs
+                        self._boundary_half.zc = self._boundary.zc
             self._boundary.local_full_x = self._boundary.get_dofs()
+            self._boundary_half.local_full_x = self._boundary_half.get_dofs()
 
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
             self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
+            self._boundary_half = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta, range="half period")
             self.output_file = filename
             self.load_wout()
 
@@ -388,6 +401,10 @@ class Vmec(Optimizable):
     def boundary(self):
         return self._boundary
 
+    @property
+    def boundary_half(self):
+        return self._boundary_half
+
     @boundary.setter
     def boundary(self, boundary):
         if not boundary is self._boundary:
@@ -395,6 +412,15 @@ class Vmec(Optimizable):
             self.remove_parent(self._boundary)
             self._boundary = boundary
             self.append_parent(boundary)
+            self.need_to_run_code = True
+
+    @boundary_half.setter
+    def boundary_half(self, boundary_half):
+        if not boundary_half is self._boundary_half:
+            logging.debug('Replacing surface in boundary setter')
+            self.remove_parent(self._boundary_half)
+            self._boundary = boundary_half
+            self.append_parent(boundary_half)
             self.need_to_run_code = True
 
     @property
