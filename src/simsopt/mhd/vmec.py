@@ -374,7 +374,7 @@ class Vmec(Optimizable):
                         self._boundary_half.rs = self._boundary.rs
                         self._boundary_half.zc = self._boundary.zc
             self._boundary.local_full_x = self._boundary.get_dofs()
-            self._boundary_half.local_full_x = self._boundary.local_full_x
+            self._boundary_half.local_full_x = self._boundary.get_dofs()
 
             self.need_to_run_code = True
         else:
