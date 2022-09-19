@@ -115,11 +115,11 @@ subclass to specify the :math:`\phi_j` points directly.
 
 Often, it is desirable to specify the number of grid points instead of  
 supplying ``quadpoints_phi`` and ``quadpoints_theta`` to the Surface classes.
- For such cases, use the class method
-provided :meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`. Replace
-``Surface`` class with the desired subclass when calling the ``from_nphi_ntheta`` 
+In this case, use the class method
+:meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`. Replace
+``Surface`` with the desired subclass when calling the ``from_nphi_ntheta`` 
 class method.
-For :math:`\theta_j`, you typically specify a keyword
+For :math:`\theta_j`, you specify a keyword
 argument ``ntheta`` to the class method when instantiating a surface
 class. This results in a grid of ``ntheta`` uniformly spaced points
 between 0 and 1, with no endpoint at 1. 

@@ -100,3 +100,10 @@ Here is a list of publications in which simsopt results appear:
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
    |
+
+#. | A Kaptanoglu, R Conrad, and M Landreman
+     "Greedy permanent magnet optimization",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
+   |
+
