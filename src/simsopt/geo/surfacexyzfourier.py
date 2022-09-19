@@ -44,7 +44,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     Instead of supplying the quadrature point arrays along :math:`\phi` and
     :math:`\theta` directions, one could also specify the number of
     quadrature points for :math:`\phi` and :math:`\theta` using the
-    class method :py:meth:`simsopt.geo.surface.Surface.from_nphi_ntheta`.
+    class method :py:meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`.
 
     Args:
         nfp: The number of field periods.
