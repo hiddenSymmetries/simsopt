@@ -759,81 +759,32 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 
-    def test_windingsurface_calculation(self):
-        # Make a circular cross section, high-aspect ratio current loop in the Z = 0 plane
-        # Following approximate analytic solution in Jackson problem 5.32 for a circular
-        # cross section wire with major radius a, minor radius b, a >> b.
-        filename = 'test_files/input.circular_tokamak_aspect_100'
-        nphi = 32
-        ntheta = 16
-        winding_surface = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-
-        # Make CurrentPotential class from this winding surface with 1 amp toroidal current
-        ### Note, it appears we must pass the same quadpoints for now
-        current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=-1)
-
-        # compute the Bfield from this current loop at some nearby random points
-        Bfield = WindingSurfaceField(current_potential)
-        gamma = winding_surface.gamma().reshape((-1, 3))
-        nx = 100
-        ny = 32
-        N = nx * ny
-
-        # find the edge of the plasma
-        b = np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 2] ** 2)) * np.ones(nx)
-        phi = winding_surface.quadpoints_phi
-
-        # approximation error ~ sqrt(eps ** 2) / a ~ 1e-10
-        eps = 1e-18
-        x = np.zeros(N)
-        y = np.zeros(N)
-        for i in range(nx):
-            for j in range(ny):
-                x[i * ny + j] = (b[i] + eps) * np.cos(phi[j])
-                y[i * ny + j] = (b[i] + eps) * np.sin(phi[j])
-        z = np.zeros(N)
-
-        # Now have bunch of points that are right outside the plasma surface
-        points = np.array([x, y, z]).T
-        Bfield.set_points(np.ascontiguousarray(points))
-        B_predict = Bfield.B()
-        A_predict = Bfield.A()
-
-        # calculate the Bfield analytically in spherical coordinates
-        mu_fac = 2e-7
-        r = np.sqrt(z ** 2 + x ** 2 + y ** 2)
-        Aphi = mu_fac * (np.log(8 * 200 / r) - 2)
-
-        # convert A_analytic to Cartesian
-        Ax = np.zeros(len(Aphi))
-        Ay = np.zeros(len(Aphi))
-        phi_points = np.arctan2(points[:, 1], points[:, 0])
-        for i in range(N):
-            Ax[i] = - np.sin(phi_points[i]) * Aphi[i]
-            Ay[i] = np.cos(phi_points[i]) * Aphi[i]
-        A_analytic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
-
-        print(A_predict, A_analytic, A_predict.shape, A_analytic.shape)
-        assert np.allclose(A_predict, A_analytic)
-
     def test_windingsurface_exact(self):
-        # Make an infinitesimally thin current loop in the Z = 0 plane
-        # Following approximate analytic solution in Jackson 5.37
+        """ 
+            Make an infinitesimally thin current loop in the Z = 0 plane
+            Following approximate analytic solution in Jackson 5.37 for the
+            vector potential A. From this, we can also check calculations for
+            B, dA/dX and dB/dX using the WindingSurface class. 
+        """
         nphi = 128
         ntheta = 8
 
+        # uniform grid with half-step shift
+        qphi = np.linspace(0, 1, nphi) + 1 / (2 * nphi)
+        qtheta = np.linspace(0, 1, ntheta) + 1 / (2 * ntheta)
+
         # Make winding surface with major radius = 1, no minor radius
-        winding_surface = SurfaceRZFourier(nphi=nphi, ntheta=ntheta)
+        winding_surface = SurfaceRZFourier(quadpoints_phi=qphi, quadpoints_theta=qtheta)
         for i in range(winding_surface.mpol + 1):
             for j in range(-winding_surface.ntor, winding_surface.ntor + 1):
                 winding_surface.set_rc(i, j, 0.0)
                 winding_surface.set_zs(i, j, 0.0)
         winding_surface.set_rc(0, 0, 1.0)
-        winding_surface.set_rc(1, 0, 1e-8)  # current loop must have finite width for simsopt
-        winding_surface.set_zs(1, 0, 1e-8)  # current loop must have finite width for simsopt
+        eps = 1e-8
+        winding_surface.set_rc(1, 0, eps)  # current loop must have finite width for simsopt
+        winding_surface.set_zs(1, 0, eps)  # current loop must have finite width for simsopt
 
         # Make CurrentPotential class from this winding surface with 1 amp toroidal current
-        ### Note, it appears we must pass the same quadpoints for now
         current_potential = CurrentPotentialFourier(winding_surface, net_poloidal_current_amperes=0, net_toroidal_current_amperes=-1)
 
         # compute the Bfield from this current loop at some points
@@ -955,8 +906,10 @@ class Testing(unittest.TestCase):
             mpol_coil = int(np.max(xm_coil))
             ntor_coil = int(np.max(xn_coil)/nfp)
 
-            s_plasma = SurfaceRZFourier(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
-                                 mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym, range="field period")
+            quadpoints_phi = np.linspace(0, 1 / (2 * nfp), nzeta_plasma) + 1 / (4 * nfp * nzeta_plasma)
+            quadpoints_theta = np.linspace(0, 1, ntheta_plasma) + 1 / (2 * ntheta_plasma)
+            s_plasma = SurfaceRZFourier(nfp=nfp, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta, 
+                                 mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
             s_plasma.set_dofs(0*s_plasma.get_dofs())
             for im in range(len(xm_plasma)):
                 s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
@@ -964,8 +917,10 @@ class Testing(unittest.TestCase):
 
             assert np.allclose(r_plasma[0:nzeta_plasma,:,:],s_plasma.gamma())
 
+            quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
+            quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
             s_coil = SurfaceRZFourier(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
-                                 mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym, range="full torus")
+                                 mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
             s_coil.set_dofs(0*s_coil.get_dofs())
             for im in range(len(xm_coil)):
                 s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
