@@ -16,7 +16,7 @@ from .plotting import fix_matplotlib_3d
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
 
-class Surface(sopp.Surface, Optimizable):
+class Surface(Optimizable):
     r"""
     ``Surface`` is a base class for various representations of toroidal
     surfaces in simsopt.
@@ -689,7 +689,7 @@ class SurfaceClassifier():
         gridToVTK(filename, X, Y, Z, pointData={"levelset": vals})
 
 
-class SurfaceScaled(Surface):
+class SurfaceScaled(Optimizable):
     """
     Allows you to take any Surface class and scale the dofs. This is
     useful for stage-1 optimization.
@@ -698,20 +698,10 @@ class SurfaceScaled(Surface):
     def __init__(self, surf, scale_factors):
         self.surf = surf
         self.scale_factors = scale_factors
-        Surface.__init__(self, surf.quadpoints_phi, surf.quadpoints_theta, x0=surf.get_dofs() / scale_factors,
-                         external_dof_setter=surf.set_dofs_impl, names=surf.local_dof_names)
-
-    def get_dofs(self):
-        return self.surf.get_dofs() / self.scale_factors
-
-    def get_dofs_impl(self, dofs):
-        dofs = self.surf.get_dofs() / self.scale_factors
-
-    def set_dofs(self, dofs):
-        self.surf.set_dofs(dofs * self.scale_factors)
+        super().__init__(x0=surf.x / scale_factors, names=surf.local_dof_names)
 
     def recompute_bell(self, parent=None):
-        self.surf.local_full_x = self.local_full_x
+        self.surf.local_full_x = self.local_full_x * self.scale_factors
 
     def to_RZFourier(self):
         return self.surf.to_RZFourier()

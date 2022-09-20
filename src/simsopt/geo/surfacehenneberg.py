@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['SurfaceHenneberg']
 
 
-class SurfaceHenneberg(Surface):
+class SurfaceHenneberg(sopp.Surface, Surface):
     r"""
     This class represents a toroidal surface using the
     parameterization in Henneberg, Helander, and Drevlak, Journal of
@@ -120,6 +120,8 @@ class SurfaceHenneberg(Surface):
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
+        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
+                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
     def __repr__(self):
         return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \

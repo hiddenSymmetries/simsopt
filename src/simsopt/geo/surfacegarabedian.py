@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['SurfaceGarabedian']
 
 
-class SurfaceGarabedian(Surface):
+class SurfaceGarabedian(sopp.Surface, Surface):
     r"""
     ``SurfaceGarabedian`` represents a toroidal surface for which the
     shape is parameterized using Garabedian's :math:`\Delta_{m,n}`

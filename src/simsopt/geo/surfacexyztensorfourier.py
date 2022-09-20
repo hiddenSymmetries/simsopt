@@ -71,7 +71,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         self.xcs[0, 0] = 1.0
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
-        Surface.__init__(self, quadpoints_phi, quadpoints_theta, x0=self.get_dofs(),
+        Surface.__init__(self, x0=self.get_dofs(),
                          external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
     def get_dofs(self):
