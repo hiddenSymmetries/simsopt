@@ -77,3 +77,7 @@ def get_currentpotential(cptype, stellsym, phis=None, thetas=None):
     rand_scale = 0.01
     cp.x = dofs + rand_scale * np.random.rand(len(dofs))  # .reshape(dofs.shape)
     return cp
+
+
+if __name__ == "__main__":
+    unittest.main()

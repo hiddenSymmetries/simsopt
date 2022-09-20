@@ -29,6 +29,7 @@ np.random.seed(100)
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
+
 class Testing(unittest.TestCase):
 
     def test_toroidal_field(self):
@@ -872,15 +873,15 @@ class Testing(unittest.TestCase):
         # WindingSurface for W7-X and NCSX configuration
 
         stellsym = True
-        for filename in [TEST_DIR / 'regcoil_out.li383.nc',TEST_DIR / 'regcoil_out.w7x.nc']:
+        for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
             f = netcdf_file(filename, 'r')
             Bnormal_regcoil = f.variables['Bnormal_total'][()][-1, :, :]
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
             Bnormal_regcoil = Bnormal_regcoil - Bnormal_from_plasma_current
             r_plasma = f.variables['r_plasma'][()]
             r_coil = f.variables['r_coil'][()]
-            rmnc_plasma  = f.variables['rmnc_plasma'][()]
-            zmns_plasma  = f.variables['zmns_plasma'][()]
+            rmnc_plasma = f.variables['rmnc_plasma'][()]
+            zmns_plasma = f.variables['zmns_plasma'][()]
             xm_plasma = f.variables['xm_plasma'][()]
             xn_plasma = f.variables['xn_plasma'][()]
             nfp = f.variables['nfp'][()]
@@ -894,7 +895,7 @@ class Testing(unittest.TestCase):
             net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
             xm_potential = f.variables['xm_potential'][()]
             xn_potential = f.variables['xn_potential'][()]
-            K2_regcoil = f.variables['K2'][()][-1,:,:]
+            K2_regcoil = f.variables['K2'][()][-1, :, :]
 
             rmnc_coil = f.variables['rmnc_coil'][()]
             zmns_coil = f.variables['zmns_coil'][()]
@@ -909,24 +910,25 @@ class Testing(unittest.TestCase):
             quadpoints_phi = np.linspace(0, 1 / (2 * nfp), nzeta_plasma) + 1 / (4 * nfp * nzeta_plasma)
             quadpoints_theta = np.linspace(0, 1, ntheta_plasma) + 1 / (2 * ntheta_plasma)
             s_plasma = SurfaceRZFourier(nfp=nfp, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta, 
-                                 mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
+                                        mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
             s_plasma.set_dofs(0*s_plasma.get_dofs())
             for im in range(len(xm_plasma)):
                 s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
                 s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
 
-            assert np.allclose(r_plasma[0:nzeta_plasma,:,:],s_plasma.gamma())
+            print(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
+            assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
 
             quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
             quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
             s_coil = SurfaceRZFourier(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
-                                 mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
+                                      mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
             s_coil.set_dofs(0*s_coil.get_dofs())
             for im in range(len(xm_coil)):
                 s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
                 s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
 
-            assert np.allclose(r_coil,s_coil.gamma())
+            assert np.allclose(r_coil, s_coil.gamma())
 
             cp = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
                                          net_poloidal_current_amperes=net_poloidal_current_amperes,
@@ -938,27 +940,28 @@ class Testing(unittest.TestCase):
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
 
-            assert np.allclose(K2[0:nzeta_plasma,:]/K2_average, K2_regcoil/K2_average)
+            assert np.allclose(K2[0:nzeta_plasma, :]/K2_average, K2_regcoil/K2_average)
 
             Bfield = WindingSurfaceField(cp)
 
             cpst = CurrentPotentialSolveTikhonov(Bfield)
             print(cpst.solve())
 
-            points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3),3))
+            points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
 
             Bfield.set_points(points)
             B = Bfield.B()
 
-            normal = s_plasma.unitnormal().reshape((int(len(s_plasma.gamma().flatten())/3),3))
-            Bnormal = np.sum(B*normal,axis=1).reshape(np.shape(s_plasma.gamma()[:,:,0]))
+            normal = s_plasma.unitnormal().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
+            Bnormal = np.sum(B*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
 
-            self.assertAlmostEqual(np.sum(Bnormal),0)
-            self.assertAlmostEqual(np.sum(Bnormal_regcoil),0)
+            self.assertAlmostEqual(np.sum(Bnormal), 0)
+            self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
 
             Bnormal_average = np.mean(np.abs(Bnormal))
 
             assert np.allclose(Bnormal.flatten()/Bnormal_average, Bnormal_regcoil.flatten()/Bnormal_average)
+
 
 if __name__ == "__main__":
     unittest.main()

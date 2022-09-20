@@ -29,10 +29,7 @@ class CurrentPotentialTests(unittest.TestCase):
         ntor = 0
         mpol_potential = 6
         ntor_potential = 7
-        ntheta = 32
-        nphi = 32
-        s = SurfaceRZFourier(nfp=nfp, ntheta=nphi, nphi=nphi,
-                             mpol=mpol, ntor=ntor, stellsym=stellsym)
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=stellsym)
         s.set_dofs(0*s.get_dofs())
         s.set_rc(0, 0, 6.5)
         s.set_rc(1, 0, 4.0)
@@ -70,17 +67,19 @@ class CurrentPotentialTests(unittest.TestCase):
         mpol = int(np.max(xm_coil))
         ntor = int(np.max(xn_coil)/nfp)
 
-        s = SurfaceRZFourier(nfp=nfp, ntheta=ntheta, nphi=nzeta,
-                             mpol=mpol, ntor=ntor, stellsym=stellsym, range="field period")
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, 
+                             stellsym=stellsym)
+        s.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period')
         s.set_dofs(0*s.get_dofs())
         for im in range(len(xm_coil)):
             s.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
             s.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
 
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
-                                     ntor=ntor_potential, nphi=nzeta, ntheta=ntheta,
+                                     ntor=ntor_potential, 
                                      net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                     net_toroidal_current_amperes=net_toroidal_current_amperes, range="field period")
+                                     net_toroidal_current_amperes=net_toroidal_current_amperes)
+        cp.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period')
         for im in range(len(xm_potential)):
             cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 
@@ -337,3 +336,7 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         names = [name[4:] for name in cp.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]
         self.assertEqual(names, names2)
+
+
+if __name__ == "__main__":
+    unittest.main()

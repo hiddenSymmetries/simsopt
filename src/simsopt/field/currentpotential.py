@@ -6,17 +6,13 @@ from simsopt.geo.surface import Surface
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
 
-class CurrentPotential(sopp.CurrentPotential, Optimizable):
+class CurrentPotential(Optimizable):
 
     def set_points(self, points):
         return self.set_points(points)
 
-    def __init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
-                 net_poloidal_current_amperes, net_toroidal_current_amperes, **kwargs):
-        self.winding_surface = winding_surface
-        Optimizable.__init__(self, **kwargs)
-        sopp.CurrentPotential.__init__(self, winding_surface, quadpoints_phi,
-                                       quadpoints_theta, net_poloidal_current_amperes, net_toroidal_current_amperes)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def K(self):
         data = np.zeros((len(self.quadpoints_phi), len(self.quadpoints_theta), 3))
@@ -39,11 +35,10 @@ class CurrentPotential(sopp.CurrentPotential, Optimizable):
 
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
-    # class CurrentPotentialFourier(sopp.CurrentPotentialFourier, sopp.CurrentPotential, CurrentPotential):
 
     def __init__(self, winding_surface, net_poloidal_current_amperes=1,
                  net_toroidal_current_amperes=0, nfp=None, stellsym=None,
-                 mpol=None, ntor=None, nphi=None, ntheta=None, range="full torus",
+                 mpol=None, ntor=None, 
                  quadpoints_phi=None, quadpoints_theta=None):
 
         if nfp is None:
@@ -55,25 +50,23 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         if ntor is None:
             ntor = winding_surface.ntor
 
-        if ((ntheta is not None) or (nphi is not None) and ((quadpoints_phi is None) or (quadpoints_theta is None))):
-            quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                      nphi=nphi, ntheta=ntheta, range=range,
-                                                                      quadpoints_phi=quadpoints_phi,
-                                                                      quadpoints_theta=quadpoints_theta)
-        if (quadpoints_phi is None):
-            quadpoints_phi = winding_surface.quadpoints_phi
-        if (quadpoints_theta is None):
-            quadpoints_theta = winding_surface.quadpoints_theta
+        if quadpoints_theta is None:
+            quadpoints_theta = winding_surface.quadpoints_theta 
+        if quadpoints_phi is None:
+            quadpoints_phi = winding_surface.quadpoints_phi 
 
         sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
                                               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
                                               net_toroidal_current_amperes)
 
-        CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
-                                  net_poloidal_current_amperes,
-                                  net_toroidal_current_amperes, x0=self.get_dofs(),
-                                  external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
-                                  names=self._make_names())
+        #CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
+        #                          net_poloidal_current_amperes,
+        #                          net_toroidal_current_amperes, x0=self.get_dofs(),
+        #                          external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
+        #                          names=self._make_names())
+
+        CurrentPotential.__init__(self, x0=self.get_dofs(),
+                                  external_dof_setter=CurrentPotentialFourier.set_dofs_impl)
 
         self._make_mn()
         # gd1 = winding_surface.gammadash1_impl()

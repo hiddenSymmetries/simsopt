@@ -7,7 +7,7 @@ template<class Array>
 class CurrentPotentialFourier : public CurrentPotential<Array> {
 
     public:
-        const shared_ptr<Surface<Array>> winding_surfae;
+        const shared_ptr<Surface<Array>> winding_surface;
         using CurrentPotential<Array>::quadpoints_phi;
         using CurrentPotential<Array>::quadpoints_theta;
         using CurrentPotential<Array>::numquadpoints_phi;
