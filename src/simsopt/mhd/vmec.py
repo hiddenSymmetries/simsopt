@@ -12,7 +12,7 @@ from typing import Union
 from datetime import datetime
 
 import numpy as np
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
@@ -765,7 +765,7 @@ class Vmec(Optimizable):
         ierr = 0
         logger.info(f"Attempting to read file {self.output_file}")
 
-        with netcdf.netcdf_file(self.output_file, mmap=False) as f:
+        with netcdf_file(self.output_file, mmap=False) as f:
             for key, val in f.variables.items():
                 # 2D arrays need to be transposed.
                 val2 = val[()]  # Convert to numpy array
