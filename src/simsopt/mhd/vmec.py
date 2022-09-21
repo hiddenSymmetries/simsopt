@@ -347,7 +347,7 @@ class Vmec(Optimizable):
             # by the user.
             # quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
             # quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-            self._boundary = SurfaceRZFourier(nfp=vi.nfp,
+            self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=vi.nfp,
                                               stellsym=not vi.lasym,
                                               mpol=vi.mpol,
                                               ntor=vi.ntor,
