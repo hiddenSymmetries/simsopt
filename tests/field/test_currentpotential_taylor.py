@@ -1,7 +1,7 @@
 import unittest
 from simsopt.field.currentpotential import CurrentPotential, CurrentPotentialFourier
-from simsopt.geo import SurfaceRZFourier
 import numpy as np
+from simsopt.geo import SurfaceRZFourier
 
 
 class CurrentPotentialTaylorTests(unittest.TestCase):

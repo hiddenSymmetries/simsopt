@@ -30,15 +30,17 @@ class CurrentPotentialTests(unittest.TestCase):
         mpol_potential = 6
         ntor_potential = 7
         s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=stellsym)
+        s.from_nphi_ntheta(nphi=32, ntheta=32, range='field period')
         s.set_dofs(0*s.get_dofs())
         s.set_rc(0, 0, 6.5)
         s.set_rc(1, 0, 4.0)
         s.set_zs(1, 0, 4.0)
 
         cp = CurrentPotentialFourier(s, nfp=nfp, stellsym=stellsym, mpol=mpol_potential,
-                                     ntor=ntor_potential, nphi=nphi, ntheta=ntheta,
+                                     ntor=ntor_potential, 
                                      net_poloidal_current_amperes=1.0e6, net_toroidal_current_amperes=0.0)
 
+        #cp.from_nphi_ntheta(nphi=32, ntheta=32, range='half period')
         filename = TEST_DIR / 'regcoil_out.axisymmetry.nc'
         f = netcdf_file(filename, 'r')
         K2_regcoil = f.variables['K2'][()][-1, :, :]
@@ -69,7 +71,7 @@ class CurrentPotentialTests(unittest.TestCase):
 
         s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, 
                              stellsym=stellsym)
-        s.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period')
+        s.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='field period')
         s.set_dofs(0*s.get_dofs())
         for im in range(len(xm_coil)):
             s.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
@@ -79,7 +81,7 @@ class CurrentPotentialTests(unittest.TestCase):
                                      ntor=ntor_potential, 
                                      net_poloidal_current_amperes=net_poloidal_current_amperes,
                                      net_toroidal_current_amperes=net_toroidal_current_amperes)
-        cp.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period')
+        #cp.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='field period')
         for im in range(len(xm_potential)):
             cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 

@@ -11,8 +11,9 @@ class CurrentPotential(Optimizable):
     def set_points(self, points):
         return self.set_points(points)
 
-    def __init__(self, **kwargs):
+    def __init__(self, winding_surface, **kwargs):
         super().__init__(**kwargs)
+        self.winding_surface = winding_surface
 
     def K(self):
         data = np.zeros((len(self.quadpoints_phi), len(self.quadpoints_theta), 3))
@@ -55,7 +56,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         if quadpoints_phi is None:
             quadpoints_phi = winding_surface.quadpoints_phi 
 
-        sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
+        #sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
+        sopp.CurrentPotentialFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
                                               net_toroidal_current_amperes)
 
@@ -65,7 +67,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         #                          external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
         #                          names=self._make_names())
 
-        CurrentPotential.__init__(self, x0=self.get_dofs(),
+        CurrentPotential.__init__(self, winding_surface, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl)
 
         self._make_mn()

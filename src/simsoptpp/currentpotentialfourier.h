@@ -7,7 +7,6 @@ template<class Array>
 class CurrentPotentialFourier : public CurrentPotential<Array> {
 
     public:
-        const shared_ptr<Surface<Array>> winding_surface;
         using CurrentPotential<Array>::quadpoints_phi;
         using CurrentPotential<Array>::quadpoints_theta;
         using CurrentPotential<Array>::numquadpoints_phi;
@@ -21,11 +20,11 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         double net_poloidal_current_amperes;
         double net_toroidal_current_amperes;
 
-        CurrentPotentialFourier(shared_ptr<Surface<Array>> _winding_surface,
+        CurrentPotentialFourier(
                 int _mpol, int _ntor, int _nfp, bool _stellsym,
                 vector<double> _quadpoints_phi, vector<double> _quadpoints_theta,
                 double net_poloidal_current_amperes, double net_toroidal_current_amperes)
-            : CurrentPotential<Array>(_winding_surface, _quadpoints_phi, _quadpoints_theta, net_poloidal_current_amperes, net_toroidal_current_amperes), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
+            : CurrentPotential<Array>(_quadpoints_phi, _quadpoints_theta, net_poloidal_current_amperes, net_toroidal_current_amperes), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 this->allocate();
             }
 

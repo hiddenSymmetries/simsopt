@@ -69,11 +69,11 @@ template <typename T, typename S> void register_common_currentpotential_methods(
 
 void init_currentpotential(pybind11::module_ &m){
     auto pycurrentpotential = pybind11::class_<PyCurrentPotential, shared_ptr<PyCurrentPotential>, PyCurrentPotentialTrampoline<PyCurrentPotential>>(m, "CurrentPotential")
-        .def(pybind11::init<shared_ptr<PySurface>,vector<double>,vector<double>, double, double>());
+        .def(pybind11::init<vector<double>,vector<double>, double, double>());
     register_common_currentpotential_methods<PyCurrentPotential>(pycurrentpotential);
 
     auto pycurrentpotentialfourier = pybind11::class_<PyCurrentPotentialFourier, shared_ptr<PyCurrentPotentialFourier>, PyCurrentPotentialFourierTrampoline<PyCurrentPotentialFourier>>(m, "CurrentPotentialFourier")
-        .def(pybind11::init<shared_ptr<PySurface>, int, int, int, bool, vector<double>, vector<double>, double, double>())
+        .def(pybind11::init<int, int, int, bool, vector<double>, vector<double>, double, double>())
         .def_readwrite("phic", &PyCurrentPotentialFourier::phic)
         .def_readwrite("phis", &PyCurrentPotentialFourier::phis)
         .def_readwrite("mpol", &PyCurrentPotentialFourier::mpol)

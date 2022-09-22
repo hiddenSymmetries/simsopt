@@ -54,16 +54,15 @@ class CurrentPotential {
         int numquadpoints_theta;
         Array quadpoints_phi;
         Array quadpoints_theta;
-        const shared_ptr<Surface<Array>> winding_surface;
         double net_poloidal_current_amperes;
         double net_toroidal_current_amperes;
 
     public:
 
-        CurrentPotential(shared_ptr<Surface<Array>> winding_surface,
+        CurrentPotential(
                 vector<double> _quadpoints_phi, vector<double> _quadpoints_theta,
                 double _net_poloidal_current_amperes, double _net_toroidal_current_amperes)
-            : winding_surface(winding_surface) {
+            {
             numquadpoints_phi = _quadpoints_phi.size();
             numquadpoints_theta = _quadpoints_theta.size();
             net_poloidal_current_amperes = _net_poloidal_current_amperes;
