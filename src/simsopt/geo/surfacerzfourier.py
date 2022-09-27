@@ -297,31 +297,34 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                    **kwargs)
 
         # Transfer boundary shape data from the namelist to the surface object:
+        # In these loops, we set surf.rc/zs rather than call surf.set_rc() for speed.
         for jm in range(rc.shape[0]):
             m = jm + nml.start_index['rbc'][1]
             for jn in range(rc.shape[1]):
                 n = jn + nml.start_index['rbc'][0]
-                surf.set_rc(m, n, rc[jm, jn])
+                surf.rc[m, n + ntor_boundary] = rc[jm, jn]
 
         for jm in range(zs.shape[0]):
             m = jm + nml.start_index['zbs'][1]
             for jn in range(zs.shape[1]):
                 n = jn + nml.start_index['zbs'][0]
-                surf.set_zs(m, n, zs[jm, jn])
+                surf.zs[m, n + ntor_boundary] = zs[jm, jn]
 
         if lasym:
             for jm in range(rs.shape[0]):
                 m = jm + nml.start_index['rbs'][1]
                 for jn in range(rs.shape[1]):
                     n = jn + nml.start_index['rbs'][0]
-                    surf.set_rs(m, n, rs[jm, jn])
+                    surf.rs[m, n + ntor_boundary] = rs[jm, jn]
 
             for jm in range(zc.shape[0]):
                 m = jm + nml.start_index['zbc'][1]
                 for jn in range(zc.shape[1]):
                     n = jn + nml.start_index['zbc'][0]
-                    surf.set_zc(m, n, zc[jm, jn])
+                    surf.zc[m, n + ntor_boundary] = zc[jm, jn]
 
+        # Sync the dofs:
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     @classmethod
