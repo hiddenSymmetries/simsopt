@@ -71,8 +71,9 @@ Here is a list of publications in which simsopt results appear:
    |
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
-     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
-     *Submitted*, (2022).
+     "Stochastic and a-posteriori optimization to mitigate coil manufacturing errors in stellarator design",
+     *Plasma Physics and Controlled Fusion*, **64**, 105021 (2022).
+     `[journal version] <https://doi.org/10.1088/1361-6587/ac89ee>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
    |
 
