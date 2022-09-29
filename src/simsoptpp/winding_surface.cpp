@@ -123,7 +123,7 @@ Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array&
             Vec3dSimd Kcrossr = cross(K_j, r);
             Vec3dSimd ex = Vec3dSimd(1, 0, 0);
             Vec3dSimd ey = Vec3dSimd(0, 1, 0);
-            Vec3dSimd ez = Vec3dSimd(0, 1, 0);
+            Vec3dSimd ez = Vec3dSimd(0, 0, 1);
             Vec3dSimd Kcrossex = cross(K_j, ex);
             Vec3dSimd Kcrossey = cross(K_j, ey);
             Vec3dSimd Kcrossez = cross(K_j, ez);

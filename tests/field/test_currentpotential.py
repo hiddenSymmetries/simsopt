@@ -29,8 +29,10 @@ class CurrentPotentialTests(unittest.TestCase):
         ntor = 0
         mpol_potential = 6
         ntor_potential = 7
+        nphi = 32
+        ntheta = 32
         s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=stellsym)
-        s.from_nphi_ntheta(nphi=32, ntheta=32, range='field period')
+        s = s.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='field period')
         s.set_dofs(0*s.get_dofs())
         s.set_rc(0, 0, 6.5)
         s.set_rc(1, 0, 4.0)
@@ -47,6 +49,7 @@ class CurrentPotentialTests(unittest.TestCase):
         K = cp.K()
         K2 = np.sum(K*K, axis=2)
         K2_average = np.mean(K2, axis=(0, 1))
+        print(K2.shape, K2_regcoil.shape)
         assert np.allclose(K2/K2_average, K2_regcoil/K2_average)
 
         # Now a non-axisymmetric test
@@ -71,7 +74,10 @@ class CurrentPotentialTests(unittest.TestCase):
 
         s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, 
                              stellsym=stellsym)
-        s.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='field period')
+        s = s.from_nphi_ntheta(
+            nphi=nzeta, ntheta=ntheta, range='field period', 
+            mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym
+        )
         s.set_dofs(0*s.get_dofs())
         for im in range(len(xm_coil)):
             s.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
@@ -81,7 +87,6 @@ class CurrentPotentialTests(unittest.TestCase):
                                      ntor=ntor_potential, 
                                      net_poloidal_current_amperes=net_poloidal_current_amperes,
                                      net_toroidal_current_amperes=net_toroidal_current_amperes)
-        #cp.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='field period')
         for im in range(len(xm_potential)):
             cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 

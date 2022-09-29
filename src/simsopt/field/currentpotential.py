@@ -61,14 +61,9 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
                                               net_toroidal_current_amperes)
 
-        #CurrentPotential.__init__(self, winding_surface, quadpoints_phi, quadpoints_theta,
-        #                          net_poloidal_current_amperes,
-        #                          net_toroidal_current_amperes, x0=self.get_dofs(),
-        #                          external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
-        #                          names=self._make_names())
-
         CurrentPotential.__init__(self, winding_surface, x0=self.get_dofs(),
-                                  external_dof_setter=CurrentPotentialFourier.set_dofs_impl)
+                                  external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
+                                  names=self._make_names())
 
         self._make_mn()
         # gd1 = winding_surface.gammadash1_impl()
