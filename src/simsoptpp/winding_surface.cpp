@@ -284,3 +284,118 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
     }
     return dA;
 }
+
+// Calculate the geometric factor needed for the A^B term in winding surface optimization
+Array winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int nfp, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points_plasma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(points_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(normal_plasma.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal_plasma needs to be in row-major storage order");
+    if(normal_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal_winding_surface needs to be in row-major storage order");
+    if(zeta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("phi needs to be in row-major storage order");
+    if(theta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("theta needs to be in row-major storage order");
+    
+    int num_plasma = normal_plasma.shape(0);
+    int num_coil = normal_coil.shape(0);
+    Array gij = xt::zeros<double>({num_plasma, num_coil});
+    Array gj = xt::zeros<double>({num_plasma, ndofs});
+    Array Ajk = xt::zeros<double>({ndofs, ndofs});
+  
+    // initialize pointer to the beginning of the coil quadrature points 
+    //double* coil_points_ptr = &(points_coil(0, 0));
+    //double* normal_coil_ptr = &(normal_coil(0, 0));
+    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+
+    // Loop through the evaluation points by chunks of simd_size
+    // #pragma omp parallel for schedule(static)
+    //for(int i = 0; i < num_plasma; i += simd_size) {
+    for(int i = 0; i < num_plasma; i++) {
+        double npx = normal_plasma(i, 0); 
+        double npy = normal_plasma(i, 1); 
+        double npz = normal_plasma(i, 2); 
+	
+	// Loop through the coil quadrature points, using all the symmetries
+        for (int j = 0; j < num_coil; ++j) {
+            double ncx = normal_coil(j, 0); 
+            double ncy = normal_coil(j, 1); 
+            double ncz = normal_coil(j, 2); 
+	    //for (int stell = 0; stell < (stellsym + 1); ++stell) { 
+	    //    for(int fp = 0; fp < nfp; ++fp) {
+		    // Compute the unsymmetrized inductance matrix
+            double rx = points_plasma(i, 0) - points_coil(j, 0); 
+            double ry = points_plasma(i, 1) - points_coil(j, 1); 
+            double rz = points_plasma(i, 2) - points_coil(j, 2);
+	    double rmag2 = rx * rx + ry * ry + rz * rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
+            double rmag_inv_5 = rmag_inv_3 * rmag_inv * rmag_inv;
+            double npdotnc = npx * ncx + npy * ncy + npz * ncz; 
+            double rdotnp = rx * npx + ry * npy + rz * npz; 
+            double rdotnc = rx * ncx + ry * ncy + rz * ncz; 
+            double G_i = npdotnc * rmag_inv_3 - 3.0 * rdotnp * rdotnc * rmag_inv_5;
+            gij(i, j) += fak * G_i;
+	}
+        // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
+        for(int j = 0; j < ndofs; j++){
+            for(int k = 0; k < num_coil; k++){
+		double angle = m(j) * theta_coil(k) - n(j) * zeta_coil(k);
+	        double cphi = std::cos(angle); 
+	        double sphi = std::sin(angle);
+		if (stellsym) {
+		    gj(i, j) += sphi * gij(i, k);
+		}
+		else {
+		    gj(i, j) += sphi * gij(i, k) + cphi * gij(i, k); 
+	        }
+	    }
+	}
+    }
+
+    for(int j = 0; j < ndofs; j++) {
+	for(int k = 0; k < ndofs; k++) {
+	    for(int i = 0; i < num_plasma; i++) {
+                double npx = normal_plasma(i, 0); 
+                double npy = normal_plasma(i, 1); 
+                double npz = normal_plasma(i, 2); 
+	        double n_norm = std::sqrt(npx * npx + npy * npy + npz * npz);
+                Ajk(j, k) += gj(i, j) * gj(i, k) / n_norm;
+	    }
+	}
+    }
+    return Ajk; 
+}
+
+Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, int nfp, bool stellsym, Array& zeta_coil, Array& theta_coil, Array& G, Array& I, dr_dtheta_coil, dr_dzeta_coil) {
+
+    int num_plasma = normal_plasma.shape(0);
+    int num_coil = normal_coil.shape(0);
+    Array B_GI = xt::zeros<double>({num_plasma});
+    for(int i = 0; i < num_plasma; i++) {
+        double nx = normal_plasma(i, 0);
+	double ny = normal_plasma(i, 1);
+	double nz = normal_plasma(i, 2);
+        for(int j = 0; j < num_coil; j++) {
+            double rx = points_plasma(i, 0) - points_coil(j, 0);
+            double ry = points_plasma(i, 1) - points_coil(j, 1);
+            double rz = points_plasma(i, 2) - points_coil(j, 2);
+	    double rmag2 = rx * rx + ry * ry + rz * rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
+            //for(int k = 0; k < nfp; k++) {
+	    double GIx = G(j) * dr_dtheta_coil(j, 0) - I(j) * dr_dzeta_coil(j, 0);
+	    double GIy = G(j) * dr_dtheta_coil(j, 1) - I(j) * dr_dzeta_coil(j, 1);
+	    double GIz = G(j) * dr_dtheta_coil(j, 2) - I(j) * dr_dzeta_coil(j, 2);
+	    double GIcrossr_dotn = nx * () + ny * () + nz * ();
+            B_GI(i) += GIcrossr_dotn * rmag_inv_3;
+	    //}        
+	}
+    }
+    return B_GI
+}

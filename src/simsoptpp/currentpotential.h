@@ -2,6 +2,9 @@
 #include <vector>
 using std::vector;
 
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+typedef xt::pyarray<double> Array;
+
 #include <string>
 using std::string;
 
@@ -124,3 +127,4 @@ class CurrentPotential {
 
         virtual ~CurrentPotential() = default;
 };
+
