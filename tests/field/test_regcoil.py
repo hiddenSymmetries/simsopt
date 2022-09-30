@@ -159,20 +159,6 @@ class Testing(unittest.TestCase):
 
         assert np.allclose(A_predict, A_analytic_elliptic)
 
-        # double check with vector potential of a dipolex_dy = C * x * y * z * ((3 * (3 * rho ** 2 - 2 * z ** 2) - r ** 4 * (2 * r ** 2 + rho ** 2) - 2 - 2 * (2 * rho ** 4 - rho ** 2 * z ** 2 + 3 * z ** 4)) * ellipe(k2) + (r ** 2 * (2 * r ** 2 + rho ** 2) - (5 * rho ** 2 - 4 * z ** 2) + 2) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4) 
-        Bx_dz = C * x * (((rho ** 2 - 1) ** 2 * (rho ** 2 + 1) + 2 * z ** 2 * (1 - 6 * rho ** 2 + rho ** 4) + z ** 4 * (1 + rho ** 2)) * ellipe(k2) - ((rho ** 2 - 1) ** 2 + z ** 2 * (rho ** 2 + 1)) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 2)
-        By_dx = Bx_dy
-        By_dy = C * z * (((gamma * (3 * z ** 2 + 1) + rho ** 2 * (8 * y ** 2 - x ** 2)) - (rho ** 4 * (5 * y ** 2 + x ** 2) - 2 * rho ** 2 * z ** 2 * (2 * y ** 2 + x ** 2) - 3 * z ** 4 * gamma) - r ** 4 * (2 * y ** 4 - gamma * (x ** 2 + z ** 2))) * ellipe(k2) + ((- gamma * (1 + 2 * z ** 2) - rho ** 2 * (3 * y ** 2 - 2 * x ** 2)) + r ** 2 * (2 * y ** 4 - gamma * (x ** 2 + z ** 2))) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4)
-        By_dz = y / x * Bx_dz
-        Bz_dx = Bx_dz
-        Bz_dy = By_dz
-        Bz_dz = C * z * ((6 * (rho ** 2 - z ** 2) - 7 + r ** 4) * ellipe(k2) + alpha2 * (1 - r ** 2) * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2))
-        dB_analytic = np.transpose(np.array([[Bx_dx, Bx_dy, Bx_dz],
-                                             [By_dx, By_dy, By_dz], 
-                                             [Bz_dx, Bz_dy, Bz_dz]]), [2, 0, 1])
-
-        assert np.allclose(dB_predict, dB_analytic)
-
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
         gamma = winding_surface.gamma().reshape((-1, 3))
@@ -249,6 +235,11 @@ class Testing(unittest.TestCase):
             xm_potential = f.variables['xm_potential'][()]
             xn_potential = f.variables['xn_potential'][()]
             K2_regcoil = f.variables['K2'][()][-1, :, :]
+            lambda_regcoil = f.variables['lambda'][()]
+            b_rhs_regcoil = f.variables['RHS_B'][()]
+            #B_matrix_regcoil = f.variables['matrix_B'][()]
+            #print('Bregcoil = ', B_matrix_regcoil)
+            print('b_rhs = ', b_rhs_regcoil)
 
             rmnc_coil = f.variables['rmnc_coil'][()]
             zmns_coil = f.variables['zmns_coil'][()]
@@ -260,9 +251,6 @@ class Testing(unittest.TestCase):
             mpol_coil = int(np.max(xm_coil))
             ntor_coil = int(np.max(xn_coil)/nfp)
 
-            # for comparison, don't do the shift by half-grid spacing
-            #quadpoints_phi = np.linspace(0, 1 / (2 * nfp), nzeta_plasma)  #+ 1 / (4 * nfp * nzeta_plasma)
-            #quadpoints_theta = np.linspace(0, 1, ntheta_plasma)  #+ 1 / (2 * ntheta_plasma)
             s_plasma = SurfaceRZFourier(nfp=nfp, 
                                         mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
             s_plasma = s_plasma.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
@@ -302,17 +290,16 @@ class Testing(unittest.TestCase):
             # initialize a solver object for the cp CurrentPotential
             cpst = CurrentPotentialSolveTikhonov(cp)
 
-            points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
-            normal_plasma = s_plasma.normal().reshape(-1, 3) 
-            print('plasma normal shape = ', normal_plasma.shape)
-
             # Solve the least-squares problem with the specified plasma 
             # quadrature points, normal vector, and Bnormal at these quadrature points
-            optimized_dofs = cpst.solve(points, normal_plasma, Bnormal_from_plasma_current)
+            optimized_dofs = cpst.solve(s_plasma, np.ravel(Bnormal_from_plasma_current), lam=lambda_regcoil)
+            print('optimized dofs = ', optimized_dofs)
             cp.set_dofs(optimized_dofs)
+            print('Current potential MN = ', single_valued_current_potential_mn)
 
             # Initialize Bfield from optimized CurrentPotential
             Bfield = WindingSurfaceField(cp)
+            points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
             Bfield.set_points(points)
             B = Bfield.B()
 

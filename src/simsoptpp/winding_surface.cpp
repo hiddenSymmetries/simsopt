@@ -286,7 +286,7 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
 }
 
 // Calculate the geometric factor needed for the A^B term in winding surface optimization
-std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int nfp, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
+std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points_plasma.layout() != xt::layout_type::row_major)
@@ -327,9 +327,6 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
             double ncx = normal_coil(j, 0); 
             double ncy = normal_coil(j, 1); 
             double ncz = normal_coil(j, 2); 
-	    //for (int stell = 0; stell < (stellsym + 1); ++stell) { 
-	    //    for(int fp = 0; fp < nfp; ++fp) {
-		    // Compute the unsymmetrized inductance matrix
             double rx = points_plasma(i, 0) - points_coil(j, 0); 
             double ry = points_plasma(i, 1) - points_coil(j, 1); 
             double rz = points_plasma(i, 2) - points_coil(j, 2);
@@ -341,20 +338,23 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
             double rdotnp = rx * npx + ry * npy + rz * npz; 
             double rdotnc = rx * ncx + ry * ncy + rz * ncz; 
             double G_i = npdotnc * rmag_inv_3 - 3.0 * rdotnp * rdotnc * rmag_inv_5;
-            gij(i, j) += fak * G_i;
+            gij(i, j) = fak * G_i;
 	}
+    }
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_plasma; i++) {
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
         for(int j = 0; j < ndofs; j++){
             for(int k = 0; k < num_coil; k++){
 		double angle = m(j) * theta_coil(k) - n(j) * zeta_coil(k);
 	        double cphi = std::cos(angle); 
 	        double sphi = std::sin(angle);
-		if (stellsym) {
-		    gj(i, j) += sphi * gij(i, k);
-		}
-		else {
-		    gj(i, j) += sphi * gij(i, k) + cphi * gij(i, k); 
-	        }
+		//if (stellsym) {
+		//    gj(i, j) += sphi * gij(i, k);
+		//}
+		//else {
+		gj(i, j) += sphi * gij(i, k) + cphi * gij(i, k); 
+	        //}
 	    }
 	}
     }
@@ -373,16 +373,21 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     return std::make_tuple(gj, Ajk); 
 }
 
-Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, int nfp, bool stellsym, Array& zeta_coil, Array& theta_coil, Array& G, Array& I, Array& gammadash1, Array& gammadash2) {
-
+Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& zeta_coil, Array& theta_coil, double G, double I, Array& gammadash1, Array& gammadash2) 
+{
     int num_plasma = normal_plasma.shape(0);
     int num_coil = points_coil.shape(0);
+    double fak = 1e-7 / (2.0 * M_PI);  // mu0 divided by 8 * pi^2 factor
     Array B_GI = xt::zeros<double>({num_plasma});
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         double nx = normal_plasma(i, 0);
 	double ny = normal_plasma(i, 1);
 	double nz = normal_plasma(i, 2);
+	double nmag = std::sqrt(nx * nx + ny * ny + nz * nz);
+	nx = nx / nmag;
+	ny = ny / nmag;
+	nz = nz / nmag;
         for(int j = 0; j < num_coil; j++) {
             double rx = points_plasma(i, 0) - points_coil(j, 0);
             double ry = points_plasma(i, 1) - points_coil(j, 1);
@@ -390,13 +395,11 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
 	    double rmag2 = rx * rx + ry * ry + rz * rz;
             double rmag_inv = 1.0 / std::sqrt(rmag2);
             double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
-            //for(int k = 0; k < nfp; k++) {
-	    double GIx = G(j) * gammadash2(j, 0) - I(j) * gammadash1(j, 0);
-	    double GIy = G(j) * gammadash2(j, 1) - I(j) * gammadash1(j, 1);
-	    double GIz = G(j) * gammadash2(j, 2) - I(j) * gammadash1(j, 2);
+	    double GIx = G * gammadash2(j, 0) - I * gammadash1(j, 0);
+	    double GIy = G * gammadash2(j, 1) - I * gammadash1(j, 1);
+	    double GIz = G * gammadash2(j, 2) - I * gammadash1(j, 2);
 	    double GIcrossr_dotn = nx * (GIy * rz - GIz * ry) + ny * (GIz * rx - GIx * rz) + nz * (GIx * ry - GIy * rx);
-            B_GI(i) += GIcrossr_dotn * rmag_inv_3;
-	    //}        
+            B_GI(i) += fak * GIcrossr_dotn * rmag_inv_3;
 	}
     }
     return B_GI;
