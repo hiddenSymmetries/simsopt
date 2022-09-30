@@ -286,7 +286,7 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
 }
 
 // Calculate the geometric factor needed for the A^B term in winding surface optimization
-Array winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int nfp, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
+std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int nfp, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points_plasma.layout() != xt::layout_type::row_major)
@@ -316,6 +316,7 @@ Array winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& 
     // Loop through the evaluation points by chunks of simd_size
     // #pragma omp parallel for schedule(static)
     //for(int i = 0; i < num_plasma; i += simd_size) {
+    #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         double npx = normal_plasma(i, 0); 
         double npy = normal_plasma(i, 1); 
@@ -369,14 +370,15 @@ Array winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& 
 	    }
 	}
     }
-    return Ajk; 
+    return std::make_tuple(gj, Ajk); 
 }
 
-Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, int nfp, bool stellsym, Array& zeta_coil, Array& theta_coil, Array& G, Array& I, dr_dtheta_coil, dr_dzeta_coil) {
+Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, int nfp, bool stellsym, Array& zeta_coil, Array& theta_coil, Array& G, Array& I, Array& gammadash1, Array& gammadash2) {
 
     int num_plasma = normal_plasma.shape(0);
-    int num_coil = normal_coil.shape(0);
+    int num_coil = points_coil.shape(0);
     Array B_GI = xt::zeros<double>({num_plasma});
+    #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         double nx = normal_plasma(i, 0);
 	double ny = normal_plasma(i, 1);
@@ -389,13 +391,13 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
             double rmag_inv = 1.0 / std::sqrt(rmag2);
             double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
             //for(int k = 0; k < nfp; k++) {
-	    double GIx = G(j) * dr_dtheta_coil(j, 0) - I(j) * dr_dzeta_coil(j, 0);
-	    double GIy = G(j) * dr_dtheta_coil(j, 1) - I(j) * dr_dzeta_coil(j, 1);
-	    double GIz = G(j) * dr_dtheta_coil(j, 2) - I(j) * dr_dzeta_coil(j, 2);
-	    double GIcrossr_dotn = nx * () + ny * () + nz * ();
+	    double GIx = G(j) * gammadash2(j, 0) - I(j) * gammadash1(j, 0);
+	    double GIy = G(j) * gammadash2(j, 1) - I(j) * gammadash1(j, 1);
+	    double GIz = G(j) * gammadash2(j, 2) - I(j) * gammadash1(j, 2);
+	    double GIcrossr_dotn = nx * (GIy * rz - GIz * ry) + ny * (GIz * rx - GIx * rz) + nz * (GIx * ry - GIy * rx);
             B_GI(i) += GIcrossr_dotn * rmag_inv_3;
 	    //}        
 	}
     }
-    return B_GI
+    return B_GI;
 }
