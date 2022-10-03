@@ -5,7 +5,7 @@ import numpy as np
 
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
-    vmec_fieldlines
+    vmec_splines, vmec_compute_geometry, vmec_fieldlines
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
@@ -423,6 +423,36 @@ class WellWeightedTests(unittest.TestCase):
         logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
         logger.info(f"relative error: {relative_error}")
         self.assertLessEqual(relative_error, 5.e-2)
+
+
+class VmecComputeGeometryTests(unittest.TestCase):
+    def test_1d_matches_3d(self):
+        """
+        If we call the function with 1d arrays for theta and phi,
+        we should get the same results as if we call the routine with
+        equivalent 3d arrays for theta and phi.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
+        splines = vmec_splines(vmec)
+        s = 0.5
+        theta = [0.2, 0.7, -10.2]
+        phi = [-9.9, -4.4, 0, 3.3, 7.7]
+        ntheta = len(theta)
+        nphi = len(phi)
+
+        theta3d = np.zeros((1, ntheta, nphi))
+        phi3d = np.zeros_like(theta3d)
+        for jtheta in range(ntheta):
+            theta3d[:, jtheta, :] = theta[jtheta]
+        for jphi in range(nphi):
+            phi3d[:, :, jphi] = phi[jphi]
+
+        results1 = vmec_compute_geometry(splines, s, theta, phi)
+        results2 = vmec_compute_geometry(vmec, np.array([s]), theta3d, phi3d)
+
+        variables = ["theta_pest", "grad_psi_dot_grad_psi", "B_cross_kappa_dot_grad_psi"]
+        for v in variables:
+            np.testing.assert_allclose(eval("results1." + v), eval("results2." + v))
 
 
 class VmecFieldlinesTests(unittest.TestCase):
