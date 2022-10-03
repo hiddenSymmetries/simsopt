@@ -110,6 +110,7 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 
+#if(include_xsimd)
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
