@@ -379,7 +379,7 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
     int num_coil = points_coil.shape(0);
     double fak = 1e-7 / (2.0 * M_PI);  // mu0 divided by 8 * pi^2 factor
     Array B_GI = xt::zeros<double>({num_plasma});
-    #pragma omp parallel for schedule(static)
+    //#pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         double nx = normal_plasma(i, 0);
 	double ny = normal_plasma(i, 1);

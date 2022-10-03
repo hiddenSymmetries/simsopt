@@ -216,6 +216,7 @@ class Testing(unittest.TestCase):
             f = netcdf_file(filename, 'r')
             Bnormal_regcoil = f.variables['Bnormal_total'][()][-1, :, :]
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
+            Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
             Bnormal_regcoil = Bnormal_regcoil - Bnormal_from_plasma_current
             r_plasma = f.variables['r_plasma'][()]
             r_coil = f.variables['r_coil'][()]
@@ -240,6 +241,7 @@ class Testing(unittest.TestCase):
             #B_matrix_regcoil = f.variables['matrix_B'][()]
             #print('Bregcoil = ', B_matrix_regcoil)
             print('b_rhs = ', b_rhs_regcoil)
+            print('B_GI_regcoil = ', Bnormal_from_net_coil_currents, Bnormal_from_net_coil_currents.shape)
 
             rmnc_coil = f.variables['rmnc_coil'][()]
             zmns_coil = f.variables['zmns_coil'][()]
@@ -296,6 +298,7 @@ class Testing(unittest.TestCase):
             print('optimized dofs = ', optimized_dofs)
             cp.set_dofs(optimized_dofs)
             print('Current potential MN = ', single_valued_current_potential_mn)
+            exit()
 
             # Initialize Bfield from optimized CurrentPotential
             Bfield = WindingSurfaceField(cp)
