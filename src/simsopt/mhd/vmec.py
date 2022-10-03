@@ -31,7 +31,7 @@ except ImportError as e:
 
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
-from ..geo.surfacerzfourier import SurfaceRZFourier
+#from ..geo.surfacerzfourier import SurfaceRZFourier
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
@@ -346,28 +346,28 @@ class Vmec(Optimizable):
             # by the user.
             quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
             quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-            self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                              stellsym=not vi.lasym,
-                                              mpol=vi.mpol,
-                                              ntor=vi.ntor,
-                                              quadpoints_theta=quadpoints_theta,
-                                              quadpoints_phi=quadpoints_phi)
+            #self._boundary = SurfaceRZFourier(nfp=vi.nfp,
+            #                                  stellsym=not vi.lasym,
+            #                                  mpol=vi.mpol,
+            #                                  ntor=vi.ntor,
+            #                                  quadpoints_theta=quadpoints_theta,
+            #                                  quadpoints_phi=quadpoints_phi)
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
-            for m in range(vi.mpol + 1):
-                for n in range(-vi.ntor, vi.ntor + 1):
-                    self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
-                    self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
-                    if vi.lasym:
-                        self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
-                        self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+            #for m in range(vi.mpol + 1):
+            #    for n in range(-vi.ntor, vi.ntor + 1):
+            #        self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+            #        self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+            #        if vi.lasym:
+            #            self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
+            #            self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
             self._boundary.local_full_x = self._boundary.get_dofs()
 
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
+            #self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
             self.output_file = filename
             self.load_wout()
 
