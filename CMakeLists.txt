@@ -92,7 +92,51 @@ add_subdirectory(thirdparty/fmt)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
+set(power9 "ON")
+if(power9)
+pybind11_add_module(${PROJECT_NAME}
+    src/simsoptpp/python.cpp
+    src/simsoptpp/python_surfaces.cpp
+    src/simsoptpp/python_curves.cpp
+    #src/simsoptpp/python_magneticfield.cpp
+    #src/simsoptpp/python_tracing.cpp
+    src/simsoptpp/python_distance.cpp
+    #src/simsoptpp/biot_savart_py.cpp
+    #src/simsoptpp/biot_savart_vjp_py.cpp
+    #src/simsoptpp/regular_grid_interpolant_3d_py.cpp
+    src/simsoptpp/curve.cpp
+    src/simsoptpp/curverzfourier.cpp
+    src/simsoptpp/curvexyzfourier.cpp
+    src/simsoptpp/surface.cpp
+    #src/simsoptpp/surfacerzfourier.cpp
+    src/simsoptpp/surfacexyzfourier.cpp
+    src/simsoptpp/dommaschk.cpp
+    src/simsoptpp/reiman.cpp
+    #src/simsoptpp/tracing.cpp 
+    #src/simsoptpp/magneticfield_biotsavart.cpp
+    #src/simsoptpp/python_boozermagneticfield.cpp
+    src/simsoptpp/boozerradialinterpolant.cpp
+    )
 
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON)
+
+        target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+        target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+
+if(NOT Boost_FOUND)
+    add_dependencies(${PROJECT_NAME} ${boost_target})
+endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+# target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+else(NOT power9)
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
@@ -110,9 +154,8 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 
-#if(include_xsimd)
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+	target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+	target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
@@ -124,14 +167,14 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
-set_target_properties(profiling
+	add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
+	set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
-target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-target_link_libraries(profiling PRIVATE fmt::fmt)
-
+	target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+	target_link_libraries(profiling PRIVATE fmt::fmt)
+endif()
 
 
 #get_cmake_property(_variableNames VARIABLES)
