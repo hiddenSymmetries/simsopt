@@ -71,8 +71,8 @@ class IntegratedTests(unittest.TestCase):
 
             # Check results
             self.assertAlmostEqual(surf.get_rc(0, 0), 1.0, places=13)
-            self.assertAlmostEqual(surf.get_rc(1, 0), 0.10962565115956417, places=13)
-            self.assertAlmostEqual(surf.get_zs(0, 0), 0.0, places=13)
+            self.assertAlmostEqual(surf.get_rc(1, 0), 0.10962565115956417, places=12)
+            self.assertAlmostEqual(surf.get_zs(0, 0), 0.0, places=12)
             self.assertAlmostEqual(surf.get_zs(1, 0), 0.27727411213693337, places=12)
             self.assertAlmostEqual(surf.volume(), desired_volume, places=8)
             self.assertAlmostEqual(surf.area(), desired_area, places=8)

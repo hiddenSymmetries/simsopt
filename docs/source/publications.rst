@@ -65,19 +65,22 @@ Here is a list of publications in which simsopt results appear:
 
 #. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
      "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
-     *Submitted*, (2022).
+     *Journal of Plasma Physics*, **88**, 905880401 (2022).
+     `[journal version] <https://doi.org/10.1017/S0022377822000563>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
    |
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
-     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
-     *Submitted*, (2022).
+     "Stochastic and a-posteriori optimization to mitigate coil manufacturing errors in stellarator design",
+     *Plasma Physics and Controlled Fusion*, **64**, 105021 (2022).
+     `[journal version] <https://doi.org/10.1088/1361-6587/ac89ee>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
    |
 
 #. | M Landreman, S Buller, and M Drevlak,
      "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
-     *Submitted* (2022).
+     *Physics of Plasmas*, **29**, 082501 (2022).
+     `[journal version] <https://doi.org/10.1063/5.0098166>`__
      `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |
 
@@ -86,3 +89,22 @@ Here is a list of publications in which simsopt results appear:
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
    |
+
+#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
+     "Permanent magnet optimization for stellarators as sparse regression",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
+   |
+
+#. | E J Paul, A Bhattacharjee, M Landreman, D Alex, J L Velasco, and R Nies
+     "Energetic particle loss mechanisms in reactor-scale equilibria close to quasisymmetry",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
+   |
+
+#. | A Kaptanoglu, R Conrad, and M Landreman
+     "Greedy permanent magnet optimization",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
+   |
+

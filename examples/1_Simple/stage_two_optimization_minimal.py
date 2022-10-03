@@ -28,7 +28,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves, \
-    CurveLength, plot, curves_to_vtk
+    CurveLength, curves_to_vtk
 from simsopt.field import Current, coils_via_symmetries, BiotSavart
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 

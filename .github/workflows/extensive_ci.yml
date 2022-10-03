@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.7.12, 3.8.12, 3.9.6] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
+        python-version: [3.7.13, 3.8.13, 3.9.13] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
         include:
-            - python-version: 3.9.6
+            - python-version: 3.9.13
               test-type: unit
               packages: none
-            - python-version: 3.9.6
+            - python-version: 3.9.13
               test-type: integrated
               packages: none
 
@@ -98,7 +98,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
+           pip install wheel numpy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -107,7 +107,6 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
-    # Checking out SPEC is a tricky because it is a private repository.
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
@@ -117,6 +116,13 @@ jobs:
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
+
+    # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
+    - name: Install py_spec
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      run: |
+        pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
@@ -240,7 +246,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8.12
+        python-version: 3.8.13
 
     - name: Install coverage
       run: pip install coverage
