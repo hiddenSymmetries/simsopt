@@ -1,0 +1,29 @@
+! For documentation of these input parameters and their default values, see the manual.
+
+&regcoil_nml
+  save_level=0
+  nlambda = 3
+  lambda_min = 1e-15
+  lambda_max = 1e+100
+
+  ntheta_plasma = 32
+  ntheta_coil   = 32
+  nzeta_plasma  = 32
+  nzeta_coil    = 32
+  mpol_potential = 6
+  ntor_potential = 7
+
+
+  geometry_option_plasma = 1
+  R0_plasma = 6
+  a_plasma = 2
+
+  geometry_option_coil = 1
+  R0_coil = 6.5
+  a_coil = 4
+
+  net_poloidal_current_Amperes = 1.0e6
+  net_toroidal_current_Amperes = 0.0
+
+  symmetry_option = 1
+/
