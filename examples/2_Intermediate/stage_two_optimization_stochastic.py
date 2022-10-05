@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.geo import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
 from simsopt.field import BiotSavart
 from simsopt.field import Current, Coil, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
