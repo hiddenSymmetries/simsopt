@@ -477,6 +477,7 @@ class JsonTest(unittest.TestCase):
         x = json.loads(djson, cls=GSONDecoder)
         self.assertEqual(type(x), ObjectId)
 
+    @unittest.skipIf(pd is None or ObjectId is None, "pandas/bson not found")
     def test_jsanitize(self):
         # clean_json should have no effect on None types.
         d = {"hello": 1, "world": None}
