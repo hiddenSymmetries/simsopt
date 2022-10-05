@@ -15,11 +15,11 @@ TEST_DIR = Path(__file__).parent / ".." / "test_files"
 class Testing(unittest.TestCase):
 
     def test_windingsurface_exact(self):
-        """ 
+        """
             Make an infinitesimally thin current loop in the Z = 0 plane
             Following approximate analytic solution in Jackson 5.37 for the
             vector potential A. From this, we can also check calculations for
-            B, dA/dX and dB/dX using the WindingSurface class. 
+            B, dA/dX and dB/dX using the WindingSurface class.
         """
         nphi = 128
         ntheta = 8
@@ -88,7 +88,7 @@ class Testing(unittest.TestCase):
         alpha2 = 1 + r ** 2 - 2 * r * np.sin(theta)
         beta2 = 1 + r ** 2 + 2 * r * np.sin(theta)
         k2 = 1 - alpha2 / beta2
-        Br = C * np.cos(theta) * ellipe(k2) / (alpha2 * np.sqrt(beta2)) 
+        Br = C * np.cos(theta) * ellipe(k2) / (alpha2 * np.sqrt(beta2))
         Btheta = C * ((r ** 2 + np.cos(2 * theta)) * ellipe(k2) - alpha2 * ellipk(k2)) / (2 * alpha2 * np.sqrt(beta2) * np.sin(theta))
 
         # convert B_analytic to Cartesian
@@ -110,7 +110,7 @@ class Testing(unittest.TestCase):
         rho = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2)
         Bx_dx = C * z * (((- gamma * (3 * z ** 2 + 1) + rho ** 2 * (8 * x ** 2 - y ** 2)) - (rho ** 4 * (5 * x ** 2 + y ** 2) - 2 * rho ** 2 * z ** 2 * (2 * x ** 2 + y ** 2) + 3 * z ** 4 * gamma) - r ** 4 * (2 * x ** 4 + gamma * (y ** 2 + z ** 2))) * ellipe(k2) + (gamma * (1 + 2 * z ** 2) - rho ** 2 * (3 * x ** 2 - 2 * y ** 2) + r ** 2 * (2 * x ** 4 + gamma * (y ** 2 + z ** 2))) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4)
 
-        Bx_dy = C * x * y * z * ((3 * (3 * rho ** 2 - 2 * z ** 2) - r ** 4 * (2 * r ** 2 + rho ** 2) - 2 - 2 * (2 * rho ** 4 - rho ** 2 * z ** 2 + 3 * z ** 4)) * ellipe(k2) + (r ** 2 * (2 * r ** 2 + rho ** 2) - (5 * rho ** 2 - 4 * z ** 2) + 2) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4) 
+        Bx_dy = C * x * y * z * ((3 * (3 * rho ** 2 - 2 * z ** 2) - r ** 4 * (2 * r ** 2 + rho ** 2) - 2 - 2 * (2 * rho ** 4 - rho ** 2 * z ** 2 + 3 * z ** 4)) * ellipe(k2) + (r ** 2 * (2 * r ** 2 + rho ** 2) - (5 * rho ** 2 - 4 * z ** 2) + 2) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4)
         Bx_dz = C * x * (((rho ** 2 - 1) ** 2 * (rho ** 2 + 1) + 2 * z ** 2 * (1 - 6 * rho ** 2 + rho ** 4) + z ** 4 * (1 + rho ** 2)) * ellipe(k2) - ((rho ** 2 - 1) ** 2 + z ** 2 * (rho ** 2 + 1)) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 2)
         By_dx = Bx_dy
         By_dy = C * z * (((gamma * (3 * z ** 2 + 1) + rho ** 2 * (8 * y ** 2 - x ** 2)) - (rho ** 4 * (5 * y ** 2 + x ** 2) - 2 * rho ** 2 * z ** 2 * (2 * y ** 2 + x ** 2) - 3 * z ** 4 * gamma) - r ** 4 * (2 * y ** 4 - gamma * (x ** 2 + z ** 2))) * ellipe(k2) + ((- gamma * (1 + 2 * z ** 2) - rho ** 2 * (3 * y ** 2 - 2 * x ** 2)) + r ** 2 * (2 * y ** 4 - gamma * (x ** 2 + z ** 2))) * alpha2 * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2) * rho ** 4)
@@ -119,7 +119,7 @@ class Testing(unittest.TestCase):
         Bz_dy = By_dz
         Bz_dz = C * z * ((6 * (rho ** 2 - z ** 2) - 7 + r ** 4) * ellipe(k2) + alpha2 * (1 - r ** 2) * ellipk(k2)) / (2 * alpha2 ** 2 * beta2 ** (3 / 2))
         dB_analytic = np.transpose(np.array([[Bx_dx, Bx_dy, Bx_dz],
-                                             [By_dx, By_dy, By_dz], 
+                                             [By_dx, By_dy, By_dz],
                                              [Bz_dx, Bz_dy, Bz_dz]]), [2, 0, 1])
 
         assert np.allclose(dB_predict, dB_analytic)
@@ -238,6 +238,7 @@ class Testing(unittest.TestCase):
             K2_regcoil = f.variables['K2'][()][-1, :, :]
             lambda_regcoil = f.variables['lambda'][()]
             b_rhs_regcoil = f.variables['RHS_B'][()]
+            k_rhs_regcoil = f.variables['RHS_regularization'][()]
             #B_matrix_regcoil = f.variables['matrix_B'][()]
             #print('Bregcoil = ', B_matrix_regcoil)
             print('b_rhs = ', b_rhs_regcoil)
@@ -253,7 +254,7 @@ class Testing(unittest.TestCase):
             mpol_coil = int(np.max(xm_coil))
             ntor_coil = int(np.max(xn_coil)/nfp)
 
-            s_plasma = SurfaceRZFourier(nfp=nfp, 
+            s_plasma = SurfaceRZFourier(nfp=nfp,
                                         mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
             s_plasma = s_plasma.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
                                                  mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym, range="field period")
@@ -266,7 +267,7 @@ class Testing(unittest.TestCase):
 
             quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
             quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
-            s_coil = SurfaceRZFourier(nfp=nfp, 
+            s_coil = SurfaceRZFourier(nfp=nfp,
                                       mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
             s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
                                              mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym, range='full torus')
@@ -292,7 +293,19 @@ class Testing(unittest.TestCase):
             # initialize a solver object for the cp CurrentPotential
             cpst = CurrentPotentialSolveTikhonov(cp)
 
-            # Solve the least-squares problem with the specified plasma 
+            k_matrix = cpst.K_matrix()
+            k_rhs = cpst.K_rhs()
+
+            assert np.allclose(k_rhs,k_rhs_regcoil)
+            # import matplotlib.pyplot as plt
+
+            # plt.figure()
+            # plt.plot(K_rhs)
+            #
+            # plt.figure()
+            # plt.plot(k_rhs_regcoil)
+            # plt.show()
+            # Solve the least-squares problem with the specified plasma
             # quadrature points, normal vector, and Bnormal at these quadrature points
             optimized_dofs = cpst.solve(s_plasma, np.ravel(Bnormal_from_plasma_current), lam=lambda_regcoil)
             print('optimized dofs = ', optimized_dofs)
