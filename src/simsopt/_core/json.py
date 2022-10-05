@@ -15,7 +15,6 @@ import pathlib
 import types
 from collections import OrderedDict, defaultdict
 from enum import Enum
-from hashlib import sha1
 from importlib import import_module
 from inspect import getfullargspec
 from uuid import UUID
@@ -36,11 +35,6 @@ try:
     import pandas as pd
 except ImportError:
     pd = None  # type: ignore
-
-try:
-    import pydantic
-except ImportError:
-    pydantic = None  # type: ignore
 
 try:
     import bson
@@ -157,6 +151,8 @@ class GSONable:
                 return [recursive_as_dict(it) for it in obj]
             if isinstance(obj, dict):
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
+            if callable(obj) and not isinstance(obj, GSONable):
+                return _serialize_callable(obj, serial_objs_dict=serial_objs_dict)
             if hasattr(obj, "as_dict"):
                 name = getattr(obj, "name", str(id(obj)))
                 if name not in serial_objs_dict:  # Add the path
@@ -210,37 +206,7 @@ class GSONable:
         """
         Returns a json string representation of the GSONable object.
         """
-        return json.dumps(self, cls=GSONEncoder)
-
-    def unsafe_hash(self):
-        """
-        Returns an hash of the current object. This uses a generic but low
-        performance method of converting the object to a dictionary, flattening
-        any nested keys, and then performing a hash on the resulting object
-        """
-
-        def flatten(obj, seperator="."):
-            # Flattens a dictionary
-
-            flat_dict = {}
-            for key, value in obj.items():
-                if isinstance(value, dict):
-                    flat_dict.update(
-                        {seperator.join([key, _key]): _value for
-                         _key, _value in flatten(value).items()})
-                elif isinstance(value, list):
-                    list_dict = {f"{key}{seperator}{num}": item for
-                                 num, item in enumerate(value)}
-                    flat_dict.update(flatten(list_dict))
-                else:
-                    flat_dict[key] = value
-
-            return flat_dict
-
-        ordered_keys = sorted(flatten(jsanitize(self.as_dict())).items(),
-                              key=lambda x: x[0])
-        ordered_keys = [item for item in ordered_keys if "@" not in item[0]]
-        return sha1(json.dumps(OrderedDict(ordered_keys)).encode("utf-8"))
+        return json.dumps(SIMSON(self), cls=GSONEncoder)
 
     @classmethod
     def __get_validators__(cls):
@@ -334,12 +300,15 @@ class SIMSON:
                 return [recursive_as_dict(it) for it in obj]
             if isinstance(obj, dict):
                 return {kk: recursive_as_dict(vv) for kk, vv in obj.items()}
+            if callable(obj) and not isinstance(obj, GSONable):
+                return _serialize_callable(obj, serial_objs_dict=serial_objs_dict)
             if hasattr(obj, "as_dict"):
-                if obj.name not in serial_objs_dict:  # Add the path
+                name = getattr(obj, "name", str(id(obj)))
+                if name not in serial_objs_dict:  # Add the path
                     serial_obj = obj.as_dict(
-                        serial_objs_dict)  # serial_objs is modified in place
-                    serial_objs_dict[obj.name] = serial_obj
-                return {"$type": "ref", "value": obj.name}
+                        serial_objs_dict=serial_objs_dict)  # serial_objs is modified in place
+                    serial_objs_dict[name] = serial_obj
+                return {"$type": "ref", "value": name}
             return obj
 
         d["graph"] = recursive_as_dict(self.simsopt_objs)
@@ -430,12 +399,9 @@ class GSONEncoder(json.JSONEncoder):
             return _serialize_callable(o)
 
         try:
-            if pydantic is not None and isinstance(o, pydantic.BaseModel):
-                d = o.dict()
-            else:
-                d = o.as_dict()
-                if hasattr(o, "name") and "@name" not in d:
-                    d["@name"] = o.name
+            d = o.as_dict()
+            if hasattr(o, "name") and "@name" not in d:
+                d["@name"] = o.name
 
             if "@module" not in d:
                 d["@module"] = str(o.__class__.__module__)
@@ -497,7 +463,8 @@ class GSONDecoder(json.JSONDecoder):
                     # if the function is bound to an instance or class, first
                     # deserialize the bound object and then remove the object name
                     # from the function name.
-                    obj = self.process_decoded(d["@bound"], serial_objs_dict)
+                    obj = self.process_decoded(d["@bound"], serial_objs_dict=serial_objs_dict,
+                                               recon_objs=recon_objs)
                     objname = objname.split(".")[1:]
                 else:
                     # if the function is not bound to an object, import the
@@ -546,9 +513,6 @@ class GSONDecoder(json.JSONDecoder):
                             if "@name" in d:
                                 recon_objs[d["@name"]] = obj
                             return obj
-                        if pydantic is not None and issubclass(cls_,
-                                                               pydantic.BaseModel):  # pylint: disable=E1101
-                            return cls_(**data)
                 elif np is not None and modname == "numpy" and classname == "array":
                     if d["dtype"].startswith("complex"):
                         return np.array(
@@ -599,7 +563,7 @@ class GSONError(Exception):
 
 
 def jsanitize(obj, strict=False, allow_bson=False, enum_values=False,
-              recursive_msonable=False):
+              recursive_gsonable=False, serial_objs_dict=None):
     """
     This method cleans an input json-like object, either a list or a dict or
     some sequence, nested or otherwise, by converting all non-string
@@ -618,11 +582,14 @@ def jsanitize(obj, strict=False, allow_bson=False, enum_values=False,
             True, such bson types will be ignored, allowing for proper
             insertion into MongoDB databases.
         enum_values (bool): Convert Enums to their values.
-        recursive_msonable (bool): If True, uses .as_dict() for GSONables regardless
+        recursive_gsonable (bool): If True, uses .as_dict() for GSONables regardless
             of the value of strict.
+        serial_objs_dict: Dictionary of serialized objects produced during jsonification
     Returns:
         Sanitized dict that can be json serialized.
     """
+    if serial_objs_dict is None:
+        serial_objs_dict = {}
     if isinstance(obj, Enum) and enum_values:
         return obj.value
 
@@ -648,7 +615,7 @@ def jsanitize(obj, strict=False, allow_bson=False, enum_values=False,
                 strict=strict,
                 allow_bson=allow_bson,
                 enum_values=enum_values,
-                recursive_msonable=recursive_msonable,
+                recursive_gsonable=recursive_gsonable,
             )
             for k, v in obj.items()
         }
@@ -665,8 +632,8 @@ def jsanitize(obj, strict=False, allow_bson=False, enum_values=False,
         except TypeError:
             pass
 
-    if recursive_msonable and isinstance(obj, GSONable):
-        return obj.as_dict()
+    if recursive_gsonable and isinstance(obj, GSONable):
+        return obj.as_dict(serial_objs_dict=serial_objs_dict)
 
     if not strict:
         return str(obj)
@@ -674,26 +641,16 @@ def jsanitize(obj, strict=False, allow_bson=False, enum_values=False,
     if isinstance(obj, str):
         return obj
 
-    if pydantic is not None and isinstance(obj,
-                                           pydantic.BaseModel):  # pylint: disable=E1101
-        return jsanitize(
-            GSONEncoder().default(obj),
-            strict=strict,
-            allow_bson=allow_bson,
-            enum_values=enum_values,
-            recursive_msonable=recursive_msonable,
-        )
-
     return jsanitize(
-        obj.as_dict(),
+        obj.as_dict(serial_objs_dict=serial_objs_dict),
         strict=strict,
         allow_bson=allow_bson,
         enum_values=enum_values,
-        recursive_msonable=recursive_msonable,
+        recursive_gsonable=recursive_gsonable,
     )
 
 
-def _serialize_callable(o):
+def _serialize_callable(o, serial_objs_dict={}):
     if isinstance(o, types.BuiltinFunctionType):
         # don't care about what builtin functions (sum, open, etc) are bound to
         bound = None
@@ -705,11 +662,14 @@ def _serialize_callable(o):
     # we are only able to serialize bound methods if the object the method is
     # bound to is itself serializable
     if bound is not None:
-        try:
-            bound = GSONEncoder().default(bound)
-        except TypeError:
-            raise TypeError(
-                "Only bound methods of classes or GSONable instances are supported.")
+        if isinstance(bound, GSONable):
+            bound = bound.as_dict(serial_objs_dict=serial_objs_dict)
+        else:
+            try:
+                bound = GSONEncoder().default(bound)
+            except TypeError:
+                raise TypeError(
+                    "Only bound methods of classes or GSONable instances are supported.")
 
     return {
         "@module": o.__module__,
