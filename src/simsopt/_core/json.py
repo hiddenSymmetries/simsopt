@@ -18,12 +18,8 @@ from enum import Enum
 from importlib import import_module
 from inspect import getfullargspec
 from uuid import UUID
+import numpy as np
 
-
-try:
-    import numpy as np
-except ImportError:
-    np = None  # type: ignore
 
 try:
     import jax
@@ -139,9 +135,6 @@ class GSONable:
             d["@version"] = str(module_version)
         except (AttributeError, ImportError):
             d["@version"] = None  # type: ignore
-
-        # if serial_objs_dict is None:
-        #     serial_objs_dict = {}
 
         spec = getfullargspec(self.__class__.__init__)
         args = spec.args
