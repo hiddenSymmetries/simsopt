@@ -140,7 +140,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>

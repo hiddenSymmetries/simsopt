@@ -41,7 +41,8 @@ void init_tracing(py::module_ &m){
         py::arg("vacuum"),
         py::arg("noK"),
         py::arg("zetas")=vector<double>{},
-        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
+        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
+        py::arg("vpars")=vector<double>{}
         );
 
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,

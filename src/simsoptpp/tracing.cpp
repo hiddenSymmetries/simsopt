@@ -370,7 +370,7 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool flux=false)
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool flux=false)
 {
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_phi_hits = {};
@@ -382,10 +382,12 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     int iter = 0;
     bool stop = false;
     double phi_last = get_phi(y[0], y[1], M_PI);
+    double vpar_last = 0;
     if (flux) {
       phi_last = y[2];
+      vpar_last = y[3];
     }
-    double phi_current;
+    double phi_current, vpar_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
     uintmax_t rootmaxit = 200;
     State temp;
@@ -398,9 +400,26 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         phi_current = get_phi(y[0], y[1], phi_last);
         if (flux) {
           phi_current = y[2];
+          vpar_current = y[3];
         }
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
+        // Now check whether we have hit any of the vpar planes
+        for (int i = 0; i < vpars.size(); ++i) {
+            double vpar = vpars[i];
+            if( (vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
+                std::function<double(double)> rootfun = [&dense, &temp, &vpar_last, &vpar](double t){
+                    dense.calc_state(t, temp);
+                    return temp[3]-vpar;
+                };
+                auto root = toms748_solve(rootfun, tlast, tcurrent, vpar_last-vpar, vpar_current-vpar, roottol, rootmaxit);
+                double f0 = rootfun(root.first);
+                double f1 = rootfun(root.second);
+                double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
+                dense.calc_state(troot, temp);
+                res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i) + phis.size()}, temp));
+            }
+        }
         // Now check whether we have hit any of the phi planes
         for (int i = 0; i < phis.size(); ++i) {
             double phi = phis[i];
@@ -422,27 +441,19 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double f1 = rootfun(root.second);
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
-                // double rroot = std::sqrt(temp[0]*temp[0] + temp[1]*temp[1]);
-                // double phiroot = std::atan2(temp[1], temp[0]);
-                // if(phiroot<0)
-                //     phiroot += 2*M_PI;
-                //fmt::print("root=({:.5f}, {:.5f}), tlast={:.5f}, phi_last={:.5f}, tcurrent={:.5f}, phi_current={:.5f}, phi_shift={:.5f}, phi_root={:.5f}\n", std::get<0>(root), std::get<1>(root), tlast, phi_last, tcurrent, phi_current, phi_shift, get_phi(temp[0], temp[1], phi_last));
-                //fmt::print("t={:.5f}, xyz=({:.5f}, {:.5f}, {:.5f}), rphiz=({}, {}, {})\n", troot, temp[0], temp[1], temp[2], rroot, phiroot, temp[2]);
-                //fmt::print("x={}, y={}, phi={}\n", temp[0], temp[1], std::atan2(temp[1], temp[0]));
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, temp));
             }
         }
         // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
         for (int i = 0; i < stopping_criteria.size(); ++i) {
             if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2], y[3])){
-
-            // if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2])){
                 stop = true;
                 res_phi_hits.push_back(join<2, RHS::Size>({t, -1-double(i)}, y));
                 break;
             }
         }
         phi_last = phi_current;
+        vpar_last = vpar_current;
     } while(t < tmax && !stop);
     if(!stop){
         dense.calc_state(tmax, y);
@@ -470,7 +481,7 @@ particle_guiding_center_tracing(
 
     if(vacuum){
         auto rhs_class = GuidingCenterVacuumRHS<T>(field, m, q, mu);
-        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
     }
     else
         throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
@@ -481,7 +492,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -497,13 +508,13 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
     }
 }
 
@@ -511,7 +522,7 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars={});
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
@@ -535,7 +546,7 @@ particle_fullorbit_tracing(
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
 }
 
 template
@@ -556,7 +567,7 @@ fieldline_tracing(
     double AbsB = field->AbsB_ref()(0);
     double dtmax = r0*0.5*M_PI/AbsB; // can at most do quarter of a revolution per step
     double dt = 1e-5 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-    return solve(rhs_class, xyz_init, tmax, dt, dtmax, tol, phis, stopping_criteria);
+    return solve(rhs_class, xyz_init, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
 }
 
 template
