@@ -3,7 +3,6 @@ from math import sin, cos
 import numpy as np
 from jax import vjp, jacfwd, jvp
 import jax.numpy as jnp
-from monty.dev import requires
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable

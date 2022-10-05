@@ -964,7 +964,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
     @property
     def x0(self):
         """
-        To satisfy the attribute
+        Mimics dataclass behavior for Optimizable
         """
         return self.local_full_x
 

@@ -539,11 +539,3 @@ class BoozerSurface(GSONable):
         res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
                "G": G, "s": s, "iota": iota}
         return res
-
-    # @classmethod
-    # def from_dict(cls, d, serial_objs_dict, recon_objs):
-
-    #     decoder = MontyDecoder()
-    #     bs = decoder.process_decoded(d["biotsavart"])
-    #     surf = decoder.process_decoded(d["surface"])
-    #     return cls(bs, surf, d["label"], d["targetlabel"])
