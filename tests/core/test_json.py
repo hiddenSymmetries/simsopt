@@ -23,7 +23,10 @@ import unittest
 from enum import Enum
 
 import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 from bson.objectid import ObjectId
 
 from simsopt._core.json import GSONDecoder, GSONEncoder, GSONable, _load_redirect, jsanitize, SIMSON
@@ -389,6 +392,7 @@ class JsonTest(unittest.TestCase):
         self.assertIsInstance(obj.np_a["a"][0]["b"], np.ndarray)
         self.assertEqual(obj.np_a["a"][0]["b"][0][1], 2 + 1j)
 
+    @unittest.skipIf(pd is None, "Pandas not found")
     def test_pandas(self):
 
         cls = ClassContainingDataFrame(df=pd.DataFrame([{"a": 1, "b": 1}, {"a": 1, "b": 2}]))
