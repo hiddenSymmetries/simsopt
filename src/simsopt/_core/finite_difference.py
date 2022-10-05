@@ -337,6 +337,10 @@ class MPIFiniteDifference:
         ARB_VAL = 100
         logger.debug("Entering jac evaluation")
 
+        try:
+            if args is not None: self.opt.non_dofs = args
+        except Exception as e: print(e)
+
         if self.jac_size is None:  # Do one evaluation of code
             if x is None:
                 x = self.x0
