@@ -27,7 +27,10 @@ try:
     import pandas as pd
 except ImportError:
     pd = None
-from bson.objectid import ObjectId
+try:
+    from bson.objectid import ObjectId
+except ImportError:
+    ObjectId = None
 
 from simsopt._core.json import GSONDecoder, GSONEncoder, GSONable, _load_redirect, jsanitize, SIMSON
 
@@ -466,6 +469,7 @@ class JsonTest(unittest.TestCase):
         djson = json.dumps(SIMSON(instance), cls=GSONEncoder)
         self.assertTrue("@class" in djson)
 
+    @unittest.skipIf(ObjectId is None, "bson not found")
     def test_objectid(self):
         oid = ObjectId("562e8301218dcbbc3d7d91ce")
         self.assertRaises(TypeError, json.dumps, oid)
