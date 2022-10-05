@@ -393,7 +393,7 @@ class JsonTest(unittest.TestCase):
 
         cls = ClassContainingDataFrame(df=pd.DataFrame([{"a": 1, "b": 1}, {"a": 1, "b": 2}]))
 
-        json_str =  GSONEncoder().encode(SIMSON(cls))
+        json_str = GSONEncoder().encode(SIMSON(cls))
         obj = json.loads(json_str, cls=GSONDecoder)
         self.assertIsInstance(obj, ClassContainingDataFrame)
         self.assertIsInstance(obj.df, pd.DataFrame)
