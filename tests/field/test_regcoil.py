@@ -207,6 +207,78 @@ class Testing(unittest.TestCase):
 
         assert np.allclose(A_predict, A_analytic)
 
+    def test_winding_surface_regcoil_K_solve(self):
+        """
+        Here we check the solve with lambda -> infinity to test the K matrices and rhs 
+        """
+        stellsym = True
+        # TEST_DIR / 'regcoil_out.li383_infty.nc',
+        for filename in [ TEST_DIR / 'regcoil_out.w7x_infty.nc']:
+            f = netcdf_file(filename, 'r')
+            Bnormal_regcoil = f.variables['Bnormal_total'][()][1, :, :]
+            Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
+            Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
+            Bnormal_regcoil = Bnormal_regcoil - Bnormal_from_plasma_current
+            r_plasma = f.variables['r_plasma'][()]
+            r_coil = f.variables['r_coil'][()]
+            rmnc_plasma = f.variables['rmnc_plasma'][()]
+            zmns_plasma = f.variables['zmns_plasma'][()]
+            xm_plasma = f.variables['xm_plasma'][()]
+            xn_plasma = f.variables['xn_plasma'][()]
+            nfp = f.variables['nfp'][()]
+            mpol_plasma = int(np.max(xm_plasma))
+            ntor_plasma = int(np.max(xn_plasma)/nfp)
+            ntheta_plasma = f.variables['ntheta_plasma'][()]
+            nzeta_plasma = f.variables['nzeta_plasma'][()]
+            mpol_potential = f.variables['mpol_potential'][()]
+            ntor_potential = f.variables['ntor_potential'][()]
+            net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
+            net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
+            xm_potential = f.variables['xm_potential'][()]
+            xn_potential = f.variables['xn_potential'][()]
+            K2_regcoil = f.variables['K2'][()][1, :, :]
+            lambda_regcoil = f.variables['lambda'][()][1]
+            rmnc_coil = f.variables['rmnc_coil'][()]
+            zmns_coil = f.variables['zmns_coil'][()]
+            xm_coil = f.variables['xm_coil'][()]
+            xn_coil = f.variables['xn_coil'][()]
+            ntheta_coil = f.variables['ntheta_coil'][()]
+            nzeta_coil = f.variables['nzeta_coil'][()]
+            mpol_coil = int(np.max(xm_coil))
+            ntor_coil = int(np.max(xn_coil)/nfp)
+            single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
+
+            s_plasma = SurfaceRZFourier(nfp=nfp,
+                                        mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
+            s_plasma = s_plasma.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
+                                                 mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym, range="field period")
+            s_plasma.set_dofs(0*s_plasma.get_dofs())
+            for im in range(len(xm_plasma)):
+                s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
+                s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
+
+            quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
+            quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
+            s_coil = SurfaceRZFourier(nfp=nfp,
+                                      mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
+            s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
+                                             mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym, range='full torus')
+            s_coil.set_dofs(0*s_coil.get_dofs())
+            for im in range(len(xm_coil)):
+                s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
+                s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
+
+            cp = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
+                                         net_poloidal_current_amperes=net_poloidal_current_amperes,
+                                         net_toroidal_current_amperes=net_toroidal_current_amperes)
+
+            # initialize a solver object for the cp CurrentPotential
+            cpst = CurrentPotentialSolveTikhonov(cp)
+
+            optimized_dofs = cpst.solve(s_plasma, 0*np.ravel(Bnormal_from_plasma_current), lam=lambda_regcoil)
+
+            assert np.allclose(single_valued_current_potential_mn,optimized_dofs)
+
     def test_winding_surface_regcoil(self):
         # This compares the normal field from regcoil with that computed from
         # WindingSurface for W7-X and NCSX configuration
@@ -297,14 +369,7 @@ class Testing(unittest.TestCase):
             k_rhs = cpst.K_rhs()
 
             assert np.allclose(k_rhs,k_rhs_regcoil)
-            # import matplotlib.pyplot as plt
 
-            # plt.figure()
-            # plt.plot(K_rhs)
-            #
-            # plt.figure()
-            # plt.plot(k_rhs_regcoil)
-            # plt.show()
             # Solve the least-squares problem with the specified plasma
             # quadrature points, normal vector, and Bnormal at these quadrature points
             optimized_dofs = cpst.solve(s_plasma, np.ravel(Bnormal_from_plasma_current), lam=lambda_regcoil)

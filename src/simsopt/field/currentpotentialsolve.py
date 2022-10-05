@@ -60,14 +60,13 @@ class CurrentPotentialSolveTikhonov:
         normal = self.winding_surface.normal()
         norm_normal = np.linalg.norm(normal, axis=2)
         self.K_matrix_impl(K_matrix)
-        # self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, norm_normal)
-        # self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, norm_normal)
+        self.K_rhs_impl(K_rhs)
 
-        # print(K_rhs)
+        # dofs = np.linalg.solve(K_matrix, K_rhs)
+        # return dofs
 
         theta = self.winding_surface.quadpoints_theta
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
-        #phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         phi_mesh = np.ravel(phi_mesh)
         theta_mesh = np.ravel(theta_mesh)
         normal = self.winding_surface.normal().reshape(-1, 3)
@@ -96,5 +95,5 @@ class CurrentPotentialSolveTikhonov:
         # print('B_matrix = ', B_matrix)
         print('b_matrix = ', b_rhs)
         dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
-        #dofs = np.linalg.solve(B_matrix + lam * K_matrix, B_rhs + lam * K_rhs)
+        dofs = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         return dofs
