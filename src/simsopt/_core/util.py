@@ -16,7 +16,7 @@ from weakref import WeakKeyDictionary
 import numpy as np
 
 from .types import RealArray
-#from simsoptpp import Curve   # To obtain pybind11 metaclass
+from simsoptpp import Curve   # To obtain pybind11 metaclass
 
 __all__ = ['ObjectiveFailure']
 
@@ -138,8 +138,8 @@ class RegisterMeta(type):
         cls.register_return_fn = _register_return_fn
 
 
-class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
-#class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
+# class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
+class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
     """
     Meta class for Optimizable class that works with pybind11. Here
     type(simsoptpp.Curve) is used to obtain the pybind11_type, which can

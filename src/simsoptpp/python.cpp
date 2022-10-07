@@ -11,8 +11,8 @@ typedef xt::pyarray<double> PyArray;
 
 
 
-#include "biot_savart_py.h"
-#include "biot_savart_vjp_py.h"
+// #include "biot_savart_py.h"
+// #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
@@ -24,9 +24,9 @@ using std::shared_ptr;
 
 void init_surfaces(py::module_ &);
 void init_curves(py::module_ &);
-void init_magneticfields(py::module_ &);
-void init_boozermagneticfields(py::module_ &);
-void init_tracing(py::module_ &);
+// void init_magneticfields(py::module_ &);
+// void init_boozermagneticfields(py::module_ &);
+// void init_tracing(py::module_ &);
 void init_distance(py::module_ &);
 
 
@@ -36,16 +36,16 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     init_curves(m);
     init_surfaces(m);
-    init_magneticfields(m);
-    init_boozermagneticfields(m);
-    init_tracing(m);
+    // init_magneticfields(m);
+    // init_boozermagneticfields(m);
+    // init_tracing(m);
     init_distance(m);
 
-    m.def("biot_savart", &biot_savart);
-    m.def("biot_savart_B", &biot_savart_B);
-    m.def("biot_savart_vjp", &biot_savart_vjp);
-    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
-    m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+    // m.def("biot_savart", &biot_savart);
+    // m.def("biot_savart_B", &biot_savart_B);
+    // m.def("biot_savart_vjp", &biot_savart_vjp);
+    // m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
+    // m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
