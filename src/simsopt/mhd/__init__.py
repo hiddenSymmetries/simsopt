@@ -11,4 +11,4 @@ from .boozer import *
 from .spec import *
 
 __all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
-          profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)
+           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)

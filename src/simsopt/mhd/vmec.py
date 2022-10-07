@@ -347,21 +347,21 @@ class Vmec(Optimizable):
             quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
             quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
             self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                             stellsym=not vi.lasym,
-                                             mpol=vi.mpol,
-                                             ntor=vi.ntor,
-                                             quadpoints_theta=quadpoints_theta,
-                                             quadpoints_phi=quadpoints_phi)
+                                              stellsym=not vi.lasym,
+                                              mpol=vi.mpol,
+                                              ntor=vi.ntor,
+                                              quadpoints_theta=quadpoints_theta,
+                                              quadpoints_phi=quadpoints_phi)
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
             for m in range(vi.mpol + 1):
-               for n in range(-vi.ntor, vi.ntor + 1):
-                   self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
-                   self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
-                   if vi.lasym:
-                       self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
-                       self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
+                for n in range(-vi.ntor, vi.ntor + 1):
+                    self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
+                    self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
+                    if vi.lasym:
+                        self._boundary.rs[m, n + vi.ntor] = vi.rbs[101 + n, m]
+                        self._boundary.zc[m, n + vi.ntor] = vi.zbc[101 + n, m]
             self._boundary.local_full_x = self._boundary.get_dofs()
 
             self.need_to_run_code = True

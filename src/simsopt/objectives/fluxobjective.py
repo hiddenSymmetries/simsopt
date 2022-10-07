@@ -1,7 +1,7 @@
 import numpy as np
 from monty.json import MSONable, MontyDecoder, MontyEncoder
 
-#import simsoptpp as sopp
+import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 

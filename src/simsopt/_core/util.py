@@ -138,7 +138,7 @@ class RegisterMeta(type):
         cls.register_return_fn = _register_return_fn
 
 
-# class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
+#class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
 class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
     """
     Meta class for Optimizable class that works with pybind11. Here
