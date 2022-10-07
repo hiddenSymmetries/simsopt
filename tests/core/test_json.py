@@ -252,6 +252,39 @@ class GSONableTest(unittest.TestCase):
         f = jsanitize(d, enum_values=True)
         self.assertEqual(f["123"], 1)
 
+class A(GSONable):
+    def __init__(self, b, c):
+        self.b = b
+        self.c = c
+        self.name = str(id(self))
+
+    def __repr__(self):
+        return f"class: A\nname: {self.name}"
+
+class B(GSONable):
+    def __init__(self, d):
+        self.d = d
+        self.name = str(id(self))
+
+    def __repr__(self):
+        return f"class: B\nname: {self.name}"
+
+class C(GSONable):
+    def __init__(self, d):
+        self.d = d
+        self.name = str(id(self))
+
+    def __repr__(self):
+        return f"class: C\nname: {self.name}"
+
+class D(GSONable):
+    def __init__(self, e=1.0):
+        self.e = e
+        self.name = str(id(self))
+
+    def __repr__(self):
+        return f"class: D\nname: {self.name}"
+
 
 class SIMSONTest(unittest.TestCase):
     def test_nested_to_from_dict(self):
@@ -286,6 +319,22 @@ class SIMSONTest(unittest.TestCase):
         self.assertTrue([obj4.b_dict[kk] == val for kk, val in obj.b_dict.items()])
         self.assertEqual(len(obj.a_list), len(obj4.a_list))
         self.assertEqual(len(obj.b_dict), len(obj4.b_dict))
+
+    def test_diamond_graph_json(self):
+
+        d = D()
+        b = B(d)
+        c = C(d)
+        a1 = A(b, c)
+        a2 = A(b, c)
+        sims_json = SIMSON([a1, a2])
+
+        json_str = json.dumps(sims_json, cls=GSONEncoder)
+        recon_sims = json.loads(json_str, cls=GSONDecoder)
+        new_b1 = recon_sims[0].b
+        new_b2 = recon_sims[1].b
+        self.assertEqual(new_b1.name, new_b2.name)
+        self.assertEqual(id(new_b1.d), id(recon_sims[0].c.d))
 
 
 class JsonTest(unittest.TestCase):
