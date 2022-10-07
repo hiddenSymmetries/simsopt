@@ -252,6 +252,7 @@ class GSONableTest(unittest.TestCase):
         f = jsanitize(d, enum_values=True)
         self.assertEqual(f["123"], 1)
 
+
 class A(GSONable):
     def __init__(self, b, c):
         self.b = b
@@ -261,6 +262,7 @@ class A(GSONable):
     def __repr__(self):
         return f"class: A\nname: {self.name}"
 
+
 class B(GSONable):
     def __init__(self, d):
         self.d = d
@@ -269,6 +271,7 @@ class B(GSONable):
     def __repr__(self):
         return f"class: B\nname: {self.name}"
 
+
 class C(GSONable):
     def __init__(self, d):
         self.d = d
@@ -276,6 +279,7 @@ class C(GSONable):
 
     def __repr__(self):
         return f"class: C\nname: {self.name}"
+
 
 class D(GSONable):
     def __init__(self, e=1.0):
