@@ -31,9 +31,9 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_lin, data, quadpoints_phi, quadpoints_theta);
         }
         virtual void gammadash1_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1_impl, data);
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1_impl, data, quadpoints_phi, quadpoints_theta);
         }
         virtual void gammadash2_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash2_impl, data);
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash2_impl, data, quadpoints_phi, quadpoints_theta);
         }
 };
