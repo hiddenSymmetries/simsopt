@@ -103,18 +103,18 @@ class Surface {
 
         virtual void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
-        virtual void gammadash1_impl(Array& data)  { throw logic_error("gammadash1_impl was not implemented"); };
-        virtual void gammadash2_impl(Array& data)  { throw logic_error("gammadash2_impl was not implemented"); };
-        virtual void gammadash1dash1_impl(Array& data)  { throw logic_error("gammadash1gammadash1_impl was not implemented"); };
-        virtual void gammadash1dash2_impl(Array& data)  { throw logic_error("gammadash1gammadash2_impl was not implemented"); };
-        virtual void gammadash2dash2_impl(Array& data)  { throw logic_error("gammadash2gammadash2_impl was not implemented"); };
+        virtual void gammadash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta)  { throw logic_error("gammadash1_impl was not implemented"); };
+        virtual void gammadash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta)  { throw logic_error("gammadash2_impl was not implemented"); };
+        virtual void gammadash1dash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta)  { throw logic_error("gammadash1gammadash1_impl was not implemented"); };
+        virtual void gammadash1dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta)  { throw logic_error("gammadash1gammadash2_impl was not implemented"); };
+        virtual void gammadash2dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta)  { throw logic_error("gammadash2gammadash2_impl was not implemented"); };
 
-        virtual void dgamma_by_dcoeff_impl(Array& data) { throw logic_error("dgamma_by_dcoeff_impl was not implemented"); };
-        virtual void dgammadash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
-        virtual void dgammadash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2_by_dcoeff_impl was not implemented"); };
-        virtual void dgammadash2dash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash2dash2_by_dcoeff_impl was not implemented"); };
-        virtual void dgammadash1dash2_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1dash2_by_dcoeff_impl was not implemented"); };
-        virtual void dgammadash1dash1_by_dcoeff_impl(Array& data) { throw logic_error("dgammadash1dash1_by_dcoeff_impl was not implemented"); };
+        virtual void dgamma_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgamma_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgammadash1_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgammadash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash2dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgammadash2dash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash1dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgammadash1dash2_by_dcoeff_impl was not implemented"); };
+        virtual void dgammadash1dash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) { throw logic_error("dgammadash1dash1_by_dcoeff_impl was not implemented"); };
 
         virtual Array dgamma_by_dcoeff_vjp(Array& v) {
             return surface_vjp_contraction<Array>(dgamma_by_dcoeff(), v);
@@ -154,55 +154,55 @@ class Surface {
             return check_the_cache("gamma", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gamma_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& gammadash1() {
-            return check_the_cache("gammadash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1_impl(A);});
+            return check_the_cache("gammadash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& gammadash2() {
-            return check_the_cache("gammadash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2_impl(A);});
+            return check_the_cache("gammadash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& gammadash1dash1() {
-            return check_the_cache("gammadash1dash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash1_impl(A);});
+            return check_the_cache("gammadash1dash1", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash1_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& gammadash1dash2() {
-            return check_the_cache("gammadash1dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash2_impl(A);});
+            return check_the_cache("gammadash1dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash1dash2_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& gammadash2dash2() {
-            return check_the_cache("gammadash2dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2dash2_impl(A);});
+            return check_the_cache("gammadash2dash2", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return gammadash2dash2_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgammadash1dash1_by_dcoeff() {
-            return check_the_cache("dgammadash1dash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash1_by_dcoeff_impl(A);});
+            return check_the_cache("dgammadash1dash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash1_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgammadash1dash2_by_dcoeff() {
-            return check_the_cache("dgammadash1dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash2_by_dcoeff_impl(A);});
+            return check_the_cache("dgammadash1dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1dash2_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgammadash2dash2_by_dcoeff() {
-            return check_the_cache("dgammadash2dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2dash2_by_dcoeff_impl(A);});
+            return check_the_cache("dgammadash2dash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2dash2_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& surface_curvatures() {
-            return check_the_cache("surface_curvatures", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvatures_impl(A);});
+            return check_the_cache("surface_curvatures", {numquadpoints_phi, numquadpoints_theta,4}, [this](Array& A) { return surface_curvatures_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dsurface_curvatures_by_dcoeff() {
-            return check_the_cache("dsurface_curvatures_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,4,num_dofs()}, [this](Array& A) { return dsurface_curvatures_by_dcoeff_impl(A);});
+            return check_the_cache("dsurface_curvatures_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,4,num_dofs()}, [this](Array& A) { return dsurface_curvatures_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& first_fund_form() {
-            return check_the_cache("first_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return first_fund_form_impl(A);});
+            return check_the_cache("first_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return first_fund_form_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dfirst_fund_form_by_dcoeff() {
-            return check_the_cache("dfirst_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dfirst_fund_form_by_dcoeff_impl(A);});
+            return check_the_cache("dfirst_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dfirst_fund_form_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& second_fund_form() {
-            return check_the_cache("second_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return second_fund_form_impl(A);});
+            return check_the_cache("second_fund_form", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return second_fund_form_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dsecond_fund_form_by_dcoeff() {
-            return check_the_cache("dsecond_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dsecond_fund_form_by_dcoeff_impl(A);});
+            return check_the_cache("dsecond_fund_form_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dsecond_fund_form_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgamma_by_dcoeff() {
-            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgammadash1_by_dcoeff() {
-            return check_the_persistent_cache("dgammadash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgammadash1_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash1_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& dgammadash2_by_dcoeff() {
-            return check_the_persistent_cache("dgammadash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2_by_dcoeff_impl(A);});
+            return check_the_persistent_cache("dgammadash2_by_dcoeff", {numquadpoints_phi, numquadpoints_theta,3,num_dofs()}, [this](Array& A) { return dgammadash2_by_dcoeff_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }
         Array& normal() {
             return check_the_cache("normal", {numquadpoints_phi, numquadpoints_theta,3}, [this](Array& A) { return normal_impl(A);});
