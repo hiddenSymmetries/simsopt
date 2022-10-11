@@ -577,7 +577,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # TODO: explict setting of x
         s.local_full_x = s.get_dofs()
 
-        surf_str = s.save(fmt="sjon")
+        surf_str = s.save(fmt="json")
         s_regen = Optimizable.from_str(surf_str)
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
