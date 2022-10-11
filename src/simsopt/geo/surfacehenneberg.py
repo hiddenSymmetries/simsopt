@@ -643,14 +643,14 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         for xyz in range(3):
             data[:, :, xyz] = np.reshape(data1d[:, xyz], (ntheta, nphi)).T
 
-    def gammadash1_impl(self, data):
+    def gammadash1_impl(self, data, quadpoints_phi, quadpoints_theta):
         """
         Evaluate the derivative of the position vector with respect to the
         toroidal angle phi.
         """
         # I prefer to work with angles that go up to 2pi rather than 1.
-        theta1D = self.quadpoints_theta * 2 * np.pi
-        phi1D = self.quadpoints_phi * 2 * np.pi
+        theta1D = quadpoints_theta * 2 * np.pi
+        phi1D = quadpoints_phi * 2 * np.pi
         nphi = len(phi1D)
         ntheta = len(theta1D)
         nfp = self.nfp
@@ -707,14 +707,14 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         data[:, :, 1] = 2 * np.pi * (d_R_d_phi * np.sin(phi) + R * np.cos(phi)).T
         data[:, :, 2] = 2 * np.pi * d_Z_d_phi.T
 
-    def gammadash2_impl(self, data):
+    def gammadash2_impl(self, data, quadpoints_phi, quadpoints_theta):
         """
         Evaluate the derivative of the position vector with respect to
         theta.
         """
         # I prefer to work with angles that go up to 2pi rather than 1.
-        theta1D = self.quadpoints_theta * 2 * np.pi
-        phi1D = self.quadpoints_phi * 2 * np.pi
+        theta1D = quadpoints_theta * 2 * np.pi
+        phi1D = quadpoints_phi * 2 * np.pi
         nphi = len(phi1D)
         ntheta = len(theta1D)
         b = np.zeros(nphi)
