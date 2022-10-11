@@ -48,7 +48,4 @@ class SurfaceNewQuadPoints : public Surface<Array> {
         void dgammadash1dash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void dgammadash1dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
         void dgammadash2dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
-        Array dgamma_by_dcoeff_vjp(Array& v) override;
-        Array dgammadash1_by_dcoeff_vjp(Array& v) override;
-        Array dgammadash2_by_dcoeff_vjp(Array& v) override;
 };

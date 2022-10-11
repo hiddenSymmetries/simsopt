@@ -16,7 +16,7 @@ typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
 #include "surfacexyztensorfourier.h"
 typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 #include "surface_newquadpts.h"
-typedef SurfaceNewQuadPts<PyArray> PySurfaceNewQuadPts;
+typedef SurfaceNewQuadPoints<PyArray> PySurfaceNewQuadPoints;
 
 template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFourierTrampoline : public PySurfaceTrampoline<PySurfaceRZFourierBase> {
     public:
