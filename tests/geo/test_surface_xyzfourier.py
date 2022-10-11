@@ -1,11 +1,14 @@
 import unittest
 import json
+import tempfile
+import os
 
 import numpy as np
 
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from .surface_test_helpers import get_surface, get_exact_surface
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+from simsopt._core.optimizable import load, save
 
 stellsym_list = [True, False]
 
@@ -317,8 +320,10 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         # TODO: explict setting of local_full_x
         s.local_full_x = s.get_dofs()
 
-        surf_str = json.dumps(SIMSON(s), cls=GSONEncoder)
-        s_regen = json.loads(surf_str, cls=GSONDecoder)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file = os.path.join(tmpdir, "tmp.json")
+            save(s, file)
+            s_regen = load(file)
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
