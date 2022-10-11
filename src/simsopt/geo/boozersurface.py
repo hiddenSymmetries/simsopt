@@ -1,13 +1,13 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
-from monty.json import MontyDecoder, MSONable
 
-from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from .surfaceobjectives import boozer_surface_residual
+from .._core.json import GSONDecoder, GSONable
 
 __all__ = ['BoozerSurface']
 
 
-class BoozerSurface(MSONable):
+class BoozerSurface(GSONable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -44,6 +44,7 @@ class BoozerSurface(MSONable):
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
+        self.name = id(self)
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         r"""
@@ -538,10 +539,3 @@ class BoozerSurface(MSONable):
         res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
                "G": G, "s": s, "iota": iota}
         return res
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        bs = decoder.process_decoded(d["biotsavart"])
-        surf = decoder.process_decoded(d["surface"])
-        return cls(bs, surf, d["label"], d["targetlabel"])
