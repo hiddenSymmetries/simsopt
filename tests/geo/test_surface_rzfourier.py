@@ -6,6 +6,7 @@ import numpy as np
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt._core.optimizable import Optimizable
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -576,8 +577,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # TODO: explict setting of x
         s.local_full_x = s.get_dofs()
 
-        surf_str = json.dumps(SIMSON(s), cls=GSONEncoder)
-        s_regen = json.loads(surf_str, cls=GSONDecoder)
+        surf_str = s.save(fmt="sjon")
+        s_regen = Optimizable.from_str(surf_str)
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)

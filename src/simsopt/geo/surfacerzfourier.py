@@ -73,17 +73,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                          names=self._make_names())
         self._make_mn()
 
-    @classmethod
-    def with_gridpoint_num(cls, nphi, ntheta, nfp=1, stellsym=True, mpol=1,
-                           ntor=0, range="full torus"):
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi,
-                                                                  ntheta=ntheta,
-                                                                  range=range)
-        return cls(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor,
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
-
     def get_dofs(self):
         """
         Return the dofs associated to this surface.
