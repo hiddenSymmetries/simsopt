@@ -113,8 +113,8 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
 
 template <class PySurfaceNewQuadPointsBase = PySurfaceNewQuadPoints> class PySurfaceNewQuadPointsTrampoline : public PySurfaceTrampoline<PySurfaceNewQuadPointsBase> {
     public:
-        using PySurfaceTrampoline<PySurfaceNewQuadPointsrBase>::PySurfaceTrampoline;
-        using PySurfaceNewQuadPointsBase::parent_surface;
+        using PySurfaceTrampoline<PySurfaceNewQuadPointsBase>::PySurfaceTrampoline;
+        // using PySurfaceNewQuadPointsBase::parent_surface;
 
         int num_dofs() override {
             return PySurfaceNewQuadPointsBase::num_dofs();
@@ -237,6 +237,7 @@ void init_surfaces(py::module_ &m){
     register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 
     auto pysurfacenewquadpoints = py::class_<PySurfaceNewQuadPoints, shared_ptr<PySurfaceNewQuadPoints>, PySurfaceNewQuadPointsTrampoline<PySurfaceNewQuadPoints>>(m, "SurfaceNewQuadPoints")
-        .def(py::init<pysurface, vector<double>, vector<double>>());
+        .def(py::init<PySurface&, vector<double>, vector<double>>())
+        .def_readwrite("surface", &PySurfaceNewQuadPoints::parent_surface);
     register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
 }

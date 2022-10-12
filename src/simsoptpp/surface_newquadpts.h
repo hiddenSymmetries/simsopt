@@ -33,7 +33,7 @@ class SurfaceNewQuadPoints : public Surface<Array> {
         }
 
         vector<double> get_dofs() override {
-            return {}
+            return {};
         }
 
         void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
