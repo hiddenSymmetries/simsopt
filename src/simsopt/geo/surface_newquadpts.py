@@ -1,4 +1,4 @@
-import simsoptpp
+import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
@@ -25,7 +25,7 @@ class SurfaceNewQuadPoints(sopp.SurfaceNewQuadPoints, Surface):
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
         if quadpoints_phi is None:
-            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
+            quadpoints_phi = Surface.get_phi_quadpoints()
 
         sopp.SurfaceNewQuadPoints.__init__(self, surface, quadpoints_phi,
                                            quadpoints_theta)
