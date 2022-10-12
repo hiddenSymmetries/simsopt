@@ -111,6 +111,36 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
         }
 };
 
+template <class PySurfaceNewQuadPointsBase = PySurfaceNewQuadPoints> class PySurfaceNewQuadPointsTrampoline : public PySurfaceTrampoline<PySurfaceNewQuadPointsBase> {
+    public:
+        using PySurfaceTrampoline<PySurfaceNewQuadPointsrBase>::PySurfaceTrampoline;
+        using PySurfaceNewQuadPointsBase::parent_surface;
+
+        int num_dofs() override {
+            return PySurfaceNewQuadPointsBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PySurfaceNewQuadPointsBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PySurfaceNewQuadPointsBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceNewQuadPointsBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceNewQuadPointsBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void fit_to_curve(PyCurve& curve, double radius) {
+            PySurfaceNewQuadPointsBase::fit_to_curve(curve, radius);
+        }
+};
+
 template <typename T, typename S> void register_common_surface_methods(S &s) {
     s.def("gamma", &T::gamma)
      .def("gamma_impl", &T::gamma_impl)
@@ -205,4 +235,8 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym)
         .def_readwrite("clamped_dims", &PySurfaceXYZTensorFourier::clamped_dims);
     register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
+
+    auto pysurfacenewquadpoints = py::class_<PySurfaceNewQuadPoints, shared_ptr<PySurfaceNewQuadPoints>, PySurfaceNewQuadPointsTrampoline<PySurfaceNewQuadPoints>>(m, "SurfaceNewQuadPoints")
+        .def(py::init<pysurface, vector<double>, vector<double>>());
+    register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
 }

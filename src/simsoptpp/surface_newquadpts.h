@@ -27,11 +27,13 @@ class SurfaceNewQuadPoints : public Surface<Array> {
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
-            throw logic_error("You should not call set_dofs_impl for SurfaceNewQuadPoints class");
+            if (dofs.size()){
+                throw logic_error("SurfaceNewQuadPoints has zero DOFs.\nYou should not call set_dofs_impl for SurfaceNewQuadPoints class with finite sized DOFs vector");
+            }
         }
 
         vector<double> get_dofs() override {
-            throw logic_error("You should not call get_dofs for SurfaceNewQuadPoints class");
+            return {}
         }
 
         void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override;
