@@ -220,12 +220,12 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
             z = coils[icoil].curve.gamma()[:, 2]
             for iseg in range(len(x)):  # the last point match the first one;
                 wfile.write(
-                    "{:15.7E} {:15.7E} {:15.7E} {:15.7E}\n".format(
+                    "{:23.15E} {:23.15E} {:23.15E} {:23.15E}\n".format(
                         x[iseg], y[iseg], z[iseg], coils[icoil].current.get_value()
                     )
                 )
             wfile.write(
-                "{:15.7E} {:15.7E} {:15.7E} {:15.7E} {:} {:10} \n".format(
+                "{:23.15E} {:23.15E} {:23.15E} {:23.15E} {:} {:10} \n".format(
                     x[0], y[0], z[0], 0.0, groups[icoil], coils[icoil].curve.name
                 )
             )
