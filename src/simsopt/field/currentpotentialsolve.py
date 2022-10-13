@@ -8,17 +8,41 @@ __all__ = ["CurrentPotentialSolveTikhonov"]
 
 class CurrentPotentialSolveTikhonov:
     def __init__(self, cp):
-        self.current_potential = cp 
+        self.current_potential = cp
         self.winding_surface = self.current_potential.winding_surface
         self.ntheta_coil = len(self.current_potential.quadpoints_theta)
         self.nphi_coil = len(self.current_potential.quadpoints_phi)
         self.ndofs = self.current_potential.num_dofs()
 
+    def K_rhs_impl(self, K_rhs):
+        dg1 = self.winding_surface.gammadash1()
+        dg2 = self.winding_surface.gammadash2()
+        normal = self.winding_surface.normal()
+        self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, normal)
+        K_rhs *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
+
+    def K_rhs(self):
+        K_rhs = np.zeros((self.current_potential.num_dofs(),))
+        self.K_rhs_impl(K_rhs)
+        return K_rhs
+
+    def K_matrix_impl(self, K_matrix):
+        dg1 = self.winding_surface.gammadash1()
+        dg2 = self.winding_surface.gammadash2()
+        normal = self.winding_surface.normal()
+        self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, normal)
+        K_matrix *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
+
+    def K_matrix(self):
+        K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
+        self.K_matrix_impl(K_matrix)
+        return K_matrix
+
     def solve(self, plasma_surface, Bnormal_plasma, lam=0):
         """
            Bnormal_plasma is the Bnormal component coming from both plasma currents
            and other external coils, so only B^{GI} (Eq. A7) and B^{SV} need to be
-           calculated and set up for the least squares solve. 
+           calculated and set up for the least squares solve.
         """
         normal_plasma = plasma_surface.normal().reshape(-1, 3)
         quadpoints_plasma = plasma_surface.gamma().reshape(-1, 3)
@@ -35,12 +59,14 @@ class CurrentPotentialSolveTikhonov:
 
         normal = self.winding_surface.normal()
         norm_normal = np.linalg.norm(normal, axis=2)
-        self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, norm_normal)
-        self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, norm_normal)
+        self.K_matrix_impl(K_matrix)
+        self.K_rhs_impl(K_rhs)
+
+        # dofs = np.linalg.solve(K_matrix, K_rhs)
+        # return dofs
 
         theta = self.winding_surface.quadpoints_theta
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
-        #phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         phi_mesh = np.ravel(phi_mesh)
         theta_mesh = np.ravel(theta_mesh)
         normal = self.winding_surface.normal().reshape(-1, 3)
@@ -70,5 +96,5 @@ class CurrentPotentialSolveTikhonov:
         # print('B_matrix = ', B_matrix)
         print('b_matrix = ', b_rhs)
         dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
-        #dofs = np.linalg.solve(B_matrix + lam * K_matrix, B_rhs + lam * K_rhs)
+        dofs = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         return dofs

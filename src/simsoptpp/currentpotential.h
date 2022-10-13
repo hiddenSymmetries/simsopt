@@ -93,6 +93,8 @@ class CurrentPotential {
         }
 
         void K_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
+        void K_GI_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
+        void K_by_dcoeff_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
         void K_matrix_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
         void K_rhs_impl_helper(Array& data, Array& dg1, Array& dg2, Array& normal);
 
@@ -127,4 +129,3 @@ class CurrentPotential {
 
         virtual ~CurrentPotential() = default;
 };
-
