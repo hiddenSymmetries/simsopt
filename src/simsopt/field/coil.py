@@ -185,3 +185,50 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
+
+
+def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
+    """
+    Export a list of Curve objects together with currents in MAKEGRID format, so they can 
+    be used by MAKEGRID and FOCUS. The format is introduced at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+
+    Args:
+        filename: Name of the file to write.
+        curves: A python list of Curve objects.
+        currents: Coil current of each curve.
+        groups: Coil current group. Coils in the same group will be assembled together. Defaults to None.
+        nfp: The number of field periodicity. Defaults to 1.
+        stellsym: Whether or not following stellarator symmetry. Defaults to False.
+    """
+
+    assert len(curves) == len(currents)
+    coils = coils_via_symmetries(curves, currents, nfp, stellsym)
+    ncoils = len(coils)
+    if groups is None:
+        groups = np.arange(ncoils) + 1
+    else:
+        assert len(groups) == ncoils
+        # should be careful. SIMSOPT flips the current, but actually should change coil order
+    with open(filename, "w") as wfile:
+        wfile.write("periods {:3d} \n".format(1))  # force to write nfp=1 for now
+        wfile.write("begin filament \n")
+        wfile.write("mirror NIL \n")
+        for icoil in range(ncoils):
+            x = coils[icoil].curve.gamma()[:, 0]
+            y = coils[icoil].curve.gamma()[:, 1]
+            z = coils[icoil].curve.gamma()[:, 2]
+            for iseg in range(len(x)):  # the last point match the first one;
+                wfile.write(
+                    "{:15.7E} {:15.7E} {:15.7E} {:15.7E}\n".format(
+                        x[iseg], y[iseg], z[iseg], coils[icoil].current.get_value()
+                    )
+                )
+            wfile.write(
+                "{:15.7E} {:15.7E} {:15.7E} {:15.7E} {:} {:10} \n".format(
+                    x[0], y[0], z[0], 0.0, groups[icoil], coils[icoil].curve.name
+                )
+            )
+        wfile.write("end \n")
+    return
+
