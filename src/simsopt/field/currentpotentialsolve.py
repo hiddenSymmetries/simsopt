@@ -47,13 +47,14 @@ class CurrentPotentialSolveTikhonov:
 
         gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma, quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym, phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n)
 
-        B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1, dg2)
+        print(dg2.reshape(-1, 3).shape, quadpoints_plasma.shape, quadpoints_coil.shape, normal_plasma.shape, phi_mesh.shape, theta_mesh.shape, G, I)
+        B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
 
         # scale everything by the grid spacings
-        dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0]) * 2 * np.pi 
-        dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0]) * 2 * np.pi 
-        dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0]) * 2 * np.pi 
-        dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0]) * 2 * np.pi 
+        dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])  #* 2 * np.pi 
+        dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])  # * 2 * np.pi 
+        dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])  # * 2 * np.pi 
+        dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])  # * 2 * np.pi 
 
         B_GI = B_GI * dzeta_coil * dtheta_coil
         # set up RHS of optimization
