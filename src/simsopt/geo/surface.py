@@ -1,7 +1,6 @@
 import abc
 
 import numpy as np
-from monty.json import MSONable, MontyDecoder
 
 try:
     from pyevtk.hl import gridToVTK
@@ -12,6 +11,7 @@ import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
+from .._core.json import GSONable, GSONDecoder
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
@@ -569,13 +569,6 @@ class Surface(Optimizable):
 
         return function_interpolated
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["nfp"] = self.nfp
-        d["quadpoints_phi"] = list(self.quadpoints_phi)
-        d["quadpoints_theta"] = list(self.quadpoints_theta)
-        return d
-
 
 def signed_distance_from_surface(xyz, surface):
     """
@@ -716,15 +709,8 @@ class SurfaceScaled(Optimizable):
             else:
                 self.fix(j)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        surf = decoder.process_decoded(d["surf"])
-        scale_factors = decoder.process_decoded(d["scale_factors"])
-        return cls(surf, scale_factors)
+    def as_dict(self, serial_objs_dict) -> dict:
+        return GSONable.as_dict(self, serial_objs_dict=serial_objs_dict)
 
 
 def best_nphi_over_ntheta(surf):

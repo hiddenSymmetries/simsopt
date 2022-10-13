@@ -4,12 +4,12 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
 import f90nml
-from monty.json import MSONable
 
 import simsoptpp as sopp
 from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
@@ -130,9 +130,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.n = n
 
     @classmethod
-    def from_wout(cls,
-                  filename: str,
-                  s: float = 1.0,
+    def from_wout(cls, filename: str, s: float = 1.0,
                   interp_kind: str = 'linear',
                   **kwargs):
         """
@@ -211,9 +209,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return surf
 
     @classmethod
-    def from_vmec_input(cls,
-                        filename: str,
-                        **kwargs):
+    def from_vmec_input(cls, filename: str, **kwargs):
         """
         Read in a surface from a VMEC input file. The ``INDATA`` namelist
         of this file will be read using `f90nml
@@ -596,19 +592,19 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["stellsym"] = self.stellsym
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
-        return d
-
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        dec = GSONDecoder()
+        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
+                                             serial_objs_dict=serial_objs_dict,
+                                             recon_objs=recon_objs)
+        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
+                                               serial_objs_dict=serial_objs_dict,
+                                               recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.local_full_x = d["x0"]
         return surf
 
@@ -686,14 +682,18 @@ class SurfaceRZPseudospectral(Optimizable):
         a_scale: Dofs are multiplied by this factor to get the actual cylindrical coordinates.
     """
 
-    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0):
+    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0, **kwargs):
         self.mpol = mpol
         self.ntor = ntor
         self.nfp = nfp
         self.r_shift = r_shift
         self.a_scale = a_scale
-        ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
-        super().__init__(x0=np.zeros(ndofs), names=self._make_names())
+        if "x0" not in kwargs:
+            ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
+            kwargs["x0"] = np.zeros(ndofs)
+        if "names" not in kwargs:
+            kwargs["names"] = self._make_names()
+        super().__init__(**kwargs)
 
     def _make_names(self):
         """
@@ -869,12 +869,3 @@ class SurfaceRZPseudospectral(Optimizable):
                                                        a_scale=self.a_scale)
         return surf3
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
-        d["x0"] = list(self.local_full_x)
-
-    @classmethod
-    def from_dict(cls, d):
-        surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
-        surf.local_full_x = d["x0"]
-        return surf

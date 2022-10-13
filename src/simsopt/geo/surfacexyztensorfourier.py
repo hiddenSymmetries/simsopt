@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
+from .._core.json import GSONDecoder
 
 __all__ = ['SurfaceXYZTensorFourier']
 
@@ -156,20 +157,19 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
             mask[0, mpol+1:] = False
         return mask
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["stellsym"] = self.stellsym
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
-        d["clamped_dims"] = list(self.clamped_dims)
-        return d
-
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        dec = GSONDecoder()
+        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
+                                             serial_objs_dict=serial_objs_dict,
+                                             recon_objs=recon_objs)
+        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
+                                               serial_objs_dict=serial_objs_dict,
+                                               recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
                    clamped_dims=d["clamped_dims"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.set_dofs(d["x0"])
         return surf

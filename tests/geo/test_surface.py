@@ -5,7 +5,6 @@ import os
 import logging
 import numpy as np
 
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
@@ -16,6 +15,7 @@ from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from .surface_test_helpers import get_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -299,8 +299,8 @@ class SurfaceScaledTests(unittest.TestCase):
                     dof_size = len(s.get_dofs())
                     scale_factors = np.random.random_sample(dof_size)
                     scaled_s = SurfaceScaled(s, scale_factors)
-                    scaled_s_str = json.dumps(scaled_s, cls=MontyEncoder)
-                    regen_s = json.loads(scaled_s_str, cls=MontyDecoder)
+                    scaled_s_str = json.dumps(SIMSON(scaled_s), cls=GSONEncoder)
+                    regen_s = json.loads(scaled_s_str, cls=GSONDecoder)
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):

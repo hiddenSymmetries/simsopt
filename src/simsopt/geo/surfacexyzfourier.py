@@ -1,7 +1,9 @@
 import numpy as np
+
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
+from .._core.json import GSONDecoder
 
 __all__ = ['SurfaceXYZFourier']
 
@@ -107,19 +109,19 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         surf.least_squares_fit(gamma)
         return surf
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
-        d["stellsym"] = self.stellsym
-        return d
-
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        dec = GSONDecoder()
+        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
+                                             serial_objs_dict=serial_objs_dict,
+                                             recon_objs=recon_objs)
+        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
+                                               serial_objs_dict=serial_objs_dict,
+                                               recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
                    mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.set_dofs(d["x0"])
         return surf
 
