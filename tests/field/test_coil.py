@@ -8,8 +8,10 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
+from simsopt.field.coil import coils_to_makegrid, coils_to_focus
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
+from simsopt.configs import get_ncsx_data
 
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
@@ -134,3 +136,18 @@ class ScaledCurrentTesting(unittest.TestCase):
         assert abs(c7.get_value() - (5. - 6.)) < 1e-15
         assert np.linalg.norm((c7.vjp(one)-c0.vjp(one))(c0)) < 1e-15
         assert np.linalg.norm((c7.vjp(one)+c00.vjp(one))(c00)) < 1e-15
+
+
+class CoilFormatConvertTesting(unittest.TestCase):
+    def test_makegrid(self):
+        nfp = 3
+        stellsym = True
+        curves, currents, ma = get_ncsx_data()
+
+        coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
+
+    def test_focus(self):
+        nfp = 3
+        stellsym = True
+        curves, currents, ma = get_ncsx_data()        
+        coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
