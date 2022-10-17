@@ -846,3 +846,36 @@ def curves_to_vtk(curves, filename, close=False):
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
     polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
+
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+    """
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
+
+    Usage example: create 4 base curves, which are then rotated 3 times and
+    flipped for stellarator symmetry:
+
+    .. code-block::
+
+        base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
+        base_currents = [Current(1e5) for c in base_curves]
+        coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
+    """
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+    curves = []
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier
+    for i in range(ncurves):
+        curve = CurveXYZFourier(numquadpoints, order)
+        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+        curve.set("xc(0)", cos(angle)*R0)
+        curve.set("xc(1)", cos(angle)*R1)
+        curve.set("yc(0)", sin(angle)*R0)
+        curve.set("yc(1)", sin(angle)*R1)
+        curve.set("zs(1)", R1)
+        curve.x = curve.x  # need to do this to transfer data to C++
+        curves.append(curve)
+    return curves
