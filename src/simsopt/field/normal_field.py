@@ -87,7 +87,7 @@ class NormalField(Optimizable):
 
         vns = np.asarray(ph['vns'])
         if not nf.stellsym:
-            vnc = np.asarray(ph['vnc'])
+            vnc = np.asarray(ph['vnc'][1:])
             nf.vnc = np.zeros((nf.mpol + 1, 2 * nf.ntor + 1))
 
         mntor = int((vns.shape[1] - 1) / 2.0)

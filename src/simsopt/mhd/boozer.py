@@ -108,9 +108,14 @@ class Boozer(Optimizable):
                         "Normalized toroidal flux values s must lie"
                         "in the interval [0, 1]")
             elif isinstance(self.equil, Spec):
-                if new_s < 0 or new_s >= self.equil.inputlist.nvol:
+                nvol = self.equil.inputlist.nvol
+                if self.equil.inputlist.lfreebound:
+                    mvol = nvol + 1
+                else:
+                    mvol = nvol
+                if new_s < 0 or new_s >= mvol:
                     raise ValueError(
-                        "Volume number must lie within 0 and Nvol-1")
+                        "Volume number must lie within 0 and Mvol-1")
 
         logger.info("Adding entries to Boozer registry: {}".format(ss))
         self.s = self.s.union(ss)
@@ -320,9 +325,9 @@ class Boozer(Optimizable):
                 return ind_vol, innout_vol
 
             def index_is_valid():
-                if ind_vol>=d.output.Mvol: return False
-                elif ind_vol<0: return False
-                elif ind_vol==0 and innout_vol==0: return False
+                if ind_vol>=d.output.Mvol: return False # Outside bound
+                elif ind_vol<0: return False # Outside bound
+                elif ind_vol==0 and innout_vol==0: return False # magnetic axis
                 else: return True
 
             # Surfaces are numbered from 0 to Mvol; 0 is the magnetic axis, 
@@ -333,14 +338,11 @@ class Boozer(Optimizable):
                 for innout in range(0, 2):
                     # Translate interface indices into volume indices
                     ind_vol, innout_vol = surf_to_vol_indices()
+                    print('surf={s}, innout={io}, index={ind}'.format(s=ind_surf, io=innout, ind=index))
+                    
+                    # Check index is valid, i.e. on a volume interface and not 
+                    # on magnetic axis nor comp. bound.
                     if not index_is_valid(): continue
-
-                    if ind_vol >= d.output.Mvol:
-                        continue
-                    if ind_vol < 0:
-                        continue
-                    if ind_vol == 0 and innout_vol == 0:
-                        continue  # No data on outer side of last interface
 
                     rmnc[index] = np.array([list(d.output.Rbc[ind_surf, :])])
                     rmns[index] = np.array([list(d.output.Rbs[ind_surf, :])])
@@ -362,6 +364,7 @@ class Boozer(Optimizable):
                     iota[index] = d.output.lambdamn[innout_vol, ind_vol, 0]
                     s_in[index] = d.output.tflux[ind_surf-1]
 
+                    print('surf={s}, innout={io}, index={ind}'.format(s=ind_surf, io=innout, ind=index))
                     index = index + 1
 
             self.bx.rmnc = rmnc.transpose()
