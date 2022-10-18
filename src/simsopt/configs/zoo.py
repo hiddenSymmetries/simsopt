@@ -91,7 +91,7 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     """
 
     This example simply loads the coils after the nine stage optimization runs discussed in
-   
+
        A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon, Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry. Journal of Plasma Physics.
 
     Args:
@@ -111,7 +111,7 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     cR = ma_dofs[:26]
     sZ = ma_dofs[26:]
     nfp = 2
-    
+
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[:(Nt_ma+1)]
