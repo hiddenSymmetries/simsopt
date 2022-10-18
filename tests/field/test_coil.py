@@ -140,14 +140,12 @@ class ScaledCurrentTesting(unittest.TestCase):
 
 class CoilFormatConvertTesting(unittest.TestCase):
     def test_makegrid(self):
-        nfp = 3
         stellsym = True
         curves, currents, ma = get_ncsx_data()
 
         coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
 
     def test_focus(self):
-        nfp = 3
         stellsym = True
         curves, currents, ma = get_ncsx_data()        
         coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
