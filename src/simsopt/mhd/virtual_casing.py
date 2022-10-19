@@ -179,6 +179,7 @@ class VirtualCasing:
             ran = "half period"
         else:
             ran = "field period"
+
         surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
                                                  nphi=src_nphi, ntheta=src_ntheta, range=ran)
         for jmn in range(vmec.wout.mnmax):
@@ -265,6 +266,7 @@ class VirtualCasing:
         vc.unit_normal = unit_normal
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
+        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal,np.flip(Bexternal_normal,axis=0))) for i in range(nfp)])#Bexternal_normal#
 
         if filename is not None:
             if filename == 'auto':
@@ -399,6 +401,14 @@ class VirtualCasing:
         ax.set_xlabel(r'$\phi$')
         ax.set_ylabel(r'$\theta$')
         ax.set_title('B_external_normal [Tesla]')
+        fig.colorbar(contours)
+        fig.tight_layout()
+        
+        fig, ax = plt.subplots()
+        contours = ax.contourf(np.linspace(0,1,len(self.trgt_phi)*self.nfp*2), self.trgt_theta,self.B_external_normal_extended.T, 25*self.nfp*2)
+        ax.set_xlabel(r'$\phi$')
+        ax.set_ylabel(r'$\theta$')
+        ax.set_title('B_external_normal_extended [Tesla]')
         fig.colorbar(contours)
         fig.tight_layout()
         if show:
