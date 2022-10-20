@@ -8,7 +8,8 @@ import numpy as np
 from monty.json import MontyDecoder, MSONable
 
 __all__ = ['Coil', 'Current', 'coils_via_symmetries',
-           'apply_symmetries_to_currents', 'apply_symmetries_to_curves']
+           'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
+           'coils_to_makegrid', 'coils_to_focus']
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -215,3 +216,104 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
+
+def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
+    """
+    Export a list of Curve objects together with currents in MAKEGRID format, so they can 
+    be used by MAKEGRID and FOCUS. The format is introduced at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    Args:
+        filename: Name of the file to write.
+        curves: A python list of Curve objects.
+        currents: Coil current of each curve.
+        groups: Coil current group. Coils in the same group will be assembled together. Defaults to None.
+        nfp: The number of field periodicity. Defaults to 1.
+        stellsym: Whether or not following stellarator symmetry. Defaults to False.
+    """
+
+    assert len(curves) == len(currents)
+    coils = coils_via_symmetries(curves, currents, nfp, stellsym)
+    ncoils = len(coils)
+    if groups is None:
+        groups = np.arange(ncoils) + 1
+    else:
+        assert len(groups) == ncoils
+        # should be careful. SIMSOPT flips the current, but actually should change coil order
+    with open(filename, "w") as wfile:
+        wfile.write("periods {:3d} \n".format(1))  # force to write nfp=1 for now
+        wfile.write("begin filament \n")
+        wfile.write("mirror NIL \n")
+        for icoil in range(ncoils):
+            x = coils[icoil].curve.gamma()[:, 0]
+            y = coils[icoil].curve.gamma()[:, 1]
+            z = coils[icoil].curve.gamma()[:, 2]
+            for iseg in range(len(x)):  # the last point match the first one;
+                wfile.write(
+                    "{:23.15E} {:23.15E} {:23.15E} {:23.15E}\n".format(
+                        x[iseg], y[iseg], z[iseg], coils[icoil].current.get_value()
+                    )
+                )
+            wfile.write(
+                "{:23.15E} {:23.15E} {:23.15E} {:23.15E} {:} {:10} \n".format(
+                    x[0], y[0], z[0], 0.0, groups[icoil], coils[icoil].curve.name
+                )
+            )
+        wfile.write("end \n")
+    return
+
+
+def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=False, Lfree=False):
+    """
+    Export a list of Curve objects together with currents in FOCUS format, so they can 
+    be used by FOCUS. The format is introduced at
+    https://princetonuniversity.github.io/FOCUS/rdcoils.pdf
+    Args:
+        filename: Name of the file to write.
+        curves: A python list of Curve objects.
+        currents: Coil current of each curve.
+        nfp: The number of field periodicity. Defaults to 1.      
+        stellsym: Whether or not following stellarator symmetry. Defaults to False.
+        Ifree: Flag specifying whether the coil current is free. Defaults to False.
+        Lfree: Flag specifying whether the coil geometry is free. Defaults to False.
+    """
+    from simsopt.geo import CurveLength
+
+    assert len(curves) == len(currents)
+    ncoils = len(curves)
+    if stellsym:
+        symm = 2  # both periodic and symmetric
+    elif nfp > 1 and not stellsym:
+        symm = 1  # only periodicity
+    else:
+        symm = 0  # no periodicity or symmetry
+
+    if nfp > 1:
+        print('Please note: FOCUS sets Nfp in the plasma file.')
+    with open(filename, 'w') as f:
+        f.write('# Total number of coils \n')
+        f.write('  {:d} \n'.format(ncoils))
+        for i in range(ncoils):
+            nf = curves[i].order
+            xyz = curves[i].full_x.reshape((3, -1))
+            xc = xyz[0, ::2]
+            xs = np.concatenate(([0.], xyz[0, 1::2]))
+            yc = xyz[1, ::2]
+            ys = np.concatenate(([0.], xyz[1, 1::2]))
+            zc = xyz[2, ::2]
+            zs = np.concatenate(([0.], xyz[2, 1::2]))
+            length = CurveLength(curves[i]).J()
+            nseg = len(curves[i].quadpoints)
+            f.write('#------------{:d}----------- \n'.format(i+1))
+            f.write('# coil_type  symm  coil_name \n')
+            f.write('  {:d}   {:d}  {:} \n'.format(1, symm, curves[i].name))
+            f.write('# Nseg current Ifree Length Lfree target_length \n')
+            f.write('  {:d} {:23.15E} {:d} {:23.15E} {:d} {:23.15E} \n'.format(nseg, currents[i].get_value(), Ifree, length, Lfree, length))
+            f.write('# NFcoil \n')
+            f.write('  {:d} \n'.format(nf))
+            f.write('# Fourier harmonics for coils ( xc; xs; yc; ys; zc; zs) \n')
+            for r in [xc, xs, yc, ys, zc, zs]:  # 6 lines
+                for k in range(nf+1):
+                    f.write('{:23.15E} '.format(r[k]))
+                f.write('\n')
+        f.write('\n')
+    return
