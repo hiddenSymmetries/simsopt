@@ -569,6 +569,14 @@ class Vmec(Optimizable):
         nml += '! ---- Geometric parameters ----\n'
         nml += f'NFP = {vi.nfp}\n'
         nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
+        
+        if vi.lfreeb:
+            nml += f'NZETA = {vi.nzeta}\n'
+            nml += f'\n!----- Free Boundary Parameters -----\n'
+            nml += f'LFREEB = T\n'
+            nml += f"MGRID_FILE = '{vi.mgrid_file.decode().strip()}'\n"
+            nml += f'EXTCUR = ' + array_to_namelist(vi.extcur)
+            nml += f'NVACSKIP = {vi.nvacskip}\n'
 
         nml += '\n! ---- Resolution parameters ----\n'
         nml += f'MPOL = {vi.mpol}\n'
