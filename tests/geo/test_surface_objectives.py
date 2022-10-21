@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiAxisymmetricRatio
+from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio
 from simsopt.configs.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
@@ -324,7 +324,34 @@ class NonQSRatioTests(unittest.TestCase):
     def subtest_nonQSratio_derivative(self, label):
         bs, boozer_surface = get_boozer_surface(label=label)
         coeffs = bs.x
-        io = NonQuasiAxisymmetricRatio(boozer_surface, bs)
+        io = NonQuasiSymmetricRatio(boozer_surface, bs)
+
+        def f(dofs):
+            bs.x = dofs
+            return io.J()
+
+        def df(dofs):
+            bs.x = dofs
+            return io.dJ()
+        
+        taylor_test1(f, df, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 19))))
+
+
+class NonQSRatioTests(unittest.TestCase):
+    def test_nonQSratio_derivative(self):
+        """
+        Taylor test for derivative of surface non QS ratio wrt coil parameters
+        """
+        for label in ["Volume", "ToroidalFlux"]:
+            for axis in [0, 1]:
+                with self.subTest(label=label, axis=axis):
+                    self.subtest_nonQSratio_derivative(label, axis)
+
+    def subtest_nonQSratio_derivative(self, label, axis):
+        bs, boozer_surface = get_boozer_surface(label=label)
+        coeffs = bs.x
+        io = NonQuasiSymmetricRatio(boozer_surface, bs, axis=axis)
 
         def f(dofs):
             bs.x = dofs

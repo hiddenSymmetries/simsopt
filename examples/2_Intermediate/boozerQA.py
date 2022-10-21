@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
-    ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiAxisymmetricRatio, Iotas
+    ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas
 from simsopt.field import BiotSavart, coils_via_symmetries
 from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
@@ -74,7 +74,7 @@ ls = [CurveLength(c) for c in base_curves]
 
 J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
 J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
-J_nonQSRatio = NonQuasiAxisymmetricRatio(boozer_surface, bs_nonQS)
+J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS, axis=0)
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
 
 # sum the objectives together
