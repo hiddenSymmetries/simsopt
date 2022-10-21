@@ -217,7 +217,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
+def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False, true_nfp=None):
     """
     Export a list of Curve objects together with currents in MAKEGRID format, so they can 
     be used by MAKEGRID and FOCUS. The format is introduced at
@@ -232,6 +232,10 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
     """
 
     assert len(curves) == len(currents)
+    if true_nfp is None:
+        true_nfp = nfp
+    else:
+        true_nfp = 1
     coils = coils_via_symmetries(curves, currents, nfp, stellsym)
     ncoils = len(coils)
     if groups is None:
