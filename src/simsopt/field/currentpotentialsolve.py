@@ -52,8 +52,6 @@ class CurrentPotentialSolveTikhonov:
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
 
-        # G = self.current_potential.Phidash1()
-        # I = self.current_potential.Phidash2()
         G = self.current_potential.net_poloidal_current_amperes
         I = self.current_potential.net_toroidal_current_amperes
 
@@ -61,9 +59,6 @@ class CurrentPotentialSolveTikhonov:
         norm_normal = np.linalg.norm(normal, axis=2)
         self.K_matrix_impl(K_matrix)
         self.K_rhs_impl(K_rhs)
-
-        # dofs = np.linalg.solve(K_matrix, K_rhs)
-        # return dofs
 
         theta = self.winding_surface.quadpoints_theta
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
@@ -77,15 +72,16 @@ class CurrentPotentialSolveTikhonov:
         B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
 
         # scale everything by the grid spacings
-        dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])  #* 2 * np.pi 
-        dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])  # * 2 * np.pi 
-        dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])  # * 2 * np.pi 
-        dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])  # * 2 * np.pi 
+        dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])
+        dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])
+        dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])
+        dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
 
+        #gj = gj * dzeta_coil * dtheta_coil
         B_GI = B_GI * dzeta_coil * dtheta_coil
         # set up RHS of optimization
-        print('B_GI = ', B_GI)
-        print('Bnormal_plasma = ', Bnormal_plasma)
+        print('B_GI = ', B_GI, B_GI.shape)
+        print('Bnormal_plasma = ', Bnormal_plasma, Bnormal_plasma.shape)
         b_rhs = np.zeros(self.ndofs)
         for i in range(self.ndofs):
             b_rhs[i] = - (B_GI + Bnormal_plasma) @ gj[:, i]
@@ -95,6 +91,6 @@ class CurrentPotentialSolveTikhonov:
 
         # print('B_matrix = ', B_matrix)
         print('b_matrix = ', b_rhs)
-        dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
+        # dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
         dofs = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         return dofs

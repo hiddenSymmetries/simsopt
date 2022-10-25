@@ -237,6 +237,10 @@ class Testing(unittest.TestCase):
             xm_potential = f.variables['xm_potential'][()]
             xn_potential = f.variables['xn_potential'][()]
             K2_regcoil = f.variables['K2'][()][1, :, :]
+            b_rhs_regcoil = f.variables['RHS_B'][()]
+            print('b_rhs = ', b_rhs_regcoil)
+            Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
+            print('B_GI_regcoil = ', Bnormal_from_net_coil_currents, Bnormal_from_net_coil_currents.shape)
             lambda_regcoil = f.variables['lambda'][()][1]
             rmnc_coil = f.variables['rmnc_coil'][()]
             zmns_coil = f.variables['zmns_coil'][()]
@@ -257,8 +261,6 @@ class Testing(unittest.TestCase):
                 s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
                 s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
 
-            quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
-            quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
             s_coil = SurfaceRZFourier(nfp=nfp,
                                       mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
             s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
@@ -278,6 +280,13 @@ class Testing(unittest.TestCase):
             optimized_dofs = cpst.solve(s_plasma, 0*np.ravel(Bnormal_from_plasma_current), lam=lambda_regcoil)
 
             assert np.allclose(single_valued_current_potential_mn,optimized_dofs)
+
+            cp.set_dofs(np.zeros(cp.get_dofs().shape))
+            Bfield = WindingSurfaceField(cp)
+            points = s_plasma.gamma().reshape(-1, 3)
+            Bfield.set_points(points)
+            B = Bfield.B()
+            print('B_GI from WindingSurface = ', B)
 
     def test_winding_surface_regcoil(self):
         # This compares the normal field from regcoil with that computed from
@@ -337,8 +346,6 @@ class Testing(unittest.TestCase):
 
             assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
 
-            quadpoints_phi = np.linspace(0, nzeta_coil * nfp, 1) + 1 / (2 * nzeta_coil * nfp)
-            quadpoints_theta = np.linspace(0, ntheta_coil, 1) + 1 / (2 * ntheta_coil)
             s_coil = SurfaceRZFourier(nfp=nfp,
                                       mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
             s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
