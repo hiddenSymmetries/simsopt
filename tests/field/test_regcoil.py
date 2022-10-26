@@ -209,7 +209,7 @@ class Testing(unittest.TestCase):
 
     def test_winding_surface_regcoil_K_solve(self):
         """
-        Here we check the solve with lambda -> infinity to test the K matrices and rhs 
+        Here we check the solve with lambda -> infinity to test the K matrices and rhs
         """
         stellsym = True
         # TEST_DIR / 'regcoil_out.li383_infty.nc',
@@ -295,6 +295,7 @@ class Testing(unittest.TestCase):
         stellsym = True
         for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
             f = netcdf_file(filename, 'r')
+            cp = CurrentPotentialFourier.from_netcdf(filename)
             Bnormal_regcoil = f.variables['Bnormal_total'][()][-1, :, :]
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
             Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
@@ -310,12 +311,6 @@ class Testing(unittest.TestCase):
             ntor_plasma = int(np.max(xn_plasma)/nfp)
             ntheta_plasma = f.variables['ntheta_plasma'][()]
             nzeta_plasma = f.variables['nzeta_plasma'][()]
-            mpol_potential = f.variables['mpol_potential'][()]
-            ntor_potential = f.variables['ntor_potential'][()]
-            net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
-            net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
-            xm_potential = f.variables['xm_potential'][()]
-            xn_potential = f.variables['xn_potential'][()]
             K2_regcoil = f.variables['K2'][()][-1, :, :]
             lambda_regcoil = f.variables['lambda'][()]
             b_rhs_regcoil = f.variables['RHS_B'][()]
@@ -324,16 +319,6 @@ class Testing(unittest.TestCase):
             #print('Bregcoil = ', B_matrix_regcoil)
             print('b_rhs = ', b_rhs_regcoil)
             print('B_GI_regcoil = ', Bnormal_from_net_coil_currents, Bnormal_from_net_coil_currents.shape)
-
-            rmnc_coil = f.variables['rmnc_coil'][()]
-            zmns_coil = f.variables['zmns_coil'][()]
-            xm_coil = f.variables['xm_coil'][()]
-            xn_coil = f.variables['xn_coil'][()]
-            ntheta_coil = f.variables['ntheta_coil'][()]
-            nzeta_coil = f.variables['nzeta_coil'][()]
-            single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
-            mpol_coil = int(np.max(xm_coil))
-            ntor_coil = int(np.max(xn_coil)/nfp)
 
             s_plasma = SurfaceRZFourier(nfp=nfp,
                                         mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
@@ -346,22 +331,8 @@ class Testing(unittest.TestCase):
 
             assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
 
-            s_coil = SurfaceRZFourier(nfp=nfp,
-                                      mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym)
-            s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
-                                             mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym, range='full torus')
-            s_coil.set_dofs(0*s_coil.get_dofs())
-            for im in range(len(xm_coil)):
-                s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
-                s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
-
+            s_coil = cp.winding_surface
             assert np.allclose(r_coil, s_coil.gamma())
-
-            cp = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
-                                         net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                         net_toroidal_current_amperes=net_toroidal_current_amperes)
-            for im in range(len(xm_potential)):
-                cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 
             K = cp.K()
             K2 = np.sum(K*K, axis=2)

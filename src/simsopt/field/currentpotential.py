@@ -1,7 +1,8 @@
 import numpy as np
 from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
-from simsopt.geo.surface import Surface
+from simsopt.geo import Surface, SurfaceRZFourier
+from scipy.io import netcdf_file
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
@@ -39,7 +40,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
     def __init__(self, winding_surface, net_poloidal_current_amperes=1,
                  net_toroidal_current_amperes=0, nfp=None, stellsym=None,
-                 mpol=None, ntor=None, 
+                 mpol=None, ntor=None,
                  quadpoints_phi=None, quadpoints_theta=None):
 
         if nfp is None:
@@ -52,9 +53,9 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             ntor = winding_surface.ntor
 
         if quadpoints_theta is None:
-            quadpoints_theta = winding_surface.quadpoints_theta 
+            quadpoints_theta = winding_surface.quadpoints_theta
         if quadpoints_phi is None:
-            quadpoints_phi = winding_surface.quadpoints_phi 
+            quadpoints_phi = winding_surface.quadpoints_phi
 
         #sopp.CurrentPotentialFourier.__init__(self, winding_surface, mpol, ntor, nfp, stellsym,
         sopp.CurrentPotentialFourier.__init__(self, mpol, ntor, nfp, stellsym,
@@ -230,3 +231,62 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             n = n0[1::]
         self.m = m
         self.n = n
+
+    @classmethod
+    def from_netcdf(cls, filename: str):
+        """
+        Initialize a CurrentPotentialRZFourier from a regcoil netcdf output file.
+
+        Args:
+            filename: Name of the ``regcoil_out.*.nc`` file to read.
+        """
+        f = netcdf_file(filename, 'r')
+        nfp = f.variables['nfp'][()]
+        mpol_potential = f.variables['mpol_potential'][()]
+        ntor_potential = f.variables['ntor_potential'][()]
+        net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
+        net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
+        xm_potential = f.variables['xm_potential'][()]
+        xn_potential = f.variables['xn_potential'][()]
+        symmetry_option = f.variables['symmetry_option'][()]
+        if symmetry_option == 1:
+            stellsym = True
+        else:
+            stellsym = False
+        rmnc_coil = f.variables['rmnc_coil'][()]
+        zmns_coil = f.variables['zmns_coil'][()]
+        if ('rmns_coil' in f.variables and 'zmnc_coil' in f.variables):
+            rmns_coil = f.variables['rmns_coil'][()]
+            zmnc_coil = f.variables['zmnc_coil'][()]
+            if np.all(zmnc_coil == 0) and np.all(rmns_coil == 0):
+                stellsym_surf = True
+            else:
+                stellsym_surf = False
+        else: 
+            rmns_coil = np.zeros_like(rmnc_coil)
+            zmnc_coil = np.zeros_like(zmns_coil)
+            stellsym_surf = True
+        xm_coil = f.variables['xm_coil'][()]
+        xn_coil = f.variables['xn_coil'][()]
+        ntheta_coil = f.variables['ntheta_coil'][()]
+        nzeta_coil = f.variables['nzeta_coil'][()]
+        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
+        mpol_coil = int(np.max(xm_coil))
+        ntor_coil = int(np.max(xn_coil)/nfp)
+
+        s_coil = SurfaceRZFourier(nfp=nfp,mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
+        s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
+                                         mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
+        s_coil.set_dofs(0*s_coil.get_dofs())
+        for im in range(len(xm_coil)):
+            s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
+            s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
+
+        cp = cls(s_coil, mpol=mpol_potential, ntor=ntor_potential,
+                                     net_poloidal_current_amperes=net_poloidal_current_amperes,
+                                     net_toroidal_current_amperes=net_toroidal_current_amperes,
+                                     stellsym=stellsym)
+        for im in range(len(xm_potential)):
+            cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+
+        return cp
