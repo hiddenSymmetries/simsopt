@@ -235,7 +235,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     @classmethod
     def from_netcdf(cls, filename: str):
         """
-        Initialize a CurrentPotentialRZFourier from a regcoil netcdf output file.
+        Initialize a CurrentPotentialFourier object from a regcoil netcdf output file.
 
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
@@ -262,7 +262,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                 stellsym_surf = True
             else:
                 stellsym_surf = False
-        else: 
+        else:
             rmns_coil = np.zeros_like(rmnc_coil)
             zmnc_coil = np.zeros_like(zmns_coil)
             stellsym_surf = True
