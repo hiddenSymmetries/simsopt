@@ -370,7 +370,7 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool flux=false)
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool phis_stop=false, bool vpars_stop=false, bool flux=false)
 {
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_phi_hits = {};
@@ -418,6 +418,10 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i) + phis.size()}, temp));
+                if (vpars_stop) {
+                    stop = true;
+                    break;
+                }
             }
         }
         // Now check whether we have hit any of the phi planes
@@ -442,6 +446,10 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, temp));
+                if (phis_stop) {
+                    stop = true;
+                    break;
+                }
             }
         }
         // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
@@ -492,7 +500,9 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars)
+        bool vacuum, bool noK, vector<double> zetas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
+        bool phis_stop, bool vpars_stop)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -508,13 +518,13 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     }
 }
 
@@ -522,7 +532,8 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars={});
+        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        vector<double> vpars={}, bool phis_stop, bool vpars_stop);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(

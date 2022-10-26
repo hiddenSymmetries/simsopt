@@ -77,7 +77,8 @@ def parallel_loop_bounds(comm, n):
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
                            parallel_speeds: NDArray[Float], tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, comm=None, zetas=[], vpars=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
+                           tol=1e-9, comm=None, zetas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           forget_exact_path=False, zetas_stop=False, vpars_stop=False):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
     :func:`trace_particles`.
@@ -180,7 +181,8 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
             m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, vpars=vpars, stopping_criteria=stopping_criteria)
+            noK=(mode == 'gc_nok'), zetas=zetas, vpars=vpars, stopping_criteria=stopping_criteria,
+            phis_stop=zetas_stop,vpars_stop=vpars_stop)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
