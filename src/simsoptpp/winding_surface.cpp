@@ -286,7 +286,7 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
 }
 
 // Calculate the geometric factor needed for the A^B term in winding surface optimization
-std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n)
+std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points_plasma.layout() != xt::layout_type::row_major)
@@ -346,13 +346,14 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
         for(int j = 0; j < ndofs; j++){
             for(int k = 0; k < num_coil; k++){
-		double angle = m(j) * theta_coil(k) - n(j) * zeta_coil(k);
+		double angle = m(j) * theta_coil(k) - n(j) * zeta_coil(k) * nfp;
 	        double cphi = std::cos(angle); 
 	        double sphi = std::sin(angle);
 		//if (stellsym) {
 		//    gj(i, j) += sphi * gij(i, k);
 		//}
 		//else {
+		//gj(i, j) += sphi * gij(i, k);
 		gj(i, j) += sphi * gij(i, k) + cphi * gij(i, k); 
 	        //}
 	    }

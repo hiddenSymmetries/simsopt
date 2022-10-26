@@ -38,7 +38,7 @@ class CurrentPotentialSolveTikhonov:
         self.K_matrix_impl(K_matrix)
         return K_matrix
 
-    def solve(self, plasma_surface, Bnormal_plasma, lam=0):
+    def solve(self, plasma_surface, Bnormal_plasma, B_GI, lam=0):
         """
            Bnormal_plasma is the Bnormal component coming from both plasma currents
            and other external coils, so only B^{GI} (Eq. A7) and B^{SV} need to be
@@ -66,10 +66,10 @@ class CurrentPotentialSolveTikhonov:
         theta_mesh = np.ravel(theta_mesh)
         normal = self.winding_surface.normal().reshape(-1, 3)
 
-        gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma, quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym, phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n)
+        gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma, quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym, phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n, self.winding_surface.nfp)
 
-        print(dg2.reshape(-1, 3).shape, quadpoints_plasma.shape, quadpoints_coil.shape, normal_plasma.shape, phi_mesh.shape, theta_mesh.shape, G, I)
-        B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
+        #B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
+        #B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
 
         # scale everything by the grid spacings
         dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])
@@ -78,9 +78,8 @@ class CurrentPotentialSolveTikhonov:
         dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
 
         #gj = gj * dzeta_coil * dtheta_coil
-        B_GI = B_GI * dzeta_coil * dtheta_coil
+        # B_GI = B_GI * dzeta_coil * dtheta_coil
         # set up RHS of optimization
-        print('B_GI = ', B_GI, B_GI.shape)
         print('Bnormal_plasma = ', Bnormal_plasma, Bnormal_plasma.shape)
         b_rhs = np.zeros(self.ndofs)
         for i in range(self.ndofs):
