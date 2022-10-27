@@ -60,6 +60,8 @@ void SurfaceXYZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arr
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     data *= 0.;
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -90,6 +92,8 @@ void SurfaceXYZFourier<Array>::gammadash1_impl(Array& data, Array& quadpoints_ph
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     data *= 0.;
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -118,6 +122,8 @@ void SurfaceXYZFourier<Array>::gammadash2_impl(Array& data, Array& quadpoints_ph
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash1dash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     data *= 0.;
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -152,6 +158,8 @@ void SurfaceXYZFourier<Array>::gammadash1dash1_impl(Array& data, Array& quadpoin
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash1dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     data *= 0.;
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -213,6 +221,8 @@ void SurfaceXYZFourier<Array>::gammadash2dash2_impl(Array& data, Array& quadpoin
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgamma_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -265,6 +275,8 @@ void SurfaceXYZFourier<Array>::dgamma_by_dcoeff_impl(Array& data, Array& quadpoi
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -318,6 +330,8 @@ void SurfaceXYZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data, Array& qu
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
@@ -371,6 +385,8 @@ void SurfaceXYZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data, Array& qu
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -439,6 +455,8 @@ void SurfaceXYZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data, Arra
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -499,6 +517,8 @@ void SurfaceXYZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data, Arra
 
 template<class Array>
 void SurfaceXYZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
