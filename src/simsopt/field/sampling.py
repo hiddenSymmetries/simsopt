@@ -47,3 +47,26 @@ def draw_uniform_on_surface(surface, nsamples, safetyfactor=10):
     idxs = np.unravel_index(idxs, gamma.shape[:2], order)
     xyz = gamma[idxs[0], idxs[1], :]
     return xyz, idxs
+
+
+def draw_from_pdf(pdf, nsamples, safetyfactor=10):
+    r"""
+    Uses rejection sampling to sample from a pdf. *Warning*: assumes that
+    the underlying quadrature points on the surface are uniformly distributed.
+
+    Args:
+        nsamples: number of samples.
+        safetyfactor: how many more samples than ``nsamples`` to generate for
+                      rejection/acceptance.
+    """
+
+    M = np.max(pdf)
+    nattempts = safetyfactor * nsamples
+    idxs = np.random.randint(0, pdf.size, size=(nattempts, ))
+    z = np.random.uniform(low=0, high=1, size=(nattempts, ))
+    accept = np.where(z < pdf[idxs]/M)[0]
+    assert len(accept) > nsamples
+    return idxs[accept[:nsamples]]
+
+
+

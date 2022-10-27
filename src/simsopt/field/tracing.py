@@ -8,7 +8,7 @@ import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
 from ..field.magneticfield import MagneticField
 from ..field.boozermagneticfield import BoozerMagneticField
-from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
+from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface, draw_from_pdf
 from ..geo.surface import SurfaceClassifier
 from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from .._core.types import RealArray
@@ -24,6 +24,7 @@ __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
            'trace_particles', 'trace_particles_boozer',
            'trace_particles_starting_on_curve',
            'trace_particles_starting_on_surface',
+           'trace_particles_on_surface_from_pdf',
            'particles_to_vtk', 'plot_poincare_data']
 
 
@@ -300,7 +301,7 @@ def trace_particles(field: MagneticField,
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
-        logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
+        #logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -365,6 +366,107 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
+
+
+def trace_particles_on_surface_from_pdf(surface, pdf_func, field, nparticles, tmax=1e-4,
+                                      mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
+                                      Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                                      tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                      phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                                      phase_angle=0):
+    r"""
+    Follows particles spawned at random locations on the magnetic axis with random pitch angle.
+    See :mod:`simsopt.field.tracing.trace_particles` for the governing equations.
+
+    Args:
+        surface: The :mod:`simsopt.geo.surface.Surface` to spawn the particles
+                 on. Uses rejection sampling to sample points on the curve. *Warning*:
+                 assumes that the underlying quadrature points on the Curve as uniformly
+                 distributed.
+        field: The magnetic field :math:`B`.
+        nparticles: number of particles to follow.
+        tmax: integration time
+        mass: particle mass in kg, defaults to the mass of an alpha particle
+        charge: charge in Coulomb, defaults to the charge of an alpha particle
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV
+        tol: tolerance for the adaptive ode solver
+        comm: MPI communicator to parallelize over
+        seed: random seed
+        umin: the parallel speed is defined as  ``v_par = u * speed_total``
+              where  ``u`` is drawn uniformly in ``[umin, umax]``.
+        umax: see ``umin``
+        phis: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that phi should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. options are
+            `gc`: general guiding center equations,
+            `gc_vac`: simplified guiding center equations for the case :math:`\nabla p=0`,
+            `full`: full orbit calculation (slow!)
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_phi_hits is of
+                           interest or one wants to reduce memory usage.
+        phase_angle: the phase angle to use in the case of full orbit calculations
+
+    Returns: see :mod:`simsopt.field.tracing.trace_particles`
+    """
+    m = mass
+    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    np.random.seed(seed)
+    #us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    
+    X = np.linspace(0, 1, surface.quadpoints_phi.size, endpoint=False) 
+    Y = np.linspace(0, 1, surface.quadpoints_theta.size, endpoint=False) 
+    V = np.linspace(0, 1, surface.quadpoints_phi.size, endpoint=False) 
+    
+    shape = (X.size, Y.size, V.size)
+
+    XXg, YYg, VVg = np.meshgrid(X, Y, V, indexing='ij')
+    XX = XXg.flatten()[None, :]
+    YY = YYg.flatten()[None, :]
+    VV = VVg.flatten()[None, :]
+    XYV = np.concatenate((XX, YY, VV), axis=0)
+    pdf = pdf_func(XYV)
+    idxs_lin = draw_from_pdf(pdf, nparticles, safetyfactor=100)
+    
+    idxs = np.unravel_index(idxs_lin, shape)
+
+    gamma = surface.gamma()
+    nor = np.linalg.norm(surface.normal(), axis=-1)
+    xyz = gamma[idxs[0], idxs[1], :]
+    speed_par = speed_total * (V[idxs[2]] * (umax-umin) + umin)
+    
+    surf_pdf = nor[idxs[0], idxs[1]]
+    #vel_pdf = np.ones(surf_pdf.shape)/(speed_total * (umax-umin))
+    vel_pdf = np.ones(surf_pdf.shape)
+    unif_pdf = surf_pdf * vel_pdf
+    bias_pdf = pdf[idxs_lin]
+    pij = XYV[:, idxs_lin]
+
+    
+
+    #if comm.rank == 0:
+    #    import mayavi.mlab as mlab
+    #    #mlab.contour3d(XXg, YYg, VVg, pdf.reshape(XXg.shape), contours=5)
+    #    mlab.points3d(pij[0, :], pij[1, :], pij[2, :], scale_factor=.05)
+    #    mlab.show()
+    
+
+
+
+
+
+
+    gc_tys, gc_phi_hits = trace_particles(
+        field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
+        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
+        phase_angle=phase_angle)
+    
+    return gc_tys, gc_phi_hits, pij, unif_pdf, bias_pdf
+
+
 
 
 def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
