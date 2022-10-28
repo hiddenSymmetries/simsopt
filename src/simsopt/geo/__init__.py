@@ -21,13 +21,14 @@ from .surfaceobjectives import *
 from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
+from .surface_newquadpts import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
            finitebuild.__all__ + plotting.__all__ +
            boozersurface.__all__ + qfmsurface.__all__ +
-           surface.__all__ +
+           surface.__all__ + surface_newquadpts.__all__ +
            surfacegarabedian.__all__ + surfacehenneberg.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__)
