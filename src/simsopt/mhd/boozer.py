@@ -113,9 +113,9 @@ class Boozer(Optimizable):
                     mvol = nvol + 1
                 else:
                     mvol = nvol
-                if new_s < 0 or new_s >= mvol:
+                if new_s <= 0 or new_s > mvol:
                     raise ValueError(
-                        "Volume number must lie within 0 and Mvol-1")
+                        "Surface number must lie within 1 and Mvol-1")
 
         logger.info("Adding entries to Boozer registry: {}".format(ss))
         self.s = self.s.union(ss)
@@ -264,10 +264,10 @@ class Boozer(Optimizable):
             # Seek on which surface the boozer coordinate is required
             compute_surfs = []
             for ss in s:
-                compute_surfs.append(ss * 2)  # inner side of interface
+                compute_surfs.append(ss * 2 - 1)  # inner side of interface
 
-                if ss != d.output.Mvol-1:
-                    compute_surfs.append(ss * 2 + 1)  # outer side of interface
+                if ss != d.output.Mvol:
+                    compute_surfs.append(ss * 2)  # outer side of interface
 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
@@ -338,7 +338,6 @@ class Boozer(Optimizable):
                 for innout in range(0, 2):
                     # Translate interface indices into volume indices
                     ind_vol, innout_vol = surf_to_vol_indices()
-                    print('surf={s}, innout={io}, index={ind}'.format(s=ind_surf, io=innout, ind=index))
                     
                     # Check index is valid, i.e. on a volume interface and not 
                     # on magnetic axis nor comp. bound.
@@ -364,7 +363,6 @@ class Boozer(Optimizable):
                     iota[index] = d.output.lambdamn[innout_vol, ind_vol, 0]
                     s_in[index] = d.output.tflux[ind_surf-1]
 
-                    print('surf={s}, innout={io}, index={ind}'.format(s=ind_surf, io=innout, ind=index))
                     index = index + 1
 
             self.bx.rmnc = rmnc.transpose()

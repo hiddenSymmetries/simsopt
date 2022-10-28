@@ -3,7 +3,7 @@ import logging
 import os
 import numpy as np
 from simsopt.mhd.bootstrap import compute_trapped_fraction, \
-    j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, VmecRedlBootstrapMismatch
+    j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, RedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.boozer import Boozer
@@ -774,9 +774,9 @@ class BootstrapTests(unittest.TestCase):
             plt.title('Bootstrap current for the precise QH (Landreman & Paul (2021))')
             plt.show()
 
-    def test_VmecRedlBootstrapMismatch_1(self):
+    def test_RedlBootstrapMismatch_1(self):
         """
-        The VmecRedlBootstrapMismatch objective function should be
+        The RedlBootstrapMismatch objective function should be
         approximately 1.0 if the vmec configuration is a vacuum
         field. (It will not be exactly 1.0 since there is numerical
         noise in vmec's jdotb.)
@@ -789,9 +789,9 @@ class BootstrapTests(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
         geom = RedlGeomVmec(vmec)
-        obj1 = VmecRedlBootstrapMismatch(geom, ne, Te, Ti, Zeff, helicity_n)
+        obj1 = RedlBootstrapMismatch(geom, ne, Te, Ti, Zeff, helicity_n)
         obj1J = obj1.J()
-        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj1J:.3e} '
+        logging.info(f'test_RedlBootstrapMismatch_1: objective is {obj1J:.3e} '
                      f'and should be approximately 1.0. Diff: {obj1J - 1.0}')
         np.testing.assert_allclose(obj1J, 1.0, rtol=1e-6)
         np.testing.assert_allclose(geom.surfaces, vmec.s_half_grid)
@@ -799,16 +799,16 @@ class BootstrapTests(unittest.TestCase):
         # Try again with a non-default set of surfaces:
         surfaces = np.linspace(0.1, 0.9, 9)
         geom2 = RedlGeomVmec(vmec, surfaces)
-        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
+        obj2 = RedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
         obj2J = obj2.J()
-        logging.info(f'test_VmecRedlBootstrapMismatch_1: objective is {obj2J:.3e} '
+        logging.info(f'test_RedlBootstrapMismatch_1: objective is {obj2J:.3e} '
                      f'and should be approximately 1.0. Diff: {obj2J - 1.0}')
         np.testing.assert_allclose(obj2J, 1.0, rtol=1e-6)
 
     @unittest.skipIf(vmec_extension is None, "vmec python extension not found")
-    def test_VmecRedlBootstrapMismatch_independent_of_ns(self):
+    def test_RedlBootstrapMismatch_independent_of_ns(self):
         """
-        Confirm that the VmecRedlBootstrapMismatch objective function is
+        Confirm that the RedlBootstrapMismatch objective function is
         approximately independent of the radial resolution ns.
         """
         ne = ProfilePolynomial(5.0e20 * np.array([1, 0, 0, 0, -1]))
@@ -823,8 +823,8 @@ class BootstrapTests(unittest.TestCase):
         vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
         vmec.indata.niter_array[:3] = [500, 2000, 0]
         geom1 = RedlGeomVmec(vmec, nphi=3)
-        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_n,
-                                         logfile='testVmecRedlBootstrapMismatch.log')
+        obj1 = RedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_n,
+                                         logfile='testRedlBootstrapMismatch.log')
         obj1J = obj1.J()
         # Resolution 2:
         vmec.indata.ns_array[:3] = [13, 25, 51]
@@ -832,7 +832,7 @@ class BootstrapTests(unittest.TestCase):
         vmec.indata.niter_array[:3] = [500, 800, 2000]
         vmec.need_to_run_code = True
         geom2 = RedlGeomVmec(vmec, nphi=3)
-        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
+        obj2 = RedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
         obj2J = obj2.J()
         rel_diff = (obj1J - obj2J) / (0.5 * (obj1J + obj2J))
         logging.info(f'resolution1: {obj1J:.4e}  resolution2: {obj2J:.4e}  rel diff: {rel_diff}')
