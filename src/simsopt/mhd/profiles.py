@@ -68,20 +68,48 @@ class SpecProfile(Profile):
         cumulative quantities in SPEC input file. False by default.
     """
 
-    def __init__(self, data, cumulative=False):
+    def __init__(self, data, cumulative:bool=False):
         super().__init__(x0=np.array(data))
         self.local_fix_all()
         self.cumulative = cumulative
 
-    def f(self, lvol):
+    def f(self, lvol:int):
         """Return the value of the profile in volume lvol"""
-        if (lvol < 0):
+        if isinstance(lvol,int) or isinstance(lvol,float):
+            lvol = np.array([lvol])
+
+        if (lvol < 0).any():
             raise ValueError('lvol should be larger or equal than zero')
 
-        if (lvol >= self.local_full_x.size):
+        if (lvol >= self.local_full_x.size).any():
             raise ValueError('lvol should be smaller than Mvol')
 
+        if isinstance(lvol,list) or isinstance(lvol,np.ndarray):
+            lvol = [int(l) for l in lvol]
+        else:
+            lvol = int(lvol)
+
         return self.local_full_x[lvol]
+
+    def dfds(self, lsurf):
+        """Return the derivative [[.]] of the profile accross interface lsurf
+        
+        Here lsurf=0 is the surface bounding the first volume. There are, in total,
+        Mvol-1 surfaces, thus lsurf has to be in [0,Mvol-1]
+        """
+
+        if (lsurf<0).any(): 
+            raise ValueError('lsurf should be larger or equal to 0')
+        if (lsurf>=self.local_full_x.size).any():
+            raise ValueError('lsurf should be smaller than Mvol')
+        
+
+        if isinstance(lsurf,list) or isinstance(lsurf,np.ndarray):
+            lsurf = [int(l) for l in lsurf]
+        else:
+            lsurf = int(lsurf)
+
+        return np.diff(self.local_full_x)
 
 
 class ProfilePolynomial(Profile):

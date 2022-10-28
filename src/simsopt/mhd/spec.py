@@ -82,13 +82,17 @@ class Spec(Optimizable):
         keep_all_files: If ``False``, all output files will be deleted
           except for the first and most recent ones from worker group 0. If
           ``True``, all output files will be kept.
+        tolerance: Max force balance residue to consider the equilibrium as
+          converged; if |f|>tolerance, raise ObjectiveFailure exception. By
+          default set to 1E-12.
     """
 
     def __init__(self,
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  verbose: bool = True,
-                 keep_all_files: bool = False):
+                 keep_all_files: bool = False,
+                 tolerance: float = 1e-12):
 
         if spec is None:
             raise RuntimeError(
@@ -134,6 +138,12 @@ class Spec(Optimizable):
             if not filename.endswith('.sp'):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
+
+        if tolerance<=0:
+            raise ValueError(
+                'tolerance should be greater than zero'
+            )
+        self.tolerance = tolerance
 
         self.init(filename)
         si = spec.inputlist  # Shorthand
@@ -747,9 +757,17 @@ class Spec(Optimizable):
         logger.info("Successfully loaded SPEC results.")
         self.need_to_run_code = False
 
+
+        # Deal with unconverged equilibria
+        if self.results.output.ForceErr > self.tolerance:
+            raise ObjectiveFailure(
+                'SPEC could not find force balance'
+            )
+
+
         try:
             # Save geometry as initial guess for next iterations
-            if self.results.output.ForceErr < 1e-12 and self.results.output.Mvol > 1:
+            if self.results.output.Mvol > 1:
                 initial_guess = {}
                 initial_guess['rbc'] = self.results.output.Rbc[1:mvol+1, :]
                 initial_guess['zbs'] = self.results.output.Zbs[1:mvol+1, :]
