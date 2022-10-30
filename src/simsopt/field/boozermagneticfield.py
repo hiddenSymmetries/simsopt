@@ -2,6 +2,7 @@ import simsoptpp as sopp
 from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
 import logging
+from booz_xform import Booz_xform
 
 logger = logging.getLogger(__name__)
 
@@ -332,33 +333,55 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             harmonics and its finite-difference derivative wrt ``s`` is performed
             instead (defaults to ``False``)
         ns_delete: (see ``rescale``) (defaults to 0)
+        no_K: (bool) If ``True``, the Boozer :math:`K` will not be computed or
+            interpolated.
+        write_boozmn: (bool) If ``True``, save the booz_xform transformation in
+            a filename specified by ``boozmn_name``.
+        boozmn_name: (string) Filename to save booz_xform transformation if
+            ``write_boozmn`` is ``True``.
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
+          the worker groups will be used for spline calculations. If ``None``,
+          defaults to ``equil.mpi``. If ``equil`` is a ``Booz_xform`` instance,
+          and ``mpi`` is ``None``, each MPI process will compute splines
+          independently.
     """
 
-    def __init__(self, equil, order, mpol=32, ntor=32, N=None, enforce_vacuum=False, rescale=False,
-                 ns_delete=0, no_K=False):
+    def __init__(self, equil, order, mpol=32, ntor=32, N=None,
+                 enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False,
+                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None):
 
         if isinstance(equil, Vmec):
             equil.run()
-            self.booz = Boozer(equil, mpol, ntor)
-            self.booz.register(self.booz.equil.s_half_grid)
-            self.booz.run()
+            booz = Boozer(equil, mpol, ntor)
+            booz.register(booz.equil.s_half_grid)
+            booz.run()
+            if write_boozmn:
+                booz.bx.write_boozmn(boozmn_name)
+            self.bx = booz.bx
         elif isinstance(equil, Boozer):
-            self.booz = equil
+            booz = equil
             # Determine if radial grid for Boozer needs to be updated
 
             # Grid not initialized
-            if len(self.booz.bx.s_in) == 0:
-                self.booz.register(self.booz.equil.s_half_grid)
+            if len(booz.bx.s_b) == 0:
+                booz.register(booz.equil.s_half_grid)
             # Grid does not have correct size
-            elif (len(self.booz.bx.s_in) != len(self.booz.bx.s_b)):
-                self.booz.register(self.booz.equil.s_half_grid)
+            elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
+                booz.register(booz.equil.s_half_grid)
             # Grid does not match Vmec half grid
-            elif (np.any(self.booz.bx.s_in != self.booz.bx.s_b)):
-                self.booz.register(self.booz.equil.s_half_grid)
+            elif (np.any(booz.bx.s_b != booz.bx.s_b)):
+                booz.register(booz.equil.s_half_grid)
 
             # Run booz_xform if needed
-            if self.booz.need_to_run_code:
-                self.booz.run()
+            if booz.need_to_run_code:
+                booz.run()
+                if write_boozmn:
+                    booz.bx.write_boozmn(boozmn_name)
+            self.bx = booz.bx
+        elif (isinstance(equil,Booz_xform)):
+            self.bx = equil
+        else:
+            raise ValueError("Incorrect equil type passed to BoozerRadialInterpolant.")
 
         self.order = order
         self.enforce_qs = False
@@ -372,13 +395,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.N = N
             self.enforce_qs = True
 
-        self.mpi = self.booz.mpi
+        if (mpi is None and not isinstance(equil, Booz_xform)):
+            self.mpi = self.booz.mpi
+        else:
+            self.mpi = mpi
 
-        BoozerMagneticField.__init__(self, self.booz.equil.wout.phi[-1]/(2*np.pi))
+        BoozerMagneticField.__init__(self, self.bx.phi[-1]/(2*np.pi))
 
         if self.mpi is not None:
             if self.mpi.proc0_groups:
-                self.asym = self.booz.bx.asym  # Bool for stellarator asymmetry
+                self.asym = self.bx.asym  # Bool for stellarator asymmetry
                 self.init_splines()
                 if (not self.no_K):
                     self.compute_K()
@@ -447,53 +473,54 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 if (not self.no_K):
                     self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
         else:
+            self.asym = self.bx.asym  # Bool for stellarator asymmetry
             self.init_splines()
             if (not self.no_K):
                 self.compute_K()
 
     def init_splines(self):
-        self.xm_b = self.booz.bx.xm_b
-        self.xn_b = self.booz.bx.xn_b
+        self.xm_b = self.bx.xm_b
+        self.xn_b = self.bx.xn_b
 
         # Define quantities on extended half grid
-        iota = np.zeros((self.booz.bx.ns_b+2))
-        G = np.zeros((self.booz.bx.ns_b+2))
-        I = np.zeros((self.booz.bx.ns_b+2))
+        iota = np.zeros((self.bx.ns_b+2))
+        G = np.zeros((self.bx.ns_b+2))
+        I = np.zeros((self.bx.ns_b+2))
 
-        self.s_half_ext = np.zeros((self.booz.bx.ns_b+2))
-        self.s_half_ext[1:-1] = self.booz.bx.s_in
+        self.s_half_ext = np.zeros((self.bx.ns_b+2))
+        self.s_half_ext[1:-1] = self.bx.s_b
         self.s_half_ext[-1] = 1
 
-        ds = self.booz.bx.s_in[1]-self.booz.bx.s_in[0]
+        ds = self.bx.s_b[1]-self.bx.s_b[0]
 
-        s_full = np.linspace(0, 1, self.booz.bx.ns_in+1)
+        s_full = np.linspace(0, 1, self.bx.ns_b+1)
 
-        psip = self.booz.equil.wout.chi/(2*np.pi)
-        iota[1:-1] = self.booz.bx.iota
-        G[1:-1] = self.booz.bx.Boozer_G
-        I[1:-1] = self.booz.bx.Boozer_I
+        psip = self.bx.phip/(2*np.pi)
+        iota[1:-1] = self.bx.iota
+        G[1:-1] = self.bx.Boozer_G
+        I[1:-1] = self.bx.Boozer_I
         if self.rescale:
-            s_half_mn = self.booz.bx.s_in[self.ns_delete::]
-            bmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-            rmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-            zmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-            numns = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
+            s_half_mn = self.bx.s_b[self.ns_delete::]
+            bmnc = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+            rmnc = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+            zmns = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+            numns = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
 
-            bmnc = self.booz.bx.bmnc_b[:, self.ns_delete::]
-            rmnc = self.booz.bx.rmnc_b[:, self.ns_delete::]
-            zmns = self.booz.bx.zmns_b[:, self.ns_delete::]
-            numns = self.booz.bx.numns_b[:, self.ns_delete::]
+            bmnc = self.bx.bmnc_b[:, self.ns_delete::]
+            rmnc = self.bx.rmnc_b[:, self.ns_delete::]
+            zmns = self.bx.zmns_b[:, self.ns_delete::]
+            numns = self.bx.numns_b[:, self.ns_delete::]
 
             if self.asym:
-                bmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-                rmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-                zmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
-                numnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in-self.ns_delete))
+                bmns = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+                rmns = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+                zmnc = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
+                numnc = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
 
-                bmns = self.booz.bx.bmns_b[:, self.ns_delete::]
-                rmns = self.booz.bx.rmns_b[:, self.ns_delete::]
-                zmnc = self.booz.bx.zmnc_b[:, self.ns_delete::]
-                numnc = self.booz.bx.numnc_b[:, self.ns_delete::]
+                bmns = self.bx.bmns_b[:, self.ns_delete::]
+                rmns = self.bx.rmns_b[:, self.ns_delete::]
+                zmnc = self.bx.zmnc_b[:, self.ns_delete::]
+                numnc = self.bx.numnc_b[:, self.ns_delete::]
 
             mn_factor = np.ones_like(bmnc)
             d_mn_factor = np.zeros_like(bmnc)
@@ -505,24 +532,24 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             d_mn_factor[(self.xm_b % 2 == 0)*(self.xm_b > 1), :] = -s_half_mn[None, :]**(-2.)
         else:
             s_half_mn = self.s_half_ext
-            bmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-            bmnc[:, 1:-1] = self.booz.bx.bmnc_b
+            bmnc = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+            bmnc[:, 1:-1] = self.bx.bmnc_b
             bmnc[:, 0] = 1.5*bmnc[:, 1] - 0.5*bmnc[:, 2]
             bmnc[:, -1] = 1.5*bmnc[:, -2] - 0.5*bmnc[:, -3]
             dbmncds = (bmnc[:, 2:-1] - bmnc[:, 1:-2])/ds
             mn_factor = np.ones_like(bmnc)
             d_mn_factor = np.zeros_like(bmnc)
 
-            numns = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-            rmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-            zmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-            numns[:, 1:-1] = self.booz.bx.numns_b
+            numns = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+            rmnc = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+            zmns = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+            numns[:, 1:-1] = self.bx.numns_b
             numns[:, 0] = 1.5*numns[:, 1] - 0.5*numns[:, 2]
             numns[:, -1] = 1.5*numns[:, -2] - 0.5*numns[:, -3]
-            rmnc[:, 1:-1] = self.booz.bx.rmnc_b
+            rmnc[:, 1:-1] = self.bx.rmnc_b
             rmnc[:, 0] = 1.5*rmnc[:, 1] - 0.5*rmnc[:, 2]
             rmnc[:, -1] = 1.5*rmnc[:, -2] - 0.5*rmnc[:, -3]
-            zmns[:, 1:-1] = self.booz.bx.zmns_b
+            zmns[:, 1:-1] = self.bx.zmns_b
             zmns[:, 0] = 1.5*zmns[:, 1] - 0.5*zmns[:, 2]
             zmns[:, -1] = 1.5*zmns[:, -2] - 0.5*zmns[:, -3]
 
@@ -531,22 +558,22 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             dnumnsds = (numns[:, 2:-1] - numns[:, 1:-2])/ds
 
             if self.asym:
-                bmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-                bmns[:, 1:-1] = self.booz.bx.bmns_b
+                bmns = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+                bmns[:, 1:-1] = self.bx.bmns_b
                 bmns[:, 0] = 1.5*bmns[:, 1] - 0.5*bmns[:, 2]
                 bmns[:, -1] = 1.5*bmns[:, -2] - 0.5*bmns[:, -3]
                 dbmnsds = (bmns[:, 2:-1] - bmns[:, 1:-2])/ds
 
-                numnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-                rmns = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-                zmnc = np.zeros((len(self.xm_b), self.booz.bx.ns_in+2))
-                numnc[:, 1:-1] = self.booz.bx.numnc_b
+                numnc = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+                rmns = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+                zmnc = np.zeros((len(self.xm_b), self.bx.ns_b+2))
+                numnc[:, 1:-1] = self.bx.numnc_b
                 numnc[:, 0] = 1.5*numnc[:, 1] - 0.5*numnc[:, 2]
                 numnc[:, -1] = 1.5*numnc[:, -2] - 0.5*numnc[:, -3]
-                rmns[:, 1:-1] = self.booz.bx.rmns_b
+                rmns[:, 1:-1] = self.bx.rmns_b
                 rmns[:, 0] = 1.5*rmns[:, 1] - 0.5*rmns[:, 2]
                 rmns[:, -1] = 1.5*rmns[:, -2] - 0.5*rmns[:, -3]
-                zmnc[:, 1:-1] = self.booz.bx.zmnc_b
+                zmnc[:, 1:-1] = self.bx.zmnc_b
                 zmnc[:, 0] = 1.5*zmnc[:, 1] - 0.5*zmnc[:, 2]
                 zmnc[:, -1] = 1.5*zmnc[:, -2] - 0.5*zmnc[:, -3]
 
@@ -648,11 +675,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     self.dzmncds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], dzmncds[im, :], k=self.order))
 
     def compute_K(self):
-        ntheta = 2 * (2 * self.booz.bx.mboz + 1)
-        nzeta = 2 * (2 * self.booz.bx.nboz + 1)
+        ntheta = 2 * (2 * self.bx.mboz + 1)
+        nzeta = 2 * (2 * self.bx.nboz + 1)
         thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
         dtheta = thetas[1]-thetas[0]
-        zetas = np.linspace(0, 2*np.pi/self.booz.bx.nfp, nzeta, endpoint=False)
+        zetas = np.linspace(0, 2*np.pi/self.bx.nfp, nzeta, endpoint=False)
         dzeta = zetas[1]-zetas[0]
         thetas, zetas = np.meshgrid(thetas, zetas)
         thetas = thetas.flatten()
@@ -704,12 +731,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                                                iota_half, G_half, I_half, self.xm_b, self.xn_b, thetas, zetas)
             kmnc = kmnc_kmns[0, :, :]
             kmns = kmnc_kmns[1, :, :]
-            kmnc = kmnc*dtheta*dzeta*self.booz.bx.nfp/self.psi0
+            kmnc = kmnc*dtheta*dzeta*self.bx.nfp/self.psi0
         else:
             kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
                                      numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
                                      self.xm_b, self.xn_b, thetas, zetas)
-        kmns = kmns*dtheta*dzeta*self.booz.bx.nfp/self.psi0
+        kmns = kmns*dtheta*dzeta*self.bx.nfp/self.psi0
 
         self.kmns_splines = []
         if (self.asym):

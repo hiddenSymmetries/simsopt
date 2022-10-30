@@ -216,6 +216,8 @@ class Boozer(Optimizable):
             # interpolation and discarding the rows of zeros:
             self.bx.init_from_vmec(wout.ns,
                                    wout.iotas,
+                                   wout.phi,
+                                   wout.chi,
                                    wout.rmnc,
                                    rmns,
                                    zmnc,
