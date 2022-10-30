@@ -336,7 +336,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         no_K: (bool) If ``True``, the Boozer :math:`K` will not be computed or
             interpolated.
         write_boozmn: (bool) If ``True``, save the booz_xform transformation in
-            a filename specified by ``boozmn_name``.
+            a filename specified by ``boozmn_name``. (defaults to ``True``)
         boozmn_name: (string) Filename to save booz_xform transformation if
             ``write_boozmn`` is ``True``.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
@@ -396,7 +396,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.enforce_qs = True
 
         if (mpi is None and not isinstance(equil, Booz_xform)):
-            self.mpi = self.booz.mpi
+            self.mpi = equil.mpi
         else:
             self.mpi = mpi
 
