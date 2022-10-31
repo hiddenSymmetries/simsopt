@@ -57,11 +57,8 @@ class GX_Runner():
         if (os.path.exists(fout) and skip_overwrite):
             print( '  input exists, skipping write', fout )
             return
-
         with open(fout,'w') as f:
-        
             for item in self.inputs.items():
-                 
                 if ( type(item[1]) is not dict ):
                     print('  %s = %s ' % item, file=f)  
                     continue
@@ -385,8 +382,8 @@ class VMEC_GX_geometry_module():
         print('  wrote .ing', out_path+fname)
 
         # run
-        cmd = ['convert_VMEC_to_GX',  out_path+fname]
-        #cmd = ['./{:}convert_VMEC_to_GX'.format(in_path),  out_path+fname]
+        #cmd = ['convert_VMEC_to_GX',  out_path+fname]
+        cmd = ['./{:}convert_VMEC_to_GX'.format(in_path),  out_path+fname]
 
         f_log = out_path + fname + '.log'
         with open(f_log, 'w') as fp:
