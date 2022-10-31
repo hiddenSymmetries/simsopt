@@ -75,7 +75,7 @@ class GX_Runner():
                     s = '  {:%i}  =  {}' % N_space
                     print(s.format(*pair), file=f)
 
-        print('  wrote input:', fout)
+        # print('  wrote input:', fout)
 
 
     def load_slurm(self,f_slurm):
@@ -382,13 +382,12 @@ class VMEC_GX_geometry_module():
         out_path = self.output_path
         fname = self.tag + local_id + '-psi-{:.2f}'.format(s)
         self.write(fname)
-        print('  wrote .ing', out_path+fname)
+        # print('  wrote .ing', out_path+fname)
 
         # run
         cmd = ['./convert_VMEC_to_GX',  out_path+fname]
         # cmd = ['./{:}convert_VMEC_to_GX'.format(in_path),  out_path+fname]
-        # print(os.getcwd())
-        # print(cmd)
+
         f_log = out_path + fname + '.log'
         with open(f_log, 'w') as fp:
             subprocess.call(cmd,stdout=fp)
