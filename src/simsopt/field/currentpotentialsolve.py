@@ -59,7 +59,7 @@ class CurrentPotentialSolveTikhonov:
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
 
-        s_coil = SurfaceRZFourier(nfp=nfp,mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
+        s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
         s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
         s_coil.set_dofs(0*s_coil.get_dofs())
@@ -108,8 +108,8 @@ class CurrentPotentialSolveTikhonov:
         """
         normal_plasma = plasma_surface.normal().reshape(-1, 3)
         quadpoints_plasma = plasma_surface.gamma().reshape(-1, 3)
-        K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
-        K_rhs = np.zeros((self.current_potential.num_dofs(),))
+        #K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
+        #K_rhs = np.zeros((self.current_potential.num_dofs(),))
         quadpoints_coil = self.winding_surface.gamma().reshape(-1, 3)
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
@@ -119,8 +119,8 @@ class CurrentPotentialSolveTikhonov:
 
         normal = self.winding_surface.normal()
         norm_normal = np.linalg.norm(normal, axis=2)
-        self.K_matrix_impl(K_matrix)
-        self.K_rhs_impl(K_rhs)
+        K_matrix = self.K_matrix()
+        K_rhs = self.K_rhs()
 
         theta = self.winding_surface.quadpoints_theta
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
@@ -153,5 +153,11 @@ class CurrentPotentialSolveTikhonov:
         # print('B_matrix = ', B_matrix)
         print('b_matrix = ', b_rhs)
         # dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
-        dofs = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
-        return dofs
+        phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
+        #return dofs
+        self.phi_mn_opt = phi_mn_opt
+
+        self.current_potential.phis_potential = phi_mn_opt
+        #for im in range(len(self.current_potential.m)):
+        #    self.current_potential.set_phis(self.current_potential.m[im], int(self.current_potential.n[im]/self.winding_surface.nfp), phi_mn_opt[im])
+

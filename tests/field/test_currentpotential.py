@@ -41,7 +41,7 @@ class CurrentPotentialTests(unittest.TestCase):
         K2 = np.sum(K*K, axis=2)
         K2_average = np.mean(K2, axis=(0, 1))
 
-        assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp),:]/K2_average, K2_regcoil/K2_average)
+        assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
 
 
 def get_currentpotential(cptype, stellsym, phis=None, thetas=None):

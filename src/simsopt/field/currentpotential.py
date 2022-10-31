@@ -274,7 +274,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
 
-        s_coil = SurfaceRZFourier(nfp=nfp,mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
+        s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
         s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
         s_coil.set_dofs(0*s_coil.get_dofs())
@@ -283,9 +283,9 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
 
         cp = cls(s_coil, mpol=mpol_potential, ntor=ntor_potential,
-                                     net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                     net_toroidal_current_amperes=net_toroidal_current_amperes,
-                                     stellsym=stellsym)
+                 net_poloidal_current_amperes=net_poloidal_current_amperes,
+                 net_toroidal_current_amperes=net_toroidal_current_amperes,
+                 stellsym=stellsym)
         for im in range(len(xm_potential)):
             cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 

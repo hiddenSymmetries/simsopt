@@ -346,16 +346,18 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
         for(int j = 0; j < ndofs; j++){
             for(int k = 0; k < num_coil; k++){
-		double angle = m(j) * theta_coil(k) - n(j) * zeta_coil(k) * nfp;
+		double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
 	        double cphi = std::cos(angle); 
 	        double sphi = std::sin(angle);
-		//if (stellsym) {
-		//    gj(i, j) += sphi * gij(i, k);
-		//}
-		//else {
-		//gj(i, j) += sphi * gij(i, k);
-		gj(i, j) += sphi * gij(i, k) + cphi * gij(i, k); 
-	        //}
+		if (stellsym) {
+		    gj(i, j) += sphi * gij(i, k);
+		}
+		else if (j < int(ndofs / 2.0)) {
+		    gj(i, j) += sphi * gij(i, k);
+	        }
+		else {
+		    gj(i, j) += cphi * gij(i, k);
+	        }
 	    }
 	}
     }

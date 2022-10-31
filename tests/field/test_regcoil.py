@@ -127,9 +127,9 @@ class Testing(unittest.TestCase):
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
         gamma = winding_surface.gamma().reshape((-1, 3))
-        print('Inner boundary of the infinitesimally thin wire = ', np.min(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
-        print('Outer boundary of the infinitesimally thin wire = ', np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
-        print('Area and volume of the wire = ', winding_surface.area(), winding_surface.volume())
+        #print('Inner boundary of the infinitesimally thin wire = ', np.min(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
+        #print('Outer boundary of the infinitesimally thin wire = ', np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
+        #print('Area and volume of the wire = ', winding_surface.area(), winding_surface.volume())
 
         Bfield.set_points(np.ascontiguousarray(points))
         B_predict = Bfield.B()
@@ -162,9 +162,9 @@ class Testing(unittest.TestCase):
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
         gamma = winding_surface.gamma().reshape((-1, 3))
-        print('Inner boundary of the infinitesimally thin wire = ', np.min(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
-        print('Outer boundary of the infinitesimally thin wire = ', np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
-        print('Area and volume of the wire = ', winding_surface.area(), winding_surface.volume())
+        #print('Inner boundary of the infinitesimally thin wire = ', np.min(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
+        #print('Outer boundary of the infinitesimally thin wire = ', np.max(np.sqrt(gamma[:, 0] ** 2 + gamma[:, 1] ** 2)))
+        #print('Area and volume of the wire = ', winding_surface.area(), winding_surface.volume())
 
         Bfield.set_points(np.ascontiguousarray(points))
         B_predict = Bfield.B()
@@ -267,12 +267,14 @@ class Testing(unittest.TestCase):
         # WindingSurface for W7-X and NCSX configuration
 
         stellsym = True
-        #for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
-        for filename in [TEST_DIR / 'regcoil_out.w7x_infty.nc']:
-            #for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
+        for filename in [TEST_DIR / 'regcoil_out.w7x_infty.nc', TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
             f = netcdf_file(filename, 'r')
             cp = CurrentPotentialFourier.from_netcdf(filename)
-            Bnormal_regcoil = f.variables['Bnormal_total'][()][-1, :, :]
+            cp_copy = CurrentPotentialFourier.from_netcdf(filename)
+            cp_copy.set_dofs(np.zeros(cp_copy.get_dofs().shape))
+
+            Bnormal_regcoil = f.variables['Bnormal_total'][()]
+            #print('shape of Bnormal regcoil = ', Bnormal_regcoil.shape)
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
             Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
             Bnormal_regcoil = Bnormal_regcoil - Bnormal_from_plasma_current
@@ -291,10 +293,12 @@ class Testing(unittest.TestCase):
             lambda_regcoil = f.variables['lambda'][()]
             b_rhs_regcoil = f.variables['RHS_B'][()]
             k_rhs_regcoil = f.variables['RHS_regularization'][()]
+
+            single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()]
             #B_matrix_regcoil = f.variables['matrix_B'][()]
             #print('Bregcoil = ', B_matrix_regcoil)
             print('b_rhs = ', b_rhs_regcoil)
-            print('B_GI_regcoil_full = ', Bnormal_from_net_coil_currents, Bnormal_from_net_coil_currents.shape)
+            #print('B_GI_regcoil_full = ', Bnormal_from_net_coil_currents, Bnormal_from_net_coil_currents.shape)
 
             s_plasma = SurfaceRZFourier(nfp=nfp,
                                         mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym)
@@ -310,25 +314,14 @@ class Testing(unittest.TestCase):
             s_coil = cp.winding_surface
             assert np.allclose(r_coil, s_coil.gamma())
 
-            cp = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
-                                         net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                         net_toroidal_current_amperes=net_toroidal_current_amperes)
-
-            cp_copy = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
-                                              net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                              net_toroidal_current_amperes=net_toroidal_current_amperes)
-
-            # Must do this before setting Phi! 
+            # Using the copy to compute B_GI 
             Bfield = WindingSurfaceField(cp_copy)
             points = s_plasma.gamma().reshape(-1, 3)
             Bfield.set_points(points)
             B = Bfield.B()
             normal = s_plasma.unitnormal().reshape(-1, 3)
             B_GI_winding_surface = np.sum(B*normal, axis=1)
-            print('B_GI winding surface = ', B_GI_winding_surface, B_GI_winding_surface.shape)
-
-            for im in range(len(xm_potential)):
-                cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+            #print('B_GI winding surface = ', B_GI_winding_surface, B_GI_winding_surface.shape)
 
             K = cp.K()
             K2 = np.sum(K*K, axis=2)
@@ -346,27 +339,31 @@ class Testing(unittest.TestCase):
 
             # Solve the least-squares problem with the specified plasma
             # quadrature points, normal vector, and Bnormal at these quadrature points
-            optimized_dofs = cpst.solve(s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface, lam=lambda_regcoil)
-            print('optimized dofs = ', optimized_dofs)
-            cp.set_dofs(optimized_dofs)
-            print('Current potential MN = ', single_valued_current_potential_mn)
-            exit()
+            for i, lambda_reg in enumerate(lambda_regcoil):
+                #optimized_dofs = 
+                cpst.solve(s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface, lam=lambda_reg)
+                optimized_phi_mn = cpst.phi_mn_opt 
+                #print('optimized dofs = ', optimized_phi_mn)
+                #print('Current potential MN = ', single_valued_current_potential_mn[i], single_valued_current_potential_mn.shape)
+                print('dofs diff = ', np.mean(abs(optimized_phi_mn - single_valued_current_potential_mn[i])))
 
-            # Initialize Bfield from optimized CurrentPotential
-            Bfield = WindingSurfaceField(cp)
-            points = s_plasma.gamma().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
-            Bfield.set_points(points)
-            B = Bfield.B()
+                # Initialize Bfield from optimized CurrentPotential
+                Bfield = WindingSurfaceField(cpst.current_potential)
+                points = s_plasma.gamma().reshape(-1, 3)
+                Bfield.set_points(points)
+                B = Bfield.B()
 
-            normal = s_plasma.unitnormal().reshape((int(len(s_plasma.gamma().flatten())/3), 3))
-            Bnormal = np.sum(B*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
+                normal = s_plasma.unitnormal().reshape(-1, 3)
+                Bnormal = np.sum(B*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
 
-            self.assertAlmostEqual(np.sum(Bnormal), 0)
-            self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
+                print('Bnormal regcoil = ', Bnormal_regcoil[i, :, :])
+                print('Bnormal simsopt = ', Bnormal)
+                self.assertAlmostEqual(np.sum(Bnormal), 0)
+                self.assertAlmostEqual(np.sum(Bnormal_regcoil[i, :, :]), 0)
 
-            Bnormal_average = np.mean(np.abs(Bnormal))
+                Bnormal_average = np.mean(np.abs(Bnormal))
 
-            assert np.allclose(Bnormal.flatten()/Bnormal_average, Bnormal_regcoil.flatten()/Bnormal_average)
+                assert np.allclose(Bnormal.flatten()/Bnormal_average, Bnormal_regcoil[i, :, :].flatten()/Bnormal_average)
 
 
 if __name__ == "__main__":
