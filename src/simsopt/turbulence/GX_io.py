@@ -60,19 +60,19 @@ class GX_Runner():
         with open(fout,'w') as f:
             for item in self.inputs.items():
                 if ( type(item[1]) is not dict ):
-                    print('  %s = %s ' % item, file=f)  
+                    # print('  %s = %s ' % item, file=f)  
                     continue
     
                 header, nest = item
-                print('\n[%s]' % header, file=f)
+                # print('\n[%s]' % header, file=f)
     
                 longest_key =  max( nest.keys(), key=len) 
                 N_space = len(longest_key) 
                 for pair in nest.items():
                     s = '  {:%i}  =  {}' % N_space
-                    print(s.format(*pair), file=f)
+                    # print(s.format(*pair), file=f)
 
-        print('  wrote input:', fout)
+        # print('  wrote input:', fout)
 
 
     def load_slurm(self,f_slurm):
@@ -354,7 +354,7 @@ class VMEC_GX_geometry_module():
             for pair in data.items():
                 s = '  {:%i}  =  {}' % N_space
                 #print(s.format(*pair))   # print to screen for debugging
-                print(s.format(*pair), file=f)
+                # print(s.format(*pair), file=f)
 
 
     def set_vmec(self,wout, vmec_path='./', output_path='./'):
@@ -379,7 +379,7 @@ class VMEC_GX_geometry_module():
         out_path = self.output_path
         fname = self.tag + local_id + '-psi-{:.2f}'.format(s)
         self.write(fname)
-        print('  wrote .ing', out_path+fname)
+        # print('  wrote .ing', out_path+fname)
 
         # run
         #cmd = ['convert_VMEC_to_GX',  out_path+fname]
