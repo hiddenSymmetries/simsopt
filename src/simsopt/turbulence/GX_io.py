@@ -385,7 +385,7 @@ class VMEC_GX_geometry_module():
         print('  wrote .ing', out_path+fname)
 
         # run
-        cmd = ['convert_VMEC_to_GX',  out_path+fname]
+        cmd = ['./convert_VMEC_to_GX',  out_path+fname]
         # cmd = ['./{:}convert_VMEC_to_GX'.format(in_path),  out_path+fname]
         print(os.getcwd())
         print(cmd)
