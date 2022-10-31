@@ -387,8 +387,8 @@ class VMEC_GX_geometry_module():
         # run
         cmd = ['./convert_VMEC_to_GX',  out_path+fname]
         # cmd = ['./{:}convert_VMEC_to_GX'.format(in_path),  out_path+fname]
-        print(os.getcwd())
-        print(cmd)
+        # print(os.getcwd())
+        # print(cmd)
         f_log = out_path + fname + '.log'
         with open(f_log, 'w') as fp:
             subprocess.call(cmd,stdout=fp)
