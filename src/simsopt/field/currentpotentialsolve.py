@@ -108,9 +108,8 @@ class CurrentPotentialSolveTikhonov:
         """
         normal_plasma = plasma_surface.normal().reshape(-1, 3)
         quadpoints_plasma = plasma_surface.gamma().reshape(-1, 3)
-        #K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
-        #K_rhs = np.zeros((self.current_potential.num_dofs(),))
         quadpoints_coil = self.winding_surface.gamma().reshape(-1, 3)
+
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
 
@@ -139,10 +138,7 @@ class CurrentPotentialSolveTikhonov:
         dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])
         dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
 
-        #gj = gj * dzeta_coil * dtheta_coil
-        # B_GI = B_GI * dzeta_coil * dtheta_coil
         # set up RHS of optimization
-        print('Bnormal_plasma = ', Bnormal_plasma, Bnormal_plasma.shape)
         b_rhs = np.zeros(self.ndofs)
         for i in range(self.ndofs):
             b_rhs[i] = - (B_GI + Bnormal_plasma) @ gj[:, i]
@@ -150,14 +146,5 @@ class CurrentPotentialSolveTikhonov:
         b_rhs = b_rhs * dzeta_plasma * dtheta_plasma * dzeta_coil * dtheta_coil
         B_matrix = B_matrix * dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2
 
-        # print('B_matrix = ', B_matrix)
-        print('b_matrix = ', b_rhs)
-        # dofs, _, _, _ = np.linalg.lstsq(B_matrix, b_rhs)
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
-        #return dofs
-        self.phi_mn_opt = phi_mn_opt
-
-        self.current_potential.phis_potential = phi_mn_opt
-        #for im in range(len(self.current_potential.m)):
-        #    self.current_potential.set_phis(self.current_potential.m[im], int(self.current_potential.n[im]/self.winding_surface.nfp), phi_mn_opt[im])
-
+        return phi_mn_opt, b_rhs
