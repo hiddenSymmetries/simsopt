@@ -203,6 +203,7 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
     """
 
     assert len(curves) == len(currents)
+    assert isinstance(curves, CurveXYZFourier)
     coils = coils_via_symmetries(curves, currents, nfp, stellsym)
     ncoils = len(coils)
     if groups is None:
@@ -251,6 +252,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
     from simsopt.geo import CurveLength
 
     assert len(curves) == len(currents)
+    assert isinstance(curves, CurveXYZFourier)
     ncoils = len(curves)
     if stellsym:
         symm = 2  # both periodic and symmetric
