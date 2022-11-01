@@ -268,7 +268,7 @@ class Testing(unittest.TestCase):
         stellsym = True
         #for filename in [TEST_DIR / 'regcoil_out.w7x_infty.nc', TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
         #for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
-        for filename in [TEST_DIR / 'regcoil_out.w7x.nc']:
+        for filename in [TEST_DIR / 'regcoil_out.w7x_infty.nc']:
             f = netcdf_file(filename, 'r')
             cp = CurrentPotentialFourier.from_netcdf(filename)
             cp_copy = CurrentPotentialFourier.from_netcdf(filename)
