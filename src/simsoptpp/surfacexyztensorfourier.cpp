@@ -1,6 +1,7 @@
 #pragma once
 
 #include "surface.h"
+#include "xtensor/xarray.hpp"
 
 template<class Array>
 class SurfaceXYZTensorFourier : public Surface<Array> {
@@ -38,17 +39,6 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         Array x;
         Array y;
         Array z;
-        Array cache_basis_fun_phi;
-        Array cache_basis_fun_phi_dash;
-        Array cache_basis_fun_phi_dashdash;
-        Array cache_basis_fun_theta;
-        Array cache_basis_fun_theta_dash;
-        Array cache_basis_fun_theta_dashdash;
-        Array cache_enforcer;
-        Array cache_enforcer_dphi;
-        Array cache_enforcer_dtheta;
-        Array cache_enforcer_dphidphi;
-        Array cache_enforcer_dthetadtheta;
         int nfp;
         int mpol;
         int ntor;
@@ -60,7 +50,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 x = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 y = xt::zeros<double>({2*mpol+1, 2*ntor+1});
                 z = xt::zeros<double>({2*mpol+1, 2*ntor+1});
-                build_cache();
+                build_cache(quadpoints_phi, quadpoints_theta);
             }
 
         int num_dofs() override {
@@ -117,11 +107,12 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
-            int numquadpoints_phi = quadpoints_phi.size();
-            int numquadpoints_theta = quadpoints_theta.size();
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
+            auto numquadpoints_phi = quadpoints_phi.size();
+            auto numquadpoints_theta = quadpoints_theta.size();
             data *= 0.;
 #pragma omp parallel for
-            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            for (auto k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
@@ -146,6 +137,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
 #pragma omp parallel for
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -169,6 +161,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
 
 
         void gammadash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
@@ -207,6 +200,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
@@ -241,6 +235,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash2dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -269,6 +264,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash1dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -303,6 +299,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void gammadash1dash1_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -341,6 +338,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgammadash1dash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -394,6 +392,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgammadash1dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -442,6 +441,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgammadash2dash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
@@ -491,6 +491,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgamma_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
@@ -531,6 +532,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgammadash1_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
@@ -576,6 +578,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         void dgammadash2_by_dcoeff_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            rebuild_cache(quadpoints_phi, quadpoints_theta);
             int numquadpoints_phi = quadpoints_phi.size();
             int numquadpoints_theta = quadpoints_theta.size();
 #pragma omp parallel for
@@ -622,12 +625,38 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
 
     private:
 
-        void build_cache() {
+        Array cache_quadpoints_phi;
+        Array cache_quadpoints_theta;
+        Array cache_basis_fun_phi;
+        Array cache_basis_fun_phi_dash;
+        Array cache_basis_fun_phi_dashdash;
+        Array cache_basis_fun_theta;
+        Array cache_basis_fun_theta_dash;
+        Array cache_basis_fun_theta_dashdash;
+        Array cache_enforcer;
+        Array cache_enforcer_dphi;
+        Array cache_enforcer_dtheta;
+        Array cache_enforcer_dphidphi;
+        Array cache_enforcer_dthetadtheta;
+
+        inline void build_cache(Array& quadpoints_phi, Array& quadpoints_theta) {
+            auto numquadpoints_phi = quadpoints_phi.size();
+            auto numquadpoints_theta = quadpoints_theta.size();
+
+            cache_quadpoints_phi = xt::zeros<double>({numquadpoints_phi});
+            for (int i = 0; i < numquadpoints_phi; ++i) {
+                cache_quadpoints_phi[i] = quadpoints_phi[i];
+            }
+            cache_quadpoints_theta = xt::zeros<double>({numquadpoints_theta});
+            for (int i = 0; i < numquadpoints_theta; ++i) {
+                cache_quadpoints_theta[i] = quadpoints_theta[i];
+            }
+
             cache_basis_fun_phi = xt::zeros<double>({numquadpoints_phi, 2*ntor+1});
             cache_basis_fun_phi_dash = xt::zeros<double>({numquadpoints_phi, 2*ntor+1});
             cache_basis_fun_phi_dashdash = xt::zeros<double>({numquadpoints_phi, 2*ntor+1});
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double phi  = 2*M_PI*cache_quadpoints_phi[k1];
                 for (int n = 0; n <= 2*ntor; ++n) {
                     cache_basis_fun_phi(k1, n)= basis_fun_phi(n, phi);
                     cache_basis_fun_phi_dash(k1, n) = basis_fun_phi_dash(n, phi);
@@ -638,7 +667,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             cache_basis_fun_theta_dash = xt::zeros<double>({numquadpoints_theta, 2*mpol+1});
             cache_basis_fun_theta_dashdash = xt::zeros<double>({numquadpoints_theta, 2*mpol+1});
             for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-                double theta  = 2*M_PI*quadpoints_theta[k2];
+                double theta  = 2*M_PI*cache_quadpoints_theta[k2];
                 for (int m = 0; m <= 2*mpol; ++m) {
                     cache_basis_fun_theta(k2, m) = basis_fun_theta(m, theta);
                     cache_basis_fun_theta_dash(k2, m) = basis_fun_theta_dash(m, theta);
@@ -651,9 +680,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             cache_enforcer_dphidphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
             cache_enforcer_dthetadtheta = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double phi  = 2*M_PI*cache_quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-                    double theta  = 2*M_PI*quadpoints_theta[k2];
+                    double theta  = 2*M_PI*cache_quadpoints_theta[k2];
                     cache_enforcer(k1, k2) = pow(sin(nfp*phi/2), 2) + pow(sin(theta/2), 2);
                     cache_enforcer_dphi(k1, k2) = nfp*cos(nfp*phi/2)*sin(nfp*phi/2);
                     cache_enforcer_dphidphi(k1, k2) = nfp*(nfp/2)*(pow(cos(nfp*phi/2),2) - pow(sin(nfp*phi/2),2));
@@ -661,6 +690,11 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     cache_enforcer_dthetadtheta(k1, k2) = (1/2)*(pow(cos(theta/2),2) - pow(sin(theta/2),2));
                 }
             }
+
+        }
+
+        inline void rebuild_cache(Array& quadpoints_phi, Array& quadpoints_theta) {
+                build_cache(quadpoints_phi, quadpoints_theta);}
 
         }
 
