@@ -15,8 +15,10 @@ from weakref import WeakKeyDictionary
 
 import numpy as np
 
-from ..util.types import RealArray
+from .types import RealArray
 from simsoptpp import Curve   # To obtain pybind11 metaclass
+
+__all__ = ['ObjectiveFailure']
 
 
 def isbool(val):
@@ -277,3 +279,20 @@ class WeakKeyDefaultDict(WeakKeyDictionary):
             return super().__getitem__(key)
         except:
             return self.__missing__(key)
+
+
+def parallel_loop_bounds(comm, n):
+    """
+    Split up an array [0, 1, ..., n-1] across an mpi communicator.  Example: n
+    = 8, comm with size=2 will return (0, 4) on core 0, (4, 8) on core 1,
+    meaning that the array is split up as [0, 1, 2, 3] + [4, 5, 6, 7].
+    """
+
+    if comm is None:
+        return 0, n
+    else:
+        size = comm.size
+        idxs = [i*n//size for i in range(size+1)]
+        assert idxs[0] == 0
+        assert idxs[-1] == n
+        return idxs[comm.rank], idxs[comm.rank+1]

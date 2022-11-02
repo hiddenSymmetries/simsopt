@@ -3,6 +3,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
 import logging
 from booz_xform import Booz_xform
+from .._core.util import parallel_loop_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -400,83 +401,82 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         else:
             self.mpi = mpi
 
+        if self.mpi is not None:
+            self.proc0 = False
+            if self.mpi.proc0_groups:
+                self.proc0 = True
+        else:
+            self.proc0 = True
+
         BoozerMagneticField.__init__(self, self.bx.phi[-1]/(2*np.pi))
 
-        if self.mpi is not None:
-            if self.mpi.proc0_groups:
-                self.asym = self.bx.asym  # Bool for stellarator asymmetry
-                self.init_splines()
-                if (not self.no_K):
-                    self.compute_K()
-            else:
-                self.psip_spline = None
-                self.G_spline = None
-                self.I_spline = None
-                self.dGds_spline = None
-                self.dIds_spline = None
-                self.iota_spline = None
-                self.diotads_spline = None
-                self.numns_splines = None
-                self.rmnc_splines = None
-                self.zmns_splines = None
-                self.dnumnsds_splines = None
-                self.drmncds_splines = None
-                self.dzmnsds_splines = None
-                self.bmnc_splines = None
-                self.dbmncds_splines = None
-                self.d_mn_factor_splines = None
-                self.mn_factor_splines = None
-                self.xm_b = None
-                self.xn_b = None
-                self.numnc_splines = None
-                self.rmns_splines = None
-                self.zmnc_splines = None
-                self.dnumncds_splines = None
-                self.drmnsds_splines = None
-                self.dzmncds_splines = None
-                self.bmns_splines = None
-                self.dbmnsds_splines = None
-                self.kmns_splines = None
-                self.kmnc_splines = None
-                self.asym = None
-            self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
-            self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
-            self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
-            self.I_spline = self.mpi.comm_world.bcast(self.I_spline, root=0)
-            self.dGds_spline = self.mpi.comm_world.bcast(self.dGds_spline, root=0)
-            self.dIds_spline = self.mpi.comm_world.bcast(self.dIds_spline, root=0)
-            self.iota_spline = self.mpi.comm_world.bcast(self.iota_spline, root=0)
-            self.diotads_spline = self.mpi.comm_world.bcast(self.diotads_spline, root=0)
-            self.numns_splines = self.mpi.comm_world.bcast(self.numns_splines, root=0)
-            self.rmnc_splines = self.mpi.comm_world.bcast(self.rmnc_splines, root=0)
-            self.zmns_splines = self.mpi.comm_world.bcast(self.zmns_splines, root=0)
-            self.dnumnsds_splines = self.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
-            self.drmncds_splines = self.mpi.comm_world.bcast(self.drmncds_splines, root=0)
-            self.dzmnsds_splines = self.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
-            self.bmnc_splines = self.mpi.comm_world.bcast(self.bmnc_splines, root=0)
-            self.dbmncds_splines = self.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
-            self.d_mn_factor_splines = self.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
-            self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
-            self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
-            self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
-            if (not self.no_K):
-                self.kmns_splines = self.mpi.comm_world.bcast(self.kmns_splines, root=0)
-            if self.asym:
-                self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
-                self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
-                self.zmnc_splines = self.mpi.comm_world.bcast(self.zmnc_splines, root=0)
-                self.dnumncds_splines = self.mpi.comm_world.bcast(self.dnumncds_splines, root=0)
-                self.drmnsds_splines = self.mpi.comm_world.bcast(self.drmnsds_splines, root=0)
-                self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
-                self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
-                self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
-                if (not self.no_K):
-                    self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
-        else:
+        if self.proc0:
             self.asym = self.bx.asym  # Bool for stellarator asymmetry
             self.init_splines()
-            if (not self.no_K):
-                self.compute_K()
+        else:
+            self.psip_spline = None
+            self.G_spline = None
+            self.I_spline = None
+            self.dGds_spline = None
+            self.dIds_spline = None
+            self.iota_spline = None
+            self.diotads_spline = None
+            self.numns_splines = None
+            self.rmnc_splines = None
+            self.zmns_splines = None
+            self.dnumnsds_splines = None
+            self.drmncds_splines = None
+            self.dzmnsds_splines = None
+            self.bmnc_splines = None
+            self.dbmncds_splines = None
+            self.d_mn_factor_splines = None
+            self.mn_factor_splines = None
+            self.xm_b = None
+            self.xn_b = None
+            self.numnc_splines = None
+            self.rmns_splines = None
+            self.zmnc_splines = None
+            self.dnumncds_splines = None
+            self.drmnsds_splines = None
+            self.dzmncds_splines = None
+            self.bmns_splines = None
+            self.dbmnsds_splines = None
+            self.kmns_splines = None
+            self.kmnc_splines = None
+            self.asym = None
+            if self.mpi is not None:
+                self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
+                self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
+                self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
+                self.I_spline = self.mpi.comm_world.bcast(self.I_spline, root=0)
+                self.dGds_spline = self.mpi.comm_world.bcast(self.dGds_spline, root=0)
+                self.dIds_spline = self.mpi.comm_world.bcast(self.dIds_spline, root=0)
+                self.iota_spline = self.mpi.comm_world.bcast(self.iota_spline, root=0)
+                self.diotads_spline = self.mpi.comm_world.bcast(self.diotads_spline, root=0)
+                self.numns_splines = self.mpi.comm_world.bcast(self.numns_splines, root=0)
+                self.rmnc_splines = self.mpi.comm_world.bcast(self.rmnc_splines, root=0)
+                self.zmns_splines = self.mpi.comm_world.bcast(self.zmns_splines, root=0)
+                self.dnumnsds_splines = self.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
+                self.drmncds_splines = self.mpi.comm_world.bcast(self.drmncds_splines, root=0)
+                self.dzmnsds_splines = self.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
+                self.bmnc_splines = self.mpi.comm_world.bcast(self.bmnc_splines, root=0)
+                self.dbmncds_splines = self.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
+                self.d_mn_factor_splines = self.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
+                self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
+                self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
+                self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
+                if self.asym:
+                    self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
+                    self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
+                    self.zmnc_splines = self.mpi.comm_world.bcast(self.zmnc_splines, root=0)
+                    self.dnumncds_splines = self.mpi.comm_world.bcast(self.dnumncds_splines, root=0)
+                    self.drmnsds_splines = self.mpi.comm_world.bcast(self.drmnsds_splines, root=0)
+                    self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
+                    self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
+                    self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
+
+        if (not self.no_K):
+            self.compute_K()
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
@@ -685,71 +685,99 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         thetas = thetas.flatten()
         zetas = zetas.flatten()
 
-        dzmnsds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        drmncds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        dnumnsds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        bmnc_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        rmnc_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        zmns_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        numns_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
+        dzmnsds_half = np.zeros((len(self.xm_b),))
+        drmncds_half = np.zeros((len(self.xm_b),))
+        dnumnsds_half = np.zeros((len(self.xm_b),))
+        bmnc_half = np.zeros((len(self.xm_b),))
+        rmnc_half = np.zeros((len(self.xm_b),))
+        zmns_half = np.zeros((len(self.xm_b),))
+        numns_half = np.zeros((len(self.xm_b),))
+        s_all = []
+        kmns_all = []
         if self.asym:
-            dzmncds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            drmnsds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            dnumncds_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            bmns_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            rmns_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            zmnc_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-            numnc_half = np.zeros((len(self.xm_b), len(self.s_half_ext)))
-        for im in range(len(self.xm_b)):
-            mn_factor = self.mn_factor_splines[im](self.s_half_ext)
-            d_mn_factor = self.d_mn_factor_splines[im](self.s_half_ext)
-            dnumnsds_half[im, :] = ((self.dnumnsds_splines[im](self.s_half_ext) - self.numns_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-            drmncds_half[im, :] = ((self.drmncds_splines[im](self.s_half_ext) - self.rmnc_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-            dzmnsds_half[im, :] = ((self.dzmnsds_splines[im](self.s_half_ext) - self.zmns_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-            bmnc_half[im, :] = self.bmnc_splines[im](self.s_half_ext)/mn_factor
-            rmnc_half[im, :] = self.rmnc_splines[im](self.s_half_ext)/mn_factor
-            zmns_half[im, :] = self.zmns_splines[im](self.s_half_ext)/mn_factor
-            numns_half[im, :] = self.numns_splines[im](self.s_half_ext)/mn_factor
-            if self.asym:
-                dnumncds_half[im, :] = ((self.dnumncds_splines[im](self.s_half_ext) - self.numnc_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-                drmnsds_half[im, :] = ((self.drmnsds_splines[im](self.s_half_ext) - self.rmns_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-                dzmncds_half[im, :] = ((self.dzmncds_splines[im](self.s_half_ext) - self.zmnc_splines[im](self.s_half_ext)*d_mn_factor/mn_factor)/mn_factor)
-                bmns_half[im, :] = self.bmns_splines[im](self.s_half_ext)/mn_factor
-                rmns_half[im, :] = self.rmns_splines[im](self.s_half_ext)/mn_factor
-                zmnc_half[im, :] = self.zmnc_splines[im](self.s_half_ext)/mn_factor
-                numnc_half[im, :] = self.numnc_splines[im](self.s_half_ext)/mn_factor
+            dzmncds_half = np.zeros((len(self.xm_b),))
+            drmnsds_half = np.zeros((len(self.xm_b),))
+            dnumncds_half = np.zeros((len(self.xm_b),))
+            bmns_half = np.zeros((len(self.xm_b),))
+            rmns_half = np.zeros((len(self.xm_b),))
+            zmnc_half = np.zeros((len(self.xm_b),))
+            numnc_half = np.zeros((len(self.xm_b),))
+            kmnc_all = []
 
-        G_half = self.G_spline(self.s_half_ext)
-        I_half = self.I_spline(self.s_half_ext)
-        iota_half = self.iota_spline(self.s_half_ext)
+        first, last = parallel_loop_bounds(self.mpi.comm_world, len(self.s_half_ext))
+        for isurf in range(first,last):
+            for im in range(len(self.xm_b)):
+                mn_factor = self.mn_factor_splines[im](self.s_half_ext[isurf])
+                d_mn_factor = self.d_mn_factor_splines[im](self.s_half_ext[isurf])
+                dnumnsds_half[im] = ((self.dnumnsds_splines[im](self.s_half_ext[isurf]) - self.numns_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                drmncds_half[im] = ((self.drmncds_splines[im](self.s_half_ext[isurf]) - self.rmnc_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                dzmnsds_half[im] = ((self.dzmnsds_splines[im](self.s_half_ext[isurf]) - self.zmns_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                bmnc_half[im] = self.bmnc_splines[im](self.s_half_ext[isurf])/mn_factor
+                rmnc_half[im] = self.rmnc_splines[im](self.s_half_ext[isurf])/mn_factor
+                zmns_half[im] = self.zmns_splines[im](self.s_half_ext[isurf])/mn_factor
+                numns_half[im] = self.numns_splines[im](self.s_half_ext[isurf])/mn_factor
+                if self.asym:
+                    dnumncds_half[im] = ((self.dnumncds_splines[im](self.s_half_ext[isurf]) - self.numnc_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                    drmnsds_half[im] = ((self.drmnsds_splines[im](self.s_half_ext[isurf]) - self.rmns_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                    dzmncds_half[im] = ((self.dzmncds_splines[im](self.s_half_ext[isurf]) - self.zmnc_splines[im](self.s_half_ext[isurf])*d_mn_factor/mn_factor)/mn_factor)
+                    bmns_half[im] = self.bmns_splines[im](self.s_half_ext[isurf])/mn_factor
+                    rmns_half[im] = self.rmns_splines[im](self.s_half_ext[isurf])/mn_factor
+                    zmnc_half[im] = self.zmnc_splines[im](self.s_half_ext[isurf])/mn_factor
+                    numnc_half[im] = self.numnc_splines[im](self.s_half_ext[isurf])/mn_factor
 
-        if (self.asym):
-            kmnc_kmns = sopp.compute_kmnc_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
-                                               numns_half, dnumnsds_half, bmnc_half,
-                                               rmns_half, drmnsds_half, zmnc_half, dzmncds_half,
-                                               numnc_half, dnumncds_half, bmns_half,
-                                               iota_half, G_half, I_half, self.xm_b, self.xn_b, thetas, zetas)
-            kmnc = kmnc_kmns[0, :, :]
-            kmns = kmnc_kmns[1, :, :]
-            kmnc = kmnc*dtheta*dzeta*self.bx.nfp/self.psi0
-        else:
-            kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
-                                     numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
-                                     self.xm_b, self.xn_b, thetas, zetas)
-        kmns = kmns*dtheta*dzeta*self.bx.nfp/self.psi0
+            G_half = self.G_spline(self.s_half_ext[isurf])
+            I_half = self.I_spline(self.s_half_ext[isurf])
+            iota_half = self.iota_spline(self.s_half_ext[isurf])
 
-        self.kmns_splines = []
-        if (self.asym):
-            self.kmnc_splines = []
-        for im in range(len(self.xm_b)):
-            if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
-                self.kmns_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, 0*kmns[im, :], k=self.order))
-                if (self.asym):
-                    self.kmnc_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, 0*kmnc[im, :], k=self.order))
+            if (self.asym):
+                kmnc_kmns = sopp.compute_kmnc_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
+                                                   numns_half, dnumnsds_half, bmnc_half,
+                                                   rmns_half, drmnsds_half, zmnc_half, dzmncds_half,
+                                                   numnc_half, dnumncds_half, bmns_half,
+                                                   iota_half, G_half, I_half, self.xm_b, self.xn_b, thetas, zetas)
+                kmnc = kmnc_kmns[0, :]
+                kmns = kmnc_kmns[1, :]
+                kmnc_all.append(kmnc*dtheta*dzeta*self.bx.nfp/self.psi0)
             else:
-                self.kmns_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, self.mn_factor_splines[im](self.s_half_ext)*kmns[im, :], k=self.order))
-                if (self.asym):
-                    self.kmnc_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, self.mn_factor_splines[im](self.s_half_ext)*kmnc[im, :], k=self.order))
+                kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
+                                         numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
+                                         self.xm_b, self.xn_b, thetas, zetas)
+            kmns_all.append(kmns*dtheta*dzeta*self.bx.nfp/self.psi0)
+            s_all.append(self.s_half_ext[isurf])
+
+        # Gather all kmns/c entries
+        if self.mpi is not None:
+            s_all = [i for o in self.mpi.comm_world.allgather(s_all) for i in o]
+            kmns_all = [i for o in self.mpi.comm_world.allgather(kmns_all) for i in o]
+            if self.asym:
+                kmnc_all = [i for o in self.mpi.comm_world.allgather(kmnc_all) for i in o]
+
+        # Sort indices by s
+        indices = np.argsort(s_all)
+        kmns_all = [kmns_all[index] for index in indices]
+        if self.asym:
+            kmnc_all = [kmnc_all[index] for index in indices]
+        s_all = [s_all[index] for index in indices]
+
+        if self.proc0:
+            self.kmns_splines = []
+            for im in range(len(self.xm_b)):
+                if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+                    self.kmns_splines.append(InterpolatedUnivariateSpline(s_all, [0*kmns[im] for kmns in kmns_all], k=self.order))
+                else:
+                    self.kmns_splines.append(InterpolatedUnivariateSpline(s_all, [self.mn_factor_splines[im](s)*kmns[im] for (kmns,s) in zip(kmns_all,s_all)], k=self.order))
+
+            if self.asym:
+                self.kmnc_splines = []
+                for im in range(len(self.xm_b)):
+                    if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+                        self.kmnc_splines.append(InterpolatedUnivariateSpline(s_all, [0*kmnc[im] for kmnc in kmnc_all], k=self.order))
+                    else:
+                        self.kmnc_splines.append(InterpolatedUnivariateSpline(s_all, [self.mn_factor_splines[im](s)*kmnc[im] for (kmnc,s) in zip(kmnc_all,s_all)], k=self.order))
+        if self.mpi is not None:
+            self.kmns_splines = self.mpi.comm_world.bcast(self.kmns_splines, root=0)
+            if self.asym:
+                self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
 
     def _K_impl(self, K):
         points = self.get_points_ref()
