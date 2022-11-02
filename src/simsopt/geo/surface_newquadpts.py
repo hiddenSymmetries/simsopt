@@ -1,6 +1,12 @@
+import logging
+
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
+
+logger = logging.getLogger(__name__)
+
+__all__ = ["SurfaceNewQuadPoints"]
 
 
 class SurfaceNewQuadPoints(sopp.SurfaceNewQuadPoints, Surface):
