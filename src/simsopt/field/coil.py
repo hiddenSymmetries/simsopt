@@ -204,7 +204,6 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
     """
 
     assert len(curves) == len(currents)
-    assert isinstance(curves, CurveXYZFourier)
     coils = coils_via_symmetries(curves, currents, nfp, stellsym)
     ncoils = len(coils)
     if groups is None:
@@ -243,7 +242,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
 
     Args:
         filename: Name of the file to write.
-        curves: A python list of Curve objects.
+        curves: A python list of CurveXYZFourier objects.
         currents: Coil current of each curve.
         nfp: The number of field periodicity. Defaults to 1.      
         stellsym: Whether or not following stellarator symmetry. Defaults to False.
@@ -253,7 +252,6 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
     from simsopt.geo import CurveLength
 
     assert len(curves) == len(currents)
-    assert isinstance(curves, CurveXYZFourier)
     ncoils = len(curves)
     if stellsym:
         symm = 2  # both periodic and symmetric
@@ -267,6 +265,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
         f.write('# Total number of coils \n')
         f.write('  {:d} \n'.format(ncoils))
         for i in range(ncoils):
+            assert isinstance(curves[i], CurveXYZFourier) # only relevence for CurveXYZFourier
             nf = curves[i].order
             xyz = curves[i].full_x.reshape((3, -1))
             xc = xyz[0, ::2]
