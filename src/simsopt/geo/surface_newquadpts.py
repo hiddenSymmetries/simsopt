@@ -26,6 +26,7 @@ class SurfaceNewQuadPoints(sopp.SurfaceNewQuadPoints, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+
     def __init__(self, surface, quadpoints_phi=None, quadpoints_theta=None):
 
         if quadpoints_theta is None:
@@ -35,10 +36,11 @@ class SurfaceNewQuadPoints(sopp.SurfaceNewQuadPoints, Surface):
 
         sopp.SurfaceNewQuadPoints.__init__(self, surface, quadpoints_phi,
                                            quadpoints_theta)
+        self._surface = surface
         Surface.__init__(self, depends_on=[surface])
 
     def to_RZFourier(self):
-        rz_fourier = self.surface.to_RZFourier()
+        rz_fourier = self._surface.to_RZFourier()
         nfp = rz_fourier.nfp
         stellsym = rz_fourier.stellsym
         mpol = rz_fourier.mpol
