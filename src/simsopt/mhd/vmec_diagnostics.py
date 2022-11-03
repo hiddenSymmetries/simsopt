@@ -1229,3 +1229,25 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         results.__setattr__(v, eval(v))
 
     return results
+
+def to_gs2(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0):
+    r"""
+    Compute field lines and geometric quantities along the
+    field lines in a vmec configuration needed to run the
+    gyrokinetic GS2 code.
+
+    Args:
+        vs: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`
+          or the structure returned by :func:`vmec_splines`.
+        s: Values of normalized toroidal flux on which to construct the field lines.
+          You can give a single number, or a list or numpy array.
+        alpha: Values of the field line label :math:`\alpha` on which to construct the field lines.
+          You can give a single number, or a list or numpy array.
+        theta1d: 1D array of :math:`\theta_{pest}` values, setting the grid points
+          along the field line and the parallel extent of the field line.
+        phi1d: 1D array of :math:`\phi` values, setting the grid points along the
+          field line and the parallel extent of the field line.
+        phi_center: :math:`\phi_{center}`, an optional shift to the toroidal angle
+          in the definition of :math:`\alpha`.
+    """
+    arrays = vmec_fieldlines(vs, s, alpha, theta1d=theta1d, phi1d=phi1d, phi_center=phi_center, plot=False, show=True)
