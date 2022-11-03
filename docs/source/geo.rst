@@ -106,18 +106,28 @@ to :obj:`~simsopt.geo.SurfaceRZFourier` when running the code.
 The points :math:`\phi_j` and :math:`\theta_j` are used for evaluating
 the position vector and its derivatives, for computing integrals, and
 for plotting, and there are several available methods to specify these
-points.  For :math:`\theta_j`, you typically specify a keyword
-argument ``ntheta`` to the constructor when instantiating a surface
-class. This results in a grid of ``ntheta`` uniformly spaced points
-between 0 and 1, with no endpoint at 1. Alternatively, you can specify
+points. For :math:`\theta_j`,  you can specify
 a list or array of points to the ``quadpoints_theta`` keyword argument
-when instantiating a surface class, specifying the :math:`\theta_j`
-directly.  If both ``ntheta`` and ``quadpoints_theta`` are specified,
-an exception will be raised.  For the :math:`\phi` coordinate, you
+when instantiating surface classes.
+Similarly, you can pass a list or array to the
+``quadpoints_phi`` keyword argument of the constructor for any Surface
+subclass to specify the :math:`\phi_j` points directly.  
+
+Often, it is desirable to specify the number of grid points instead of  
+supplying ``quadpoints_phi`` and ``quadpoints_theta`` to the Surface classes.
+In this case, use the class method
+:meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`. Replace
+``Surface`` with the desired subclass when calling the ``from_nphi_ntheta`` 
+class method.
+For :math:`\theta_j`, you specify a keyword
+argument ``ntheta`` to the class method when instantiating a surface
+class. This results in a grid of ``ntheta`` uniformly spaced points
+between 0 and 1, with no endpoint at 1. 
+For the :math:`\phi` coordinate, you
 sometimes want points up to 1 (the full torus), sometimes up to
 :math:`1/n_{fp}` (one field period), and sometimes up to :math:`1/(2
 n_{fp})` (half a field period). These three cases can be selected by
-setting the ``range`` keyword argument of the surface subclasses to
+setting the ``range`` keyword argument of the class method to
 ``"full torus"``, ``"field period"``, or ``"half period"``.
 Equivalently, you can set ``range`` to the constants
 ``S.RANGE_FULL_TORUS``, ``S.RANGE_FIELD_PERIOD``, or
@@ -128,10 +138,7 @@ that the :math:`\phi` grid points begin at 0 for ``"full torus"`` and
 grid is shifted by half of the grid spacing to preserve spectral
 accuracy of integration.  For all three cases, the ``nphi`` keyword
 argument can be set to the desired number of :math:`\phi` grid
-points. Alternatively, you can pass a list or array to the
-``quadpoints_phi`` keyword argument of the constructor for any Surface
-subclass to specify the :math:`\phi_j` points directly.  An exception
-will be raised if both ``nphi`` and ``quadpoints_phi`` are specified.
+points. 
 For more information about these arguments, see the
 :obj:`~simsopt.geo.SurfaceRZFourier` API
 documentation.

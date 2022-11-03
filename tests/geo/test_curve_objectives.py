@@ -2,7 +2,6 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
@@ -14,6 +13,7 @@ from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.configs.zoo import get_ncsx_data
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 import simsoptpp as sopp
 
 parameters['jit'] = False
@@ -72,8 +72,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_length_taylor_test(self):
@@ -101,8 +101,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_curvature_taylor_test(self):
@@ -130,8 +130,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_torsion_taylor_test(self):
@@ -170,8 +170,8 @@ class Testing(unittest.TestCase):
                 # print("err_new %s" % (err_new))
                 assert err_new < 0.55 * err
                 err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_minimum_distance_taylor_test(self):
@@ -204,8 +204,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_arclengthvariation_taylor_test(self):
@@ -243,8 +243,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_meansquaredcurvature_taylor_test(self):
@@ -319,7 +319,7 @@ class Testing(unittest.TestCase):
         base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         ntor = 0
-        surface = SurfaceRZFourier(nfp=3, nphi=32, ntheta=32, ntor=ntor)
+        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=ntor)
         surface.set(f'rc(0,{ntor})', 1.6)
         surface.set(f'rc(1,{ntor})', 0.2)
         surface.set(f'zs(1,{ntor})', 0.2)

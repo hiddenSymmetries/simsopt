@@ -3,11 +3,11 @@ from randomgen import PCG64
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.curveperturbed import GaussianSampler, PerturbationSample, CurvePerturbed
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import LpCurveTorsion, CurveCurveDistance
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
 
 class CurvePerturbationTesting(unittest.TestCase):
@@ -32,9 +32,9 @@ class CurvePerturbationTesting(unittest.TestCase):
 
             print("np.mean(err)", np.mean(err))
             if idx == 0:
-                assert np.mean(err) < 1e-4
+                assert np.mean(err) < 3e-4
             else:
-                assert np.mean(err) < 1e-3
+                assert np.mean(err) < 2e-3
 
     def test_perturbed_periodic(self):
         sigma = 1
@@ -155,6 +155,6 @@ class CurvePerturbationTesting(unittest.TestCase):
         curve.x = dofs
         curve_per = CurvePerturbed(curve, sample)
 
-        curve_str = json.dumps(curve_per, cls=MontyEncoder)
-        curve_per_regen = json.loads(curve_str, cls=MontyDecoder)
+        curve_str = json.dumps(SIMSON(curve_per), cls=GSONEncoder)
+        curve_per_regen = json.loads(curve_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(curve_per.gamma(), curve_per_regen.gamma()))
