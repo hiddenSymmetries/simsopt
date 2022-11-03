@@ -116,3 +116,71 @@ class Weight(object):
     def __imul__(self, alpha):
         self.value *= alpha
         return self
+
+class PrecalculatedObjective(Optimizable):
+    def __init__(self, obj, xs, Js, dJs, radius=1e-8):
+        r"""
+        Takes an objective and a set of points, the value of the objective at those points, and it's derivatives at those points.
+        When ``J(x)`` and ``dJ(x)`` are called for points ``x`` close to the set of points used to initialize this object, it returns the precalculated values and derivatives. Otherwise, the provided objective is called.
+        Specifically, if :math:`\exists x_s \ni \all |x_i - x_i^s|<\epsilon_i, i \in \{0,...,N-1\}` where ``N`` is ``ndofs``, the precalculated values are used.
+        This is useful when the provided objective function is expensive to evaluate, but is already known at specific points. The intended usage is to restart an optimization without recalculating the objective at known points.
+
+        Args:
+            obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
+            xs: the points at which the objective ``obj`` is known. An ``m`` x ``ndofs`` array.
+            Js: the values at the ``xs`` points. An array of length ``m``.
+            dJs: the derivatives at the ``xs`` points. An ``m`` x ``ndofs`` array.
+            radius: A scalar or ``ndofs`` sized array with the radius within which the precalculated points will be used.
+        """
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
+        self.obj = obj
+        self.precomputed_xs = xs
+        self.precomputed_Js = Js
+        self.precomputed_dJs = dJs
+        self.radius = radius
+
+    def J(self):
+        for precomputed_x,precomputed_J in zip(self.precomputed_xs,self.precomputed_Js):
+            if np.all(np.fabs(self.x - precomputed_x) < self.radius):
+                # TODO: this returns the first matching value, not the best matching value
+                val = precomputed_J
+                break
+        else:
+            val = self.obj.J()
+        return val
+
+    @derivative_dec
+    def dJ(self):
+        for precomputed_x, precomputed_dJ in zip(self.precomputed_xs, self.precomputed_dJs):
+            if np.all(np.fabs(self.x - precomputed_x) < self.radius):
+                # TODO: this returns the first matching value, not the best matching value
+                dval = precomputed_dJ
+                break
+        else:
+            dval = self.obj.dJ(partials=True)
+        return dval
+
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@class"] = self.__class__.__name__
+        d["@module"] = self.__class__.__module__
+        d["obj"] = self.obj
+        d["radius"] = np.array(self.radius)
+        d["xs"] = np.array(self.precomputed_xs)
+        d["Js"] = np.array(self.precomputed_Js)
+        d["dJs"] = np.array(self.precomputed_dJs)
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        obj = decoder.process_decoded(d["obj"])
+        xs = decoder.process_decoded(d["xs"])
+        Js = decoder.process_decoded(d["Js"])
+        dJs = decoder.process_decoded(d["dJs"])
+        radius = decoder.process_decoded(d["radius"])
+        
+        return cls(obj, xs, Js, dJs, radius)
+
+    return_fn_map = {'J': J, 'dJ': dJ}
