@@ -114,7 +114,7 @@ class MGrid():
         '''
 
         print('Writing mgrid file')
-        ds = nc.netcdf_file(filename, 'w')
+        ds = nc.netcdf_file(filename, 'w', version=2)
 
         # set netcdf dimensions
         ds.createDimension('stringsize', 30)
