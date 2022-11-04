@@ -71,8 +71,9 @@ Here is a list of publications in which simsopt results appear:
    |
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
-     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
-     *Submitted*, (2022).
+     "Stochastic and a-posteriori optimization to mitigate coil manufacturing errors in stellarator design",
+     *Plasma Physics and Controlled Fusion*, **64**, 105021 (2022).
+     `[journal version] <https://doi.org/10.1088/1361-6587/ac89ee>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
    |
 
@@ -85,13 +86,15 @@ Here is a list of publications in which simsopt results appear:
 
 #. | R Jorge, G G Plunk, M Drevlak, M Landreman, J-F Lobsien, K Camacho Mata, and P Helander
      "A single-field-period quasi-isodynamic stellarator",
-     *Submitted* (2022).
+     *Journal of Plasma Physics* **88**, 175880504 (2022).
+     `[journal version] <https://doi.org/10.1017/S0022377822000873>`__
      `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
    |
 
 #. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
      "Permanent magnet optimization for stellarators as sparse regression",
-     *Submitted* (2022).
+     *Physical Review Applied*, **18**, 044006 (2022).
+     `[journal version] <http://dx.doi.org/10.1103/PhysRevApplied.18.044006>`__
      `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
    |
 

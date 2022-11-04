@@ -21,7 +21,6 @@ from pathlib import Path
 from fnmatch import fnmatch
 
 import numpy as np
-from monty.json import MSONable, MontyDecoder, MontyEncoder
 from monty.io import zopen
 
 from .dev import SimsoptRequires
@@ -29,6 +28,7 @@ from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
+from .json import GSONable, SIMSON, GSONDecoder, GSONEncoder
 
 try:
     import networkx as nx
@@ -427,7 +427,7 @@ class DOFs:
         return self._names
 
 
-class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
+class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
     """
     Experimental callable ABC that provides lego-like optimizable objects
     that can be used to partition the optimization problem into a graph.
@@ -749,7 +749,6 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         if other not in self.parents:
             self.parents.insert(index, other)
             other._add_child(self)
-            # self.ancestors = self._get_ancestors()
             self._update_full_dof_size_indices()  # Updates ancestors as well
             self._update_free_dof_size_indices()
             self._set_new_x()
@@ -764,15 +763,6 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
             other: New parent Optimizable object
         """
         self.add_parent(len(self.parents), other)
-        # if other not in self.parents:
-        #     self.parents.append(other)
-        #     other._add_child(self)
-        #     self.ancestors = self._get_ancestors()
-        #     self._update_free_dof_size_indices()
-        #     self._update_full_dof_size_indices()
-        #     self._set_new_x()
-        # else:
-        #     log.debug("The given Optimizable object is already a parent")
 
     def pop_parent(self, index: int = -1) -> Optimizable:
         """
@@ -786,7 +776,6 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         """
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
-        # self.ancestors = self._get_ancestors()
         self._update_full_dof_size_indices()  # Updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
@@ -802,7 +791,6 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         """
         self.parents.remove(other)
         other._remove_child(self)
-        # self.ancestors = self._get_ancestors()
         self._update_full_dof_size_indices()  # updates ancestors as well
         self._update_free_dof_size_indices()
         self._set_new_x()
@@ -972,6 +960,13 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
         this Optimizable object
         """
         return self._dofs.full_x
+
+    @property
+    def x0(self):
+        """
+        Mimics dataclass behavior for Optimizable
+        """
+        return self.local_full_x
 
     @local_full_x.setter
     def local_full_x(self, x: RealArray) -> None:
@@ -1299,38 +1294,16 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         return G, pos
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
+    def as_dict(self, serial_objs_dict=None) -> dict:
+        d = super().as_dict(serial_objs_dict)
         if len(self.local_full_x):
             d["x0"] = list(self.local_full_x)
             d["names"] = self.local_full_dof_names
             d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
             d["lower_bounds"] = list(self.local_full_lower_bounds)
             d["upper_bounds"] = list(self.local_full_upper_bounds)
-        # d["external_dof_setter"] = self.local_dof_setter
-        if self.parents:
-            d["depends_on"] = []
-            for parent in self.parents:
-                d["depends_on"].append(parent.as_dict())
 
         return d
-
-    @staticmethod
-    def _decode(d):
-        parents_dict = d.pop("depends_on") if "depends_on" in d else None
-        if parents_dict:
-            parents = []
-            decoder = MontyDecoder()
-            for pdict in parents_dict:
-                parents.append(decoder.process_decoded(pdict))
-            return parents
-
-    @classmethod
-    def from_dict(cls, d):
-        parents = Optimizable._decode(d)
-        return cls(depends_on=parents, **d)
 
     def save(self, filename=None, fmt=None, **kwargs):
         filename = filename or ""
@@ -1339,10 +1312,11 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
 
         if fmt == "json" or fnmatch(fname.lower(), "*.json"):
             if "cls" not in kwargs:
-                kwargs["cls"] = MontyEncoder
+                kwargs["cls"] = GSONEncoder
             if "indent" not in kwargs:
                 kwargs["indent"] = 2
-            s = json.dumps(self.as_dict(), **kwargs)
+            simson = SIMSON(self)
+            s = json.dumps(simson, **kwargs)
             if filename:
                 with zopen(filename, "wt") as f:
                     f.write(s)
@@ -1354,7 +1328,7 @@ class Optimizable(ABC_Callable, Hashable, MSONable, metaclass=OptimizableMeta):
     def from_str(cls, input_str: str, fmt="json"):
         fmt_low = fmt.lower()
         if fmt_low == "json":
-            return json.loads(input_str, cls=MontyDecoder)
+            return json.loads(input_str, cls=GSONDecoder)
         else:
             raise ValueError(f"Invalid format: `{str(fmt)}`")
 
@@ -1384,7 +1358,7 @@ def load(filename, *args, **kwargs):
 
     with zopen(filename, "rt") as fp:
         if "cls" not in kwargs:
-            kwargs["cls"] = MontyDecoder
+            kwargs["cls"] = GSONDecoder
         return json.load(fp, *args, **kwargs)
 
 
@@ -1395,10 +1369,11 @@ def save(simsopt_objects, filename, *args, **kwargs):
 
     with zopen(filename, "wt") as fp:
         if "cls" not in kwargs:
-            kwargs["cls"] = MontyEncoder
+            kwargs["cls"] = GSONEncoder
         if "indent" not in kwargs:
             kwargs["indent"] = 2
-        return json.dump(simsopt_objects, fp, *args, **kwargs)
+        simson = SIMSON(simsopt_objects)
+        return json.dump(simson, fp, *args, **kwargs)
 
 
 def make_optimizable(func, *args, dof_indicators=None, **kwargs):
@@ -1562,19 +1537,6 @@ class ScaledOptimizable(Optimizable):
         # Next line uses __rmul__ function for the Derivative class
         return float(self.factor) * self.opt.dJ(partials=True)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["factor"] = self.factor
-        d["opt"] = self.opt.as_dict()
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        opt = MontyDecoder().process_decoded(d["opt"])
-        return cls(d["factor"], opt)
-
 
 class OptimizableSum(Optimizable):
     """
@@ -1600,21 +1562,4 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
-
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["opts"] = []
-        for opt in self.opts:
-            d["opts"].append(opt.as_dict())
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        opts = []
-        decoder = MontyDecoder()
-        for odict in d["opts"]:
-            opts.append(decoder.process_decoded(odict))
-        return cls(opts)
 

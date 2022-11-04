@@ -2,12 +2,12 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 parameters['jit'] = False
 try:
     from mpi4py import MPI
@@ -48,8 +48,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
             assert err_new < 0.55 * err or err_new < 1e-13
             err = err_new
 
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_quadratic_penalty(self):
