@@ -23,7 +23,9 @@ class SurfaceNewQuadPoints : public Surface<Array> {
             }
 
         int num_dofs() override {
-            return 0;
+            // This function returns the dofs of the paraent dofs for properly evaluating various surface functions.
+            // But the actual dofs number is 0. Don't use this on the python side especially for this class.
+            return parent_surface.num_dofs();
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
