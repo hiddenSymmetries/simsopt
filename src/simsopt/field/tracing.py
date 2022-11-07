@@ -687,9 +687,9 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(f"{i+1:3d}/{nlines}, t_final={res_ty[-1][0]}, average timestep {dtavg:.10f}s")
-    if comm is not None:
-        res_tys = [i for o in comm.allgather(res_tys) for i in o]
-        res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
+    #if comm is not None:
+    #    res_tys = [i for o in comm.allgather(res_tys) for i in o]
+    #    res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
     return res_tys, res_phi_hits
 
 

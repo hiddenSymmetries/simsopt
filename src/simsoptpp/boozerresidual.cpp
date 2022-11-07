@@ -204,7 +204,9 @@ std::tuple<double, Array> boozer_residual_ds(double G, double iota, Array& B, Ar
     num_threads += 1;
      
     int batch_size = num_points / num_threads; 
-    
+    if(num_points % num_threads != 0)
+        batch_size++;
+
     vector<double> res_list(num_threads, 0.);
     vector<xt::xarray<double>>     dres_list;
     
@@ -642,6 +644,8 @@ std::tuple<double, Array, Array> boozer_residual_ds2(double G, double iota, Arra
     num_threads += 1;
      
     int batch_size = num_points / num_threads; 
+    if(num_points % num_threads != 0)
+        batch_size++; 
     
     vector<double> res_list(num_threads, 0.);
     vector<xt::xarray<double>>     dres_list;

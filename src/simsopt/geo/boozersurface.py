@@ -396,7 +396,7 @@ class BoozerSurface(Optimizable):
         dres[-1, :-2] = drz
         return res, dres
 
-    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, weighting=None):
+    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, weighting=None, hessian=False):
         r"""
         This function tries to find the surface that approximately solves
 
@@ -414,12 +414,12 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
-        fun = lambda x: self.boozer_penalty_constraints(
-            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weighting=weighting)
+        fun = lambda x: self.boozer_penalty(
+            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
         res = minimize(
             fun, x, jac=True, method='L-BFGS-B',
             options={'maxiter': maxiter, 'ftol': tol, 'gtol': tol, 'maxcor': 200})
-
+        
         if G is None:
             s.set_dofs(res.x[:-1])
             iota = res.x[-1]
@@ -432,10 +432,19 @@ class BoozerSurface(Optimizable):
             "residual": res.fun, "gradient": res.jac, "success": res.success,
             "firstorderop":res.jac,
             "iota":iota,"G":G, "iter":res.nit, "weighting":weighting, "type":"ls", "constraint_weight":constraint_weight,
-            "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
+            "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel), "reg": self.reg.J() if self.reg is not None else 0.
         }
 
+        print(f"L-BFGS - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
 
+        if hessian:
+            val, dval, d2val = self.boozer_penalty(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+            P, L, U = lu(d2val)
+            resdict["PLU"] = (P, L, U)
+
+
+        self.need_to_run_code = False
 
         return resdict
 
@@ -492,7 +501,7 @@ class BoozerSurface(Optimizable):
         self.res = resdict
         self.need_to_run_code = False
         
-        print(f"BFGS - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
+        print(f"BFGS solve - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
         return resdict
 
 
@@ -916,9 +925,10 @@ class BoozerSurface(Optimizable):
         P, L, U = lu(J)
         res = {
                 "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "type": "exact", "PLU":(P,L,U),
-                "mask":mask, "solver":"NEWTON"
+                "mask":mask, "solver":"NEWTON", "firstorderop": r, "cond": np.linalg.cond(J), "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel), "reg": 0.
         }
         
         self.res = res
         self.need_to_run_code=False
+        print(f"NEWTON SOLVE - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||res||_inf = {np.linalg.norm(res['firstorderop'], ord=np.inf):.3e}", flush=True)
         return res
