@@ -212,7 +212,7 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
         assert len(groups) == ncoils
         # should be careful. SIMSOPT flips the current, but actually should change coil order
     with open(filename, "w") as wfile:
-        wfile.write("periods {:3d} \n".format(1))  # force to write nfp=1 for now
+        wfile.write("periods {:3d} \n".format(nfp)) 
         wfile.write("begin filament \n")
         wfile.write("mirror NIL \n")
         for icoil in range(ncoils):
