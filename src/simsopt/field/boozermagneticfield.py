@@ -308,8 +308,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
     Throughout stellarator symmetry is assumed.
 
     Args:
-        equil: instance of :class:`simsopt.mhd.vmec.Vmec` or :class:`simsopt.mhd.boozer.Boozer`.
-            If it is an instance of :class:`simsopt.mhd.boozer.Boozer`, the
+        equil: instance of :class:`simsopt.mhd.vmec.Vmec`, :class:`simsopt.mhd.boozer.Boozer`,
+            or :class:`Booz_xform`. If it is an instance of :class:`simsopt.mhd.boozer.Boozer`, the
             `compute_surfs` needs to include all of the grid points in the
             half-radius grid of the corresponding Vmec equilibrium.
         order: (int) order for radial interpolation. Must satisfy 1 <= order <= 5.
@@ -345,11 +345,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
           defaults to ``equil.mpi``. If ``equil`` is a ``Booz_xform`` instance,
           and ``mpi`` is ``None``, each MPI process will compute splines
           independently.
+         verbose: If True, additional output is written. 
     """
 
     def __init__(self, equil, order, mpol=32, ntor=32, N=None,
                  enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False,
-                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None):
+                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None,verbose=0):
         if (mpi is None and not isinstance(equil, Booz_xform)):
             self.mpi = equil.mpi
         else:
@@ -363,24 +364,19 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.proc0 = True
 
         if isinstance(equil, Vmec):
-            print('equil is Vmec')
             equil.run()
             booz = Booz_xform()
-            booz.verbose = 0
+            booz.read_wout(equil.output_file)
+            booz.verbose = verbose
             booz.mboz = mpol
             booz.nboz = ntor
             booz.run()
-            #booz = Boozer(equil, mpol, ntor)
-            #booz.register(booz.equil.s_half_grid)
-            #booz.run()
-            print('booz.bx.phi: ',booz.bx.phi)
             if write_boozmn:
                 # Only master proc should write the file
                 if self.proc0:
                     booz.write_boozmn(boozmn_name)
             self.bx = booz
         elif isinstance(equil, Boozer):
-            print('equil is Boozer')
             booz = equil
             # Determine if radial grid for Boozer needs to be updated
 
@@ -402,7 +398,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                         booz.bx.write_boozmn(boozmn_name)
             self.bx = booz.bx
         elif (isinstance(equil,Booz_xform)):
-            print('equil is Booz_xform')
             self.bx = equil
         else:
             raise ValueError("Incorrect equil type passed to BoozerRadialInterpolant.")
