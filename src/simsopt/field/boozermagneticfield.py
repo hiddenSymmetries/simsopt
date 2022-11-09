@@ -345,7 +345,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
           defaults to ``equil.mpi``. If ``equil`` is a ``Booz_xform`` instance,
           and ``mpi`` is ``None``, each MPI process will compute splines
           independently.
-         verbose: If True, additional output is written. 
+         verbose: If True, additional output is written.
     """
 
     def __init__(self, equil, order, mpol=32, ntor=32, N=None,
@@ -364,41 +364,42 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.proc0 = True
 
         if isinstance(equil, Vmec):
-            equil.run()
-            booz = Booz_xform()
-            booz.read_wout(equil.output_file)
-            booz.verbose = verbose
-            booz.mboz = mpol
-            booz.nboz = ntor
-            booz.run()
-            if write_boozmn:
-                # Only master proc should write the file
-                if self.proc0:
-                    booz.write_boozmn(boozmn_name)
-            self.bx = booz
-        elif isinstance(equil, Boozer):
-            booz = equil
-            # Determine if radial grid for Boozer needs to be updated
-
-            # Grid not initialized
-            if len(booz.bx.s_b) == 0:
-                booz.register(booz.equil.s_half_grid)
-            # Grid does not have correct size
-            elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
-                booz.register(booz.equil.s_half_grid)
-            # Grid does not match Vmec half grid
-            elif (np.any(booz.bx.s_b != booz.bx.s_b)):
-                booz.register(booz.equil.s_half_grid)
-
-            # Run booz_xform if needed
-            if booz.need_to_run_code:
+            if self.proc0:
+                equil.run()
+                booz = Booz_xform()
+                booz.read_wout(equil.output_file)
+                booz.verbose = verbose
+                booz.mboz = mpol
+                booz.nboz = ntor
                 booz.run()
-                if (write_boozmn):
-                    if self.proc0:
-                        booz.bx.write_boozmn(boozmn_name)
-            self.bx = booz.bx
+                if write_boozmn:
+                    booz.write_boozmn(boozmn_name)
+                self.bx = booz
+        elif isinstance(equil, Boozer):
+            if self.proc0:
+                booz = equil
+                # Determine if radial grid for Boozer needs to be updated
+
+                # Grid not initialized
+                if len(booz.bx.s_b) == 0:
+                    booz.register(booz.equil.s_half_grid)
+                # Grid does not have correct size
+                elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
+                    booz.register(booz.equil.s_half_grid)
+                # Grid does not match Vmec half grid
+                elif (np.any(booz.bx.s_b != booz.bx.s_b)):
+                    booz.register(booz.equil.s_half_grid)
+
+                # Run booz_xform if needed
+                if booz.need_to_run_code:
+                    booz.run()
+                    if (write_boozmn):
+                        if self.proc0:
+                            booz.bx.write_boozmn(boozmn_name)
+                self.bx = booz.bx
         elif (isinstance(equil,Booz_xform)):
-            self.bx = equil
+            if self.proc0:
+                self.bx = equil
         else:
             raise ValueError("Incorrect equil type passed to BoozerRadialInterpolant.")
 
@@ -414,11 +415,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.N = N
             self.enforce_qs = True
 
-        BoozerMagneticField.__init__(self, self.bx.phi[-1]/(2*np.pi))
-
         if self.proc0:
             self.asym = self.bx.asym  # Bool for stellarator asymmetry
             self.init_splines()
+            self.phi = self.bx.phi[-1]/(2*np.pi)
+            self.nfp = self.bx.nfp
         else:
             self.psip_spline = None
             self.G_spline = None
@@ -450,39 +451,45 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.kmns_splines = None
             self.kmnc_splines = None
             self.asym = None
-            if self.mpi is not None:
-                self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
-                self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
-                self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
-                self.I_spline = self.mpi.comm_world.bcast(self.I_spline, root=0)
-                self.dGds_spline = self.mpi.comm_world.bcast(self.dGds_spline, root=0)
-                self.dIds_spline = self.mpi.comm_world.bcast(self.dIds_spline, root=0)
-                self.iota_spline = self.mpi.comm_world.bcast(self.iota_spline, root=0)
-                self.diotads_spline = self.mpi.comm_world.bcast(self.diotads_spline, root=0)
-                self.numns_splines = self.mpi.comm_world.bcast(self.numns_splines, root=0)
-                self.rmnc_splines = self.mpi.comm_world.bcast(self.rmnc_splines, root=0)
-                self.zmns_splines = self.mpi.comm_world.bcast(self.zmns_splines, root=0)
-                self.dnumnsds_splines = self.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
-                self.drmncds_splines = self.mpi.comm_world.bcast(self.drmncds_splines, root=0)
-                self.dzmnsds_splines = self.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
-                self.bmnc_splines = self.mpi.comm_world.bcast(self.bmnc_splines, root=0)
-                self.dbmncds_splines = self.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
-                self.d_mn_factor_splines = self.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
-                self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
-                self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
-                self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
-                if self.asym:
-                    self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
-                    self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
-                    self.zmnc_splines = self.mpi.comm_world.bcast(self.zmnc_splines, root=0)
-                    self.dnumncds_splines = self.mpi.comm_world.bcast(self.dnumncds_splines, root=0)
-                    self.drmnsds_splines = self.mpi.comm_world.bcast(self.drmnsds_splines, root=0)
-                    self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
-                    self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
-                    self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
+            self.phi = None
+            self.nfp = None
+        if self.mpi is not None:
+            self.phi = self.mpi.comm_world.bcast(self.phi, root=0)
+            self.nfp = self.mpi.comm_world.bcast(self.nfp, root=0)
+            self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
+            self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
+            self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
+            self.I_spline = self.mpi.comm_world.bcast(self.I_spline, root=0)
+            self.dGds_spline = self.mpi.comm_world.bcast(self.dGds_spline, root=0)
+            self.dIds_spline = self.mpi.comm_world.bcast(self.dIds_spline, root=0)
+            self.iota_spline = self.mpi.comm_world.bcast(self.iota_spline, root=0)
+            self.diotads_spline = self.mpi.comm_world.bcast(self.diotads_spline, root=0)
+            self.numns_splines = self.mpi.comm_world.bcast(self.numns_splines, root=0)
+            self.rmnc_splines = self.mpi.comm_world.bcast(self.rmnc_splines, root=0)
+            self.zmns_splines = self.mpi.comm_world.bcast(self.zmns_splines, root=0)
+            self.dnumnsds_splines = self.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
+            self.drmncds_splines = self.mpi.comm_world.bcast(self.drmncds_splines, root=0)
+            self.dzmnsds_splines = self.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
+            self.bmnc_splines = self.mpi.comm_world.bcast(self.bmnc_splines, root=0)
+            self.dbmncds_splines = self.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
+            self.d_mn_factor_splines = self.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
+            self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
+            self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
+            self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
+            if self.asym:
+                self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
+                self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
+                self.zmnc_splines = self.mpi.comm_world.bcast(self.zmnc_splines, root=0)
+                self.dnumncds_splines = self.mpi.comm_world.bcast(self.dnumncds_splines, root=0)
+                self.drmnsds_splines = self.mpi.comm_world.bcast(self.drmnsds_splines, root=0)
+                self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
+                self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
+                self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
 
         if (not self.no_K):
             self.compute_K()
+
+        BoozerMagneticField.__init__(self, self.phi)
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
