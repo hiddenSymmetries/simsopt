@@ -18,16 +18,16 @@ surface_types = [
 class SurfaceNewQuadPointsTest(unittest.TestCase):
     def test_newquadpts_init(self):
         for surface_type in surface_types:
-            s = eval(surface_type + ".from_nphi_ntheta(ntheta=17, nphi=17, range='field period', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(ntheta=17, nphi=17, range='field period', nfp=1)")
             quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nphi=62, ntheta=61,
                                                                       range='full torus', nfp=1)
             s1 = SurfaceNewQuadPoints(s, quadpoints_phi=quadpoints_phi,
-                                      quadpoints_theta=quadpoints_theta, nfp=1)
+                                      quadpoints_theta=quadpoints_theta)
             self.assertAlmostEqual(s.area(), s1.area(), places=8)
             self.assertAlmostEqual(s.volume(), s1.volume(), places=8)
 
     def test_serialization(self):
-        s = SurfaceRZFourier.from_nphi_ntheta(ntheta=17, nphi=17, range='field period', nfp=3)
+        s = SurfaceRZFourier.from_nphi_ntheta(ntheta=17, nphi=17, range='field period', nfp=1)
         s.rc[0, 0] = 1.3
         s.rc[1, 0] = 0.4
         s.zs[1, 0] = 0.2
@@ -35,7 +35,7 @@ class SurfaceNewQuadPointsTest(unittest.TestCase):
         quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nphi=62, ntheta=61,
                                                                   range='full torus', nfp=1)
         s_newquadpts = SurfaceNewQuadPoints(s, quadpoints_phi=quadpoints_phi,
-                                            quadpoints_theta=quadpoints_theta, nfp=1)
+                                            quadpoints_theta=quadpoints_theta)
         surf_str = json.dumps(SIMSON(s_newquadpts), cls=GSONEncoder)
         s_newquadpts_regen = json.loads(surf_str, cls=GSONDecoder)
         self.assertAlmostEqual(s_newquadpts.area(), s_newquadpts_regen.area(), places=8)
@@ -43,19 +43,20 @@ class SurfaceNewQuadPointsTest(unittest.TestCase):
 
     def test_gamma_functions(self):
         for surface_type in surface_types:
-            s = eval(surface_type + ".from_nphi_ntheta(ntheta=31, nphi=30, range='field period', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(ntheta=31, nphi=30, range='field period', nfp=1)")
             s1 = eval(surface_type + ".from_nphi_ntheta(ntheta=62, nphi=61, range='full torus', nfp=1)")
             quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
                 nphi=61, ntheta=62, range='full torus', nfp=1)
             s_newquadpts = SurfaceNewQuadPoints(
                 s, quadpoints_phi=quadpoints_phi,
-                quadpoints_theta=quadpoints_theta, nfp=1)
+                quadpoints_theta=quadpoints_theta)
 
             self.assertTrue(np.allclose(s1.gamma(), s_newquadpts.gamma()))
             self.assertTrue(np.allclose(s1.gammadash1(), s_newquadpts.gammadash1()))
             self.assertTrue(np.allclose(s1.gammadash2(), s_newquadpts.gammadash2()))
             self.assertTrue(np.allclose(s1.gammadash1dash1(), s_newquadpts.gammadash1dash1()))
             self.assertTrue(np.allclose(s1.gammadash1dash2(), s_newquadpts.gammadash1dash2()))
+            # print(np.max(s1.gammadash2dash2() - s_newquadpts.gammadash2dash2()))
             self.assertTrue(np.allclose(s1.gammadash2dash2(), s_newquadpts.gammadash2dash2()))
             self.assertTrue(np.allclose(s1.dgamma_by_dcoeff(), s_newquadpts.dgamma_by_dcoeff()))
             self.assertTrue(np.allclose(s1.dgammadash1_by_dcoeff(), s_newquadpts.dgammadash1_by_dcoeff()))
@@ -66,13 +67,13 @@ class SurfaceNewQuadPointsTest(unittest.TestCase):
 
     def test_curvature(self):
         for surface_type in surface_types:
-            s = eval(surface_type + ".from_nphi_ntheta(ntheta=31, nphi=30, range='field period', nfp=3)")
+            s = eval(surface_type + ".from_nphi_ntheta(ntheta=31, nphi=30, range='field period', nfp=1)")
             s1 = eval(surface_type + ".from_nphi_ntheta(ntheta=62, nphi=61, range='full torus', nfp=1)")
             quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
                 nphi=61, ntheta=62, range='full torus', nfp=1)
             s_newquadpts = SurfaceNewQuadPoints(
                 s, quadpoints_phi=quadpoints_phi,
-                quadpoints_theta=quadpoints_theta, nfp=1)
+                quadpoints_theta=quadpoints_theta)
 
             curvature = PrincipalCurvature(s1)
             curvature_newquadpts = PrincipalCurvature(s_newquadpts)

@@ -194,6 +194,8 @@ void SurfaceXYZFourier<Array>::gammadash1dash2_impl(Array& data, Array& quadpoin
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash2dash2_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     data *= 0.;
+    auto numquadpoints_phi = quadpoints_phi.size();
+    auto numquadpoints_theta = quadpoints_theta.size();
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
