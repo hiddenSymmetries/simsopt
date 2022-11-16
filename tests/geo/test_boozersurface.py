@@ -279,12 +279,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         else:
             G = None
-        
+
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
-        
+
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
                 tol=1e-11, maxiter=100, constraint_weight=1000.,
@@ -302,7 +302,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
-        
+
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
         gammazero = s.gamma()[0, 0, :]

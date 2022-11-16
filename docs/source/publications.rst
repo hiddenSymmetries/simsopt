@@ -100,11 +100,12 @@ Here is a list of publications in which simsopt results appear:
 
 #. | E J Paul, A Bhattacharjee, M Landreman, D Alex, J L Velasco, and R Nies
      "Energetic particle loss mechanisms in reactor-scale equilibria close to quasisymmetry",
-     *Submitted* (2022).
+     *Nuclear Fusion*, **62**, 126054 (2022).
+     `[journal version] <http://dx.doi.org/10.1088/1741-4326/ac9b07>`__
      `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
    |
 
-#. | A Kaptanoglu, R Conrad, and M Landreman
+#. | A Kaptanoglu, R Conlin, and M Landreman
      "Greedy permanent magnet optimization",
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
