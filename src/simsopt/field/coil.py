@@ -190,9 +190,10 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
     """
-    Export a list of Curve objects together with currents in MAKEGRID format, so they can 
+    Export a list of Curve objects together with currents in MAKEGRID input format, so they can 
     be used by MAKEGRID and FOCUS. The format is introduced at
     https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    Note that this function does not generate files with MAKEGRID's *output* format.
 
     Args:
         filename: Name of the file to write.
@@ -219,7 +220,7 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
             x = coils[icoil].curve.gamma()[:, 0]
             y = coils[icoil].curve.gamma()[:, 1]
             z = coils[icoil].curve.gamma()[:, 2]
-            for iseg in range(len(x)):  # the last point match the first one;
+            for iseg in range(len(x)):  # the last point matches the first one;
                 wfile.write(
                     "{:23.15E} {:23.15E} {:23.15E} {:23.15E}\n".format(
                         x[iseg], y[iseg], z[iseg], coils[icoil].current.get_value()
@@ -239,6 +240,8 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
     Export a list of Curve objects together with currents in FOCUS format, so they can 
     be used by FOCUS. The format is introduced at
     https://princetonuniversity.github.io/FOCUS/rdcoils.pdf
+    This routine only works with curves of type CurveXYZFourier,
+    not other curve types.
 
     Args:
         filename: Name of the file to write.
@@ -265,7 +268,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
         f.write('# Total number of coils \n')
         f.write('  {:d} \n'.format(ncoils))
         for i in range(ncoils):
-            assert isinstance(curves[i], CurveXYZFourier) # only relevence for CurveXYZFourier
+            assert isinstance(curves[i], CurveXYZFourier)
             nf = curves[i].order
             xyz = curves[i].full_x.reshape((3, -1))
             xc = xyz[0, ::2]
