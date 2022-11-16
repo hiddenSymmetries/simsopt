@@ -69,7 +69,7 @@ class Derivative():
 
         {
             inA: dobj/dinter1 * dinter1/dinA
-            inB: dobj/dinter1 * dinter1/dinA
+            inB: dobj/dinter1 * dinter1/dinB
         }
 
     and 
@@ -78,7 +78,7 @@ class Derivative():
 
         {
             inA: dobj/dinter2 * dinter2/dinA
-            inB: dobj/dinter2 * dinter2/dinA
+            inB: dobj/dinter2 * dinter2/dinB
         }
 
     respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects than results in the desired
@@ -87,7 +87,7 @@ class Derivative():
 
         {
             inA: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
-            inB: dobj/dinter1 * dinter1/dinA + dobj/dinter2 * dinter2/dinA
+            inB: dobj/dinter1 * dinter1/dinB + dobj/dinter2 * dinter2/dinB
         }
 
     This ``Derivative`` can then be used to obtain partial derivatives or the full gradient of ``J``, via
