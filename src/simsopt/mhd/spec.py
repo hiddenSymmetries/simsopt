@@ -655,10 +655,8 @@ class Spec(Optimizable):
                     key=mvol - 1, new_val=si.ivolume[nvol - 1])
 
         if self.interface_current_profile is not None:
-            si.isurf[0:nvol -
-                     1] = self.interface_current_profile.get(np.arange(0, nvol))
-            if si.lfreebound:
-                si.ivolume[mvol - 1] = si.ivolume[nvol - 1]
+            si.isurf[0:mvol - 1] = \
+                self.interface_current_profile.get(np.arange(0, mvol-1))
 
         # Update total plasma toroidal current in case of freeboundary
         # calculation

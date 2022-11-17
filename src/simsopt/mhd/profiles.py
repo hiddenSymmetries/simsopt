@@ -75,41 +75,43 @@ class SpecProfile(Profile):
 
     def f(self, lvol:int):
         """Return the value of the profile in volume lvol"""
-        if isinstance(lvol,int) or isinstance(lvol,float):
-            lvol = np.array([lvol])
-
+        #if isinstance(lvol,int) or isinstance(lvol,float):
+        #    lvol = np.array([lvol])
         if (lvol < 0).any():
             raise ValueError('lvol should be larger or equal than zero')
-
         if (lvol >= self.local_full_x.size).any():
             raise ValueError('lvol should be smaller than Mvol')
-
         if isinstance(lvol,list) or isinstance(lvol,np.ndarray):
-            lvol = [int(l) for l in lvol]
+           lvol = [int(l) for l in lvol]
         else:
-            lvol = int(lvol)
+           lvol = int(lvol)
 
         return self.local_full_x[lvol]
 
-    def dfds(self, lsurf):
-        """Return the derivative [[.]] of the profile accross interface lsurf
+    def dfds(self, lvol):
+        """Return the derivative [[.]] of the profile accross external interface
+        or volume lvol (index starts at 0)
         
-        Here lsurf=0 is the surface bounding the first volume. There are, in total,
-        Mvol-1 surfaces, thus lsurf has to be in [0,Mvol-1]
+        Here lsurf=1 is the surface bounding the first volume. There are, in total,
+        Mvol-1 surfaces, thus lsurf has to be in [1,Mvol-1]
         """
+        #if isinstance(lvol,int) or isinstance(lvol,float):
+        #    lvol = np.array([lvol])
+        if (lvol < 0).any():
+            raise ValueError('lvol should be larger or equal than zero')
+        if (lvol >= self.local_full_x.size-1).any():
+            raise ValueError('lvol should be smaller than Mvol-1')
+        #if isinstance(lvol,list) or isinstance(lvol,np.ndarray):
+        #    lvol = [int(l) for l in lvol]
+        #else:
+        #    lvol = int(lvol)
 
-        if (lsurf<0).any(): 
-            raise ValueError('lsurf should be larger or equal to 0')
-        if (lsurf>=self.local_full_x.size).any():
-            raise ValueError('lsurf should be smaller than Mvol')
-        
+        lsurf = [l+1 for l in lvol]
 
-        if isinstance(lsurf,list) or isinstance(lsurf,np.ndarray):
-            lsurf = [int(l) for l in lsurf]
-        else:
-            lsurf = int(lsurf)
+        x_out = self.local_full_x[lsurf]
+        x_in  = self.local_full_x[lvol]
 
-        return np.diff(self.local_full_x)
+        return x_out-x_in
 
 
 class ProfilePolynomial(Profile):
