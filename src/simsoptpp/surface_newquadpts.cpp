@@ -1,22 +1,5 @@
 #include "surface_newquadpts.h"
-#include "simdhelpers.h"
 
-// Optimization notes:
-// We use two "tricks" in this part of the code to speed up some of the functions.
-// 1) We use SIMD instructions to parallelise across the angle theta.
-// 2) This parametrization requires the evaluation of
-//          sin(m*theta-n*nfp*phi) and cos(m*theta-n*nfp*phi)
-//    for many values of n and m. Since trigonometric functions are expensive,
-//    we want to avoid lots of calls to sin and cos. Instead, we use the rules
-//          sin(a + b) = cos(b) sin(a) + cos(a) sin(b)
-//          cos(a + b) = cos(a) cos(b) - sin(a) sin(b)
-//    to write
-//          sin(m*theta-(n+1)*nfp*phi) = cos(-nfp*phi) * sin(m*theta-n*nfp*phi) + cos(m*theta-n*nfp*phi) * sin(-nfp*phi)
-//          cos(m*theta-(n+1)*nfp*phi) = cos(m*theta-n*nfp*phi) * cos(-nfp*phi) + sin(m*theta-n*nfp*phi) * sin(-nfp*phi)
-//    In our code we loop over n. So we start with n=-ntor, and then we always
-//    just increase the angle by -nfp*phi.
-
-#define ANGLE_RECOMPUTE 5
 
 template<class Array>
 void SurfaceNewQuadPoints<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {

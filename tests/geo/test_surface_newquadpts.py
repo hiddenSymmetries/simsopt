@@ -2,6 +2,7 @@ import unittest
 import json
 
 import numpy as np
+from numpy.testing import assert_allclose
 
 from simsopt.geo import Surface, SurfaceRZFourier, SurfaceXYZFourier, SurfaceXYZTensorFourier, SurfaceHenneberg
 from simsopt.geo.surface_newquadpts import SurfaceNewQuadPoints
@@ -51,19 +52,18 @@ class SurfaceNewQuadPointsTest(unittest.TestCase):
                 s, quadpoints_phi=quadpoints_phi,
                 quadpoints_theta=quadpoints_theta)
 
-            self.assertTrue(np.allclose(s1.gamma(), s_newquadpts.gamma()))
-            self.assertTrue(np.allclose(s1.gammadash1(), s_newquadpts.gammadash1()))
-            self.assertTrue(np.allclose(s1.gammadash2(), s_newquadpts.gammadash2()))
-            self.assertTrue(np.allclose(s1.gammadash1dash1(), s_newquadpts.gammadash1dash1()))
-            self.assertTrue(np.allclose(s1.gammadash1dash2(), s_newquadpts.gammadash1dash2()))
-            # print(np.max(s1.gammadash2dash2() - s_newquadpts.gammadash2dash2()))
-            self.assertTrue(np.allclose(s1.gammadash2dash2(), s_newquadpts.gammadash2dash2()))
-            self.assertTrue(np.allclose(s1.dgamma_by_dcoeff(), s_newquadpts.dgamma_by_dcoeff()))
-            self.assertTrue(np.allclose(s1.dgammadash1_by_dcoeff(), s_newquadpts.dgammadash1_by_dcoeff()))
-            self.assertTrue(np.allclose(s1.dgammadash2_by_dcoeff(), s_newquadpts.dgammadash2_by_dcoeff()))
-            self.assertTrue(np.allclose(s1.dgammadash1dash1_by_dcoeff(), s_newquadpts.dgammadash1dash1_by_dcoeff()))
-            self.assertTrue(np.allclose(s1.dgammadash1dash2_by_dcoeff(), s_newquadpts.dgammadash1dash2_by_dcoeff()))
-            self.assertTrue(np.allclose(s1.dgammadash2dash2_by_dcoeff(), s_newquadpts.dgammadash2dash2_by_dcoeff()))
+            assert_allclose(s1.gamma(), s_newquadpts.gamma())
+            assert_allclose(s1.gammadash1(), s_newquadpts.gammadash1())
+            assert_allclose(s1.gammadash2(), s_newquadpts.gammadash2())
+            assert_allclose(s1.gammadash1dash1(), s_newquadpts.gammadash1dash1())
+            assert_allclose(s1.gammadash1dash2(), s_newquadpts.gammadash1dash2())
+            assert_allclose(s1.gammadash2dash2(), s_newquadpts.gammadash2dash2())
+            assert_allclose(s1.dgamma_by_dcoeff(), s_newquadpts.dgamma_by_dcoeff())
+            assert_allclose(s1.dgammadash1_by_dcoeff(), s_newquadpts.dgammadash1_by_dcoeff())
+            assert_allclose(s1.dgammadash2_by_dcoeff(), s_newquadpts.dgammadash2_by_dcoeff())
+            assert_allclose(s1.dgammadash1dash1_by_dcoeff(), s_newquadpts.dgammadash1dash1_by_dcoeff())
+            assert_allclose(s1.dgammadash1dash2_by_dcoeff(), s_newquadpts.dgammadash1dash2_by_dcoeff())
+            assert_allclose(s1.dgammadash2dash2_by_dcoeff(), s_newquadpts.dgammadash2dash2_by_dcoeff())
 
     def test_curvature(self):
         for surface_type in surface_types:
@@ -78,4 +78,4 @@ class SurfaceNewQuadPointsTest(unittest.TestCase):
             curvature = PrincipalCurvature(s1)
             curvature_newquadpts = PrincipalCurvature(s_newquadpts)
             self.assertAlmostEqual(curvature.J(), curvature_newquadpts.J())
-            self.assertTrue(np.allclose(curvature.dJ(), curvature_newquadpts.dJ()))
+            assert_allclose(curvature.dJ(), curvature_newquadpts.dJ())
