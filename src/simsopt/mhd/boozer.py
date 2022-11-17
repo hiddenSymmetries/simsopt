@@ -6,6 +6,7 @@
 This module provides a class that handles the transformation to
 Boozer coordinates, and an optimization target for quasisymmetry.
 """
+
 from .._core.types import RealArray
 from .._core.optimizable import Optimizable
 from .vmec import Vmec
