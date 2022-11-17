@@ -162,7 +162,7 @@ void CurrentPotentialFourier<Array>::dPhidash2_by_dcoeff_impl(Array& data) {
             if (!stellsym) {
                 for (int m = 0; m <= mpol; ++m) {
                     for (int n = -ntor; n <= ntor; ++n) {
-                        if(m==0 && n<0) continue;
+                        if(m==0 && n<=0) continue;
                         data(k1, k2, counter) = 2*M_PI*(-m) * sin(m*theta-n*nfp*phi);
                         counter++;
                     }
@@ -190,7 +190,7 @@ void CurrentPotentialFourier<Array>::dPhidash1_by_dcoeff_impl(Array& data) {
             if (!stellsym) {
                 for (int m = 0; m <= mpol; ++m) {
                     for (int n = -ntor; n <= ntor; ++n) {
-                        if(m==0 && n<0) continue;
+                        if(m==0 && n<=0) continue;
                         data(k1, k2, counter) = 2*M_PI*(n*nfp) * sin(m*theta-n*nfp*phi);
                         counter++;
                     }

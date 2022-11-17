@@ -37,7 +37,7 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
             if(stellsym)
                 return mpol*(2*ntor + 1) + (ntor + 1) - 1;
             else
-                return 2*(mpol+1)*(2*ntor+1) - ntor - (ntor + 1);
+                return 2*(mpol*(2*ntor + 1) + (ntor + 1) - 1);
         }
 
         void set_dofs_impl(const vector<double>& dofs) override {
@@ -49,7 +49,7 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
             } else {
                 for (int i = ntor+1; i < shift; ++i)
                     phis.data()[i] = dofs[counter++];
-                for (int i = ntor; i < shift; ++i)
+                for (int i = ntor+1; i < shift; ++i)
                     phic.data()[i] = dofs[counter++];
             }
         }
@@ -64,7 +64,7 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
             } else {
                 for (int i = ntor+1; i < shift; ++i)
                     res[counter++] = phis.data()[i];
-                for (int i = ntor; i < shift; ++i)
+                for (int i = ntor+1; i < shift; ++i)
                     res[counter++] = phic.data()[i];
             }
             return res;
