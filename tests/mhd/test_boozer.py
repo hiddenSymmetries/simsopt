@@ -248,14 +248,14 @@ class QuasisymmetryTests(unittest.TestCase):
         b = Boozer(equil=s, mpol=s.inputlist.mpol, ntor=s.inputlist.ntor)
 
         # Boozer transform on surfaces 1 and 2.
-        b.register({0, 1})
+        b.register({1,2})
 
         # Run boozer
         b.run()
 
         # Check output
-        self.assertAlmostEqual(b.bx.rmnc_b[8, 1], 0.009073887493710998)
-        self.assertAlmostEqual(b.bx.bmnc_b[2, 2], 2.9117065043659206e-05)
+        self.assertAlmostEqual(b.bx.rmnc_b[4, 1], 2.0689450853125617e-06)
+        self.assertAlmostEqual(b.bx.bmnc_b[2, 2], 3.1656237774453904e-05)
 
 
 if __name__ == "__main__":
