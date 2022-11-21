@@ -3,9 +3,10 @@ from pathlib import Path
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt._core.optimizable import Optimizable
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -576,8 +577,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # TODO: explict setting of x
         s.local_full_x = s.get_dofs()
 
-        surf_str = json.dumps(s, cls=MontyEncoder)
-        s_regen = json.loads(surf_str, cls=MontyDecoder)
+        surf_str = s.save(fmt="json")
+        s_regen = Optimizable.from_str(surf_str)
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
