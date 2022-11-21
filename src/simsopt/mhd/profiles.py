@@ -75,8 +75,8 @@ class SpecProfile(Profile):
 
     def f(self, lvol:int):
         """Return the value of the profile in volume lvol"""
-        #if isinstance(lvol,int) or isinstance(lvol,float):
-        #    lvol = np.array([lvol])
+        if isinstance(lvol,int) or isinstance(lvol,float):
+           lvol = np.array([lvol])
         if (lvol < 0).any():
             raise ValueError('lvol should be larger or equal than zero')
         if (lvol >= self.local_full_x.size).any():
@@ -95,8 +95,8 @@ class SpecProfile(Profile):
         Here lsurf=1 is the surface bounding the first volume. There are, in total,
         Mvol-1 surfaces, thus lsurf has to be in [1,Mvol-1]
         """
-        #if isinstance(lvol,int) or isinstance(lvol,float):
-        #    lvol = np.array([lvol])
+        if isinstance(lvol,int) or isinstance(lvol,float):
+           lvol = np.array([lvol])
         if (lvol < 0).any():
             raise ValueError('lvol should be larger or equal than zero')
         if (lvol >= self.local_full_x.size-1).any():
