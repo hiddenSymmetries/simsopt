@@ -910,7 +910,10 @@ class RedlBootstrapMismatch(Optimizable):
             )
 
             # Integrate to get <j.B> (flux surface average)
-            surf_avg = simps(simps(jdotB_spec, tarr, axis=2), zarr, axis=2)
+            if spec.inputlist.ntor==0:
+                surf_avg = simps(jdotB_spec, tarr, axis=2)[:,:,0]
+            else:
+                surf_avg = simps(simps(jdotB_spec, tarr, axis=2), zarr, axis=2)
 
             # Average between both side of interfaces
             jdotB_spec_avg = np.mean(surf_avg, axis=1) 
